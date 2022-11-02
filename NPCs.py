@@ -1,53 +1,53 @@
-#Types: Level, Health, Mana, Stats, Exp,
+#Types: Level, Health, Mana, Stats, Exp
 
 class Level():
 
     def increaseLevel(self):
-        return 1
+        pass
 
 class Health():
 
     def increaseHealth(self):
-        return 1
+        pass
 
     def decreaseHealth(self):
-        return 1
+        pass
     
     def healthPool(Self):
-        return 1
+        pass 
         
 class Mana():
 
     def increaseMana(self):
-        return 1
+        pass
     
     def decreaseMana(self):
-        return 1
+        pass
 
     def manaPool(self):
-        return 1
+        pass
 
 class Stats():
 
     def attack(self):
-        return 1
+        pass
 
     def defense(self):
-        return 1
+        pass
     
     def health(self):
-        return 1
+        pass
     
     def mana(self):
-        return 1
+        pass
 
     def luck(self):
-        return 1
+        pass
 
 class Exp():
      
     def increaseExp(self):
-        return 1
+        pass
 
     def ExpPool(self):
-        return 1
+        pass

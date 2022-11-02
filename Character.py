@@ -1,53 +1,63 @@
-#Types: Level, Health, Mana, Stats, Exp,
+#Types: Level, Health, Mana, Stats, Exp
+
+class Player:
+    # strength -> attack, constituion -> defense
+    strength = 3
+    constitution = 2
+    health = 50
+    mana = 20
+    exp = 0
+    name = "name"
+    level = 1
+
+    def __init__(self):
+        pass
 
 class Level():
 
     def increaseLevel(self):
-        return 1
+        pass
 
 class Health():
 
     def increaseHealth(self):
-        return 1
+        pass
 
     def decreaseHealth(self):
-        return 1
-    
-    def healthPool(Self):
-        return 1
+        pass
         
 class Mana():
 
     def increaseMana(self):
-        return 1
+        pass
     
     def decreaseMana(self):
-        return 1
+        pass
 
     def manaPool(self):
-        return 1
+        pass
 
 class Stats():
 
     def attack(self):
-        return 1
+        pass
 
     def defense(self):
-        return 1
+        pass
     
     def health(self):
-        return 1
+        pass
     
     def mana(self):
-        return 1
+        pass
 
     def luck(self):
-        return 1
+        pass
 
 class Exp():
      
     def increaseExp(self):
-        return 1
+        pass
 
     def ExpPool(self):
-        return 1
+        pass

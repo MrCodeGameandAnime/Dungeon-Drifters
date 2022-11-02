@@ -13,45 +13,45 @@ class Sword ():
             return False
     
     def defend(self):
-        return 1
+        pass
 
 class Axe ():
 
     def attack(self):
-        return 1
+        pass
     
     def defend(self):
-        return 1
+        pass
         
 class Spear ():
 
     def attack(self):
-        return 1
+        pass
     
     def defend(self):
-        return 1
+        pass
 
 class Shield ():
 
     def attack(self):
-        return 1
+        pass
     
     def defend(self):
-        return 1
+        pass
 
 class Dagger():
 
     def attack(self):
-        return 1
+        pass
     
     def defend(self):
-        return 1
+        pass
 
 class Staff():
 
     def attack(self):
-        return 1
+        pass
     
     def defend(self):
-        return 1
+        pass
         
