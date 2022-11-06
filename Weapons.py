@@ -1,57 +1,46 @@
-#Types: Sword, Axe, Spear, Shield, Dagger, Staff
+class WeaponTypes:
 
-import random as r
-
-class Sword ():
-
-    def attack(self):
-        if r.randrange(1,10) >= 5:
-            attackSucceeded = True
-
-            return True
-        else:
-            return False
-    
-    def defend(self):
-        pass
-
-class Axe ():
-
-    def attack(self):
-        pass
-    
-    def defend(self):
-        pass
+    class Sword:
         
-class Spear ():
+        def __init__(self):
+            self.attack = 2
+            self.defense = 2
+            self.magic_attack = 0
+            self.magic_defense = 0
 
-    def attack(self):
-        pass
-    
-    def defend(self):
-        pass
+    class Axe:
 
-class Shield ():
+        def __init__(self):
+            self.attack = 3
+            self.defense = 2
+            self.magic_attack = 0
+            self.magic_defense = 0
 
-    def attack(self):
-        pass
-    
-    def defend(self):
-        pass
+    class Spear:
 
-class Dagger():
+        def __init__(self):
+            self.attack = 2
+            self.defense = 2
+            self.magic_attack = 0
+            self.magic_defense = 0
 
-    def attack(self):
-        pass
-    
-    def defend(self):
-        pass
+    class Shield ():
+        def __init__(self):
+            self.attack = 1
+            self.defense = 3
+            self.magic_attack = 0
+            self.magic_defense = 1
 
-class Staff():
+    class Dagger():
+        def __init__(self):
+            self.attack = 1
+            self.defense = 2
+            self.magic_attack = 0
+            self.magic_defense = 0
 
-    def attack(self):
-        pass
-    
-    def defend(self):
-        pass
-        
+    class Staff:
+        def __init__(self):
+            self.attack = 1
+            self.defense = 1
+            self.magic_attack = 3
+            self.magic_defense = 2
