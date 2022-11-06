@@ -1,17 +1,54 @@
 #Types: Level, Health, Mana, Stats, Exp
 
-class Player:
-    # strength -> attack, constituion -> defense
-    strength = 3
-    constitution = 2
-    health = 50
-    mana = 20
-    exp = 0
-    name = "name"
-    level = 1
+class CharacterType:
 
-    def __init__(self):
-        pass
+    class Brawler:
+
+        def __init__(self):
+            # strength -> attack, constituion -> defense
+            self.strength = 3
+            self.constitution = 2
+            self.health = 50
+            self. mana = 20
+            self.exp = 0
+            self.name = "Hero"
+            self.level = 1
+
+    class BlackMage:
+
+        def __init__(self):
+            # strength -> attack, constituion -> defense
+            self.strength = 3
+            self.constitution = 2
+            self.health = 50
+            self. mana = 20
+            self.exp = 0
+            self.name = "Hero"
+            self.level = 1
+
+    class RougeArcher:
+
+        def __init__(self):
+            # strength -> attack, constituion -> defense
+            self.strength = 3
+            self.constitution = 2
+            self.health = 50
+            self. mana = 20
+            self.exp = 0
+            self.name = "Hero"
+            self.level = 1
+
+    class Monk:
+
+        def __init__(self):
+            # strength -> attack, constituion -> defense
+            self.strength = 3
+            self.constitution = 2
+            self.health = 50
+            self. mana = 20
+            self.exp = 0
+            self.name = "Hero"
+            self.level = 1
 
 class Level():
 

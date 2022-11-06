@@ -1,20 +1,21 @@
-from Character import Player as player
-from Enemy import Goblin as goblin
+from Character import CharacterType as player
+from Enemy import EnemyType as enemys
 
-class Battle(player,goblin):
+class Battle(player,enemys):
 
     def __init__(self):
         super().__init__()
-
+        self.goblin_worrir = enemys.Goblin()
+        self.player = player()
         
     def loop(self):
         pass
 
-    def displayUserName(self):
-        return goblin.health + player.constitution
+    def print_names(self):
+        print(self.player.name +" "+ self.goblin_worrir.name)
 
 battle = Battle()
-battle.displayUserName()
+battle.print_names()
             
 
 class Events():

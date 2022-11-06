@@ -1,9 +1,8 @@
-import Character, Weapons, Enemy, Events, Story
+import Weapons, Enemy, Events, Story
 
 def main():
-    #print('Welcome to dungeon drifters')
-    print(Character.Level.increaseLevel)
-    Story.Tale.dayOne()
+    print('Welcome to dungeon drifters')
+    
 
 if __name__ == "__main__":
     main()
