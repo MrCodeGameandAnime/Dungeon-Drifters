@@ -1,6 +1,9 @@
 from Character import CharacterType as player
 from Enemy import EnemyType as enemys
 
+class EventTypes:
+    pass
+
 class Battle(player,enemys):
 
     def __init__(self):
@@ -8,14 +11,15 @@ class Battle(player,enemys):
         self.goblin_worrir = enemys.Goblin()
         self.player = player()
         
-    def loop(self):
+    def battleLoop(self):
         pass
 
-    def print_names(self):
-        print(self.player.name +" "+ self.goblin_worrir.name)
+
+    # def print_names(self):
+    #     print(self.player.name +" "+ self.goblin_worrir.name)
 
 battle = Battle()
-battle.print_names()
+#battle.print_names()
             
 
 class Events():
