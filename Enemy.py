@@ -2,7 +2,6 @@
 
 class EnemyType:
 
-
     class Goblin:
 
         def __init__(self):
@@ -10,7 +9,7 @@ class EnemyType:
             self.strength = 3
             self.constitution = 2
             self.health = 50
-            self. mana = 20
+            self.mana = 20
             self.exp = 0
             self.name = "Drak"
             self.level = 1

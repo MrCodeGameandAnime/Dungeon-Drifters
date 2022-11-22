@@ -96,6 +96,3 @@ class StoryElements:
 
 StoryElements.pickCharacterType()
 StoryElements.openingScreen()
-print("++")
-
-print("||")
