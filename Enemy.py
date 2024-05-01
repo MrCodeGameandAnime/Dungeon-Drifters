@@ -6,79 +6,48 @@ class EnemyType:
         def __init__(self):
             self.strength = 3
             self.constitution = 2
-            self.health = 50
+            self.hp = 50
             self.mana = 20
             self.exp = 0
-            self.name = "Drak"
+            self.name = "Goblin"
             self.level = 1
-            
-        def printName(self):
-            print(self.name)
 
-    class Orcs:
+    class Orc:
         def __init__(self):
             self.strength = 3
             self.constitution = 2
-            self.health = 50
+            self.hp = 50
             self.mana = 20
             self.exp = 0
-            self.name = "Drak"
+            self.name = "Orc"
             self.level = 1
-            
-        def printName(self):
-            print(self.name)
     
-    class Skelleton:
+    class SkeletonArcher:
         def __init__(self):
             self.strength = 3
             self.constitution = 2
-            self.health = 50
+            self.hp = 50
             self.mana = 20
             self.exp = 0
-            self.name = "Drak"
+            self.name = "Skeleton Archer"
             self.level = 1
-            
-        def printName(self):
-            print(self.name)
-    
-    class Archer:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.health = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Drak"
-            self.level = 1
-            
-        def printName(self):
-            print(self.name)
         
     class Zombie:
         def __init__(self):
             self.strength = 3
             self.constitution = 2
-            self.health = 50
+            self.hp = 50
             self.mana = 20
             self.exp = 0
-            self.name = "Drak"
+            self.name = "Zombie"
             self.level = 1
-            
-        def printName(self):
-            print(self.name)
         
     class SnakeLord:
         def __init__(self):
             self.strength = 3
             self.constitution = 2
-            self.health = 50
+            self.hp = 50
             self.mana = 20
             self.exp = 0
-            self.name = "Drak"
+            self.name = "Snake Lord"
             self.level = 1
-            
-        def printName(self):
-            print(self.name)
-
-goblin_worrior = EnemyType.Goblin()
-goblin_worrior.printName()

@@ -1,7 +1,6 @@
 class WeaponTypes:
 
     class Sword:
-        
         def __init__(self):
             self.attack = 2
             self.defense = 2
@@ -9,7 +8,6 @@ class WeaponTypes:
             self.magic_defense = 0
 
     class Axe:
-
         def __init__(self):
             self.attack = 3
             self.defense = 2
@@ -17,7 +15,6 @@ class WeaponTypes:
             self.magic_defense = 0
 
     class Spear:
-
         def __init__(self):
             self.attack = 2
             self.defense = 2
