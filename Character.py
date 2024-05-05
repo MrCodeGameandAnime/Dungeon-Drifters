@@ -60,42 +60,47 @@ class CharacterType:
             self.name = "Monk"
             self.level = 1
 
-class Level():
+
+class Level:
     def increaseLevel(self):
         pass
 
-class Health():
+
+class Health:
     def increaseHealth(self):
         pass
 
     def decreaseHealth(self):
         pass
-        
-class Mana():
+
+
+class Mana:
     def increaseMana(self):
         pass
-    
+
     def decreaseMana(self):
         pass
 
     def manaPool(self):
         pass
 
-class Stats():
+
+class Stats:
     def attack(self):
         pass
 
     def defense(self):
         pass
-    
+
     def health(self):
         pass
-    
+
     def mana(self):
         pass
 
     def luck(self):
         pass
+
 
 class Exp():
     def increaseExp(self):

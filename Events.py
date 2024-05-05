@@ -1,8 +1,7 @@
 import random
-from Character import CharacterType as character
-
-
+from Character import CharacterType as characterType
 # from Battle import Battle as battle
+
 
 class EventType:
     def __init__(self):
@@ -17,33 +16,36 @@ class EventType:
         else:
             print("You can't escape. It's time for battle!")
             return False
-            #battle()
+            # battle()
 
     def pick_character(self):
         character_dict = {1:"Brawler",2:"Dark Mage",3:"Rouge Archer",4:"Monk"}
         print("You have four warriors to choose from who will adventure in the land of Ketlyv." + '''
 
         Brawler: 
-        Masters of unrestricted combat, Brawlers revel in fighting dirty and decimating their opponent by fighting with every advantage 
-        they have. Many brawlers rely on heavy unarmed strikes and forcing the enemy into an unfair battle. However, it is not uncommon for them 
-        to use any weapon at their disposal to get the job done.
+        Masters of unrestricted combat, Brawlers revel in fighting dirty and decimating their opponent by fighting with 
+        every advantage they have. Many brawlers rely on heavy unarmed strikes and forcing the enemy into an unfair 
+        battle. However, it is not uncommon for them  to use any weapon at their disposal to get the job done.
 
         Black Mage:
-        Black mages are spell casters who focus on the destructive aspects of the arcane. They eschew almost all forms of utility magic and the 
-        broader applications of evocation in favor of obliterating their foes with fire, ice and lightning.
+        Black mages are spell casters who focus on the destructive aspects of the arcane. They eschew almost all forms 
+        of utility magic and the broader applications of evocation in favor of obliterating their foes with fire, ice 
+        and lightning.
 
         Rouge Archer:
-        Drawn to the ways of the bow dealing damage with precise shots or volleys of arrows darkening out the sun, Rouge Archers are trained alongside 
-        the standard fighter but forgo a lot of the versatility to specialize with Bows and arrows
+        Drawn to the ways of the bow dealing damage with precise shots or volleys of arrows darkening out the sun, Rouge 
+        Archers are trained alongside  the standard fighter but forgo a lot of the versatility to specialize with Bows 
+        and arrows.
 
         Monk:
-        Sendo Monks are martial artists that base their fighting style on versatility and ingenuity. They use their weapons and their Ki in bizarre ways 
-        and take pride in the more outlandish ways in which they have felled foes. Their art relies entirely on how certain breathing techniques affect their 
-        Ki, allowing them to stretch the limits of the imagination on what one's body and spirit are truly capable of. The two most notable traits of their 
-        art is its ability to send Ki through liquid and its specific uses against the undead. Legend has it that an ancient race that no longer exists in 
-        this realm introduced Necromancy to the world. In the wake of the great battles that came due to the use of that magic, warriors that trained in the 
-        mountains, as the thin air allowed them to breath more deeply, developed a new set of techniques to combat the new menace. 
-        The art of the Hermit, "Sendo".
+        Sendo Monks are martial artists that base their fighting style on versatility and ingenuity. They use their 
+        weapons and their Ki in bizarre ways and take pride in the more outlandish ways in which they have felled foes. 
+        Their art relies entirely on how certain breathing techniques affect their  Ki, allowing them to stretch the 
+        limits of the imagination on what one's body and spirit are truly capable of. The two most notable traits of 
+        their art is its ability to send Ki through liquid and its specific uses against the undead. Legend has it that 
+        an ancient race that no longer exists in this realm introduced Necromancy to the world. In the wake of the great 
+        battles that came due to the use of that magic, warriors that trained in the mountains, as the thin air allowed 
+        them to breath more deeply, developed a new techniques to combat the new menace. The art of the Hermit, "Sendo".
         ''')
 
         character_choice = int(
@@ -51,13 +53,13 @@ class EventType:
         print(character_choice)
         if character_choice == 1:
             print("You have chosen the Brawler!")
-            return character.Brawler()
+            return characterType.Brawler()
         if character_choice == 2:
             print("You have chosen the Black Mage!")
-            return character.BlackMage()
+            return characterType.BlackMage()
         if character_choice == 3:
             print("You have chosen the Rouge Archer!")
-            return character.RougeArcher()
+            return characterType.RougeArcher()
         if character_choice == 4:
             print("You have chosen the Monk!")
-            return character.Monk()
+            return characterType.Monk()

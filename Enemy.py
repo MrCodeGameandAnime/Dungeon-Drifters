@@ -1,4 +1,4 @@
-# Type: Goblin, Orcs, Skelleton Archer, Zombie, Snake Lord
+# Type: Goblin, Orcs, Skeleton Archer, Zombie, Snake Lord
 
 class EnemyType:
 
