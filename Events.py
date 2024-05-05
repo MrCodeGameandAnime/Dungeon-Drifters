@@ -10,10 +10,10 @@ class EventType:
         run_chance = random.randint(1,10)
 
         if run_chance > 5:
-            print("You managed to escape in the nick of time. Live to fight another day.")
+            print("You escaped in the nick of time. Live to fight another day.")
             return True
         else:
-            print("You could not escape fast enough, so you must stand your ground and fight.")
+            print("You can't escape. It's time for battle!")
             return False
             #battle()
 
@@ -43,6 +43,7 @@ class EventType:
         mountains, as the thin air allowed them to breath more deeply, developed a new set of techniques to combat the new menace. 
         The art of the Hermit, "Sendo".
         ''')
+        
         character_choice = int(input('Choose your character: 1 for Brawler, 2 for Dark Mage, 3 for Rouge Archer, 4 for Monk: '))
         print(character_choice)
         if character_choice == 1:

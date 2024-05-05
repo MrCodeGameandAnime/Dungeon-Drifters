@@ -7,7 +7,7 @@ class StoryElements:
         None
     
     def dayOne():
-        event.pickCharacter()
+        #event.pickCharacter()
         print('''
         You awaken to low light flickering from the campfire you setup last night. Your boy is heavy from the endless battles.
         You would like to go back to sleep, but the adventure must carry on. Sitting up and rustling around in your pack, you find your sword,
@@ -19,19 +19,34 @@ class StoryElements:
         ''')
 
 
-        atk_or_flee = input('1 to attack and 2 to run: ')
-        if atk_or_flee == 1: # <--------------------
-            #battle()
-            None
-        if atk_or_flee == 2:
-            event.avoidBattle()
-        if event.avoidBattle() == True:
-            print("True")
-            StoryElements.openingScreen()
-        if event.avoidBattle() == False:
-            print("False")
-                #battle()
-            StoryElements.openingScreen() # <-------
+        # atk_or_flee = int(input('1 to attack and 2 to run: '))
+        # if atk_or_flee == 1: 
+        #     print(type(atk_or_flee))
+        #     print(type(1))
+        #     #battle()
+        #     None
+        # elif atk_or_flee == 2:
+        #     result = event.avoidBattle()
+        # if result == True:
+        #     print("True")
+        #     StoryElements.openingScreen()
+        # if result == False:
+        #     print("False")
+        #     #battle()
+        #     StoryElements.openingScreen()
+
+        event.pickCharacter()
+        atk_or_flee = int(input('1 to attack and 2 to run: '))
+        if atk_or_flee == 1:
+            print("detected user input '1'")
+        elif atk_or_flee == 2:
+            print("detected user input '2'...")
+            result = event.avoidBattle()
+            print(f".. and assigned the value {result} to the variable 'result'")
+        if result == True:
+            print("Fleeing ended up being True")
+        if result == False:
+            print("Fleeing ended up False")
 
     def openingScreen():
         print('''
