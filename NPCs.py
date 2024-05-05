@@ -1,1 +1,1 @@
-# Types: blacksmith, shopkeeper, inn keeper
+# Types: blacksmith, shopkeeper, innkeeper, trader

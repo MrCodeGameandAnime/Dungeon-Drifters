@@ -1,39 +1,47 @@
 class CharacterType:
+    # 15 stat points per type
+    # strength: strike damage
+    # constitution: health and defense
+    # intelligence: magic damage
+    # dexterity: ranged attacks
+    # charisma: skil check and better prices
+    # hp: 15 points per level
+    # mana: 10 points per level
 
     class Brawler:
         def __init__(self):
-            self.strength = 3 # raw power
-            self.constitution = 3 # defense and health
-            self.intelligence = 7 # magic
-            self.dexterity = 2 # finnese
-            self.charisma = 0 # skill check to talk your way through things or get better prices
-            self.hp = 100
-            self.mana = 20
+            self.strength = 7
+            self.constitution = 5
+            self.intelligence = 1
+            self.dexterity = 1
+            self.charisma = 1
+            self.hp = 60
+            self.mana = 10
             self.exp = 0
             self.name = "Brawler"
             self.level = 1
 
     class BlackMage:
         def __init__(self):
-            self.strength = 3
-            self.constitution = 3
+            self.strength = 1
+            self.constitution = 2
             self.intelligence = 7
             self.dexterity = 2
-            self.charisma = 0
-            self.hp = 50
-            self.mana = 20
+            self.charisma = 3
+            self.hp = 30
+            self.mana = 70
             self.exp = 0
             self.name = "Black Mage"
             self.level = 1
 
     class RougeArcher:
         def __init__(self):
-            self.strength = 3
+            self.strength = 2
             self.constitution = 3
-            self.intelligence = 7
-            self.dexterity = 2
-            self.charisma = 0
-            self.hp = 50
+            self.intelligence = 2
+            self.dexterity = 7
+            self.charisma = 1
+            self.hp = 45
             self.mana = 20
             self.exp = 0
             self.name = "Rouge Archer"
@@ -41,12 +49,12 @@ class CharacterType:
 
     class Monk:
         def __init__(self):
-            self.strength = 3
-            self.constitution = 3
-            self.intelligence = 7
-            self.dexterity = 2
-            self.charisma = 0
-            self.hp = 50
+            self.strength = 4
+            self.constitution = 4
+            self.intelligence = 2
+            self.dexterity = 3
+            self.charisma = 2
+            self.hp = 60
             self.mana = 20
             self.exp = 0
             self.name = "Monk"

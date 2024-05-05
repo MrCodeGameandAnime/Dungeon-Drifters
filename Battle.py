@@ -5,7 +5,7 @@ import random
 class Battle(character,enemyType):
     def __init__(self):
         play_again = True
-        player = character.Monk
+        player = character.Monk()
         enemy = enemyType.Goblin()
 
         # Set up the play again loop
