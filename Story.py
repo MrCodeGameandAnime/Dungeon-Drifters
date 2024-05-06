@@ -1,8 +1,7 @@
 # from Character import CharacterType as characterType
+# from Battle import Battle as battle
 from Events import EventType as eventType
 
-
-# from Battle import Battle as battle
 
 class StoryElements:
 
