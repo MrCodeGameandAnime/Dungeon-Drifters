@@ -5,7 +5,7 @@ from Character import CharacterType as characterType
 
 class EventType:
     def __init__(self):
-        None
+        pass
 
     def avoid_battle(self):
         run_chance = random.randint(1, 10)
@@ -19,7 +19,7 @@ class EventType:
             # battle()
 
     def pick_character(self):
-        character_dict = {1:"Brawler",2:"Dark Mage",3:"Rouge Archer",4:"Monk"}
+        character_dict = {1: "Brawler", 2: "Dark Mage", 3: "Rouge Archer", 4: "Monk"}
         print("You have four warriors to choose from who will adventure in the land of Ketlyv." + '''
 
         Brawler: 

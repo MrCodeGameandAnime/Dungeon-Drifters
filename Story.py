@@ -1,5 +1,5 @@
-from Character import CharacterType as character
-from Events import EventType as event
+from Character import CharacterType as characterType
+from Events import EventType as eventType
 
 
 # from Battle import Battle as battle
@@ -7,10 +7,10 @@ from Events import EventType as event
 class StoryElements:
 
     def __init__(self):
-        None
+        pass
 
     def day_one(self):
-        # event.pickCharacter()
+        # event.pick_character()
         print('''
         You awaken to low light flickering from the campfire you setup last night. Your boy is heavy from the endless 
         battles. You would like to go back to sleep, but the adventure must carry on. Sitting up and rustling around in 
@@ -36,13 +36,13 @@ class StoryElements:
         #     #battle()
         #     StoryElements.openingScreen()
 
-        event.pick_character()
+        eventType.pick_character()
         atk_or_flee = int(input('1 to attack and 2 to run: '))
         if atk_or_flee == 1:
             print("detected user input '1'")
         elif atk_or_flee == 2:
             print("detected user input '2'...")
-            result = event.avoid_battle()
+            result = eventType.avoid_battle()
             print(f".. and assigned the value {result} to the variable 'result'")
         if result == True:
             print("Fleeing ended up being True")

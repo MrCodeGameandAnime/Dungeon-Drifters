@@ -21,14 +21,14 @@ class WeaponTypes:
             self.magic_attack = 0
             self.magic_defense = 0
 
-    class Shield ():
+    class Shield:
         def __init__(self):
             self.attack = 1
             self.defense = 3
             self.magic_attack = 0
             self.magic_defense = 1
 
-    class Dagger():
+    class Dagger:
         def __init__(self):
             self.attack = 1
             self.defense = 2

@@ -62,26 +62,26 @@ class CharacterType:
 
 
 class Level:
-    def increaseLevel(self):
+    def increase_level(self):
         pass
 
 
 class Health:
-    def increaseHealth(self):
+    def increase_health(self):
         pass
 
-    def decreaseHealth(self):
+    def decrease_health(self):
         pass
 
 
 class Mana:
-    def increaseMana(self):
+    def increase_mana(self):
         pass
 
-    def decreaseMana(self):
+    def decrease_mana(self):
         pass
 
-    def manaPool(self):
+    def mana_pool(self):
         pass
 
 
@@ -102,9 +102,9 @@ class Stats:
         pass
 
 
-class Exp():
-    def increaseExp(self):
+class Exp:
+    def increase_exp(self):
         pass
 
-    def ExpPool(self):
+    def exp_pool(self):
         pass
