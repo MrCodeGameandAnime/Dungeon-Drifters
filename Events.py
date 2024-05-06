@@ -20,7 +20,8 @@ class EventType:
 
     def pick_character(self):
         character_dict = {1: "Brawler", 2: "Dark Mage", 3: "Rouge Archer", 4: "Monk"}
-        print("You have four warriors to choose from who will adventure in the land of Ketlyv." + '''
+        print('''
+        You have four warriors to choose from who will adventure in the land of Ketlyv.
 
         Brawler: 
         Masters of unrestricted combat, Brawlers revel in fighting dirty and decimating their opponent by fighting with 

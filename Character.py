@@ -20,6 +20,7 @@ class CharacterType:
             self.exp = 0
             self.name = "Brawler"
             self.level = 1
+            self.moves = {1: 'slash', 2: 'jumping slash', 3: 'suplex'}
 
     class BlackMage:
         def __init__(self):
@@ -33,6 +34,7 @@ class CharacterType:
             self.exp = 0
             self.name = "Black Mage"
             self.level = 1
+            self.moves = {1: 'fireball', 2: 'heal', 3: 'thunderbolt'}  # ice shield
 
     class RougeArcher:
         def __init__(self):
@@ -46,6 +48,7 @@ class CharacterType:
             self.exp = 0
             self.name = "Rouge Archer"
             self.level = 1
+            self.moves = {1: 'deadshot', 2: 'triple shot', 3: 'rain of arrows', 4: 'flaming arrow'}
 
     class Monk:
         def __init__(self):
@@ -59,6 +62,27 @@ class CharacterType:
             self.exp = 0
             self.name = "Monk"
             self.level = 1
+            self.moves = {1: 'Bring The Horse To Water',
+                          2: 'Sweep The Leaves',
+                          3: '5-foot punch',
+                          4: 'Waki Gamae Kamae Kata',
+                          5: 'Carry Water'}
+            # Bring The Horse To Water:
+            # brace the quarterstaff (think: set spear vs charge) and pull the target's head into it.
+            #
+            # Sweep The Leaves:
+            # low strike to the shin or foot, could also be a shove (trip) attack.
+            #
+            # 5-foot punch:
+            # straight thrust into the stomach, playing on the name of the 5-inch punch from Jeet Kune Do
+            #
+            # Waki Gamae Kamae Kata (Wah-Kee Gah-May Ka-May Ka-Ta):
+            # a strike from holding the quarterstaff overhead with both hands at the bottom.
+            # Best when done at the end of a charge or after defending for a turn (to charge up!)
+            #
+            # Carry Water:
+            # execute a fireman's carry maneuver on the quarterstaff against a prone enemy,
+            # using both rotational force and adding your own weight to maximize the blow.
 
 
 class Level:

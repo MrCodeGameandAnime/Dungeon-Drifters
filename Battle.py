@@ -4,7 +4,7 @@ import random
 
 
 class Battle(characterType, enemyType):
-    def __init__(self):
+    def __init__(self):  # (self,character,enemy)
         play_again = True
         player = characterType.Monk()
         enemy = enemyType.Goblin()
@@ -88,10 +88,10 @@ class Battle(characterType, enemyType):
                                 print("\nThe computer used Punch. It dealt ", computer_move, " damage.")
                             # computer decides whether to go big or play it safe
                             elif player_health > 35 and player_health <= 75:
-                                imoves = ["Punch", "Mega Punch"]
-                                imoves = random.choice(imoves)
-                                computer_move = moves[imoves]
-                                print("\nThe computer used ", imoves, ". It dealt ", computer_move, " damage.")
+                                i_moves = ["Punch", "Mega Punch"]
+                                i_moves = random.choice(i_moves)
+                                computer_move = moves[i_moves]
+                                print("\nThe computer used ", i_moves, ". It dealt ", computer_move, " damage.")
                             elif player_health <= 35:
                                 computer_move = moves["Mega Punch"]  # FINISH HIM!
                                 print("\nThe computer used Mega Punch. It dealt ", computer_move, " damage.")
@@ -106,10 +106,10 @@ class Battle(characterType, enemyType):
                                     computer_move = moves["Punch"]
                                     print("\nThe computer used Punch. It dealt ", computer_move, " damage.")
                                 elif player_health > 35 and player_health <= 75:
-                                    imoves = ["Punch", "Mega Punch"]
-                                    imoves = random.choice(imoves)
-                                    computer_move = moves[imoves]
-                                    print("\nThe computer used ", imoves, ". It dealt ", computer_move, " damage.")
+                                    i_moves = ["Punch", "Mega Punch"]
+                                    i_moves = random.choice(i_moves)
+                                    computer_move = moves[i_moves]
+                                    print("\nThe computer used ", i_moves, ". It dealt ", computer_move, " damage.")
                                 elif player_health <= 35:
                                     computer_move = moves["Mega Punch"]  # FINISH HIM!
                                     print("\nThe computer used Mega Punch. It dealt ", computer_move, " damage.")
@@ -118,7 +118,7 @@ class Battle(characterType, enemyType):
                     if player_turn:
                         player_health += player_move
                         if player_health > 100:
-                            player_health = 100  # cap max health at 100. No over healing!
+                            player_health = 100  # cap max health at 100. No, over healing!
                     else:
                         computer_health += computer_move
                         if computer_health > 100:
@@ -221,7 +221,7 @@ Battle()
 #         self.name = name
 #         self.hp = 25
 #         self.atk = 5
-#         self.defs = 3
+#         self.defense = 3
 
 
 # class Enemy:
@@ -229,7 +229,7 @@ Battle()
 #         self.name = name
 #         self.hp = 25
 #         self.atk = 5
-#         self.defs = 3
+#         self.defense = 3
 
 # class Attack:
 #     def __init__(self):
@@ -243,7 +243,7 @@ Battle()
 #                 playerHp = player.hp
 #                 #print(player.hp)
 #                 enemyHP = enemy.hp
-#                 atkVsDef = player.atk - enemy.defs
+#                 atkVsDef = player.atk - enemy.defense
 #                 currentEnemyHP = enemy.hp - atkVsDef
 #                 enemy.hp = currentEnemyHP
 #                 print(currentEnemyHP)
