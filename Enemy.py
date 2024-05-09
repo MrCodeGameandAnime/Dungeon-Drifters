@@ -1,53 +1,77 @@
-# Type: Goblin, Orcs, Skeleton Archer, Zombie, Snake Lord
+class Enemy:
+    def __init__(self, strn, con, intl, dex, hp, mana, name, moves):
+        self.strength = strn
+        self.constitution = con
+        self.intelligence = intl
+        self.dexterity = dex
+        self.hp = hp
+        self.mana = mana
+        self.name = name
+        self.moves = moves
+        self.level = 1
+        self.exp = 0
 
-class EnemyType:
 
-    class Goblin:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.hp = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Goblin"
-            self.level = 1
+class Goblin(Enemy):
+    def __init__(self):
+        super().__init__(
+            strn=3,
+            con=2,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=10,
+            name="Goblin",
+            moves={1: 'slash', 2: 'jumping slash', 3: 'suplex'})
 
-    class Orc:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.hp = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Orc"
-            self.level = 1
-    
-    class SkeletonArcher:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.hp = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Skeleton Archer"
-            self.level = 1
-        
-    class Zombie:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.hp = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Zombie"
-            self.level = 1
-        
-    class SnakeLord:
-        def __init__(self):
-            self.strength = 3
-            self.constitution = 2
-            self.hp = 50
-            self.mana = 20
-            self.exp = 0
-            self.name = "Snake Lord"
-            self.level = 1
+
+class Orc(Enemy):
+    def __init__(self):
+        super().__init__(
+            strn=7,
+            con=5,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=10,
+            name="Orc",
+            moves={1: 'slash', 2: 'jumping slash', 3: 'suplex'})
+
+
+class SkeletonArcher(Enemy):
+    def __init__(self):
+        super().__init__(
+            strn=7,
+            con=5,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=10,
+            name="Skeleton Archer",
+            moves={1: 'slash', 2: 'jumping slash', 3: 'suplex'})
+
+
+class Zombie(Enemy):
+    def __init__(self):
+        super().__init__(
+            strn=7,
+            con=5,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=10,
+            name="Zombie",
+            moves={1: 'slash', 2: 'jumping slash', 3: 'suplex'})
+
+
+class SnakeLord(Enemy):
+    def __init__(self):
+        super().__init__(
+            strn=7,
+            con=5,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=10,
+            name="Snake Lord",
+            moves={1: 'slash', 2: 'jumping slash', 3: 'suplex'})
