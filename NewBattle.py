@@ -1,16 +1,14 @@
-#from Character import CharacterType as characterType
-from Enemy import EnemyType as enemyType
+import Enemy
 import random
 import Character
 
-player = Character.Monk()
 
-
-class Battle(characterType, enemyType):
+class Battle(Character, Enemy):
     def __init__(self):  # (self,character,enemy)
+        super().__init__(Enemy, Character)
         play_again = True
         player = Character.Monk()
-        enemy = enemyType.Goblin()
+        enemy = Enemy.Goblin()
 
         # Set up the play again loop
         while play_again:
@@ -32,7 +30,7 @@ class Battle(characterType, enemyType):
             print("\nPlayer health: ", player_health, "Computer health: ", computer_health)
 
             # set up the main game loop
-            while player_health != 0 or computer_health != 0:
+            while player_health != 0 and computer_health != 0:
 
                 heal_up = False  # determine if heal has been used by the player. Resets false each loop.
                 miss = False  # determine if the chosen move will miss.
@@ -162,7 +160,9 @@ class Battle(characterType, enemyType):
                 play_again = False
 
 
-Battle()
+player = Character.Monk()
+goblin = Enemy.Goblin()
+Battle(player,goblin)
 
 ###############################################################################################################
 
