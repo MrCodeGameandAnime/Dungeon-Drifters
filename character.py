@@ -71,10 +71,6 @@ class Monk(Character):
                       3: '5-foot punch',
                       4: 'Waki Gamae Kamae Kata',
                       5: 'Carry Water'})
-
-
-print(Monk().hp)
-
         # Bring The Horse To Water:
         # brace the quarterstaff (think: set spear vs charge) and pull the target's head into it.
         #

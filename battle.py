@@ -1,20 +1,19 @@
-import Enemy
+import character
+import enemy
 import random
-import Character
 
 
-class Battle(Character, Enemy):
+class Battle(character, enemy):
     def __init__(self):  # (self,character,enemy)
-        super().__init__(Enemy, Character)
         play_again = True
-        player = Character.Monk()
-        enemy = Enemy.Goblin()
+        player = character.Monk()
+        foe = enemy.Goblin()
 
         # Set up the play again loop
         while play_again:
             winner = None
             player_health = player.hp
-            computer_health = enemy.hp
+            computer_health = foe.hp
 
             # determine whose turn it is
             turn = random.randint(1, 2)  # heads or tails
@@ -30,7 +29,7 @@ class Battle(Character, Enemy):
             print("\nPlayer health: ", player_health, "Computer health: ", computer_health)
 
             # set up the main game loop
-            while player_health != 0 and computer_health != 0:
+            while player_health != 0 or computer_health != 0:
 
                 heal_up = False  # determine if heal has been used by the player. Resets false each loop.
                 miss = False  # determine if the chosen move will miss.
@@ -151,7 +150,7 @@ class Battle(Character, Enemy):
                 print("\nCongratulations! You have won. You're an animal!!")
             else:
                 print("\nPlayer health: ", player_health, "Computer health: ", computer_health)
-                print("\nSorry, but the " + enemy.name + "wiped the floor with you. Better luck next time.")
+                print("\nSorry, but the " + foe.name + "wiped the floor with you. Better luck next time.")
 
             print("\nWould you like to play again?")
 
@@ -160,24 +159,22 @@ class Battle(Character, Enemy):
                 play_again = False
 
 
-player = Character.Monk()
-goblin = Enemy.Goblin()
-Battle(player,goblin)
+Battle()
 
 ###############################################################################################################
+
 
 # class Battle:
 #     def __init__(self, title):
 #         self.title = title
-#         self.moves={'Punch': [18, 25],
-#         'Mega Punch': [10, 35],
-#         'Heal': [-25, -20]
-#        }
-
-#         self.moves_list=list(self.moves)
-#         self.moves_list_lower=[move.lower() for move in self.moves_list]
-
-#         self.move_names='\n'+'\n'.join(
+#         self.moves = {'Punch': [18, 25],
+#                       'Mega Punch': [10, 35],
+#                       'Heal': [-25, -20]}
+#
+#         self.moves_list = list(self.moves)
+#         self.moves_list_lower = [move.lower() for move in self.moves_list]
+#
+#         self.move_names = '\n'+'\n'.join(
 #             "{0}. {1} (Deal damage between '{2[0]}' - '{2[1]}')".format(
 #                 i,
 #                 move,
@@ -185,6 +182,7 @@ Battle(player,goblin)
 #             )
 #             for i, move in enumerate(self.moves_list)
 #         )
+#
 #     def select_move(self):
 #         move = input(self.move_names + '\n> ').lower()
 #         try:
@@ -193,10 +191,10 @@ Battle(player,goblin)
 #             return self.moves_list[self.moves_list_lower.index(move)]
 #         except IndexError:
 #             print('That is not a valid move. Please try again.')
-
+#
 #     def use_move(self, other, move):
 #         # 20% of missing
-#         if random.randint(1,2):
+#         if random.randint(1, 2):
 #             print('{} missed!'.format(self.title.capitalize()))
 #         else:
 #             # Works as shown earlier.
@@ -214,5 +212,39 @@ Battle(player,goblin)
 #                    move,
 #                    magnitude
 #                    ))
+###############################################################################################################
 
+# rng = random.randint(13,20)
+
+# class Player:
+#     def __init__(self,name):
+#         self.name = name
+#         self.hp = 25
+#         self.atk = 5
+#         self.defense = 3
+
+
+# class Enemy:
+#     def __init__(self,name):
+#         self.name = name
+#         self.hp = 25
+#         self.atk = 5
+#         self.defense = 3
+
+# class Attack:
+#     def __init__(self):
+#         player = Player("Zyx")
+#         enemy = Enemy("Orc")
+
+#         while player.hp > 0 and enemy.hp > 0:
+#             swingCheck = rng
+#             #print(swingCheck)
+#             if swingCheck >= 13:
+#                 playerHp = player.hp
+#                 #print(player.hp)
+#                 enemyHP = enemy.hp
+#                 atkVsDef = player.atk - enemy.defense
+#                 currentEnemyHP = enemy.hp - atkVsDef
+#                 enemy.hp = currentEnemyHP
+#                 print(currentEnemyHP)
 ###############################################################################################################

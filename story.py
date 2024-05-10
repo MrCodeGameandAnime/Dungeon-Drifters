@@ -1,6 +1,6 @@
 # from Character import CharacterType as characterType
 # from Battle import Battle as battle
-from Events import EventType as eventType
+from event import Events
 
 
 class StoryElements:
@@ -43,7 +43,7 @@ Attack or attempt to flee?
             print("detected user input '1'")
         elif atk_or_flee == 2:
             print("detected user input '2'...")
-            result = eventType().avoid_battle()
+            result = Events().avoid_battle()
             print(f".. and assigned the value {result} to the variable 'result'")
             if result:
                 print("Fleeing ended up being True")
