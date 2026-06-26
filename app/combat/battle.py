@@ -2,12 +2,11 @@ import random
 
 
 class Battle:
-    def __init__(self, player, foe):
-        self.player = player
+    def __init__(self, player_state, foe):
+        self.player_state = player_state
+        self.player = player_state.character
         self.foe = foe
-        self.player_max_hp = player.hp
         self.foe_max_hp = foe.hp
-        self.player_health = player.hp
         self.foe_health = foe.hp
 
     def run(self):
@@ -21,7 +20,7 @@ class Battle:
 
         self.print_health()
 
-        while self.player_health > 0 and self.foe_health > 0:
+        while self.player_state.health.is_alive() and self.foe_health > 0:
             if player_turn:
                 self.player_action()
             else:
@@ -73,7 +72,7 @@ Choose a move:
             print(f"\nThe {self.foe.name} used {move}, but missed!")
             return
 
-        self.player_health = max(0, self.player_health - damage)
+        self.player_state.health.take_damage(damage)
         print(f"\nThe {self.foe.name} used {move}. It dealt {damage} damage.")
 
     def attack(self, attacker, target, move_name, heavy):
@@ -91,7 +90,7 @@ Choose a move:
 
     def heal_player(self):
         heal_amount = random.randint(10, 16) + self.player.constitution
-        self.player_health = min(self.player_max_hp, self.player_health + heal_amount)
+        self.player_state.health.heal(heal_amount)
         print(f"\n{self.player.name} takes a breath and recovers {heal_amount} health.")
 
     @staticmethod
@@ -99,5 +98,5 @@ Choose a move:
         return random.randint(1, 5) == 1
 
     def print_health(self):
-        print(f"\n{self.player.name} health: {self.player_health}/{self.player_max_hp}")
+        print(f"\n{self.player.name} health: {self.player_state.health.current}/{self.player_state.health.maximum}")
         print(f"{self.foe.name} health: {self.foe_health}/{self.foe_max_hp}")

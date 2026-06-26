@@ -18,7 +18,7 @@ def main():
         story.escaped_ending(player_state.character)
         return
 
-    winner = Battle(player_state.character, Goblin()).run()
+    winner = Battle(player_state, Goblin()).run()
     story.battle_ending(player_state.character, winner)
 
 

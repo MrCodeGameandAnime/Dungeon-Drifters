@@ -67,8 +67,8 @@ class FakeGoblin:
 class FakeBattle:
     instances = []
 
-    def __init__(self, character, foe):
-        self.character = character
+    def __init__(self, player_state, foe):
+        self.player_state = player_state
         self.foe = foe
         self.__class__.instances.append(self)
 
@@ -127,11 +127,12 @@ def test_escape_path_wraps_character_once_and_skips_battle():
 
 def test_battle_path_wraps_character_once_and_uses_wrapped_character():
     selected_character, story = run_with_fakes("battle")
+    player_state = FakePlayerState.instances[0]
 
     assert len(FakePlayerState.instances) == 1
-    assert FakePlayerState.instances[0].character is selected_character
+    assert player_state.character is selected_character
     assert len(FakeBattle.instances) == 1
-    assert FakeBattle.instances[0].character is selected_character
+    assert FakeBattle.instances[0].player_state is player_state
     assert len(FakeGoblin.instances) == 1
     assert story.escaped_character is None
     assert story.battle_ending_character is selected_character
