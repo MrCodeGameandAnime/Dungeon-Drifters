@@ -1,11 +1,14 @@
 import random
 
+from app.combat.combat_state import CombatState
+
 
 class Battle:
     def __init__(self, player_state, foe):
         self.player_state = player_state
         self.player = player_state.character
         self.foe = foe
+        self.combat_state = CombatState()
         self.foe_max_hp = foe.hp
         self.foe_health = foe.hp
 
@@ -26,6 +29,7 @@ class Battle:
             else:
                 self.enemy_action()
 
+            self.combat_state.advance_turn()
             self.print_health()
             player_turn = not player_turn
 
