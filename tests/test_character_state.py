@@ -2,22 +2,30 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "app"
-sys.path.insert(0, str(APP))
+sys.path.insert(0, str(ROOT))
 
-import character  # noqa: E402
+from app.player.character import (
+    BlackMage,
+    Brawler,
+    Exp,
+    Health,
+    Level,
+    Mana,
+    Monk,
+    RogueArcher,
+)
 
 
 PLAYABLE_CLASSES = [
-    character.Brawler,
-    character.BlackMage,
-    character.RogueArcher,
-    character.Monk,
+    Brawler,
+    BlackMage,
+    RogueArcher,
+    Monk,
 ]
 
 
 def test_health_healing_clamps_to_maximum():
-    health = character.Health(maximum=60, current=40)
+    health = Health(maximum=60, current=40)
 
     assert health.heal(50) == 60
     assert health.current == 60
@@ -26,7 +34,7 @@ def test_health_healing_clamps_to_maximum():
 
 
 def test_health_damage_clamps_to_zero_and_defeated():
-    health = character.Health(maximum=60)
+    health = Health(maximum=60)
 
     assert health.take_damage(999) == 0
     assert health.current == 0
@@ -35,7 +43,7 @@ def test_health_damage_clamps_to_zero_and_defeated():
 
 
 def test_mana_restore_clamps_to_maximum():
-    mana = character.Mana(maximum=20, current=5)
+    mana = Mana(maximum=20, current=5)
 
     assert mana.restore(99) == 20
     assert mana.current == 20
@@ -43,7 +51,7 @@ def test_mana_restore_clamps_to_maximum():
 
 
 def test_mana_spend_checks_affordability_and_never_goes_below_zero():
-    mana = character.Mana(maximum=20, current=5)
+    mana = Mana(maximum=20, current=5)
 
     assert mana.can_afford(6) is False
     assert mana.spend(6) is False
@@ -53,8 +61,8 @@ def test_mana_spend_checks_affordability_and_never_goes_below_zero():
 
 
 def test_exact_exp_threshold_levels_up():
-    level = character.Level()
-    exp = character.Exp(level)
+    level = Level()
+    exp = Exp(level)
 
     assert exp.gain(100) == 1
     assert level.current == 2
@@ -63,8 +71,8 @@ def test_exact_exp_threshold_levels_up():
 
 
 def test_excess_exp_carries_over_after_level_up():
-    level = character.Level()
-    exp = character.Exp(level)
+    level = Level()
+    exp = Exp(level)
 
     assert exp.gain(125) == 1
     assert level.current == 2
@@ -72,8 +80,8 @@ def test_excess_exp_carries_over_after_level_up():
 
 
 def test_one_exp_gain_can_cause_multiple_level_ups():
-    level = character.Level()
-    exp = character.Exp(level)
+    level = Level()
+    exp = Exp(level)
 
     assert exp.gain(350) == 2
     assert level.current == 3
@@ -97,7 +105,7 @@ def test_derived_stats_return_nonnegative_values():
 
 
 def test_legacy_character_attributes_remain_available_and_authoritative():
-    player = character.BlackMage()
+    player = BlackMage()
 
     assert player.hp == player.health.current
     assert player.mana == player.mana_resource.current

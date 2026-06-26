@@ -1,7 +1,7 @@
-from battle import Battle
-from enemy import Goblin
-from event import Events
-from story import StoryElements
+from app.combat.battle import Battle
+from app.combat.enemy import Goblin
+from app.world.event import Events
+from app.world.story import StoryElements
 
 
 def main():

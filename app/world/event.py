@@ -1,5 +1,6 @@
 import random
-import character
+
+from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
 class Events:
@@ -32,10 +33,10 @@ Sendo Monks are martial artists who base their fighting style on versatility, in
         ''')
 
         choices = {
-            "1": character.Brawler,
-            "2": character.BlackMage,
-            "3": character.RogueArcher,
-            "4": character.Monk,
+            "1": Brawler,
+            "2": BlackMage,
+            "3": RogueArcher,
+            "4": Monk,
         }
 
         while True:
