@@ -38,6 +38,7 @@ qodana.sarif.json
 
 # Local backups and archives
 backup/
+update info/
 *.zip
 *.tar
 *.tar.gz
