@@ -33,14 +33,47 @@ class Character:
         self.intelligence = intl
         self.dexterity = dex
         self.charisma = char
-        self.hp = hp
-        self.mana = mana
-        self.exp = 0
         self.name = name
-        self.level = 1
         self.moves = moves
         self.combat_moves = combat_moves or []
         self.class_mechanic = class_mechanic or {}
+        self.stats = Stats(self)
+        self.health = Health(maximum=hp)
+        self.mana_resource = Mana(maximum=mana)
+        self.level_state = Level()
+        self.exp_state = Exp(self.level_state)
+
+    @property
+    def hp(self):
+        return self.health.current
+
+    @hp.setter
+    def hp(self, value):
+        self.health.current = self.health.clamp(value)
+
+    @property
+    def mana(self):
+        return self.mana_resource.current
+
+    @mana.setter
+    def mana(self, value):
+        self.mana_resource.current = self.mana_resource.clamp(value)
+
+    @property
+    def level(self):
+        return self.level_state.current
+
+    @level.setter
+    def level(self, value):
+        self.level_state.current = max(1, int(value))
+
+    @property
+    def exp(self):
+        return self.exp_state.current
+
+    @exp.setter
+    def exp(self, value):
+        self.exp_state.current = max(0, int(value))
 
 
 class Brawler(Character):
@@ -298,49 +331,147 @@ class Monk(Character):
 
 
 class Level:
-    def increase_level(self):
-        pass
+    def __init__(self, current=1, base_threshold=100):
+        self.current = max(1, int(current))
+        self.base_threshold = max(1, int(base_threshold))
+
+    @property
+    def next_threshold(self):
+        return self.base_threshold * self.current
+
+    def increase_level(self, amount=1):
+        amount = max(0, int(amount))
+        self.current += amount
+        return self.current
 
 
 class Health:
-    def increase_health(self):
-        pass
+    def __init__(self, maximum, current=None):
+        self.maximum = max(0, int(maximum))
+        self.current = self.clamp(self.maximum if current is None else current)
 
-    def decrease_health(self):
-        pass
+    def clamp(self, value):
+        return max(0, min(self.maximum, int(value)))
+
+    def heal(self, amount):
+        amount = max(0, int(amount))
+        self.current = self.clamp(self.current + amount)
+        return self.current
+
+    def increase_health(self, amount):
+        return self.heal(amount)
+
+    def take_damage(self, amount):
+        amount = max(0, int(amount))
+        self.current = self.clamp(self.current - amount)
+        return self.current
+
+    def decrease_health(self, amount):
+        return self.take_damage(amount)
+
+    def is_defeated(self):
+        return self.current <= 0
+
+    def is_alive(self):
+        return not self.is_defeated()
 
 
 class Mana:
-    def increase_mana(self):
-        pass
+    def __init__(self, maximum, current=None):
+        self.maximum = max(0, int(maximum))
+        self.current = self.clamp(self.maximum if current is None else current)
 
-    def decrease_mana(self):
-        pass
+    def clamp(self, value):
+        return max(0, min(self.maximum, int(value)))
+
+    def can_afford(self, amount):
+        amount = max(0, int(amount))
+        return self.current >= amount
+
+    def spend(self, amount):
+        amount = max(0, int(amount))
+        if not self.can_afford(amount):
+            return False
+
+        self.current -= amount
+        return True
+
+    def restore(self, amount):
+        amount = max(0, int(amount))
+        self.current = self.clamp(self.current + amount)
+        return self.current
+
+    def increase_mana(self, amount):
+        return self.restore(amount)
+
+    def decrease_mana(self, amount):
+        return self.spend(amount)
 
     def mana_pool(self):
-        pass
+        return {
+            'current': self.current,
+            'maximum': self.maximum,
+        }
 
 
 class Stats:
+    def __init__(self, character):
+        self.character = character
+
+    def attack_power(self):
+        return max(0, self.character.strength * 2 + self.character.dexterity)
+
+    def defense_rating(self):
+        return max(0, self.character.constitution * 2 + self.character.dexterity // 2)
+
+    def health_bonus(self):
+        return max(0, self.character.constitution * 5)
+
+    def mana_bonus(self):
+        return max(0, self.character.intelligence * 5)
+
+    def luck_rating(self):
+        return max(0, self.character.charisma + self.character.dexterity // 2)
+
     def attack(self):
-        pass
+        return self.attack_power()
 
     def defense(self):
-        pass
+        return self.defense_rating()
 
     def health(self):
-        pass
+        return self.health_bonus()
 
     def mana(self):
-        pass
+        return self.mana_bonus()
 
     def luck(self):
-        pass
+        return self.luck_rating()
 
 
 class Exp:
-    def increase_exp(self):
-        pass
+    def __init__(self, level):
+        self.level = level
+        self.current = 0
 
     def exp_pool(self):
-        pass
+        return {
+            'current': self.current,
+            'level': self.level.current,
+            'next_threshold': self.level.next_threshold,
+        }
+
+    def gain(self, amount):
+        amount = max(0, int(amount))
+        self.current += amount
+        levels_gained = 0
+
+        while self.current >= self.level.next_threshold:
+            self.current -= self.level.next_threshold
+            self.level.increase_level()
+            levels_gained += 1
+
+        return levels_gained
+
+    def increase_exp(self, amount):
+        return self.gain(amount)
