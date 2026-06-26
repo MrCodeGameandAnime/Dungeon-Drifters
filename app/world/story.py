@@ -4,7 +4,7 @@ class StoryElements:
         print('''
 ++==============================================================++
 ||                                                              ||
-||                    DUNGEON DRIFTERS                         ||
+||                    DUNGEON DRIFTERS                          ||
 ||                                                              ||
 ||                  A tale from Ketlyv                          ||
 ||                                                              ||
