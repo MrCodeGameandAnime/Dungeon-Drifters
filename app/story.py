@@ -1,97 +1,66 @@
-# from Character import CharacterType as characterType
-# from Battle import Battle as battle
-from event import Events
-
-
 class StoryElements:
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def day_one():
-        # eventType.pick_character()
-        print('''
-You awaken to low light flickering from the campfire you setup last night. Your body is heavy from the endless battles. 
-You would like to go back to sleep, but the adventure must carry on. Sitting up and rustling around in your pack, 
-you find your sword, put out the fire, and head out of the cave you hunkered down in for the night. 
-"FRESH AIR!" You set out through the woods to continue searching for the goblin hoard that has been attacking 
-a local village. They have requested your services, and you will see it to completion. 
-
-You hear a sound coming from the right and suddenly a goblin jumps out of the bushes What will you do?
-Attack or attempt to flee?
-        ''')
-
-        # atk_or_flee = int(input('1 to attack and 2 to run: '))
-        # if atk_or_flee == 1:
-        #     print(type(atk_or_flee))
-        #     print(type(1))
-        #     #battle()
-        #     None
-        # elif atk_or_flee == 2:
-        #     result = event.avoidBattle()
-        # if result == True:
-        #     print("True")
-        #     StoryElements.openingScreen()
-        # if result == False:
-        #     print("False")
-        #     #battle()
-        #     StoryElements.openingScreen()
-
-        atk_or_flee = int(input('1 to attack and 2 to run: '))
-        if atk_or_flee == 1:
-            print("detected user input '1'")
-        elif atk_or_flee == 2:
-            print("detected user input '2'...")
-            result = Events().avoid_battle()
-            print(f".. and assigned the value {result} to the variable 'result'")
-            if result:
-                print("Fleeing ended up being True")
-                StoryElements.opening_screen()
-            else:
-                # battle()
-                print("Fleeing ended up False")
-
     @staticmethod
     def opening_screen():
         print('''
-        ++============================================================================================================++
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||         =============== ||      || ||+        || ========== ========= ============ ||+        ||           ||
-        ||         ||           || ||      || || +       || ||         ||        ||        || || +       ||           ||
-        ||         ||           || ||      || ||  +      || ||         ||        ||        || ||  +      ||           ||
-        ||         ||   =====   || ||      || ||   +     || ||   ===== ||        ||        || ||   +     ||           ||
-        ||         ||   || ||   || ||      || ||    +    || ||      || ========= ||   ++   || ||    +    ||           ||
-        ||         ||   || ||   || ||      || ||     +   || ||      || ||        ||   ++   || ||     +   ||           ||
-        ||         ||   =====   || ||      || ||      +  || ||      || ||        ||        || ||      +  ||           ||
-        ||         ||           || ||      || ||       + || ||      || ||        ||        || ||       + ||           ||
-        ||         =============== ========== ||        +|| ========|| ========= ============ ||        +||           ||
-        ||                                                                                                            ||
-        ||         ****************************************************************************************           ||
-        ||         ****************************************************************************************           ||
-        ||                                                                                                            ||
-        ||         =============== ========== ============ ========== ========== ============ =============           ||
-        ||         ||           || ||      ||      ||      ||             ||     ||           ||         ||           ||
-        ||         ||           || ||      ||      ||      ||             ||     ||           ||         ||           ||
-        ||         ||   ======  || ==========      ||      ||             ||     ||           =============           ||
-        ||         ||   ||  ||  || ||   +          ||      ==========     ||     ===========  ||    +                 ||
-        ||         ||   ||  ||  || ||    +         ||      ||             ||     ||           ||     +                ||
-        ||         ||   ======  || ||     +        ||      ||             ||     ||           ||      +               ||
-        ||         ||           || ||      +       ||      ||             ||     ||           ||       +              ||
-        ||         =============== ||       + ============ ||             ||     ===========  ||        +             ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ||                                                                                                            ||
-        ++============================================================================================================++
+++==============================================================++
+||                                                              ||
+||                    DUNGEON DRIFTERS                         ||
+||                                                              ||
+||                  A tale from Ketlyv                          ||
+||                                                              ||
+++==============================================================++
         ''')
 
+    @staticmethod
+    def day_one(events):
+        print('''
+You awaken to low light flickering from the campfire you set up last night. Your body is heavy from the endless battles.
+You would like to go back to sleep, but the adventure must carry on. Sitting up and rustling around in your pack,
+you find your sword, put out the fire, and head out of the cave you hunkered down in for the night.
 
-StoryElements().day_one()
+"FRESH AIR!"
+
+You set out through the woods to continue searching for the goblin horde that has been attacking a local village. They
+have requested your services, and you will see it to completion.
+
+You hear a sound from the right. Suddenly, a goblin jumps out of the bushes.
+        ''')
+
+        while True:
+            choice = input("What will you do? 1 to attack, 2 to flee: ").strip().lower()
+
+            if choice in ("1", "attack"):
+                print("You ready your weapon and face the goblin.")
+                return "battle"
+
+            if choice in ("2", "flee", "run"):
+                escaped = events.avoid_battle()
+                return "escaped" if escaped else "battle"
+
+            print("That is not a valid choice. Please choose attack or flee.")
+
+    @staticmethod
+    def escaped_ending(player):
+        print(f'''
+{player.name}, you break through the brush and escape the ambush.
+The village still needs help, but you live to choose the next road.
+
+For now, your first day in Ketlyv continues.
+        ''')
+
+    @staticmethod
+    def battle_ending(player, winner):
+        if winner == "player":
+            print(f'''
+The goblin falls. {player.name}, you steady your breathing and look deeper into the woods.
+The horde is still out there, but the first threat has been handled.
+
+Victory. Your adventure has begun.
+            ''')
+        else:
+            print(f'''
+{player.name} falls beneath the goblin's attack.
+The woods of Ketlyv grow quiet again.
+
+Defeat. Better luck next time.
+            ''')
