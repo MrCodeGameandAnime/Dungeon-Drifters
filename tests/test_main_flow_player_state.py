@@ -1,0 +1,144 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+import app.game.main_loop as main_loop
+
+
+class SelectedCharacter:
+    name = "Selected Character"
+
+
+class FakePlayerState:
+    instances = []
+
+    def __init__(self, character):
+        self.character = character
+        self.__class__.instances.append(self)
+
+
+class FakeEvents:
+    selected_character = SelectedCharacter()
+    instances = []
+
+    def __init__(self):
+        self.__class__.instances.append(self)
+
+    def pick_character(self):
+        return self.selected_character
+
+
+class FakeStoryElements:
+    encounter = "battle"
+    instances = []
+
+    def __init__(self):
+        self.opening_screen_called = False
+        self.day_one_events = None
+        self.escaped_character = None
+        self.battle_ending_character = None
+        self.battle_ending_winner = None
+        self.__class__.instances.append(self)
+
+    def opening_screen(self):
+        self.opening_screen_called = True
+
+    def day_one(self, events):
+        self.day_one_events = events
+        return self.encounter
+
+    def escaped_ending(self, character):
+        self.escaped_character = character
+
+    def battle_ending(self, character, winner):
+        self.battle_ending_character = character
+        self.battle_ending_winner = winner
+
+
+class FakeGoblin:
+    instances = []
+
+    def __init__(self):
+        self.__class__.instances.append(self)
+
+
+class FakeBattle:
+    instances = []
+
+    def __init__(self, character, foe):
+        self.character = character
+        self.foe = foe
+        self.__class__.instances.append(self)
+
+    def run(self):
+        return "player"
+
+
+def reset_fakes():
+    FakePlayerState.instances = []
+    FakeEvents.instances = []
+    FakeEvents.selected_character = SelectedCharacter()
+    FakeStoryElements.instances = []
+    FakeStoryElements.encounter = "battle"
+    FakeGoblin.instances = []
+    FakeBattle.instances = []
+
+
+def run_with_fakes(encounter):
+    reset_fakes()
+    FakeStoryElements.encounter = encounter
+
+    original_player_state = main_loop.PlayerState
+    original_events = main_loop.Events
+    original_story_elements = main_loop.StoryElements
+    original_battle = main_loop.Battle
+    original_goblin = main_loop.Goblin
+
+    main_loop.PlayerState = FakePlayerState
+    main_loop.Events = FakeEvents
+    main_loop.StoryElements = FakeStoryElements
+    main_loop.Battle = FakeBattle
+    main_loop.Goblin = FakeGoblin
+
+    try:
+        main_loop.main()
+    finally:
+        main_loop.PlayerState = original_player_state
+        main_loop.Events = original_events
+        main_loop.StoryElements = original_story_elements
+        main_loop.Battle = original_battle
+        main_loop.Goblin = original_goblin
+
+    return FakeEvents.selected_character, FakeStoryElements.instances[0]
+
+
+def test_escape_path_wraps_character_once_and_skips_battle():
+    selected_character, story = run_with_fakes("escaped")
+
+    assert len(FakePlayerState.instances) == 1
+    assert FakePlayerState.instances[0].character is selected_character
+    assert story.escaped_character is selected_character
+    assert story.battle_ending_character is None
+    assert FakeBattle.instances == []
+    assert FakeGoblin.instances == []
+
+
+def test_battle_path_wraps_character_once_and_uses_wrapped_character():
+    selected_character, story = run_with_fakes("battle")
+
+    assert len(FakePlayerState.instances) == 1
+    assert FakePlayerState.instances[0].character is selected_character
+    assert len(FakeBattle.instances) == 1
+    assert FakeBattle.instances[0].character is selected_character
+    assert len(FakeGoblin.instances) == 1
+    assert story.escaped_character is None
+    assert story.battle_ending_character is selected_character
+    assert story.battle_ending_winner == "player"
+
+
+if __name__ == "__main__":
+    test_escape_path_wraps_character_once_and_skips_battle()
+    test_battle_path_wraps_character_once_and_uses_wrapped_character()
+    print("Main flow player state test passed.")
