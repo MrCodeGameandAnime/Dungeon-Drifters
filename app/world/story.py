@@ -42,7 +42,7 @@ You hear a sound from the right. Suddenly, a goblin jumps out of the bushes.
     @staticmethod
     def escaped_ending(player):
         print(f'''
-{player.name}, you break through the brush and escape the ambush.
+{player.display_name}, you break through the brush and escape the ambush.
 The village still needs help, but you live to choose the next road.
 
 For now, your first day in Ketlyv continues.
@@ -52,14 +52,14 @@ For now, your first day in Ketlyv continues.
     def battle_ending(player, winner):
         if winner == "player":
             print(f'''
-The goblin falls. {player.name}, you steady your breathing and look deeper into the woods.
+The goblin falls. {player.display_name}, you steady your breathing and look deeper into the woods.
 The horde is still out there, but the first threat has been handled.
 
 Victory. Your adventure has begun.
             ''')
         else:
             print(f'''
-{player.name} falls beneath the goblin's attack.
+{player.display_name} falls beneath the goblin's attack.
 The woods of Ketlyv grow quiet again.
 
 Defeat. Better luck next time.

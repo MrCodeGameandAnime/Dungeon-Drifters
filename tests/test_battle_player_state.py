@@ -12,6 +12,7 @@ from app.combat.battle import Battle
 from app.combat.enemy import Goblin
 from app.player.character import Brawler, Monk
 from app.player.player_state import PlayerState
+from app.world.character_profiles.roster import get_profile_by_choice
 
 
 @contextlib.contextmanager
@@ -94,6 +95,25 @@ def test_enemy_damage_mutates_player_state_health():
         battle.enemy_action()
 
     assert player_state.health.current == player_state.health.maximum - 9
+
+
+def test_battle_player_output_uses_canonical_short_identity_when_profile_attached():
+    character = get_profile_by_choice("1").create_character()
+    player_state = PlayerState(character)
+    battle = Battle(player_state, Goblin())
+    output = io.StringIO()
+
+    with patched_misses(), patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(output):
+        battle.print_health()
+        battle.attack(battle.player, battle.foe, "slash", heavy=False)
+        battle.heal_player()
+
+    text = output.getvalue()
+    assert "Ser Branoc health:" in text
+    assert "Ser Branoc used slash." in text
+    assert "Ser Branoc takes a breath" in text
+    assert "Brawler health:" not in text
+    assert "Brawler used slash" not in text
 
 
 def test_player_recovery_heals_persistent_health_without_exceeding_maximum():
@@ -197,6 +217,7 @@ if __name__ == "__main__":
     test_battle_accepts_player_state_and_uses_wrapped_character()
     test_battles_do_not_share_combat_state()
     test_enemy_damage_mutates_player_state_health()
+    test_battle_player_output_uses_canonical_short_identity_when_profile_attached()
     test_player_recovery_heals_persistent_health_without_exceeding_maximum()
     test_battle_starts_from_existing_persistent_health()
     test_victory_returns_player()

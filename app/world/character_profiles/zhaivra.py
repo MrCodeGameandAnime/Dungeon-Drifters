@@ -6,6 +6,7 @@ from app.world.character_profiles.profile import CharacterProfile
 
 PROFILE = CharacterProfile(
     choice="3",
+    short_name="Zhaivra Kelyth",
     display_name="Zhaivra Kelyth, the Uncontrolled Reagent",
     character_factory=RogueArcher,
     ascii_art=r"""
@@ -43,7 +44,7 @@ PROFILE = CharacterProfile(
     origin_title="Wandering Ashvein of Nhal Voryss",
     biography="""From the ever-burning arteries of Nhal Voryss comes an archer whose perfect shot moved an entire city. 
     Zhaivra Kelyth 
-once served the **Ashvein Survey**, a caste of alchemical rangers responsible for maintaining the volatile passages of 
+once served the Ashvein Survey, a caste of alchemical rangers responsible for maintaining the volatile passages of
 the Hollow Colossus, the immense petrified organism within which her people built their civilization. Precise, 
 analytical, and relentlessly prepared, she learned to read air currents through drifting mineral dust and identify 
 combustible gases by the way they distorted distant light. She carries Sathren, a recurved bow grown from the bone-fiber 
@@ -63,5 +64,5 @@ achieve the same result.""",
     weapon="Sathren",
     discipline="Ashvein Alchemy",
     quote="“An arrow can strike exactly where you intended and still become the worst mistake of your life.”",
+    selection_summary="precise, prepared, resource-limited",
 )
-

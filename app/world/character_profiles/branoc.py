@@ -6,6 +6,7 @@ from app.world.character_profiles.profile import CharacterProfile
 
 PROFILE = CharacterProfile(
     choice="1",
+    short_name="Ser Branoc",
     display_name="Ser Branoc, the Unbroken Crest",
     character_factory=Brawler,
     ascii_art=r"""
@@ -48,5 +49,5 @@ and chainmail, while Branoc’s weight and momentum turn every swing into a crus
     weapon="Sunder-Spire",
     discipline="Rhom-Ghalian Lung",
     quote="“Endurance is merely suffering with direction.”",
+    selection_summary="durable, relentless, slow",
 )
-

@@ -6,6 +6,7 @@ from app.world.character_profiles.profile import CharacterProfile
 
 PROFILE = CharacterProfile(
     choice="2",
+    short_name="Azhvielle",
     display_name="Azhvielle, the Unconfessed",
     character_factory=BlackMage,
     ascii_art=r"""
@@ -68,5 +69,5 @@ below. She refuses to explain what it contains or why it bears her name.""",
     weapon="Needle of Plain Iron*",
     discipline="Vharosynian Causal Sorcery",
     quote="“Yes, I can solve this with magic. That does not make it sensible.”",
+    selection_summary="versatile, dangerous, unpredictable",
 )
-

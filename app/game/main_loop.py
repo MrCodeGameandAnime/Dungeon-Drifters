@@ -1,5 +1,6 @@
 from app.combat.battle import Battle
 from app.combat.enemy import Goblin
+from app.game import console
 from app.player.player_state import PlayerState
 from app.world.event import Events
 from app.world.story import StoryElements
@@ -10,7 +11,10 @@ def main():
     events = Events()
 
     story.opening_screen()
+    console.wait_for_continue()
+    console.clear_console()
     character = events.pick_character()
+    console.clear_console()
     player_state = PlayerState(character)
     encounter = story.day_one(events)
 

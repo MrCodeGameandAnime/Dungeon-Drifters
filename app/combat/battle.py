@@ -81,7 +81,7 @@ Choose a move:
 
     def attack(self, attacker, target, move_name, heavy):
         if self.misses():
-            print(f"\n{attacker.name} used {move_name}, but missed!")
+            print(f"\n{attacker.display_name} used {move_name}, but missed!")
             return
 
         if heavy:
@@ -90,17 +90,17 @@ Choose a move:
             damage = random.randint(8, 14) + attacker.strength
 
         self.foe_health = max(0, self.foe_health - damage)
-        print(f"\n{attacker.name} used {move_name}. It dealt {damage} damage to the {target.name}.")
+        print(f"\n{attacker.display_name} used {move_name}. It dealt {damage} damage to the {target.name}.")
 
     def heal_player(self):
         heal_amount = random.randint(10, 16) + self.player.constitution
         self.player_state.health.heal(heal_amount)
-        print(f"\n{self.player.name} takes a breath and recovers {heal_amount} health.")
+        print(f"\n{self.player.display_name} takes a breath and recovers {heal_amount} health.")
 
     @staticmethod
     def misses():
         return random.randint(1, 5) == 1
 
     def print_health(self):
-        print(f"\n{self.player.name} health: {self.player_state.health.current}/{self.player_state.health.maximum}")
+        print(f"\n{self.player.display_name} health: {self.player_state.health.current}/{self.player_state.health.maximum}")
         print(f"{self.foe.name} health: {self.foe_health}/{self.foe_max_hp}")

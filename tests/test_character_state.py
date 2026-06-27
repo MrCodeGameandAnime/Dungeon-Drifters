@@ -128,6 +128,10 @@ def test_all_four_playable_classes_initialize_correctly():
         player = class_type()
 
         assert player.name
+        assert player.profile is None
+        assert player.archetype_name == player.name
+        assert player.display_name == player.name
+        assert player.full_display_name == player.name
         assert player.hp == player.health.maximum
         assert player.mana == player.mana_resource.maximum
         assert player.level == 1

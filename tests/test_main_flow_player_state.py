@@ -22,11 +22,14 @@ class FakePlayerState:
 class FakeEvents:
     selected_character = SelectedCharacter()
     instances = []
+    calls = []
 
     def __init__(self):
         self.__class__.instances.append(self)
 
     def pick_character(self):
+        CALLS.append("pick_character")
+        self.__class__.calls.append("pick_character")
         return self.selected_character
 
 
@@ -43,9 +46,11 @@ class FakeStoryElements:
         self.__class__.instances.append(self)
 
     def opening_screen(self):
+        CALLS.append("opening_screen")
         self.opening_screen_called = True
 
     def day_one(self, events):
+        CALLS.append("day_one")
         self.day_one_events = events
         return self.encounter
 
@@ -76,10 +81,25 @@ class FakeBattle:
         return "player"
 
 
+class FakeConsole:
+    @staticmethod
+    def wait_for_continue():
+        CALLS.append("wait_for_continue")
+
+    @staticmethod
+    def clear_console():
+        CALLS.append("clear_console")
+
+
+CALLS = []
+
+
 def reset_fakes():
+    CALLS.clear()
     FakePlayerState.instances = []
     FakeEvents.instances = []
     FakeEvents.selected_character = SelectedCharacter()
+    FakeEvents.calls = []
     FakeStoryElements.instances = []
     FakeStoryElements.encounter = "battle"
     FakeGoblin.instances = []
@@ -95,12 +115,14 @@ def run_with_fakes(encounter):
     original_story_elements = main_loop.StoryElements
     original_battle = main_loop.Battle
     original_goblin = main_loop.Goblin
+    original_console = main_loop.console
 
     main_loop.PlayerState = FakePlayerState
     main_loop.Events = FakeEvents
     main_loop.StoryElements = FakeStoryElements
     main_loop.Battle = FakeBattle
     main_loop.Goblin = FakeGoblin
+    main_loop.console = FakeConsole
 
     try:
         main_loop.main()
@@ -110,12 +132,13 @@ def run_with_fakes(encounter):
         main_loop.StoryElements = original_story_elements
         main_loop.Battle = original_battle
         main_loop.Goblin = original_goblin
+        main_loop.console = original_console
 
-    return FakeEvents.selected_character, FakeStoryElements.instances[0]
+    return FakeEvents.selected_character, FakeStoryElements.instances[0], list(CALLS)
 
 
 def test_escape_path_wraps_character_once_and_skips_battle():
-    selected_character, story = run_with_fakes("escaped")
+    selected_character, story, calls = run_with_fakes("escaped")
 
     assert len(FakePlayerState.instances) == 1
     assert FakePlayerState.instances[0].character is selected_character
@@ -123,10 +146,11 @@ def test_escape_path_wraps_character_once_and_skips_battle():
     assert story.battle_ending_character is None
     assert FakeBattle.instances == []
     assert FakeGoblin.instances == []
+    assert calls == ["opening_screen", "wait_for_continue", "clear_console", "pick_character", "clear_console", "day_one"]
 
 
 def test_battle_path_wraps_character_once_and_uses_wrapped_character():
-    selected_character, story = run_with_fakes("battle")
+    selected_character, story, calls = run_with_fakes("battle")
     player_state = FakePlayerState.instances[0]
 
     assert len(FakePlayerState.instances) == 1
@@ -137,6 +161,7 @@ def test_battle_path_wraps_character_once_and_uses_wrapped_character():
     assert story.escaped_character is None
     assert story.battle_ending_character is selected_character
     assert story.battle_ending_winner == "player"
+    assert calls == ["opening_screen", "wait_for_continue", "clear_console", "pick_character", "clear_console", "day_one"]
 
 
 if __name__ == "__main__":

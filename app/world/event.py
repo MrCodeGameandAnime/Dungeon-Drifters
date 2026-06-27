@@ -1,5 +1,7 @@
 import random
 
+from app.game import console
+from app.world.character_profiles.profile import render_full_profile
 from app.world.character_profiles.roster import get_profile_by_choice, render_character_roster
 
 
@@ -15,18 +17,28 @@ class Events:
         return False
 
     def pick_character(self):
-        print(f"\n{render_character_roster()}")
-
         while True:
-            character_choice = input(
-                "Choose your character: 1 for Brawler, 2 for Black Mage, 3 for Rogue Archer, 4 for Monk: "
-            ).strip()
+            print(f"\n{render_character_roster()}")
+            character_choice = input("Choose your Drifter: ").strip()
             profile = get_profile_by_choice(character_choice)
 
             if profile is None:
                 print("That is not a valid character choice. Please try again.")
                 continue
 
-            player = profile.create_character()
-            print(f"You have chosen the {player.name}!")
-            return player
+            console.clear_console()
+            print(f"\n{render_full_profile(profile)}")
+
+            while True:
+                confirmation = input(f"Continue with {profile.short_name}? [Y/N]: ").strip().lower()
+
+                if confirmation in ("y", "yes"):
+                    player = profile.create_character()
+                    print(f"You have chosen {player.full_display_name}!")
+                    return player
+
+                if confirmation in ("n", "no"):
+                    console.clear_console()
+                    break
+
+                print("Please enter Y or N.")

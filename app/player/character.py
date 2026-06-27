@@ -37,11 +37,28 @@ class Character:
         self.moves = moves
         self.combat_moves = combat_moves or []
         self.class_mechanic = class_mechanic or {}
+        self.profile = None
         self.stats = Stats(self)
         self.health = Health(maximum=hp)
         self.mana_resource = Mana(maximum=mana)
         self.level_state = Level()
         self.exp_state = Exp(self.level_state)
+
+    @property
+    def archetype_name(self):
+        return self.name
+
+    @property
+    def display_name(self):
+        if self.profile is not None:
+            return self.profile.short_name
+        return self.name
+
+    @property
+    def full_display_name(self):
+        if self.profile is not None:
+            return self.profile.display_name
+        return self.name
 
     @property
     def hp(self):

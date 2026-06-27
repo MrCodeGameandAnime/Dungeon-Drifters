@@ -6,6 +6,7 @@ from app.world.character_profiles.profile import CharacterProfile
 
 PROFILE = CharacterProfile(
     choice="4",
+    short_name="Joruun Veyr",
     display_name="Joruun Veyr, the Bloody Storm Monk",
     character_factory=Monk,
     ascii_art=r"""
@@ -45,8 +46,8 @@ PROFILE = CharacterProfile(
 village to village 
 performing genuine miracles for donations, free drinks, and the attention of beautiful women. Beneath the flowing 
 tan robes, dark spectacles, and rehearsed wisdom is a gifted Veyrathi martial artist with an equally impressive talent 
-for gambling, deception, and getting thrown out of taverns. He carries **Sky-Needle**, an ash-wood shakujō fitted with 
-copper collars and loose conductive rings. Through the **Law of the Single Current**, Joruun can generate wind, water, 
+for gambling, deception, and getting thrown out of taverns. He carries Sky-Needle, an ash-wood shakujō fitted with
+copper collars and loose conductive rings. Through the Law of the Single Current, Joruun can generate wind, water,
 or lightning, but only one at a time. Existing rain, rivers, blood, and charged skies allow him to combine their effects 
 through careful environmental control. Wind grants him speed and invisible pressure strikes. Water provides defense, 
 reach, and crushing hydraulic force. Lightning delivers devastating bursts at severe physical cost.""",
@@ -60,5 +61,5 @@ and becomes increasingly dangerous when the environment supplies additional elem
     weapon="Sky-Needle",
     discipline="Law of the Single Current",
     quote="“The heavens provide the rain, the earth provides the grain, and the brewery provides salvation. Amen.”",
+    selection_summary="mobile, adaptable, physically costly",
 )
-

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CharacterProfile:
     choice: str
+    short_name: str
     display_name: str
     character_factory: type
     ascii_art: str
@@ -19,12 +20,24 @@ class CharacterProfile:
     weapon: str
     discipline: str
     quote: str
+    selection_summary: str
 
     def create_character(self):
-        return self.character_factory()
+        character = self.character_factory()
+        character.profile = self
+        return character
 
 
-def render_profile(profile: CharacterProfile) -> str:
+def render_compact_profile(profile: CharacterProfile) -> str:
+    return "\n".join(
+        (
+            f"{profile.choice}. {profile.display_name}",
+            f"   {profile.combat_role} — {profile.selection_summary}",
+        )
+    )
+
+
+def render_full_profile(profile: CharacterProfile) -> str:
     profile_details = "\n".join(
         (
             f"Strengths: {profile.strengths}",
@@ -34,7 +47,7 @@ def render_profile(profile: CharacterProfile) -> str:
         )
     )
     sections = (
-        f"{profile.choice}. {profile.display_name}",
+        profile.display_name,
         profile.ascii_art,
         profile.origin_title,
         profile.biography,
@@ -47,6 +60,9 @@ def render_profile(profile: CharacterProfile) -> str:
     return "\n\n".join(section.rstrip("\n") for section in sections)
 
 
+def render_profile(profile: CharacterProfile) -> str:
+    return render_full_profile(profile)
+
+
 def render_roster(profiles: tuple[CharacterProfile, ...]) -> str:
-    intro = "You have four warriors to choose from who will adventure in the land of Ketlyv."
-    return "\n\n".join((intro, *(render_profile(profile) for profile in profiles)))
+    return "\n\n".join(("Choose your Drifter:", *(render_compact_profile(profile) for profile in profiles)))
