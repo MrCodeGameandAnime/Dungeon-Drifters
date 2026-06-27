@@ -1,5 +1,7 @@
 """Persistent player state for one playthrough."""
 
+from app.items.weapon import Weapon
+from app.snapshot import to_plain_value
 from app.player.character import Character
 from app.player.inventory import Inventory
 
@@ -118,6 +120,58 @@ class PlayerState:
         self._validate_equipment_slot(slot)
         return self._equipment[slot]
 
+    def snapshot(self):
+        profile = self._snapshot_profile()
+        snapshot = {
+            "identity": {
+                "display_name": self.character.display_name,
+                "full_display_name": self.character.full_display_name,
+                "archetype_name": self.character.archetype_name,
+                "profile": profile,
+            },
+            "attributes": {
+                "strength": self.character.strength,
+                "constitution": self.character.constitution,
+                "intelligence": self.character.intelligence,
+                "dexterity": self.character.dexterity,
+                "charisma": self.character.charisma,
+            },
+            "resources": {
+                "health": {
+                    "current": self.health.current,
+                    "maximum": self.health.maximum,
+                },
+                "mana": {
+                    "current": self.mana_resource.current,
+                    "maximum": self.mana_resource.maximum,
+                },
+            },
+            "progression": {
+                "level": self.level_state.current,
+                "exp": self.exp_state.current,
+            },
+            "gold": self.gold,
+            "inventory": [
+                self._snapshot_item(item, f"player.inventory[{index}]")
+                for index, item in enumerate(self.inventory.items)
+            ],
+            "equipment": {
+                slot: self._snapshot_item(item, f"player.equipment.{slot}")
+                for slot, item in self.equipment.items()
+            },
+            "combat": {
+                "moves": [
+                    self._snapshot_move(move)
+                    for move in self.combat_moves
+                ],
+                "class_mechanic": to_plain_value(
+                    self.class_mechanic,
+                    "player.combat.class_mechanic",
+                ),
+            },
+        }
+        return to_plain_value(snapshot, "player")
+
     @staticmethod
     def _validate_gold_amount(amount):
         if isinstance(amount, bool) or not isinstance(amount, int):
@@ -130,3 +184,53 @@ class PlayerState:
     def _validate_equipment_slot(self, slot):
         if slot not in self.EQUIPMENT_SLOTS:
             raise ValueError(f"invalid equipment slot: {slot}")
+
+    def _snapshot_profile(self):
+        profile = self.character.profile
+        if profile is None:
+            return None
+
+        return {
+            "choice": profile.choice,
+            "short_name": profile.short_name,
+            "display_name": profile.display_name,
+        }
+
+    def _snapshot_move(self, move):
+        return to_plain_value(
+            {
+                "name": move.name,
+                "kind": move.kind,
+                "mana_cost": move.mana_cost,
+                "power": move.power,
+                "scales_with": move.scales_with,
+                "accuracy": move.accuracy,
+                "target": move.target,
+                "mechanic": move.mechanic,
+                "description": move.description,
+            },
+            f"player.combat.moves.{move.name}",
+        )
+
+    def _snapshot_item(self, item, path):
+        if item is None:
+            return None
+
+        if self._is_supported_weapon_item(item):
+            return to_plain_value(
+                {
+                    "type": item.__class__.__name__,
+                    "attack": item.attack,
+                    "defense": item.defense,
+                    "magic_attack": item.magic_attack,
+                    "magic_defense": item.magic_defense,
+                    "value": item.value,
+                },
+                path,
+            )
+
+        return to_plain_value(item, path)
+
+    @staticmethod
+    def _is_supported_weapon_item(item):
+        return isinstance(item, Weapon)

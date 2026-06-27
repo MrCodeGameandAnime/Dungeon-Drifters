@@ -3,6 +3,7 @@
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
 from app.player.player_state import PlayerState
+from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value
 
 
 class GameState:
@@ -33,3 +34,15 @@ class GameState:
 
     def set_metadata(self, key, value):
         self._metadata[key] = value
+
+    def snapshot(self):
+        return to_plain_value(
+            {
+                "schema_version": STATE_SCHEMA_VERSION,
+                "player": self.player_state.snapshot(),
+                "story": self.story_state.snapshot(),
+                "world": self.world_state.snapshot(),
+                "metadata": self.metadata,
+            },
+            "game",
+        )

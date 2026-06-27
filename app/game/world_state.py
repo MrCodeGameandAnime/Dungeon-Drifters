@@ -1,5 +1,7 @@
 """Persistent world state for one active game session."""
 
+from app.snapshot import to_plain_value
+
 
 class WorldState:
     def __init__(self):
@@ -47,3 +49,15 @@ class WorldState:
 
     def set_dungeon_change(self, key, value):
         self._dungeon_changes[key] = value
+
+    def snapshot(self):
+        return to_plain_value(
+            {
+                "discovered_locations": list(self.discovered_locations),
+                "defeated_encounters": list(self.defeated_encounters),
+                "opened_objects": list(self.opened_objects),
+                "consumed_objects": list(self.consumed_objects),
+                "dungeon_changes": self.dungeon_changes,
+            },
+            "world",
+        )

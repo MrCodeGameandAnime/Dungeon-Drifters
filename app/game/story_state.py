@@ -1,5 +1,7 @@
 """Persistent story state for one active game session."""
 
+from app.snapshot import to_plain_value
+
 
 class StoryState:
     def __init__(self, current_chapter=None, current_scene=None, current_location=None):
@@ -33,3 +35,15 @@ class StoryState:
     def record_decision(self, key, value):
         self._player_decisions[key] = value
 
+    def snapshot(self):
+        return to_plain_value(
+            {
+                "current_chapter": self.current_chapter,
+                "current_scene": self.current_scene,
+                "current_location": self.current_location,
+                "story_flags": list(self.story_flags),
+                "completed_events": list(self.completed_events),
+                "player_decisions": self.player_decisions,
+            },
+            "story",
+        )
