@@ -4,7 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.player.character import BlackMage, Brawler, Monk, Move, RogueArcher
+from app.combat.move import Move
+from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
 PLAYABLE_CLASSES = [

@@ -7,13 +7,11 @@ sys.path.insert(0, str(ROOT))
 from app.player.character import (
     BlackMage,
     Brawler,
-    Exp,
-    Health,
-    Level,
-    Mana,
     Monk,
     RogueArcher,
 )
+from app.player.progression import Exp, Level
+from app.player.resources import Health, Mana
 
 
 PLAYABLE_CLASSES = [
