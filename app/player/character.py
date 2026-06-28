@@ -10,32 +10,87 @@ from app.player.loadouts import zhaivra
 class Character:
     def __init__(
             self,
-            strn,
-            con,
-            intl,
-            dex,
-            char,
+            constitution,
+            spirit,
+            intelligence,
+            strength,
+            dexterity,
+            intuition,
             hp,
             mana,
             name,
             moves,
             combat_moves=None,
             class_mechanic=None):
-        self.strength = strn
-        self.constitution = con
-        self.intelligence = intl
-        self.dexterity = dex
-        self.charisma = char
+        self.permanent_stats = stats.PermanentStats(
+            constitution=constitution,
+            spirit=spirit,
+            intelligence=intelligence,
+            strength=strength,
+            dexterity=dexterity,
+            intuition=intuition,
+        )
+        if self.permanent_stats.total != 60:
+            raise ValueError("Level 1 archetype stat total must be 60")
+
         self.name = name
         self.moves = dict(moves)
         self.combat_moves = list(combat_moves or [])
         self.class_mechanic = dict(class_mechanic or {})
         self.profile = None
-        self.stats = stats.Stats(self)
+        self.stats = stats.Stats(self.permanent_stats)
         self.health = resources.Health(maximum=hp)
         self.mana_resource = resources.Mana(maximum=mana)
         self.level_state = progression.Level()
         self.exp_state = progression.Exp(self.level_state)
+
+    @property
+    def constitution(self):
+        return self.permanent_stats.constitution
+
+    @constitution.setter
+    def constitution(self, value):
+        self.permanent_stats.set_stat("constitution", value)
+
+    @property
+    def spirit(self):
+        return self.permanent_stats.spirit
+
+    @spirit.setter
+    def spirit(self, value):
+        self.permanent_stats.set_stat("spirit", value)
+
+    @property
+    def intelligence(self):
+        return self.permanent_stats.intelligence
+
+    @intelligence.setter
+    def intelligence(self, value):
+        self.permanent_stats.set_stat("intelligence", value)
+
+    @property
+    def strength(self):
+        return self.permanent_stats.strength
+
+    @strength.setter
+    def strength(self, value):
+        self.permanent_stats.set_stat("strength", value)
+
+    @property
+    def dexterity(self):
+        return self.permanent_stats.dexterity
+
+    @dexterity.setter
+    def dexterity(self, value):
+        self.permanent_stats.set_stat("dexterity", value)
+
+    @property
+    def intuition(self):
+        return self.permanent_stats.intuition
+
+    @intuition.setter
+    def intuition(self, value):
+        self.permanent_stats.set_stat("intuition", value)
 
     @property
     def archetype_name(self):
@@ -89,11 +144,12 @@ class Character:
 class Brawler(Character):
     def __init__(self):
         super().__init__(
-            strn=7,
-            con=5,
-            intl=1,
-            dex=1,
-            char=1,
+            constitution=14,
+            spirit=6,
+            intelligence=5,
+            strength=15,
+            dexterity=10,
+            intuition=10,
             hp=60,
             mana=10,
             name="Brawler",
@@ -105,11 +161,12 @@ class Brawler(Character):
 class BlackMage(Character):
     def __init__(self):
         super().__init__(
-            strn=1,
-            con=2,
-            intl=7,
-            dex=2,
-            char=3,
+            constitution=7,
+            spirit=13,
+            intelligence=15,
+            strength=5,
+            dexterity=8,
+            intuition=12,
             hp=30,
             mana=70,
             name="Black Mage",
@@ -121,11 +178,12 @@ class BlackMage(Character):
 class RogueArcher(Character):
     def __init__(self):
         super().__init__(
-            strn=2,
-            con=3,
-            intl=2,
-            dex=7,
-            char=1,
+            constitution=8,
+            spirit=7,
+            intelligence=10,
+            strength=6,
+            dexterity=15,
+            intuition=14,
             hp=45,
             mana=20,
             name="Rogue Archer",
@@ -137,11 +195,12 @@ class RogueArcher(Character):
 class Monk(Character):
     def __init__(self):
         super().__init__(
-            strn=4,
-            con=4,
-            intl=2,
-            dex=3,
-            char=2,
+            constitution=10,
+            spirit=10,
+            intelligence=13,
+            strength=7,
+            dexterity=12,
+            intuition=8,
             hp=60,
             mana=20,
             name="Monk",

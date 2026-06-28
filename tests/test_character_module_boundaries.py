@@ -9,7 +9,7 @@ from app.combat.move import Move
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.progression import Exp, Level
 from app.player.resources import Health, Mana
-from app.player.stats import Stats
+from app.player.stats import PermanentStats, Stats
 
 
 PLAYABLE_CLASSES = [
@@ -40,6 +40,7 @@ def test_support_classes_have_canonical_import_paths():
     assert Level.__module__ == "app.player.progression"
     assert Exp.__module__ == "app.player.progression"
     assert Stats.__module__ == "app.player.stats"
+    assert PermanentStats.__module__ == "app.player.stats"
 
 
 def test_character_module_does_not_reexport_extracted_support_classes():
@@ -52,6 +53,7 @@ def test_archetypes_use_canonical_support_objects():
         player = class_type()
 
         assert isinstance(player.stats, Stats)
+        assert isinstance(player.permanent_stats, PermanentStats)
         assert isinstance(player.health, Health)
         assert isinstance(player.mana_resource, Mana)
         assert isinstance(player.level_state, Level)
@@ -89,6 +91,7 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         assert first.combat_moves is not second.combat_moves
         assert first.class_mechanic == second.class_mechanic
         assert first.class_mechanic is not second.class_mechanic
+        assert first.permanent_stats is not second.permanent_stats
         assert first.health is not second.health
         assert first.mana_resource is not second.mana_resource
         assert first.level_state is not second.level_state

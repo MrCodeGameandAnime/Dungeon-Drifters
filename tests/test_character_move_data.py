@@ -33,7 +33,8 @@ def test_all_playable_classes_have_structured_moves():
                 "constitution",
                 "intelligence",
                 "dexterity",
-                "charisma",
+                "spirit",
+                "intuition",
             }
             assert 1 <= move.accuracy <= 100
             assert move.target in {"enemy", "self"}

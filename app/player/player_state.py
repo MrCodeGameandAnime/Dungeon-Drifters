@@ -129,13 +129,7 @@ class PlayerState:
                 "archetype_name": self.character.archetype_name,
                 "profile": profile,
             },
-            "attributes": {
-                "strength": self.character.strength,
-                "constitution": self.character.constitution,
-                "intelligence": self.character.intelligence,
-                "dexterity": self.character.dexterity,
-                "charisma": self.character.charisma,
-            },
+            "attributes": self.character.permanent_stats.as_dict(),
             "resources": {
                 "health": {
                     "current": self.health.current,

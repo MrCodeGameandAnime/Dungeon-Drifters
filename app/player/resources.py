@@ -1,6 +1,6 @@
 class Health:
     def __init__(self, maximum, current=None):
-        self.maximum = max(0, int(maximum))
+        self.maximum = self._validate_maximum(maximum)
         self.current = self.clamp(self.maximum if current is None else current)
 
     def clamp(self, value):
@@ -28,10 +28,46 @@ class Health:
     def is_alive(self):
         return not self.is_defeated()
 
+    def set_maximum(self, maximum):
+        self.maximum = self._validate_maximum(maximum)
+        self.current = self.clamp(self.current)
+        return self.maximum
+
+    def increase_maximum(self, amount, increase_current=False):
+        amount = self._validate_amount(amount)
+        self.maximum += amount
+        if increase_current:
+            self.current = self.clamp(self.current + amount)
+        return self.maximum
+
+    def decrease_maximum(self, amount):
+        amount = self._validate_amount(amount)
+        self.maximum = max(0, self.maximum - amount)
+        self.current = self.clamp(self.current)
+        return self.maximum
+
+    @staticmethod
+    def _validate_maximum(maximum):
+        if isinstance(maximum, bool) or not isinstance(maximum, int):
+            raise TypeError("maximum must be an integer")
+        if maximum < 0:
+            raise ValueError("maximum must not be negative")
+
+        return maximum
+
+    @staticmethod
+    def _validate_amount(amount):
+        if isinstance(amount, bool) or not isinstance(amount, int):
+            raise TypeError("maximum change amount must be an integer")
+        if amount < 0:
+            raise ValueError("maximum change amount must not be negative")
+
+        return amount
+
 
 class Mana:
     def __init__(self, maximum, current=None):
-        self.maximum = max(0, int(maximum))
+        self.maximum = self._validate_maximum(maximum)
         self.current = self.clamp(self.maximum if current is None else current)
 
     def clamp(self, value):
@@ -65,3 +101,39 @@ class Mana:
             'current': self.current,
             'maximum': self.maximum,
         }
+
+    def set_maximum(self, maximum):
+        self.maximum = self._validate_maximum(maximum)
+        self.current = self.clamp(self.current)
+        return self.maximum
+
+    def increase_maximum(self, amount, increase_current=False):
+        amount = self._validate_amount(amount)
+        self.maximum += amount
+        if increase_current:
+            self.current = self.clamp(self.current + amount)
+        return self.maximum
+
+    def decrease_maximum(self, amount):
+        amount = self._validate_amount(amount)
+        self.maximum = max(0, self.maximum - amount)
+        self.current = self.clamp(self.current)
+        return self.maximum
+
+    @staticmethod
+    def _validate_maximum(maximum):
+        if isinstance(maximum, bool) or not isinstance(maximum, int):
+            raise TypeError("maximum must be an integer")
+        if maximum < 0:
+            raise ValueError("maximum must not be negative")
+
+        return maximum
+
+    @staticmethod
+    def _validate_amount(amount):
+        if isinstance(amount, bool) or not isinstance(amount, int):
+            raise TypeError("maximum change amount must be an integer")
+        if amount < 0:
+            raise ValueError("maximum change amount must not be negative")
+
+        return amount

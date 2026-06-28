@@ -46,12 +46,14 @@ def test_default_player_snapshot_has_required_shape():
         "profile": None,
     }
     assert snapshot["attributes"] == {
-        "strength": 7,
-        "constitution": 5,
-        "intelligence": 1,
-        "dexterity": 1,
-        "charisma": 1,
+        "constitution": 14,
+        "spirit": 6,
+        "intelligence": 5,
+        "strength": 15,
+        "dexterity": 10,
+        "intuition": 10,
     }
+    assert "charisma" not in snapshot["attributes"]
     assert snapshot["resources"] == {
         "health": {"current": 60, "maximum": 60},
         "mana": {"current": 10, "maximum": 10},

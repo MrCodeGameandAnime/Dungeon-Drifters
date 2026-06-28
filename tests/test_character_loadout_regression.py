@@ -10,11 +10,12 @@ from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 EXPECTED_LOADOUTS = {
     Brawler: {
         "attributes": {
-            "strength": 7,
-            "constitution": 5,
-            "intelligence": 1,
-            "dexterity": 1,
-            "charisma": 1,
+            "constitution": 14,
+            "spirit": 6,
+            "intelligence": 5,
+            "strength": 15,
+            "dexterity": 10,
+            "intuition": 10,
         },
         "hp": 60,
         "mana": 10,
@@ -63,11 +64,12 @@ EXPECTED_LOADOUTS = {
     },
     BlackMage: {
         "attributes": {
-            "strength": 1,
-            "constitution": 2,
-            "intelligence": 7,
-            "dexterity": 2,
-            "charisma": 3,
+            "constitution": 7,
+            "spirit": 13,
+            "intelligence": 15,
+            "strength": 5,
+            "dexterity": 8,
+            "intuition": 12,
         },
         "hp": 30,
         "mana": 70,
@@ -116,11 +118,12 @@ EXPECTED_LOADOUTS = {
     },
     RogueArcher: {
         "attributes": {
-            "strength": 2,
-            "constitution": 3,
-            "intelligence": 2,
-            "dexterity": 7,
-            "charisma": 1,
+            "constitution": 8,
+            "spirit": 7,
+            "intelligence": 10,
+            "strength": 6,
+            "dexterity": 15,
+            "intuition": 14,
         },
         "hp": 45,
         "mana": 20,
@@ -180,11 +183,12 @@ EXPECTED_LOADOUTS = {
     },
     Monk: {
         "attributes": {
-            "strength": 4,
-            "constitution": 4,
-            "intelligence": 2,
-            "dexterity": 3,
-            "charisma": 2,
+            "constitution": 10,
+            "spirit": 10,
+            "intelligence": 13,
+            "strength": 7,
+            "dexterity": 12,
+            "intuition": 8,
         },
         "hp": 60,
         "mana": 20,
@@ -280,13 +284,9 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
     for class_type, expected in EXPECTED_LOADOUTS.items():
         player = class_type()
 
-        assert {
-            "strength": player.strength,
-            "constitution": player.constitution,
-            "intelligence": player.intelligence,
-            "dexterity": player.dexterity,
-            "charisma": player.charisma,
-        } == expected["attributes"]
+        assert player.permanent_stats.as_dict() == expected["attributes"]
+        assert player.permanent_stats.total == 60
+        assert not hasattr(player, "charisma")
         assert player.health.maximum == expected["hp"]
         assert player.health.current == expected["hp"]
         assert player.mana_resource.maximum == expected["mana"]
