@@ -75,6 +75,8 @@ class PermanentStats:
     def _validate_amount(amount):
         if isinstance(amount, bool) or not isinstance(amount, int):
             raise TypeError("stat mutation amount must be an integer")
+        if amount < 0:
+            raise ValueError("stat mutation amount must not be negative")
 
         return amount
 

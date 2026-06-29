@@ -30,8 +30,6 @@ class Character:
             dexterity=dexterity,
             intuition=intuition,
         )
-        if self.permanent_stats.total != 60:
-            raise ValueError("Level 1 archetype stat total must be 60")
 
         self.name = name
         self.moves = dict(moves)
@@ -141,15 +139,26 @@ class Character:
         self.exp_state.current = max(0, int(value))
 
 
+def _validate_level_one_stat_total(stat_values):
+    total = sum(stat_values.values())
+    if total != 60:
+        raise ValueError("Level 1 archetype stat total must be 60")
+
+    return stat_values
+
+
 class Brawler(Character):
     def __init__(self):
+        stat_values = _validate_level_one_stat_total({
+            "constitution": 14,
+            "spirit": 6,
+            "intelligence": 5,
+            "strength": 15,
+            "dexterity": 10,
+            "intuition": 10,
+        })
         super().__init__(
-            constitution=14,
-            spirit=6,
-            intelligence=5,
-            strength=15,
-            dexterity=10,
-            intuition=10,
+            **stat_values,
             hp=60,
             mana=10,
             name="Brawler",
@@ -160,13 +169,16 @@ class Brawler(Character):
 
 class BlackMage(Character):
     def __init__(self):
+        stat_values = _validate_level_one_stat_total({
+            "constitution": 7,
+            "spirit": 13,
+            "intelligence": 15,
+            "strength": 5,
+            "dexterity": 8,
+            "intuition": 12,
+        })
         super().__init__(
-            constitution=7,
-            spirit=13,
-            intelligence=15,
-            strength=5,
-            dexterity=8,
-            intuition=12,
+            **stat_values,
             hp=30,
             mana=70,
             name="Black Mage",
@@ -177,13 +189,16 @@ class BlackMage(Character):
 
 class RogueArcher(Character):
     def __init__(self):
+        stat_values = _validate_level_one_stat_total({
+            "constitution": 8,
+            "spirit": 7,
+            "intelligence": 10,
+            "strength": 6,
+            "dexterity": 15,
+            "intuition": 14,
+        })
         super().__init__(
-            constitution=8,
-            spirit=7,
-            intelligence=10,
-            strength=6,
-            dexterity=15,
-            intuition=14,
+            **stat_values,
             hp=45,
             mana=20,
             name="Rogue Archer",
@@ -194,13 +209,16 @@ class RogueArcher(Character):
 
 class Monk(Character):
     def __init__(self):
+        stat_values = _validate_level_one_stat_total({
+            "constitution": 10,
+            "spirit": 10,
+            "intelligence": 13,
+            "strength": 7,
+            "dexterity": 12,
+            "intuition": 8,
+        })
         super().__init__(
-            constitution=10,
-            spirit=10,
-            intelligence=13,
-            strength=7,
-            dexterity=12,
-            intuition=8,
+            **stat_values,
             hp=60,
             mana=20,
             name="Monk",

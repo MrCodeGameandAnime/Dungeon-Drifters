@@ -7,6 +7,7 @@ sys.path.insert(0, str(ROOT))
 from app.player.character import (
     BlackMage,
     Brawler,
+    Character,
     Monk,
     RogueArcher,
 )
@@ -242,6 +243,26 @@ def test_all_four_playable_classes_have_approved_six_stat_totals():
         assert not hasattr(player, "charisma")
 
 
+def test_base_character_accepts_valid_progressed_stat_totals_above_sixty():
+    character = Character(
+        constitution=20,
+        spirit=20,
+        intelligence=20,
+        strength=20,
+        dexterity=20,
+        intuition=20,
+        hp=100,
+        mana=50,
+        name="Progressed Test Character",
+        moves={1: "test strike"},
+    )
+
+    assert character.permanent_stats.total == 120
+    assert character.strength == 20
+    assert character.spirit == 20
+    assert character.intuition == 20
+
+
 def test_permanent_stats_validation_and_mutation():
     permanent_stats = PermanentStats(
         constitution=10,
@@ -255,15 +276,22 @@ def test_permanent_stats_validation_and_mutation():
     assert permanent_stats.set_stat("strength", 11) == 11
     assert permanent_stats.increase_stat("strength", 1) == 12
     assert permanent_stats.decrease_stat("strength", 2) == 10
+    assert permanent_stats.increase_stat("strength", 0) == 10
+    assert permanent_stats.decrease_stat("strength", 0) == 10
+    assert permanent_stats.increase_stat("strength", 1) == 11
+    assert permanent_stats.total == 61
 
     for invalid_type in (True, False, 1.5, "10", None):
         assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.set_stat("strength", invalid_type))
         assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.increase_stat("strength", invalid_type))
+        assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.decrease_stat("strength", invalid_type))
 
     assert_raises(ValueError, lambda: permanent_stats.set_stat("strength", 0))
     assert_raises(ValueError, lambda: permanent_stats.set_stat("strength", 101))
-    assert_raises(ValueError, lambda: permanent_stats.increase_stat("strength", 91))
-    assert_raises(ValueError, lambda: permanent_stats.decrease_stat("strength", 10))
+    assert_raises(ValueError, lambda: permanent_stats.increase_stat("strength", -1))
+    assert_raises(ValueError, lambda: permanent_stats.decrease_stat("strength", -1))
+    assert_raises(ValueError, lambda: permanent_stats.increase_stat("strength", 90))
+    assert_raises(ValueError, lambda: permanent_stats.decrease_stat("strength", 11))
     assert_raises(ValueError, lambda: permanent_stats.get_stat("charisma"))
 
 
@@ -282,5 +310,6 @@ if __name__ == "__main__":
     test_legacy_character_attributes_remain_available_and_authoritative()
     test_all_four_playable_classes_initialize_correctly()
     test_all_four_playable_classes_have_approved_six_stat_totals()
+    test_base_character_accepts_valid_progressed_stat_totals_above_sixty()
     test_permanent_stats_validation_and_mutation()
     print("Character state test passed.")
