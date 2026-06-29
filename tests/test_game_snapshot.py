@@ -52,7 +52,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 2
+    assert snapshot["schema_version"] == 3
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",

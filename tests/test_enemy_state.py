@@ -6,6 +6,69 @@ sys.path.insert(0, str(ROOT))
 
 from app.combat.enemy import Goblin, Orc, SkeletonArcher, SnakeLord, Zombie
 from app.combat.enemy_state import EnemyState
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+
+
+EXPECTED_COMBAT_MOVES = [
+    {
+        "name": "slash",
+        "kind": "damage",
+        "resource_type": "none",
+        "resource_cost": 0,
+        "power": 8,
+        "scales_with": ["strength"],
+        "accuracy": 90,
+        "target": "enemy",
+        "damage_type": "physical",
+        "mechanic": "basic_attack",
+        "description": "A simple close-range strike.",
+    },
+    {
+        "name": "jumping slash",
+        "kind": "damage",
+        "resource_type": "none",
+        "resource_cost": 0,
+        "power": 12,
+        "scales_with": ["strength"],
+        "accuracy": 80,
+        "target": "enemy",
+        "damage_type": "physical",
+        "mechanic": "heavy_attack",
+        "description": "A committed leaping slash.",
+    },
+    {
+        "name": "suplex",
+        "kind": "damage",
+        "resource_type": "none",
+        "resource_cost": 0,
+        "power": 14,
+        "scales_with": ["strength"],
+        "accuracy": 75,
+        "target": "enemy",
+        "damage_type": "physical",
+        "mechanic": "stagger",
+        "description": "A forceful throw meant to disrupt the target.",
+    },
+]
+
+
+def move_to_dict(move):
+    return {
+        "name": move.name,
+        "kind": move.kind.value,
+        "resource_type": move.resource_type.value,
+        "resource_cost": move.resource_cost,
+        "power": move.power,
+        "scales_with": [
+            attribute.value
+            for attribute in move.scales_with
+        ],
+        "accuracy": move.accuracy,
+        "target": move.target.value,
+        "damage_type": move.damage_type.value,
+        "mechanic": move.mechanic,
+        "description": move.description,
+    }
 
 
 EXPECTED_ENEMIES = {
@@ -22,6 +85,7 @@ EXPECTED_ENEMIES = {
         "hp": 60,
         "mana": 10,
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "combat_moves": EXPECTED_COMBAT_MOVES,
     },
     Orc: {
         "name": "Orc",
@@ -36,6 +100,7 @@ EXPECTED_ENEMIES = {
         "hp": 60,
         "mana": 10,
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "combat_moves": EXPECTED_COMBAT_MOVES,
     },
     SkeletonArcher: {
         "name": "Skeleton Archer",
@@ -50,6 +115,7 @@ EXPECTED_ENEMIES = {
         "hp": 60,
         "mana": 10,
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "combat_moves": EXPECTED_COMBAT_MOVES,
     },
     Zombie: {
         "name": "Zombie",
@@ -64,6 +130,7 @@ EXPECTED_ENEMIES = {
         "hp": 60,
         "mana": 10,
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "combat_moves": EXPECTED_COMBAT_MOVES,
     },
     SnakeLord: {
         "name": "Snake Lord",
@@ -78,6 +145,7 @@ EXPECTED_ENEMIES = {
         "hp": 60,
         "mana": 10,
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "combat_moves": EXPECTED_COMBAT_MOVES,
     },
 }
 
@@ -90,6 +158,8 @@ def test_enemy_definitions_preserve_authored_data():
         assert enemy.hp == expected["hp"]
         assert enemy.mana == expected["mana"]
         assert enemy.moves == expected["moves"]
+        assert [move_to_dict(move) for move in enemy.combat_moves] == expected["combat_moves"]
+        assert all(isinstance(move, Move) for move in enemy.combat_moves)
         for stat_name, value in expected["stats"].items():
             assert getattr(enemy, stat_name) == value
 
@@ -107,7 +177,8 @@ def test_enemy_state_copies_definition_into_runtime_state():
         assert enemy_state.mana_resource.current == expected["mana"]
         assert enemy_state.mana_resource.maximum == expected["mana"]
         assert enemy_state.moves == expected["moves"]
-        assert enemy_state.combat_moves == tuple(expected["moves"].values())
+        assert [move_to_dict(move) for move in enemy_state.combat_moves] == expected["combat_moves"]
+        assert all(isinstance(move, Move) for move in enemy_state.combat_moves)
         for stat_name, value in expected["stats"].items():
             assert enemy_state.effective_stat(stat_name) == value
 

@@ -1,4 +1,4 @@
-from app.combat.move import Move
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 
 
 def create_legacy_moves():
@@ -9,32 +9,38 @@ def create_combat_moves():
     return [
         Move(
             name='fireball',
-            kind='magic_damage',
-            mana_cost=8,
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=8,
             power=14,
-            scales_with='intelligence',
+            scales_with=(ScalingAttribute.INTELLIGENCE,),
             accuracy=88,
-            target='enemy',
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
             mechanic='burn',
             description='A direct fire spell with a chance to leave burning damage later.'),
         Move(
             name='heal',
-            kind='healing',
-            mana_cost=10,
+            kind=MoveKind.HEALING,
+            resource_type=ResourceType.MANA,
+            resource_cost=10,
             power=12,
-            scales_with='intelligence',
+            scales_with=(ScalingAttribute.INTELLIGENCE,),
             accuracy=100,
-            target='self',
+            target=TargetType.SELF,
+            damage_type=DamageType.HEALING,
             mechanic='arcane_recovery',
             description='Restores health instead of damaging the enemy.'),
         Move(
             name='thunderbolt',
-            kind='magic_damage',
-            mana_cost=14,
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=14,
             power=20,
-            scales_with='intelligence',
+            scales_with=(ScalingAttribute.INTELLIGENCE,),
             accuracy=78,
-            target='enemy',
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
             mechanic='shock',
             description='A volatile lightning spell with high damage and lower accuracy.'),
     ]

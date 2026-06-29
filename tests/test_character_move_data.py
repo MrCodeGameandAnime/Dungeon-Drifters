@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.combat.move import Move
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
@@ -26,19 +26,27 @@ def test_all_playable_classes_have_structured_moves():
         for move in player.combat_moves:
             assert isinstance(move, Move)
             assert move.name in player.moves.values()
-            assert move.mana_cost >= 0
-            assert move.power > 0
-            assert move.scales_with in {
-                "strength",
-                "constitution",
-                "intelligence",
-                "dexterity",
-                "spirit",
-                "intuition",
+            assert move.kind in {MoveKind.DAMAGE, MoveKind.HEALING, MoveKind.UTILITY}
+            assert move.resource_type in {
+                ResourceType.NONE,
+                ResourceType.MANA,
+                ResourceType.CHARACTER,
+                ResourceType.SUPER,
             }
-            assert 1 <= move.accuracy <= 100
-            assert move.target in {"enemy", "self"}
-            assert move.mechanic
+            assert move.resource_cost >= 0
+            assert move.power >= 0
+            assert move.scales_with
+            assert all(isinstance(attribute, ScalingAttribute) for attribute in move.scales_with)
+            assert 0 <= move.accuracy <= 100
+            assert move.target in {TargetType.ENEMY, TargetType.SELF}
+            assert move.damage_type in {
+                DamageType.NONE,
+                DamageType.PHYSICAL,
+                DamageType.MAGICAL,
+                DamageType.HYBRID,
+                DamageType.HEALING,
+            }
+            assert move.mechanic is None or move.mechanic
             assert move.description
 
 
@@ -57,9 +65,27 @@ def test_black_mage_heal_is_defined_as_healing_not_damage():
     black_mage = BlackMage()
     heal = next(move for move in black_mage.combat_moves if move.name == "heal")
 
-    assert heal.kind == "healing"
-    assert heal.target == "self"
-    assert heal.scales_with == "intelligence"
+    assert heal.kind == MoveKind.HEALING
+    assert heal.target == TargetType.SELF
+    assert heal.scales_with == (ScalingAttribute.INTELLIGENCE,)
+    assert heal.resource_type == ResourceType.MANA
+    assert heal.damage_type == DamageType.HEALING
+
+
+def test_loadout_resource_types_follow_authored_class_resources():
+    brawler = Brawler()
+    black_mage = BlackMage()
+    rogue_archer = RogueArcher()
+    monk = Monk()
+
+    assert [move.resource_type for move in brawler.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.CHARACTER,
+        ResourceType.CHARACTER,
+    ]
+    assert {move.resource_type for move in black_mage.combat_moves} == {ResourceType.MANA}
+    assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.CHARACTER}
+    assert {move.resource_type for move in monk.combat_moves} == {ResourceType.MANA}
 
 
 def test_battle_is_not_wired_to_structured_moves_yet():
@@ -70,12 +96,13 @@ def test_battle_is_not_wired_to_structured_moves_yet():
         "Sweep The Leaves",
     ]
     assert monk.combat_moves[0].name == "Bring The Horse To Water"
-    assert monk.combat_moves[0].mana_cost > 0
+    assert monk.combat_moves[0].resource_cost > 0
 
 
 if __name__ == "__main__":
     test_all_playable_classes_have_structured_moves()
     test_each_playable_class_has_a_distinct_mechanic()
     test_black_mage_heal_is_defined_as_healing_not_damage()
+    test_loadout_resource_types_follow_authored_class_resources()
     test_battle_is_not_wired_to_structured_moves_yet()
     print("Character move data test passed.")

@@ -204,12 +204,17 @@ class PlayerState:
         return to_plain_value(
             {
                 "name": move.name,
-                "kind": move.kind,
-                "mana_cost": move.mana_cost,
+                "kind": move.kind.value,
+                "resource_type": move.resource_type.value,
+                "resource_cost": move.resource_cost,
                 "power": move.power,
-                "scales_with": move.scales_with,
+                "scales_with": [
+                    attribute.value
+                    for attribute in move.scales_with
+                ],
                 "accuracy": move.accuracy,
-                "target": move.target,
+                "target": move.target.value,
+                "damage_type": move.damage_type.value,
                 "mechanic": move.mechanic,
                 "description": move.description,
             },

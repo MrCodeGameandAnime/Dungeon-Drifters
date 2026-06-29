@@ -2,6 +2,8 @@
 
 from typing import Protocol, Sequence, runtime_checkable
 
+from app.combat.move import Move
+
 
 @runtime_checkable
 class Combatant(Protocol):
@@ -18,7 +20,7 @@ class Combatant(Protocol):
         ...
 
     @property
-    def combat_moves(self) -> Sequence[object]:
+    def combat_moves(self) -> Sequence[Move]:
         ...
 
     def effective_stat(self, name):

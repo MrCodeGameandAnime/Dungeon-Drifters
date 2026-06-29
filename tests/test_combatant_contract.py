@@ -7,6 +7,7 @@ sys.path.insert(0, str(ROOT))
 from app.combat.combatant import Combatant
 from app.combat.enemy import Goblin
 from app.combat.enemy_state import EnemyState
+from app.combat.move import Move
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.player.stats import PermanentStats
@@ -26,7 +27,7 @@ def inspect_combatant(combatant):
         "display_name": combatant.display_name,
         "health": (combatant.health.current, combatant.health.maximum),
         "mana": (combatant.mana_resource.current, combatant.mana_resource.maximum),
-        "moves": tuple(combatant.combat_moves),
+        "moves": tuple(move.name for move in combatant.combat_moves),
         "strength": combatant.effective_stat("strength"),
         "alive": combatant.is_alive(),
     }
@@ -53,6 +54,7 @@ def test_shared_inspection_works_without_type_branches():
     assert player_info["strength"] == 15
     assert player_info["alive"]
     assert len(player_info["moves"]) == 3
+    assert all(isinstance(move, Move) for move in player_state.combat_moves)
 
     assert enemy_info == {
         "display_name": "Goblin",
@@ -62,6 +64,7 @@ def test_shared_inspection_works_without_type_branches():
         "strength": 3,
         "alive": True,
     }
+    assert all(isinstance(move, Move) for move in enemy_state.combat_moves)
 
 
 def test_effective_stat_supports_all_six_canonical_stats():

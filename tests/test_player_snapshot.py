@@ -134,12 +134,14 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
 
     assert first_move == {
         "name": "fireball",
-        "kind": "magic_damage",
-        "mana_cost": 8,
+        "kind": "damage",
+        "resource_type": "mana",
+        "resource_cost": 8,
         "power": 14,
-        "scales_with": "intelligence",
+        "scales_with": ["intelligence"],
         "accuracy": 88,
         "target": "enemy",
+        "damage_type": "magical",
         "mechanic": "burn",
         "description": "A direct fire spell with a chance to leave burning damage later.",
     }
