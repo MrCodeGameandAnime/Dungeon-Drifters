@@ -22,7 +22,7 @@ def create_combat_moves():
         Move(
             name='jumping slash',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
+            resource_type=ResourceType.MANA,
             resource_cost=3,
             power=14,
             scales_with=(ScalingAttribute.STRENGTH,),
@@ -34,7 +34,7 @@ def create_combat_moves():
         Move(
             name='suplex',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
+            resource_type=ResourceType.MANA,
             resource_cost=5,
             power=18,
             scales_with=(ScalingAttribute.STRENGTH,),

@@ -13,7 +13,6 @@ class MoveKind(StrEnum):
 class ResourceType(StrEnum):
     NONE = "none"
     MANA = "mana"
-    CHARACTER = "character"
     SUPER = "super"
 
 

@@ -30,7 +30,6 @@ def test_all_playable_classes_have_structured_moves():
             assert move.resource_type in {
                 ResourceType.NONE,
                 ResourceType.MANA,
-                ResourceType.CHARACTER,
                 ResourceType.SUPER,
             }
             assert move.resource_cost >= 0
@@ -80,11 +79,12 @@ def test_loadout_resource_types_follow_authored_class_resources():
 
     assert [move.resource_type for move in brawler.combat_moves] == [
         ResourceType.NONE,
-        ResourceType.CHARACTER,
-        ResourceType.CHARACTER,
+        ResourceType.MANA,
+        ResourceType.MANA,
     ]
     assert {move.resource_type for move in black_mage.combat_moves} == {ResourceType.MANA}
-    assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.CHARACTER}
+    assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.NONE}
+    assert {move.resource_cost for move in rogue_archer.combat_moves} == {0}
     assert {move.resource_type for move in monk.combat_moves} == {ResourceType.MANA}
 
 

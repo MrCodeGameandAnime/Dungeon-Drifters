@@ -10,8 +10,8 @@ def create_combat_moves():
         Move(
             name='deadshot',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
-            resource_cost=4,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=12,
             scales_with=(ScalingAttribute.DEXTERITY,),
             accuracy=95,
@@ -22,8 +22,8 @@ def create_combat_moves():
         Move(
             name='triple shot',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
-            resource_cost=6,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=6,
             scales_with=(ScalingAttribute.DEXTERITY,),
             accuracy=86,
@@ -34,8 +34,8 @@ def create_combat_moves():
         Move(
             name='rain of arrows',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
-            resource_cost=8,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=10,
             scales_with=(ScalingAttribute.DEXTERITY,),
             accuracy=80,
@@ -46,8 +46,8 @@ def create_combat_moves():
         Move(
             name='flaming arrow',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.CHARACTER,
-            resource_cost=7,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=13,
             scales_with=(ScalingAttribute.DEXTERITY, ScalingAttribute.INTUITION),
             accuracy=84,

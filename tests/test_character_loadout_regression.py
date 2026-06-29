@@ -38,7 +38,7 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "jumping slash",
                 "kind": "damage",
-                "resource_type": "character",
+                "resource_type": "mana",
                 "resource_cost": 3,
                 "power": 14,
                 "scales_with": ["strength"],
@@ -51,7 +51,7 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "suplex",
                 "kind": "damage",
-                "resource_type": "character",
+                "resource_type": "mana",
                 "resource_cost": 5,
                 "power": 18,
                 "scales_with": ["strength"],
@@ -145,8 +145,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "deadshot",
                 "kind": "damage",
-                "resource_type": "character",
-                "resource_cost": 4,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 12,
                 "scales_with": ["dexterity"],
                 "accuracy": 95,
@@ -158,8 +158,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "triple shot",
                 "kind": "damage",
-                "resource_type": "character",
-                "resource_cost": 6,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 6,
                 "scales_with": ["dexterity"],
                 "accuracy": 86,
@@ -171,8 +171,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "rain of arrows",
                 "kind": "damage",
-                "resource_type": "character",
-                "resource_cost": 8,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 10,
                 "scales_with": ["dexterity"],
                 "accuracy": 80,
@@ -184,8 +184,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "flaming arrow",
                 "kind": "damage",
-                "resource_type": "character",
-                "resource_cost": 7,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 13,
                 "scales_with": ["dexterity", "intuition"],
                 "accuracy": 84,

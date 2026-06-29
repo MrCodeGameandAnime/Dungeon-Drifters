@@ -72,11 +72,14 @@ def test_resource_cost_validation():
     assert_raises(TypeError, lambda: create_move(resource_cost=1.5))
 
 
-def test_mana_cost_compatibility_never_reports_character_or_super_costs_as_mana():
-    character_move = create_move(resource_type=ResourceType.CHARACTER, resource_cost=3)
+def test_character_resource_type_is_not_accepted():
+    assert_raises(ValueError, lambda: create_move(resource_type="character", resource_cost=3))
+
+
+def test_super_resource_type_is_valid_and_not_reported_as_mana():
     super_move = create_move(resource_type=ResourceType.SUPER, resource_cost=3)
 
-    assert_raises(ValueError, lambda: character_move.mana_cost)
+    assert super_move.resource_type == ResourceType.SUPER
     assert_raises(ValueError, lambda: super_move.mana_cost)
 
 
@@ -131,7 +134,8 @@ if __name__ == "__main__":
     test_valid_move_construction_and_string_value_coercion()
     test_move_is_immutable()
     test_resource_cost_validation()
-    test_mana_cost_compatibility_never_reports_character_or_super_costs_as_mana()
+    test_character_resource_type_is_not_accepted()
+    test_super_resource_type_is_valid_and_not_reported_as_mana()
     test_power_and_accuracy_validation()
     test_scaling_tuple_validation()
     test_string_fields_and_enum_validation()
