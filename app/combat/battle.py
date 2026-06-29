@@ -9,11 +9,9 @@ class Battle:
         self.player = player_state.character
         self.foe = foe
         self.combat_state = CombatState()
-        self.foe_max_hp = foe.hp
-        self.foe_health = foe.hp
 
     def run(self):
-        print(f"\nA {self.foe.name} blocks your path!")
+        print(f"\nA {self.foe.display_name} blocks your path!")
 
         player_turn = random.randint(1, 2) == 1
         if player_turn:
@@ -23,7 +21,7 @@ class Battle:
 
         self.print_health()
 
-        while self.player_state.health.is_alive() and self.foe_health > 0:
+        while self.player_state.is_alive() and self.foe.is_alive():
             if player_turn:
                 self.player_action()
             else:
@@ -33,7 +31,7 @@ class Battle:
             self.print_health()
             player_turn = not player_turn
 
-        return "player" if self.foe_health <= 0 else "enemy"
+        return "player" if not self.foe.is_alive() else "enemy"
 
     def player_action(self):
         moves = list(self.player.moves.values())
@@ -50,10 +48,10 @@ Choose a move:
         while True:
             choice = input("> ").strip().lower()
             if choice in ("1", quick_move.lower()):
-                self.attack(self.player, self.foe, quick_move, heavy=False)
+                self.attack(self.player_state, self.foe, quick_move, heavy=False)
                 return
             if choice in ("2", power_move.lower()):
-                self.attack(self.player, self.foe, power_move, heavy=True)
+                self.attack(self.player_state, self.foe, power_move, heavy=True)
                 return
             if choice in ("3", "recover", "heal"):
                 self.heal_player()
@@ -62,22 +60,22 @@ Choose a move:
             print("That is not a valid move. Please try again.")
 
     def enemy_action(self):
-        if self.foe_health <= self.foe_max_hp // 3 and random.randint(1, 2) == 1:
-            heal_amount = random.randint(6, 12) + self.foe.constitution
-            self.foe_health = min(self.foe_max_hp, self.foe_health + heal_amount)
-            print(f"\nThe {self.foe.name} regroups and recovers {heal_amount} health.")
+        if self.foe.health.current <= self.foe.health.maximum // 3 and random.randint(1, 2) == 1:
+            heal_amount = random.randint(6, 12) + self.foe.effective_stat("constitution")
+            self.foe.health.heal(heal_amount)
+            print(f"\nThe {self.foe.display_name} regroups and recovers {heal_amount} health.")
             return
 
         moves = list(self.foe.moves.values())
         move = random.choice(moves)
-        damage = random.randint(6, 12) + self.foe.strength
+        damage = random.randint(6, 12) + self.foe.effective_stat("strength")
 
         if self.misses():
-            print(f"\nThe {self.foe.name} used {move}, but missed!")
+            print(f"\nThe {self.foe.display_name} used {move}, but missed!")
             return
 
         self.player_state.health.take_damage(damage)
-        print(f"\nThe {self.foe.name} used {move}. It dealt {damage} damage.")
+        print(f"\nThe {self.foe.display_name} used {move}. It dealt {damage} damage.")
 
     def attack(self, attacker, target, move_name, heavy):
         if self.misses():
@@ -85,15 +83,15 @@ Choose a move:
             return
 
         if heavy:
-            damage = random.randint(8, 20) + attacker.strength
+            damage = random.randint(8, 20) + attacker.effective_stat("strength")
         else:
-            damage = random.randint(8, 14) + attacker.strength
+            damage = random.randint(8, 14) + attacker.effective_stat("strength")
 
-        self.foe_health = max(0, self.foe_health - damage)
-        print(f"\n{attacker.display_name} used {move_name}. It dealt {damage} damage to the {target.name}.")
+        target.health.take_damage(damage)
+        print(f"\n{attacker.display_name} used {move_name}. It dealt {damage} damage to the {target.display_name}.")
 
     def heal_player(self):
-        heal_amount = random.randint(10, 16) + self.player.constitution
+        heal_amount = random.randint(10, 16) + self.player_state.effective_stat("constitution")
         self.player_state.health.heal(heal_amount)
         print(f"\n{self.player.display_name} takes a breath and recovers {heal_amount} health.")
 
@@ -103,4 +101,4 @@ Choose a move:
 
     def print_health(self):
         print(f"\n{self.player.display_name} health: {self.player_state.health.current}/{self.player_state.health.maximum}")
-        print(f"{self.foe.name} health: {self.foe_health}/{self.foe_max_hp}")
+        print(f"{self.foe.display_name} health: {self.foe.health.current}/{self.foe.health.maximum}")

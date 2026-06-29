@@ -1,13 +1,15 @@
 class Enemy:
-    def __init__(self, strn, con, intl, dex, hp, mana, name, moves):
+    def __init__(self, strn, con, intl, dex, hp, mana, name, moves, spirit=1, intuition=1):
         self.strength = strn
         self.constitution = con
         self.intelligence = intl
         self.dexterity = dex
+        self.spirit = spirit
+        self.intuition = intuition
         self.hp = hp
         self.mana = mana
         self.name = name
-        self.moves = moves
+        self.moves = dict(moves)
         self.level = 1
         self.exp = 0
 

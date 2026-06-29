@@ -1,5 +1,6 @@
 from app.combat.battle import Battle
 from app.combat.enemy import Goblin
+from app.combat.enemy_state import EnemyState
 from app.game import console
 from app.game.game_state import GameState
 from app.player.player_state import PlayerState
@@ -24,7 +25,7 @@ def main():
         story.escaped_ending(game_state.player_state.character)
         return
 
-    winner = Battle(game_state.player_state, Goblin()).run()
+    winner = Battle(game_state.player_state, EnemyState(Goblin())).run()
     story.battle_ending(game_state.player_state.character, winner)
 
 

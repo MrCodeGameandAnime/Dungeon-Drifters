@@ -71,6 +71,16 @@ class PlayerState:
     def class_mechanic(self):
         return self.character.class_mechanic
 
+    @property
+    def display_name(self):
+        return self.character.display_name
+
+    def effective_stat(self, name):
+        return self.stats.effective_stat(name)
+
+    def is_alive(self):
+        return self.health.is_alive()
+
     def add_gold(self, amount):
         self._gold += self._validate_gold_amount(amount)
         return self.gold
