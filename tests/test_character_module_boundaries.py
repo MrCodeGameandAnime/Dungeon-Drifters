@@ -1,8 +1,4 @@
-import sys
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 import app.player.character as character_module
 from app.combat.move import Move
@@ -10,6 +6,8 @@ from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.progression import Exp, Level
 from app.player.resources import Health, Mana
 from app.player.stats import PermanentStats, Stats
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 PLAYABLE_CLASSES = [

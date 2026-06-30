@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.game.game_state import GameState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState

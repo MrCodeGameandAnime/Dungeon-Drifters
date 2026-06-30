@@ -2,12 +2,6 @@ import builtins
 import contextlib
 import io
 import random
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 import run_game
 import app.game.main_loop as main_loop
 import app.world.event as event_module

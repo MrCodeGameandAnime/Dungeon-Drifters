@@ -1,10 +1,4 @@
 import json
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.game.game_state import GameState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState

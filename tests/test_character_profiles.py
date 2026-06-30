@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.world.character_profiles.profile import render_compact_profile, render_full_profile
 from app.world.character_profiles.roster import (
