@@ -61,6 +61,5 @@ def create_combat_moves():
 def create_class_mechanic():
     return {
         'name': 'Precision',
-        'resource': 'focus',
         'description': 'High dexterity supports accuracy, critical hits, and multi-hit attacks.',
     }

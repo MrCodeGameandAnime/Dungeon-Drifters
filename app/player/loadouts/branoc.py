@@ -17,8 +17,8 @@ def create_combat_moves():
             accuracy=92,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='combo_builder',
-            description='A reliable close-range strike that builds momentum.'),
+            mechanic='basic_attack',
+            description='A reliable close-range strike.'),
         Move(
             name='jumping slash',
             kind=MoveKind.DAMAGE,
@@ -29,8 +29,8 @@ def create_combat_moves():
             accuracy=82,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='combo_spender',
-            description='A risky leaping attack that hits harder after momentum is built.'),
+            mechanic='heavy_attack',
+            description='A risky leaping attack that hits harder than a basic strike.'),
         Move(
             name='suplex',
             kind=MoveKind.DAMAGE,
@@ -48,7 +48,6 @@ def create_combat_moves():
 
 def create_class_mechanic():
     return {
-        'name': 'Momentum',
-        'resource': 'momentum',
-        'description': 'Basic hits build momentum; heavy techniques spend it for burst damage.',
+        'name': 'Heavy Vanguard',
+        'description': 'A durable frontline identity built around heavy physical pressure.',
     }

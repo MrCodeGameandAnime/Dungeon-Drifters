@@ -19,10 +19,6 @@ class EnemyState:
         self.health = resources.Health(maximum=enemy_definition.hp)
         self.mana_resource = resources.Mana(maximum=enemy_definition.mana)
         self._combat_moves = tuple(enemy_definition.combat_moves)
-        self._moves = {
-            index: move.name
-            for index, move in enumerate(self._combat_moves, start=1)
-        }
 
     @property
     def definition(self):
@@ -38,7 +34,10 @@ class EnemyState:
 
     @property
     def moves(self):
-        return self._moves
+        return {
+            index: move.name
+            for index, move in enumerate(self._combat_moves, start=1)
+        }
 
     @property
     def combat_moves(self):

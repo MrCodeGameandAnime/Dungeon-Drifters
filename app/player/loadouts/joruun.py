@@ -79,7 +79,6 @@ def create_combat_moves():
 def create_class_mechanic():
     return {
         'name': 'Ki Forms',
-        'resource': 'ki',
         'description': 'Monk techniques combine positioning, balance, and Ki setup effects.',
     }
 

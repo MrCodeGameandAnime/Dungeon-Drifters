@@ -32,8 +32,8 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 92,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "combo_builder",
-                "description": "A reliable close-range strike that builds momentum.",
+                "mechanic": "basic_attack",
+                "description": "A reliable close-range strike.",
             },
             {
                 "name": "jumping slash",
@@ -45,8 +45,8 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 82,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "combo_spender",
-                "description": "A risky leaping attack that hits harder after momentum is built.",
+                "mechanic": "heavy_attack",
+                "description": "A risky leaping attack that hits harder than a basic strike.",
             },
             {
                 "name": "suplex",
@@ -63,9 +63,8 @@ EXPECTED_LOADOUTS = {
             },
         ],
         "class_mechanic": {
-            "name": "Momentum",
-            "resource": "momentum",
-            "description": "Basic hits build momentum; heavy techniques spend it for burst damage.",
+            "name": "Heavy Vanguard",
+            "description": "A durable frontline identity built around heavy physical pressure.",
         },
     },
     BlackMage: {
@@ -197,7 +196,6 @@ EXPECTED_LOADOUTS = {
         ],
         "class_mechanic": {
             "name": "Precision",
-            "resource": "focus",
             "description": "High dexterity supports accuracy, critical hits, and multi-hit attacks.",
         },
     },
@@ -289,7 +287,6 @@ EXPECTED_LOADOUTS = {
         ],
         "class_mechanic": {
             "name": "Ki Forms",
-            "resource": "ki",
             "description": "Monk techniques combine positioning, balance, and Ki setup effects.",
         },
     },
@@ -335,6 +332,41 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
         assert player.class_mechanic == expected["class_mechanic"]
 
 
+def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
+    player = Brawler()
+    slash, jumping_slash, suplex = player.combat_moves
+    forbidden_builder = "combo" + "_" + "builder"
+    forbidden_spender = "combo" + "_" + "spender"
+
+    assert slash.mechanic != forbidden_builder
+    assert "momentum" not in slash.description.lower()
+    assert jumping_slash.mechanic != forbidden_spender
+    jumping_description = jumping_slash.description.lower()
+    assert "momentum" not in jumping_description
+    assert "spend" not in jumping_description
+    assert "require" not in jumping_description
+    assert "benefit" not in jumping_description
+    assert suplex.mechanic == "stagger"
+    assert player.class_mechanic["name"] != "Momentum"
+    assert "resource" not in player.class_mechanic
+
+
+def test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources():
+    zhaivra = RogueArcher()
+    joruun = Monk()
+
+    assert "resource" not in zhaivra.class_mechanic
+    assert zhaivra.class_mechanic["name"] == "Precision"
+    assert {move.resource_type.value for move in zhaivra.combat_moves} == {"none"}
+    assert {move.resource_cost for move in zhaivra.combat_moves} == {0}
+
+    assert "resource" not in joruun.class_mechanic
+    assert joruun.class_mechanic["name"] == "Ki Forms"
+    assert {move.resource_type.value for move in joruun.combat_moves} == {"mana"}
+
+
 if __name__ == "__main__":
     test_all_archetype_authored_loadout_data_is_unchanged()
+    test_branoc_has_no_active_momentum_hooks_or_resource_declaration()
+    test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources()
     print("Character loadout regression test passed.")

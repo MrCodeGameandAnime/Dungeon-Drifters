@@ -57,12 +57,15 @@ class Enemy:
         self.mana = mana
         self.name = name
         self.combat_moves = tuple(combat_moves)
-        self.moves = {
+        self.level = 1
+        self.exp = 0
+
+    @property
+    def moves(self):
+        return {
             index: move.name
             for index, move in enumerate(self.combat_moves, start=1)
         }
-        self.level = 1
-        self.exp = 0
 
 
 class Goblin(Enemy):

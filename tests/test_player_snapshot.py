@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.items.weapon import Staff
-from app.player.character import BlackMage, Brawler
+from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.snapshot import validate_plain_value
 from app.world.character_profiles.roster import get_profile_by_choice
@@ -65,7 +65,8 @@ def test_default_player_snapshot_has_required_shape():
     assert tuple(snapshot["equipment"].keys()) == PlayerState.EQUIPMENT_SLOTS
     assert all(item is None for item in snapshot["equipment"].values())
     assert len(snapshot["combat"]["moves"]) == 3
-    assert snapshot["combat"]["class_mechanic"]["name"] == "Momentum"
+    assert snapshot["combat"]["class_mechanic"]["name"] == "Heavy Vanguard"
+    assert "resource" not in snapshot["combat"]["class_mechanic"]
     assert_strict_json(snapshot)
 
 
@@ -153,6 +154,30 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
     assert_strict_json(snapshot)
 
 
+def test_affected_class_mechanics_do_not_declare_deferred_resources():
+    affected_classes = (
+        Brawler,
+        RogueArcher,
+    )
+
+    for class_type in affected_classes:
+        snapshot = PlayerState(class_type()).snapshot()
+        class_mechanic = snapshot["combat"]["class_mechanic"]
+
+        assert "resource" not in class_mechanic
+        forbidden_resources = {
+            "moment" + "um",
+            "fo" + "cus",
+            "k" + "i",
+        }
+        assert class_mechanic.get("resource") not in forbidden_resources
+
+    monk_snapshot = PlayerState(Monk()).snapshot()
+    monk_mechanic = monk_snapshot["combat"]["class_mechanic"]
+    assert monk_mechanic["name"] == "Ki Forms"
+    assert "resource" not in monk_mechanic
+
+
 def test_snapshot_is_isolated_and_non_mutating():
     player_state = PlayerState(Brawler(), gold=10)
     player_state.inventory.add_item("tonic")
@@ -216,6 +241,7 @@ if __name__ == "__main__":
     test_mutated_resources_progression_gold_and_inventory_are_reflected()
     test_supported_weapon_equipment_uses_explicit_plain_mapping()
     test_structured_moves_and_class_mechanic_are_plain_values()
+    test_affected_class_mechanics_do_not_declare_deferred_resources()
     test_snapshot_is_isolated_and_non_mutating()
     test_unsupported_inventory_and_equipment_values_fail_clearly()
     test_fake_weapon_shaped_object_is_not_serialized_as_weapon()

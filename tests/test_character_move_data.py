@@ -53,7 +53,7 @@ def test_each_playable_class_has_a_distinct_mechanic():
     mechanics = {class_type().class_mechanic["name"] for class_type in PLAYABLE_CLASSES}
 
     assert mechanics == {
-        "Momentum",
+        "Heavy Vanguard",
         "Arcane Focus",
         "Precision",
         "Ki Forms",
