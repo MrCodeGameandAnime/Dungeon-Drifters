@@ -146,16 +146,3 @@ def test_full_profile_includes_representative_profile_anchors():
         assert anchor in rendered_profiles
 
     assert "**" not in rendered_profiles
-
-
-if __name__ == "__main__":
-    test_roster_choices_are_unique_and_ordered()
-    test_choice_lookup_returns_canonical_profile_objects()
-    test_each_profile_creates_expected_character_class()
-    test_profile_names_are_canonical()
-    test_profiles_have_required_player_facing_fields()
-    test_compact_roster_contains_each_display_name_once_and_in_order()
-    test_compact_roster_has_four_entries_and_excludes_full_profile_content()
-    test_full_profile_render_shows_only_one_selected_character()
-    test_full_profile_includes_representative_profile_anchors()
-    print("Character profile tests passed.")

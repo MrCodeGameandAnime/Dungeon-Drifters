@@ -133,15 +133,3 @@ def test_string_fields_and_enum_validation():
         create_move(target="all")
     with pytest.raises(ValueError):
         create_move(damage_type="fire")
-
-
-if __name__ == "__main__":
-    test_valid_move_construction_and_string_value_coercion()
-    test_move_is_immutable()
-    test_resource_cost_validation()
-    test_character_resource_type_is_not_accepted()
-    test_super_resource_type_is_valid_and_not_reported_as_mana()
-    test_power_and_accuracy_validation()
-    test_scaling_tuple_validation()
-    test_string_fields_and_enum_validation()
-    print("Move contract test passed.")

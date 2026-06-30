@@ -297,23 +297,3 @@ def test_permanent_stats_validation_and_mutation():
         permanent_stats.decrease_stat("strength", 11)
     with pytest.raises(ValueError):
         permanent_stats.get_stat("charisma")
-
-
-if __name__ == "__main__":
-    test_health_healing_clamps_to_maximum()
-    test_health_damage_clamps_to_zero_and_defeated()
-    test_mana_restore_clamps_to_maximum()
-    test_mana_spend_checks_affordability_and_never_goes_below_zero()
-    test_health_maximum_changes_validate_and_clamp_current()
-    test_mana_maximum_changes_validate_and_clamp_current()
-    test_resource_maximum_changes_reject_invalid_values()
-    test_exact_exp_threshold_levels_up()
-    test_excess_exp_carries_over_after_level_up()
-    test_one_exp_gain_can_cause_multiple_level_ups()
-    test_derived_stats_return_nonnegative_values()
-    test_legacy_character_attributes_remain_available_and_authoritative()
-    test_all_four_playable_classes_initialize_correctly()
-    test_all_four_playable_classes_have_approved_six_stat_totals()
-    test_base_character_accepts_valid_progressed_stat_totals_above_sixty()
-    test_permanent_stats_validation_and_mutation()
-    print("Character state test passed.")

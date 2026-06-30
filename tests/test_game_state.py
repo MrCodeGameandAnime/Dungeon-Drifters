@@ -65,13 +65,3 @@ def test_game_state_instances_do_not_share_state_containers():
     assert second.story_state.story_flags == ()
     assert first.world_state.discovered_locations == ("woods",)
     assert second.world_state.discovered_locations == ()
-
-
-if __name__ == "__main__":
-    test_valid_player_state_constructs_game_state()
-    test_invalid_player_state_is_rejected()
-    test_ownership_properties_cannot_be_replaced()
-    test_metadata_snapshot_cannot_mutate_internal_metadata()
-    test_game_state_instances_do_not_share_state_containers()
-    print("Game state test passed.")
-

@@ -94,13 +94,3 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         assert first.mana_resource is not second.mana_resource
         assert first.level_state is not second.level_state
         assert first.exp_state is not second.exp_state
-
-
-if __name__ == "__main__":
-    test_support_classes_have_canonical_import_paths()
-    test_character_module_does_not_reexport_extracted_support_classes()
-    test_archetypes_use_canonical_support_objects()
-    test_support_modules_do_not_import_character_runtime()
-    test_loadouts_do_not_import_character_or_profile_modules()
-    test_archetype_instances_do_not_share_mutable_runtime_containers()
-    print("Character module boundary test passed.")

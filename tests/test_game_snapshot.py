@@ -181,14 +181,3 @@ def test_plain_value_conversion_and_validation_treat_tuples_differently():
     with pytest.raises(TypeError) as nested_error:
         validate_plain_value({"outer": [{"inner": (1, 2)}]})
     assert "snapshot.outer[0].inner" in str(nested_error.value)
-
-
-if __name__ == "__main__":
-    test_game_snapshot_has_required_shape_and_schema_version()
-    test_story_and_world_snapshot_content_is_owned_by_their_state_classes()
-    test_game_snapshot_is_isolated_from_runtime_state()
-    test_independent_sessions_do_not_share_snapshot_containers()
-    test_unsupported_metadata_story_and_world_values_fail_clearly()
-    test_non_finite_floats_are_rejected_with_paths()
-    test_plain_value_conversion_and_validation_treat_tuples_differently()
-    print("Game snapshot test passed.")

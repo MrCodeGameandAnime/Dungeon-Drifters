@@ -135,14 +135,3 @@ def test_avoid_battle_failure_behavior_is_unchanged():
 
     assert escaped is False
     assert "You can't escape. It's time for battle!" in output.getvalue()
-
-
-if __name__ == "__main__":
-    test_valid_character_choices_return_expected_classes()
-    test_invalid_character_choice_reprompts_then_returns_valid_selection()
-    test_declined_confirmation_returns_to_compact_roster()
-    test_invalid_confirmation_repeats_confirmation_only()
-    test_character_construction_happens_only_after_positive_confirmation()
-    test_avoid_battle_success_behavior_is_unchanged()
-    test_avoid_battle_failure_behavior_is_unchanged()
-    print("Event character selection tests passed.")

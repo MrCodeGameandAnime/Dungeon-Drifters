@@ -85,14 +85,3 @@ def test_structural_contract_allows_future_valid_action_shapes():
     create_result(accepted=True, hit=False, resource_spent=3, damage=0, healing=0, statuses_applied=())
     create_result(accepted=True, hit=True, resource_spent=2, damage=0, healing=0, statuses_applied=("stun",))
     create_result(accepted=True, hit=True, resource_spent=4, damage=5, healing=5)
-
-
-if __name__ == "__main__":
-    test_valid_move_result_construction()
-    test_move_result_is_immutable()
-    test_boolean_fields_must_be_booleans()
-    test_numeric_fields_are_nonnegative_integers_and_reject_booleans()
-    test_statuses_are_immutable_nonempty_strings()
-    test_move_name_and_reason_validation()
-    test_structural_contract_allows_future_valid_action_shapes()
-    print("Move result test passed.")

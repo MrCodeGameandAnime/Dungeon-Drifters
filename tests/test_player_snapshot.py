@@ -225,16 +225,3 @@ def test_fake_weapon_shaped_object_is_not_serialized_as_weapon():
     with pytest.raises(TypeError) as equipment_error:
         player_state.snapshot()
     assert "player.equipment.weapon" in str(equipment_error.value)
-
-
-if __name__ == "__main__":
-    test_default_player_snapshot_has_required_shape()
-    test_profile_created_character_snapshot_uses_attached_profile_identity()
-    test_mutated_resources_progression_gold_and_inventory_are_reflected()
-    test_supported_weapon_equipment_uses_explicit_plain_mapping()
-    test_structured_moves_and_class_mechanic_are_plain_values()
-    test_affected_class_mechanics_do_not_declare_deferred_resources()
-    test_snapshot_is_isolated_and_non_mutating()
-    test_unsupported_inventory_and_equipment_values_fail_clearly()
-    test_fake_weapon_shaped_object_is_not_serialized_as_weapon()
-    print("Player snapshot test passed.")

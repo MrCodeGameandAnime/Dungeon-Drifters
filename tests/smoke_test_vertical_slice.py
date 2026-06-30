@@ -87,9 +87,3 @@ def test_flee_path_reaches_escape_ending():
     assert "You have chosen Ser Branoc, the Unbroken Crest!" in text
     assert "You escaped in the nick of time" in text
     assert "Ser Branoc, you break through the brush and escape the ambush" in text
-
-
-if __name__ == "__main__":
-    test_attack_path_reaches_victory_ending()
-    test_flee_path_reaches_escape_ending()
-    print("Vertical slice smoke test passed.")

@@ -56,12 +56,3 @@ def test_clear_turn_flags_clears_defending_without_deleting_containers():
     assert combat_state.statuses == {"burn": 2}
     assert combat_state.buffs == {"attack": 1}
     assert combat_state.debuffs == {"defense": 1}
-
-
-if __name__ == "__main__":
-    test_combat_state_starts_with_empty_temporary_state()
-    test_mutable_containers_are_per_instance()
-    test_advance_turn_increments_and_returns_turn_count()
-    test_set_defending_toggles_defending()
-    test_clear_turn_flags_clears_defending_without_deleting_containers()
-    print("Combat state test passed.")

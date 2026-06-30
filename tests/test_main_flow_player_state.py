@@ -189,9 +189,3 @@ def test_battle_path_wraps_character_once_and_uses_wrapped_character():
     assert story.battle_ending_character is selected_character
     assert story.battle_ending_winner == "player"
     assert calls == ["opening_screen", "wait_for_continue", "clear_console", "pick_character", "clear_console", "day_one"]
-
-
-if __name__ == "__main__":
-    test_escape_path_wraps_character_once_and_skips_battle()
-    test_battle_path_wraps_character_once_and_uses_wrapped_character()
-    print("Main flow player state test passed.")

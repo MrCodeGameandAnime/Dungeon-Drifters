@@ -245,19 +245,3 @@ def test_completed_actions_advance_turn_count():
 
     assert winner == "player"
     assert battle.combat_state.turn_count == 5
-
-
-if __name__ == "__main__":
-    test_battle_accepts_player_state_and_uses_wrapped_character()
-    test_battles_do_not_share_combat_state()
-    test_enemy_damage_mutates_player_state_health()
-    test_player_damage_mutates_enemy_state_health()
-    test_enemy_recovery_mutates_enemy_state_health()
-    test_battle_player_output_uses_canonical_short_identity_when_profile_attached()
-    test_player_recovery_heals_persistent_health_without_exceeding_maximum()
-    test_battle_starts_from_existing_persistent_health()
-    test_victory_returns_player()
-    test_defeat_returns_enemy_and_persists_player_health()
-    test_invalid_player_input_does_not_advance_turn_count()
-    test_completed_actions_advance_turn_count()
-    print("Battle player state test passed.")

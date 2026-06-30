@@ -88,12 +88,3 @@ def test_is_alive_delegates_to_health_state():
 
     assert not player_state.is_alive()
     assert not enemy_state.is_alive()
-
-
-if __name__ == "__main__":
-    test_player_state_and_enemy_state_satisfy_combatant_contract()
-    test_shared_inspection_works_without_type_branches()
-    test_effective_stat_supports_all_six_canonical_stats()
-    test_invalid_effective_stat_names_fail_consistently()
-    test_is_alive_delegates_to_health_state()
-    print("Combatant contract test passed.")
