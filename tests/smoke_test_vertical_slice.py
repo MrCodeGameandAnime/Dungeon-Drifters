@@ -74,7 +74,7 @@ def test_attack_path_reaches_victory_ending():
         run_game.main()
 
     text = output.getvalue()
-    assert "DUNGEON DRIFTERS" in text
+    assert "A tale from Ketlyv" in text
     assert "You have chosen Joruun Veyr, the Bloody Storm Monk!" in text
     assert "You ready your weapon" in text
     assert "A Goblin blocks your path" in text
@@ -89,7 +89,7 @@ def test_flee_path_reaches_escape_ending():
         run_game.main()
 
     text = output.getvalue()
-    assert "DUNGEON DRIFTERS" in text
+    assert "A tale from Ketlyv" in text
     assert "You have chosen Ser Branoc, the Unbroken Crest!" in text
     assert "You escaped in the nick of time" in text
     assert "Ser Branoc, you break through the brush and escape the ambush" in text

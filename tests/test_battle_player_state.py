@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.combat.battle import Battle
 from app.combat.enemy import Goblin
+from app.combat.enemy_state import EnemyState
 from app.player.character import Brawler, Monk
 from app.player.player_state import PlayerState
 from app.world.character_profiles.roster import get_profile_by_choice
@@ -58,20 +59,24 @@ def patched_misses():
 def test_battle_accepts_player_state_and_uses_wrapped_character():
     character = Brawler()
     player_state = PlayerState(character)
-    battle = Battle(player_state, Goblin())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
 
     assert battle.player_state is player_state
     assert battle.player is character
+    assert battle.foe is enemy_state
     assert battle.player.name == character.name
     assert battle.player.moves is character.moves
-    assert battle.player.strength == character.strength
-    assert battle.player.constitution == character.constitution
+    assert battle.player_state.effective_stat("strength") == character.strength
+    assert battle.player_state.effective_stat("constitution") == character.constitution
     assert battle.combat_state.turn_count == 0
+    assert not hasattr(battle, "foe_health")
+    assert not hasattr(battle, "foe_max_hp")
 
 
 def test_battles_do_not_share_combat_state():
-    first_battle = Battle(PlayerState(Brawler()), Goblin())
-    second_battle = Battle(PlayerState(Brawler()), Goblin())
+    first_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    second_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
 
     first_battle.combat_state.advance_turn()
     first_battle.combat_state.statuses["burn"] = 2
@@ -84,7 +89,7 @@ def test_battles_do_not_share_combat_state():
 
 def test_enemy_damage_mutates_player_state_health():
     player_state = PlayerState(Brawler())
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
 
     def fake_randint(start, end):
         if (start, end) == (6, 12):
@@ -97,15 +102,50 @@ def test_enemy_damage_mutates_player_state_health():
     assert player_state.health.current == player_state.health.maximum - 9
 
 
+def test_player_damage_mutates_enemy_state_health():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+
+    def fake_randint(start, end):
+        if (start, end) == (8, 14):
+            return 8
+        return end
+
+    with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+        battle.attack(player_state, enemy_state, "slash", heavy=False)
+
+    assert enemy_state.health.current == enemy_state.health.maximum - 23
+
+
+def test_enemy_recovery_mutates_enemy_state_health():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    enemy_state.health.take_damage(45)
+    battle = Battle(player_state, enemy_state)
+
+    def fake_randint(start, end):
+        if (start, end) == (1, 2):
+            return 1
+        if (start, end) == (6, 12):
+            return 6
+        return end
+
+    with patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+        battle.enemy_action()
+
+    assert enemy_state.health.current == 23
+
+
 def test_battle_player_output_uses_canonical_short_identity_when_profile_attached():
     character = get_profile_by_choice("1").create_character()
     player_state = PlayerState(character)
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
     output = io.StringIO()
 
     with patched_misses(), patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(output):
         battle.print_health()
-        battle.attack(battle.player, battle.foe, "slash", heavy=False)
+        battle.attack(battle.player_state, battle.foe, "slash", heavy=False)
         battle.heal_player()
 
     text = output.getvalue()
@@ -119,7 +159,7 @@ def test_battle_player_output_uses_canonical_short_identity_when_profile_attache
 def test_player_recovery_heals_persistent_health_without_exceeding_maximum():
     player_state = PlayerState(Brawler())
     player_state.health.take_damage(5)
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
 
     def fake_randint(start, end):
         if (start, end) == (10, 16):
@@ -135,14 +175,14 @@ def test_player_recovery_heals_persistent_health_without_exceeding_maximum():
 def test_battle_starts_from_existing_persistent_health():
     player_state = PlayerState(Brawler())
     player_state.health.take_damage(10)
-    Battle(player_state, Goblin())
+    Battle(player_state, EnemyState(Goblin()))
 
     assert player_state.health.current == player_state.health.maximum - 10
 
 
 def test_victory_returns_player():
     player_state = PlayerState(Monk())
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
     initiative_rolls = 0
 
     def fake_randint(start, end):
@@ -164,7 +204,7 @@ def test_victory_returns_player():
 def test_defeat_returns_enemy_and_persists_player_health():
     player_state = PlayerState(Brawler())
     player_state.health.take_damage(player_state.health.maximum - 5)
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
 
     def fake_randint(start, end):
         if (start, end) == (1, 2):
@@ -184,7 +224,7 @@ def test_defeat_returns_enemy_and_persists_player_health():
 
 def test_invalid_player_input_does_not_advance_turn_count():
     player_state = PlayerState(Brawler())
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
 
     with patched_misses(), patched_battle(inputs=["bad choice", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
@@ -194,7 +234,7 @@ def test_invalid_player_input_does_not_advance_turn_count():
 
 def test_completed_actions_advance_turn_count():
     player_state = PlayerState(Brawler())
-    battle = Battle(player_state, Goblin())
+    battle = Battle(player_state, EnemyState(Goblin()))
     initiative_rolls = 0
 
     def fake_randint(start, end):
@@ -217,6 +257,8 @@ if __name__ == "__main__":
     test_battle_accepts_player_state_and_uses_wrapped_character()
     test_battles_do_not_share_combat_state()
     test_enemy_damage_mutates_player_state_health()
+    test_player_damage_mutates_enemy_state_health()
+    test_enemy_recovery_mutates_enemy_state_health()
     test_battle_player_output_uses_canonical_short_identity_when_profile_attached()
     test_player_recovery_heals_persistent_health_without_exceeding_maximum()
     test_battle_starts_from_existing_persistent_health()

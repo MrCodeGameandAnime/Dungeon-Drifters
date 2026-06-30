@@ -1,0 +1,74 @@
+"""Runtime state for one enemy in one encounter."""
+
+from app.player import resources
+from app.player import stats
+
+
+class EnemyState:
+    def __init__(self, enemy_definition):
+        self._definition = enemy_definition
+        self.permanent_stats = stats.PermanentStats(
+            constitution=enemy_definition.constitution,
+            spirit=enemy_definition.spirit,
+            intelligence=enemy_definition.intelligence,
+            strength=enemy_definition.strength,
+            dexterity=enemy_definition.dexterity,
+            intuition=enemy_definition.intuition,
+        )
+        self.stats = stats.Stats(self.permanent_stats)
+        self.health = resources.Health(maximum=enemy_definition.hp)
+        self.mana_resource = resources.Mana(maximum=enemy_definition.mana)
+        self._combat_moves = tuple(enemy_definition.combat_moves)
+
+    @property
+    def definition(self):
+        return self._definition
+
+    @property
+    def display_name(self):
+        return self._definition.name
+
+    @property
+    def name(self):
+        return self.display_name
+
+    @property
+    def moves(self):
+        return {
+            index: move.name
+            for index, move in enumerate(self._combat_moves, start=1)
+        }
+
+    @property
+    def combat_moves(self):
+        return self._combat_moves
+
+    @property
+    def strength(self):
+        return self.effective_stat("strength")
+
+    @property
+    def constitution(self):
+        return self.effective_stat("constitution")
+
+    @property
+    def intelligence(self):
+        return self.effective_stat("intelligence")
+
+    @property
+    def dexterity(self):
+        return self.effective_stat("dexterity")
+
+    @property
+    def spirit(self):
+        return self.effective_stat("spirit")
+
+    @property
+    def intuition(self):
+        return self.effective_stat("intuition")
+
+    def effective_stat(self, name):
+        return self.stats.effective_stat(name)
+
+    def is_alive(self):
+        return self.health.is_alive()
