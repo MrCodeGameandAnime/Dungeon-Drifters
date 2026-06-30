@@ -1,3 +1,5 @@
+import pytest
+
 from app.player.character import (
     BlackMage,
     Brawler,
@@ -17,14 +19,6 @@ PLAYABLE_CLASSES = [
     Monk,
 ]
 
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type:
-        return
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def test_health_healing_clamps_to_maximum():
@@ -96,13 +90,19 @@ def test_mana_maximum_changes_validate_and_clamp_current():
 def test_resource_maximum_changes_reject_invalid_values():
     for resource in (Health(10), Mana(10)):
         for invalid_type in (True, False, 1.5, "1", None):
-            assert_raises(TypeError, lambda invalid_type=invalid_type: resource.set_maximum(invalid_type))
-            assert_raises(TypeError, lambda invalid_type=invalid_type: resource.increase_maximum(invalid_type))
-            assert_raises(TypeError, lambda invalid_type=invalid_type: resource.decrease_maximum(invalid_type))
+            with pytest.raises(TypeError):
+                resource.set_maximum(invalid_type)
+            with pytest.raises(TypeError):
+                resource.increase_maximum(invalid_type)
+            with pytest.raises(TypeError):
+                resource.decrease_maximum(invalid_type)
 
-        assert_raises(ValueError, lambda: resource.set_maximum(-1))
-        assert_raises(ValueError, lambda: resource.increase_maximum(-1))
-        assert_raises(ValueError, lambda: resource.decrease_maximum(-1))
+        with pytest.raises(ValueError):
+            resource.set_maximum(-1)
+        with pytest.raises(ValueError):
+            resource.increase_maximum(-1)
+        with pytest.raises(ValueError):
+            resource.decrease_maximum(-1)
 
 
 def test_exact_exp_threshold_levels_up():
@@ -276,17 +276,27 @@ def test_permanent_stats_validation_and_mutation():
     assert permanent_stats.total == 61
 
     for invalid_type in (True, False, 1.5, "10", None):
-        assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.set_stat("strength", invalid_type))
-        assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.increase_stat("strength", invalid_type))
-        assert_raises(TypeError, lambda invalid_type=invalid_type: permanent_stats.decrease_stat("strength", invalid_type))
+        with pytest.raises(TypeError):
+            permanent_stats.set_stat("strength", invalid_type)
+        with pytest.raises(TypeError):
+            permanent_stats.increase_stat("strength", invalid_type)
+        with pytest.raises(TypeError):
+            permanent_stats.decrease_stat("strength", invalid_type)
 
-    assert_raises(ValueError, lambda: permanent_stats.set_stat("strength", 0))
-    assert_raises(ValueError, lambda: permanent_stats.set_stat("strength", 101))
-    assert_raises(ValueError, lambda: permanent_stats.increase_stat("strength", -1))
-    assert_raises(ValueError, lambda: permanent_stats.decrease_stat("strength", -1))
-    assert_raises(ValueError, lambda: permanent_stats.increase_stat("strength", 90))
-    assert_raises(ValueError, lambda: permanent_stats.decrease_stat("strength", 11))
-    assert_raises(ValueError, lambda: permanent_stats.get_stat("charisma"))
+    with pytest.raises(ValueError):
+        permanent_stats.set_stat("strength", 0)
+    with pytest.raises(ValueError):
+        permanent_stats.set_stat("strength", 101)
+    with pytest.raises(ValueError):
+        permanent_stats.increase_stat("strength", -1)
+    with pytest.raises(ValueError):
+        permanent_stats.decrease_stat("strength", -1)
+    with pytest.raises(ValueError):
+        permanent_stats.increase_stat("strength", 90)
+    with pytest.raises(ValueError):
+        permanent_stats.decrease_stat("strength", 11)
+    with pytest.raises(ValueError):
+        permanent_stats.get_stat("charisma")
 
 
 if __name__ == "__main__":

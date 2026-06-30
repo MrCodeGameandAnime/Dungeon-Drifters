@@ -1,5 +1,7 @@
 from dataclasses import FrozenInstanceError
 
+import pytest
+
 from app.combat.move import (
     DamageType,
     Move,
@@ -8,15 +10,6 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type as error:
-        return error
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def create_move(**overrides):
@@ -56,26 +49,33 @@ def test_valid_move_construction_and_string_value_coercion():
 def test_move_is_immutable():
     move = create_move()
 
-    assert_raises(FrozenInstanceError, lambda: setattr(move, "power", 99))
+    with pytest.raises(FrozenInstanceError):
+        setattr(move, "power", 99)
 
 
 def test_resource_cost_validation():
     assert create_move(resource_type=ResourceType.NONE, resource_cost=0).mana_cost == 0
-    assert_raises(ValueError, lambda: create_move(resource_type=ResourceType.NONE, resource_cost=1))
-    assert_raises(ValueError, lambda: create_move(resource_cost=-1))
-    assert_raises(TypeError, lambda: create_move(resource_cost=True))
-    assert_raises(TypeError, lambda: create_move(resource_cost=1.5))
+    with pytest.raises(ValueError):
+        create_move(resource_type=ResourceType.NONE, resource_cost=1)
+    with pytest.raises(ValueError):
+        create_move(resource_cost=-1)
+    with pytest.raises(TypeError):
+        create_move(resource_cost=True)
+    with pytest.raises(TypeError):
+        create_move(resource_cost=1.5)
 
 
 def test_character_resource_type_is_not_accepted():
-    assert_raises(ValueError, lambda: create_move(resource_type="character", resource_cost=3))
+    with pytest.raises(ValueError):
+        create_move(resource_type="character", resource_cost=3)
 
 
 def test_super_resource_type_is_valid_and_not_reported_as_mana():
     super_move = create_move(resource_type=ResourceType.SUPER, resource_cost=3)
 
     assert super_move.resource_type == ResourceType.SUPER
-    assert_raises(ValueError, lambda: super_move.mana_cost)
+    with pytest.raises(ValueError):
+        super_move.mana_cost
 
 
 def test_power_and_accuracy_validation():
@@ -83,10 +83,14 @@ def test_power_and_accuracy_validation():
     assert create_move(accuracy=0).accuracy == 0
     assert create_move(accuracy=100).accuracy == 100
 
-    assert_raises(ValueError, lambda: create_move(power=-1))
-    assert_raises(TypeError, lambda: create_move(power=False))
-    assert_raises(ValueError, lambda: create_move(accuracy=101))
-    assert_raises(TypeError, lambda: create_move(accuracy=True))
+    with pytest.raises(ValueError):
+        create_move(power=-1)
+    with pytest.raises(TypeError):
+        create_move(power=False)
+    with pytest.raises(ValueError):
+        create_move(accuracy=101)
+    with pytest.raises(TypeError):
+        create_move(accuracy=True)
 
 
 def test_scaling_tuple_validation():
@@ -100,29 +104,35 @@ def test_scaling_tuple_validation():
         ScalingAttribute.NONE,
     )
 
-    assert_raises(TypeError, lambda: create_move(scales_with=[ScalingAttribute.STRENGTH]))
-    assert_raises(ValueError, lambda: create_move(scales_with=()))
-    assert_raises(
-        ValueError,
-        lambda: create_move(scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.STRENGTH)),
-    )
-    assert_raises(
-        ValueError,
-        lambda: create_move(scales_with=(ScalingAttribute.NONE, ScalingAttribute.INTELLIGENCE)),
-    )
+    with pytest.raises(TypeError):
+        create_move(scales_with=[ScalingAttribute.STRENGTH])
+    with pytest.raises(ValueError):
+        create_move(scales_with=())
+    with pytest.raises(ValueError):
+        create_move(scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.STRENGTH))
+    with pytest.raises(ValueError):
+        create_move(scales_with=(ScalingAttribute.NONE, ScalingAttribute.INTELLIGENCE))
 
 
 def test_string_fields_and_enum_validation():
     assert create_move(mechanic=None).mechanic is None
 
-    assert_raises(ValueError, lambda: create_move(name=""))
-    assert_raises(TypeError, lambda: create_move(name=None))
-    assert_raises(ValueError, lambda: create_move(description=""))
-    assert_raises(ValueError, lambda: create_move(mechanic=""))
-    assert_raises(ValueError, lambda: create_move(kind="physical_damage"))
-    assert_raises(ValueError, lambda: create_move(resource_type="stamina"))
-    assert_raises(ValueError, lambda: create_move(target="all"))
-    assert_raises(ValueError, lambda: create_move(damage_type="fire"))
+    with pytest.raises(ValueError):
+        create_move(name="")
+    with pytest.raises(TypeError):
+        create_move(name=None)
+    with pytest.raises(ValueError):
+        create_move(description="")
+    with pytest.raises(ValueError):
+        create_move(mechanic="")
+    with pytest.raises(ValueError):
+        create_move(kind="physical_damage")
+    with pytest.raises(ValueError):
+        create_move(resource_type="stamina")
+    with pytest.raises(ValueError):
+        create_move(target="all")
+    with pytest.raises(ValueError):
+        create_move(damage_type="fire")
 
 
 if __name__ == "__main__":

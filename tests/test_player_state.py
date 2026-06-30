@@ -1,3 +1,5 @@
+import pytest
+
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory import Inventory
 from app.player.player_state import PlayerState
@@ -9,15 +11,6 @@ PLAYABLE_CLASSES = [
     RogueArcher,
     Monk,
 ]
-
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type:
-        return
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def test_player_state_wraps_all_playable_classes():
@@ -34,8 +27,10 @@ def test_character_and_inventory_are_read_only_properties():
 
     assert player_state.character is character
     assert isinstance(player_state.inventory, Inventory)
-    assert_raises(AttributeError, lambda: setattr(player_state, "character", BlackMage()))
-    assert_raises(AttributeError, lambda: setattr(player_state, "inventory", Inventory()))
+    with pytest.raises(AttributeError):
+        setattr(player_state, "character", BlackMage())
+    with pytest.raises(AttributeError):
+        setattr(player_state, "inventory", Inventory())
 
 
 def test_default_and_explicit_gold_values():
@@ -73,8 +68,10 @@ def test_player_states_do_not_share_inventory_or_equipment():
 
 
 def test_invalid_character_raises_type_error():
-    assert_raises(TypeError, lambda: PlayerState(object()))
-    assert_raises(TypeError, lambda: PlayerState(None))
+    with pytest.raises(TypeError):
+        PlayerState(object())
+    with pytest.raises(TypeError):
+        PlayerState(None)
 
 
 def test_character_state_delegation_returns_authoritative_objects():
@@ -126,22 +123,31 @@ def test_gold_spending_and_affordability():
 def test_gold_rejects_invalid_values():
     invalid_type_values = (True, False, 1.5, "10", None)
 
-    assert_raises(ValueError, lambda: PlayerState(Brawler(), gold=-1))
+    with pytest.raises(ValueError):
+        PlayerState(Brawler(), gold=-1)
     for value in invalid_type_values:
-        assert_raises(TypeError, lambda value=value: PlayerState(Brawler(), gold=value))
-        assert_raises(TypeError, lambda value=value: PlayerState(Brawler()).add_gold(value))
-        assert_raises(TypeError, lambda value=value: PlayerState(Brawler()).can_afford(value))
-        assert_raises(TypeError, lambda value=value: PlayerState(Brawler()).spend_gold(value))
+        with pytest.raises(TypeError):
+            PlayerState(Brawler(), gold=value)
+        with pytest.raises(TypeError):
+            PlayerState(Brawler()).add_gold(value)
+        with pytest.raises(TypeError):
+            PlayerState(Brawler()).can_afford(value)
+        with pytest.raises(TypeError):
+            PlayerState(Brawler()).spend_gold(value)
 
-    assert_raises(ValueError, lambda: PlayerState(Brawler()).add_gold(-1))
-    assert_raises(ValueError, lambda: PlayerState(Brawler()).can_afford(-1))
-    assert_raises(ValueError, lambda: PlayerState(Brawler()).spend_gold(-1))
+    with pytest.raises(ValueError):
+        PlayerState(Brawler()).add_gold(-1)
+    with pytest.raises(ValueError):
+        PlayerState(Brawler()).can_afford(-1)
+    with pytest.raises(ValueError):
+        PlayerState(Brawler()).spend_gold(-1)
 
 
 def test_gold_has_no_public_setter():
     player_state = PlayerState(Brawler())
 
-    assert_raises(AttributeError, lambda: setattr(player_state, "gold", -1))
+    with pytest.raises(AttributeError):
+        setattr(player_state, "gold", -1)
 
 
 def test_owned_item_can_be_equipped():
@@ -193,7 +199,8 @@ def test_equipping_unowned_item_raises_and_preserves_state():
     player_state.equip("weapon", equipped_item)
     inventory_before = player_state.inventory.items
 
-    assert_raises(ValueError, lambda: player_state.equip("weapon", missing_item))
+    with pytest.raises(ValueError):
+        player_state.equip("weapon", missing_item)
 
     assert player_state.get_equipped("weapon") is equipped_item
     assert player_state.inventory.items == inventory_before
@@ -202,7 +209,8 @@ def test_equipping_unowned_item_raises_and_preserves_state():
 def test_equipping_none_raises_value_error():
     player_state = PlayerState(Brawler())
 
-    assert_raises(ValueError, lambda: player_state.equip("weapon", None))
+    with pytest.raises(ValueError):
+        player_state.equip("weapon", None)
 
 
 def test_invalid_slots_are_rejected():
@@ -210,10 +218,14 @@ def test_invalid_slots_are_rejected():
     item = object()
     player_state.inventory.add_item(item)
 
-    assert_raises(ValueError, lambda: player_state.equip("invalid", item))
-    assert_raises(ValueError, lambda: player_state.unequip("invalid"))
-    assert_raises(ValueError, lambda: player_state.get_equipped("invalid"))
-    assert_raises(ValueError, lambda: player_state.get_equipped(None))
+    with pytest.raises(ValueError):
+        player_state.equip("invalid", item)
+    with pytest.raises(ValueError):
+        player_state.unequip("invalid")
+    with pytest.raises(ValueError):
+        player_state.get_equipped("invalid")
+    with pytest.raises(ValueError):
+        player_state.get_equipped(None)
 
 
 def test_equipment_snapshot_cannot_mutate_internal_equipment():

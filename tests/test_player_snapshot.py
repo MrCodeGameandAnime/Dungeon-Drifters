@@ -1,4 +1,7 @@
 import json
+
+import pytest
+
 from app.items.weapon import Staff
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
@@ -12,15 +15,6 @@ class FakeWeaponShapedObject:
     magic_attack = 1
     magic_defense = 1
     value = 1
-
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type as error:
-        return error
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def assert_strict_json(snapshot):
@@ -201,32 +195,36 @@ def test_unsupported_inventory_and_equipment_values_fail_clearly():
     player_state = PlayerState(Brawler())
     player_state.inventory.add_item(object())
 
-    inventory_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.inventory[0]" in str(inventory_error)
+    with pytest.raises(TypeError) as inventory_error:
+        player_state.snapshot()
+    assert "player.inventory[0]" in str(inventory_error.value)
 
     player_state = PlayerState(Brawler())
     item = object()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
 
-    equipment_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.equipment.weapon" in str(equipment_error)
+    with pytest.raises(TypeError) as equipment_error:
+        player_state.snapshot()
+    assert "player.equipment.weapon" in str(equipment_error.value)
 
 
 def test_fake_weapon_shaped_object_is_not_serialized_as_weapon():
     player_state = PlayerState(Brawler())
     player_state.inventory.add_item(FakeWeaponShapedObject())
 
-    inventory_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.inventory[0]" in str(inventory_error)
+    with pytest.raises(TypeError) as inventory_error:
+        player_state.snapshot()
+    assert "player.inventory[0]" in str(inventory_error.value)
 
     player_state = PlayerState(Brawler())
     item = FakeWeaponShapedObject()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
 
-    equipment_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.equipment.weapon" in str(equipment_error)
+    with pytest.raises(TypeError) as equipment_error:
+        player_state.snapshot()
+    assert "player.equipment.weapon" in str(equipment_error.value)
 
 
 if __name__ == "__main__":

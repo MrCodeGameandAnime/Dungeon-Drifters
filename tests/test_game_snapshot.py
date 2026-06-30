@@ -1,17 +1,11 @@
 import json
+
+import pytest
+
 from app.game.game_state import GameState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value, validate_plain_value
-
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type as error:
-        return error
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def assert_strict_json(snapshot):
@@ -141,20 +135,23 @@ def test_unsupported_metadata_story_and_world_values_fail_clearly():
     _, game_state = create_populated_game_state()
     game_state.set_metadata("bad", object())
 
-    metadata_error = assert_raises(TypeError, game_state.snapshot)
-    assert "game.metadata.bad" in str(metadata_error)
+    with pytest.raises(TypeError) as metadata_error:
+        game_state.snapshot()
+    assert "game.metadata.bad" in str(metadata_error.value)
 
     _, game_state = create_populated_game_state()
     game_state.story_state.record_decision("bad", object())
 
-    story_error = assert_raises(TypeError, game_state.snapshot)
-    assert "story.player_decisions.bad" in str(story_error)
+    with pytest.raises(TypeError) as story_error:
+        game_state.snapshot()
+    assert "story.player_decisions.bad" in str(story_error.value)
 
     _, game_state = create_populated_game_state()
     game_state.world_state.set_dungeon_change("bad", object())
 
-    world_error = assert_raises(TypeError, game_state.snapshot)
-    assert "world.dungeon_changes.bad" in str(world_error)
+    with pytest.raises(TypeError) as world_error:
+        game_state.snapshot()
+    assert "world.dungeon_changes.bad" in str(world_error.value)
 
 
 def test_non_finite_floats_are_rejected_with_paths():
@@ -168,22 +165,22 @@ def test_non_finite_floats_are_rejected_with_paths():
         _, game_state = create_populated_game_state()
         game_state.set_metadata(name, value)
 
-        error = assert_raises(TypeError, game_state.snapshot)
-        assert f"game.metadata.{name}" in str(error)
+        with pytest.raises(TypeError) as error:
+            game_state.snapshot()
+        assert f"game.metadata.{name}" in str(error.value)
 
 
 def test_plain_value_conversion_and_validation_treat_tuples_differently():
     assert to_plain_value((1, 2)) == [1, 2]
 
-    tuple_error = assert_raises(TypeError, lambda: validate_plain_value((1, 2)))
-    assert "snapshot" in str(tuple_error)
-    assert "tuple" in str(tuple_error)
+    with pytest.raises(TypeError) as tuple_error:
+        validate_plain_value((1, 2))
+    assert "snapshot" in str(tuple_error.value)
+    assert "tuple" in str(tuple_error.value)
 
-    nested_error = assert_raises(
-        TypeError,
-        lambda: validate_plain_value({"outer": [{"inner": (1, 2)}]}),
-    )
-    assert "snapshot.outer[0].inner" in str(nested_error)
+    with pytest.raises(TypeError) as nested_error:
+        validate_plain_value({"outer": [{"inner": (1, 2)}]})
+    assert "snapshot.outer[0].inner" in str(nested_error.value)
 
 
 if __name__ == "__main__":

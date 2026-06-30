@@ -1,17 +1,11 @@
+import pytest
+
 from app.game.game_state import GameState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
 
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type:
-        return
-
-    raise AssertionError(f"expected {error_type.__name__}")
 
 
 def test_valid_player_state_constructs_game_state():
@@ -25,17 +19,23 @@ def test_valid_player_state_constructs_game_state():
 
 
 def test_invalid_player_state_is_rejected():
-    assert_raises(TypeError, lambda: GameState(Brawler()))
-    assert_raises(TypeError, lambda: GameState(None))
+    with pytest.raises(TypeError):
+        GameState(Brawler())
+    with pytest.raises(TypeError):
+        GameState(None)
 
 
 def test_ownership_properties_cannot_be_replaced():
     game_state = GameState(PlayerState(Brawler()))
 
-    assert_raises(AttributeError, lambda: setattr(game_state, "player_state", None))
-    assert_raises(AttributeError, lambda: setattr(game_state, "story_state", None))
-    assert_raises(AttributeError, lambda: setattr(game_state, "world_state", None))
-    assert_raises(AttributeError, lambda: setattr(game_state, "metadata", {}))
+    with pytest.raises(AttributeError):
+        setattr(game_state, "player_state", None)
+    with pytest.raises(AttributeError):
+        setattr(game_state, "story_state", None)
+    with pytest.raises(AttributeError):
+        setattr(game_state, "world_state", None)
+    with pytest.raises(AttributeError):
+        setattr(game_state, "metadata", {})
 
 
 def test_metadata_snapshot_cannot_mutate_internal_metadata():
