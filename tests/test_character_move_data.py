@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
@@ -97,12 +91,3 @@ def test_battle_is_not_wired_to_structured_moves_yet():
     ]
     assert monk.combat_moves[0].name == "Bring The Horse To Water"
     assert monk.combat_moves[0].resource_cost > 0
-
-
-if __name__ == "__main__":
-    test_all_playable_classes_have_structured_moves()
-    test_each_playable_class_has_a_distinct_mechanic()
-    test_black_mage_heal_is_defined_as_healing_not_damage()
-    test_loadout_resource_types_follow_authored_class_resources()
-    test_battle_is_not_wired_to_structured_moves_yet()
-    print("Character move data test passed.")

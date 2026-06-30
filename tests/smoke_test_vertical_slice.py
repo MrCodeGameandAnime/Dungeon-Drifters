@@ -2,12 +2,6 @@ import builtins
 import contextlib
 import io
 import random
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 import run_game
 import app.game.main_loop as main_loop
 import app.world.event as event_module
@@ -93,9 +87,3 @@ def test_flee_path_reaches_escape_ending():
     assert "You have chosen Ser Branoc, the Unbroken Crest!" in text
     assert "You escaped in the nick of time" in text
     assert "Ser Branoc, you break through the brush and escape the ambush" in text
-
-
-if __name__ == "__main__":
-    test_attack_path_reaches_victory_ending()
-    test_flee_path_reaches_escape_ending()
-    print("Vertical slice smoke test passed.")

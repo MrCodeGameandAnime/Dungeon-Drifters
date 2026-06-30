@@ -100,30 +100,16 @@ character-specific resource systems are not implemented as active resources.
 
 ## Test Instructions
 
-Run the vertical-slice smoke test:
+Install development dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe tests\smoke_test_vertical_slice.py
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
-Run the current direct-run regression suite:
+Run the full pytest suite:
 
 ```powershell
-.\.venv\Scripts\python.exe tests\test_move_contract.py
-.\.venv\Scripts\python.exe tests\test_move_result.py
-.\.venv\Scripts\python.exe tests\test_character_move_data.py
-.\.venv\Scripts\python.exe tests\test_character_loadout_regression.py
-.\.venv\Scripts\python.exe tests\test_enemy_state.py
-.\.venv\Scripts\python.exe tests\test_combatant_contract.py
-.\.venv\Scripts\python.exe tests\test_battle_player_state.py
-.\.venv\Scripts\python.exe tests\test_player_snapshot.py
-.\.venv\Scripts\python.exe tests\test_game_snapshot.py
-.\.venv\Scripts\python.exe tests\test_main_flow_player_state.py
-.\.venv\Scripts\python.exe tests\test_player_state.py
-.\.venv\Scripts\python.exe tests\test_character_state.py
-.\.venv\Scripts\python.exe tests\test_character_profiles.py
-.\.venv\Scripts\python.exe tests\test_event_character_selection.py
-.\.venv\Scripts\python.exe tests\smoke_test_vertical_slice.py
+.\.venv\Scripts\python.exe -m pytest
 ```
 
 Run a compile check:
@@ -251,4 +237,4 @@ v0.2.5 is the architecture checkpoint currently merged through Milestone 6:
 
 - Use the project virtual environment at `.venv`.
 - Use `.\.venv\Scripts\python.exe` for commands.
-- Tests are direct-run Python files rather than a pytest suite.
+- Pytest is the canonical test runner.

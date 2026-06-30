@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.game.story_state import StoryState
 
 
@@ -63,12 +57,3 @@ def test_story_state_instances_do_not_share_collections():
     assert second.story_flags == ()
     assert second.completed_events == ()
     assert second.player_decisions == {}
-
-
-if __name__ == "__main__":
-    test_story_state_initial_values_are_empty()
-    test_story_state_accepts_initial_location_values()
-    test_story_state_collection_views_cannot_mutate_internal_state()
-    test_story_state_instances_do_not_share_collections()
-    print("Story state test passed.")
-

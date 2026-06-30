@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.player.inventory import Inventory
 
 
@@ -132,19 +126,3 @@ def test_inventory_accepts_arbitrary_item_objects():
     inventory.add_item(item)
 
     assert inventory.contains(item)
-
-
-if __name__ == "__main__":
-    test_new_inventory_starts_empty()
-    test_items_returns_immutable_snapshot()
-    test_adding_item_works_and_returns_none()
-    test_contains_reports_accurately()
-    test_removing_existing_item_returns_true()
-    test_removing_missing_item_returns_false()
-    test_duplicate_items_are_allowed()
-    test_removing_one_duplicate_leaves_the_other()
-    test_removal_uses_first_match_behavior()
-    test_snapshot_cannot_mutate_internal_inventory()
-    test_inventory_instances_do_not_share_item_collections()
-    test_inventory_accepts_arbitrary_item_objects()
-    print("Inventory test passed.")

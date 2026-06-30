@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.combat.enemy import Goblin, Orc, SkeletonArcher, SnakeLord, Zombie
 from app.combat.enemy_state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
@@ -261,14 +255,3 @@ def test_enemy_state_alive_status_comes_from_health():
     enemy_state.health.take_damage(enemy_state.health.maximum)
 
     assert not enemy_state.is_alive()
-
-
-if __name__ == "__main__":
-    test_enemy_definitions_preserve_authored_data()
-    test_enemy_state_copies_definition_into_runtime_state()
-    test_enemy_states_do_not_share_runtime_resources_stats_or_moves()
-    test_runtime_mutation_does_not_mutate_enemy_definition()
-    test_enemy_definition_moves_are_derived_and_cannot_diverge()
-    test_enemy_state_moves_are_derived_and_cannot_diverge()
-    test_enemy_state_alive_status_comes_from_health()
-    print("Enemy state test passed.")

@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.game.world_state import WorldState
 
 
@@ -82,11 +76,3 @@ def test_world_state_collection_methods_prevent_duplicates():
     assert world_state.defeated_encounters == ("goblin",)
     assert world_state.opened_objects == ("chest",)
     assert world_state.consumed_objects == ("campfire",)
-
-
-if __name__ == "__main__":
-    test_world_state_initial_values_are_empty()
-    test_world_state_collection_views_cannot_mutate_internal_state()
-    test_world_state_instances_do_not_share_collections()
-    test_world_state_collection_methods_prevent_duplicates()
-    print("World state test passed.")

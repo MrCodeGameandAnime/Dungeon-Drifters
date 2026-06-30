@@ -1,8 +1,4 @@
-import sys
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 import app.player.character as character_module
 from app.combat.move import Move
@@ -10,6 +6,8 @@ from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.progression import Exp, Level
 from app.player.resources import Health, Mana
 from app.player.stats import PermanentStats, Stats
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 PLAYABLE_CLASSES = [
@@ -96,13 +94,3 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         assert first.mana_resource is not second.mana_resource
         assert first.level_state is not second.level_state
         assert first.exp_state is not second.exp_state
-
-
-if __name__ == "__main__":
-    test_support_classes_have_canonical_import_paths()
-    test_character_module_does_not_reexport_extracted_support_classes()
-    test_archetypes_use_canonical_support_objects()
-    test_support_modules_do_not_import_character_runtime()
-    test_loadouts_do_not_import_character_or_profile_modules()
-    test_archetype_instances_do_not_share_mutable_runtime_containers()
-    print("Character module boundary test passed.")

@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
@@ -363,10 +357,3 @@ def test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources():
     assert "resource" not in joruun.class_mechanic
     assert joruun.class_mechanic["name"] == "Ki Forms"
     assert {move.resource_type.value for move in joruun.combat_moves} == {"mana"}
-
-
-if __name__ == "__main__":
-    test_all_archetype_authored_loadout_data_is_unchanged()
-    test_branoc_has_no_active_momentum_hooks_or_resource_declaration()
-    test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources()
-    print("Character loadout regression test passed.")

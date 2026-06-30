@@ -1,9 +1,6 @@
 import json
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+import pytest
 
 from app.items.weapon import Staff
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
@@ -18,15 +15,6 @@ class FakeWeaponShapedObject:
     magic_attack = 1
     magic_defense = 1
     value = 1
-
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type as error:
-        return error
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def assert_strict_json(snapshot):
@@ -207,42 +195,33 @@ def test_unsupported_inventory_and_equipment_values_fail_clearly():
     player_state = PlayerState(Brawler())
     player_state.inventory.add_item(object())
 
-    inventory_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.inventory[0]" in str(inventory_error)
+    with pytest.raises(TypeError) as inventory_error:
+        player_state.snapshot()
+    assert "player.inventory[0]" in str(inventory_error.value)
 
     player_state = PlayerState(Brawler())
     item = object()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
 
-    equipment_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.equipment.weapon" in str(equipment_error)
+    with pytest.raises(TypeError) as equipment_error:
+        player_state.snapshot()
+    assert "player.equipment.weapon" in str(equipment_error.value)
 
 
 def test_fake_weapon_shaped_object_is_not_serialized_as_weapon():
     player_state = PlayerState(Brawler())
     player_state.inventory.add_item(FakeWeaponShapedObject())
 
-    inventory_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.inventory[0]" in str(inventory_error)
+    with pytest.raises(TypeError) as inventory_error:
+        player_state.snapshot()
+    assert "player.inventory[0]" in str(inventory_error.value)
 
     player_state = PlayerState(Brawler())
     item = FakeWeaponShapedObject()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
 
-    equipment_error = assert_raises(TypeError, player_state.snapshot)
-    assert "player.equipment.weapon" in str(equipment_error)
-
-
-if __name__ == "__main__":
-    test_default_player_snapshot_has_required_shape()
-    test_profile_created_character_snapshot_uses_attached_profile_identity()
-    test_mutated_resources_progression_gold_and_inventory_are_reflected()
-    test_supported_weapon_equipment_uses_explicit_plain_mapping()
-    test_structured_moves_and_class_mechanic_are_plain_values()
-    test_affected_class_mechanics_do_not_declare_deferred_resources()
-    test_snapshot_is_isolated_and_non_mutating()
-    test_unsupported_inventory_and_equipment_values_fail_clearly()
-    test_fake_weapon_shaped_object_is_not_serialized_as_weapon()
-    print("Player snapshot test passed.")
+    with pytest.raises(TypeError) as equipment_error:
+        player_state.snapshot()
+    assert "player.equipment.weapon" in str(equipment_error.value)

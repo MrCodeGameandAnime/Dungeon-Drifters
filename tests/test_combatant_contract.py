@@ -1,8 +1,4 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+import pytest
 
 from app.combat.combatant import Combatant
 from app.combat.enemy import Goblin
@@ -12,14 +8,6 @@ from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.player.stats import PermanentStats
 
-
-def assert_raises(error_type, action):
-    try:
-        action()
-    except error_type:
-        return
-
-    raise AssertionError(f"{error_type.__name__} was not raised")
 
 
 def inspect_combatant(combatant):
@@ -87,7 +75,8 @@ def test_invalid_effective_stat_names_fail_consistently():
     )
 
     for combatant in combatants:
-        assert_raises(ValueError, lambda combatant=combatant: combatant.effective_stat("charisma"))
+        with pytest.raises(ValueError):
+            combatant.effective_stat("charisma")
 
 
 def test_is_alive_delegates_to_health_state():
@@ -99,12 +88,3 @@ def test_is_alive_delegates_to_health_state():
 
     assert not player_state.is_alive()
     assert not enemy_state.is_alive()
-
-
-if __name__ == "__main__":
-    test_player_state_and_enemy_state_satisfy_combatant_contract()
-    test_shared_inspection_works_without_type_branches()
-    test_effective_stat_supports_all_six_canonical_stats()
-    test_invalid_effective_stat_names_fail_consistently()
-    test_is_alive_delegates_to_health_state()
-    print("Combatant contract test passed.")
