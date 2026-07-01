@@ -70,7 +70,7 @@ def create_combat_moves():
             name='Coagulated Torrent',
             kind=MoveKind.DAMAGE,
             resource_type=ResourceType.SUPER,
-            resource_cost=1,
+            resource_cost=100,
             power=24,
             scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.INTUITION),
             accuracy=100,

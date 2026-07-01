@@ -273,7 +273,7 @@ EXPECTED_LOADOUTS = {
                 "name": "Coagulated Torrent",
                 "kind": "damage",
                 "resource_type": "super",
-                "resource_cost": 1,
+                "resource_cost": 100,
                 "power": 24,
                 "scales_with": ["intelligence", "intuition"],
                 "accuracy": 100,

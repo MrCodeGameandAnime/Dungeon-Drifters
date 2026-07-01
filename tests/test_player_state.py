@@ -94,6 +94,25 @@ def test_character_state_delegation_returns_authoritative_objects():
     assert player_state.class_mechanic is character.class_mechanic
 
 
+def test_super_resource_is_owned_by_player_state_not_character():
+    character = Monk()
+    player_state = PlayerState(character)
+
+    assert player_state.super_resource.current == 0
+    assert player_state.super_resource.maximum == 100
+    assert not hasattr(character, "super_resource")
+
+
+def test_player_states_do_not_share_super_resources():
+    first_player = PlayerState(Monk())
+    second_player = PlayerState(Monk())
+
+    first_player.super_resource.gain(100)
+
+    assert first_player.super_resource.current == 100
+    assert second_player.super_resource.current == 0
+
+
 def test_mutating_delegated_health_updates_wrapped_character():
     character = Brawler()
     player_state = PlayerState(character)

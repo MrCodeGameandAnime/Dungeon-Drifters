@@ -137,3 +137,53 @@ class Mana:
             raise ValueError("maximum change amount must not be negative")
 
         return amount
+
+
+class Super:
+    MAXIMUM = 100
+    STARTING_VALUE = 0
+
+    def __init__(self, current=STARTING_VALUE):
+        self.maximum = self.MAXIMUM
+        self.current = self._validate_current(current)
+
+    def can_afford(self, amount):
+        amount = self._validate_amount(amount)
+        return self.current >= amount
+
+    def gain(self, amount):
+        amount = self._validate_amount(amount)
+        self.current = min(self.maximum, self.current + amount)
+        return self.current
+
+    def spend(self, amount):
+        amount = self._validate_amount(amount)
+        if not self.can_afford(amount):
+            return False
+
+        self.current -= amount
+        return True
+
+    def reset(self):
+        self.current = self.STARTING_VALUE
+        return self.current
+
+    @classmethod
+    def _validate_current(cls, current):
+        if isinstance(current, bool) or not isinstance(current, int):
+            raise TypeError("super current value must be an integer")
+        if current < cls.STARTING_VALUE or current > cls.MAXIMUM:
+            raise ValueError(
+                f"super current value must be between {cls.STARTING_VALUE} and {cls.MAXIMUM}"
+            )
+
+        return current
+
+    @staticmethod
+    def _validate_amount(amount):
+        if isinstance(amount, bool) or not isinstance(amount, int):
+            raise TypeError("super amount must be an integer")
+        if amount < 0:
+            raise ValueError("super amount must not be negative")
+
+        return amount

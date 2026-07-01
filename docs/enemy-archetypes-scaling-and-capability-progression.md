@@ -6,8 +6,8 @@ Dungeon Drifters uses **base enemy archetypes with location-based scaling**.
 
 Each enemy archetype owns its baseline identity:
 
-- base stats
-- move set
+- ~~base stats~~
+- ~~move set~~
 - resistances
 - behavior
 - rewards
@@ -54,7 +54,7 @@ Goblin +3
 The tier modifies the Goblin’s baseline values:
 
 ```text
-Goblin +0 = base values
+~~Goblin +0 = base values~~
 Goblin +1 = base values × tier 1 modifier
 Goblin +2 = base values × tier 2 modifier
 Goblin +3 = base values × tier 3 modifier
@@ -71,7 +71,7 @@ The exact modifier can affect:
 - gold
 - item rewards
 
-The Goblin archetype still controls its identity, moves, and behavior. The tier controls its numerical strength.
+The Goblin archetype still controls its ~~identity~~, ~~moves~~, and behavior. The tier controls its numerical strength.
 
 A stronger ordinary Goblin does not require separate classes such as:
 
@@ -100,7 +100,7 @@ spawn_enemy("goblin", tier=2)
 Internally, the data remains explicit:
 
 ```text
-archetype: goblin
+~~archetype: goblin~~
 tier: 2
 ```
 
@@ -120,8 +120,8 @@ Enemy design is divided into three separate dimensions.
 
 The archetype determines:
 
-- identity
-- move names and effects
+- ~~identity~~
+- ~~move names and effects~~
 - physical and magical distribution
 - resistances
 - behavior
@@ -226,7 +226,7 @@ It should not be hard-coded as a universal low-HP action inside Battle.
 
 ## Mana Rules
 
-All enemies may retain a mana field through the shared combat contract.
+~~All enemies may retain a mana field through the shared combat contract.~~
 
 An enemy with no magical abilities can use:
 
@@ -313,8 +313,8 @@ The same archetype can be reused across multiple regions and difficulty bands.
 
 One Goblin archetype can provide:
 
-- one base definition
-- one move kit
+- ~~one base definition~~
+- ~~one move kit~~
 - one visual asset
 - multiple tiers
 - multiple regions
@@ -342,7 +342,7 @@ The final enemy model separates identity, complexity, and strength:
 
 ```text
 Base archetype
-    defines identity and behavior
+    defines ~~identity~~ and behavior
 
 Stage or rank
     defines available combat capabilities
@@ -350,8 +350,8 @@ Stage or rank
 Tier
     defines numerical strength
 
-EnemyState
-    combines them for one encounter
+~~EnemyState
+    combines them for one encounter~~
 ```
 
 This makes it easy to place any enemy at an appropriate strength level, reuse existing assets intelligently, preserve clear enemy identities, and expand dungeon content without duplicating classes or hard-coding every encounter.

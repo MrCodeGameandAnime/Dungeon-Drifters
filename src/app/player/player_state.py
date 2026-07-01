@@ -1,6 +1,7 @@
 """Persistent player state for one playthrough."""
 
 from app.items.weapon import Weapon
+from app.player import resources
 from app.snapshot import to_plain_value
 from app.player.character import Character
 from app.player.inventory import Inventory
@@ -22,6 +23,7 @@ class PlayerState:
         self._character = character
         self._gold = self._validate_gold_amount(gold)
         self._inventory = Inventory()
+        self._super_resource = resources.Super()
         self._equipment = {
             slot: None
             for slot in self.EQUIPMENT_SLOTS
@@ -53,6 +55,10 @@ class PlayerState:
     @property
     def mana_resource(self):
         return self.character.mana_resource
+
+    @property
+    def super_resource(self):
+        return self._super_resource
 
     @property
     def level_state(self):
@@ -156,6 +162,10 @@ class PlayerState:
                 "mana": {
                     "current": self.mana_resource.current,
                     "maximum": self.mana_resource.maximum,
+                },
+                "super": {
+                    "current": self.super_resource.current,
+                    "maximum": self.super_resource.maximum,
                 },
             },
             "progression": {

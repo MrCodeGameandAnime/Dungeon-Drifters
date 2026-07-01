@@ -4,7 +4,7 @@ import app.player.character as character_module
 from app.combat.move import Move
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.progression import Exp, Level
-from app.player.resources import Health, Mana
+from app.player.resources import Health, Mana, Super
 from app.player.stats import PermanentStats, Stats
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +21,7 @@ EXTRACTED_NAMES = {
     "Move",
     "Health",
     "Mana",
+    "Super",
     "Level",
     "Exp",
     "Stats",
@@ -35,6 +36,7 @@ def test_support_classes_have_canonical_import_paths():
     assert Move.__module__ == "app.combat.move"
     assert Health.__module__ == "app.player.resources"
     assert Mana.__module__ == "app.player.resources"
+    assert Super.__module__ == "app.player.resources"
     assert Level.__module__ == "app.player.progression"
     assert Exp.__module__ == "app.player.progression"
     assert Stats.__module__ == "app.player.stats"

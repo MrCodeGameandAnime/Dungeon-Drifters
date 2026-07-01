@@ -80,17 +80,17 @@ Prerequisites determine eligibility.
 
 ## Starting Stat Budget
 
-Dungeon Drifters uses six permanent stats.
+~~Dungeon Drifters uses six permanent stats.~~
 
-Every Level 1 Drifter should have exactly:
+~~Every Level 1 Drifter should have exactly:~~
 
 ```text
-60 total permanent stat points
+~~60 total permanent stat points~~
 ```
 
-The total budget is equal.
+~~The total budget is equal.~~
 
-Character identity comes from distribution.
+~~Character identity comes from distribution.~~
 
 ## Six Permanent Stats
 
@@ -299,10 +299,10 @@ Maximum HP:
 
 ## Stat Caps
 
-Every permanent stat may reach:
+~~Every permanent stat may reach:~~
 
 ```text
-100
+~~100~~
 ```
 
 The game should allow players to live out extreme late-game and New Game+ build
@@ -761,9 +761,9 @@ The balancing rule is:
 
 Record these as the current intended foundation:
 
-- six permanent stats
-- 60 total permanent stat points at Level 1
-- hard cap of 100 in every stat
+- ~~six permanent stats~~
+- ~~60 total permanent stat points at Level 1~~
+- ~~hard cap of 100 in every stat~~
 - 3 Growth Points per secured level
 - +1 permanent stat costs 1 Growth Point
 - passive node or rank costs 2 Growth Points
@@ -851,9 +851,9 @@ definitions from runtime state.
 
 Do not implement during Milestone 3:
 
-- the six-stat replacement
-- 60-point budget enforcement
-- stat caps
+- ~~the six-stat replacement~~
+- ~~60-point budget enforcement~~
+- ~~stat caps~~
 - automatic HP or mana growth
 - Growth Points
 - stat spending

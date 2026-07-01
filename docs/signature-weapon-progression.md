@@ -12,11 +12,11 @@ The player does not routinely replace it with randomly dropped swords, bows,
 staffs, or other loot weapons. These weapons are central to the characters'
 identities:
 
-- Branoc carries Sunder-Spire.
-- Zhaivra carries Sathren.
-- Joruun carries Sky-Needle.
-- Azhvielle carries her signature staff or magical focus; its final name remains
-  unresolved.
+- ~~Branoc carries Sunder-Spire.~~
+- ~~Zhaivra carries Sathren.~~
+- ~~Joruun carries Sky-Needle.~~
+- ~~Azhvielle carries her signature staff or magical focus; its final name remains
+  unresolved.~~
 
 The governing principle is:
 
@@ -555,7 +555,7 @@ Do not freeze these yet:
 - inventory limits
 - dismantling yields
 - failure chances
-- final name of Azhvielle's weapon
+- ~~final name of Azhvielle's weapon~~
 - final obtainable prefixes and suffixes
 
 ## Milestone Boundary
@@ -568,9 +568,9 @@ without implementing this system or altering existing combat behavior.
 The weapon system should be designed formally only after the foundational work
 for:
 
-- permanent stats
+- ~~permanent stats~~
 - resource formulas
-- structured moves
+- ~~structured moves~~
 - damage components
 - combat resolution
-- equipment ownership
+- ~~equipment ownership~~

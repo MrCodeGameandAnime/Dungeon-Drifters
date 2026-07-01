@@ -40,7 +40,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 4
+    assert snapshot["schema_version"] == 5
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -49,6 +49,10 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "metadata",
     }
     assert snapshot["player"]["gold"] == 12
+    assert snapshot["player"]["resources"]["super"] == {
+        "current": 0,
+        "maximum": 100,
+    }
     assert snapshot["metadata"] == {"run_id": "test-run"}
     assert_strict_json(snapshot)
 

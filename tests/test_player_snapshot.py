@@ -45,6 +45,7 @@ def test_default_player_snapshot_has_required_shape():
     assert snapshot["resources"] == {
         "health": {"current": 60, "maximum": 60},
         "mana": {"current": 10, "maximum": 10},
+        "super": {"current": 0, "maximum": 100},
     }
     assert snapshot["progression"] == {"level": 1, "exp": 0}
     assert "next_exp_threshold" not in snapshot["progression"]
@@ -95,6 +96,7 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
     player_state = PlayerState(BlackMage(), gold=15)
     player_state.health.take_damage(7)
     player_state.mana_resource.spend(8)
+    player_state.super_resource.gain(70)
     player_state.character.level = 3
     player_state.character.exp = 25
     player_state.inventory.add_item("tonic")
@@ -104,6 +106,7 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
 
     assert snapshot["resources"]["health"] == {"current": 23, "maximum": 30}
     assert snapshot["resources"]["mana"] == {"current": 62, "maximum": 70}
+    assert snapshot["resources"]["super"] == {"current": 70, "maximum": 100}
     assert snapshot["progression"] == {"level": 3, "exp": 25}
     assert snapshot["gold"] == 15
     assert snapshot["inventory"] == ["tonic", "tonic"]
@@ -272,6 +275,7 @@ def test_snapshot_is_isolated_and_non_mutating():
     player_state.inventory.add_item("tonic")
     health_before = player_state.health.current
     mana_before = player_state.mana_resource.current
+    super_before = player_state.super_resource.current
 
     first_snapshot = player_state.snapshot()
     second_snapshot = player_state.snapshot()
@@ -280,15 +284,19 @@ def test_snapshot_is_isolated_and_non_mutating():
     first_snapshot["inventory"].append("changed")
     first_snapshot["equipment"]["weapon"] = "changed"
     first_snapshot["resources"]["health"]["current"] = 1
+    first_snapshot["resources"]["super"]["current"] = 100
 
     assert player_state.inventory.items == ("tonic",)
     assert player_state.get_equipped("weapon").name == "Sunder-Spire"
     assert player_state.health.current == health_before
     assert player_state.mana_resource.current == mana_before
+    assert player_state.super_resource.current == super_before
 
     player_state.health.take_damage(5)
     assert first_snapshot["resources"]["health"]["current"] == 1
+    assert first_snapshot["resources"]["super"]["current"] == 100
     assert second_snapshot["resources"]["health"]["current"] == health_before
+    assert second_snapshot["resources"]["super"]["current"] == super_before
     assert player_state.snapshot()["resources"]["health"]["current"] == health_before - 5
 
 

@@ -8,7 +8,7 @@ from app.player.character import (
     RogueArcher,
 )
 from app.player.progression import Exp, Level
-from app.player.resources import Health, Mana
+from app.player.resources import Health, Mana, Super
 from app.player.stats import PermanentStats
 
 
@@ -55,6 +55,60 @@ def test_mana_spend_checks_affordability_and_never_goes_below_zero():
     assert mana.current == 5
     assert mana.spend(5) is True
     assert mana.current == 0
+
+
+def test_super_starts_empty_and_banks_until_spent():
+    super_resource = Super()
+
+    assert super_resource.current == 0
+    assert super_resource.maximum == 100
+    assert super_resource.gain(30) == 30
+    assert super_resource.gain(80) == 100
+    assert super_resource.current == 100
+    assert super_resource.can_afford(100)
+    assert super_resource.current == 100
+
+
+def test_super_spend_resets_full_meter_without_refund_behavior():
+    super_resource = Super(current=100)
+
+    assert super_resource.spend(100)
+    assert super_resource.current == 0
+    assert not super_resource.spend(100)
+    assert super_resource.current == 0
+
+
+def test_super_failed_spend_and_reset_behavior():
+    super_resource = Super(current=40)
+
+    assert not super_resource.can_afford(100)
+    assert not super_resource.spend(100)
+    assert super_resource.current == 40
+    assert super_resource.reset() == 0
+    assert super_resource.current == 0
+
+
+def test_super_rejects_invalid_current_values_and_amounts():
+    for invalid_type in (True, False, 1.5, "1", None):
+        with pytest.raises(TypeError):
+            Super(current=invalid_type)
+        with pytest.raises(TypeError):
+            Super().gain(invalid_type)
+        with pytest.raises(TypeError):
+            Super().can_afford(invalid_type)
+        with pytest.raises(TypeError):
+            Super().spend(invalid_type)
+
+    for invalid_range in (-1, 101):
+        with pytest.raises(ValueError):
+            Super(current=invalid_range)
+
+    with pytest.raises(ValueError):
+        Super().gain(-1)
+    with pytest.raises(ValueError):
+        Super().can_afford(-1)
+    with pytest.raises(ValueError):
+        Super().spend(-1)
 
 
 def test_health_maximum_changes_validate_and_clamp_current():

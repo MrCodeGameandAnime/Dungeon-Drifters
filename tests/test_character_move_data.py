@@ -88,6 +88,7 @@ def test_loadout_resource_types_follow_authored_class_resources():
     ]
     assert monk.combat_moves[0].resource_cost == 0
     assert monk.combat_moves[-1].name == "Coagulated Torrent"
+    assert monk.combat_moves[-1].resource_cost == 100
 
 
 def test_battle_is_not_wired_to_structured_moves_yet():
@@ -100,3 +101,4 @@ def test_battle_is_not_wired_to_structured_moves_yet():
     assert monk.combat_moves[0].name == "Bring the Horse to Water"
     assert monk.combat_moves[0].resource_type == ResourceType.NONE
     assert monk.combat_moves[-1].resource_type == ResourceType.SUPER
+    assert monk.combat_moves[-1].resource_cost == 100
