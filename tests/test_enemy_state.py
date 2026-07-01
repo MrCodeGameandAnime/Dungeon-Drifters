@@ -1,8 +1,7 @@
 from app.combat.enemy import Goblin
+from app.combat.enemies.factory import create_enemy_state
 from app.combat.enemy_state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
-
-# Orc, SkeletonArcher, SnakeLord, Zombie
 
 EXPECTED_COMBAT_MOVES = [
     {
@@ -82,66 +81,6 @@ EXPECTED_ENEMIES = {
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
         "combat_moves": EXPECTED_COMBAT_MOVES,
     },
-    # Orc: {
-    #     "name": "Orc",
-    #     "stats": {
-    #         "constitution": 5,
-    #         "spirit": 1,
-    #         "intelligence": 1,
-    #         "strength": 7,
-    #         "dexterity": 1,
-    #         "intuition": 1,
-    #     },
-    #     "hp": 60,
-    #     "mana": 10,
-    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-    #     "combat_moves": EXPECTED_COMBAT_MOVES,
-    # },
-    # SkeletonArcher: {
-    #     "name": "Skeleton Archer",
-    #     "stats": {
-    #         "constitution": 5,
-    #         "spirit": 1,
-    #         "intelligence": 1,
-    #         "strength": 7,
-    #         "dexterity": 1,
-    #         "intuition": 1,
-    #     },
-    #     "hp": 60,
-    #     "mana": 10,
-    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-    #     "combat_moves": EXPECTED_COMBAT_MOVES,
-    # },
-    # Zombie: {
-    #     "name": "Zombie",
-    #     "stats": {
-    #         "constitution": 5,
-    #         "spirit": 1,
-    #         "intelligence": 1,
-    #         "strength": 7,
-    #         "dexterity": 1,
-    #         "intuition": 1,
-    #     },
-    #     "hp": 60,
-    #     "mana": 10,
-    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-    #     "combat_moves": EXPECTED_COMBAT_MOVES,
-    # },
-    # SnakeLord: {
-    #     "name": "Snake Lord",
-    #     "stats": {
-    #         "constitution": 5,
-    #         "spirit": 1,
-    #         "intelligence": 1,
-    #         "strength": 7,
-    #         "dexterity": 1,
-    #         "intuition": 1,
-    #     },
-    #     "hp": 60,
-    #     "mana": 10,
-    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-    #     "combat_moves": EXPECTED_COMBAT_MOVES,
-    # },
 }
 
 
@@ -178,6 +117,45 @@ def test_enemy_state_copies_definition_into_runtime_state():
             assert enemy_state.effective_stat(stat_name) == value
 
 
+def test_factory_creates_goblin_enemy_state():
+    enemy_state = create_enemy_state("goblin", tier=0)
+
+    assert isinstance(enemy_state, EnemyState)
+    assert isinstance(enemy_state.definition, Goblin)
+    assert enemy_state.display_name == "Goblin"
+    assert enemy_state.health.current == 60
+    assert enemy_state.moves == {1: "slash", 2: "jumping slash", 3: "suplex"}
+    assert [move_to_dict(move) for move in enemy_state.combat_moves] == EXPECTED_COMBAT_MOVES
+
+
+def test_factory_rejects_unknown_enemy_type():
+    try:
+        create_enemy_state("orc", tier=0)
+    except ValueError as error:
+        assert "unknown enemy type" in str(error)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_factory_rejects_invalid_tier_values():
+    invalid_type_values = (True, False, "0", 0.0, None)
+
+    for value in invalid_type_values:
+        try:
+            create_enemy_state("goblin", tier=value)
+        except TypeError as error:
+            assert "enemy tier must be an integer" in str(error)
+        else:
+            raise AssertionError("Expected TypeError")
+
+    try:
+        create_enemy_state("goblin", tier=1)
+    except ValueError as error:
+        assert "tier 0" in str(error)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
 def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
     first = EnemyState(Goblin())
     second = EnemyState(Goblin())
@@ -193,6 +171,32 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
     assert first.permanent_stats is not second.permanent_stats
     assert first.stats is not second.stats
     assert first.moves is not second.moves
+    assert first.health.current == 55
+    assert second.health.current == 60
+    assert first.mana_resource.current == 7
+    assert second.mana_resource.current == 10
+    assert first.effective_stat("strength") == 4
+    assert second.effective_stat("strength") == 3
+    assert 4 in first_moves
+    assert 4 not in first.moves
+    assert 4 not in second.moves
+
+
+def test_factory_enemy_states_do_not_share_runtime_state():
+    first = create_enemy_state("goblin", tier=0)
+    second = create_enemy_state("goblin", tier=0)
+
+    first.health.take_damage(5)
+    first.mana_resource.spend(3)
+    first.permanent_stats.increase_stat("strength", 1)
+    first_moves = first.moves
+    first_moves[4] = "runtime only"
+
+    assert first.definition is not second.definition
+    assert first.health is not second.health
+    assert first.mana_resource is not second.mana_resource
+    assert first.permanent_stats is not second.permanent_stats
+    assert first.combat_moves is not second.combat_moves
     assert first.health.current == 55
     assert second.health.current == 60
     assert first.mana_resource.current == 7
