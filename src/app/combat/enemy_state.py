@@ -2,11 +2,14 @@
 
 from app.player import resources
 from app.player import stats
+from app.combat.enemy import EnemyCapability
+from app.combat.enemy_validation import validate_enemy_tier
 
 
 class EnemyState:
-    def __init__(self, enemy_definition):
+    def __init__(self, enemy_definition, tier=0):
         self._definition = enemy_definition
+        self._tier = validate_enemy_tier(tier)
         self.permanent_stats = stats.PermanentStats(
             constitution=enemy_definition.constitution,
             spirit=enemy_definition.spirit,
@@ -32,6 +35,34 @@ class EnemyState:
     @property
     def name(self):
         return self.display_name
+
+    @property
+    def archetype_id(self):
+        return self._definition.archetype_id
+
+    @property
+    def tier(self):
+        return self._tier
+
+    @property
+    def rank(self):
+        return self._definition.rank
+
+    @property
+    def role(self):
+        return self._definition.role
+
+    @property
+    def behavior(self):
+        return self._definition.behavior
+
+    @property
+    def capabilities(self):
+        return self._definition.capabilities
+
+    @property
+    def generates_super(self):
+        return EnemyCapability.SUPER in self.capabilities
 
     @property
     def moves(self):

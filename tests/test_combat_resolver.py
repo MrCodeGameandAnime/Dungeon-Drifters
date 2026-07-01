@@ -1,7 +1,7 @@
 import builtins
 import inspect
 
-from app.combat.enemy import Goblin
+from app.combat.enemy import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole, Goblin
 from app.combat.enemy_state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
@@ -20,11 +20,12 @@ class ScriptedRng:
 
 
 class SimpleCombatant:
-    def __init__(self, moves=()):
+    def __init__(self, moves=(), generates_super=True):
         self.display_name = "Simple"
         self.health = PlayerState(Brawler()).health
         self.mana_resource = PlayerState(Brawler()).mana_resource
         self.super_resource = PlayerState(Brawler()).super_resource
+        self.generates_super = generates_super
         self._combat_moves = tuple(moves)
 
     @property
@@ -74,6 +75,26 @@ def make_move(
 def add_move(actor, move):
     actor.character.combat_moves.append(move)
     return move
+
+
+def create_super_capable_enemy_state():
+    return EnemyState(
+        Enemy(
+            strn=3,
+            con=2,
+            intl=1,
+            dex=1,
+            hp=60,
+            mana=0,
+            name="Test Super Enemy",
+            archetype_id="test_super_enemy",
+            rank=EnemyRank.BOSS,
+            role=EnemyRole.BOSS,
+            behavior=EnemyBehavior.AGGRESSIVE,
+            capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.SUPER),
+            combat_moves=Goblin().combat_moves,
+        )
+    )
 
 
 def test_owned_canonical_move_resolves_and_foreign_or_unknown_moves_are_rejected():
@@ -444,7 +465,57 @@ def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_bra
     assert player_result.damage == 27
     assert enemy_result.damage == 8
     assert player.super_resource.current == 10
-    assert enemy.super_resource.current == 10
+    assert enemy.super_resource.current == 0
+
+
+def test_common_goblin_non_super_actions_do_not_generate_super_on_hit_or_miss():
+    target = PlayerState(Brawler())
+    hit_actor = EnemyState(Goblin())
+
+    hit_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(hit_actor, target, "slash")
+
+    assert hit_result.accepted
+    assert hit_result.hit
+    assert hit_actor.super_resource.current == 0
+
+    miss_actor = EnemyState(Goblin())
+
+    miss_result = CombatResolver(rng=ScriptedRng(100)).resolve_move(
+        miss_actor,
+        PlayerState(Brawler()),
+        "slash",
+    )
+
+    assert miss_result.accepted
+    assert not miss_result.hit
+    assert miss_actor.super_resource.current == 0
+
+
+def test_enemy_with_explicit_super_capability_generates_super():
+    actor = create_super_capable_enemy_state()
+    target = PlayerState(Brawler())
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash")
+
+    assert result.accepted
+    assert actor.generates_super
+    assert actor.super_resource.current == 10
+
+
+def test_every_ordinary_goblin_move_is_resolver_supported_without_filtering():
+    move_names = tuple(move.name for move in Goblin().combat_moves)
+
+    assert move_names == ("slash", "jumping slash")
+
+    for move_name in move_names:
+        result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            EnemyState(Goblin()),
+            PlayerState(Brawler()),
+            move_name,
+        )
+
+        assert result.accepted
+        assert result.reason is None
 
 
 def test_resolver_does_not_print_or_read_input(monkeypatch):

@@ -61,6 +61,10 @@ class PlayerState:
         return self._super_resource
 
     @property
+    def generates_super(self):
+        return True
+
+    @property
     def level_state(self):
         return self.character.level_state
 

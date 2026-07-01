@@ -57,7 +57,7 @@ class CombatResolver:
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
-        if move.resource_type != ResourceType.SUPER:
+        if move.resource_type != ResourceType.SUPER and actor.generates_super:
             actor.super_resource.gain(SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION)
 
         return MoveResult(
@@ -93,6 +93,7 @@ def _is_valid_combatant(value):
         value.health
         value.mana_resource
         value.super_resource
+        value.generates_super
         value.combat_moves
         value.display_name
     except Exception:

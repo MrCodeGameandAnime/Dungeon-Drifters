@@ -73,6 +73,7 @@ The repository now includes these active foundations:
 - Shared `Combatant` protocol for player and enemy runtime state.
 - Runtime `EnemyState` with independent health, mana, stats, and structured
   enemy moves.
+- Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
 - Battle using combat-facing player and enemy runtime state while preserving
   the current legacy menu flow.
 - Serializable `PlayerState` and `GameState` snapshots.
@@ -198,6 +199,9 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
 - added `CombatResolver` for canonical actor-owned structured moves
 - added deterministic accuracy, scaling, mitigation, damage, and healing rules
 - added Mana and persistent Super spending/generation in resolver flow
+- added enemy archetype, rank, role, behavior, capability, and tier metadata
+- corrected the ordinary Goblin to a two-move common `BASIC_ATTACKS` roster
+  with 0 Mana
 - kept the interactive `Battle` loop on the legacy path for Milestone 8
 - documented that complete structured Battle playability for every Drifter
   still depends on more generic mechanic support or character-kit completion
@@ -206,6 +210,8 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
 
 - Structured move resolver integration into Battle is not implemented.
 - Battle still uses the legacy quick move, power move, and Recover flow.
+- Battle still has temporary universal enemy low-HP healing; authored enemy
+  healing capability should replace this in Milestone 8.
 - Final character kits are not complete.
 - Exact combat formulas and balance are provisional.
 - Super behavior and generation are implemented only in the standalone resolver.

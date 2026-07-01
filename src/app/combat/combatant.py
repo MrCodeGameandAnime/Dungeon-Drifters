@@ -24,6 +24,10 @@ class Combatant(Protocol):
         ...
 
     @property
+    def generates_super(self):
+        ...
+
+    @property
     def combat_moves(self) -> Sequence[Move]:
         ...
 

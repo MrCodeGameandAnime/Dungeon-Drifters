@@ -1,357 +1,151 @@
 # Enemy Archetypes, Scaling, and Capability Progression
 
-## Core Design Principle
+## Core Separation
 
-Dungeon Drifters uses **base enemy archetypes with location-based scaling**.
-
-Each enemy archetype owns its baseline identity:
-
-- ~~base stats~~
-- ~~move set~~
-- resistances
-- behavior
-- rewards
-- visual asset
-- combat role
-
-Enemy strength is not tied directly to the player’s level or build. Instead, the dungeon, region, or encounter tier applies a modifier to the archetype when creating its runtime state.
-
-```text
-Enemy archetype
-    +
-Dungeon or encounter tier
-    =
-Encounter-specific EnemyState
-```
-
-This allows the same enemy archetype to appear in multiple parts of the game at different levels of numerical strength without creating duplicate enemy classes.
-
----
-
-## Archetype and Tier Separation
-
-A canonical enemy definition might look like:
-
-```text
-Goblin
-
-Base HP: 40
-Base Strength: 5
-Moves:
-- Slash
-- Jumping Slash
-```
-
-An encounter can then request:
-
-```text
-Goblin +0
-Goblin +1
-Goblin +2
-Goblin +3
-```
-
-The tier modifies the Goblin’s baseline values:
-
-```text
-~~Goblin +0 = base values~~
-Goblin +1 = base values × tier 1 modifier
-Goblin +2 = base values × tier 2 modifier
-Goblin +3 = base values × tier 3 modifier
-```
-
-The exact modifier can affect:
-
-- HP
-- mana
-- physical and magical output
-- defenses
-- resistances
-- EXP
-- gold
-- item rewards
-
-The Goblin archetype still controls its ~~identity~~, ~~moves~~, and behavior. The tier controls its numerical strength.
-
-A stronger ordinary Goblin does not require separate classes such as:
-
-```text
-WeakGoblin
-MediumGoblin
-StrongGoblin
-LateGameGoblin
-```
-
-Instead, the runtime can eventually be created through a tier-aware interface such as:
-
-```python
-EnemyState(
-    definition=Goblin(),
-    tier=2,
-)
-```
-
-or:
-
-```python
-spawn_enemy("goblin", tier=2)
-```
-
-Internally, the data remains explicit:
-
-```text
-~~archetype: goblin~~
-tier: 2
-```
-
-The displayed name may be:
-
-```text
-Goblin +2
-```
-
----
-
-## Three Independent Enemy Dimensions
-
-Enemy design is divided into three separate dimensions.
-
-### 1. Archetype
-
-The archetype determines:
-
-- ~~identity~~
-- ~~move names and effects~~
-- physical and magical distribution
-- resistances
-- behavior
-- role
-- visual asset
-
-### 2. Stage or Rank
-
-The stage or rank determines the expected size of the kit and which combat systems may be available.
-
-### 3. Tier
-
-The tier determines numerical strength relative to the base archetype.
+Enemy design separates four concepts:
 
 ```text
 Archetype = what the enemy is
-Stage or rank = how mechanically complex it is
-Tier = how numerically strong it is
+Rank = how mechanically complex its authored kit may be
+Tier = how numerically strong this encounter instance is
+Encounter stage = where the enemy appears in the game
 ```
 
-A late-game Goblin can therefore remain mechanically simple while receiving higher stats. A Goblin Captain or Goblin Shaman is a separate archetype because it has a different role, kit, or behavior.
+Encounter stage is placement data, not an intrinsic enemy property. A Goblin in
+a later dungeon remains an ordinary Goblin unless the encounter asks for a
+different archetype such as Goblin Captain, Goblin Shaman, or Goblin King.
+
+Tier can make a reused archetype numerically stronger. It does not expand the
+move roster, grant healing, grant Super, or change the enemy's identity.
+
+## Canonical Enemy Definition
+
+An enemy archetype definition owns authored identity and capability data:
 
 ```text
-Goblin +3          stronger ordinary Goblin
-Goblin Captain +1  elite physical archetype
-Goblin Shaman +1   healing or support archetype
-Goblin King        boss archetype
+archetype_id
+display name
+rank
+role
+behavior
+capabilities
+base stats
+base HP
+base Mana
+structured moves
 ```
 
----
+`EnemyState` owns one encounter instance's mutable resources and preserves the
+requested tier. Runtime health, mana, Super, stats, and combat moves must not be
+shared between enemy instances.
 
-## Enemy Capability Progression
+## Rank Budgets
 
-Enemy stage establishes the default capability budget.
+Ranks are descriptive capability budgets, not runtime roster enforcement.
 
-| Stage | Default move structure | Available systems |
-| --- | --- | --- |
-| Early | Physical moves | Defend, HP, mana |
-| Mid | Physical moves plus 1 magic move | Defend, HP, heal, mana |
-| End | Physical moves plus 2 magic moves | Defend, HP, heal, mana |
-| Boss | Physical moves plus 2 magic moves | Defend, HP, heal, Super, mana |
+| Rank | Design default |
+| --- | --- |
+| COMMON | Usually 2 moves, one simple combat identity, no healing or Super by default |
+| SPECIALIST | Usually 3 moves and one authored specialized capability such as magic, healing, ranged pressure, poison, control, or elemental setup |
+| ELITE | Usually 4 moves, broader resource use, and one signature mechanic or stronger conditional behavior |
+| BOSS | Full authored kit, possible Super capability, phases, or encounter-specific rules |
 
-These are defaults, not rigid physical-to-magic ratios.
+Rank does not automatically grant capabilities. Capabilities do not
+automatically create moves. Moves do not automatically infer capabilities. The
+archetype explicitly declares each piece.
 
-An archetype may distribute its move budget differently:
+## Capabilities
+
+Capabilities describe systems the archetype is authorized to use.
+
+Current capability examples:
 
 ```text
-Front-line knight:
-- 3 physical
-- 1 magic
-
-Cultist:
-- 1 physical
-- 3 magic
-
-Elemental:
-- 0 physical
-- 4 magic
-
-Spellblade:
-- 2 physical
-- 2 magic
-
-Mid-game mage:
-- 1 physical
-- 2 magic
+BASIC_ATTACKS
+MAGIC
+HEALING
+SUPER
+DEFEND
 ```
 
-The stage controls the size of the capability budget. The archetype decides how that budget is spent.
+Healing is authored capability data, not universal enemy behavior. Super is also
+authored capability data. Ordinary enemies do not gain either system merely
+because they appear later.
 
----
+The legacy Battle loop still contains a temporary universal low-HP enemy
+healing branch. That branch is not the enemy model. Milestone 8 must remove it
+when Battle begins using structured enemy moves and authored enemy capabilities.
 
-## Healing Rules
+## Tier
 
-Healing is an **authored capability**, not universal enemy behavior.
-
-Mid-game and later stages may support healing, but that does not mean every enemy at those stages automatically heals.
-
-Enemies that may reasonably heal include:
-
-- shamans
-- clerics
-- alchemists
-- regenerating creatures
-- support units
-- elite captains
-- bosses
-
-Enemies that do not have a healing identity should not receive generic recovery behavior.
-
-A sewer rat, ordinary skeleton, brute, or basic Goblin should not repeatedly heal simply because it appears in a later dungeon.
-
-Healing should exist as either:
-
-- a structured healing move
-- an explicit AI capability
-- a defined regeneration trait
-
-It should not be hard-coded as a universal low-HP action inside Battle.
-
----
-
-## Mana Rules
-
-~~All enemies may retain a mana field through the shared combat contract.~~
-
-An enemy with no magical abilities can use:
+Tier determines numerical strength for one encounter instance.
 
 ```text
+Goblin +0 = current base ordinary Goblin
+Goblin +1, +2, +3 = deferred future scaling policies
+```
+
+Generic tier validation is shared:
+
+```text
+integer
+not bool
+zero or greater
+```
+
+After a tier is known to be legal, the archetype scaling policy decides whether
+that archetype currently supports it. The current Goblin scaling policy supports
+only tier 0.
+
+## Current Ordinary Goblin
+
+The ordinary Goblin contract is:
+
+```text
+Archetype ID: goblin
+Display name: Goblin
+Rank: COMMON
+Role: MELEE_SKIRMISHER
+Behavior: AGGRESSIVE
+Tier: 0
+Capabilities: BASIC_ATTACKS
+HP: 60
 Mana: 0/0
 ```
 
-or leave mana unused.
-
-This preserves a consistent runtime shape without implying that every enemy has access to magic.
-
----
-
-## Encounter Composition
-
-Once archetypes and runtime tiers are separated, encounters become data-driven compositions.
+Current canonical roster:
 
 ```text
-Dungeon 1:
-- Goblin +0
-- Slime +0
-
-Dungeon 4:
-- Goblin +2
-- Slime +1
-- Goblin Captain +0
-
-Late Dungeon:
-- Skeleton Archer +3
-- Ash Cultist +2
-- Orc +3
+1. slash
+2. jumping slash
 ```
 
-Dungeon construction becomes a matter of choosing:
+Every current ordinary Goblin move is supported by the Milestone 7 resolver.
+Milestone 8 should not need to silently filter malformed or unsupported ordinary
+Goblin moves before action selection.
 
-- archetypes
-- tiers
-- quantities
-- formations
-- encounter roles
+`suplex` is deferred future Goblin-family design for a higher-complexity
+archetype such as Goblin Brute, Goblin Grappler, or Goblin Captain. Stagger is
+not active in the ordinary Goblin roster.
 
-This reduces the need to program every encounter as a unique case.
+## Deferred Systems
 
----
-
-## Numerical Scaling Does Not Require Kit Expansion
-
-A later version of an ordinary enemy does not automatically receive more moves, healing, or boss mechanics.
+These remain extension points and are not implemented by the current enemy
+contract pass:
 
 ```text
-Early Goblin:
-- 2 moves
-- low stats
-
-Later Goblin:
-- same 2 moves
-- stronger tier-scaled stats
-
-Goblin Captain:
-- separate archetype
-- broader physical kit
-
-Goblin Shaman:
-- separate archetype
-- healing or support behavior
-
-Goblin King:
-- boss archetype
-- full kit and Super
+actual tier +1 through +3 multipliers
+advanced enemy AI
+healing AI
+Defend behavior
+resistances
+weaknesses
+reward tables
+EXP rewards
+gold rewards
+loot
+visual assets
+formations
+additional enemy archetypes
+boss phases
 ```
-
-This avoids two undesirable systems:
-
-1. enemies automatically matching the player’s level everywhere
-2. ordinary enemies receiving oversized kits only because they appear later
-
-Enemy complexity is based on rank and identity. Enemy strength is based on encounter tier.
-
----
-
-## Systemic Asset Reuse
-
-The same archetype can be reused across multiple regions and difficulty bands.
-
-One Goblin archetype can provide:
-
-- ~~one base definition~~
-- ~~one move kit~~
-- one visual asset
-- multiple tiers
-- multiple regions
-- multiple reward bands
-- multiple encounter combinations
-
-A `Goblin +3` can be substantially more dangerous than a `Goblin +0` without requiring an entirely new enemy asset.
-
-New assets and new archetypes should be reserved for enemies that materially change combat:
-
-```text
-Goblin +2          reused archetype
-Goblin Captain     new role and kit
-Goblin Shaman      support and healing role
-Goblin King        boss asset and boss behavior
-```
-
-This allows Dungeon Drifters to produce more encounter variety from a controlled set of authored assets while reserving development effort for enemies that genuinely change player decision-making.
-
----
-
-## Design Outcome
-
-The final enemy model separates identity, complexity, and strength:
-
-```text
-Base archetype
-    defines ~~identity~~ and behavior
-
-Stage or rank
-    defines available combat capabilities
-
-Tier
-    defines numerical strength
-
-~~EnemyState
-    combines them for one encounter~~
-```
-
-This makes it easy to place any enemy at an appropriate strength level, reuse existing assets intelligently, preserve clear enemy identities, and expand dungeon content without duplicating classes or hard-coding every encounter.

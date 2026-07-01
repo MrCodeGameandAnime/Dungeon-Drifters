@@ -11,3 +11,19 @@ Milestone 7 - Core Combat Resolver
 - Left the interactive Battle loop unchanged for Milestone 8.
 - Recorded that full structured Battle playability for all four Drifters depends
   on additional generic mechanic behavior or later character-kit work.
+
+Milestone 7.5 - Enemy Archetype and Capability Contract
+
+- Added strict enemy rank, role, behavior, and capability metadata.
+- Added tier preservation to EnemyState with shared generic tier validation.
+- Refactored enemy creation through a registry-driven factory.
+- Corrected the ordinary Goblin to COMMON, MELEE_SKIRMISHER, AGGRESSIVE, tier 0,
+  BASIC_ATTACKS only, 60 HP, 0 Mana, and the two resolver-supported moves slash
+  and jumping slash.
+- Deferred suplex and stagger to future higher-complexity Goblin-family
+  archetypes.
+- Gated resolver Super generation through the shared generates_super combatant
+  capability while preserving the approved Milestone 7 formulas and action
+  order.
+- Documented that the legacy universal enemy healing branch remains temporary
+  Battle behavior to remove during Milestone 8 integration.
