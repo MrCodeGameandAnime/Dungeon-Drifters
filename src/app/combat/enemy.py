@@ -81,53 +81,53 @@ class Goblin(Enemy):
             combat_moves=create_legacy_enemy_moves())
 
 
-class Orc(Enemy):
-    def __init__(self):
-        super().__init__(
-            strn=7,
-            con=5,
-            intl=1,
-            dex=1,
-            hp=60,
-            mana=10,
-            name="Orc",
-            combat_moves=create_legacy_enemy_moves())
+# class Orc(Enemy):
+#     def __init__(self):
+#         super().__init__(
+#             strn=7,
+#             con=5,
+#             intl=1,
+#             dex=1,
+#             hp=60,
+#             mana=10,
+#             name="Orc",
+#             combat_moves=create_legacy_enemy_moves())
 
 
-class SkeletonArcher(Enemy):
-    def __init__(self):
-        super().__init__(
-            strn=7,
-            con=5,
-            intl=1,
-            dex=1,
-            hp=60,
-            mana=10,
-            name="Skeleton Archer",
-            combat_moves=create_legacy_enemy_moves())
+# class SkeletonArcher(Enemy):
+#     def __init__(self):
+#         super().__init__(
+#             strn=7,
+#             con=5,
+#             intl=1,
+#             dex=1,
+#             hp=60,
+#             mana=10,
+#             name="Skeleton Archer",
+#             combat_moves=create_legacy_enemy_moves())
 
 
-class Zombie(Enemy):
-    def __init__(self):
-        super().__init__(
-            strn=7,
-            con=5,
-            intl=1,
-            dex=1,
-            hp=60,
-            mana=10,
-            name="Zombie",
-            combat_moves=create_legacy_enemy_moves())
+# class Zombie(Enemy):
+#     def __init__(self):
+#         super().__init__(
+#             strn=7,
+#             con=5,
+#             intl=1,
+#             dex=1,
+#             hp=60,
+#             mana=10,
+#             name="Zombie",
+#             combat_moves=create_legacy_enemy_moves())
 
 
-class SnakeLord(Enemy):
-    def __init__(self):
-        super().__init__(
-            strn=7,
-            con=5,
-            intl=1,
-            dex=1,
-            hp=60,
-            mana=10,
-            name="Snake Lord",
-            combat_moves=create_legacy_enemy_moves())
+# class SnakeLord(Enemy):
+#     def __init__(self):
+#         super().__init__(
+#             strn=7,
+#             con=5,
+#             intl=1,
+#             dex=1,
+#             hp=60,
+#             mana=10,
+#             name="Snake Lord",
+#             combat_moves=create_legacy_enemy_moves())
