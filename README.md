@@ -191,17 +191,28 @@ v0.2.5 is the architecture checkpoint currently merged through Milestone 6:
 - clarified active move resources as `None`, `Mana`, and `Super`
 - preserved the v0.1 vertical slice while preparing for later resolver work
 
+### v0.3.2
+
+v0.3.2 adds the standalone Milestone 7 combat resolver:
+
+- added `CombatResolver` for canonical actor-owned structured moves
+- added deterministic accuracy, scaling, mitigation, damage, and healing rules
+- added Mana and persistent Super spending/generation in resolver flow
+- kept the interactive `Battle` loop on the legacy path for Milestone 8
+- documented that complete structured Battle playability for every Drifter
+  still depends on more generic mechanic support or character-kit completion
+
 ## Known Limitations
 
-- Structured move resolver integration is not implemented.
+- Structured move resolver integration into Battle is not implemented.
 - Battle still uses the legacy quick move, power move, and Recover flow.
 - Final character kits are not complete.
 - Exact combat formulas and balance are provisional.
-- Super behavior and generation are not implemented.
+- Super behavior and generation are implemented only in the standalone resolver.
 - Momentum implementation is deferred.
 - Ammunition, compounds, and prepared-charge systems are not implemented.
 - Status effects and elemental interactions are not active.
-- Equipment exists as state but does not provide bonuses.
+- Equipment contributes through `effective_stat()` where implemented.
 - Broader encounters, progression gameplay, shops, extraction, and save/load are
   future work.
 

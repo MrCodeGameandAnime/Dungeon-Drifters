@@ -1,0 +1,13 @@
+Milestone 7 - Core Combat Resolver
+
+- Added a standalone CombatResolver for canonical actor-owned structured moves.
+- Enforced exact move-name ownership, duplicate-name rejection, target semantics,
+  supported move boundaries, and unsupported-mechanic rejection.
+- Implemented deterministic resolver mechanics for resource spending, accuracy,
+  effective-stat scaling, physical/magical/hybrid mitigation, damage, healing,
+  actual applied MoveResult values, and persistent Super generation/spending.
+- Extended the shared combatant-facing contract so runtime enemies own a fresh
+  per-instance Super resource alongside player Super.
+- Left the interactive Battle loop unchanged for Milestone 8.
+- Recorded that full structured Battle playability for all four Drifters depends
+  on additional generic mechanic behavior or later character-kit work.

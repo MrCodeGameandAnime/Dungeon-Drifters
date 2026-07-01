@@ -18,6 +18,7 @@ class EnemyState:
         self.stats = stats.Stats(self.permanent_stats)
         self.health = resources.Health(maximum=enemy_definition.hp)
         self.mana_resource = resources.Mana(maximum=enemy_definition.mana)
+        self.super_resource = resources.Super()
         self._combat_moves = tuple(enemy_definition.combat_moves)
 
     @property

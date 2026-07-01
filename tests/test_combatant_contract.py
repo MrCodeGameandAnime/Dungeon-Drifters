@@ -15,6 +15,7 @@ def inspect_combatant(combatant):
         "display_name": combatant.display_name,
         "health": (combatant.health.current, combatant.health.maximum),
         "mana": (combatant.mana_resource.current, combatant.mana_resource.maximum),
+        "super": (combatant.super_resource.current, combatant.super_resource.maximum),
         "moves": tuple(move.name for move in combatant.combat_moves),
         "strength": combatant.effective_stat("strength"),
         "alive": combatant.is_alive(),
@@ -39,6 +40,7 @@ def test_shared_inspection_works_without_type_branches():
     assert player_info["display_name"] == "Brawler"
     assert player_info["health"] == (60, 60)
     assert player_info["mana"] == (10, 10)
+    assert player_info["super"] == (0, 100)
     assert player_info["strength"] == 18
     assert player_info["alive"]
     assert len(player_info["moves"]) == 3
@@ -48,6 +50,7 @@ def test_shared_inspection_works_without_type_branches():
         "display_name": "Goblin",
         "health": (60, 60),
         "mana": (10, 10),
+        "super": (0, 100),
         "moves": ("slash", "jumping slash", "suplex"),
         "strength": 3,
         "alive": True,

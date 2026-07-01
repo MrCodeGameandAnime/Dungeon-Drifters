@@ -20,6 +20,10 @@ class Combatant(Protocol):
         ...
 
     @property
+    def super_resource(self):
+        ...
+
+    @property
     def combat_moves(self) -> Sequence[Move]:
         ...
 

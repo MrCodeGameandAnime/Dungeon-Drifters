@@ -162,12 +162,14 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
 
     first.health.take_damage(5)
     first.mana_resource.spend(3)
+    first.super_resource.gain(10)
     first.permanent_stats.increase_stat("strength", 1)
     first_moves = first.moves
     first_moves[4] = "runtime only"
 
     assert first.health is not second.health
     assert first.mana_resource is not second.mana_resource
+    assert first.super_resource is not second.super_resource
     assert first.permanent_stats is not second.permanent_stats
     assert first.stats is not second.stats
     assert first.moves is not second.moves
@@ -175,6 +177,8 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
     assert second.health.current == 60
     assert first.mana_resource.current == 7
     assert second.mana_resource.current == 10
+    assert first.super_resource.current == 10
+    assert second.super_resource.current == 0
     assert first.effective_stat("strength") == 4
     assert second.effective_stat("strength") == 3
     assert 4 in first_moves
@@ -188,6 +192,7 @@ def test_factory_enemy_states_do_not_share_runtime_state():
 
     first.health.take_damage(5)
     first.mana_resource.spend(3)
+    first.super_resource.gain(10)
     first.permanent_stats.increase_stat("strength", 1)
     first_moves = first.moves
     first_moves[4] = "runtime only"
@@ -195,12 +200,15 @@ def test_factory_enemy_states_do_not_share_runtime_state():
     assert first.definition is not second.definition
     assert first.health is not second.health
     assert first.mana_resource is not second.mana_resource
+    assert first.super_resource is not second.super_resource
     assert first.permanent_stats is not second.permanent_stats
     assert first.combat_moves is not second.combat_moves
     assert first.health.current == 55
     assert second.health.current == 60
     assert first.mana_resource.current == 7
     assert second.mana_resource.current == 10
+    assert first.super_resource.current == 10
+    assert second.super_resource.current == 0
     assert first.effective_stat("strength") == 4
     assert second.effective_stat("strength") == 3
     assert 4 in first_moves
