@@ -28,7 +28,7 @@ EXTRACTED_NAMES = {
 
 
 def read_source(relative_path):
-    return (ROOT / relative_path).read_text(encoding="utf-8")
+    return (ROOT / "src" / relative_path).read_text(encoding="utf-8")
 
 
 def test_support_classes_have_canonical_import_paths():

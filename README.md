@@ -42,10 +42,10 @@ rewired to a full structured resolver yet.
 From the project root, run:
 
 ```powershell
-.\.venv\Scripts\python.exe run_game.py
+.\.venv\Scripts\python.exe src\run_game.py
 ```
 
-You can also run `run_game.py` directly from PyCharm.
+You can also run `src/run_game.py` directly from PyCharm.
 
 During play:
 
@@ -115,63 +115,35 @@ Run the full pytest suite:
 Run a compile check:
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall app tests run_game.py
+.\.venv\Scripts\python.exe -m compileall src tests
 ```
 
 ## Project Structure
 
 ```text
-app/
-  game/
-    main_loop.py       Current game flow
-    game_state.py      Session root
-    story_state.py     Persistent story state
-    world_state.py     Persistent world state
-    console.py         Console pause/clear helpers
-
-  player/
-    character.py       Runtime character composition and archetype constructors
-    player_state.py    Persistent player aggregate
-    resources.py       Health and mana resource objects
-    progression.py     Level and EXP objects
-    stats.py           Permanent and effective stat layers
-    inventory.py       Player-owned item container
-    loadouts/          Drifter move and mechanic definitions
-
-  combat/
-    battle.py          Current legacy battle loop
-    combatant.py       Shared combat-facing protocol
-    combat_state.py    Temporary per-battle state
-    enemy.py           Enemy definitions
-    enemy_state.py     Runtime enemy state
-    move.py            Validated structured Move contract
-    result.py          Validated MoveResult contract
-
-  world/
-    story.py           Title, story text, and endings
-    event.py           Character selection and event rolls
-    character_profiles/
-      profile.py       Profile data and rendering
-      roster.py        Canonical Drifter roster
-
-  items/
-    weapon.py          Weapon classes
-
-  snapshot.py          Strict plain-value snapshot helpers
-
-tests/
-  Direct-run regression tests for state, profiles, loadouts, combat contracts,
-  snapshots, Battle behavior, and the vertical slice.
-
-docs/
-  v0.3-combat-design-reference.md
-  character-growth-progression.md
-  dungeon-extraction-economy.md
-  signature-weapon-progression.md
-  momentum.md
-
-run_game.py            Project-root launcher
+Dungeon-Drifters/
++-- .github/
+|   +-- workflows/
+|       +-- tests.yml
++-- src/
+|   +-- app/
+|   |   +-- combat/
+|   |   +-- game/
+|   |   +-- items/
+|   |   +-- player/
+|   |   +-- world/
+|   +-- run_game.py
++-- tests/
++-- docs/
++-- README.md
++-- .gitignore
++-- pytest.ini
++-- requirements-dev.txt
 ```
+
+The complete runnable game is contained under `src/`. Tests, documentation,
+GitHub Actions, and development configuration remain outside the distributable
+game directory.
 
 ## Change Summary
 

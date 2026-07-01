@@ -38,4 +38,4 @@ jobs:
         run: python -m pytest
 
       - name: Compile Python sources
-        run: python -m compileall app tests run_game.py
+        run: python -m compileall src tests
