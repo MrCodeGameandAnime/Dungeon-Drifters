@@ -89,6 +89,9 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         assert first.combat_moves is not second.combat_moves
         assert first.class_mechanic == second.class_mechanic
         assert first.class_mechanic is not second.class_mechanic
+        assert first.starting_equipment is not second.starting_equipment
+        assert first.starting_equipment["weapon"] is not second.starting_equipment["weapon"]
+        assert first.starting_equipment["weapon"].name == second.starting_equipment["weapon"].name
         assert first.permanent_stats is not second.permanent_stats
         assert first.health is not second.health
         assert first.mana_resource is not second.mana_resource

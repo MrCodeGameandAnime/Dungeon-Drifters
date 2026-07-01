@@ -26,6 +26,9 @@ class PlayerState:
             slot: None
             for slot in self.EQUIPMENT_SLOTS
         }
+        for slot, item in getattr(character, "starting_equipment", {}).items():
+            self._validate_equipment_slot(slot)
+            self._equipment[slot] = item
 
     @property
     def character(self):
@@ -76,7 +79,12 @@ class PlayerState:
         return self.character.display_name
 
     def effective_stat(self, name):
-        return self.stats.effective_stat(name)
+        base_value = self.stats.effective_stat(name)
+        weapon = self.get_equipped("weapon")
+        if isinstance(weapon, Weapon):
+            return base_value + weapon.stat_bonuses.get(name, 0)
+
+        return base_value
 
     def is_alive(self):
         return self.health.is_alive()
@@ -229,11 +237,12 @@ class PlayerState:
             return to_plain_value(
                 {
                     "type": item.__class__.__name__,
-                    "attack": item.attack,
-                    "defense": item.defense,
-                    "magic_attack": item.magic_attack,
-                    "magic_defense": item.magic_defense,
+                    "name": item.name,
+                    "weapon_type": item.weapon_type,
+                    "intended_wielder": item.intended_wielder,
+                    "stat_bonuses": item.stat_bonuses,
                     "value": item.value,
+                    "description": item.description,
                 },
                 path,
             )

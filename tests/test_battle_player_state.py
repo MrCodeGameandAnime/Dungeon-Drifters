@@ -61,8 +61,8 @@ def test_battle_accepts_player_state_and_uses_wrapped_character():
     assert battle.foe is enemy_state
     assert battle.player.name == character.name
     assert battle.player.moves is character.moves
-    assert battle.player_state.effective_stat("strength") == character.strength
-    assert battle.player_state.effective_stat("constitution") == character.constitution
+    assert battle.player_state.effective_stat("strength") == character.strength + 3
+    assert battle.player_state.effective_stat("constitution") == character.constitution + 1
     assert battle.combat_state.turn_count == 0
     assert not hasattr(battle, "foe_health")
     assert not hasattr(battle, "foe_max_hp")
@@ -109,7 +109,7 @@ def test_player_damage_mutates_enemy_state_health():
     with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         battle.attack(player_state, enemy_state, "slash", heavy=False)
 
-    assert enemy_state.health.current == enemy_state.health.maximum - 23
+    assert enemy_state.health.current == enemy_state.health.maximum - 26
 
 
 def test_enemy_recovery_mutates_enemy_state_health():
@@ -244,4 +244,4 @@ def test_completed_actions_advance_turn_count():
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 5
+    assert battle.combat_state.turn_count == 3

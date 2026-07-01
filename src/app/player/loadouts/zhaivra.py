@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.items.weapon import Sathren
 
 
 def create_legacy_moves():
@@ -63,3 +64,7 @@ def create_class_mechanic():
         'name': 'Precision',
         'description': 'High dexterity supports accuracy, critical hits, and multi-hit attacks.',
     }
+
+
+def create_starting_weapon():
+    return Sathren()

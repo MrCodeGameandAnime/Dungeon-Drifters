@@ -21,7 +21,8 @@ class Character:
             name,
             moves,
             combat_moves=None,
-            class_mechanic=None):
+            class_mechanic=None,
+            starting_equipment=None):
         self.permanent_stats = stats.PermanentStats(
             constitution=constitution,
             spirit=spirit,
@@ -35,6 +36,7 @@ class Character:
         self.moves = dict(moves)
         self.combat_moves = list(combat_moves or [])
         self.class_mechanic = dict(class_mechanic or {})
+        self.starting_equipment = dict(starting_equipment or {})
         self.profile = None
         self.stats = stats.Stats(self.permanent_stats)
         self.health = resources.Health(maximum=hp)
@@ -164,7 +166,8 @@ class Brawler(Character):
             name="Brawler",
             moves=branoc.create_legacy_moves(),
             combat_moves=branoc.create_combat_moves(),
-            class_mechanic=branoc.create_class_mechanic())
+            class_mechanic=branoc.create_class_mechanic(),
+            starting_equipment={"weapon": branoc.create_starting_weapon()})
 
 
 class BlackMage(Character):
@@ -184,7 +187,8 @@ class BlackMage(Character):
             name="Black Mage",
             moves=azhvielle.create_legacy_moves(),
             combat_moves=azhvielle.create_combat_moves(),
-            class_mechanic=azhvielle.create_class_mechanic())
+            class_mechanic=azhvielle.create_class_mechanic(),
+            starting_equipment={"weapon": azhvielle.create_starting_weapon()})
 
 
 class RogueArcher(Character):
@@ -204,7 +208,8 @@ class RogueArcher(Character):
             name="Rogue Archer",
             moves=zhaivra.create_legacy_moves(),
             combat_moves=zhaivra.create_combat_moves(),
-            class_mechanic=zhaivra.create_class_mechanic())
+            class_mechanic=zhaivra.create_class_mechanic(),
+            starting_equipment={"weapon": zhaivra.create_starting_weapon()})
 
 
 class Monk(Character):
@@ -224,4 +229,5 @@ class Monk(Character):
             name="Monk",
             moves=joruun.create_legacy_moves(),
             combat_moves=joruun.create_combat_moves(),
-            class_mechanic=joruun.create_class_mechanic())
+            class_mechanic=joruun.create_class_mechanic(),
+            starting_equipment={"weapon": joruun.create_starting_weapon()})

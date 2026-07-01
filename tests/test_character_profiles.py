@@ -130,7 +130,7 @@ def test_full_profile_includes_representative_profile_anchors():
         "Sunder-Spire",
         "Rhom-Ghalian Lung",
         "Endurance is merely suffering with direction.",
-        "Needle of Plain Iron*",
+        "Needle of Plain Iron",
         "Vharosynian Causal Sorcery",
         "That does not make it sensible.",
         "Sathren",

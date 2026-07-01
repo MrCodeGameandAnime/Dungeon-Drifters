@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.items.weapon import SkyNeedle
 
 
 def create_legacy_moves():
@@ -81,6 +82,10 @@ def create_class_mechanic():
         'name': 'Ki Forms',
         'description': 'Monk techniques combine positioning, balance, and Ki setup effects.',
     }
+
+
+def create_starting_weapon():
+    return SkyNeedle()
 
 
 # Bring The Horse To Water:

@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.items.weapon import SunderSpire
 
 
 def create_legacy_moves():
@@ -51,3 +52,7 @@ def create_class_mechanic():
         'name': 'Heavy Vanguard',
         'description': 'A durable frontline identity built around heavy physical pressure.',
     }
+
+
+def create_starting_weapon():
+    return SunderSpire()

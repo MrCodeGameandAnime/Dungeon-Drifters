@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.items.weapon import Staff
+from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.snapshot import validate_plain_value
@@ -51,7 +51,23 @@ def test_default_player_snapshot_has_required_shape():
     assert snapshot["gold"] == 0
     assert snapshot["inventory"] == []
     assert tuple(snapshot["equipment"].keys()) == PlayerState.EQUIPMENT_SLOTS
-    assert all(item is None for item in snapshot["equipment"].values())
+    assert snapshot["equipment"]["weapon"] == {
+        "type": "SunderSpire",
+        "name": "Sunder-Spire",
+        "weapon_type": "Great Flamberge",
+        "intended_wielder": "Branoc",
+        "stat_bonuses": {
+            "strength": 3,
+            "constitution": 1,
+        },
+        "value": 2,
+        "description": "A massive Deep-Iron flamberge forged from the broken weapons of Rhom-Ghal.",
+    }
+    assert all(
+        item is None
+        for slot, item in snapshot["equipment"].items()
+        if slot != "weapon"
+    )
     assert len(snapshot["combat"]["moves"]) == 3
     assert snapshot["combat"]["class_mechanic"]["name"] == "Heavy Vanguard"
     assert "resource" not in snapshot["combat"]["class_mechanic"]
@@ -96,23 +112,108 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
 
 def test_supported_weapon_equipment_uses_explicit_plain_mapping():
     player_state = PlayerState(Brawler())
-    staff = Staff()
+    staff = SkyNeedle()
     player_state.inventory.add_item(staff)
 
     player_state.equip("weapon", staff)
     snapshot = player_state.snapshot()
 
-    assert snapshot["inventory"] == []
+    assert snapshot["inventory"] == [
+        {
+            "type": "SunderSpire",
+            "name": "Sunder-Spire",
+            "weapon_type": "Great Flamberge",
+            "intended_wielder": "Branoc",
+            "stat_bonuses": {
+                "strength": 3,
+                "constitution": 1,
+            },
+            "value": 2,
+            "description": "A massive Deep-Iron flamberge forged from the broken weapons of Rhom-Ghal.",
+        },
+    ]
     assert snapshot["equipment"]["weapon"] == {
-        "type": "Staff",
-        "attack": 1,
-        "defense": 1,
-        "magic_attack": 3,
-        "magic_defense": 2,
-        "value": 3,
+        "type": "SkyNeedle",
+        "name": "Sky-Needle",
+        "weapon_type": "Conductive Shakujō",
+        "intended_wielder": "Joruun",
+        "stat_bonuses": {
+            "spirit": 2,
+            "dexterity": 1,
+            "intuition": 1,
+        },
+        "value": 2,
+        "description": "An ash-wood shakujō fitted with copper collars and loose conductive rings.",
     }
     assert snapshot["equipment"]["off_hand"] is None
+    assert "attack" not in snapshot["equipment"]["weapon"]
+    assert "defense" not in snapshot["equipment"]["weapon"]
+    assert "magic_attack" not in snapshot["equipment"]["weapon"]
+    assert "magic_defense" not in snapshot["equipment"]["weapon"]
     assert_strict_json(snapshot)
+
+
+def test_all_named_starting_weapons_serialize_with_new_payload():
+    expected_payloads = (
+        (
+            Brawler,
+            SunderSpire,
+            {
+                "type": "SunderSpire",
+                "name": "Sunder-Spire",
+                "weapon_type": "Great Flamberge",
+                "intended_wielder": "Branoc",
+                "stat_bonuses": {"strength": 3, "constitution": 1},
+                "value": 2,
+                "description": "A massive Deep-Iron flamberge forged from the broken weapons of Rhom-Ghal.",
+            },
+        ),
+        (
+            BlackMage,
+            NeedleOfPlainIron,
+            {
+                "type": "NeedleOfPlainIron",
+                "name": "Needle of Plain Iron",
+                "weapon_type": "Ritual Needle",
+                "intended_wielder": "Azhvielle",
+                "stat_bonuses": {"intelligence": 3, "spirit": 1},
+                "value": 2,
+                "description": "A long, unadorned iron needle used as both a weapon and a precise ritual focus.",
+            },
+        ),
+        (
+            RogueArcher,
+            Sathren,
+            {
+                "type": "Sathren",
+                "name": "Sathren",
+                "weapon_type": "Alchemical Recurve Bow",
+                "intended_wielder": "Zhaivra",
+                "stat_bonuses": {"dexterity": 3, "intuition": 1},
+                "value": 2,
+                "description": "A recurved bow grown from the bone-fiber of the Hollow Colossus and fitted with six alchemical reservoirs.",
+            },
+        ),
+        (
+            Monk,
+            SkyNeedle,
+            {
+                "type": "SkyNeedle",
+                "name": "Sky-Needle",
+                "weapon_type": "Conductive Shakujō",
+                "intended_wielder": "Joruun",
+                "stat_bonuses": {"spirit": 2, "dexterity": 1, "intuition": 1},
+                "value": 2,
+                "description": "An ash-wood shakujō fitted with copper collars and loose conductive rings.",
+            },
+        ),
+    )
+
+    for class_type, weapon_type, expected_payload in expected_payloads:
+        player_state = PlayerState(class_type())
+
+        assert isinstance(player_state.get_equipped("weapon"), weapon_type)
+        assert player_state.snapshot()["equipment"]["weapon"] == expected_payload
 
 
 def test_structured_moves_and_class_mechanic_are_plain_values():
@@ -181,7 +282,7 @@ def test_snapshot_is_isolated_and_non_mutating():
     first_snapshot["resources"]["health"]["current"] = 1
 
     assert player_state.inventory.items == ("tonic",)
-    assert player_state.get_equipped("weapon") is None
+    assert player_state.get_equipped("weapon").name == "Sunder-Spire"
     assert player_state.health.current == health_before
     assert player_state.mana_resource.current == mana_before
 

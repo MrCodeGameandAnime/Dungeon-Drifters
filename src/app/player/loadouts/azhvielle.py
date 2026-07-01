@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.items.weapon import NeedleOfPlainIron
 
 
 def create_legacy_moves():
@@ -52,3 +53,7 @@ def create_class_mechanic():
         'resource': 'mana',
         'description': 'Spells spend mana and scale primarily from intelligence.',
     }  # ice shield
+
+
+def create_starting_weapon():
+    return NeedleOfPlainIron()

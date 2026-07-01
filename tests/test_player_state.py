@@ -1,5 +1,6 @@
 import pytest
 
+from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory import Inventory
 from app.player.player_state import PlayerState
@@ -48,7 +49,12 @@ def test_equipment_slots_exist_and_start_empty():
     player_state = PlayerState(Brawler())
 
     assert tuple(player_state.equipment.keys()) == PlayerState.EQUIPMENT_SLOTS
-    assert all(item is None for item in player_state.equipment.values())
+    assert isinstance(player_state.get_equipped("weapon"), SunderSpire)
+    assert all(
+        item is None
+        for slot, item in player_state.equipment.items()
+        if slot != "weapon"
+    )
 
 
 def test_player_states_do_not_share_inventory_or_equipment():
@@ -63,8 +69,9 @@ def test_player_states_do_not_share_inventory_or_equipment():
     assert first_player.inventory is not second_player.inventory
     assert first_player.inventory.items == (item,)
     assert second_player.inventory.items == ()
-    assert first_player.equipment["weapon"] is None
-    assert second_player.equipment["weapon"] is None
+    assert isinstance(first_player.equipment["weapon"], SunderSpire)
+    assert isinstance(second_player.equipment["weapon"], SunderSpire)
+    assert first_player.equipment["weapon"] is not second_player.equipment["weapon"]
 
 
 def test_invalid_character_raises_type_error():
@@ -153,11 +160,13 @@ def test_gold_has_no_public_setter():
 def test_owned_item_can_be_equipped():
     player_state = PlayerState(Brawler())
     item = object()
+    starting_weapon = player_state.get_equipped("weapon")
     player_state.inventory.add_item(item)
 
-    assert player_state.equip("weapon", item) is None
+    assert player_state.equip("weapon", item) is starting_weapon
     assert player_state.get_equipped("weapon") is item
     assert not player_state.inventory.contains(item)
+    assert player_state.inventory.contains(starting_weapon)
 
 
 def test_replacing_equipment_preserves_items():
@@ -170,7 +179,7 @@ def test_replacing_equipment_preserves_items():
 
     assert player_state.equip("weapon", second_item) is first_item
     assert player_state.get_equipped("weapon") is second_item
-    assert player_state.inventory.items == (first_item,)
+    assert first_item in player_state.inventory.items
 
 
 def test_unequipping_returns_item_to_inventory():
@@ -181,7 +190,7 @@ def test_unequipping_returns_item_to_inventory():
 
     assert player_state.unequip("weapon") is item
     assert player_state.get_equipped("weapon") is None
-    assert player_state.inventory.items == (item,)
+    assert item in player_state.inventory.items
     assert player_state.unequip("weapon") is None
 
 
@@ -236,7 +245,7 @@ def test_equipment_snapshot_cannot_mutate_internal_equipment():
     equipment["weapon"] = item
     equipment["new_slot"] = item
 
-    assert player_state.get_equipped("weapon") is None
+    assert isinstance(player_state.get_equipped("weapon"), SunderSpire)
     assert "new_slot" not in player_state.equipment
 
 
@@ -248,11 +257,67 @@ def test_item_conservation_across_equip_replace_and_unequip():
     player_state.inventory.add_item(second_item)
 
     player_state.equip("weapon", first_item)
-    assert player_state.inventory.items == (second_item,)
+    assert second_item in player_state.inventory.items
 
     player_state.equip("weapon", second_item)
-    assert player_state.inventory.items == (first_item,)
+    assert first_item in player_state.inventory.items
 
     player_state.unequip("weapon")
     assert player_state.get_equipped("weapon") is None
-    assert player_state.inventory.items == (first_item, second_item)
+    assert first_item in player_state.inventory.items
+    assert second_item in player_state.inventory.items
+
+
+def test_playable_classes_start_with_named_weapons():
+    expected_weapons = {
+        Brawler: SunderSpire,
+        BlackMage: NeedleOfPlainIron,
+        RogueArcher: Sathren,
+        Monk: SkyNeedle,
+    }
+
+    for class_type, weapon_type in expected_weapons.items():
+        player_state = PlayerState(class_type())
+
+        assert isinstance(player_state.get_equipped("weapon"), weapon_type)
+
+
+def test_equipped_weapon_contributes_to_effective_stats_without_mutating_permanent_stats():
+    character = Brawler()
+    player_state = PlayerState(character)
+
+    assert character.permanent_stats.as_dict()["strength"] == 15
+    assert character.stats.effective_stat("strength") == 15
+    assert player_state.effective_stat("strength") == 18
+    assert player_state.effective_stat("constitution") == 15
+    assert player_state.effective_stat("dexterity") == 10
+    assert character.permanent_stats.as_dict()["strength"] == 15
+
+
+def test_inventory_only_weapons_do_not_contribute_to_effective_stats():
+    player_state = PlayerState(Brawler())
+    player_state.unequip("weapon")
+    player_state.inventory.add_item(SkyNeedle())
+
+    assert player_state.effective_stat("spirit") == 6
+    assert player_state.effective_stat("dexterity") == 10
+
+
+def test_replacing_and_unequipping_weapon_updates_effective_stats_once():
+    player_state = PlayerState(Brawler())
+    sky_needle = SkyNeedle()
+
+    assert player_state.effective_stat("strength") == 18
+    assert player_state.effective_stat("spirit") == 6
+
+    player_state.inventory.add_item(sky_needle)
+    player_state.equip("weapon", sky_needle)
+
+    assert player_state.effective_stat("strength") == 15
+    assert player_state.effective_stat("spirit") == 8
+    assert player_state.effective_stat("spirit") == 8
+
+    player_state.unequip("weapon")
+
+    assert player_state.effective_stat("strength") == 15
+    assert player_state.effective_stat("spirit") == 6

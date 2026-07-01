@@ -1,3 +1,4 @@
+from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
@@ -60,6 +61,7 @@ EXPECTED_LOADOUTS = {
             "name": "Heavy Vanguard",
             "description": "A durable frontline identity built around heavy physical pressure.",
         },
+        "starting_weapon": SunderSpire,
     },
     BlackMage: {
         "attributes": {
@@ -120,6 +122,7 @@ EXPECTED_LOADOUTS = {
             "resource": "mana",
             "description": "Spells spend mana and scale primarily from intelligence.",
         },
+        "starting_weapon": NeedleOfPlainIron,
     },
     RogueArcher: {
         "attributes": {
@@ -192,6 +195,7 @@ EXPECTED_LOADOUTS = {
             "name": "Precision",
             "description": "High dexterity supports accuracy, critical hits, and multi-hit attacks.",
         },
+        "starting_weapon": Sathren,
     },
     Monk: {
         "attributes": {
@@ -283,6 +287,7 @@ EXPECTED_LOADOUTS = {
             "name": "Ki Forms",
             "description": "Monk techniques combine positioning, balance, and Ki setup effects.",
         },
+        "starting_weapon": SkyNeedle,
     },
 }
 
@@ -324,6 +329,7 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
         ]
         assert [move_to_dict(move) for move in player.combat_moves] == expected["combat_moves"]
         assert player.class_mechanic == expected["class_mechanic"]
+        assert isinstance(player.starting_equipment["weapon"], expected["starting_weapon"])
 
 
 def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
