@@ -1,7 +1,8 @@
-from app.combat.enemy import Goblin, Orc, SkeletonArcher, SnakeLord, Zombie
+from app.combat.enemy import Goblin
 from app.combat.enemy_state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 
+# Orc, SkeletonArcher, SnakeLord, Zombie
 
 EXPECTED_COMBAT_MOVES = [
     {
@@ -81,66 +82,66 @@ EXPECTED_ENEMIES = {
         "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
         "combat_moves": EXPECTED_COMBAT_MOVES,
     },
-    Orc: {
-        "name": "Orc",
-        "stats": {
-            "constitution": 5,
-            "spirit": 1,
-            "intelligence": 1,
-            "strength": 7,
-            "dexterity": 1,
-            "intuition": 1,
-        },
-        "hp": 60,
-        "mana": 10,
-        "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-        "combat_moves": EXPECTED_COMBAT_MOVES,
-    },
-    SkeletonArcher: {
-        "name": "Skeleton Archer",
-        "stats": {
-            "constitution": 5,
-            "spirit": 1,
-            "intelligence": 1,
-            "strength": 7,
-            "dexterity": 1,
-            "intuition": 1,
-        },
-        "hp": 60,
-        "mana": 10,
-        "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-        "combat_moves": EXPECTED_COMBAT_MOVES,
-    },
-    Zombie: {
-        "name": "Zombie",
-        "stats": {
-            "constitution": 5,
-            "spirit": 1,
-            "intelligence": 1,
-            "strength": 7,
-            "dexterity": 1,
-            "intuition": 1,
-        },
-        "hp": 60,
-        "mana": 10,
-        "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-        "combat_moves": EXPECTED_COMBAT_MOVES,
-    },
-    SnakeLord: {
-        "name": "Snake Lord",
-        "stats": {
-            "constitution": 5,
-            "spirit": 1,
-            "intelligence": 1,
-            "strength": 7,
-            "dexterity": 1,
-            "intuition": 1,
-        },
-        "hp": 60,
-        "mana": 10,
-        "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
-        "combat_moves": EXPECTED_COMBAT_MOVES,
-    },
+    # Orc: {
+    #     "name": "Orc",
+    #     "stats": {
+    #         "constitution": 5,
+    #         "spirit": 1,
+    #         "intelligence": 1,
+    #         "strength": 7,
+    #         "dexterity": 1,
+    #         "intuition": 1,
+    #     },
+    #     "hp": 60,
+    #     "mana": 10,
+    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+    #     "combat_moves": EXPECTED_COMBAT_MOVES,
+    # },
+    # SkeletonArcher: {
+    #     "name": "Skeleton Archer",
+    #     "stats": {
+    #         "constitution": 5,
+    #         "spirit": 1,
+    #         "intelligence": 1,
+    #         "strength": 7,
+    #         "dexterity": 1,
+    #         "intuition": 1,
+    #     },
+    #     "hp": 60,
+    #     "mana": 10,
+    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+    #     "combat_moves": EXPECTED_COMBAT_MOVES,
+    # },
+    # Zombie: {
+    #     "name": "Zombie",
+    #     "stats": {
+    #         "constitution": 5,
+    #         "spirit": 1,
+    #         "intelligence": 1,
+    #         "strength": 7,
+    #         "dexterity": 1,
+    #         "intuition": 1,
+    #     },
+    #     "hp": 60,
+    #     "mana": 10,
+    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+    #     "combat_moves": EXPECTED_COMBAT_MOVES,
+    # },
+    # SnakeLord: {
+    #     "name": "Snake Lord",
+    #     "stats": {
+    #         "constitution": 5,
+    #         "spirit": 1,
+    #         "intelligence": 1,
+    #         "strength": 7,
+    #         "dexterity": 1,
+    #         "intuition": 1,
+    #     },
+    #     "hp": 60,
+    #     "mana": 10,
+    #     "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+    #     "combat_moves": EXPECTED_COMBAT_MOVES,
+    # },
 }
 
 

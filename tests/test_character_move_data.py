@@ -79,15 +79,24 @@ def test_loadout_resource_types_follow_authored_class_resources():
     assert {move.resource_type for move in black_mage.combat_moves} == {ResourceType.MANA}
     assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.NONE}
     assert {move.resource_cost for move in rogue_archer.combat_moves} == {0}
-    assert {move.resource_type for move in monk.combat_moves} == {ResourceType.MANA}
+    assert [move.resource_type for move in monk.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
+    assert monk.combat_moves[0].resource_cost == 0
+    assert monk.combat_moves[-1].name == "Coagulated Torrent"
 
 
 def test_battle_is_not_wired_to_structured_moves_yet():
     monk = Monk()
 
     assert list(monk.moves.values())[:2] == [
-        "Bring The Horse To Water",
-        "Sweep The Leaves",
+        "Bring the Horse to Water",
+        "Lightning Palm",
     ]
-    assert monk.combat_moves[0].name == "Bring The Horse To Water"
-    assert monk.combat_moves[0].resource_cost > 0
+    assert monk.combat_moves[0].name == "Bring the Horse to Water"
+    assert monk.combat_moves[0].resource_type == ResourceType.NONE
+    assert monk.combat_moves[-1].resource_type == ResourceType.SUPER
