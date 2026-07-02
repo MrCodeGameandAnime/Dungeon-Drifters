@@ -2,6 +2,7 @@
 
 from app.player import resources
 from app.player import stats
+from app.combat.move import DamageType
 from app.enemies.definition import EnemyCapability
 from app.enemies.validation import validate_enemy_tier
 
@@ -65,6 +66,10 @@ class EnemyState:
         return EnemyCapability.SUPER in self.capabilities
 
     @property
+    def can_defend(self):
+        return EnemyCapability.DEFEND in self.capabilities
+
+    @property
     def moves(self):
         return {
             index: move.name
@@ -101,6 +106,16 @@ class EnemyState:
 
     def effective_stat(self, name):
         return self.stats.effective_stat(name)
+
+    def defend_reduction_percent(self, damage_type):
+        if damage_type == DamageType.PHYSICAL:
+            return 50
+        if damage_type == DamageType.MAGICAL:
+            return 40
+        if damage_type == DamageType.HYBRID:
+            return 30
+
+        return 0
 
     def is_alive(self):
         return self.health.is_alive()

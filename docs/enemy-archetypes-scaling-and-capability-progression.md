@@ -80,9 +80,17 @@ Healing is authored capability data, not universal enemy behavior. Super is also
 authored capability data. Ordinary enemies do not gain either system merely
 because they appear later.
 
+Defend is likewise capability-gated for enemies. An enemy with
+`EnemyCapability.DEFEND` may use the core Defend contract; an enemy without it
+rejects Defend as unavailable. Enemy Defend uses fixed reductions of 50%
+physical, 40% magical, and 30% hybrid after normal mitigation. Player Defend is
+separate runtime combatant behavior with 30/20/10 baselines, effective
+Strength/Spirit/Dexterity bonuses, and 70/60/50 caps.
+
 The legacy Battle loop still contains a temporary universal low-HP enemy
 healing branch. That branch is not the enemy model. Milestone 8 must remove it
 when Battle begins using structured enemy moves and authored enemy capabilities.
+Battle also does not yet expose the core Defend action in its terminal flow.
 
 ## Tier
 
@@ -145,7 +153,7 @@ contract pass:
 actual tier +1 through +3 multipliers
 advanced enemy AI
 healing AI
-Defend behavior
+Defend AI and additional defending archetypes
 resistances
 weaknesses
 reward tables

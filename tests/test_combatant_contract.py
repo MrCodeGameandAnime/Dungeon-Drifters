@@ -1,6 +1,7 @@
 import pytest
 
 from app.combat.combatant import Combatant
+from app.combat.move import DamageType
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
@@ -18,6 +19,8 @@ def inspect_combatant(combatant):
         "mana": (combatant.mana_resource.current, combatant.mana_resource.maximum),
         "super": (combatant.super_resource.current, combatant.super_resource.maximum),
         "generates_super": combatant.generates_super,
+        "can_defend": combatant.can_defend,
+        "physical_defend": combatant.defend_reduction_percent(DamageType.PHYSICAL),
         "moves": tuple(move.name for move in combatant.combat_moves),
         "strength": combatant.effective_stat("strength"),
         "alive": combatant.is_alive(),
@@ -44,6 +47,8 @@ def test_shared_inspection_works_without_type_branches():
     assert player_info["mana"] == (10, 10)
     assert player_info["super"] == (0, 100)
     assert player_info["generates_super"] is True
+    assert player_info["can_defend"] is True
+    assert player_info["physical_defend"] == 48
     assert player_info["strength"] == 18
     assert player_info["alive"]
     assert len(player_info["moves"]) == 3
@@ -55,6 +60,8 @@ def test_shared_inspection_works_without_type_branches():
         "mana": (0, 0),
         "super": (0, 100),
         "generates_super": False,
+        "can_defend": False,
+        "physical_defend": 50,
         "moves": ("slash", "jumping slash"),
         "strength": 3,
         "alive": True,

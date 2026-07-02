@@ -2,6 +2,7 @@
 
 import random
 
+from app.combat.combat_state import CombatState
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.result import MoveResult
@@ -15,7 +16,7 @@ class CombatResolver:
     def __init__(self, rng=random):
         self.rng = rng
 
-    def resolve_move(self, actor, target, move_name):
+    def resolve_move(self, actor, target, move_name, *, combat_state=None):
         result_move_name = move_name if isinstance(move_name, str) and move_name else "unknown"
 
         if not _is_valid_combatant(actor):
@@ -27,6 +28,9 @@ class CombatResolver:
             return _rejected(result_move_name, "invalid_target")
         if not target.is_alive():
             return _rejected(result_move_name, "target_defeated")
+
+        if not _is_valid_optional_combat_state(combat_state):
+            return _rejected(result_move_name, "invalid_combat_state")
 
         move, reason = _resolve_owned_move(actor, move_name)
         if reason is not None:
@@ -53,12 +57,12 @@ class CombatResolver:
         healing = 0
         if hit:
             if move.kind == MoveKind.DAMAGE:
-                damage = _apply_damage(actor, target, move)
+                damage = _apply_damage(actor, target, move, combat_state=combat_state)
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
-        if move.resource_type != ResourceType.SUPER and actor.generates_super:
-            actor.super_resource.gain(SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION)
+        if move.resource_type != ResourceType.SUPER:
+            _grant_super_for_accepted_non_super_action(actor)
 
         return MoveResult(
             accepted=True,
@@ -67,6 +71,30 @@ class CombatResolver:
             resource_spent=resource_spent,
             damage=damage,
             healing=healing,
+            statuses_applied=(),
+            reason=None,
+        )
+
+    def resolve_defend(self, actor, combat_state):
+        if not _is_valid_combatant(actor):
+            return _rejected("Defend", "invalid_actor")
+        if not actor.is_alive():
+            return _rejected("Defend", "actor_defeated")
+        if not isinstance(combat_state, CombatState):
+            return _rejected("Defend", "invalid_combat_state")
+        if not actor.can_defend:
+            return _rejected("Defend", "defend_not_available")
+
+        combat_state.activate_defend(actor)
+        _grant_super_for_accepted_non_super_action(actor)
+
+        return MoveResult(
+            accepted=True,
+            hit=False,
+            move_name="Defend",
+            resource_spent=0,
+            damage=0,
+            healing=0,
             statuses_applied=(),
             reason=None,
         )
@@ -94,14 +122,21 @@ def _is_valid_combatant(value):
         value.mana_resource
         value.super_resource
         value.generates_super
+        value.can_defend
         value.combat_moves
         value.display_name
     except Exception:
         return False
 
-    return callable(getattr(value, "effective_stat", None)) and callable(
-        getattr(value, "is_alive", None)
+    return (
+        callable(getattr(value, "effective_stat", None))
+        and callable(getattr(value, "defend_reduction_percent", None))
+        and callable(getattr(value, "is_alive", None))
     )
+
+
+def _is_valid_optional_combat_state(value):
+    return value is None or isinstance(value, CombatState)
 
 
 def _resolve_owned_move(actor, move_name):
@@ -178,10 +213,11 @@ def _scaling_value(actor, move):
     return sum(values) // len(values)
 
 
-def _apply_damage(actor, target, move):
+def _apply_damage(actor, target, move, *, combat_state=None):
     raw_damage = move.power + _scaling_value(actor, move)
     mitigation = _mitigation(target, move.damage_type)
-    final_damage = max(1, raw_damage - mitigation)
+    normal_damage = max(1, raw_damage - mitigation)
+    final_damage = _defended_damage(target, move.damage_type, normal_damage, combat_state)
 
     before = target.health.current
     target.health.take_damage(final_damage)
@@ -209,3 +245,17 @@ def _mitigation(target, damage_type):
         defense_value = 0
 
     return defense_value // 4
+
+
+def _defended_damage(target, damage_type, normal_damage, combat_state):
+    if combat_state is None or not combat_state.is_defending(target):
+        return normal_damage
+
+    reduction_percent = target.defend_reduction_percent(damage_type)
+    reduction_amount = normal_damage * reduction_percent // 100
+    return max(1, normal_damage - reduction_amount)
+
+
+def _grant_super_for_accepted_non_super_action(actor):
+    if actor.generates_super:
+        actor.super_resource.gain(SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION)

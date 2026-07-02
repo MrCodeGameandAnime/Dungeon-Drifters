@@ -37,3 +37,16 @@ Milestone 7.6 - Enemy Domain Extraction
   built-in registry seam for future enemy packages.
 - Kept Battle and CombatResolver behavior unchanged while updating imports to
   the new enemy domain.
+
+Milestone 7.7 - Core Defend Contract
+
+- Added a standalone Defend resolver action and per-combatant temporary Defend
+  state in CombatState.
+- Added Combatant-facing Defend capability and reduction contracts for
+  PlayerState and EnemyState.
+- Applied Defend reduction after normal resolver mitigation while preserving
+  the Milestone 7 damage, healing, accuracy, ownership, and resource order.
+- Kept Defend expiration behind accepted-action completion so Battle can wire
+  resolution and turn advancement during Milestone 8.
+- Left the legacy Battle menu flow, Recover, initiative, enemy AI, player
+  loadouts, and Goblin metadata unchanged.

@@ -122,6 +122,11 @@ def test_enemy_state_copies_definition_into_runtime_state():
         assert enemy_state.behavior == expected["behavior"]
         assert enemy_state.capabilities == expected["capabilities"]
         assert not enemy_state.generates_super
+        assert not enemy_state.can_defend
+        assert enemy_state.defend_reduction_percent(DamageType.PHYSICAL) == 50
+        assert enemy_state.defend_reduction_percent(DamageType.MAGICAL) == 40
+        assert enemy_state.defend_reduction_percent(DamageType.HYBRID) == 30
+        assert enemy_state.defend_reduction_percent(DamageType.HEALING) == 0
         assert enemy_state.display_name == expected["name"]
         assert enemy_state.name == expected["name"]
         assert enemy_state.health.current == expected["hp"]
@@ -153,6 +158,7 @@ def test_factory_creates_goblin_enemy_state():
     assert enemy_state.super_resource.current == 0
     assert enemy_state.super_resource.maximum == 100
     assert not enemy_state.generates_super
+    assert not enemy_state.can_defend
     assert enemy_state.moves == {1: "slash", 2: "jumping slash"}
     assert [move_to_dict(move) for move in enemy_state.combat_moves] == EXPECTED_COMBAT_MOVES
 

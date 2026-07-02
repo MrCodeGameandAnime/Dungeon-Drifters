@@ -1,6 +1,7 @@
 """Persistent player state for one playthrough."""
 
 from app.items.weapon import Weapon
+from app.combat.move import DamageType
 from app.player import resources
 from app.snapshot import to_plain_value
 from app.player.character import Character
@@ -65,6 +66,10 @@ class PlayerState:
         return True
 
     @property
+    def can_defend(self):
+        return True
+
+    @property
     def level_state(self):
         return self.character.level_state
 
@@ -95,6 +100,16 @@ class PlayerState:
             return base_value + weapon.stat_bonuses.get(name, 0)
 
         return base_value
+
+    def defend_reduction_percent(self, damage_type):
+        if damage_type == DamageType.PHYSICAL:
+            return min(70, 30 + self.effective_stat("strength"))
+        if damage_type == DamageType.MAGICAL:
+            return min(60, 20 + self.effective_stat("spirit"))
+        if damage_type == DamageType.HYBRID:
+            return min(50, 10 + self.effective_stat("dexterity"))
+
+        return 0
 
     def is_alive(self):
         return self.health.is_alive()

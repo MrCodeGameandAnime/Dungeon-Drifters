@@ -77,6 +77,8 @@ The repository now includes these active foundations:
 - `app.combat` contains reusable combat rules and contracts; `app.enemies`
   contains enemy definitions, runtime state, registration, scaling, factory, and
   authored enemy content.
+- Core Defend contract in the standalone resolver and encounter-owned
+  `CombatState`, with Battle integration deferred.
 - Battle using combat-facing player and enemy runtime state while preserving
   the current legacy menu flow.
 - Serializable `PlayerState` and `GameState` snapshots.
@@ -208,6 +210,8 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
   with 0 Mana
 - moved enemy definitions, runtime state, registration, factory, scaling, and
   authored Goblin content into `app.enemies`
+- added the core Defend contract for resolver-level damage reduction and
+  temporary encounter-owned defending state
 - kept the interactive `Battle` loop on the legacy path for Milestone 8
 - documented that complete structured Battle playability for every Drifter
   still depends on more generic mechanic support or character-kit completion
@@ -218,6 +222,8 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
 - Battle still uses the legacy quick move, power move, and Recover flow.
 - Battle still has temporary universal enemy low-HP healing; authored enemy
   healing capability should replace this in Milestone 8.
+- Defend exists only in the standalone resolver/CombatState contract until
+  Battle is rewired in Milestone 8.
 - Final character kits are not complete.
 - Exact combat formulas and balance are provisional.
 - Super behavior and generation are implemented only in the standalone resolver.

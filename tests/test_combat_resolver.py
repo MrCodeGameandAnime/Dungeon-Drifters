@@ -4,6 +4,7 @@ import inspect
 from app.enemies.definition import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
+from app.combat.combat_state import CombatState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
 from app.player.character import BlackMage, Brawler
@@ -21,12 +22,13 @@ class ScriptedRng:
 
 
 class SimpleCombatant:
-    def __init__(self, moves=(), generates_super=True):
+    def __init__(self, moves=(), generates_super=True, can_defend=False):
         self.display_name = "Simple"
         self.health = PlayerState(Brawler()).health
         self.mana_resource = PlayerState(Brawler()).mana_resource
         self.super_resource = PlayerState(Brawler()).super_resource
         self.generates_super = generates_super
+        self.can_defend = can_defend
         self._combat_moves = tuple(moves)
 
     @property
@@ -42,6 +44,9 @@ class SimpleCombatant:
             "dexterity": 8,
             "intuition": 8,
         }[name]
+
+    def defend_reduction_percent(self, damage_type):
+        return 0
 
     def is_alive(self):
         return self.health.is_alive()
@@ -79,6 +84,19 @@ def add_move(actor, move):
 
 
 def create_super_capable_enemy_state():
+    return create_enemy_state_with_capabilities(
+        name="Test Super Enemy",
+        archetype_id="test_super_enemy",
+        rank=EnemyRank.BOSS,
+        capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.SUPER),
+    )
+
+
+def create_enemy_state_with_capabilities(
+        capabilities,
+        name="Test Enemy",
+        archetype_id="test_enemy",
+        rank=EnemyRank.ELITE):
     return EnemyState(
         Enemy(
             strn=3,
@@ -87,12 +105,12 @@ def create_super_capable_enemy_state():
             dex=1,
             hp=60,
             mana=0,
-            name="Test Super Enemy",
-            archetype_id="test_super_enemy",
-            rank=EnemyRank.BOSS,
+            name=name,
+            archetype_id=archetype_id,
+            rank=rank,
             role=EnemyRole.BOSS,
             behavior=EnemyBehavior.AGGRESSIVE,
-            capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.SUPER),
+            capabilities=capabilities,
             combat_moves=Goblin().combat_moves,
         )
     )
@@ -217,6 +235,76 @@ def test_invalid_and_defeated_combatants_are_rejected_before_resource_spend():
     assert actor.mana_resource.current == mana_before
 
 
+def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
+    actor = PlayerState(Brawler())
+    target = EnemyState(Goblin())
+    invalid_combat_state = object()
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            object(),
+            target,
+            "slash",
+            combat_state=invalid_combat_state,
+        ).reason
+        == "invalid_actor"
+    )
+
+    defeated_actor = PlayerState(Brawler())
+    defeated_actor.health.take_damage(defeated_actor.health.maximum)
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            defeated_actor,
+            target,
+            "slash",
+            combat_state=invalid_combat_state,
+        ).reason
+        == "actor_defeated"
+    )
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            object(),
+            "slash",
+            combat_state=invalid_combat_state,
+        ).reason
+        == "invalid_target"
+    )
+
+    defeated_target = EnemyState(Goblin())
+    defeated_target.health.take_damage(defeated_target.health.maximum)
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            defeated_target,
+            "slash",
+            combat_state=invalid_combat_state,
+        ).reason
+        == "target_defeated"
+    )
+
+    rng = ScriptedRng(1)
+    mana_before = actor.mana_resource.current
+    super_before = actor.super_resource.current
+    target_hp_before = target.health.current
+
+    result = CombatResolver(rng=rng).resolve_move(
+        actor,
+        target,
+        "slash",
+        combat_state=invalid_combat_state,
+    )
+
+    assert result.reason == "invalid_combat_state"
+    assert actor.mana_resource.current == mana_before
+    assert actor.super_resource.current == super_before
+    assert target.health.current == target_hp_before
+    assert rng.calls == []
+
+
 def test_mana_spending_affordability_and_miss_behavior():
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
@@ -271,6 +359,27 @@ def test_super_spending_affordability_and_generation_rules():
     assert result.resource_spent == 100
     assert actor.super_resource.current == 0
     assert target.health.current == target.health.maximum
+
+
+def test_super_move_does_not_gain_non_super_action_bonus():
+    actor = PlayerState(Brawler())
+    target = EnemyState(Goblin())
+    super_move = add_move(
+        actor,
+        make_move(
+            name="certain finisher",
+            resource_type=ResourceType.SUPER,
+            resource_cost=100,
+            accuracy=100,
+        ),
+    )
+    actor.super_resource.gain(100)
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, super_move.name)
+
+    assert result.accepted
+    assert result.hit
+    assert actor.super_resource.current == 0
 
 
 def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_healing():
@@ -428,6 +537,131 @@ def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
     assert nearly_defeated.health.current == 0
 
 
+def test_non_defended_resolver_results_remain_unchanged_with_optional_combat_state():
+    actor = PlayerState(Brawler())
+    target_without_state = EnemyState(Goblin())
+    target_with_state = EnemyState(Goblin())
+
+    without_state = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target_without_state,
+        "slash",
+    )
+    actor = PlayerState(Brawler())
+    with_state = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target_with_state,
+        "slash",
+        combat_state=CombatState(),
+    )
+
+    assert without_state.damage == 27
+    assert with_state.damage == 27
+    assert without_state.hit == with_state.hit
+
+
+def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount():
+    examples = (
+        (DamageType.PHYSICAL, 5, 3),
+        (DamageType.MAGICAL, 5, 3),
+        (DamageType.HYBRID, 5, 4),
+        (DamageType.PHYSICAL, 20, 10),
+        (DamageType.MAGICAL, 20, 12),
+        (DamageType.HYBRID, 20, 14),
+    )
+
+    for damage_type, power, expected_damage in examples:
+        move = make_move(
+            name=f"{damage_type.value} {power}",
+            power=power,
+            damage_type=damage_type,
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        actor = SimpleCombatant(moves=(move,))
+        target = create_enemy_state_with_capabilities(
+            capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.DEFEND),
+        )
+        combat_state = CombatState()
+        combat_state.activate_defend(target)
+
+        result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            move.name,
+            combat_state=combat_state,
+        )
+
+        assert result.damage == expected_damage
+
+
+def test_defended_damage_uses_player_stat_scaled_reductions_and_minimum_one():
+    attacker = EnemyState(Goblin())
+    defender = PlayerState(Brawler())
+    combat_state = CombatState()
+    combat_state.activate_defend(defender)
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        attacker,
+        defender,
+        "slash",
+        combat_state=combat_state,
+    )
+
+    assert result.damage == 5
+
+    magical = make_move(
+        name="magic",
+        power=20,
+        damage_type=DamageType.MAGICAL,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    hybrid = make_move(
+        name="hybrid",
+        power=20,
+        damage_type=DamageType.HYBRID,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    attacker = SimpleCombatant(moves=(magical, hybrid))
+
+    expected = {
+        magical.name: 15,
+        hybrid.name: 15,
+    }
+
+    for move_name, expected_damage in expected.items():
+        defender = PlayerState(Brawler())
+        combat_state = CombatState()
+        combat_state.activate_defend(defender)
+
+        result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            attacker,
+            defender,
+            move_name,
+            combat_state=combat_state,
+        )
+
+        assert result.damage == expected_damage
+
+    weak = make_move(
+        name="weak",
+        power=0,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    attacker = SimpleCombatant(moves=(weak,))
+    defender = PlayerState(Brawler())
+    combat_state = CombatState()
+    combat_state.activate_defend(defender)
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        attacker,
+        defender,
+        weak.name,
+        combat_state=combat_state,
+    )
+
+    assert result.damage == 1
+
+
 def test_healing_formula_clamps_and_reports_actual_restored_amount():
     actor = PlayerState(BlackMage())
     heal = add_move(
@@ -452,6 +686,179 @@ def test_healing_formula_clamps_and_reports_actual_restored_amount():
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, actor, heal.name)
 
     assert result.healing == 0
+
+
+def test_accepted_action_completion_consumes_opposing_defend_for_hits_misses_heals_and_defend():
+    defender = EnemyState(Goblin())
+    attacker = PlayerState(Brawler())
+    combat_state = CombatState()
+    combat_state.activate_defend(defender)
+
+    hit = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        attacker,
+        defender,
+        "slash",
+        combat_state=combat_state,
+    )
+    assert hit.accepted
+    combat_state.complete_accepted_action(attacker, opposing_combatants=(defender,))
+    assert not combat_state.is_defending(defender)
+
+    defender = EnemyState(Goblin())
+    attacker = PlayerState(Brawler())
+    miss_move = add_move(attacker, make_move(name="miss", accuracy=0))
+    combat_state = CombatState()
+    combat_state.activate_defend(defender)
+
+    miss = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        attacker,
+        defender,
+        miss_move.name,
+        combat_state=combat_state,
+    )
+    assert miss.accepted
+    assert not miss.hit
+    combat_state.complete_accepted_action(attacker, opposing_combatants=(defender,))
+    assert not combat_state.is_defending(defender)
+
+    opponent = EnemyState(Goblin())
+    healer = PlayerState(Brawler())
+    heal = add_move(
+        healer,
+        make_move(
+            name="heal self",
+            kind=MoveKind.HEALING,
+            damage_type=DamageType.HEALING,
+            target=TargetType.SELF,
+            scales_with=(ScalingAttribute.NONE,),
+        ),
+    )
+    combat_state = CombatState()
+    combat_state.activate_defend(opponent)
+
+    healing = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        healer,
+        healer,
+        heal.name,
+        combat_state=combat_state,
+    )
+    assert healing.accepted
+    combat_state.complete_accepted_action(healer, opposing_combatants=(opponent,))
+    assert not combat_state.is_defending(opponent)
+
+    actor = PlayerState(Brawler())
+    opponent = EnemyState(Goblin())
+    combat_state = CombatState()
+    combat_state.activate_defend(opponent)
+
+    defend = CombatResolver(rng=ScriptedRng(1)).resolve_defend(actor, combat_state)
+    assert defend.accepted
+    combat_state.complete_accepted_action(actor, opposing_combatants=(opponent,))
+    assert combat_state.is_defending(actor)
+    assert not combat_state.is_defending(opponent)
+
+
+def test_rejected_action_does_not_consume_defend_or_advance_turn():
+    actor = PlayerState(Brawler())
+    defender = EnemyState(Goblin())
+    combat_state = CombatState()
+    combat_state.activate_defend(defender)
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        defender,
+        "unknown",
+        combat_state=combat_state,
+    )
+
+    assert not result.accepted
+    assert combat_state.is_defending(defender)
+    assert combat_state.turn_count == 0
+
+
+def test_resolve_defend_validation_mutation_and_player_super_gain():
+    actor = PlayerState(Brawler())
+    combat_state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(actor, combat_state)
+
+    assert result.accepted
+    assert not result.hit
+    assert result.move_name == "Defend"
+    assert result.resource_spent == 0
+    assert result.damage == 0
+    assert result.healing == 0
+    assert result.statuses_applied == ()
+    assert result.reason is None
+    assert combat_state.is_defending(actor)
+    assert combat_state.turn_count == 0
+    assert actor.super_resource.current == 10
+
+
+def test_rejected_defend_does_not_mutate_state_or_gain_super():
+    actor = PlayerState(Brawler())
+    combat_state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(object(), combat_state)
+
+    assert result.reason == "invalid_actor"
+    assert actor.super_resource.current == 0
+    assert combat_state.turn_count == 0
+
+    actor.health.take_damage(actor.health.maximum)
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(actor, combat_state)
+
+    assert result.reason == "actor_defeated"
+    assert not combat_state.is_defending(actor)
+    assert actor.super_resource.current == 0
+
+    actor = PlayerState(Brawler())
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(actor, object())
+
+    assert result.reason == "invalid_combat_state"
+    assert actor.super_resource.current == 0
+
+
+def test_enemy_defend_capability_and_super_generation_are_explicit():
+    goblin = EnemyState(Goblin())
+    combat_state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(goblin, combat_state)
+
+    assert result.reason == "defend_not_available"
+    assert not goblin.can_defend
+    assert goblin.super_resource.current == 0
+    assert not combat_state.is_defending(goblin)
+
+    defender_without_super = create_enemy_state_with_capabilities(
+        capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.DEFEND),
+    )
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(
+        defender_without_super,
+        combat_state,
+    )
+
+    assert result.accepted
+    assert defender_without_super.can_defend
+    assert defender_without_super.super_resource.current == 0
+
+    defender_with_super = create_enemy_state_with_capabilities(
+        capabilities=(
+            EnemyCapability.BASIC_ATTACKS,
+            EnemyCapability.DEFEND,
+            EnemyCapability.SUPER,
+        ),
+        name="Defending Boss",
+        archetype_id="defending_boss",
+        rank=EnemyRank.BOSS,
+    )
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(
+        defender_with_super,
+        CombatState(),
+    )
+
+    assert result.accepted
+    assert defender_with_super.super_resource.current == 10
 
 
 def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_branches():

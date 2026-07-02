@@ -2,7 +2,7 @@
 
 from typing import Protocol, Sequence, runtime_checkable
 
-from app.combat.move import Move
+from app.combat.move import DamageType, Move
 
 
 @runtime_checkable
@@ -28,10 +28,17 @@ class Combatant(Protocol):
         ...
 
     @property
+    def can_defend(self):
+        ...
+
+    @property
     def combat_moves(self) -> Sequence[Move]:
         ...
 
     def effective_stat(self, name):
+        ...
+
+    def defend_reduction_percent(self, damage_type: DamageType):
         ...
 
     def is_alive(self):
