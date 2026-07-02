@@ -1,10 +1,12 @@
 """Built-in enemy archetype registry."""
 
+from types import MappingProxyType
+
 from app.enemies.goblin.registration import GOBLIN_REGISTRATION
 from app.enemies.registration import EnemyArchetypeRegistration
 
 
-BUILT_IN_ENEMY_REGISTRATIONS = (
+_BUILTIN_REGISTRATIONS = (
     GOBLIN_REGISTRATION,
 )
 
@@ -23,11 +25,13 @@ def build_enemy_registry(registrations):
     return registry
 
 
-ENEMY_REGISTRY = build_enemy_registry(BUILT_IN_ENEMY_REGISTRATIONS)
+_ENEMY_REGISTRY = MappingProxyType(
+    build_enemy_registry(_BUILTIN_REGISTRATIONS)
+)
 
 
 def get_enemy_registration(archetype_id):
     try:
-        return ENEMY_REGISTRY[archetype_id]
+        return _ENEMY_REGISTRY[archetype_id]
     except KeyError as error:
         raise ValueError(f"unknown enemy archetype: {archetype_id}") from error
