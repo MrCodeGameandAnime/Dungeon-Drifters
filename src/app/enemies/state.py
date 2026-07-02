@@ -2,8 +2,8 @@
 
 from app.player import resources
 from app.player import stats
-from app.combat.enemy import EnemyCapability
-from app.combat.enemy_validation import validate_enemy_tier
+from app.enemies.definition import EnemyCapability
+from app.enemies.validation import validate_enemy_tier
 
 
 class EnemyState:

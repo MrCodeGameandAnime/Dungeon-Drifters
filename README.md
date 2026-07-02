@@ -74,6 +74,9 @@ The repository now includes these active foundations:
 - Runtime `EnemyState` with independent health, mana, stats, and structured
   enemy moves.
 - Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
+- `app.combat` contains reusable combat rules and contracts; `app.enemies`
+  contains enemy definitions, runtime state, registration, scaling, factory, and
+  authored enemy content.
 - Battle using combat-facing player and enemy runtime state while preserving
   the current legacy menu flow.
 - Serializable `PlayerState` and `GameState` snapshots.
@@ -129,6 +132,7 @@ Dungeon-Drifters/
 +-- src/
 |   +-- app/
 |   |   +-- combat/
+|   |   +-- enemies/
 |   |   +-- game/
 |   |   +-- items/
 |   |   +-- player/
@@ -202,6 +206,8 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
 - added enemy archetype, rank, role, behavior, capability, and tier metadata
 - corrected the ordinary Goblin to a two-move common `BASIC_ATTACKS` roster
   with 0 Mana
+- moved enemy definitions, runtime state, registration, factory, scaling, and
+  authored Goblin content into `app.enemies`
 - kept the interactive `Battle` loop on the legacy path for Milestone 8
 - documented that complete structured Battle playability for every Drifter
   still depends on more generic mechanic support or character-kit completion

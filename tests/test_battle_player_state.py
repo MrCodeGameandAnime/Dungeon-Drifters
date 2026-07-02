@@ -3,8 +3,8 @@ import contextlib
 import io
 import random
 from app.combat.battle import Battle
-from app.combat.enemy import Goblin
-from app.combat.enemy_state import EnemyState
+from app.enemies.goblin.definition import Goblin
+from app.enemies.state import EnemyState
 from app.player.character import Brawler, Monk
 from app.player.player_state import PlayerState
 from app.world.character_profiles.roster import get_profile_by_choice

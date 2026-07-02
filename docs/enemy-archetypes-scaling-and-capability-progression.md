@@ -39,6 +39,14 @@ structured moves
 requested tier. Runtime health, mana, Super, stats, and combat moves must not be
 shared between enemy instances.
 
+Package ownership follows the same boundary:
+
+```text
+app.combat = reusable combat rules and contracts
+app.enemies = enemy definitions, runtime enemy state, registration, scaling
+              policies, factory, and authored enemy content
+```
+
 ## Rank Budgets
 
 Ranks are descriptive capability budgets, not runtime roster enforcement.

@@ -1,8 +1,9 @@
 import pytest
 
 from app.combat.combatant import Combatant
-from app.combat.enemy import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole, Goblin
-from app.combat.enemy_state import EnemyState
+from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
+from app.enemies.goblin.definition import Goblin
+from app.enemies.state import EnemyState
 from app.combat.move import Move
 from app.player.character import Brawler
 from app.player.player_state import PlayerState

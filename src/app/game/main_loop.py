@@ -1,5 +1,5 @@
 from app.combat.battle import Battle
-from app.combat.enemies.factory import create_enemy_state
+from app.enemies.factory import create_enemy_state
 from app.game import console
 from app.game.game_state import GameState
 from app.player.player_state import PlayerState

@@ -1,8 +1,9 @@
 import builtins
 import inspect
 
-from app.combat.enemy import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole, Goblin
-from app.combat.enemy_state import EnemyState
+from app.enemies.definition import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
+from app.enemies.goblin.definition import Goblin
+from app.enemies.state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
 from app.player.character import BlackMage, Brawler

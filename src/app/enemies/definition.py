@@ -104,20 +104,10 @@ def _validate_capabilities(capabilities):
     return normalized
 
 
-def __getattr__(name):
-    if name == "Goblin":
-        from app.combat.enemies.goblin.definition import Goblin
-
-        return Goblin
-
-    raise AttributeError(name)
-
-
 __all__ = [
     "Enemy",
     "EnemyBehavior",
     "EnemyCapability",
     "EnemyRank",
     "EnemyRole",
-    "Goblin",
 ]

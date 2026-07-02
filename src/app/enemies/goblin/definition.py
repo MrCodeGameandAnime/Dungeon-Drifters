@@ -1,5 +1,5 @@
-from app.combat.enemy import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
-from app.combat.enemies.goblin.moves import create_goblin_moves
+from app.enemies.definition import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
+from app.enemies.goblin.moves import create_goblin_moves
 
 
 class Goblin(Enemy):

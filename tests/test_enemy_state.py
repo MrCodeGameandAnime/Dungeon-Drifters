@@ -1,19 +1,19 @@
 import pytest
 
-from app.combat.enemy import (
+from app.enemies.definition import (
     Enemy,
     EnemyBehavior,
     EnemyCapability,
     EnemyRank,
     EnemyRole,
-    Goblin,
 )
-from app.combat.enemies.factory import (
-    ENEMY_ARCHETYPES,
-    EnemyArchetypeRegistration,
+from app.enemies.factory import (
     create_enemy_state,
 )
-from app.combat.enemy_state import EnemyState
+from app.enemies.goblin.definition import Goblin
+from app.enemies.registration import EnemyArchetypeRegistration
+from app.enemies.registry import ENEMY_REGISTRY, build_enemy_registry
+from app.enemies.state import EnemyState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 
 EXPECTED_COMBAT_MOVES = [
@@ -368,12 +368,12 @@ def test_capability_collections_are_immutable_and_not_shared():
 
 
 def test_registry_returns_fresh_definitions_and_factory_uses_registered_scaling_policy():
-    first = ENEMY_ARCHETYPES["goblin"].definition_factory()
-    second = ENEMY_ARCHETYPES["goblin"].definition_factory()
+    first = ENEMY_REGISTRY["goblin"].definition_factory()
+    second = ENEMY_REGISTRY["goblin"].definition_factory()
 
     assert first is not second
     assert first.combat_moves is not second.combat_moves
-    assert ENEMY_ARCHETYPES["goblin"].scaling_policy(first, 0) is first
+    assert ENEMY_REGISTRY["goblin"].scaling_policy(first, 0) is first
 
     first_state = create_enemy_state("goblin", tier=0)
     second_state = create_enemy_state("goblin", tier=0)
@@ -393,9 +393,10 @@ def test_factory_uses_registered_scaling_policy(monkeypatch):
         return definition
 
     monkeypatch.setitem(
-        ENEMY_ARCHETYPES,
+        ENEMY_REGISTRY,
         "test_goblin",
         EnemyArchetypeRegistration(
+            archetype_id="test_goblin",
             definition_factory=definition_factory,
             scaling_policy=scaling_policy,
         ),
@@ -405,3 +406,10 @@ def test_factory_uses_registered_scaling_policy(monkeypatch):
 
     assert enemy_state.archetype_id == "goblin"
     assert calls == [("goblin", 0)]
+
+
+def test_duplicate_enemy_registrations_are_rejected():
+    registration = ENEMY_REGISTRY["goblin"]
+
+    with pytest.raises(ValueError, match="duplicate enemy archetype registration: goblin"):
+        build_enemy_registry((registration, registration))

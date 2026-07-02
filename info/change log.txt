@@ -27,3 +27,13 @@ Milestone 7.5 - Enemy Archetype and Capability Contract
   order.
 - Documented that the legacy universal enemy healing branch remains temporary
   Battle behavior to remove during Milestone 8 integration.
+
+Milestone 7.6 - Enemy Domain Extraction
+
+- Moved enemy definitions, metadata enums, runtime state, tier validation,
+  registration, registry, factory, scaling policy, and authored Goblin content
+  from app.combat to the top-level app.enemies domain.
+- Split enemy archetype registration from the generic factory and added a
+  built-in registry seam for future enemy packages.
+- Kept Battle and CombatResolver behavior unchanged while updating imports to
+  the new enemy domain.
