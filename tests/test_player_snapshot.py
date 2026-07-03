@@ -69,7 +69,7 @@ def test_default_player_snapshot_has_required_shape():
         for slot, item in snapshot["equipment"].items()
         if slot != "weapon"
     )
-    assert len(snapshot["combat"]["moves"]) == 3
+    assert len(snapshot["combat"]["moves"]) == 5
     assert snapshot["combat"]["class_mechanic"]["name"] == "Heavy Vanguard"
     assert "resource" not in snapshot["combat"]["class_mechanic"]
     assert_strict_json(snapshot)
@@ -226,17 +226,17 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
     first_move = snapshot["combat"]["moves"][0]
 
     assert first_move == {
-        "name": "fireball",
+        "name": "Scepter Sweep",
         "kind": "damage",
-        "resource_type": "mana",
-        "resource_cost": 8,
-        "power": 14,
-        "scales_with": ["intelligence"],
-        "accuracy": 88,
+        "resource_type": "none",
+        "resource_cost": 0,
+        "power": 7,
+        "scales_with": ["dexterity"],
+        "accuracy": 92,
         "target": "enemy",
-        "damage_type": "magical",
-        "mechanic": "burn",
-        "description": "A direct fire spell with a chance to leave burning damage later.",
+        "damage_type": "physical",
+        "mechanic": "basic_attack",
+        "description": "A direct scepter strike aimed at the target.",
     }
     assert snapshot["combat"]["class_mechanic"] == {
         "name": "Arcane Focus",

@@ -121,11 +121,11 @@ def test_owned_canonical_move_resolves_and_foreign_or_unknown_moves_are_rejected
     target = EnemyState(Goblin())
     rng = ScriptedRng(1)
 
-    result = CombatResolver(rng=rng).resolve_move(actor, target, "slash")
+    result = CombatResolver(rng=rng).resolve_move(actor, target, "Crestgrave Reaping")
 
     assert result.accepted
     assert result.hit
-    assert result.move_name == "slash"
+    assert result.move_name == "Crestgrave Reaping"
     assert result.damage == 27
     assert target.health.current == 33
     assert actor.super_resource.current == 10
@@ -211,9 +211,9 @@ def test_self_and_enemy_target_rules_are_identity_based():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, other, self_heal.name).reason
         == "invalid_target_type"
     )
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, other, "slash").accepted
+    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, other, "Crestgrave Reaping").accepted
     assert (
-        CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, actor, "slash").reason
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, actor, "Crestgrave Reaping").reason
         == "invalid_target_type"
     )
 
@@ -222,16 +222,44 @@ def test_invalid_and_defeated_combatants_are_rejected_before_resource_spend():
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
 
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(object(), target, "slash").reason == "invalid_actor"
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, object(), "slash").reason == "invalid_target"
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            object(),
+            target,
+            "Crestgrave Reaping",
+        ).reason
+        == "invalid_actor"
+    )
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            object(),
+            "Crestgrave Reaping",
+        ).reason
+        == "invalid_target"
+    )
 
     actor.health.take_damage(actor.health.maximum)
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash").reason == "actor_defeated"
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            "Crestgrave Reaping",
+        ).reason
+        == "actor_defeated"
+    )
 
     actor = PlayerState(Brawler())
     target.health.take_damage(target.health.maximum)
     mana_before = actor.mana_resource.current
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "jumping slash").reason == "target_defeated"
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            "Ironwake Dismemberment",
+        ).reason
+        == "target_defeated"
+    )
     assert actor.mana_resource.current == mana_before
 
 
@@ -244,7 +272,7 @@ def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(
             object(),
             target,
-            "slash",
+            "Crestgrave Reaping",
             combat_state=invalid_combat_state,
         ).reason
         == "invalid_actor"
@@ -257,7 +285,7 @@ def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(
             defeated_actor,
             target,
-            "slash",
+            "Crestgrave Reaping",
             combat_state=invalid_combat_state,
         ).reason
         == "actor_defeated"
@@ -267,7 +295,7 @@ def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(
             actor,
             object(),
-            "slash",
+            "Crestgrave Reaping",
             combat_state=invalid_combat_state,
         ).reason
         == "invalid_target"
@@ -280,7 +308,7 @@ def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(
             actor,
             defeated_target,
-            "slash",
+            "Crestgrave Reaping",
             combat_state=invalid_combat_state,
         ).reason
         == "target_defeated"
@@ -294,7 +322,7 @@ def test_invalid_combat_state_precedence_follows_actor_and_target_validation():
     result = CombatResolver(rng=rng).resolve_move(
         actor,
         target,
-        "slash",
+        "Crestgrave Reaping",
         combat_state=invalid_combat_state,
     )
 
@@ -309,7 +337,11 @@ def test_mana_spending_affordability_and_miss_behavior():
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
 
-    result = CombatResolver(rng=ScriptedRng(100)).resolve_move(actor, target, "jumping slash")
+    result = CombatResolver(rng=ScriptedRng(100)).resolve_move(
+        actor,
+        target,
+        "Ironwake Dismemberment",
+    )
 
     assert result.accepted
     assert not result.hit
@@ -323,7 +355,7 @@ def test_mana_spending_affordability_and_miss_behavior():
     actor.mana_resource.spend(8)
     rng = ScriptedRng(1)
 
-    result = CombatResolver(rng=rng).resolve_move(actor, target, "jumping slash")
+    result = CombatResolver(rng=rng).resolve_move(actor, target, "Ironwake Dismemberment")
 
     assert result.reason == "insufficient_mana"
     assert actor.mana_resource.current == 2
@@ -387,7 +419,7 @@ def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_heali
     target = EnemyState(Goblin())
     actor.super_resource.gain(95)
 
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash")
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "Crestgrave Reaping")
 
     assert result.damage == 27
     assert target.health.current == 33
@@ -419,7 +451,7 @@ def test_battle_ending_damage_still_generates_super():
     target = EnemyState(Goblin())
     target.health.take_damage(59)
 
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash")
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "Crestgrave Reaping")
 
     assert result.damage == 1
     assert not target.is_alive()
@@ -431,7 +463,7 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     target = EnemyState(Goblin())
     rng = ScriptedRng(92)
 
-    result = CombatResolver(rng=rng).resolve_move(hit_actor, target, "slash")
+    result = CombatResolver(rng=rng).resolve_move(hit_actor, target, "Crestgrave Reaping")
 
     assert result.hit
     assert rng.calls == [(1, 100)]
@@ -439,7 +471,11 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     miss_actor = PlayerState(Brawler())
     rng = ScriptedRng(93)
 
-    result = CombatResolver(rng=rng).resolve_move(miss_actor, EnemyState(Goblin()), "slash")
+    result = CombatResolver(rng=rng).resolve_move(
+        miss_actor,
+        EnemyState(Goblin()),
+        "Crestgrave Reaping",
+    )
 
     assert not result.hit
     assert rng.calls == [(1, 100)]
@@ -514,7 +550,14 @@ def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
         ),
     )
 
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash").damage == 27
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            "Crestgrave Reaping",
+        ).damage
+        == 27
+    )
     assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), magical.name).damage == 15
     assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), hybrid.name).damage == 24
 
@@ -533,7 +576,14 @@ def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
     nearly_defeated = EnemyState(Goblin())
     nearly_defeated.health.take_damage(59)
 
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, nearly_defeated, "slash").damage == 1
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            nearly_defeated,
+            "Crestgrave Reaping",
+        ).damage
+        == 1
+    )
     assert nearly_defeated.health.current == 0
 
 
@@ -545,13 +595,13 @@ def test_non_defended_resolver_results_remain_unchanged_with_optional_combat_sta
     without_state = CombatResolver(rng=ScriptedRng(1)).resolve_move(
         actor,
         target_without_state,
-        "slash",
+        "Crestgrave Reaping",
     )
     actor = PlayerState(Brawler())
     with_state = CombatResolver(rng=ScriptedRng(1)).resolve_move(
         actor,
         target_with_state,
-        "slash",
+        "Crestgrave Reaping",
         combat_state=CombatState(),
     )
 
@@ -697,7 +747,7 @@ def test_accepted_action_completion_consumes_opposing_defend_for_hits_misses_hea
     hit = CombatResolver(rng=ScriptedRng(1)).resolve_move(
         attacker,
         defender,
-        "slash",
+        "Crestgrave Reaping",
         combat_state=combat_state,
     )
     assert hit.accepted
@@ -865,7 +915,11 @@ def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_bra
     player = PlayerState(Brawler())
     enemy = EnemyState(Goblin())
 
-    player_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(player, enemy, "slash")
+    player_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        player,
+        enemy,
+        "Crestgrave Reaping",
+    )
     enemy_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(enemy, player, "slash")
 
     assert player_result.accepted
@@ -903,7 +957,11 @@ def test_enemy_with_explicit_super_capability_generates_super():
     actor = create_super_capable_enemy_state()
     target = PlayerState(Brawler())
 
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash")
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        "slash",
+    )
 
     assert result.accepted
     assert actor.generates_super
@@ -936,7 +994,11 @@ def test_resolver_does_not_print_or_read_input(monkeypatch):
     monkeypatch.setattr(builtins, "print", fail)
     monkeypatch.setattr(builtins, "input", fail)
 
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "slash")
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        "Crestgrave Reaping",
+    )
 
     assert result.accepted
 

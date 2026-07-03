@@ -3,13 +3,19 @@ from app.items.weapon import SunderSpire
 
 
 def create_legacy_moves():
-    return {1: 'slash', 2: 'jumping slash', 3: 'suplex'}
+    return {
+        1: 'Crestgrave Reaping',
+        2: 'Cinderlung Vesper',
+        3: 'Ghalmour Compression',
+        4: 'Ironwake Dismemberment',
+        5: 'Third Gate Obsequy',
+    }
 
 
 def create_combat_moves():
     return [
         Move(
-            name='slash',
+            name='Crestgrave Reaping',
             kind=MoveKind.DAMAGE,
             resource_type=ResourceType.NONE,
             resource_cost=0,
@@ -19,9 +25,36 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
             mechanic='basic_attack',
-            description='A reliable close-range strike.'),
+            # Deferred mechanic: guard and armor cleave
+            description='Sunder-Spire tears through the target, cleaving guard and armor.'),
         Move(
-            name='jumping slash',
+            name='Cinderlung Vesper',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=3,
+            power=8,
+            scales_with=(ScalingAttribute.SPIRIT,),
+            accuracy=88,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            # Deferred mechanic: line or multi-target war-breath
+            description='A black war-breath erupts forward, searing everything in its path.'),
+        Move(
+            name='Ghalmour Compression',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=5,
+            power=12,
+            scales_with=(ScalingAttribute.SPIRIT, ScalingAttribute.INTUITION),
+            accuracy=78,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            # Deferred mechanic: pressure compression
+            description='Invisible pressure closes around the target, crushing flesh against bone.'),
+        Move(
+            name='Ironwake Dismemberment',
             kind=MoveKind.DAMAGE,
             resource_type=ResourceType.MANA,
             resource_cost=3,
@@ -31,20 +64,21 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
             mechanic='heavy_attack',
-            description='A risky leaping attack that hits harder than a basic strike.'),
+            # Deferred mechanic: battlefield-splitting impact
+            description='Branoc drives Sunder-Spire downward with battlefield-splitting force.'),
         Move(
-            name='suplex',
+            name='Third Gate Obsequy',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.MANA,
-            resource_cost=5,
-            power=18,
-            scales_with=(ScalingAttribute.STRENGTH,),
-            accuracy=75,
+            resource_type=ResourceType.SUPER,
+            resource_cost=100,
+            power=24,
+            scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.SPIRIT),
+            accuracy=100,
             target=TargetType.ENEMY,
-            damage_type=DamageType.PHYSICAL,
+            damage_type=DamageType.HYBRID,
             mechanic=None,
-            # Deferred mechanic: stagger
-            description='A brutal throw that can stagger a weakened foe.'),
+            # Deferred mechanic: Third Gate manifestation
+            description='A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.'),
     ]
 
 

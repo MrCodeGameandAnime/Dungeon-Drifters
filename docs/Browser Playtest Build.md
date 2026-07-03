@@ -82,7 +82,7 @@ An action request could look like:
 ```json
 {
   "action": "attack",
-  "option": "slash"
+  "option": "Crestgrave Reaping"
 }
 ```
 
@@ -92,7 +92,7 @@ The Python engine would process the action and return the updated state.
 {
   "player_hp": 82,
   "enemy_hp": 31,
-  "message": "Branoc used Slash for 14 damage.",
+  "message": "Branoc used Crestgrave Reaping for 14 damage.",
   "available_actions": [
     "attack",
     "defend",
@@ -216,7 +216,8 @@ Selecting Attack should replace the main action buttons with the available moves
 ├──────────────────────────────────────────────────────────────┤
 │ Choose an attack.                                            │
 ├──────────────────────────────────────────────────────────────┤
-│ [ Slash ]  [ Jumping Slash ]  [ Heavy Strike ]  [ Back ]    │
+│ [ Crestgrave Reaping ] [ Cinderlung Vesper ]                 │
+│ [ Ghalmour Compression ] [ Ironwake Dismemberment ] [ Back ] │
 └──────────────────────────────────────────────────────────────┘
 ```
 

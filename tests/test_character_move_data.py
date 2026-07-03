@@ -54,15 +54,64 @@ def test_each_playable_class_has_a_distinct_mechanic():
     }
 
 
-def test_black_mage_heal_is_defined_as_healing_not_damage():
+def test_black_mage_roster_is_four_standard_attacks_and_one_super():
     black_mage = BlackMage()
-    heal = next(move for move in black_mage.combat_moves if move.name == "heal")
 
-    assert heal.kind == MoveKind.HEALING
-    assert heal.target == TargetType.SELF
-    assert heal.scales_with == (ScalingAttribute.INTELLIGENCE,)
-    assert heal.resource_type == ResourceType.MANA
-    assert heal.damage_type == DamageType.HEALING
+    assert [move.name for move in black_mage.combat_moves] == [
+        "Scepter Sweep",
+        "Gloamweight Sepulcher",
+        "Mournglass Bloom",
+        "Gravemantle Rupture",
+        "Causality Nullwake",
+    ]
+    assert all(move.kind == MoveKind.DAMAGE for move in black_mage.combat_moves)
+    assert [move.resource_type for move in black_mage.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
+    assert black_mage.combat_moves[-1].resource_cost == 100
+    assert {move.name for move in black_mage.combat_moves}.isdisjoint(
+        {"fireball", "heal", "thunderbolt"}
+    )
+    assert all(
+        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        for move in black_mage.combat_moves
+    )
+    assert all(
+        move.mechanic is None
+        for move in black_mage.combat_moves[1:]
+    )
+
+
+def test_brawler_roster_is_four_standard_attacks_and_one_super():
+    brawler = Brawler()
+
+    assert [move.name for move in brawler.combat_moves] == [
+        "Crestgrave Reaping",
+        "Cinderlung Vesper",
+        "Ghalmour Compression",
+        "Ironwake Dismemberment",
+        "Third Gate Obsequy",
+    ]
+    assert all(move.kind == MoveKind.DAMAGE for move in brawler.combat_moves)
+    assert [move.resource_type for move in brawler.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
+    assert brawler.combat_moves[-1].resource_cost == 100
+    assert {move.name for move in brawler.combat_moves}.isdisjoint(
+        {"slash", "jumping slash", "suplex"}
+    )
+    assert all(
+        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        for move in brawler.combat_moves
+    )
 
 
 def test_loadout_resource_types_follow_authored_class_resources():
@@ -75,8 +124,16 @@ def test_loadout_resource_types_follow_authored_class_resources():
         ResourceType.NONE,
         ResourceType.MANA,
         ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
     ]
-    assert {move.resource_type for move in black_mage.combat_moves} == {ResourceType.MANA}
+    assert [move.resource_type for move in black_mage.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
     assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.NONE}
     assert {move.resource_cost for move in rogue_archer.combat_moves} == {0}
     assert [move.resource_type for move in monk.combat_moves] == [

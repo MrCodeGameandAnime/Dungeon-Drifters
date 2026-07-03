@@ -51,7 +51,7 @@ def test_shared_inspection_works_without_type_branches():
     assert player_info["physical_defend"] == 48
     assert player_info["strength"] == 18
     assert player_info["alive"]
-    assert len(player_info["moves"]) == 3
+    assert len(player_info["moves"]) == 5
     assert all(isinstance(move, Move) for move in player_state.combat_moves)
 
     assert enemy_info == {
