@@ -53,7 +53,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 75,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "stagger",
+                "mechanic": None,
                 "description": "A brutal throw that can stagger a weakened foe.",
             },
         ],
@@ -87,7 +87,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "burn",
+                "mechanic": None,
                 "description": "A direct fire spell with a chance to leave burning damage later.",
             },
             {
@@ -100,7 +100,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 100,
                 "target": "self",
                 "damage_type": "healing",
-                "mechanic": "arcane_recovery",
+                "mechanic": None,
                 "description": "Restores health instead of damaging the enemy.",
             },
             {
@@ -113,7 +113,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 78,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "shock",
+                "mechanic": None,
                 "description": "A volatile lightning spell with high damage and lower accuracy.",
             },
         ],
@@ -148,7 +148,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 95,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "crit_bonus",
+                "mechanic": None,
                 "description": "A precise shot with increased critical potential.",
             },
             {
@@ -161,7 +161,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 86,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "multi_hit",
+                "mechanic": None,
                 "description": "Fires three lighter shots that can each contribute damage.",
             },
             {
@@ -174,7 +174,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "volley",
+                "mechanic": None,
                 "description": "A broad volley designed for future multi-enemy encounters.",
             },
             {
@@ -187,7 +187,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 84,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": "burn",
+                "mechanic": None,
                 "description": "A dexterous shot with a fire effect hook for later status damage.",
             },
         ],
@@ -227,7 +227,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 90,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "staff_control",
+                "mechanic": None,
                 "description": "A grounded staff technique that redirects force through precise positioning.",
             },
             {
@@ -240,7 +240,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 70,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": "lightning",
+                "mechanic": None,
                 "description": "A risky palm strike that carries lightning through the point of impact.",
             },
             {
@@ -253,7 +253,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "storm",
+                "mechanic": None,
                 "description": "A controlled burst of storm force shaped through Sky-Needle.",
             },
             {
@@ -266,7 +266,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "water",
+                "mechanic": None,
                 "description": "A snapping water current used to lash and reposition an enemy.",
             },
             {
@@ -279,7 +279,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 100,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "super",
+                "mechanic": None,
                 "description": "A decisive torrent that compresses gathered force into a finishing surge.",
             },
         ],
@@ -346,7 +346,7 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
     assert "spend" not in jumping_description
     assert "require" not in jumping_description
     assert "benefit" not in jumping_description
-    assert suplex.mechanic == "stagger"
+    assert suplex.mechanic is None
     assert player.class_mechanic["name"] != "Momentum"
     assert "resource" not in player.class_mechanic
 

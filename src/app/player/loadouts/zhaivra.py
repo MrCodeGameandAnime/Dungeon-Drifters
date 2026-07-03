@@ -18,7 +18,8 @@ def create_combat_moves():
             accuracy=95,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='crit_bonus',
+            mechanic=None,
+            # Deferred mechanic: critical bonus
             description='A precise shot with increased critical potential.'),
         Move(
             name='triple shot',
@@ -30,7 +31,8 @@ def create_combat_moves():
             accuracy=86,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='multi_hit',
+            mechanic=None,
+            # Deferred mechanic: multi-hit
             description='Fires three lighter shots that can each contribute damage.'),
         Move(
             name='rain of arrows',
@@ -42,7 +44,8 @@ def create_combat_moves():
             accuracy=80,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='volley',
+            mechanic=None,
+            # Deferred mechanic: multi-target volley
             description='A broad volley designed for future multi-enemy encounters.'),
         Move(
             name='flaming arrow',
@@ -54,7 +57,8 @@ def create_combat_moves():
             accuracy=84,
             target=TargetType.ENEMY,
             damage_type=DamageType.HYBRID,
-            mechanic='burn',
+            mechanic=None,
+            # Deferred mechanic: burn
             description='A dexterous shot with a fire effect hook for later status damage.'),
     ]
 

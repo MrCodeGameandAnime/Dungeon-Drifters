@@ -18,7 +18,8 @@ def create_combat_moves():
             accuracy=88,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic='burn',
+            mechanic=None,
+            # Deferred mechanic: burn
             description='A direct fire spell with a chance to leave burning damage later.'),
         Move(
             name='heal',
@@ -30,7 +31,8 @@ def create_combat_moves():
             accuracy=100,
             target=TargetType.SELF,
             damage_type=DamageType.HEALING,
-            mechanic='arcane_recovery',
+            mechanic=None,
+            # Deferred mechanic: arcane recovery
             description='Restores health instead of damaging the enemy.'),
         Move(
             name='thunderbolt',
@@ -42,7 +44,8 @@ def create_combat_moves():
             accuracy=78,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic='shock',
+            mechanic=None,
+            # Deferred mechanic: shock
             description='A volatile lightning spell with high damage and lower accuracy.'),
     ]
 

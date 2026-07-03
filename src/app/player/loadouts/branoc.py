@@ -42,7 +42,8 @@ def create_combat_moves():
             accuracy=75,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='stagger',
+            mechanic=None,
+            # Deferred mechanic: stagger
             description='A brutal throw that can stagger a weakened foe.'),
     ]
 
