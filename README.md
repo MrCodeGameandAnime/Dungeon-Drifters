@@ -2,7 +2,7 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.5**. This is an architecture
+The current repository checkpoint is **v0.2.7**. This is an architecture
 checkpoint between **v0.2** and the unfinished **v0.3** release. The small
 **v0.1 vertical slice** remains the playable baseline while the project builds
 the state, move, enemy, and combat contracts needed for later gameplay work.
@@ -198,9 +198,10 @@ v0.2.5 is the architecture checkpoint currently merged through Milestone 6:
 - clarified active move resources as `None`, `Mana`, and `Super`
 - preserved the v0.1 vertical slice while preparing for later resolver work
 
-### v0.3.2
+### v0.2.7
 
-v0.3.2 adds the standalone Milestone 7 combat resolver:
+v0.2.7 adds the standalone Milestone 7 combat resolver and related pre-M8
+contracts:
 
 - added `CombatResolver` for canonical actor-owned structured moves
 - added deterministic accuracy, scaling, mitigation, damage, and healing rules
@@ -212,9 +213,13 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
   authored Goblin content into `app.enemies`
 - added the core Defend contract for resolver-level damage reduction and
   temporary encounter-owned defending state
+- completed the current structured Branoc, Azhvielle, and Zhaivra active
+  rosters as four standard attacks plus one Super each
+- preserved unsupported character-specific effects as deferred comments instead
+  of active mechanic tags
 - kept the interactive `Battle` loop on the legacy path for Milestone 8
-- documented that complete structured Battle playability for every Drifter
-  still depends on more generic mechanic support or character-kit completion
+- documented that complete structured Battle playability still depends on M8
+  integration and remaining character-kit/mechanic work
 
 ## Known Limitations
 
@@ -224,7 +229,8 @@ v0.3.2 adds the standalone Milestone 7 combat resolver:
   healing capability should replace this in Milestone 8.
 - Defend exists only in the standalone resolver/CombatState contract until
   Battle is rewired in Milestone 8.
-- Final character kits are not complete.
+- Joruun's full structured combat identity and specialized mechanics remain
+  deferred.
 - Exact combat formulas and balance are provisional.
 - Super behavior and generation are implemented only in the standalone resolver.
 - Momentum implementation is deferred.
