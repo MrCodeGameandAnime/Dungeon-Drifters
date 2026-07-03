@@ -114,6 +114,36 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
     )
 
 
+def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
+    rogue_archer = RogueArcher()
+
+    assert [move.name for move in rogue_archer.combat_moves] == [
+        "Mournpoint Verdict",
+        "Hollowstring Trine",
+        "Nightskein Deluge",
+        "Cinderwrit Barb",
+        "Starless Meridian Obsequy",
+    ]
+    assert all(move.kind == MoveKind.DAMAGE for move in rogue_archer.combat_moves)
+    assert [move.resource_type for move in rogue_archer.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
+    assert rogue_archer.combat_moves[-1].resource_cost == 100
+    assert {move.name for move in rogue_archer.combat_moves}.isdisjoint(
+        {"deadshot", "triple shot", "rain of arrows", "flaming arrow"}
+    )
+    assert all(
+        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        for move in rogue_archer.combat_moves
+    )
+    assert rogue_archer.combat_moves[0].mechanic == "basic_attack"
+    assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:])
+
+
 def test_loadout_resource_types_follow_authored_class_resources():
     brawler = Brawler()
     black_mage = BlackMage()
@@ -134,8 +164,13 @@ def test_loadout_resource_types_follow_authored_class_resources():
         ResourceType.MANA,
         ResourceType.SUPER,
     ]
-    assert {move.resource_type for move in rogue_archer.combat_moves} == {ResourceType.NONE}
-    assert {move.resource_cost for move in rogue_archer.combat_moves} == {0}
+    assert [move.resource_type for move in rogue_archer.combat_moves] == [
+        ResourceType.NONE,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.MANA,
+        ResourceType.SUPER,
+    ]
     assert [move.resource_type for move in monk.combat_moves] == [
         ResourceType.NONE,
         ResourceType.MANA,
