@@ -24,7 +24,8 @@ def create_combat_moves():
             accuracy=90,
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
-            mechanic='staff_control',
+            mechanic=None,
+            # Deferred mechanic: staff control
             description='A grounded staff technique that redirects force through precise positioning.'),
         Move(
             name='Lightning Palm',
@@ -40,7 +41,8 @@ def create_combat_moves():
             accuracy=70,
             target=TargetType.ENEMY,
             damage_type=DamageType.HYBRID,
-            mechanic='lightning',
+            mechanic=None,
+            # Deferred mechanic: lightning current
             description='A risky palm strike that carries lightning through the point of impact.'),
         Move(
             name='Tempest Surge',
@@ -52,7 +54,8 @@ def create_combat_moves():
             accuracy=80,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic='storm',
+            mechanic=None,
+            # Deferred mechanic: storm effect
             description='A controlled burst of storm force shaped through Sky-Needle.'),
         Move(
             name='Hydro Whip',
@@ -64,7 +67,8 @@ def create_combat_moves():
             accuracy=80,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic='water',
+            mechanic=None,
+            # Deferred mechanic: water repositioning
             description='A snapping water current used to lash and reposition an enemy.'),
         Move(
             name='Coagulated Torrent',
@@ -76,7 +80,7 @@ def create_combat_moves():
             accuracy=100,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic='super',
+            mechanic=None,
             description='A decisive torrent that compresses gathered force into a finishing surge.'),
     ]
 

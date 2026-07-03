@@ -2,7 +2,7 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.5**. This is an architecture
+The current repository checkpoint is **v0.2.7**. This is an architecture
 checkpoint between **v0.2** and the unfinished **v0.3** release. The small
 **v0.1 vertical slice** remains the playable baseline while the project builds
 the state, move, enemy, and combat contracts needed for later gameplay work.
@@ -73,6 +73,12 @@ The repository now includes these active foundations:
 - Shared `Combatant` protocol for player and enemy runtime state.
 - Runtime `EnemyState` with independent health, mana, stats, and structured
   enemy moves.
+- Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
+- `app.combat` contains reusable combat rules and contracts; `app.enemies`
+  contains enemy definitions, runtime state, registration, scaling, factory, and
+  authored enemy content.
+- Core Defend contract in the standalone resolver and encounter-owned
+  `CombatState`, with Battle integration deferred.
 - Battle using combat-facing player and enemy runtime state while preserving
   the current legacy menu flow.
 - Serializable `PlayerState` and `GameState` snapshots.
@@ -128,6 +134,7 @@ Dungeon-Drifters/
 +-- src/
 |   +-- app/
 |   |   +-- combat/
+|   |   +-- enemies/
 |   |   +-- game/
 |   |   +-- items/
 |   |   +-- player/
@@ -191,17 +198,45 @@ v0.2.5 is the architecture checkpoint currently merged through Milestone 6:
 - clarified active move resources as `None`, `Mana`, and `Super`
 - preserved the v0.1 vertical slice while preparing for later resolver work
 
+### v0.2.7
+
+v0.2.7 adds the standalone Milestone 7 combat resolver and related pre-M8
+contracts:
+
+- added `CombatResolver` for canonical actor-owned structured moves
+- added deterministic accuracy, scaling, mitigation, damage, and healing rules
+- added Mana and persistent Super spending/generation in resolver flow
+- added enemy archetype, rank, role, behavior, capability, and tier metadata
+- corrected the ordinary Goblin to a two-move common `BASIC_ATTACKS` roster
+  with 0 Mana
+- moved enemy definitions, runtime state, registration, factory, scaling, and
+  authored Goblin content into `app.enemies`
+- added the core Defend contract for resolver-level damage reduction and
+  temporary encounter-owned defending state
+- completed the current structured Branoc, Azhvielle, and Zhaivra active
+  rosters as four standard attacks plus one Super each
+- preserved unsupported character-specific effects as deferred comments instead
+  of active mechanic tags
+- kept the interactive `Battle` loop on the legacy path for Milestone 8
+- documented that complete structured Battle playability still depends on M8
+  integration and remaining character-kit/mechanic work
+
 ## Known Limitations
 
-- Structured move resolver integration is not implemented.
+- Structured move resolver integration into Battle is not implemented.
 - Battle still uses the legacy quick move, power move, and Recover flow.
-- Final character kits are not complete.
+- Battle still has temporary universal enemy low-HP healing; authored enemy
+  healing capability should replace this in Milestone 8.
+- Defend exists only in the standalone resolver/CombatState contract until
+  Battle is rewired in Milestone 8.
+- Joruun's full structured combat identity and specialized mechanics remain
+  deferred.
 - Exact combat formulas and balance are provisional.
-- Super behavior and generation are not implemented.
+- Super behavior and generation are implemented only in the standalone resolver.
 - Momentum implementation is deferred.
 - Ammunition, compounds, and prepared-charge systems are not implemented.
 - Status effects and elemental interactions are not active.
-- Equipment exists as state but does not provide bonuses.
+- Equipment contributes through `effective_stat()` where implemented.
 - Broader encounters, progression gameplay, shops, extraction, and save/load are
   future work.
 

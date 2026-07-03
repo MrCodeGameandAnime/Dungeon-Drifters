@@ -15,10 +15,16 @@ EXPECTED_LOADOUTS = {
         "hp": 60,
         "mana": 10,
         "name": "Brawler",
-        "moves": {1: "slash", 2: "jumping slash", 3: "suplex"},
+        "moves": {
+            1: "Crestgrave Reaping",
+            2: "Cinderlung Vesper",
+            3: "Ghalmour Compression",
+            4: "Ironwake Dismemberment",
+            5: "Third Gate Obsequy",
+        },
         "combat_moves": [
             {
-                "name": "slash",
+                "name": "Crestgrave Reaping",
                 "kind": "damage",
                 "resource_type": "none",
                 "resource_cost": 0,
@@ -28,10 +34,36 @@ EXPECTED_LOADOUTS = {
                 "target": "enemy",
                 "damage_type": "physical",
                 "mechanic": "basic_attack",
-                "description": "A reliable close-range strike.",
+                "description": "Sunder-Spire tears through the target, cleaving guard and armor.",
             },
             {
-                "name": "jumping slash",
+                "name": "Cinderlung Vesper",
+                "kind": "damage",
+                "resource_type": "mana",
+                "resource_cost": 3,
+                "power": 8,
+                "scales_with": ["spirit"],
+                "accuracy": 88,
+                "target": "enemy",
+                "damage_type": "magical",
+                "mechanic": None,
+                "description": "A black war-breath erupts forward, searing everything in its path.",
+            },
+            {
+                "name": "Ghalmour Compression",
+                "kind": "damage",
+                "resource_type": "mana",
+                "resource_cost": 5,
+                "power": 12,
+                "scales_with": ["spirit", "intuition"],
+                "accuracy": 78,
+                "target": "enemy",
+                "damage_type": "magical",
+                "mechanic": None,
+                "description": "Invisible pressure closes around the target, crushing flesh against bone.",
+            },
+            {
+                "name": "Ironwake Dismemberment",
                 "kind": "damage",
                 "resource_type": "mana",
                 "resource_cost": 3,
@@ -41,20 +73,20 @@ EXPECTED_LOADOUTS = {
                 "target": "enemy",
                 "damage_type": "physical",
                 "mechanic": "heavy_attack",
-                "description": "A risky leaping attack that hits harder than a basic strike.",
+                "description": "Branoc drives Sunder-Spire downward with battlefield-splitting force.",
             },
             {
-                "name": "suplex",
+                "name": "Third Gate Obsequy",
                 "kind": "damage",
-                "resource_type": "mana",
-                "resource_cost": 5,
-                "power": 18,
-                "scales_with": ["strength"],
-                "accuracy": 75,
+                "resource_type": "super",
+                "resource_cost": 100,
+                "power": 24,
+                "scales_with": ["strength", "spirit"],
+                "accuracy": 100,
                 "target": "enemy",
-                "damage_type": "physical",
-                "mechanic": "stagger",
-                "description": "A brutal throw that can stagger a weakened foe.",
+                "damage_type": "hybrid",
+                "mechanic": None,
+                "description": "A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.",
             },
         ],
         "class_mechanic": {
@@ -75,46 +107,78 @@ EXPECTED_LOADOUTS = {
         "hp": 30,
         "mana": 70,
         "name": "Black Mage",
-        "moves": {1: "fireball", 2: "heal", 3: "thunderbolt"},
+        "moves": {
+            1: "Scepter Sweep",
+            2: "Gloamweight Sepulcher",
+            3: "Mournglass Bloom",
+            4: "Gravemantle Rupture",
+            5: "Causality Nullwake",
+        },
         "combat_moves": [
             {
-                "name": "fireball",
+                "name": "Scepter Sweep",
+                "kind": "damage",
+                "resource_type": "none",
+                "resource_cost": 0,
+                "power": 7,
+                "scales_with": ["dexterity"],
+                "accuracy": 92,
+                "target": "enemy",
+                "damage_type": "physical",
+                "mechanic": "basic_attack",
+                "description": "A direct scepter strike aimed at the target.",
+            },
+            {
+                "name": "Gloamweight Sepulcher",
                 "kind": "damage",
                 "resource_type": "mana",
                 "resource_cost": 8,
-                "power": 14,
+                "power": 15,
                 "scales_with": ["intelligence"],
-                "accuracy": 88,
+                "accuracy": 86,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "burn",
-                "description": "A direct fire spell with a chance to leave burning damage later.",
+                "mechanic": None,
+                "description": "Dark gravity folds inward, crushing the target beneath impossible weight.",
             },
             {
-                "name": "heal",
-                "kind": "healing",
-                "resource_type": "mana",
-                "resource_cost": 10,
-                "power": 12,
-                "scales_with": ["intelligence"],
-                "accuracy": 100,
-                "target": "self",
-                "damage_type": "healing",
-                "mechanic": "arcane_recovery",
-                "description": "Restores health instead of damaging the enemy.",
-            },
-            {
-                "name": "thunderbolt",
+                "name": "Mournglass Bloom",
                 "kind": "damage",
                 "resource_type": "mana",
-                "resource_cost": 14,
-                "power": 20,
-                "scales_with": ["intelligence"],
-                "accuracy": 78,
+                "resource_cost": 6,
+                "power": 12,
+                "scales_with": ["intelligence", "spirit"],
+                "accuracy": 90,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "shock",
-                "description": "A volatile lightning spell with high damage and lower accuracy.",
+                "mechanic": None,
+                "description": "Black frost erupts outward, encasing nearby enemies in splintering ice.",
+            },
+            {
+                "name": "Gravemantle Rupture",
+                "kind": "damage",
+                "resource_type": "mana",
+                "resource_cost": 12,
+                "power": 17,
+                "scales_with": ["intelligence", "spirit"],
+                "accuracy": 80,
+                "target": "enemy",
+                "damage_type": "hybrid",
+                "mechanic": None,
+                "description": "The ground ruptures beneath the target, shattering balance and armor.",
+            },
+            {
+                "name": "Causality Nullwake",
+                "kind": "damage",
+                "resource_type": "super",
+                "resource_cost": 100,
+                "power": 30,
+                "scales_with": ["intelligence", "intuition"],
+                "accuracy": 100,
+                "target": "enemy",
+                "damage_type": "magical",
+                "mechanic": None,
+                "description": "Causality collapses around the target, erasing motion before it can occur.",
             },
         ],
         "class_mechanic": {
@@ -136,59 +200,78 @@ EXPECTED_LOADOUTS = {
         "hp": 45,
         "mana": 20,
         "name": "Rogue Archer",
-        "moves": {1: "deadshot", 2: "triple shot", 3: "rain of arrows", 4: "flaming arrow"},
+        "moves": {
+            1: "Mournpoint Verdict",
+            2: "Hollowstring Trine",
+            3: "Nightskein Deluge",
+            4: "Cinderwrit Barb",
+            5: "Starless Meridian Obsequy",
+        },
         "combat_moves": [
             {
-                "name": "deadshot",
-                "kind": "damage",
-                "resource_type": "none",
-                "resource_cost": 0,
-                "power": 12,
-                "scales_with": ["dexterity"],
-                "accuracy": 95,
-                "target": "enemy",
-                "damage_type": "physical",
-                "mechanic": "crit_bonus",
-                "description": "A precise shot with increased critical potential.",
-            },
-            {
-                "name": "triple shot",
-                "kind": "damage",
-                "resource_type": "none",
-                "resource_cost": 0,
-                "power": 6,
-                "scales_with": ["dexterity"],
-                "accuracy": 86,
-                "target": "enemy",
-                "damage_type": "physical",
-                "mechanic": "multi_hit",
-                "description": "Fires three lighter shots that can each contribute damage.",
-            },
-            {
-                "name": "rain of arrows",
+                "name": "Mournpoint Verdict",
                 "kind": "damage",
                 "resource_type": "none",
                 "resource_cost": 0,
                 "power": 10,
                 "scales_with": ["dexterity"],
-                "accuracy": 80,
+                "accuracy": 96,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "volley",
-                "description": "A broad volley designed for future multi-enemy encounters.",
+                "mechanic": "basic_attack",
+                "description": "Zhaivra drives a single arrow through the target’s weakest point.",
             },
             {
-                "name": "flaming arrow",
+                "name": "Hollowstring Trine",
                 "kind": "damage",
-                "resource_type": "none",
-                "resource_cost": 0,
-                "power": 13,
+                "resource_type": "mana",
+                "resource_cost": 4,
+                "power": 16,
+                "scales_with": ["dexterity"],
+                "accuracy": 86,
+                "target": "enemy",
+                "damage_type": "physical",
+                "mechanic": None,
+                "description": "Three arrows split from one release, striking in a merciless sequence.",
+            },
+            {
+                "name": "Nightskein Deluge",
+                "kind": "damage",
+                "resource_type": "mana",
+                "resource_cost": 6,
+                "power": 15,
                 "scales_with": ["dexterity", "intuition"],
-                "accuracy": 84,
+                "accuracy": 82,
+                "target": "enemy",
+                "damage_type": "magical",
+                "mechanic": None,
+                "description": "A woven storm of shadow-arrows descends across the battlefield.",
+            },
+            {
+                "name": "Cinderwrit Barb",
+                "kind": "damage",
+                "resource_type": "mana",
+                "resource_cost": 5,
+                "power": 14,
+                "scales_with": ["intuition", "intelligence"],
+                "accuracy": 88,
+                "target": "enemy",
+                "damage_type": "magical",
+                "mechanic": None,
+                "description": "A rune-burned arrow embeds in the target, igniting dark fire within.",
+            },
+            {
+                "name": "Starless Meridian Obsequy",
+                "kind": "damage",
+                "resource_type": "super",
+                "resource_cost": 100,
+                "power": 28,
+                "scales_with": ["dexterity", "intuition"],
+                "accuracy": 100,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": "burn",
-                "description": "A dexterous shot with a fire effect hook for later status damage.",
+                "mechanic": None,
+                "description": "Zhaivra looses an impossible shot that tears a silent path through everything before it.",
             },
         ],
         "class_mechanic": {
@@ -227,7 +310,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 90,
                 "target": "enemy",
                 "damage_type": "physical",
-                "mechanic": "staff_control",
+                "mechanic": None,
                 "description": "A grounded staff technique that redirects force through precise positioning.",
             },
             {
@@ -240,7 +323,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 70,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": "lightning",
+                "mechanic": None,
                 "description": "A risky palm strike that carries lightning through the point of impact.",
             },
             {
@@ -253,7 +336,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "storm",
+                "mechanic": None,
                 "description": "A controlled burst of storm force shaped through Sky-Needle.",
             },
             {
@@ -266,7 +349,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "water",
+                "mechanic": None,
                 "description": "A snapping water current used to lash and reposition an enemy.",
             },
             {
@@ -279,7 +362,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 100,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "super",
+                "mechanic": None,
                 "description": "A decisive torrent that compresses gathered force into a finishing surge.",
             },
         ],
@@ -334,19 +417,25 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
 
 def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
     player = Brawler()
-    slash, jumping_slash, suplex = player.combat_moves
+    (
+        crestgrave_reaping,
+        cinderlung_vesper,
+        ghalmour_compression,
+        ironwake_dismemberment,
+        third_gate_obsequy,
+    ) = player.combat_moves
     forbidden_builder = "combo" + "_" + "builder"
     forbidden_spender = "combo" + "_" + "spender"
 
-    assert slash.mechanic != forbidden_builder
-    assert "momentum" not in slash.description.lower()
-    assert jumping_slash.mechanic != forbidden_spender
-    jumping_description = jumping_slash.description.lower()
-    assert "momentum" not in jumping_description
-    assert "spend" not in jumping_description
-    assert "require" not in jumping_description
-    assert "benefit" not in jumping_description
-    assert suplex.mechanic == "stagger"
+    for move in player.combat_moves:
+        assert move.mechanic not in {forbidden_builder, forbidden_spender}
+        assert "momentum" not in move.description.lower()
+
+    assert crestgrave_reaping.mechanic == "basic_attack"
+    assert cinderlung_vesper.mechanic is None
+    assert ghalmour_compression.mechanic is None
+    assert ironwake_dismemberment.mechanic == "heavy_attack"
+    assert third_gate_obsequy.mechanic is None
     assert player.class_mechanic["name"] != "Momentum"
     assert "resource" not in player.class_mechanic
 
@@ -357,8 +446,14 @@ def test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources():
 
     assert "resource" not in zhaivra.class_mechanic
     assert zhaivra.class_mechanic["name"] == "Precision"
-    assert {move.resource_type.value for move in zhaivra.combat_moves} == {"none"}
-    assert {move.resource_cost for move in zhaivra.combat_moves} == {0}
+    assert [move.resource_type.value for move in zhaivra.combat_moves] == [
+        "none",
+        "mana",
+        "mana",
+        "mana",
+        "super",
+    ]
+    assert zhaivra.combat_moves[-1].resource_cost == 100
 
     assert "resource" not in joruun.class_mechanic
     assert joruun.class_mechanic["name"] == "Ki Forms"

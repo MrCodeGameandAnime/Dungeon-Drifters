@@ -29,18 +29,4 @@ def create_goblin_moves():
             mechanic="heavy_attack",
             description="A committed leaping slash.",
         ),
-        Move(
-            name="suplex",
-            kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.NONE,
-            resource_cost=0,
-            power=14,
-            scales_with=(ScalingAttribute.STRENGTH,),
-            accuracy=75,
-            target=TargetType.ENEMY,
-            damage_type=DamageType.PHYSICAL,
-            mechanic="stagger",
-            description="A forceful throw meant to disrupt the target.",
-        ),
     )
-

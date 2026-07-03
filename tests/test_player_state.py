@@ -1,6 +1,7 @@
 import pytest
 
 from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
+from app.combat.move import DamageType
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory import Inventory
 from app.player.player_state import PlayerState
@@ -101,6 +102,21 @@ def test_super_resource_is_owned_by_player_state_not_character():
     assert player_state.super_resource.current == 0
     assert player_state.super_resource.maximum == 100
     assert not hasattr(character, "super_resource")
+
+
+def test_player_state_can_defend_with_effective_stat_scaled_reductions():
+    player_state = PlayerState(Brawler())
+
+    assert player_state.can_defend is True
+    assert player_state.defend_reduction_percent(DamageType.PHYSICAL) == 48
+    assert player_state.defend_reduction_percent(DamageType.MAGICAL) == 26
+    assert player_state.defend_reduction_percent(DamageType.HYBRID) == 20
+    assert player_state.defend_reduction_percent(DamageType.HEALING) == 0
+
+    player_state = PlayerState(BlackMage())
+    assert player_state.defend_reduction_percent(DamageType.PHYSICAL) <= 70
+    assert player_state.defend_reduction_percent(DamageType.MAGICAL) <= 60
+    assert player_state.defend_reduction_percent(DamageType.HYBRID) <= 50
 
 
 def test_player_states_do_not_share_super_resources():
