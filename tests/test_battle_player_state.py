@@ -152,6 +152,145 @@ def test_complete_accepted_action_does_nothing_when_result_is_rejected():
     assert battle.combat_state.is_defending(enemy_state)
 
 
+def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_labels():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["defend", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    assert "1. Attack" in text
+    assert "2. Defend" in text
+    assert "3. Items" in text
+    assert "4. Super" in text
+    assert "Recover (restore health)" not in text
+    assert "steady attack" not in text
+    assert "risky heavy attack" not in text
+
+
+def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_descriptions():
+    player_state = PlayerState(Brawler())
+    battle = Battle(player_state, EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    non_super_moves = [
+        move
+        for move in player_state.combat_moves
+        if move.resource_type.value != "super"
+    ]
+    super_moves = [
+        move
+        for move in player_state.combat_moves
+        if move.resource_type.value == "super"
+    ]
+
+    for index, move in enumerate(non_super_moves, start=1):
+        assert f"{index}. {move.name}" in text
+        assert f"[{move.resource_type.value} {move.resource_cost}]" in text
+        assert move.description in text
+
+    assert "0. Back" in text
+    assert all(move.name not in text for move in super_moves)
+
+
+def test_super_submenu_displays_super_move_separately_and_is_not_available_yet():
+    player_state = PlayerState(Brawler())
+    battle = Battle(player_state, EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["super", "1", "0", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    super_move = [
+        move
+        for move in player_state.combat_moves
+        if move.resource_type.value == "super"
+    ][0]
+
+    assert "Choose a Super:" in text
+    assert f"1. {super_move.name}" in text
+    assert f"[{super_move.resource_type.value} {super_move.resource_cost}]" in text
+    assert super_move.description in text
+    assert "Super is not available yet." in text
+    assert battle.combat_state.turn_count == 0
+
+
+def test_defend_and_items_are_unavailable_and_return_to_main_menu_without_advancing():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["defend", "items", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    assert "Defend is not available yet." in text
+    assert "Items are not available yet." in text
+    assert text.count("Choose an action:") == 3
+    assert battle.combat_state.turn_count == 0
+
+
+def test_defend_is_not_a_structured_combat_move():
+    player_state = PlayerState(Brawler())
+
+    assert "Defend" not in [move.name for move in player_state.combat_moves]
+
+
+def test_player_menu_display_does_not_depend_on_legacy_character_moves():
+    player_state = PlayerState(Brawler())
+    player_state.character.moves = {1: "legacy only"}
+    battle = Battle(player_state, EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    assert "legacy only" not in text
+    assert player_state.combat_moves[0].name in text
+
+
+def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with patched_battle(inputs=["attack", "bad", "0", "super", "bad", "0", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+        battle.player_action()
+
+    text = output.getvalue()
+    assert text.count("Choose an attack:") == 3
+    assert text.count("Choose a Super:") == 2
+    assert text.count("That is not a valid move. Please try again.") == 2
+    assert battle.combat_state.turn_count == 0
+
+
+def test_structured_attack_menu_keeps_temporary_legacy_light_and_heavy_mapping():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    called_attacks = []
+
+    def fake_attack(attacker, target, move_name, heavy):
+        called_attacks.append((attacker, target, move_name, heavy))
+
+    battle.attack = fake_attack
+
+    with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
+        battle.player_action()
+    with patched_battle(inputs=["attack", "2"]), contextlib.redirect_stdout(io.StringIO()):
+        battle.player_action()
+
+    assert called_attacks == [
+        (player_state, enemy_state, player_state.combat_moves[0].name, False),
+        (player_state, enemy_state, player_state.combat_moves[1].name, True),
+    ]
+
+
 def test_battles_do_not_share_combat_state():
     first_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     second_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
@@ -272,7 +411,7 @@ def test_victory_returns_player():
             return 20
         return end
 
-    with patched_misses(), patched_battle(inputs=["2", "2", "2", "2"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_misses(), patched_battle(inputs=["attack", "2", "attack", "2", "attack", "2", "attack", "2"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
@@ -304,7 +443,7 @@ def test_invalid_player_input_does_not_advance_turn_count():
     player_state = PlayerState(Brawler())
     battle = Battle(player_state, EnemyState(Goblin()))
 
-    with patched_misses(), patched_battle(inputs=["bad choice", "1"]), contextlib.redirect_stdout(io.StringIO()):
+    with patched_misses(), patched_battle(inputs=["bad choice", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
 
     assert battle.combat_state.turn_count == 0
@@ -324,7 +463,7 @@ def test_completed_actions_advance_turn_count():
             return 14
         return end
 
-    with patched_misses(), patched_battle(inputs=["1", "1", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_misses(), patched_battle(inputs=["attack", "1", "attack", "1", "attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"

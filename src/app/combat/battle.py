@@ -51,30 +51,99 @@ class Battle:
         return "player" if not self.foe.is_alive() else "enemy"
 
     def player_action(self):
-        moves = list(self.player.moves.values())
-        quick_move = moves[0]
-        power_move = moves[1] if len(moves) > 1 else moves[0]
-
-        print(f'''
-Choose a move:
-1. {quick_move} (steady attack)
-2. {power_move} (risky heavy attack)
-3. Recover (restore health)
-        ''')
-
         while True:
+            print('''
+Choose an action:
+1. Attack
+2. Defend
+3. Items
+4. Super
+            ''')
             choice = input("> ").strip().lower()
-            if choice in ("1", quick_move.lower()):
-                self.attack(self.player_state, self.foe, quick_move, heavy=False)
-                return
-            if choice in ("2", power_move.lower()):
-                self.attack(self.player_state, self.foe, power_move, heavy=True)
-                return
-            if choice in ("3", "recover", "heal"):
-                self.heal_player()
-                return
+            if choice in ("1", "attack"):
+                if self._player_attack_menu():
+                    return
+                continue
+            if choice in ("2", "defend"):
+                print("Defend is not available yet.")
+                continue
+            if choice in ("3", "items"):
+                print("Items are not available yet.")
+                continue
+            if choice in ("4", "super"):
+                self._player_super_menu()
+                continue
 
             print("That is not a valid move. Please try again.")
+
+    def _player_attack_menu(self):
+        moves = [
+            move
+            for move in self._player_moves()
+            if move.resource_type.value != "super"
+        ]
+
+        while True:
+            print("\nChoose an attack:")
+            for index, move in enumerate(moves, start=1):
+                print(
+                    f"{index}. {move.name} "
+                    f"[{move.resource_type.value} {move.resource_cost}] - "
+                    f"{move.description}"
+                )
+            print("0. Back")
+
+            choice = input("> ").strip().lower()
+            if choice == "0":
+                return False
+
+            selected_move = self._selected_menu_move(moves, choice)
+            if selected_move is not None:
+                selected_index = moves.index(selected_move)
+                self.attack(
+                    self.player_state,
+                    self.foe,
+                    selected_move.name,
+                    heavy=selected_index > 0,
+                )
+                return True
+
+            print("That is not a valid move. Please try again.")
+
+    def _player_super_menu(self):
+        moves = [
+            move
+            for move in self._player_moves()
+            if move.resource_type.value == "super"
+        ]
+
+        while True:
+            print("\nChoose a Super:")
+            for index, move in enumerate(moves, start=1):
+                print(
+                    f"{index}. {move.name} "
+                    f"[{move.resource_type.value} {move.resource_cost}] - "
+                    f"{move.description}"
+                )
+            print("0. Back")
+
+            choice = input("> ").strip().lower()
+            if choice == "0":
+                return
+
+            if self._selected_menu_move(moves, choice) is not None:
+                print("Super is not available yet.")
+                continue
+
+            print("That is not a valid move. Please try again.")
+
+    @staticmethod
+    def _selected_menu_move(moves, choice):
+        for index, move in enumerate(moves, start=1):
+            if choice in (str(index), move.name.lower()):
+                return move
+
+        return None
 
     def enemy_action(self):
         if self.foe.health.current <= self.foe.health.maximum // 3 and random.randint(1, 2) == 1:
