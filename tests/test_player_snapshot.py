@@ -240,7 +240,6 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
     }
     assert snapshot["combat"]["class_mechanic"] == {
         "name": "Arcane Focus",
-        "resource": "mana",
         "description": "Spells spend mana and scale primarily from intelligence.",
     }
     assert_strict_json(snapshot)
@@ -249,6 +248,7 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
 def test_affected_class_mechanics_do_not_declare_deferred_resources():
     affected_classes = (
         Brawler,
+        BlackMage,
         RogueArcher,
     )
 

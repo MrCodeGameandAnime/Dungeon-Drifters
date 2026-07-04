@@ -83,7 +83,6 @@ def create_combat_moves():
 def create_class_mechanic():
     return {
         'name': 'Arcane Focus',
-        'resource': 'mana',
         'description': 'Spells spend mana and scale primarily from intelligence.',
     }  # ice shield
 

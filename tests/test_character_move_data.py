@@ -54,6 +54,44 @@ def test_each_playable_class_has_a_distinct_mechanic():
     }
 
 
+def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
+    supported_mechanics = {None, "basic_attack", "heavy_attack"}
+    deferred_mechanics = {
+        "stagger",
+        "burn",
+        "arcane_recovery",
+        "shock",
+        "crit_bonus",
+        "multi_hit",
+        "volley",
+        "staff_control",
+        "lightning",
+        "storm",
+        "water",
+        "super",
+    }
+
+    for class_type in PLAYABLE_CLASSES:
+        player = class_type()
+        super_moves = [
+            move
+            for move in player.combat_moves
+            if move.resource_type == ResourceType.SUPER
+        ]
+        standard_moves = [
+            move
+            for move in player.combat_moves
+            if move.resource_type != ResourceType.SUPER
+        ]
+
+        assert len(player.combat_moves) == 5
+        assert len(standard_moves) == 4
+        assert len(super_moves) == 1
+        assert super_moves[0].resource_cost == 100
+        assert all(move.mechanic in supported_mechanics for move in player.combat_moves)
+        assert all(move.mechanic not in deferred_mechanics for move in player.combat_moves)
+
+
 def test_black_mage_roster_is_four_standard_attacks_and_one_super():
     black_mage = BlackMage()
 
