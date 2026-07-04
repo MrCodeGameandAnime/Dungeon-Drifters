@@ -1,14 +1,31 @@
 import random
 
 from app.combat.combat_state import CombatState
+from app.combat.resolver import CombatResolver
 
 
 class Battle:
-    def __init__(self, player_state, foe):
+    def __init__(self, player_state, foe, resolver=None):
         self.player_state = player_state
         self.player = player_state.character
         self.foe = foe
         self.combat_state = CombatState()
+        self.resolver = resolver or CombatResolver()
+
+    def _player_moves(self):
+        return self.player_state.combat_moves
+
+    def _enemy_moves(self):
+        return self.foe.combat_moves
+
+    def _complete_accepted_action(self, actor, opposing_combatants, result):
+        if result.accepted:
+            return self.combat_state.complete_accepted_action(
+                actor,
+                opposing_combatants,
+            )
+
+        return None
 
     def run(self):
         print(f"\nA {self.foe.display_name} blocks your path!")

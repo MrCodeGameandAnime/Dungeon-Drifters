@@ -3,6 +3,8 @@ import contextlib
 import io
 import random
 from app.combat.battle import Battle
+from app.combat.resolver import CombatResolver
+from app.combat.result import MoveResult
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, Monk
@@ -50,6 +52,32 @@ def patched_misses():
         Battle.misses = original_misses
 
 
+def accepted_result():
+    return MoveResult(
+        accepted=True,
+        hit=True,
+        move_name="test move",
+        resource_spent=0,
+        damage=0,
+        healing=0,
+        statuses_applied=(),
+        reason=None,
+    )
+
+
+def rejected_result():
+    return MoveResult(
+        accepted=False,
+        hit=False,
+        move_name="test move",
+        resource_spent=0,
+        damage=0,
+        healing=0,
+        statuses_applied=(),
+        reason="rejected",
+    )
+
+
 def test_battle_accepts_player_state_and_uses_wrapped_character():
     character = Brawler()
     player_state = PlayerState(character)
@@ -66,6 +94,62 @@ def test_battle_accepts_player_state_and_uses_wrapped_character():
     assert battle.combat_state.turn_count == 0
     assert not hasattr(battle, "foe_health")
     assert not hasattr(battle, "foe_max_hp")
+
+
+def test_battle_creates_combat_resolver_by_default():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+
+    assert isinstance(battle.resolver, CombatResolver)
+
+
+def test_battle_accepts_injected_resolver():
+    resolver = object()
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()), resolver=resolver)
+
+    assert battle.resolver is resolver
+
+
+def test_structured_move_helpers_read_player_and_enemy_combat_moves():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+
+    assert battle._player_moves() is player_state.combat_moves
+    assert battle._enemy_moves() is enemy_state.combat_moves
+
+
+def test_complete_accepted_action_advances_when_result_is_accepted():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    battle.combat_state.activate_defend(enemy_state)
+
+    result = battle._complete_accepted_action(
+        player_state,
+        opposing_combatants=(enemy_state,),
+        result=accepted_result(),
+    )
+
+    assert result == 1
+    assert battle.combat_state.turn_count == 1
+    assert not battle.combat_state.is_defending(enemy_state)
+
+
+def test_complete_accepted_action_does_nothing_when_result_is_rejected():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    battle.combat_state.activate_defend(enemy_state)
+
+    result = battle._complete_accepted_action(
+        player_state,
+        opposing_combatants=(enemy_state,),
+        result=rejected_result(),
+    )
+
+    assert result is None
+    assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.is_defending(enemy_state)
 
 
 def test_battles_do_not_share_combat_state():
