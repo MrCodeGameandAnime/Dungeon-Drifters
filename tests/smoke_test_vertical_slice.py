@@ -43,6 +43,8 @@ def patched_game(inputs):
             return 6
         if (start, end) == (1, 10):
             return 10
+        if (start, end) == (1, 100):
+            return 1
         return end
 
     builtins.input = fake_input
@@ -64,7 +66,7 @@ def patched_game(inputs):
 def test_attack_path_reaches_victory_ending():
     output = io.StringIO()
 
-    with patched_game(["", "4", "Y", "1", "1", "2", "1", "2", "1", "2"]), contextlib.redirect_stdout(output):
+    with patched_game(["", "4", "Y", "1", "2", "1", "2", "1", "3"]), contextlib.redirect_stdout(output):
         run_game.main()
 
     text = output.getvalue()

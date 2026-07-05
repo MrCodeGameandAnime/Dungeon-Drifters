@@ -2,7 +2,9 @@ import builtins
 import contextlib
 import io
 import random
+from types import SimpleNamespace
 from app.combat.battle import Battle
+from app.combat.move import TargetType
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
 from app.enemies.goblin.definition import Goblin
@@ -76,6 +78,21 @@ def rejected_result():
         statuses_applied=(),
         reason="rejected",
     )
+
+
+class RecordingResolver:
+    def __init__(self, *results):
+        self._results = list(results)
+        self.calls = []
+
+    def resolve_move(self, actor, target, move_name, *, combat_state=None):
+        self.calls.append({
+            "actor": actor,
+            "target": target,
+            "move_name": move_name,
+            "combat_state": combat_state,
+        })
+        return self._results.pop(0) if self._results else accepted_result()
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -198,9 +215,10 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
     assert all(move.name not in text for move in super_moves)
 
 
-def test_super_submenu_displays_super_move_separately_and_is_not_available_yet():
+def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     player_state = PlayerState(Brawler())
-    battle = Battle(player_state, EnemyState(Goblin()))
+    resolver = RecordingResolver(rejected_result(), accepted_result())
+    battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
     output = io.StringIO()
 
     with patched_battle(inputs=["super", "1", "0", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
@@ -217,8 +235,14 @@ def test_super_submenu_displays_super_move_separately_and_is_not_available_yet()
     assert f"1. {super_move.name}" in text
     assert f"[{super_move.resource_type.value} {super_move.resource_cost}]" in text
     assert super_move.description in text
-    assert "Super is not available yet." in text
+    assert "test move failed: rejected" in text
     assert battle.combat_state.turn_count == 0
+    assert resolver.calls[0] == {
+        "actor": player_state,
+        "target": battle.foe,
+        "move_name": super_move.name,
+        "combat_state": battle.combat_state,
+    }
 
 
 def test_defend_and_items_are_unavailable_and_return_to_main_menu_without_advancing():
@@ -269,26 +293,95 @@ def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
     assert battle.combat_state.turn_count == 0
 
 
-def test_structured_attack_menu_keeps_temporary_legacy_light_and_heavy_mapping():
+def test_player_target_helper_uses_move_target_type_and_rejects_unknown_targets():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     battle = Battle(player_state, enemy_state)
-    called_attacks = []
 
-    def fake_attack(attacker, target, move_name, heavy):
-        called_attacks.append((attacker, target, move_name, heavy))
+    assert battle._player_target_for_move(SimpleNamespace(target=TargetType.ENEMY)) is enemy_state
+    assert battle._player_target_for_move(SimpleNamespace(target=TargetType.SELF)) is player_state
+    try:
+        battle._player_target_for_move(SimpleNamespace(target="unsupported"))
+    except ValueError as error:
+        assert str(error) == "Unsupported player move target: 'unsupported'"
+    else:
+        raise AssertionError("Expected ValueError")
 
-    battle.attack = fake_attack
+
+def test_structured_attack_menu_routes_selected_move_through_resolver():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+
+    def forbidden_attack(*_args, **_kwargs):
+        raise AssertionError("Battle.attack must not be called for player-selected moves")
+
+    def forbidden_heal_player():
+        raise AssertionError("Battle.heal_player must not be called for player-selected moves")
+
+    battle.attack = forbidden_attack
+    battle.heal_player = forbidden_heal_player
+    original_misses = Battle.misses
+    Battle.misses = staticmethod(lambda: (_ for _ in ()).throw(AssertionError("Battle.misses must not be called")))
+
+    try:
+        with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
+            battle.player_action()
+    finally:
+        Battle.misses = original_misses
+
+    assert resolver.calls == [{
+        "actor": player_state,
+        "target": enemy_state,
+        "move_name": player_state.combat_moves[0].name,
+        "combat_state": battle.combat_state,
+    }]
+
+
+def test_self_targeting_player_move_routes_player_state_to_resolver():
+    player_state = PlayerState(Brawler())
+    self_move = SimpleNamespace(
+        name="test self move",
+        resource_type=SimpleNamespace(value="none"),
+        resource_cost=0,
+        description="A test self-targeting move.",
+        target=TargetType.SELF,
+    )
+    player_state.character.combat_moves = [self_move]
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
 
     with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
-    with patched_battle(inputs=["attack", "2"]), contextlib.redirect_stdout(io.StringIO()):
+
+    assert resolver.calls == [{
+        "actor": player_state,
+        "target": player_state,
+        "move_name": self_move.name,
+        "combat_state": battle.combat_state,
+    }]
+
+
+def test_rejected_player_resolver_result_reprompts_without_completion_or_turn_advance():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(rejected_result(), accepted_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+    completion_calls = []
+
+    def forbidden_completion(*args, **kwargs):
+        completion_calls.append((args, kwargs))
+        raise AssertionError("Phase 3 must not complete accepted actions from player_action")
+
+    battle._complete_accepted_action = forbidden_completion
+
+    with patched_battle(inputs=["attack", "1", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
 
-    assert called_attacks == [
-        (player_state, enemy_state, player_state.combat_moves[0].name, False),
-        (player_state, enemy_state, player_state.combat_moves[1].name, True),
-    ]
+    assert len(resolver.calls) == 2
+    assert completion_calls == []
+    assert battle.combat_state.turn_count == 0
 
 
 def test_battles_do_not_share_combat_state():
@@ -407,6 +500,8 @@ def test_victory_returns_player():
         if (start, end) == (1, 2):
             initiative_rolls += 1
             return 1 if initiative_rolls == 1 else 2
+        if (start, end) == (1, 100):
+            return 1
         if (start, end) == (8, 20):
             return 20
         return end
@@ -415,7 +510,7 @@ def test_victory_returns_player():
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 5
+    assert battle.combat_state.turn_count == 3
 
 
 def test_defeat_returns_enemy_and_persists_player_health():
@@ -459,6 +554,8 @@ def test_completed_actions_advance_turn_count():
         if (start, end) == (1, 2):
             initiative_rolls += 1
             return 1 if initiative_rolls == 1 else 2
+        if (start, end) == (1, 100):
+            return 1
         if (start, end) == (8, 14):
             return 14
         return end
@@ -467,4 +564,4 @@ def test_completed_actions_advance_turn_count():
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 3
+    assert battle.combat_state.turn_count == 5

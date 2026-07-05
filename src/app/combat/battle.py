@@ -1,6 +1,7 @@
 import random
 
 from app.combat.combat_state import CombatState
+from app.combat.move import TargetType
 from app.combat.resolver import CombatResolver
 
 
@@ -26,6 +27,41 @@ class Battle:
             )
 
         return None
+
+    def _player_target_for_move(self, move):
+        if move.target == TargetType.ENEMY:
+            return self.foe
+        if move.target == TargetType.SELF:
+            return self.player_state
+
+        raise ValueError(f"Unsupported player move target: {move.target!r}")
+
+    def _resolve_player_move(self, move):
+        result = self.resolver.resolve_move(
+            self.player_state,
+            self._player_target_for_move(move),
+            move.name,
+            combat_state=self.combat_state,
+        )
+        self._print_player_move_result(result)
+        return result
+
+    @staticmethod
+    def _print_player_move_result(result):
+        if not result.accepted:
+            print(f"{result.move_name} failed: {result.reason}")
+            return
+        if not result.hit:
+            print(f"{result.move_name} missed.")
+            return
+        if result.damage:
+            print(f"{result.move_name} dealt {result.damage} damage.")
+            return
+        if result.healing:
+            print(f"{result.move_name} restored {result.healing} health.")
+            return
+
+        print(f"{result.move_name} resolved.")
 
     def run(self):
         print(f"\nA {self.foe.display_name} blocks your path!")
@@ -99,14 +135,10 @@ Choose an action:
 
             selected_move = self._selected_menu_move(moves, choice)
             if selected_move is not None:
-                selected_index = moves.index(selected_move)
-                self.attack(
-                    self.player_state,
-                    self.foe,
-                    selected_move.name,
-                    heavy=selected_index > 0,
-                )
-                return True
+                result = self._resolve_player_move(selected_move)
+                if result.accepted:
+                    return True
+                continue
 
             print("That is not a valid move. Please try again.")
 
@@ -131,8 +163,11 @@ Choose an action:
             if choice == "0":
                 return
 
-            if self._selected_menu_move(moves, choice) is not None:
-                print("Super is not available yet.")
+            selected_move = self._selected_menu_move(moves, choice)
+            if selected_move is not None:
+                result = self._resolve_player_move(selected_move)
+                if result.accepted:
+                    return True
                 continue
 
             print("That is not a valid move. Please try again.")
