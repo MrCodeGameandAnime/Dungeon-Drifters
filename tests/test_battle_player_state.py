@@ -81,9 +81,11 @@ def rejected_result():
 
 
 class RecordingResolver:
-    def __init__(self, *results):
+    def __init__(self, *results, defend_results=()):
         self._results = list(results)
+        self._defend_results = list(defend_results)
         self.calls = []
+        self.defend_calls = []
 
     def resolve_move(self, actor, target, move_name, *, combat_state=None):
         self.calls.append({
@@ -93,6 +95,13 @@ class RecordingResolver:
             "combat_state": combat_state,
         })
         return self._results.pop(0) if self._results else accepted_result()
+
+    def resolve_defend(self, actor, combat_state):
+        self.defend_calls.append({
+            "actor": actor,
+            "combat_state": combat_state,
+        })
+        return self._defend_results.pop(0) if self._defend_results else accepted_result()
 
 
 class LegacyMovesFailingEnemyState(EnemyState):
@@ -242,7 +251,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     assert f"[{super_move.resource_type.value} {super_move.resource_cost}]" in text
     assert super_move.description in text
     assert "test move failed: rejected" in text
-    assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.turn_count == 1
     assert resolver.calls[0] == {
         "actor": player_state,
         "target": battle.foe,
@@ -251,18 +260,87 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     }
 
 
-def test_defend_and_items_are_unavailable_and_return_to_main_menu_without_advancing():
+def test_items_are_unavailable_and_return_to_main_menu_without_advancing_until_accepted_action():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["defend", "items", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["items", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
-    assert "Defend is not available yet." in text
     assert "Items are not available yet." in text
-    assert text.count("Choose an action:") == 3
+    assert text.count("Choose an action:") == 2
+    assert battle.combat_state.turn_count == 1
+
+
+def test_player_defend_routes_through_resolver_and_completes_accepted_action():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(defend_results=(accepted_result(),))
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+
+    with patched_battle(inputs=["defend"]), contextlib.redirect_stdout(io.StringIO()):
+        accepted = battle.player_action()
+
+    assert accepted is True
+    assert resolver.defend_calls == [{
+        "actor": player_state,
+        "combat_state": battle.combat_state,
+    }]
+    assert battle.combat_state.turn_count == 1
+
+
+def test_player_defend_activates_actor_and_clears_opposing_defend_with_real_resolver():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    battle.combat_state.activate_defend(enemy_state)
+
+    with patched_battle(inputs=["defend"]), contextlib.redirect_stdout(io.StringIO()):
+        accepted = battle.player_action()
+
+    assert accepted is True
+    assert battle.combat_state.is_defending(player_state)
+    assert not battle.combat_state.is_defending(enemy_state)
+    assert battle.combat_state.turn_count == 1
+
+
+def test_rejected_player_defend_reprompts_without_completion_or_turn_advance():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(accepted_result(), defend_results=(rejected_result(),))
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+    completion_calls = []
+    original_completion = battle._complete_accepted_action
+
+    def record_completion(*args, **kwargs):
+        completion_calls.append((args, kwargs))
+        return original_completion(*args, **kwargs)
+
+    battle._complete_accepted_action = record_completion
+
+    with patched_battle(inputs=["defend", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
+        battle.player_action()
+
+    assert len(resolver.defend_calls) == 1
+    assert len(resolver.calls) == 1
+    assert len(completion_calls) == 1
+    assert battle.combat_state.turn_count == 1
+
+
+def test_rejected_player_move_does_not_clear_defend_or_advance_before_backing_out():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(rejected_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+    battle.combat_state.activate_defend(enemy_state)
+
+    with patched_battle(inputs=["1", "0"]), contextlib.redirect_stdout(io.StringIO()):
+        accepted = battle._player_attack_menu()
+
+    assert accepted is False
     assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.is_defending(enemy_state)
 
 
 def test_defend_is_not_a_structured_combat_move():
@@ -296,7 +374,7 @@ def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
     assert text.count("Choose an attack:") == 3
     assert text.count("Choose a Super:") == 2
     assert text.count("That is not a valid move. Please try again.") == 2
-    assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.turn_count == 1
 
 
 def test_player_target_helper_uses_move_target_type_and_rejects_unknown_targets():
@@ -384,25 +462,27 @@ def test_self_targeting_player_move_routes_player_state_to_resolver():
     }]
 
 
-def test_rejected_player_resolver_result_reprompts_without_completion_or_turn_advance():
+def test_rejected_player_resolver_result_reprompts_without_completion_until_accepted_action():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
     completion_calls = []
 
-    def forbidden_completion(*args, **kwargs):
-        completion_calls.append((args, kwargs))
-        raise AssertionError("Phase 3 must not complete accepted actions from player_action")
+    original_completion = battle._complete_accepted_action
 
-    battle._complete_accepted_action = forbidden_completion
+    def record_completion(*args, **kwargs):
+        completion_calls.append((args, kwargs))
+        return original_completion(*args, **kwargs)
+
+    battle._complete_accepted_action = record_completion
 
     with patched_battle(inputs=["attack", "1", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
 
     assert len(resolver.calls) == 2
-    assert completion_calls == []
-    assert battle.combat_state.turn_count == 0
+    assert len(completion_calls) == 1
+    assert battle.combat_state.turn_count == 1
 
 
 def test_battles_do_not_share_combat_state():
@@ -464,23 +544,67 @@ def test_enemy_action_does_not_use_legacy_misses_damage_or_direct_health_mutatio
     assert len(resolver.calls) == 1
 
 
-def test_enemy_action_does_not_complete_accepted_actions_in_phase_4():
+def test_enemy_action_completes_accepted_actions_in_phase_5():
     player_state = PlayerState(Brawler())
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
     completion_calls = []
 
-    def forbidden_completion(*args, **kwargs):
-        completion_calls.append((args, kwargs))
-        raise AssertionError("Phase 4 must not complete accepted actions from enemy_action")
+    original_completion = battle._complete_accepted_action
 
-    battle._complete_accepted_action = forbidden_completion
+    def record_completion(*args, **kwargs):
+        completion_calls.append((args, kwargs))
+        return original_completion(*args, **kwargs)
+
+    battle._complete_accepted_action = record_completion
 
     with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
         battle.enemy_action()
 
-    assert completion_calls == []
+    assert len(completion_calls) == 1
+    assert completion_calls[0][0] == (
+        battle.foe,
+        (player_state,),
+        accepted_result(),
+    )
+    assert battle.combat_state.turn_count == 1
+
+
+def test_rejected_enemy_action_does_not_clear_defend_or_advance():
+    player_state = PlayerState(Brawler())
+    resolver = RecordingResolver(rejected_result())
+    battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
+    battle.combat_state.activate_defend(player_state)
+
+    with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
+        accepted = battle.enemy_action()
+
+    assert accepted is False
     assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.is_defending(player_state)
+
+
+def test_run_does_not_advance_turn_outside_accepted_action_completion():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    battle.foe.health.take_damage(battle.foe.health.maximum - 1)
+
+    def fake_complete(actor, opposing_combatants):
+        battle.foe.health.take_damage(1)
+        battle.combat_state.turn_count += 1
+        return battle.combat_state.turn_count
+
+    battle.combat_state.complete_accepted_action = fake_complete
+    battle.combat_state.advance_turn = lambda: (_ for _ in ()).throw(
+        AssertionError("Battle.run must not advance turns directly")
+    )
+
+    with patched_battle(inputs=["attack", "1"], randint=lambda _start, _end: 1), contextlib.redirect_stdout(io.StringIO()):
+        winner = battle.run()
+
+    assert winner == "player"
+    assert battle.combat_state.turn_count == 1
 
 
 def test_player_damage_mutates_enemy_state_health():
@@ -600,14 +724,14 @@ def test_defeat_returns_enemy_and_persists_player_health():
     assert battle.combat_state.turn_count == 1
 
 
-def test_invalid_player_input_does_not_advance_turn_count():
+def test_invalid_player_input_does_not_advance_turn_count_until_accepted_action():
     player_state = PlayerState(Brawler())
     battle = Battle(player_state, EnemyState(Goblin()))
 
     with patched_misses(), patched_battle(inputs=["bad choice", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
 
-    assert battle.combat_state.turn_count == 0
+    assert battle.combat_state.turn_count == 1
 
 
 def test_completed_actions_advance_turn_count():

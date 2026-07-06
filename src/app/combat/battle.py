@@ -94,13 +94,13 @@ class Battle:
 
         while self.player_state.is_alive() and self.foe.is_alive():
             if player_turn:
-                self.player_action()
+                action_accepted = self.player_action()
             else:
-                self.enemy_action()
+                action_accepted = self.enemy_action()
 
-            self.combat_state.advance_turn()
-            self.print_health()
-            player_turn = not player_turn
+            if action_accepted:
+                self.print_health()
+                player_turn = not player_turn
 
         return "player" if not self.foe.is_alive() else "enemy"
 
@@ -116,16 +116,28 @@ Choose an action:
             choice = input("> ").strip().lower()
             if choice in ("1", "attack"):
                 if self._player_attack_menu():
-                    return
+                    return True
                 continue
             if choice in ("2", "defend"):
-                print("Defend is not available yet.")
+                result = self.resolver.resolve_defend(
+                    self.player_state,
+                    self.combat_state,
+                )
+                self._print_player_move_result(result)
+                if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        (self.foe,),
+                        result,
+                    )
+                    return True
                 continue
             if choice in ("3", "items"):
                 print("Items are not available yet.")
                 continue
             if choice in ("4", "super"):
-                self._player_super_menu()
+                if self._player_super_menu():
+                    return True
                 continue
 
             print("That is not a valid move. Please try again.")
@@ -155,6 +167,11 @@ Choose an action:
             if selected_move is not None:
                 result = self._resolve_player_move(selected_move)
                 if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        (self.foe,),
+                        result,
+                    )
                     return True
                 continue
 
@@ -185,6 +202,11 @@ Choose an action:
             if selected_move is not None:
                 result = self._resolve_player_move(selected_move)
                 if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        (self.foe,),
+                        result,
+                    )
                     return True
                 continue
 
@@ -200,7 +222,15 @@ Choose an action:
 
     def enemy_action(self):
         move = random.choice(list(self._enemy_moves()))
-        self._resolve_enemy_move(move)
+        result = self._resolve_enemy_move(move)
+        if result.accepted:
+            self._complete_accepted_action(
+                self.foe,
+                (self.player_state,),
+                result,
+            )
+
+        return result.accepted
 
     def attack(self, attacker, target, move_name, heavy):
         if self.misses():
