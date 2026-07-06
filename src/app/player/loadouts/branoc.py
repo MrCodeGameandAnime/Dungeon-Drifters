@@ -2,6 +2,17 @@ from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAtt
 from app.items.weapon import SunderSpire
 
 
+def create_starting_stats():
+    return {
+        "constitution": 14,
+        "spirit": 6,
+        "intelligence": 5,
+        "strength": 15,
+        "dexterity": 10,
+        "intuition": 10,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Crestgrave Reaping',

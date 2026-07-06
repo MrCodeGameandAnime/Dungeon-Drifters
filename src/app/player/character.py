@@ -151,14 +151,9 @@ def _validate_level_one_stat_total(stat_values):
 
 class Brawler(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 14,
-            "spirit": 6,
-            "intelligence": 5,
-            "strength": 15,
-            "dexterity": 10,
-            "intuition": 10,
-        })
+        stat_values = _validate_level_one_stat_total(
+            branoc.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
             hp=60,
@@ -172,14 +167,9 @@ class Brawler(Character):
 
 class BlackMage(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 7,
-            "spirit": 13,
-            "intelligence": 15,
-            "strength": 5,
-            "dexterity": 8,
-            "intuition": 12,
-        })
+        stat_values = _validate_level_one_stat_total(
+            azhvielle.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
             hp=30,
@@ -193,14 +183,9 @@ class BlackMage(Character):
 
 class RogueArcher(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 8,
-            "spirit": 7,
-            "intelligence": 10,
-            "strength": 6,
-            "dexterity": 15,
-            "intuition": 14,
-        })
+        stat_values = _validate_level_one_stat_total(
+            zhaivra.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
             hp=45,
@@ -214,14 +199,9 @@ class RogueArcher(Character):
 
 class Monk(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 10,
-            "spirit": 10,
-            "intelligence": 13,
-            "strength": 7,
-            "dexterity": 12,
-            "intuition": 8,
-        })
+        stat_values = _validate_level_one_stat_total(
+            joruun.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
             hp=60,

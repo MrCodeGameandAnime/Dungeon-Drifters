@@ -2,6 +2,17 @@ from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAtt
 from app.items.weapon import NeedleOfPlainIron
 
 
+def create_starting_stats():
+    return {
+        "constitution": 7,
+        "spirit": 13,
+        "intelligence": 15,
+        "strength": 5,
+        "dexterity": 8,
+        "intuition": 12,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Scepter Sweep',

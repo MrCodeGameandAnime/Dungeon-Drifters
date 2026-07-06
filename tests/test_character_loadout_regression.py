@@ -1,5 +1,6 @@
 from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.player.loadouts import azhvielle, branoc, joruun, zhaivra
 
 
 EXPECTED_LOADOUTS = {
@@ -374,6 +375,14 @@ EXPECTED_LOADOUTS = {
 }
 
 
+LOADOUT_MODULES = {
+    branoc: EXPECTED_LOADOUTS[Brawler]["attributes"],
+    azhvielle: EXPECTED_LOADOUTS[BlackMage]["attributes"],
+    zhaivra: EXPECTED_LOADOUTS[RogueArcher]["attributes"],
+    joruun: EXPECTED_LOADOUTS[Monk]["attributes"],
+}
+
+
 def move_to_dict(move):
     return {
         "name": move.name,
@@ -391,6 +400,24 @@ def move_to_dict(move):
         "mechanic": move.mechanic,
         "description": move.description,
     }
+
+
+def test_authored_starting_stats_live_in_loadout_modules():
+    for loadout_module, expected_stats in LOADOUT_MODULES.items():
+        starting_stats = loadout_module.create_starting_stats()
+
+        assert starting_stats == expected_stats
+        assert sum(starting_stats.values()) == 60
+
+
+def test_authored_starting_stats_are_returned_as_fresh_dictionaries():
+    for loadout_module, expected_stats in LOADOUT_MODULES.items():
+        first = loadout_module.create_starting_stats()
+        second = loadout_module.create_starting_stats()
+
+        first["constitution"] = 1
+
+        assert second == expected_stats
 
 
 def test_all_archetype_authored_loadout_data_is_unchanged():

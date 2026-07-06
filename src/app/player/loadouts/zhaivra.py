@@ -2,6 +2,17 @@ from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAtt
 from app.items.weapon import Sathren
 
 
+def create_starting_stats():
+    return {
+        "constitution": 8,
+        "spirit": 7,
+        "intelligence": 10,
+        "strength": 6,
+        "dexterity": 15,
+        "intuition": 14,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Mournpoint Verdict',
