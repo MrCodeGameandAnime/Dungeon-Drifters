@@ -2,10 +2,11 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.7**. This is an architecture
-checkpoint between **v0.2** and the unfinished **v0.3** release. The small
-**v0.1 vertical slice** remains the playable baseline while the project builds
-the state, move, enemy, and combat contracts needed for later gameplay work.
+The current repository checkpoint is **v0.2.8**. This is the completed
+structured Goblin Battle checkpoint between **v0.2** and the unfinished
+**v0.3** release. The small Goblin vertical slice remains the playable
+baseline, now routed through structured moves, the combat resolver, and
+encounter-owned combat state.
 
 ## Current Playable State
 
@@ -28,14 +29,17 @@ existing mechanical archetypes:
 - Zhaivra Kelyth, the Uncontrolled Reagent - Rogue Archer
 - Joruun Veyr, the Bloody Storm Monk - Monk
 
-Battle is still on the legacy playable path. It presents:
+Battle now uses the structured combat path for the Goblin encounter. It
+presents:
 
-- quick move
-- power move
-- Recover
+- Attack
+- Defend
+- Items
+- Super
 
-Structured move definitions exist, but the current battle loop has not been
-rewired to a full structured resolver yet.
+Attack and Super open structured move submenus sourced from the active
+Drifter's authored combat moves. Defend is a core combat action. Items are
+listed but not yet wired.
 
 ## Play Instructions
 
@@ -54,7 +58,8 @@ During play:
 3. Confirm or return to selection.
 4. Read the opening story.
 5. Choose to attack or flee.
-6. If combat starts, choose a quick move, power move, or Recover.
+6. If combat starts, choose Attack, Defend, Items, or Super.
+7. Attack and Super open structured move submenus.
 
 ## Implemented Architecture
 
@@ -77,16 +82,22 @@ The repository now includes these active foundations:
 - `app.combat` contains reusable combat rules and contracts; `app.enemies`
   contains enemy definitions, runtime state, registration, scaling, factory, and
   authored enemy content.
-- Core Defend contract in the standalone resolver and encounter-owned
-  `CombatState`, with Battle integration deferred.
-- Battle using combat-facing player and enemy runtime state while preserving
-  the current legacy menu flow.
+- Core Defend contract integrated into Battle as a resolver-backed core action,
+  not an authored `Move`.
+- Battle consumes `CombatResolver` and passes `CombatState` into resolver calls.
+- Battle reads player moves from `player_state.combat_moves` and enemy moves
+  from `foe.combat_moves`.
+- Accepted combat actions complete through
+  `CombatState.complete_accepted_action(...)`.
+- Battle renders `MoveResult` data and HUD state while the resolver owns
+  validation, resource spending, accuracy, damage, healing, Super behavior, and
+  result creation.
 - Serializable `PlayerState` and `GameState` snapshots.
 - Defensive copies or immutable views for state collections where currently
   implemented.
 
-These systems are architecture and contract foundations. They are not all fully
-wired into final gameplay yet.
+These systems are architecture and contract foundations. The Goblin encounter
+uses the structured path; broader gameplay systems remain under development.
 
 ## Resource Terminology
 
@@ -221,21 +232,35 @@ contracts:
 - documented that complete structured Battle playability still depends on M8
   integration and remaining character-kit/mechanic work
 
+### v0.2.8
+
+v0.2.8 completes the Milestone 8 structured Goblin Battle integration:
+
+- rewired player-selected structured moves through `CombatResolver`
+- rewired ordinary Goblin enemy actions through authored structured moves
+- added structured Attack and Super submenus to the terminal Battle flow
+- integrated Defend as a core resolver-backed action
+- routed accepted action completion through `CombatState`
+- rendered Battle output from `MoveResult` values
+- expanded the terminal HUD to show HP, Mana, Super, Defend, and relevant
+  temporary combat state
+- removed legacy Battle-owned attack, recovery, miss, damage, and universal
+  enemy-healing helpers
+- verified the Goblin vertical slice from character selection through victory
+  using structured moves and resolver-backed combat
+
 ## Known Limitations
 
-- Structured move resolver integration into Battle is not implemented.
-- Battle still uses the legacy quick move, power move, and Recover flow.
-- Battle still has temporary universal enemy low-HP healing; authored enemy
-  healing capability should replace this in Milestone 8.
-- Defend exists only in the standalone resolver/CombatState contract until
-  Battle is rewired in Milestone 8.
+- Items are visible in the Battle menu but not yet wired.
 - Joruun's full structured combat identity and specialized mechanics remain
   deferred.
 - Exact combat formulas and balance are provisional.
-- Super behavior and generation are implemented only in the standalone resolver.
 - Momentum implementation is deferred.
 - Ammunition, compounds, and prepared-charge systems are not implemented.
 - Status effects and elemental interactions are not active.
+- Enemy AI is still simple random selection from authored structured moves.
+- Multi-enemy, party-targeting, and area-targeting encounters are not
+  implemented.
 - Equipment contributes through `effective_stat()` where implemented.
 - Broader encounters, progression gameplay, shops, extraction, and save/load are
   future work.
