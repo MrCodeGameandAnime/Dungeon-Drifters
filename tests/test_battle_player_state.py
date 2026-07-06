@@ -39,21 +39,6 @@ def patched_battle(inputs=(), randint=None):
         random.choice = original_choice
 
 
-def no_misses():
-    return False
-
-
-@contextlib.contextmanager
-def patched_misses():
-    original_misses = Battle.misses
-    Battle.misses = staticmethod(no_misses)
-
-    try:
-        yield
-    finally:
-        Battle.misses = original_misses
-
-
 def accepted_result():
     return MoveResult(
         accepted=True,
@@ -261,7 +246,7 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["defend", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["defend", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -279,7 +264,7 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
     battle = Battle(player_state, EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -309,7 +294,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
     output = io.StringIO()
 
-    with patched_battle(inputs=["super", "1", "0", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["super", "1", "0", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -337,7 +322,7 @@ def test_items_are_unavailable_and_return_to_main_menu_without_advancing_until_a
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["items", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["items", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -428,7 +413,7 @@ def test_player_menu_display_does_not_depend_on_legacy_character_moves():
     battle = Battle(player_state, EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -440,7 +425,7 @@ def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["attack", "bad", "0", "super", "bad", "0", "attack", "1"]), patched_misses(), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["attack", "bad", "0", "super", "bad", "0", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
@@ -486,22 +471,8 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
 
-    def forbidden_attack(*_args, **_kwargs):
-        raise AssertionError("Battle.attack must not be called for player-selected moves")
-
-    def forbidden_heal_player():
-        raise AssertionError("Battle.heal_player must not be called for player-selected moves")
-
-    battle.attack = forbidden_attack
-    battle.heal_player = forbidden_heal_player
-    original_misses = Battle.misses
-    Battle.misses = staticmethod(lambda: (_ for _ in ()).throw(AssertionError("Battle.misses must not be called")))
-
-    try:
-        with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
-            battle.player_action()
-    finally:
-        Battle.misses = original_misses
+    with patched_battle(inputs=["attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
+        battle.player_action()
 
     assert resolver.calls == [{
         "actor": player_state,
@@ -509,6 +480,12 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
         "move_name": player_state.combat_moves[0].name,
         "combat_state": battle.combat_state,
     }]
+
+
+def test_legacy_battle_combat_helpers_are_removed():
+    assert not hasattr(Battle, "attack")
+    assert not hasattr(Battle, "heal_player")
+    assert not hasattr(Battle, "misses")
 
 
 def test_self_targeting_player_move_routes_player_state_to_resolver():
@@ -648,14 +625,9 @@ def test_enemy_action_does_not_use_legacy_misses_damage_or_direct_health_mutatio
     player_state = PlayerState(Brawler())
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
-    original_misses = Battle.misses
-    Battle.misses = staticmethod(lambda: (_ for _ in ()).throw(AssertionError("Battle.misses must not be called")))
 
-    try:
-        with patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(io.StringIO()):
-            battle.enemy_action()
-    finally:
-        Battle.misses = original_misses
+    with patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(io.StringIO()):
+        battle.enemy_action()
 
     assert player_state.health.current == player_state.health.maximum
     assert len(resolver.calls) == 1
@@ -724,20 +696,20 @@ def test_run_does_not_advance_turn_outside_accepted_action_completion():
     assert battle.combat_state.turn_count == 1
 
 
-def test_player_damage_mutates_enemy_state_health():
+def test_player_damage_mutates_enemy_state_health_through_resolver():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     battle = Battle(player_state, enemy_state)
 
     def fake_randint(start, end):
-        if (start, end) == (8, 14):
-            return 8
+        if (start, end) == (1, 100):
+            return 1
         return end
 
-    with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
-        battle.attack(player_state, enemy_state, "slash", heavy=False)
+    with patched_battle(inputs=["attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+        battle.player_action()
 
-    assert enemy_state.health.current == enemy_state.health.maximum - 26
+    assert enemy_state.health.current < enemy_state.health.maximum
 
 
 def test_low_health_enemy_does_not_use_universal_recovery_branch():
@@ -760,35 +732,21 @@ def test_battle_player_output_uses_canonical_short_identity_when_profile_attache
     battle = Battle(player_state, EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_misses(), patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(output):
+    with contextlib.redirect_stdout(output):
         battle.print_health()
-        battle.attack(battle.player_state, battle.foe, "slash", heavy=False)
-        battle.heal_player()
+        battle._render_move_result(
+            result_with(move_name="Crestgrave Reaping", damage=12),
+            actor=battle.player_state,
+            target=battle.foe,
+        )
 
     text = output.getvalue()
     assert "Ser Branoc HP:" in text
     assert "Ser Branoc Mana:" in text
     assert "Ser Branoc Super:" in text
-    assert "Ser Branoc used slash." in text
-    assert "Ser Branoc takes a breath" in text
-    assert "Brawler health:" not in text
-    assert "Brawler used slash" not in text
-
-
-def test_player_recovery_heals_persistent_health_without_exceeding_maximum():
-    player_state = PlayerState(Brawler())
-    player_state.health.take_damage(5)
-    battle = Battle(player_state, EnemyState(Goblin()))
-
-    def fake_randint(start, end):
-        if (start, end) == (10, 16):
-            return 16
-        return end
-
-    with patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
-        battle.heal_player()
-
-    assert player_state.health.current == player_state.health.maximum
+    assert "Ser Branoc used Crestgrave Reaping." in text
+    assert "Brawler HP:" not in text
+    assert "Brawler used Crestgrave Reaping" not in text
 
 
 def test_battle_starts_from_existing_persistent_health():
@@ -811,11 +769,9 @@ def test_victory_returns_player():
             return 1 if initiative_rolls == 1 else 2
         if (start, end) == (1, 100):
             return 1
-        if (start, end) == (8, 20):
-            return 20
         return end
 
-    with patched_misses(), patched_battle(inputs=["attack", "2", "attack", "2", "attack", "2", "attack", "2"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["attack", "2", "attack", "2", "attack", "2", "attack", "2"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
@@ -834,7 +790,7 @@ def test_defeat_returns_enemy_and_persists_player_health():
             return 1
         return end
 
-    with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "enemy"
@@ -847,7 +803,7 @@ def test_invalid_player_input_does_not_advance_turn_count_until_accepted_action(
     player_state = PlayerState(Brawler())
     battle = Battle(player_state, EnemyState(Goblin()))
 
-    with patched_misses(), patched_battle(inputs=["bad choice", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["bad choice", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
         battle.player_action()
 
     assert battle.combat_state.turn_count == 1
@@ -865,11 +821,9 @@ def test_completed_actions_advance_turn_count():
             return 1 if initiative_rolls == 1 else 2
         if (start, end) == (1, 100):
             return 1
-        if (start, end) == (8, 14):
-            return 14
         return end
 
-    with patched_misses(), patched_battle(inputs=["attack", "1", "attack", "1", "attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["attack", "1", "attack", "1", "attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
