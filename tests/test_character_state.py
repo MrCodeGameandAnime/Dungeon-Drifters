@@ -204,8 +204,6 @@ def test_derived_stats_return_nonnegative_values():
         assert player.stats.intuition == player.intuition
         assert player.stats.attack_power() >= 0
         assert player.stats.defense_rating() >= 0
-        assert player.stats.health_bonus() >= 0
-        assert player.stats.mana_bonus() >= 0
         assert player.stats.luck_rating() >= 0
 
 

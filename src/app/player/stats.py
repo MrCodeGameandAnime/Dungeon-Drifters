@@ -129,12 +129,6 @@ class Stats:
     def defense_rating(self):
         return max(0, self.constitution * 2 + self.dexterity // 2)
 
-    def health_bonus(self):
-        return max(0, self.constitution * 5)
-
-    def mana_bonus(self):
-        return max(0, self.spirit * 5)
-
     def luck_rating(self):
         return max(0, self.intuition + self.dexterity // 2)
 
@@ -143,12 +137,6 @@ class Stats:
 
     def defense(self):
         return self.defense_rating()
-
-    def health(self):
-        return self.health_bonus()
-
-    def mana(self):
-        return self.mana_bonus()
 
     def luck(self):
         return self.luck_rating()
