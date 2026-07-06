@@ -95,6 +95,12 @@ class RecordingResolver:
         return self._results.pop(0) if self._results else accepted_result()
 
 
+class LegacyMovesFailingEnemyState(EnemyState):
+    @property
+    def moves(self):
+        raise AssertionError("enemy_action must not read legacy foe.moves")
+
+
 def test_battle_accepts_player_state_and_uses_wrapped_character():
     character = Brawler()
     player_state = PlayerState(character)
@@ -308,6 +314,21 @@ def test_player_target_helper_uses_move_target_type_and_rejects_unknown_targets(
         raise AssertionError("Expected ValueError")
 
 
+def test_enemy_target_helper_uses_move_target_type_and_rejects_unknown_targets():
+    player_state = PlayerState(Brawler())
+    enemy_state = EnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+
+    assert battle._enemy_target_for_move(SimpleNamespace(target=TargetType.ENEMY)) is player_state
+    assert battle._enemy_target_for_move(SimpleNamespace(target=TargetType.SELF)) is enemy_state
+    try:
+        battle._enemy_target_for_move(SimpleNamespace(target="unsupported"))
+    except ValueError as error:
+        assert str(error) == "Unsupported enemy move target: 'unsupported'"
+    else:
+        raise AssertionError("Expected ValueError")
+
+
 def test_structured_attack_menu_routes_selected_move_through_resolver():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
@@ -397,19 +418,69 @@ def test_battles_do_not_share_combat_state():
     assert second_battle.combat_state.statuses == {}
 
 
-def test_enemy_damage_mutates_player_state_health():
+def test_enemy_action_routes_authored_combat_move_through_resolver():
     player_state = PlayerState(Brawler())
-    battle = Battle(player_state, EnemyState(Goblin()))
+    enemy_state = EnemyState(Goblin())
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
 
-    def fake_randint(start, end):
-        if (start, end) == (6, 12):
-            return 6
-        return end
-
-    with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
         battle.enemy_action()
 
-    assert player_state.health.current == player_state.health.maximum - 9
+    assert resolver.calls == [{
+        "actor": enemy_state,
+        "target": player_state,
+        "move_name": enemy_state.combat_moves[0].name,
+        "combat_state": battle.combat_state,
+    }]
+
+
+def test_enemy_action_uses_combat_moves_not_legacy_moves():
+    player_state = PlayerState(Brawler())
+    enemy_state = LegacyMovesFailingEnemyState(Goblin())
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
+
+    with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
+        battle.enemy_action()
+
+    assert resolver.calls[0]["move_name"] == enemy_state.combat_moves[0].name
+
+
+def test_enemy_action_does_not_use_legacy_misses_damage_or_direct_health_mutation():
+    player_state = PlayerState(Brawler())
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
+    original_misses = Battle.misses
+    Battle.misses = staticmethod(lambda: (_ for _ in ()).throw(AssertionError("Battle.misses must not be called")))
+
+    try:
+        with patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(io.StringIO()):
+            battle.enemy_action()
+    finally:
+        Battle.misses = original_misses
+
+    assert player_state.health.current == player_state.health.maximum
+    assert len(resolver.calls) == 1
+
+
+def test_enemy_action_does_not_complete_accepted_actions_in_phase_4():
+    player_state = PlayerState(Brawler())
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
+    completion_calls = []
+
+    def forbidden_completion(*args, **kwargs):
+        completion_calls.append((args, kwargs))
+        raise AssertionError("Phase 4 must not complete accepted actions from enemy_action")
+
+    battle._complete_accepted_action = forbidden_completion
+
+    with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
+        battle.enemy_action()
+
+    assert completion_calls == []
+    assert battle.combat_state.turn_count == 0
 
 
 def test_player_damage_mutates_enemy_state_health():
@@ -428,23 +499,18 @@ def test_player_damage_mutates_enemy_state_health():
     assert enemy_state.health.current == enemy_state.health.maximum - 26
 
 
-def test_enemy_recovery_mutates_enemy_state_health():
+def test_low_health_enemy_does_not_use_universal_recovery_branch():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     enemy_state.health.take_damage(45)
-    battle = Battle(player_state, enemy_state)
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(player_state, enemy_state, resolver=resolver)
 
-    def fake_randint(start, end):
-        if (start, end) == (1, 2):
-            return 1
-        if (start, end) == (6, 12):
-            return 6
-        return end
-
-    with patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(randint=lambda _start, end: end), contextlib.redirect_stdout(io.StringIO()):
         battle.enemy_action()
 
-    assert enemy_state.health.current == 23
+    assert enemy_state.health.current == 15
+    assert len(resolver.calls) == 1
 
 
 def test_battle_player_output_uses_canonical_short_identity_when_profile_attached():
@@ -521,8 +587,8 @@ def test_defeat_returns_enemy_and_persists_player_health():
     def fake_randint(start, end):
         if (start, end) == (1, 2):
             return 2
-        if (start, end) == (6, 12):
-            return 12
+        if (start, end) == (1, 100):
+            return 1
         return end
 
     with patched_misses(), patched_battle(randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):

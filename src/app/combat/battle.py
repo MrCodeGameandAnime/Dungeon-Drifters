@@ -46,6 +46,24 @@ class Battle:
         self._print_player_move_result(result)
         return result
 
+    def _enemy_target_for_move(self, move):
+        if move.target == TargetType.ENEMY:
+            return self.player_state
+        if move.target == TargetType.SELF:
+            return self.foe
+
+        raise ValueError(f"Unsupported enemy move target: {move.target!r}")
+
+    def _resolve_enemy_move(self, move):
+        result = self.resolver.resolve_move(
+            self.foe,
+            self._enemy_target_for_move(move),
+            move.name,
+            combat_state=self.combat_state,
+        )
+        self._print_player_move_result(result)
+        return result
+
     @staticmethod
     def _print_player_move_result(result):
         if not result.accepted:
@@ -181,22 +199,8 @@ Choose an action:
         return None
 
     def enemy_action(self):
-        if self.foe.health.current <= self.foe.health.maximum // 3 and random.randint(1, 2) == 1:
-            heal_amount = random.randint(6, 12) + self.foe.effective_stat("constitution")
-            self.foe.health.heal(heal_amount)
-            print(f"\nThe {self.foe.display_name} regroups and recovers {heal_amount} health.")
-            return
-
-        moves = list(self.foe.moves.values())
-        move = random.choice(moves)
-        damage = random.randint(6, 12) + self.foe.effective_stat("strength")
-
-        if self.misses():
-            print(f"\nThe {self.foe.display_name} used {move}, but missed!")
-            return
-
-        self.player_state.health.take_damage(damage)
-        print(f"\nThe {self.foe.display_name} used {move}. It dealt {damage} damage.")
+        move = random.choice(list(self._enemy_moves()))
+        self._resolve_enemy_move(move)
 
     def attack(self, attacker, target, move_name, heavy):
         if self.misses():
