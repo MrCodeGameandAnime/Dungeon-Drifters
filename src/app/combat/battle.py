@@ -43,7 +43,11 @@ class Battle:
             move.name,
             combat_state=self.combat_state,
         )
-        self._print_player_move_result(result)
+        self._render_move_result(
+            result,
+            actor=self.player_state,
+            target=self._player_target_for_move(move),
+        )
         return result
 
     def _enemy_target_for_move(self, move):
@@ -61,25 +65,44 @@ class Battle:
             move.name,
             combat_state=self.combat_state,
         )
-        self._print_player_move_result(result)
+        self._render_move_result(
+            result,
+            actor=self.foe,
+            target=self._enemy_target_for_move(move),
+        )
         return result
 
-    @staticmethod
-    def _print_player_move_result(result):
+    def _render_move_result(self, result, actor, target=None):
+        actor_name = actor.display_name
         if not result.accepted:
-            print(f"{result.move_name} failed: {result.reason}")
+            print(f"{actor_name} used {result.move_name}, but it failed: {result.reason}.")
+            return
+        if result.move_name == "Defend":
+            print(f"{actor_name} used Defend.")
+            self._render_move_result_details(result)
             return
         if not result.hit:
-            print(f"{result.move_name} missed.")
+            print(f"{actor_name} used {result.move_name}, but missed.")
+            self._render_move_result_details(result)
             return
         if result.damage:
-            print(f"{result.move_name} dealt {result.damage} damage.")
+            print(f"{actor_name} used {result.move_name}. It dealt {result.damage} damage.")
+            self._render_move_result_details(result)
             return
         if result.healing:
-            print(f"{result.move_name} restored {result.healing} health.")
+            print(f"{actor_name} used {result.move_name}. It restored {result.healing} health.")
+            self._render_move_result_details(result)
             return
 
-        print(f"{result.move_name} resolved.")
+        print(f"{actor_name} used {result.move_name}. It resolved.")
+        self._render_move_result_details(result)
+
+    @staticmethod
+    def _render_move_result_details(result):
+        if result.resource_spent:
+            print(f"Resource spent: {result.resource_spent}.")
+        if result.statuses_applied:
+            print(f"Statuses applied: {', '.join(result.statuses_applied)}.")
 
     def run(self):
         print(f"\nA {self.foe.display_name} blocks your path!")
@@ -123,7 +146,7 @@ Choose an action:
                     self.player_state,
                     self.combat_state,
                 )
-                self._print_player_move_result(result)
+                self._render_move_result(result, actor=self.player_state)
                 if result.accepted:
                     self._complete_accepted_action(
                         self.player_state,
@@ -255,5 +278,41 @@ Choose an action:
         return random.randint(1, 5) == 1
 
     def print_health(self):
-        print(f"\n{self.player.display_name} health: {self.player_state.health.current}/{self.player_state.health.maximum}")
-        print(f"{self.foe.display_name} health: {self.foe.health.current}/{self.foe.health.maximum}")
+        print(
+            f"\n{self.player.display_name} HP: "
+            f"{self.player_state.health.current}/{self.player_state.health.maximum}"
+        )
+        print(
+            f"{self.player.display_name} Mana: "
+            f"{self.player_state.mana_resource.current}/{self.player_state.mana_resource.maximum}"
+        )
+        print(
+            f"{self.player.display_name} Super: "
+            f"{self.player_state.super_resource.current}/{self.player_state.super_resource.maximum}"
+        )
+        if self.combat_state.is_defending(self.player_state):
+            print(f"{self.player.display_name} Defending: yes")
+
+        print(
+            f"{self.foe.display_name} HP: "
+            f"{self.foe.health.current}/{self.foe.health.maximum}"
+        )
+        if self.foe.mana_resource.current or self.foe.mana_resource.maximum:
+            print(
+                f"{self.foe.display_name} Mana: "
+                f"{self.foe.mana_resource.current}/{self.foe.mana_resource.maximum}"
+            )
+        if self.foe.super_resource.current or self.foe.generates_super:
+            print(
+                f"{self.foe.display_name} Super: "
+                f"{self.foe.super_resource.current}/{self.foe.super_resource.maximum}"
+            )
+        if self.combat_state.is_defending(self.foe):
+            print(f"{self.foe.display_name} Defending: yes")
+
+        if self.combat_state.statuses:
+            print(f"Statuses: {self.combat_state.statuses}")
+        if self.combat_state.buffs:
+            print(f"Buffs: {self.combat_state.buffs}")
+        if self.combat_state.debuffs:
+            print(f"Debuffs: {self.combat_state.debuffs}")

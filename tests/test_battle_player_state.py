@@ -80,6 +80,21 @@ def rejected_result():
     )
 
 
+def result_with(**overrides):
+    values = {
+        "accepted": True,
+        "hit": True,
+        "move_name": "test move",
+        "resource_spent": 0,
+        "damage": 0,
+        "healing": 0,
+        "statuses_applied": (),
+        "reason": None,
+    }
+    values.update(overrides)
+    return MoveResult(**values)
+
+
 class RecordingResolver:
     def __init__(self, *results, defend_results=()):
         self._results = list(results)
@@ -108,6 +123,13 @@ class LegacyMovesFailingEnemyState(EnemyState):
     @property
     def moves(self):
         raise AssertionError("enemy_action must not read legacy foe.moves")
+
+
+class ManaBearingEnemyState(EnemyState):
+    def __init__(self, enemy_definition, tier=0):
+        super().__init__(enemy_definition, tier=tier)
+        self.mana_resource.set_maximum(5)
+        self.mana_resource.restore(3)
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -184,6 +206,57 @@ def test_complete_accepted_action_does_nothing_when_result_is_rejected():
     assert battle.combat_state.is_defending(enemy_state)
 
 
+def test_result_renderer_prints_actual_damage_healing_miss_rejection_resources_and_statuses():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with contextlib.redirect_stdout(output):
+        battle._render_move_result(
+            result_with(move_name="Cut", damage=7),
+            actor=battle.player_state,
+            target=battle.foe,
+        )
+        battle._render_move_result(
+            result_with(move_name="Recover", healing=3),
+            actor=battle.player_state,
+            target=battle.player_state,
+        )
+        battle._render_move_result(
+            result_with(move_name="Whiff", hit=False),
+            actor=battle.foe,
+            target=battle.player_state,
+        )
+        battle._render_move_result(
+            rejected_result(),
+            actor=battle.player_state,
+            target=battle.foe,
+        )
+        battle._render_move_result(
+            result_with(
+                move_name="Spark",
+                resource_spent=4,
+                statuses_applied=("burn", "shock"),
+            ),
+            actor=battle.player_state,
+            target=battle.foe,
+        )
+        battle._render_move_result(
+            result_with(move_name="Defend", hit=False),
+            actor=battle.player_state,
+        )
+
+    text = output.getvalue()
+    assert "Brawler used Cut. It dealt 7 damage." in text
+    assert "Brawler used Recover. It restored 3 health." in text
+    assert "Goblin used Whiff, but missed." in text
+    assert "Brawler used test move, but it failed: rejected." in text
+    assert "Resource spent: 4." in text
+    assert "Statuses applied: burn, shock." in text
+    assert "Brawler used Defend." in text
+    assert "Defend missed" not in text
+    assert "Whiff. It dealt" not in text
+
+
 def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_labels():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
@@ -250,7 +323,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     assert f"1. {super_move.name}" in text
     assert f"[{super_move.resource_type.value} {super_move.resource_cost}]" in text
     assert super_move.description in text
-    assert "test move failed: rejected" in text
+    assert "Brawler used test move, but it failed: rejected." in text
     assert battle.combat_state.turn_count == 1
     assert resolver.calls[0] == {
         "actor": player_state,
@@ -498,6 +571,50 @@ def test_battles_do_not_share_combat_state():
     assert second_battle.combat_state.statuses == {}
 
 
+def test_hud_prints_resources_and_temporary_state_when_relevant():
+    player_state = PlayerState(Brawler())
+    enemy_state = ManaBearingEnemyState(Goblin())
+    battle = Battle(player_state, enemy_state)
+    player_state.mana_resource.spend(2)
+    player_state.super_resource.gain(10)
+    enemy_state.super_resource.gain(20)
+    battle.combat_state.activate_defend(player_state)
+    battle.combat_state.activate_defend(enemy_state)
+    battle.combat_state.statuses["burn"] = 1
+    battle.combat_state.buffs["guard"] = 1
+    battle.combat_state.debuffs["slow"] = 1
+    output = io.StringIO()
+
+    with contextlib.redirect_stdout(output):
+        battle.print_health()
+
+    text = output.getvalue()
+    assert "Brawler HP:" in text
+    assert "Brawler Mana:" in text
+    assert "Brawler Super: 10/100" in text
+    assert "Brawler Defending: yes" in text
+    assert "Goblin HP: 60/60" in text
+    assert "Goblin Mana: 3/5" in text
+    assert "Goblin Super: 20/100" in text
+    assert "Goblin Defending: yes" in text
+    assert "Statuses: {'burn': 1}" in text
+    assert "Buffs: {'guard': 1}" in text
+    assert "Debuffs: {'slow': 1}" in text
+
+
+def test_hud_omits_enemy_mana_and_super_when_not_relevant():
+    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    output = io.StringIO()
+
+    with contextlib.redirect_stdout(output):
+        battle.print_health()
+
+    text = output.getvalue()
+    assert "Goblin HP: 60/60" in text
+    assert "Goblin Mana:" not in text
+    assert "Goblin Super:" not in text
+
+
 def test_enemy_action_routes_authored_combat_move_through_resolver():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
@@ -649,7 +766,9 @@ def test_battle_player_output_uses_canonical_short_identity_when_profile_attache
         battle.heal_player()
 
     text = output.getvalue()
-    assert "Ser Branoc health:" in text
+    assert "Ser Branoc HP:" in text
+    assert "Ser Branoc Mana:" in text
+    assert "Ser Branoc Super:" in text
     assert "Ser Branoc used slash." in text
     assert "Ser Branoc takes a breath" in text
     assert "Brawler health:" not in text
