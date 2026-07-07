@@ -6,8 +6,10 @@ from app.combat.combat_state import CombatState
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.result import MoveResult
+from app.player import scaling
 
 
+BASIS_POINTS = 10_000
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION = 10
 
@@ -214,14 +216,50 @@ def _scaling_value(actor, move):
 
 
 def _apply_damage(actor, target, move, *, combat_state=None):
-    raw_damage = move.power + _scaling_value(actor, move)
+    scaled_power = _scaled_damage_power(actor, move)
     mitigation = _mitigation(target, move.damage_type)
-    normal_damage = max(1, raw_damage - mitigation)
+    normal_damage = max(1, scaled_power - mitigation)
     final_damage = _defended_damage(target, move.damage_type, normal_damage, combat_state)
 
     before = target.health.current
     target.health.take_damage(final_damage)
     return before - target.health.current
+
+
+def _scaled_damage_power(actor, move):
+    output_bonus_bps = _damage_output_bonus_bps(actor, move)
+    return move.power * (BASIS_POINTS + output_bonus_bps) // BASIS_POINTS
+
+
+def _damage_output_bonus_bps(actor, move):
+    bonuses = []
+
+    for attribute in move.scales_with:
+        bonus = _output_bonus_bps_for_attribute(actor, attribute)
+        if bonus is not None:
+            bonuses.append(bonus)
+
+    if not bonuses:
+        return 0
+
+    return sum(bonuses) // len(bonuses)
+
+
+def _output_bonus_bps_for_attribute(actor, attribute):
+    if attribute == ScalingAttribute.STRENGTH:
+        return scaling.physical_output_bonus_bps_from_strength(
+            actor.effective_stat("strength")
+        )
+    if attribute == ScalingAttribute.DEXTERITY:
+        return scaling.physical_output_bonus_bps_from_dexterity(
+            actor.effective_stat("dexterity")
+        )
+    if attribute == ScalingAttribute.INTELLIGENCE:
+        return scaling.magical_output_bonus_bps_from_intelligence(
+            actor.effective_stat("intelligence")
+        )
+
+    return None
 
 
 def _apply_healing(actor, target, move):

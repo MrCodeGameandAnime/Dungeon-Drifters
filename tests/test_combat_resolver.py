@@ -22,7 +22,12 @@ class ScriptedRng:
 
 
 class SimpleCombatant:
-    def __init__(self, moves=(), generates_super=True, can_defend=False):
+    def __init__(
+            self,
+            moves=(),
+            generates_super=True,
+            can_defend=False,
+            effective_stats=None):
         self.display_name = "Simple"
         self.health = PlayerState(Brawler()).health
         self.mana_resource = PlayerState(Brawler()).mana_resource
@@ -30,20 +35,21 @@ class SimpleCombatant:
         self.generates_super = generates_super
         self.can_defend = can_defend
         self._combat_moves = tuple(moves)
-
-    @property
-    def combat_moves(self):
-        return self._combat_moves
-
-    def effective_stat(self, name):
-        return {
+        self._effective_stats = effective_stats or {
             "constitution": 8,
             "spirit": 8,
             "intelligence": 8,
             "strength": 8,
             "dexterity": 8,
             "intuition": 8,
-        }[name]
+        }
+
+    @property
+    def combat_moves(self):
+        return self._combat_moves
+
+    def effective_stat(self, name):
+        return self._effective_stats[name]
 
     def defend_reduction_percent(self, damage_type):
         return 0
@@ -126,8 +132,8 @@ def test_owned_canonical_move_resolves_and_foreign_or_unknown_moves_are_rejected
     assert result.accepted
     assert result.hit
     assert result.move_name == "Crestgrave Reaping"
-    assert result.damage == 27
-    assert target.health.current == 33
+    assert result.damage == 10
+    assert target.health.current == 50
     assert actor.super_resource.current == 10
     assert rng.calls == [(1, 100)]
 
@@ -421,8 +427,8 @@ def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_heali
 
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "Crestgrave Reaping")
 
-    assert result.damage == 27
-    assert target.health.current == 33
+    assert result.damage == 10
+    assert target.health.current == 50
     assert actor.super_resource.current == 100
 
     healer = PlayerState(Brawler())
@@ -495,7 +501,133 @@ def test_accuracy_zero_and_one_hundred_still_roll_exactly_once():
     assert rng.calls == [(1, 100)]
 
 
-def test_scaling_uses_effective_stat_mean_weapon_bonuses_and_does_not_mutate_stats():
+def combatant_with_primary_stat(move, stat_name, value):
+    effective_stats = {
+        "constitution": 1,
+        "spirit": 1,
+        "intelligence": 10,
+        "strength": 10,
+        "dexterity": 10,
+        "intuition": 10,
+    }
+    effective_stats[stat_name] = value
+    return SimpleCombatant(moves=(move,), effective_stats=effective_stats)
+
+
+def no_mitigation_target():
+    return SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        }
+    )
+
+
+def test_damage_output_uses_basis_point_primary_stat_scaling():
+    examples = (
+        (ScalingAttribute.STRENGTH, "strength", 10, 20),
+        (ScalingAttribute.STRENGTH, "strength", 20, 25),
+        (ScalingAttribute.DEXTERITY, "dexterity", 20, 25),
+        (ScalingAttribute.INTELLIGENCE, "intelligence", 20, 25),
+        (ScalingAttribute.STRENGTH, "strength", 5, 17),
+    )
+
+    for attribute, stat_name, stat_value, expected_damage in examples:
+        move = make_move(
+            name=f"{attribute.value} {stat_value}",
+            power=20,
+            scales_with=(attribute,),
+        )
+        actor = combatant_with_primary_stat(move, stat_name, stat_value)
+
+        result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            no_mitigation_target(),
+            move.name,
+        )
+
+        assert result.damage == expected_damage
+
+
+def test_damage_output_averages_supported_scaling_and_ignores_unsupported_attributes():
+    supported_average = make_move(
+        name="supported average",
+        power=20,
+        scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.DEXTERITY),
+    )
+    supported_actor = SimpleCombatant(
+        moves=(supported_average,),
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 20,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            supported_actor,
+            no_mitigation_target(),
+            supported_average.name,
+        ).damage
+        == 22
+    )
+
+    intelligence_and_spirit = make_move(
+        name="intelligence and spirit",
+        power=20,
+        scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.SPIRIT),
+    )
+    intelligence_actor = SimpleCombatant(
+        moves=(intelligence_and_spirit,),
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 20,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+
+    assert (
+        CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            intelligence_actor,
+            no_mitigation_target(),
+            intelligence_and_spirit.name,
+        ).damage
+        == 25
+    )
+
+    for scales_with in (
+            (ScalingAttribute.SPIRIT,),
+            (ScalingAttribute.NONE,),
+    ):
+        move = make_move(
+            name=f"unsupported {scales_with[0].value}",
+            power=20,
+            scales_with=scales_with,
+        )
+        actor = SimpleCombatant(moves=(move,))
+
+        assert (
+            CombatResolver(rng=ScriptedRng(1)).resolve_move(
+                actor,
+                no_mitigation_target(),
+                move.name,
+            ).damage
+            == 20
+        )
+
+
+def test_damage_scaling_uses_effective_stat_weapon_bonuses_and_does_not_mutate_stats():
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
     permanent_before = actor.character.permanent_stats.as_dict()
@@ -519,7 +651,7 @@ def test_scaling_uses_effective_stat_mean_weapon_bonuses_and_does_not_mutate_sta
 
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, hybrid.name)
 
-    assert result.damage == 24
+    assert result.damage == 11
     assert actor.character.permanent_stats.as_dict() == permanent_before
 
     target = EnemyState(Goblin())
@@ -556,10 +688,10 @@ def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
             target,
             "Crestgrave Reaping",
         ).damage
-        == 27
+        == 10
     )
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), magical.name).damage == 15
-    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), hybrid.name).damage == 24
+    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), magical.name).damage == 8
+    assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), hybrid.name).damage == 11
 
     weak = add_move(
         actor,
@@ -605,8 +737,8 @@ def test_non_defended_resolver_results_remain_unchanged_with_optional_combat_sta
         combat_state=CombatState(),
     )
 
-    assert without_state.damage == 27
-    assert with_state.damage == 27
+    assert without_state.damage == 10
+    assert with_state.damage == 10
     assert without_state.hit == with_state.hit
 
 
@@ -657,7 +789,7 @@ def test_defended_damage_uses_player_stat_scaled_reductions_and_minimum_one():
         combat_state=combat_state,
     )
 
-    assert result.damage == 5
+    assert result.damage == 2
 
     magical = make_move(
         name="magic",
@@ -924,8 +1056,8 @@ def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_bra
 
     assert player_result.accepted
     assert enemy_result.accepted
-    assert player_result.damage == 27
-    assert enemy_result.damage == 8
+    assert player_result.damage == 10
+    assert enemy_result.damage == 3
     assert player.super_resource.current == 10
     assert enemy.super_resource.current == 0
 

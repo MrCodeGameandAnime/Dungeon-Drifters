@@ -775,12 +775,12 @@ def test_victory_returns_player():
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 3
+    assert battle.combat_state.turn_count == 5
 
 
 def test_defeat_returns_enemy_and_persists_player_health():
     player_state = PlayerState(Brawler())
-    player_state.health.take_damage(player_state.health.maximum - 5)
+    player_state.health.take_damage(player_state.health.maximum - 3)
     battle = Battle(player_state, EnemyState(Goblin()))
 
     def fake_randint(start, end):
@@ -823,8 +823,8 @@ def test_completed_actions_advance_turn_count():
             return 1
         return end
 
-    with patched_battle(inputs=["attack", "1", "attack", "1", "attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["attack", "4", "attack", "4", "attack", "4", "attack", "4"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 5
+    assert battle.combat_state.turn_count == 7
