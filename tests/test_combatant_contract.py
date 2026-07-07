@@ -43,8 +43,8 @@ def test_shared_inspection_works_without_type_branches():
     enemy_info = inspect_combatant(enemy_state)
 
     assert player_info["display_name"] == "Brawler"
-    assert player_info["health"] == (60, 60)
-    assert player_info["mana"] == (10, 10)
+    assert player_info["health"] == (116, 116)
+    assert player_info["mana"] == (46, 46)
     assert player_info["super"] == (0, 100)
     assert player_info["generates_super"] is True
     assert player_info["can_defend"] is True

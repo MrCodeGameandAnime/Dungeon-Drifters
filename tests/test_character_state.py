@@ -297,8 +297,6 @@ def test_base_character_accepts_valid_progressed_stat_totals_above_sixty():
         strength=20,
         dexterity=20,
         intuition=20,
-        hp=100,
-        mana=50,
         name="Progressed Test Character",
         moves={1: "test strike"},
     )
@@ -307,6 +305,82 @@ def test_base_character_accepts_valid_progressed_stat_totals_above_sixty():
     assert character.strength == 20
     assert character.spirit == 20
     assert character.intuition == 20
+    assert character.health.maximum == 140
+    assert character.mana_resource.maximum == 70
+
+
+def test_character_resources_derive_from_starting_constitution_spirit_and_level():
+    expected = {
+        Brawler: (116, 46),
+        BlackMage: (91, 56),
+        RogueArcher: (94, 47),
+        Monk: (100, 50),
+    }
+
+    for class_type, (expected_hp, expected_mana) in expected.items():
+        character = class_type()
+
+        assert character.health.maximum == expected_hp
+        assert character.health.current == expected_hp
+        assert character.mana_resource.maximum == expected_mana
+        assert character.mana_resource.current == expected_mana
+
+
+def test_direct_level_mutation_does_not_recalculate_resource_maximums():
+    character = BlackMage()
+
+    character.level = 3
+
+    assert character.level_state.current == 3
+    assert character.health.maximum == 91
+    assert character.mana_resource.maximum == 56
+
+
+def test_explicit_resource_recalculation_updates_maximums_without_refill():
+    character = BlackMage()
+    character.health.take_damage(7)
+    character.mana_resource.spend(8)
+    character.level = 3
+
+    character.recalculate_resource_maximums(increase_current=False)
+
+    assert character.health.maximum == 99
+    assert character.health.current == 84
+    assert character.mana_resource.maximum == 58
+    assert character.mana_resource.current == 48
+
+
+def test_explicit_resource_recalculation_can_increase_current_by_positive_delta():
+    character = BlackMage()
+    character.health.take_damage(7)
+    character.mana_resource.spend(8)
+    character.level = 3
+
+    character.recalculate_resource_maximums(increase_current=True)
+
+    assert character.health.maximum == 99
+    assert character.health.current == 92
+    assert character.mana_resource.maximum == 58
+    assert character.mana_resource.current == 50
+
+
+def test_stat_mutation_does_not_recalculate_until_explicitly_requested():
+    character = BlackMage()
+    character.mana_resource.spend(10)
+
+    character.constitution = 10
+    character.spirit = 10
+
+    assert character.health.maximum == 91
+    assert character.mana_resource.maximum == 56
+    assert character.mana_resource.current == 46
+
+    character.recalculate_resource_maximums()
+
+    assert character.health.maximum == 100
+    assert character.health.current == 91
+    assert character.mana_resource.maximum == 50
+    assert character.mana_resource.current == 46
 
 
 def test_permanent_stats_validation_and_mutation():

@@ -13,8 +13,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 10,
             "intuition": 10,
         },
-        "hp": 60,
-        "mana": 10,
+        "hp": 116,
+        "mana": 46,
         "name": "Brawler",
         "moves": {
             1: "Crestgrave Reaping",
@@ -105,8 +105,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 8,
             "intuition": 12,
         },
-        "hp": 30,
-        "mana": 70,
+        "hp": 91,
+        "mana": 56,
         "name": "Black Mage",
         "moves": {
             1: "Scepter Sweep",
@@ -197,8 +197,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 15,
             "intuition": 14,
         },
-        "hp": 45,
-        "mana": 20,
+        "hp": 94,
+        "mana": 47,
         "name": "Rogue Archer",
         "moves": {
             1: "Mournpoint Verdict",
@@ -289,8 +289,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 12,
             "intuition": 8,
         },
-        "hp": 60,
-        "mana": 20,
+        "hp": 100,
+        "mana": 50,
         "name": "Monk",
         "moves": {
             1: "Bring the Horse to Water",

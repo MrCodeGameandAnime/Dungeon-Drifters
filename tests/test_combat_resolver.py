@@ -346,13 +346,13 @@ def test_mana_spending_affordability_and_miss_behavior():
     assert result.accepted
     assert not result.hit
     assert result.resource_spent == 3
-    assert actor.mana_resource.current == 7
+    assert actor.mana_resource.current == 43
     assert target.health.current == target.health.maximum
     assert actor.super_resource.current == 10
 
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
-    actor.mana_resource.spend(8)
+    actor.mana_resource.spend(44)
     rng = ScriptedRng(1)
 
     result = CombatResolver(rng=rng).resolve_move(actor, target, "Ironwake Dismemberment")
