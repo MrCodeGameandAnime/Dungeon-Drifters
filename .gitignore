@@ -39,6 +39,7 @@ qodana.sarif.json
 # Local backups and archives
 backup/
 update info/
+.codex-remote-attachments/
 *.zip
 *.tar
 *.tar.gz
