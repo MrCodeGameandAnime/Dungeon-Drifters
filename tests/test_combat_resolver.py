@@ -354,7 +354,7 @@ def test_mana_spending_affordability_and_miss_behavior():
     assert result.resource_spent == 5
     assert actor.mana_resource.current == 41
     assert target.health.current == target.health.maximum
-    assert actor.super_resource.current == 10
+    assert actor.super_resource.current == 0
 
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
@@ -420,7 +420,7 @@ def test_super_move_does_not_gain_non_super_action_bonus():
     assert actor.super_resource.current == 0
 
 
-def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_healing():
+def test_super_generation_clamps_occurs_after_landed_damage_hit():
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
     actor.super_resource.gain(95)
@@ -431,7 +431,10 @@ def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_heali
     assert target.health.current == 50
     assert actor.super_resource.current == 100
 
+
+def test_healing_action_does_not_generate_super():
     healer = PlayerState(Brawler())
+    healer.health.take_damage(10)
     heal = add_move(
         healer,
         make_move(
@@ -448,8 +451,8 @@ def test_super_generation_clamps_occurs_after_resolution_and_includes_zero_heali
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(healer, healer, heal.name)
 
     assert result.accepted
-    assert result.healing == 0
-    assert healer.super_resource.current == 10
+    assert result.healing == 10
+    assert healer.super_resource.current == 0
 
 
 def test_battle_ending_damage_still_generates_super():
@@ -958,7 +961,7 @@ def test_rejected_action_does_not_consume_defend_or_advance_turn():
     assert combat_state.turn_count == 0
 
 
-def test_resolve_defend_validation_mutation_and_player_super_gain():
+def test_resolve_defend_validation_mutation_and_no_super_gain():
     actor = PlayerState(Brawler())
     combat_state = CombatState()
 
@@ -974,7 +977,7 @@ def test_resolve_defend_validation_mutation_and_player_super_gain():
     assert result.reason is None
     assert combat_state.is_defending(actor)
     assert combat_state.turn_count == 0
-    assert actor.super_resource.current == 10
+    assert actor.super_resource.current == 0
 
 
 def test_rejected_defend_does_not_mutate_state_or_gain_super():
@@ -1001,7 +1004,7 @@ def test_rejected_defend_does_not_mutate_state_or_gain_super():
     assert actor.super_resource.current == 0
 
 
-def test_enemy_defend_capability_and_super_generation_are_explicit():
+def test_enemy_defend_capability_does_not_generate_super():
     goblin = EnemyState(Goblin())
     combat_state = CombatState()
 
@@ -1040,7 +1043,7 @@ def test_enemy_defend_capability_and_super_generation_are_explicit():
     )
 
     assert result.accepted
-    assert defender_with_super.super_resource.current == 10
+    assert defender_with_super.super_resource.current == 0
 
 
 def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_branches():

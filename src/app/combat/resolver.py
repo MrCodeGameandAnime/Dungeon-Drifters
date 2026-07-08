@@ -11,7 +11,7 @@ from app.player import scaling
 
 BASIS_POINTS = 10_000
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
-SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION = 10
+SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
 
 class CombatResolver:
@@ -63,8 +63,8 @@ class CombatResolver:
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
-        if move.resource_type != ResourceType.SUPER:
-            _grant_super_for_accepted_non_super_action(actor)
+        if hit and move.kind == MoveKind.DAMAGE and move.resource_type != ResourceType.SUPER:
+            _grant_super_for_landed_non_super_damage(actor)
 
         return MoveResult(
             accepted=True,
@@ -88,7 +88,6 @@ class CombatResolver:
             return _rejected("Defend", "defend_not_available")
 
         combat_state.activate_defend(actor)
-        _grant_super_for_accepted_non_super_action(actor)
 
         return MoveResult(
             accepted=True,
@@ -294,6 +293,6 @@ def _defended_damage(target, damage_type, normal_damage, combat_state):
     return max(1, normal_damage - reduction_amount)
 
 
-def _grant_super_for_accepted_non_super_action(actor):
+def _grant_super_for_landed_non_super_damage(actor):
     if actor.generates_super:
-        actor.super_resource.gain(SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION)
+        actor.super_resource.gain(SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE)
