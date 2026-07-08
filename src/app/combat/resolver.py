@@ -322,7 +322,15 @@ def _defended_damage(target, damage_type, normal_damage, combat_state):
 
 def _grant_super_for_landed_non_super_damage(actor):
     if actor.generates_super:
-        actor.super_resource.gain(SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE)
+        bonus_bps = scaling.super_gain_bonus_bps_from_intuition(
+            actor.effective_stat("intuition")
+        )
+        gained_super = (
+            SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE
+            * (BASIS_POINTS + bonus_bps)
+            // BASIS_POINTS
+        )
+        actor.super_resource.gain(gained_super)
 
 
 def _dexterity_accuracy_bonus_percent(actor):

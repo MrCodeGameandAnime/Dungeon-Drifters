@@ -432,6 +432,43 @@ def test_super_generation_clamps_occurs_after_landed_damage_hit():
     assert actor.super_resource.current == 100
 
 
+def test_intuition_scales_super_gain_from_landed_non_super_damage_hits():
+    examples = (
+        (10, 10),
+        (20, 11),
+        (40, 12),
+        (60, 14),
+        (100, 16),
+    )
+
+    for intuition, expected_gain in examples:
+        move = make_move(
+            name=f"intuition {intuition}",
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        actor = SimpleCombatant(
+            moves=(move,),
+            effective_stats={
+                "constitution": 8,
+                "spirit": 8,
+                "intelligence": 8,
+                "strength": 8,
+                "dexterity": 10,
+                "intuition": intuition,
+            },
+        )
+
+        result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            no_mitigation_target(),
+            move.name,
+        )
+
+        assert result.accepted
+        assert result.hit
+        assert actor.super_resource.current == expected_gain
+
+
 def test_healing_action_does_not_generate_super():
     healer = PlayerState(Brawler())
     healer.health.take_damage(10)
@@ -456,11 +493,21 @@ def test_healing_action_does_not_generate_super():
 
 
 def test_battle_ending_damage_still_generates_super():
-    actor = PlayerState(Brawler())
+    actor = SimpleCombatant(
+        moves=(make_move(name="battle ending"),),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
     target = EnemyState(Goblin())
     target.health.take_damage(59)
 
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "Crestgrave Reaping")
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "battle ending")
 
     assert result.damage == 1
     assert not target.is_alive()
@@ -1421,7 +1468,36 @@ def test_enemy_with_explicit_super_capability_generates_super():
 
     assert result.accepted
     assert actor.generates_super
-    assert actor.super_resource.current == 10
+    assert actor.super_resource.current == 9
+
+
+def test_super_capable_enemy_super_gain_scales_with_intuition():
+    move = make_move(
+        name="super gain strike",
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    actor = SimpleCombatant(
+        moves=(move,),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 60,
+        },
+    )
+    target = no_mitigation_target()
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        move.name,
+    )
+
+    assert result.accepted
+    assert actor.generates_super
+    assert actor.super_resource.current == 14
 
 
 def test_every_ordinary_goblin_move_is_resolver_supported_without_filtering():
