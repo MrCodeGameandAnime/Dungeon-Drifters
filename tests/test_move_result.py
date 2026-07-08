@@ -16,6 +16,7 @@ def create_result(**overrides):
         "healing": 0,
         "statuses_applied": ("burn",),
         "reason": None,
+        "critical": False,
     }
     values.update(overrides)
     return MoveResult(**values)
@@ -26,6 +27,7 @@ def test_valid_move_result_construction():
 
     assert result.accepted is True
     assert result.hit is True
+    assert result.critical is False
     assert result.move_name == "slash"
     assert result.statuses_applied == ("burn",)
     assert result.reason is None
@@ -43,6 +45,8 @@ def test_boolean_fields_must_be_booleans():
         create_result(accepted=1)
     with pytest.raises(TypeError):
         create_result(hit="yes")
+    with pytest.raises(TypeError):
+        create_result(critical="yes")
 
 
 def test_numeric_fields_are_nonnegative_integers_and_reject_booleans():
@@ -85,3 +89,4 @@ def test_structural_contract_allows_future_valid_action_shapes():
     create_result(accepted=True, hit=False, resource_spent=3, damage=0, healing=0, statuses_applied=())
     create_result(accepted=True, hit=True, resource_spent=2, damage=0, healing=0, statuses_applied=("stun",))
     create_result(accepted=True, hit=True, resource_spent=4, damage=5, healing=5)
+    create_result(accepted=True, hit=True, resource_spent=4, damage=7, healing=0, critical=True)

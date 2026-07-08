@@ -18,7 +18,9 @@ class ScriptedRng:
 
     def randint(self, start, end):
         self.calls.append((start, end))
-        return self.rolls.pop(0)
+        if self.rolls:
+            return self.rolls.pop(0)
+        return end
 
 
 class SimpleCombatant:
@@ -135,7 +137,7 @@ def test_owned_canonical_move_resolves_and_foreign_or_unknown_moves_are_rejected
     assert result.damage == 11
     assert target.health.current == 49
     assert actor.super_resource.current == 10
-    assert rng.calls == [(1, 100)]
+    assert rng.calls == [(1, 100), (1, 100)]
 
     foreign_move_name = PlayerState(BlackMage()).combat_moves[0].name
     actor_mana = actor.mana_resource.current
@@ -514,6 +516,160 @@ def test_battle_ending_damage_still_generates_super():
     assert actor.super_resource.current == 10
 
 
+def test_intuition_crit_bonus_applies_only_to_landed_damage_moves():
+    examples = (
+        (10, 0, 1, False, 10),
+        (20, 2, 2, True, 11),
+        (20, 2, 3, False, 11),
+        (40, 6, 6, True, 12),
+        (100, 15, 15, True, 16),
+    )
+
+    for intuition, expected_crit_chance, crit_roll, expected_critical, expected_super in examples:
+        move = make_move(
+            name=f"crit intuition {intuition}",
+            power=20,
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        actor = SimpleCombatant(
+            moves=(move,),
+            effective_stats={
+                "constitution": 8,
+                "spirit": 8,
+                "intelligence": 8,
+                "strength": 8,
+                "dexterity": 10,
+                "intuition": intuition,
+            },
+        )
+        target = no_mitigation_target()
+
+        result = CombatResolver(rng=ScriptedRng(1, crit_roll)).resolve_move(
+            actor,
+            target,
+            move.name,
+        )
+
+        expected_damage = 30 if expected_critical else 20
+
+        assert result.accepted
+        assert result.hit
+        assert result.critical is expected_critical
+        assert result.damage == expected_damage
+        assert target.health.current == target.health.maximum - expected_damage
+        assert actor.super_resource.current == expected_super
+        assert expected_crit_chance >= 0
+
+
+def test_critical_damage_uses_multiplier_and_super_damage_can_crit():
+    actor = SimpleCombatant(
+        moves=(
+            make_move(
+                name="super crit",
+                resource_type=ResourceType.SUPER,
+                resource_cost=100,
+                power=20,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+        ),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 100,
+        },
+    )
+    actor.super_resource.gain(100)
+    target = no_mitigation_target()
+
+    result = CombatResolver(rng=ScriptedRng(1, 15)).resolve_move(
+        actor,
+        target,
+        "super crit",
+    )
+
+    assert result.accepted
+    assert result.hit
+    assert result.critical is True
+    assert result.damage == 30
+    assert target.health.current == target.health.maximum - 30
+    assert actor.super_resource.current == 0
+
+
+def test_missed_damage_move_does_not_roll_crit():
+    actor = SimpleCombatant(
+        moves=(make_move(name="misses", accuracy=5, scales_with=(ScalingAttribute.NONE,)),),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 100,
+        },
+    )
+    target = no_mitigation_target()
+    rng = ScriptedRng(100)
+
+    result = CombatResolver(rng=rng).resolve_move(actor, target, "misses")
+
+    assert result.accepted
+    assert not result.hit
+    assert result.critical is False
+    assert result.damage == 0
+    assert rng.calls == [(1, 100)]
+
+
+def test_healing_defend_and_rejected_actions_do_not_roll_crit():
+    heal_actor = SimpleCombatant(
+        moves=(
+            make_move(
+                name="heal",
+                kind=MoveKind.HEALING,
+                damage_type=DamageType.HEALING,
+                target=TargetType.SELF,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+        ),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 100,
+        },
+        can_defend=True,
+    )
+    heal_actor.health.take_damage(10)
+    heal_rng = ScriptedRng(1)
+
+    healing = CombatResolver(rng=heal_rng).resolve_move(heal_actor, heal_actor, "heal")
+
+    assert healing.accepted
+    assert healing.critical is False
+    assert heal_rng.calls == [(1, 100)]
+
+    combat_state = CombatState()
+    defend_result = CombatResolver(rng=ScriptedRng(1)).resolve_defend(heal_actor, combat_state)
+
+    assert defend_result.accepted
+    assert defend_result.critical is False
+
+    rejected_rng = ScriptedRng(1)
+    rejected = CombatResolver(rng=rejected_rng).resolve_move(
+        heal_actor,
+        no_mitigation_target(),
+        "missing",
+    )
+
+    assert not rejected.accepted
+    assert rejected.critical is False
+    assert rejected_rng.calls == []
+
+
 def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     hit_actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
@@ -522,7 +678,7 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     result = CombatResolver(rng=rng).resolve_move(hit_actor, target, "Crestgrave Reaping")
 
     assert result.hit
-    assert rng.calls == [(1, 100)]
+    assert rng.calls == [(1, 100), (1, 100)]
 
     miss_actor = PlayerState(Brawler())
     rng = ScriptedRng(93)
@@ -534,7 +690,7 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     )
 
     assert result.hit
-    assert rng.calls == [(1, 100)]
+    assert rng.calls == [(1, 100), (1, 100)]
 
 
 def test_dexterity_accuracy_and_dodge_adjust_final_hit_chance():
@@ -728,11 +884,11 @@ def test_accuracy_zero_and_one_hundred_still_roll_exactly_once():
 
     rng = ScriptedRng(95)
     assert CombatResolver(rng=rng).resolve_move(actor, EnemyState(Goblin()), certain.name).hit
-    assert rng.calls == [(1, 100)]
+    assert rng.calls == [(1, 100), (1, 100)]
 
     rng = ScriptedRng(1)
     assert CombatResolver(rng=rng).resolve_move(actor, EnemyState(Goblin()), impossible.name).hit
-    assert rng.calls == [(1, 100)]
+    assert rng.calls == [(1, 100), (1, 100)]
 
 
 def combatant_with_primary_stat(move, stat_name, value):

@@ -12,6 +12,9 @@ from app.player import scaling
 BASIS_POINTS = 10_000
 MAX_ORDINARY_HIT_CHANCE = 95
 MIN_ORDINARY_HIT_CHANCE = 5
+BASE_ORDINARY_CRIT_CHANCE = 0
+MAX_ORDINARY_CRIT_CHANCE = 35
+CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
@@ -59,9 +62,17 @@ class CombatResolver:
 
         damage = 0
         healing = 0
+        critical = False
         if hit:
             if move.kind == MoveKind.DAMAGE:
-                damage = _apply_damage(actor, target, move, combat_state=combat_state)
+                critical = _rolled_critical_hit(actor, self.rng)
+                damage = _apply_damage(
+                    actor,
+                    target,
+                    move,
+                    combat_state=combat_state,
+                    critical=critical,
+                )
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
@@ -77,6 +88,7 @@ class CombatResolver:
             healing=healing,
             statuses_applied=(),
             reason=None,
+            critical=critical,
         )
 
     def resolve_defend(self, actor, combat_state):
@@ -100,6 +112,7 @@ class CombatResolver:
             healing=0,
             statuses_applied=(),
             reason=None,
+            critical=False,
         )
 
 
@@ -113,6 +126,7 @@ def _rejected(move_name, reason):
         healing=0,
         statuses_applied=(),
         reason=reason,
+        critical=False,
     )
 
 
@@ -216,7 +230,21 @@ def _scaling_value(actor, move):
     return sum(values) // len(values)
 
 
-def _apply_damage(actor, target, move, *, combat_state=None):
+def _apply_damage(actor, target, move, *, combat_state=None, critical=False):
+    final_damage = _landed_damage(
+        actor,
+        target,
+        move,
+        combat_state=combat_state,
+        critical=critical,
+    )
+
+    before = target.health.current
+    target.health.take_damage(final_damage)
+    return before - target.health.current
+
+
+def _landed_damage(actor, target, move, *, combat_state=None, critical=False):
     scaled_power = _scaled_damage_power(actor, move)
     mitigation = _mitigation(target, move.damage_type)
     normal_damage = max(1, scaled_power - mitigation)
@@ -231,10 +259,13 @@ def _apply_damage(actor, target, move, *, combat_state=None):
         damage_after_strength_negation,
         combat_state,
     )
+    if critical:
+        return max(
+            1,
+            final_damage * CRITICAL_DAMAGE_MULTIPLIER_PERCENT // 100,
+        )
 
-    before = target.health.current
-    target.health.take_damage(final_damage)
-    return before - target.health.current
+    return final_damage
 
 
 def _scaled_damage_power(actor, move):
@@ -353,3 +384,17 @@ def _final_hit_chance(actor, target, move):
     )
     final_hit_chance = min(MAX_ORDINARY_HIT_CHANCE, raw_hit_chance)
     return max(MIN_ORDINARY_HIT_CHANCE, final_hit_chance)
+
+
+def _final_crit_chance(actor):
+    raw_crit_chance = (
+        BASE_ORDINARY_CRIT_CHANCE
+        + scaling.crit_bonus_bps_from_intuition(
+            actor.effective_stat("intuition")
+        ) // 100
+    )
+    return min(MAX_ORDINARY_CRIT_CHANCE, raw_crit_chance)
+
+
+def _rolled_critical_hit(actor, rng):
+    return rng.randint(1, 100) <= _final_crit_chance(actor)
