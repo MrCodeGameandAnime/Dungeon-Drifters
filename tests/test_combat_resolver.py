@@ -132,8 +132,8 @@ def test_owned_canonical_move_resolves_and_foreign_or_unknown_moves_are_rejected
     assert result.accepted
     assert result.hit
     assert result.move_name == "Crestgrave Reaping"
-    assert result.damage == 10
-    assert target.health.current == 50
+    assert result.damage == 11
+    assert target.health.current == 49
     assert actor.super_resource.current == 10
     assert rng.calls == [(1, 100)]
 
@@ -427,8 +427,8 @@ def test_super_generation_clamps_occurs_after_landed_damage_hit():
 
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "Crestgrave Reaping")
 
-    assert result.damage == 10
-    assert target.health.current == 50
+    assert result.damage == 11
+    assert target.health.current == 49
     assert actor.super_resource.current == 100
 
 
@@ -660,7 +660,7 @@ def test_damage_scaling_uses_effective_stat_weapon_bonuses_and_does_not_mutate_s
     target = EnemyState(Goblin())
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, no_scale.name)
 
-    assert result.damage == 10
+    assert result.damage == 11
 
 
 def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
@@ -691,7 +691,7 @@ def test_damage_formulas_for_physical_magical_hybrid_minimum_and_overkill():
             target,
             "Crestgrave Reaping",
         ).damage
-        == 10
+        == 11
     )
     assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), magical.name).damage == 8
     assert CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, EnemyState(Goblin()), hybrid.name).damage == 11
@@ -740,9 +740,115 @@ def test_non_defended_resolver_results_remain_unchanged_with_optional_combat_sta
         combat_state=CombatState(),
     )
 
-    assert without_state.damage == 10
-    assert with_state.damage == 10
+    assert without_state.damage == 11
+    assert with_state.damage == 11
     assert without_state.hit == with_state.hit
+
+
+def test_strength_physical_negation_applies_only_to_incoming_physical_damage():
+    actor = SimpleCombatant(
+        moves=(
+            make_move(
+                name="physical",
+                power=20,
+                damage_type=DamageType.PHYSICAL,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+            make_move(
+                name="magical",
+                power=20,
+                damage_type=DamageType.MAGICAL,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+        ),
+    )
+
+    examples = (
+        (10, 20),
+        (20, 19),
+        (40, 17),
+        (100, 14),
+    )
+
+    for strength, expected_physical_damage in examples:
+        target = SimpleCombatant(
+            effective_stats={
+                "constitution": 1,
+                "spirit": 1,
+                "intelligence": 8,
+                "strength": strength,
+                "dexterity": 8,
+                "intuition": 8,
+            },
+        )
+
+        physical_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            "physical",
+        )
+        magical_result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+            actor,
+            target,
+            "magical",
+        )
+
+        assert physical_result.damage == expected_physical_damage
+        assert magical_result.damage == 20
+
+
+def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract():
+    actor = SimpleCombatant(
+        moves=(
+            make_move(
+                name="physical",
+                power=20,
+                damage_type=DamageType.PHYSICAL,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+        ),
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 8,
+            "strength": 3,
+            "dexterity": 8,
+            "intuition": 8,
+        },
+    )
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "physical")
+
+    assert result.damage == 21
+
+
+def test_strength_physical_negation_preserves_minimum_landed_damage_of_one():
+    actor = SimpleCombatant(
+        moves=(
+            make_move(
+                name="tap",
+                power=0,
+                damage_type=DamageType.PHYSICAL,
+                scales_with=(ScalingAttribute.NONE,),
+            ),
+        ),
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 100,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 100,
+            "dexterity": 8,
+            "intuition": 8,
+        },
+    )
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "tap")
+
+    assert result.damage == 1
 
 
 def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount():
@@ -750,7 +856,7 @@ def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount
         (DamageType.PHYSICAL, 5, 3),
         (DamageType.MAGICAL, 5, 3),
         (DamageType.HYBRID, 5, 4),
-        (DamageType.PHYSICAL, 20, 10),
+        (DamageType.PHYSICAL, 20, 11),
         (DamageType.MAGICAL, 20, 12),
         (DamageType.HYBRID, 20, 14),
     )
@@ -777,6 +883,37 @@ def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount
         )
 
         assert result.damage == expected_damage
+
+
+def test_defend_still_reduces_damage_after_strength_negation():
+    move = make_move(
+        name="physical 20",
+        power=20,
+        damage_type=DamageType.PHYSICAL,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    actor = SimpleCombatant(moves=(move,))
+    target = create_enemy_state_with_capabilities(
+        capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.DEFEND),
+    )
+
+    without_defend = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        move.name,
+    )
+
+    combat_state = CombatState()
+    combat_state.activate_defend(target)
+    with_defend = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=combat_state,
+    )
+
+    assert without_defend.damage == 21
+    assert with_defend.damage == 11
 
 
 def test_defended_damage_uses_player_stat_scaled_reductions_and_minimum_one():
@@ -1059,7 +1196,7 @@ def test_equivalent_player_and_enemy_runtime_combatants_resolve_without_type_bra
 
     assert player_result.accepted
     assert enemy_result.accepted
-    assert player_result.damage == 10
+    assert player_result.damage == 11
     assert enemy_result.damage == 3
     assert player.super_resource.current == 10
     assert enemy.super_resource.current == 0

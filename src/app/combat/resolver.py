@@ -218,7 +218,17 @@ def _apply_damage(actor, target, move, *, combat_state=None):
     scaled_power = _scaled_damage_power(actor, move)
     mitigation = _mitigation(target, move.damage_type)
     normal_damage = max(1, scaled_power - mitigation)
-    final_damage = _defended_damage(target, move.damage_type, normal_damage, combat_state)
+    damage_after_strength_negation = _strength_negated_damage(
+        target,
+        move.damage_type,
+        normal_damage,
+    )
+    final_damage = _defended_damage(
+        target,
+        move.damage_type,
+        damage_after_strength_negation,
+        combat_state,
+    )
 
     before = target.health.current
     target.health.take_damage(final_damage)
@@ -282,6 +292,21 @@ def _mitigation(target, damage_type):
         defense_value = 0
 
     return defense_value // 4
+
+
+def _strength_physical_negation_bps(target, damage_type):
+    if damage_type != DamageType.PHYSICAL:
+        return 0
+
+    return scaling.physical_negation_bps_from_strength(
+        target.effective_stat("strength")
+    )
+
+
+def _strength_negated_damage(target, damage_type, normal_damage):
+    negation_bps = _strength_physical_negation_bps(target, damage_type)
+    reduction_amount = normal_damage * negation_bps // BASIS_POINTS
+    return max(1, normal_damage - reduction_amount)
 
 
 def _defended_damage(target, damage_type, normal_damage, combat_state):
