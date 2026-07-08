@@ -86,7 +86,11 @@ class Battle:
             self._render_move_result_details(result)
             return
         if result.damage:
-            print(f"{actor_name} used {result.move_name}. It dealt {result.damage} damage.")
+            critical_text = " Critical hit!" if result.critical else ""
+            print(
+                f"{actor_name} used {result.move_name}."
+                f"{critical_text} It dealt {result.damage} damage."
+            )
             self._render_move_result_details(result)
             return
         if result.healing:

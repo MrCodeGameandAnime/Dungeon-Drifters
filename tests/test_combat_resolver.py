@@ -7,7 +7,7 @@ from app.enemies.state import EnemyState
 from app.combat.combat_state import CombatState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
-from app.player.character import BlackMage, Brawler
+from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 
 
@@ -1670,6 +1670,39 @@ def test_every_ordinary_goblin_move_is_resolver_supported_without_filtering():
 
         assert result.accepted
         assert result.reason is None
+
+
+def test_all_four_drifter_structured_moves_are_resolver_compatible():
+    characters = (
+        Brawler,
+        BlackMage,
+        RogueArcher,
+        Monk,
+    )
+
+    for character_type in characters:
+        for prototype_move in PlayerState(character_type()).combat_moves:
+            actor = PlayerState(character_type())
+            target = (
+                actor
+                if prototype_move.target == TargetType.SELF
+                else EnemyState(Goblin())
+            )
+
+            if prototype_move.resource_type == ResourceType.SUPER:
+                actor.super_resource.gain(actor.super_resource.maximum)
+
+            result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
+                actor,
+                target,
+                prototype_move.name,
+            )
+
+            assert result.accepted, (
+                f"{character_type.__name__} move {prototype_move.name!r} "
+                f"should resolve through CombatResolver"
+            )
+            assert result.reason is None
 
 
 def test_resolver_does_not_print_or_read_input(monkeypatch):
