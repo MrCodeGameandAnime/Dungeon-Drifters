@@ -66,8 +66,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "Ironwake Dismemberment",
                 "kind": "damage",
-                "resource_type": "mana",
-                "resource_cost": 3,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 14,
                 "scales_with": ["strength"],
                 "accuracy": 82,

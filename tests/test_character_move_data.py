@@ -139,7 +139,7 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
         ResourceType.NONE,
         ResourceType.MANA,
         ResourceType.MANA,
-        ResourceType.MANA,
+        ResourceType.NONE,
         ResourceType.SUPER,
     ]
     assert brawler.combat_moves[-1].resource_cost == 100
@@ -192,7 +192,7 @@ def test_loadout_resource_types_follow_authored_class_resources():
         ResourceType.NONE,
         ResourceType.MANA,
         ResourceType.MANA,
-        ResourceType.MANA,
+        ResourceType.NONE,
         ResourceType.SUPER,
     ]
     assert [move.resource_type for move in black_mage.combat_moves] == [

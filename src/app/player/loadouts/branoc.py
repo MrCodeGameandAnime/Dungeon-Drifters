@@ -67,8 +67,8 @@ def create_combat_moves():
         Move(
             name='Ironwake Dismemberment',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.MANA,
-            resource_cost=3,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=14,
             scales_with=(ScalingAttribute.STRENGTH,),
             accuracy=82,
