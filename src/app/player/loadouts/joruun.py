@@ -2,6 +2,17 @@ from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAtt
 from app.items.weapon import SkyNeedle
 
 
+def create_starting_stats():
+    return {
+        "constitution": 10,
+        "spirit": 10,
+        "intelligence": 13,
+        "strength": 7,
+        "dexterity": 12,
+        "intuition": 8,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Bring the Horse to Water',

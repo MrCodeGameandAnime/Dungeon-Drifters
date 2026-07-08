@@ -1,5 +1,6 @@
 from app.player import progression
 from app.player import resources
+from app.player import scaling
 from app.player import stats
 from app.player.loadouts import azhvielle
 from app.player.loadouts import branoc
@@ -16,8 +17,6 @@ class Character:
             strength,
             dexterity,
             intuition,
-            hp,
-            mana,
             name,
             moves,
             combat_moves=None,
@@ -38,11 +37,50 @@ class Character:
         self.class_mechanic = dict(class_mechanic or {})
         self.starting_equipment = dict(starting_equipment or {})
         self.profile = None
-        self.stats = stats.Stats(self.permanent_stats)
-        self.health = resources.Health(maximum=hp)
-        self.mana_resource = resources.Mana(maximum=mana)
         self.level_state = progression.Level()
+        self.stats = stats.Stats(self.permanent_stats)
+        self.health = resources.Health(
+            maximum=scaling.maximum_hp_from_constitution(
+                self.permanent_stats.constitution,
+                level=self.level_state.current,
+            )
+        )
+        self.mana_resource = resources.Mana(
+            maximum=scaling.maximum_mana_from_spirit(
+                self.permanent_stats.spirit,
+                level=self.level_state.current,
+            )
+        )
         self.exp_state = progression.Exp(self.level_state)
+
+    def recalculate_resource_maximums(self, increase_current=False):
+        new_health_maximum = scaling.maximum_hp_from_constitution(
+            self.permanent_stats.constitution,
+            level=self.level_state.current,
+        )
+        new_mana_maximum = scaling.maximum_mana_from_spirit(
+            self.permanent_stats.spirit,
+            level=self.level_state.current,
+        )
+
+        self._set_resource_maximum(
+            self.health,
+            new_health_maximum,
+            increase_current=increase_current,
+        )
+        self._set_resource_maximum(
+            self.mana_resource,
+            new_mana_maximum,
+            increase_current=increase_current,
+        )
+
+    @staticmethod
+    def _set_resource_maximum(resource, new_maximum, *, increase_current):
+        delta = new_maximum - resource.maximum
+        if delta > 0:
+            resource.increase_maximum(delta, increase_current=increase_current)
+        elif delta < 0:
+            resource.decrease_maximum(-delta)
 
     @property
     def constitution(self):
@@ -151,18 +189,11 @@ def _validate_level_one_stat_total(stat_values):
 
 class Brawler(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 14,
-            "spirit": 6,
-            "intelligence": 5,
-            "strength": 15,
-            "dexterity": 10,
-            "intuition": 10,
-        })
+        stat_values = _validate_level_one_stat_total(
+            branoc.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
-            hp=60,
-            mana=10,
             name="Brawler",
             moves=branoc.create_legacy_moves(),
             combat_moves=branoc.create_combat_moves(),
@@ -172,18 +203,11 @@ class Brawler(Character):
 
 class BlackMage(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 7,
-            "spirit": 13,
-            "intelligence": 15,
-            "strength": 5,
-            "dexterity": 8,
-            "intuition": 12,
-        })
+        stat_values = _validate_level_one_stat_total(
+            azhvielle.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
-            hp=30,
-            mana=70,
             name="Black Mage",
             moves=azhvielle.create_legacy_moves(),
             combat_moves=azhvielle.create_combat_moves(),
@@ -193,18 +217,11 @@ class BlackMage(Character):
 
 class RogueArcher(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 8,
-            "spirit": 7,
-            "intelligence": 10,
-            "strength": 6,
-            "dexterity": 15,
-            "intuition": 14,
-        })
+        stat_values = _validate_level_one_stat_total(
+            zhaivra.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
-            hp=45,
-            mana=20,
             name="Rogue Archer",
             moves=zhaivra.create_legacy_moves(),
             combat_moves=zhaivra.create_combat_moves(),
@@ -214,18 +231,11 @@ class RogueArcher(Character):
 
 class Monk(Character):
     def __init__(self):
-        stat_values = _validate_level_one_stat_total({
-            "constitution": 10,
-            "spirit": 10,
-            "intelligence": 13,
-            "strength": 7,
-            "dexterity": 12,
-            "intuition": 8,
-        })
+        stat_values = _validate_level_one_stat_total(
+            joruun.create_starting_stats()
+        )
         super().__init__(
             **stat_values,
-            hp=60,
-            mana=20,
             name="Monk",
             moves=joruun.create_legacy_moves(),
             combat_moves=joruun.create_combat_moves(),

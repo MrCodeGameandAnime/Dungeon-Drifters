@@ -13,10 +13,12 @@ class MoveResult:
     healing: int
     statuses_applied: tuple[str, ...]
     reason: str | None
+    critical: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "accepted", _validate_bool("accepted", self.accepted))
         object.__setattr__(self, "hit", _validate_bool("hit", self.hit))
+        object.__setattr__(self, "critical", _validate_bool("critical", self.critical))
         object.__setattr__(self, "move_name", _validate_nonempty_string("move_name", self.move_name))
         object.__setattr__(
             self,

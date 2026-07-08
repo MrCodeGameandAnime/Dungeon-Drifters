@@ -2,11 +2,12 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.8**. This is the completed
-structured Goblin Battle checkpoint between **v0.2** and the unfinished
-**v0.3** release. The small Goblin vertical slice remains the playable
-baseline, now routed through structured moves, the combat resolver, and
-encounter-owned combat state.
+The current repository checkpoint is **v0.2.8.5**. This is the completed
+structured Goblin Battle checkpoint plus the first post-M8 stat-scaling and
+hardening pass between **v0.2** and the unfinished **v0.3** release. The
+playable baseline is still a small Goblin vertical slice, but it now runs
+through structured moves, the combat resolver, encounter-owned combat state,
+and the current player stat-scaling contract.
 
 ## Current Playable State
 
@@ -29,8 +30,8 @@ existing mechanical archetypes:
 - Zhaivra Kelyth, the Uncontrolled Reagent - Rogue Archer
 - Joruun Veyr, the Bloody Storm Monk - Monk
 
-Battle now uses the structured combat path for the Goblin encounter. It
-presents:
+The Goblin encounter now uses the structured combat path. The main battle menu
+currently presents:
 
 - Attack
 - Defend
@@ -39,7 +40,7 @@ presents:
 
 Attack and Super open structured move submenus sourced from the active
 Drifter's authored combat moves. Defend is a core combat action. Items are
-listed but not yet wired.
+visible but not yet wired.
 
 ## Play Instructions
 
@@ -69,19 +70,21 @@ The repository now includes these active foundations:
 - `PlayerState`, `StoryState`, and `WorldState` ownership boundaries.
 - Separated character runtime state, loadout definitions, and profile identity.
 - Canonical character profiles for the four current Drifters.
-- Per-character loadout modules for legacy move names, structured moves, and
-  identity metadata.
+- Per-character loadout modules for identity metadata, starting stats, legacy
+  move names, and structured combat moves.
 - Health, mana, level, EXP, permanent stats, and effective stat access.
+- Central player stat-scaling helpers for HP, Mana, output scaling, physical
+  negation, accuracy, dodge, Super gain, and crit chance.
 - Inventory, gold, and equipment slot state on `PlayerState`.
 - Immutable validated `Move` definitions.
-- Immutable validated `MoveResult` as the future resolution-result contract.
+- Immutable validated `MoveResult` as the structured combat result contract.
 - Shared `Combatant` protocol for player and enemy runtime state.
 - Runtime `EnemyState` with independent health, mana, stats, and structured
   enemy moves.
 - Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
-- `app.combat` contains reusable combat rules and contracts; `app.enemies`
-  contains enemy definitions, runtime state, registration, scaling, factory, and
-  authored enemy content.
+- `app.combat` contains reusable combat rules and contracts, while
+  `app.enemies` contains enemy definitions, runtime state, registration,
+  scaling, factory, and authored enemy content.
 - Core Defend contract integrated into Battle as a resolver-backed core action,
   not an authored `Move`.
 - Battle consumes `CombatResolver` and passes `CombatState` into resolver calls.
@@ -89,15 +92,22 @@ The repository now includes these active foundations:
   from `foe.combat_moves`.
 - Accepted combat actions complete through
   `CombatState.complete_accepted_action(...)`.
-- Battle renders `MoveResult` data and HUD state while the resolver owns
-  validation, resource spending, accuracy, damage, healing, Super behavior, and
-  result creation.
+- Battle renders `MoveResult` data and the terminal HUD, while the resolver
+  owns validation, resource spending, accuracy, damage, healing, Super
+  behavior, and result creation.
+- Player starting HP and Mana now derive from Constitution, Spirit, and level
+  through the stat-scaling contract instead of hardcoded archetype resource
+  constants.
+- Combat damage output now uses basis-point primary stat scaling instead of raw
+  additive stat damage, and ordinary physical negation, accuracy, dodge, Super
+  gain, and crit chance are wired through the shared scaling helpers.
 - Serializable `PlayerState` and `GameState` snapshots.
 - Defensive copies or immutable views for state collections where currently
   implemented.
 
-These systems are architecture and contract foundations. The Goblin encounter
-uses the structured path; broader gameplay systems remain under development.
+These systems form the current gameplay and architecture foundation. The
+Goblin encounter is fully on the structured combat path, while broader
+gameplay systems remain under development.
 
 ## Resource Terminology
 
@@ -249,21 +259,46 @@ v0.2.8 completes the Milestone 8 structured Goblin Battle integration:
 - verified the Goblin vertical slice from character selection through victory
   using structured moves and resolver-backed combat
 
+### v0.2.8.5
+
+v0.2.8.5 adds the first post-M8 stat-scaling pass and targeted hardening:
+
+- added the central `app.player.scaling` contract for all six permanent stats
+- moved authored starting Level 1 stat distributions into player loadout modules
+- derived player HP from Constitution and player Mana from Spirit, including
+  level-based resource growth through explicit recalculation
+- replaced raw additive damage scaling with basis-point output scaling for
+  Strength, Dexterity, and Intelligence
+- wired Strength physical negation into incoming physical damage
+- wired Dexterity accuracy and dodge into ordinary hit chance
+- wired Intuition Super gain scaling into landed non-Super damage hits
+- wired Intuition crit chance into landed damage moves and surfaced crit state
+  through `MoveResult`
+- updated Battle rendering to visibly show critical hits
+- added resolver compatibility coverage proving all four authored Drifter
+  structured move rosters enter the resolver path successfully
+- completed an M8 hardening audit across combat, player, enemy, snapshot, and
+  progression boundaries without changing move data, enemy data, or Battle flow
+
 ## Known Limitations
 
 - Items are visible in the Battle menu but not yet wired.
 - Joruun's full structured combat identity and specialized mechanics remain
   deferred.
 - Exact combat formulas and balance are provisional.
+- XP, Growth Points, secured/unsecured extraction loops, and reward persistence
+  remain parked for a later progression milestone.
 - Momentum implementation is deferred.
 - Ammunition, compounds, and prepared-charge systems are not implemented.
 - Status effects and elemental interactions are not active.
+- Temporary effect storage exists only as placeholder encounter state; a fuller
+  effect contract remains future work.
 - Enemy AI is still simple random selection from authored structured moves.
 - Multi-enemy, party-targeting, and area-targeting encounters are not
   implemented.
-- Equipment contributes through `effective_stat()` where implemented.
-- Broader encounters, progression gameplay, shops, extraction, and save/load are
-  future work.
+- Equipment currently contributes through `effective_stat()` where applicable.
+- Broader encounters, progression gameplay, shops, extraction, and save/load
+  remain future work.
 
 ## Development Notes
 

@@ -1,5 +1,6 @@
 from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.player.loadouts import azhvielle, branoc, joruun, zhaivra
 
 
 EXPECTED_LOADOUTS = {
@@ -12,8 +13,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 10,
             "intuition": 10,
         },
-        "hp": 60,
-        "mana": 10,
+        "hp": 116,
+        "mana": 46,
         "name": "Brawler",
         "moves": {
             1: "Crestgrave Reaping",
@@ -65,8 +66,8 @@ EXPECTED_LOADOUTS = {
             {
                 "name": "Ironwake Dismemberment",
                 "kind": "damage",
-                "resource_type": "mana",
-                "resource_cost": 3,
+                "resource_type": "none",
+                "resource_cost": 0,
                 "power": 14,
                 "scales_with": ["strength"],
                 "accuracy": 82,
@@ -104,8 +105,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 8,
             "intuition": 12,
         },
-        "hp": 30,
-        "mana": 70,
+        "hp": 91,
+        "mana": 56,
         "name": "Black Mage",
         "moves": {
             1: "Scepter Sweep",
@@ -196,8 +197,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 15,
             "intuition": 14,
         },
-        "hp": 45,
-        "mana": 20,
+        "hp": 94,
+        "mana": 47,
         "name": "Rogue Archer",
         "moves": {
             1: "Mournpoint Verdict",
@@ -288,8 +289,8 @@ EXPECTED_LOADOUTS = {
             "dexterity": 12,
             "intuition": 8,
         },
-        "hp": 60,
-        "mana": 20,
+        "hp": 100,
+        "mana": 50,
         "name": "Monk",
         "moves": {
             1: "Bring the Horse to Water",
@@ -374,6 +375,14 @@ EXPECTED_LOADOUTS = {
 }
 
 
+LOADOUT_MODULES = {
+    branoc: EXPECTED_LOADOUTS[Brawler]["attributes"],
+    azhvielle: EXPECTED_LOADOUTS[BlackMage]["attributes"],
+    zhaivra: EXPECTED_LOADOUTS[RogueArcher]["attributes"],
+    joruun: EXPECTED_LOADOUTS[Monk]["attributes"],
+}
+
+
 def move_to_dict(move):
     return {
         "name": move.name,
@@ -391,6 +400,24 @@ def move_to_dict(move):
         "mechanic": move.mechanic,
         "description": move.description,
     }
+
+
+def test_authored_starting_stats_live_in_loadout_modules():
+    for loadout_module, expected_stats in LOADOUT_MODULES.items():
+        starting_stats = loadout_module.create_starting_stats()
+
+        assert starting_stats == expected_stats
+        assert sum(starting_stats.values()) == 60
+
+
+def test_authored_starting_stats_are_returned_as_fresh_dictionaries():
+    for loadout_module, expected_stats in LOADOUT_MODULES.items():
+        first = loadout_module.create_starting_stats()
+        second = loadout_module.create_starting_stats()
+
+        first["constitution"] = 1
+
+        assert second == expected_stats
 
 
 def test_all_archetype_authored_loadout_data_is_unchanged():

@@ -43,8 +43,8 @@ def test_default_player_snapshot_has_required_shape():
     }
     assert "charisma" not in snapshot["attributes"]
     assert snapshot["resources"] == {
-        "health": {"current": 60, "maximum": 60},
-        "mana": {"current": 10, "maximum": 10},
+        "health": {"current": 116, "maximum": 116},
+        "mana": {"current": 46, "maximum": 46},
         "super": {"current": 0, "maximum": 100},
     }
     assert snapshot["progression"] == {"level": 1, "exp": 0}
@@ -104,8 +104,8 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
 
     snapshot = player_state.snapshot()
 
-    assert snapshot["resources"]["health"] == {"current": 23, "maximum": 30}
-    assert snapshot["resources"]["mana"] == {"current": 62, "maximum": 70}
+    assert snapshot["resources"]["health"] == {"current": 84, "maximum": 91}
+    assert snapshot["resources"]["mana"] == {"current": 48, "maximum": 56}
     assert snapshot["resources"]["super"] == {"current": 70, "maximum": 100}
     assert snapshot["progression"] == {"level": 3, "exp": 25}
     assert snapshot["gold"] == 15

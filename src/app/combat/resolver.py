@@ -6,10 +6,17 @@ from app.combat.combat_state import CombatState
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.result import MoveResult
+from app.player import scaling
 
 
+BASIS_POINTS = 10_000
+MAX_ORDINARY_HIT_CHANCE = 95
+MIN_ORDINARY_HIT_CHANCE = 5
+BASE_ORDINARY_CRIT_CHANCE = 0
+MAX_ORDINARY_CRIT_CHANCE = 35
+CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
-SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION = 10
+SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
 
 class CombatResolver:
@@ -51,18 +58,26 @@ class CombatResolver:
 
         resource_spent = _spend_resource(actor, move)
         roll = self.rng.randint(1, 100)
-        hit = roll <= move.accuracy
+        hit = roll <= _final_hit_chance(actor, target, move)
 
         damage = 0
         healing = 0
+        critical = False
         if hit:
             if move.kind == MoveKind.DAMAGE:
-                damage = _apply_damage(actor, target, move, combat_state=combat_state)
+                critical = _rolled_critical_hit(actor, self.rng)
+                damage = _apply_damage(
+                    actor,
+                    target,
+                    move,
+                    combat_state=combat_state,
+                    critical=critical,
+                )
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
-        if move.resource_type != ResourceType.SUPER:
-            _grant_super_for_accepted_non_super_action(actor)
+        if hit and move.kind == MoveKind.DAMAGE and move.resource_type != ResourceType.SUPER:
+            _grant_super_for_landed_non_super_damage(actor)
 
         return MoveResult(
             accepted=True,
@@ -73,6 +88,7 @@ class CombatResolver:
             healing=healing,
             statuses_applied=(),
             reason=None,
+            critical=critical,
         )
 
     def resolve_defend(self, actor, combat_state):
@@ -86,7 +102,6 @@ class CombatResolver:
             return _rejected("Defend", "defend_not_available")
 
         combat_state.activate_defend(actor)
-        _grant_super_for_accepted_non_super_action(actor)
 
         return MoveResult(
             accepted=True,
@@ -97,6 +112,7 @@ class CombatResolver:
             healing=0,
             statuses_applied=(),
             reason=None,
+            critical=False,
         )
 
 
@@ -110,6 +126,7 @@ def _rejected(move_name, reason):
         healing=0,
         statuses_applied=(),
         reason=reason,
+        critical=False,
     )
 
 
@@ -213,15 +230,78 @@ def _scaling_value(actor, move):
     return sum(values) // len(values)
 
 
-def _apply_damage(actor, target, move, *, combat_state=None):
-    raw_damage = move.power + _scaling_value(actor, move)
-    mitigation = _mitigation(target, move.damage_type)
-    normal_damage = max(1, raw_damage - mitigation)
-    final_damage = _defended_damage(target, move.damage_type, normal_damage, combat_state)
+def _apply_damage(actor, target, move, *, combat_state=None, critical=False):
+    final_damage = _landed_damage(
+        actor,
+        target,
+        move,
+        combat_state=combat_state,
+        critical=critical,
+    )
 
     before = target.health.current
     target.health.take_damage(final_damage)
     return before - target.health.current
+
+
+def _landed_damage(actor, target, move, *, combat_state=None, critical=False):
+    scaled_power = _scaled_damage_power(actor, move)
+    mitigation = _mitigation(target, move.damage_type)
+    normal_damage = max(1, scaled_power - mitigation)
+    damage_after_strength_negation = _strength_negated_damage(
+        target,
+        move.damage_type,
+        normal_damage,
+    )
+    final_damage = _defended_damage(
+        target,
+        move.damage_type,
+        damage_after_strength_negation,
+        combat_state,
+    )
+    if critical:
+        return max(
+            1,
+            final_damage * CRITICAL_DAMAGE_MULTIPLIER_PERCENT // 100,
+        )
+
+    return final_damage
+
+
+def _scaled_damage_power(actor, move):
+    output_bonus_bps = _damage_output_bonus_bps(actor, move)
+    return move.power * (BASIS_POINTS + output_bonus_bps) // BASIS_POINTS
+
+
+def _damage_output_bonus_bps(actor, move):
+    bonuses = []
+
+    for attribute in move.scales_with:
+        bonus = _output_bonus_bps_for_attribute(actor, attribute)
+        if bonus is not None:
+            bonuses.append(bonus)
+
+    if not bonuses:
+        return 0
+
+    return sum(bonuses) // len(bonuses)
+
+
+def _output_bonus_bps_for_attribute(actor, attribute):
+    if attribute == ScalingAttribute.STRENGTH:
+        return scaling.physical_output_bonus_bps_from_strength(
+            actor.effective_stat("strength")
+        )
+    if attribute == ScalingAttribute.DEXTERITY:
+        return scaling.physical_output_bonus_bps_from_dexterity(
+            actor.effective_stat("dexterity")
+        )
+    if attribute == ScalingAttribute.INTELLIGENCE:
+        return scaling.magical_output_bonus_bps_from_intelligence(
+            actor.effective_stat("intelligence")
+        )
+
+    return None
 
 
 def _apply_healing(actor, target, move):
@@ -247,6 +327,21 @@ def _mitigation(target, damage_type):
     return defense_value // 4
 
 
+def _strength_physical_negation_bps(target, damage_type):
+    if damage_type != DamageType.PHYSICAL:
+        return 0
+
+    return scaling.physical_negation_bps_from_strength(
+        target.effective_stat("strength")
+    )
+
+
+def _strength_negated_damage(target, damage_type, normal_damage):
+    negation_bps = _strength_physical_negation_bps(target, damage_type)
+    reduction_amount = normal_damage * negation_bps // BASIS_POINTS
+    return max(1, normal_damage - reduction_amount)
+
+
 def _defended_damage(target, damage_type, normal_damage, combat_state):
     if combat_state is None or not combat_state.is_defending(target):
         return normal_damage
@@ -256,6 +351,50 @@ def _defended_damage(target, damage_type, normal_damage, combat_state):
     return max(1, normal_damage - reduction_amount)
 
 
-def _grant_super_for_accepted_non_super_action(actor):
+def _grant_super_for_landed_non_super_damage(actor):
     if actor.generates_super:
-        actor.super_resource.gain(SUPER_GAIN_PER_ACCEPTED_NON_SUPER_ACTION)
+        bonus_bps = scaling.super_gain_bonus_bps_from_intuition(
+            actor.effective_stat("intuition")
+        )
+        gained_super = (
+            SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE
+            * (BASIS_POINTS + bonus_bps)
+            // BASIS_POINTS
+        )
+        actor.super_resource.gain(gained_super)
+
+
+def _dexterity_accuracy_bonus_percent(actor):
+    return scaling.accuracy_bonus_bps_from_dexterity(
+        actor.effective_stat("dexterity")
+    ) // 100
+
+
+def _dexterity_dodge_bonus_percent(target):
+    return scaling.dodge_bonus_bps_from_dexterity(
+        target.effective_stat("dexterity")
+    ) // 100
+
+
+def _final_hit_chance(actor, target, move):
+    raw_hit_chance = (
+        move.accuracy
+        + _dexterity_accuracy_bonus_percent(actor)
+        - _dexterity_dodge_bonus_percent(target)
+    )
+    final_hit_chance = min(MAX_ORDINARY_HIT_CHANCE, raw_hit_chance)
+    return max(MIN_ORDINARY_HIT_CHANCE, final_hit_chance)
+
+
+def _final_crit_chance(actor):
+    raw_crit_chance = (
+        BASE_ORDINARY_CRIT_CHANCE
+        + scaling.crit_bonus_bps_from_intuition(
+            actor.effective_stat("intuition")
+        ) // 100
+    )
+    return min(MAX_ORDINARY_CRIT_CHANCE, raw_crit_chance)
+
+
+def _rolled_critical_hit(actor, rng):
+    return rng.randint(1, 100) <= _final_crit_chance(actor)

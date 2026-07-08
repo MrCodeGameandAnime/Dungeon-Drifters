@@ -2,6 +2,17 @@ from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAtt
 from app.items.weapon import SunderSpire
 
 
+def create_starting_stats():
+    return {
+        "constitution": 14,
+        "spirit": 6,
+        "intelligence": 5,
+        "strength": 15,
+        "dexterity": 10,
+        "intuition": 10,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Crestgrave Reaping',
@@ -56,8 +67,8 @@ def create_combat_moves():
         Move(
             name='Ironwake Dismemberment',
             kind=MoveKind.DAMAGE,
-            resource_type=ResourceType.MANA,
-            resource_cost=3,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
             power=14,
             scales_with=(ScalingAttribute.STRENGTH,),
             accuracy=82,

@@ -191,13 +191,18 @@ def test_complete_accepted_action_does_nothing_when_result_is_rejected():
     assert battle.combat_state.is_defending(enemy_state)
 
 
-def test_result_renderer_prints_actual_damage_healing_miss_rejection_resources_and_statuses():
+def test_result_renderer_prints_critical_damage_and_preserves_other_result_rendering():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
     with contextlib.redirect_stdout(output):
         battle._render_move_result(
             result_with(move_name="Cut", damage=7),
+            actor=battle.player_state,
+            target=battle.foe,
+        )
+        battle._render_move_result(
+            result_with(move_name="Smash", damage=16, critical=True),
             actor=battle.player_state,
             target=battle.foe,
         )
@@ -232,6 +237,7 @@ def test_result_renderer_prints_actual_damage_healing_miss_rejection_resources_a
 
     text = output.getvalue()
     assert "Brawler used Cut. It dealt 7 damage." in text
+    assert "Brawler used Smash. Critical hit! It dealt 16 damage." in text
     assert "Brawler used Recover. It restored 3 health." in text
     assert "Goblin used Whiff, but missed." in text
     assert "Brawler used test move, but it failed: rejected." in text
@@ -240,6 +246,7 @@ def test_result_renderer_prints_actual_damage_healing_miss_rejection_resources_a
     assert "Brawler used Defend." in text
     assert "Defend missed" not in text
     assert "Whiff. It dealt" not in text
+    assert "Brawler used Cut. Critical hit!" not in text
 
 
 def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_labels():
@@ -775,12 +782,12 @@ def test_victory_returns_player():
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 3
+    assert battle.combat_state.turn_count == 5
 
 
 def test_defeat_returns_enemy_and_persists_player_health():
     player_state = PlayerState(Brawler())
-    player_state.health.take_damage(player_state.health.maximum - 5)
+    player_state.health.take_damage(player_state.health.maximum - 3)
     battle = Battle(player_state, EnemyState(Goblin()))
 
     def fake_randint(start, end):
@@ -823,8 +830,8 @@ def test_completed_actions_advance_turn_count():
             return 1
         return end
 
-    with patched_battle(inputs=["attack", "1", "attack", "1", "attack", "1"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["attack", "4", "attack", "4", "attack", "4", "attack", "4"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 5
+    assert battle.combat_state.turn_count == 7
