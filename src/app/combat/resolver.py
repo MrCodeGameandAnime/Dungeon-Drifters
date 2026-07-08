@@ -10,7 +10,8 @@ from app.player import scaling
 
 
 BASIS_POINTS = 10_000
-ORDINARY_FINAL_HIT_CHANCE_MAX = 95
+MAX_ORDINARY_HIT_CHANCE = 95
+MIN_ORDINARY_HIT_CHANCE = 5
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
@@ -54,7 +55,7 @@ class CombatResolver:
 
         resource_spent = _spend_resource(actor, move)
         roll = self.rng.randint(1, 100)
-        hit = roll <= _final_hit_chance(actor, move)
+        hit = roll <= _final_hit_chance(actor, target, move)
 
         damage = 0
         healing = 0
@@ -330,8 +331,17 @@ def _dexterity_accuracy_bonus_percent(actor):
     ) // 100
 
 
-def _final_hit_chance(actor, move):
-    return min(
-        ORDINARY_FINAL_HIT_CHANCE_MAX,
-        move.accuracy + _dexterity_accuracy_bonus_percent(actor),
+def _dexterity_dodge_bonus_percent(target):
+    return scaling.dodge_bonus_bps_from_dexterity(
+        target.effective_stat("dexterity")
+    ) // 100
+
+
+def _final_hit_chance(actor, target, move):
+    raw_hit_chance = (
+        move.accuracy
+        + _dexterity_accuracy_bonus_percent(actor)
+        - _dexterity_dodge_bonus_percent(target)
     )
+    final_hit_chance = min(MAX_ORDINARY_HIT_CHANCE, raw_hit_chance)
+    return max(MIN_ORDINARY_HIT_CHANCE, final_hit_chance)

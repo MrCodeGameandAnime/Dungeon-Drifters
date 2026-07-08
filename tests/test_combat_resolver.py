@@ -486,25 +486,31 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
         "Crestgrave Reaping",
     )
 
-    assert not result.hit
+    assert result.hit
     assert rng.calls == [(1, 100)]
 
 
-def test_dexterity_accuracy_bonus_applies_to_final_hit_chance():
+def test_dexterity_accuracy_and_dodge_adjust_final_hit_chance():
     examples = (
-        (10, 50, 50, True),
-        (10, 50, 51, False),
-        (20, 50, 54, True),
-        (20, 50, 55, False),
-        (40, 50, 60, True),
-        (40, 50, 61, False),
-        (100, 70, 90, True),
-        (100, 70, 91, False),
+        (10, 10, 50, 50, True),
+        (10, 10, 50, 51, False),
+        (20, 10, 50, 54, True),
+        (20, 10, 50, 55, False),
+        (40, 10, 50, 60, True),
+        (40, 10, 50, 61, False),
+        (10, 20, 50, 48, True),
+        (10, 20, 50, 49, False),
+        (10, 40, 50, 44, True),
+        (10, 40, 50, 45, False),
+        (100, 10, 70, 90, True),
+        (100, 10, 70, 91, False),
+        (40, 20, 50, 58, True),
+        (40, 20, 50, 59, False),
     )
 
-    for dexterity, accuracy, roll, expected_hit in examples:
+    for actor_dexterity, target_dexterity, accuracy, roll, expected_hit in examples:
         move = make_move(
-            name=f"dex {dexterity} acc {accuracy}",
+            name=f"actor {actor_dexterity} target {target_dexterity} acc {accuracy}",
             accuracy=accuracy,
             scales_with=(ScalingAttribute.NONE,),
         )
@@ -515,21 +521,31 @@ def test_dexterity_accuracy_bonus_applies_to_final_hit_chance():
                 "spirit": 8,
                 "intelligence": 8,
                 "strength": 8,
-                "dexterity": dexterity,
+                "dexterity": actor_dexterity,
                 "intuition": 8,
+            },
+        )
+        target = SimpleCombatant(
+            effective_stats={
+                "constitution": 1,
+                "spirit": 1,
+                "intelligence": 10,
+                "strength": 10,
+                "dexterity": target_dexterity,
+                "intuition": 10,
             },
         )
 
         result = CombatResolver(rng=ScriptedRng(roll)).resolve_move(
             actor,
-            no_mitigation_target(),
+            target,
             move.name,
         )
 
         assert result.hit is expected_hit
 
 
-def test_dexterity_accuracy_bonus_caps_final_hit_chance_at_ninety_five():
+def test_final_hit_chance_caps_at_ninety_five_with_accuracy_and_dodge():
     move = make_move(
         name="cap test",
         accuracy=90,
@@ -546,15 +562,25 @@ def test_dexterity_accuracy_bonus_caps_final_hit_chance_at_ninety_five():
             "intuition": 8,
         },
     )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
 
     hit_result = CombatResolver(rng=ScriptedRng(95)).resolve_move(
         actor,
-        no_mitigation_target(),
+        target,
         move.name,
     )
     miss_result = CombatResolver(rng=ScriptedRng(96)).resolve_move(
         actor,
-        no_mitigation_target(),
+        target,
         move.name,
     )
 
@@ -562,9 +588,52 @@ def test_dexterity_accuracy_bonus_caps_final_hit_chance_at_ninety_five():
     assert not miss_result.hit
 
 
-def test_low_dexterity_negative_accuracy_bonus_is_preserved():
+def test_final_hit_chance_floors_at_five():
     move = make_move(
-        name="low dex test",
+        name="floor test",
+        accuracy=0,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    actor = SimpleCombatant(
+        moves=(move,),
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 8,
+            "dexterity": 10,
+            "intuition": 8,
+        },
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 100,
+            "intuition": 10,
+        },
+    )
+
+    hit_result = CombatResolver(rng=ScriptedRng(5)).resolve_move(
+        actor,
+        target,
+        move.name,
+    )
+    miss_result = CombatResolver(rng=ScriptedRng(6)).resolve_move(
+        actor,
+        target,
+        move.name,
+    )
+
+    assert hit_result.hit
+    assert not miss_result.hit
+
+
+def test_low_target_dexterity_negative_dodge_bonus_is_preserved_before_clamp():
+    move = make_move(
+        name="low target dex test",
         accuracy=50,
         scales_with=(ScalingAttribute.NONE,),
     )
@@ -575,19 +644,29 @@ def test_low_dexterity_negative_accuracy_bonus_is_preserved():
             "spirit": 8,
             "intelligence": 8,
             "strength": 8,
-            "dexterity": 5,
+            "dexterity": 10,
             "intuition": 8,
         },
     )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 5,
+            "intuition": 10,
+        },
+    )
 
-    hit_result = CombatResolver(rng=ScriptedRng(48)).resolve_move(
+    hit_result = CombatResolver(rng=ScriptedRng(51)).resolve_move(
         actor,
-        no_mitigation_target(),
+        target,
         move.name,
     )
-    miss_result = CombatResolver(rng=ScriptedRng(49)).resolve_move(
+    miss_result = CombatResolver(rng=ScriptedRng(52)).resolve_move(
         actor,
-        no_mitigation_target(),
+        target,
         move.name,
     )
 
@@ -605,7 +684,7 @@ def test_accuracy_zero_and_one_hundred_still_roll_exactly_once():
     assert rng.calls == [(1, 100)]
 
     rng = ScriptedRng(1)
-    assert not CombatResolver(rng=rng).resolve_move(actor, EnemyState(Goblin()), impossible.name).hit
+    assert CombatResolver(rng=rng).resolve_move(actor, EnemyState(Goblin()), impossible.name).hit
     assert rng.calls == [(1, 100)]
 
 
@@ -1144,7 +1223,7 @@ def test_accepted_action_completion_consumes_opposing_defend_for_hits_misses_hea
         combat_state=combat_state,
     )
     assert miss.accepted
-    assert not miss.hit
+    assert miss.hit
     combat_state.complete_accepted_action(attacker, opposing_combatants=(defender,))
     assert not combat_state.is_defending(defender)
 
