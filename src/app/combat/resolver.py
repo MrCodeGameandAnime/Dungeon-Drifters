@@ -10,6 +10,7 @@ from app.player import scaling
 
 
 BASIS_POINTS = 10_000
+ORDINARY_FINAL_HIT_CHANCE_MAX = 95
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
@@ -53,7 +54,7 @@ class CombatResolver:
 
         resource_spent = _spend_resource(actor, move)
         roll = self.rng.randint(1, 100)
-        hit = roll <= move.accuracy
+        hit = roll <= _final_hit_chance(actor, move)
 
         damage = 0
         healing = 0
@@ -321,3 +322,16 @@ def _defended_damage(target, damage_type, normal_damage, combat_state):
 def _grant_super_for_landed_non_super_damage(actor):
     if actor.generates_super:
         actor.super_resource.gain(SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE)
+
+
+def _dexterity_accuracy_bonus_percent(actor):
+    return scaling.accuracy_bonus_bps_from_dexterity(
+        actor.effective_stat("dexterity")
+    ) // 100
+
+
+def _final_hit_chance(actor, move):
+    return min(
+        ORDINARY_FINAL_HIT_CHANCE_MAX,
+        move.accuracy + _dexterity_accuracy_bonus_percent(actor),
+    )
