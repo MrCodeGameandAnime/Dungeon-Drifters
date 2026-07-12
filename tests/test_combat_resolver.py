@@ -348,25 +348,25 @@ def test_mana_spending_affordability_and_miss_behavior():
     result = CombatResolver(rng=ScriptedRng(100)).resolve_move(
         actor,
         target,
-        "Ghalmour Compression",
+        "Cinderlung Vesper",
     )
 
     assert result.accepted
     assert not result.hit
-    assert result.resource_spent == 5
-    assert actor.mana_resource.current == 41
+    assert result.resource_spent == 3
+    assert actor.mana_resource.current == 43
     assert target.health.current == target.health.maximum
     assert actor.super_resource.current == 0
 
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
-    actor.mana_resource.spend(42)
+    actor.mana_resource.spend(44)
     rng = ScriptedRng(1)
 
-    result = CombatResolver(rng=rng).resolve_move(actor, target, "Ghalmour Compression")
+    result = CombatResolver(rng=rng).resolve_move(actor, target, "Cinderlung Vesper")
 
     assert result.reason == "insufficient_mana"
-    assert actor.mana_resource.current == 4
+    assert actor.mana_resource.current == 2
     assert actor.super_resource.current == 0
     assert rng.calls == []
 
@@ -1697,6 +1697,11 @@ def test_all_four_drifter_structured_moves_are_resolver_compatible():
                 target,
                 prototype_move.name,
             )
+
+            if prototype_move.mechanic == "brace":
+                assert not result.accepted
+                assert result.reason == "unsupported_move_kind"
+                continue
 
             assert result.accepted, (
                 f"{character_type.__name__} move {prototype_move.name!r} "

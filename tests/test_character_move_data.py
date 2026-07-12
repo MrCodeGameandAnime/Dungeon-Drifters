@@ -56,6 +56,7 @@ def test_each_playable_class_has_a_distinct_mechanic():
 
 def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
     supported_mechanics = {None, "basic_attack", "heavy_attack"}
+    authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
         "stagger",
         "burn",
@@ -88,7 +89,10 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         assert len(standard_moves) == 4
         assert len(super_moves) == 1
         assert super_moves[0].resource_cost == 100
-        assert all(move.mechanic in supported_mechanics for move in player.combat_moves)
+        assert all(
+            move.mechanic in supported_mechanics | authored_deferred_mechanics
+            for move in player.combat_moves
+        )
         assert all(move.mechanic not in deferred_mechanics for move in player.combat_moves)
 
 
@@ -130,11 +134,17 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
     assert [move.name for move in brawler.combat_moves] == [
         "Crestgrave Reaping",
         "Cinderlung Vesper",
-        "Ghalmour Compression",
+        "Brace",
         "Ironwake Dismemberment",
         "Third Gate Obsequy",
     ]
-    assert all(move.kind == MoveKind.DAMAGE for move in brawler.combat_moves)
+    assert [move.kind for move in brawler.combat_moves] == [
+        MoveKind.DAMAGE,
+        MoveKind.DAMAGE,
+        MoveKind.UTILITY,
+        MoveKind.DAMAGE,
+        MoveKind.DAMAGE,
+    ]
     assert [move.resource_type for move in brawler.combat_moves] == [
         ResourceType.NONE,
         ResourceType.MANA,
@@ -142,12 +152,20 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
         ResourceType.NONE,
         ResourceType.SUPER,
     ]
+    brace = brawler.combat_moves[2]
+    assert brace.target == TargetType.SELF
+    assert brace.resource_cost == 5
+    assert brace.power == 0
+    assert brace.scales_with == (ScalingAttribute.NONE,)
+    assert brace.accuracy == 100
+    assert brace.damage_type == DamageType.NONE
+    assert brace.mechanic == "brace"
     assert brawler.combat_moves[-1].resource_cost == 100
     assert {move.name for move in brawler.combat_moves}.isdisjoint(
         {"slash", "jumping slash", "suplex"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {None, "basic_attack", "heavy_attack", "brace"}
         for move in brawler.combat_moves
     )
 

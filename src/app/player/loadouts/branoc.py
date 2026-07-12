@@ -17,7 +17,7 @@ def create_legacy_moves():
     return {
         1: 'Crestgrave Reaping',
         2: 'Cinderlung Vesper',
-        3: 'Ghalmour Compression',
+        3: 'Brace',
         4: 'Ironwake Dismemberment',
         5: 'Third Gate Obsequy',
     }
@@ -52,18 +52,17 @@ def create_combat_moves():
             # Deferred mechanic: line or multi-target war-breath
             description='A black war-breath erupts forward, searing everything in its path.'),
         Move(
-            name='Ghalmour Compression',
-            kind=MoveKind.DAMAGE,
+            name='Brace',
+            kind=MoveKind.UTILITY,
             resource_type=ResourceType.MANA,
             resource_cost=5,
-            power=12,
-            scales_with=(ScalingAttribute.SPIRIT, ScalingAttribute.INTUITION),
-            accuracy=78,
-            target=TargetType.ENEMY,
-            damage_type=DamageType.MAGICAL,
-            mechanic=None,
-            # Deferred mechanic: pressure compression
-            description='Invisible pressure closes around the target, crushing flesh against bone.'),
+            power=0,
+            scales_with=(ScalingAttribute.NONE,),
+            accuracy=100,
+            target=TargetType.SELF,
+            damage_type=DamageType.NONE,
+            mechanic='brace',
+            description='Branoc plants Sunder-Spire and braces behind the Deep-Iron crest.'),
         Move(
             name='Ironwake Dismemberment',
             kind=MoveKind.DAMAGE,

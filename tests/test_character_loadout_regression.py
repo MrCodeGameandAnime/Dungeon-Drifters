@@ -19,7 +19,7 @@ EXPECTED_LOADOUTS = {
         "moves": {
             1: "Crestgrave Reaping",
             2: "Cinderlung Vesper",
-            3: "Ghalmour Compression",
+            3: "Brace",
             4: "Ironwake Dismemberment",
             5: "Third Gate Obsequy",
         },
@@ -51,17 +51,17 @@ EXPECTED_LOADOUTS = {
                 "description": "A black war-breath erupts forward, searing everything in its path.",
             },
             {
-                "name": "Ghalmour Compression",
-                "kind": "damage",
+                "name": "Brace",
+                "kind": "utility",
                 "resource_type": "mana",
                 "resource_cost": 5,
-                "power": 12,
-                "scales_with": ["spirit", "intuition"],
-                "accuracy": 78,
-                "target": "enemy",
-                "damage_type": "magical",
-                "mechanic": None,
-                "description": "Invisible pressure closes around the target, crushing flesh against bone.",
+                "power": 0,
+                "scales_with": ["none"],
+                "accuracy": 100,
+                "target": "self",
+                "damage_type": "none",
+                "mechanic": "brace",
+                "description": "Branoc plants Sunder-Spire and braces behind the Deep-Iron crest.",
             },
             {
                 "name": "Ironwake Dismemberment",
@@ -446,7 +446,7 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
     (
         crestgrave_reaping,
         cinderlung_vesper,
-        ghalmour_compression,
+        brace,
         ironwake_dismemberment,
         third_gate_obsequy,
     ) = player.combat_moves
@@ -459,7 +459,7 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
 
     assert crestgrave_reaping.mechanic == "basic_attack"
     assert cinderlung_vesper.mechanic is None
-    assert ghalmour_compression.mechanic is None
+    assert brace.mechanic == "brace"
     assert ironwake_dismemberment.mechanic == "heavy_attack"
     assert third_gate_obsequy.mechanic is None
     assert player.class_mechanic["name"] != "Momentum"
