@@ -15,7 +15,7 @@ MIN_ORDINARY_HIT_CHANCE = 5
 BASE_ORDINARY_CRIT_CHANCE = 0
 MAX_ORDINARY_CRIT_CHANCE = 35
 CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
-SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
+SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack", "brace")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
 
@@ -44,6 +44,9 @@ class CombatResolver:
             return _rejected(result_move_name, reason)
 
         if not _is_supported_move_kind(move):
+            if move.kind == MoveKind.UTILITY:
+                reason = "unsupported_move_kind" if move.mechanic is None else "unsupported_mechanic"
+                return _rejected(move.name, reason)
             return _rejected(move.name, "unsupported_move_kind")
 
         if move.mechanic not in SUPPORTED_MECHANICS:
@@ -52,11 +55,38 @@ class CombatResolver:
         if not _is_valid_target_type(actor, target, move):
             return _rejected(move.name, "invalid_target_type")
 
+        if move.kind == MoveKind.UTILITY and not isinstance(combat_state, CombatState):
+            return _rejected(move.name, "invalid_combat_state")
+
         affordable, insufficient_reason = _can_afford(actor, move)
         if not affordable:
             return _rejected(move.name, insufficient_reason)
 
         resource_spent = _spend_resource(actor, move)
+
+        if move.kind == MoveKind.UTILITY:
+            combat_state.activate_brace(actor)
+            return MoveResult(
+                accepted=True,
+                hit=True,
+                move_name=move.name,
+                resource_spent=resource_spent,
+                damage=0,
+                healing=0,
+                statuses_applied=(),
+                reason=None,
+                critical=False,
+            )
+
+        follow_up_damage_bonus_percent = 0
+        if move.mechanic == "heavy_attack" and combat_state is not None:
+            follow_up_damage_bonus_percent = (
+                combat_state.consume_brace_follow_up_damage_bonus_percent(
+                    actor,
+                    move.mechanic,
+                )
+            )
+
         roll = self.rng.randint(1, 100)
         hit = roll <= _final_hit_chance(actor, target, move)
 
@@ -72,6 +102,7 @@ class CombatResolver:
                     move,
                     combat_state=combat_state,
                     critical=critical,
+                    follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
                 )
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
@@ -178,6 +209,8 @@ def _is_supported_move_kind(move):
         }
     if move.kind == MoveKind.HEALING:
         return move.damage_type == DamageType.HEALING
+    if move.kind == MoveKind.UTILITY:
+        return move.mechanic == "brace"
 
     return False
 
@@ -230,13 +263,21 @@ def _scaling_value(actor, move):
     return sum(values) // len(values)
 
 
-def _apply_damage(actor, target, move, *, combat_state=None, critical=False):
+def _apply_damage(
+        actor,
+        target,
+        move,
+        *,
+        combat_state=None,
+        critical=False,
+        follow_up_damage_bonus_percent=0):
     final_damage = _landed_damage(
         actor,
         target,
         move,
         combat_state=combat_state,
         critical=critical,
+        follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
     )
 
     before = target.health.current
@@ -244,8 +285,21 @@ def _apply_damage(actor, target, move, *, combat_state=None, critical=False):
     return before - target.health.current
 
 
-def _landed_damage(actor, target, move, *, combat_state=None, critical=False):
+def _landed_damage(
+        actor,
+        target,
+        move,
+        *,
+        combat_state=None,
+        critical=False,
+        follow_up_damage_bonus_percent=0):
     scaled_power = _scaled_damage_power(actor, move)
+    if follow_up_damage_bonus_percent:
+        scaled_power = (
+            scaled_power
+            * (100 + follow_up_damage_bonus_percent)
+            // 100
+        )
     mitigation = _mitigation(target, move.damage_type)
     normal_damage = max(1, scaled_power - mitigation)
     damage_after_strength_negation = _strength_negated_damage(
@@ -253,10 +307,16 @@ def _landed_damage(actor, target, move, *, combat_state=None, critical=False):
         move.damage_type,
         normal_damage,
     )
-    final_damage = _defended_damage(
+    damage_after_brace = _brace_reduced_damage(
         target,
         move.damage_type,
         damage_after_strength_negation,
+        combat_state,
+    )
+    final_damage = _defended_damage(
+        target,
+        move.damage_type,
+        damage_after_brace,
         combat_state,
     )
     if critical:
@@ -339,6 +399,18 @@ def _strength_physical_negation_bps(target, damage_type):
 def _strength_negated_damage(target, damage_type, normal_damage):
     negation_bps = _strength_physical_negation_bps(target, damage_type)
     reduction_amount = normal_damage * negation_bps // BASIS_POINTS
+    return max(1, normal_damage - reduction_amount)
+
+
+def _brace_reduced_damage(target, damage_type, normal_damage, combat_state):
+    if combat_state is None:
+        return normal_damage
+
+    reduction_percent = combat_state.brace_incoming_reduction_percent(
+        target,
+        damage_type,
+    )
+    reduction_amount = normal_damage * reduction_percent // 100
     return max(1, normal_damage - reduction_amount)
 
 
