@@ -15,7 +15,7 @@ MIN_ORDINARY_HIT_CHANCE = 5
 BASE_ORDINARY_CRIT_CHANCE = 0
 MAX_ORDINARY_CRIT_CHANCE = 35
 CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
-SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack", "brace")
+SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 
 
@@ -43,13 +43,14 @@ class CombatResolver:
         if reason is not None:
             return _rejected(result_move_name, reason)
 
-        if not _is_supported_move_kind(move):
-            if move.kind == MoveKind.UTILITY:
+        if move.kind == MoveKind.UTILITY:
+            if move.mechanic != "brace":
                 reason = "unsupported_move_kind" if move.mechanic is None else "unsupported_mechanic"
                 return _rejected(move.name, reason)
+        elif not _is_supported_move_kind(move):
             return _rejected(move.name, "unsupported_move_kind")
 
-        if move.mechanic not in SUPPORTED_MECHANICS:
+        if move.kind != MoveKind.UTILITY and move.mechanic not in SUPPORTED_MECHANICS:
             return _rejected(move.name, "unsupported_mechanic")
 
         if not _is_valid_target_type(actor, target, move):
@@ -209,9 +210,6 @@ def _is_supported_move_kind(move):
         }
     if move.kind == MoveKind.HEALING:
         return move.damage_type == DamageType.HEALING
-    if move.kind == MoveKind.UTILITY:
-        return move.mechanic == "brace"
-
     return False
 
 
