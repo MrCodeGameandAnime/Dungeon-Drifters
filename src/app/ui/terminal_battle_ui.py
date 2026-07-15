@@ -1,6 +1,8 @@
 """Stateless terminal rendering and semantic input translation."""
 
 import builtins
+import shutil
+import textwrap
 
 from app.presentation.battle_models import (
     ActionIntent,
@@ -13,9 +15,12 @@ from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 
 
 class TerminalBattleUI:
-    def __init__(self, *, input_func=None, output_func=None):
+    def __init__(self, *, input_func=None, output_func=None, width_provider=None):
         self._input = input_func or (lambda prompt: builtins.input(prompt))
         self._output = output_func or (lambda message: builtins.print(message))
+        self._width_provider = width_provider or (
+            lambda: shutil.get_terminal_size((80, 24)).columns
+        )
 
     def render(self, view):
         if not isinstance(view, BattleView):
@@ -38,7 +43,13 @@ class TerminalBattleUI:
                 tags = " | ".join(move.tags)
                 suffix = "" if move.enabled else " [Unavailable]"
                 self._output(f"{move.number}. {move.name} [{tags}]{suffix}")
-                self._output(f"   {move.rules_summary}")
+                for line in textwrap.wrap(
+                    move.rules_summary,
+                    width=max(20, self._width_provider() - 3),
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                ):
+                    self._output(f"   {line}")
             self._output("0. Back")
 
         meter = view.super_meter

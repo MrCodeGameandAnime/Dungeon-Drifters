@@ -1,4 +1,5 @@
 from app.combat.combat_state import CombatState
+from app.combat.resolver import CombatResolver
 from app.combat.move import (
     DamageType,
     Move,
@@ -47,6 +48,14 @@ def _option(view, intent):
 
 def _move(view, name):
     return next(move for move in view.move_options if move.name == name)
+
+
+class FixedRng:
+    def __init__(self, *rolls):
+        self.rolls = list(rolls)
+
+    def randint(self, _start, _end):
+        return self.rolls.pop(0)
 
 
 def test_presenter_builds_resource_and_temporary_state_views():
@@ -138,6 +147,10 @@ def test_presenter_composes_authored_tags_summary_and_resource_labels():
     assert _move(view, "Crestgrave Reaping").tags == ("Normal",)
     assert _move(view, "Cinderlung Vesper").tags == ("Fire Magic", "3 Mana")
     assert _move(view, "Brace").tags == ("Utility", "5 Mana")
+    assert _move(view, "Brace").rules_summary == (
+        "Brace against the next enemy action, reducing physical damage by 40%, "
+        "and empower your next Heavy attack by 30%."
+    )
     ironwake = _move(view, "Ironwake Dismemberment")
     assert ironwake.tags == ("Heavy",)
     assert ironwake.rules_summary == "A crushing Sunder-Spire strike."
@@ -212,6 +225,68 @@ def test_brace_follow_up_tag_is_dynamic_non_consuming_and_ordered():
     assert _move(first, "Ironwake Dismemberment").tags == ("Heavy", "Empowered +30%")
     assert first == second
     assert combat_state.brace_follow_up_damage_bonus_percent(player, "heavy_attack") == 30
+
+
+def test_accepted_heavy_hit_and_miss_remove_empowered_tag():
+    for rolls in ((1, 100), (100,)):
+        player, enemy, combat_state = _battle_values()
+        combat_state.activate_brace(player)
+        result = CombatResolver(rng=FixedRng(*rolls)).resolve_move(
+            player,
+            enemy,
+            "Ironwake Dismemberment",
+            combat_state=combat_state,
+        )
+
+        view = BattlePresenter().build(
+            player=player,
+            enemy=enemy,
+            combat_state=combat_state,
+            interaction_phase=InteractionPhase.REGULAR_MOVES,
+        )
+
+        assert result.accepted is True
+        assert "Empowered +30%" not in _move(view, "Ironwake Dismemberment").tags
+
+
+def test_rejected_heavy_and_nonmatching_move_preserve_empowered_tag():
+    player, enemy, combat_state = _battle_values()
+    combat_state.activate_brace(player)
+    enemy.health.take_damage(enemy.health.maximum)
+    rejected = CombatResolver(rng=FixedRng()).resolve_move(
+        player,
+        enemy,
+        "Ironwake Dismemberment",
+        combat_state=combat_state,
+    )
+
+    rejected_view = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.REGULAR_MOVES,
+    )
+
+    assert rejected.accepted is False
+    assert "Empowered +30%" in _move(rejected_view, "Ironwake Dismemberment").tags
+
+    player, enemy, combat_state = _battle_values()
+    combat_state.activate_brace(player)
+    nonmatching = CombatResolver(rng=FixedRng(1, 100)).resolve_move(
+        player,
+        enemy,
+        "Crestgrave Reaping",
+        combat_state=combat_state,
+    )
+    nonmatching_view = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.REGULAR_MOVES,
+    )
+
+    assert nonmatching.accepted is True
+    assert "Empowered +30%" in _move(nonmatching_view, "Ironwake Dismemberment").tags
 
 
 def test_presenter_preserves_log_snapshot_and_has_no_retained_state():

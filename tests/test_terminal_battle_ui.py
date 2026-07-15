@@ -83,7 +83,11 @@ def _view(
 
 def _ui(inputs):
     harness = TerminalHarness(inputs)
-    return TerminalBattleUI(input_func=harness.input, output_func=harness.output), harness
+    return TerminalBattleUI(
+        input_func=harness.input,
+        output_func=harness.output,
+        width_provider=lambda: 80,
+    ), harness
 
 
 def test_action_numbers_and_aliases_return_semantic_actions():
@@ -197,6 +201,109 @@ def test_render_uses_injected_output_and_semantic_log_values():
     assert "Choose an action:" in harness.lines
 
 
+def test_structured_move_menu_uses_readable_tags_and_wrapped_summaries():
+    moves = (
+        MoveOptionView(
+            "Crestgrave Reaping",
+            1,
+            "Crestgrave Reaping",
+            ("Normal",),
+            "Sunder-Spire tears through the target.",
+            None,
+            True,
+        ),
+        MoveOptionView(
+            "Cinderlung Vesper",
+            2,
+            "Cinderlung Vesper",
+            ("Fire Magic", "3 Mana"),
+            "A black war-breath erupts forward.",
+            "3 Mana",
+            True,
+        ),
+        MoveOptionView(
+            "Brace",
+            3,
+            "Brace",
+            ("Utility", "5 Mana"),
+            (
+                "Brace against the next enemy action, reducing physical damage "
+                "by 40%, and empower your next Heavy attack by 30%."
+            ),
+            "5 Mana",
+            True,
+        ),
+        MoveOptionView(
+            "Ironwake Dismemberment",
+            4,
+            "Ironwake Dismemberment",
+            ("Heavy", "Empowered +30%"),
+            "A crushing Sunder-Spire strike.",
+            None,
+            True,
+        ),
+    )
+    harness = TerminalHarness()
+    ui = TerminalBattleUI(
+        input_func=harness.input,
+        output_func=harness.output,
+        width_provider=lambda: 45,
+    )
+
+    ui.render(
+        _view(
+            phase=InteractionPhase.REGULAR_MOVES,
+            move_options=moves,
+        )
+    )
+
+    assert "1. Crestgrave Reaping [Normal]" in harness.lines
+    assert "2. Cinderlung Vesper [Fire Magic | 3 Mana]" in harness.lines
+    assert "3. Brace [Utility | 5 Mana]" in harness.lines
+    assert (
+        "4. Ironwake Dismemberment [Heavy | Empowered +30%]"
+        in harness.lines
+    )
+    assert not any("[none 0]" in line for line in harness.lines)
+    assert all(
+        len(line) <= 45
+        for line in harness.lines
+        if line.startswith("   ")
+    )
+    assert any(line.startswith("   Brace against") for line in harness.lines)
+    assert "0. Back" in harness.lines
+
+
+def test_back_is_rendered_only_during_move_phases_and_super_is_separate():
+    ui, actions = _ui(())
+    ui.render(_view())
+
+    assert "0. Back" not in actions.lines
+    assert not any(line.startswith("6. Super") for line in actions.lines)
+
+    super_move = MoveOptionView(
+        "Third Gate Obsequy",
+        1,
+        "Third Gate Obsequy",
+        ("Super", "100 Super"),
+        "A forbidden gate manifests.",
+        "100 Super",
+        True,
+    )
+    ui, super_menu = _ui(())
+    ui.render(
+        _view(
+            phase=InteractionPhase.SUPER_MOVES,
+            super_ready=True,
+            move_options=(super_move,),
+        )
+    )
+
+    assert "Choose a Super:" in super_menu.lines
+    assert "1. Third Gate Obsequy [Super | 100 Super]" in super_menu.lines
+    assert "0. Back" in super_menu.lines
+
+
 def test_render_preserves_all_existing_move_result_categories_and_details():
     entries = (
         BattleLogEntry(
@@ -269,4 +376,4 @@ def test_adapter_retains_no_log_or_view_state_and_does_not_mutate_view():
     ui.render(view)
 
     assert repr(view) == before
-    assert set(vars(ui)) == {"_input", "_output"}
+    assert set(vars(ui)) == {"_input", "_output", "_width_provider"}

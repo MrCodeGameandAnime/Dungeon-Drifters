@@ -1,5 +1,6 @@
 """Pure translation from combat state to immutable battle views."""
 
+from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.presentation.battle_models import (
@@ -248,6 +249,12 @@ class BattlePresenter:
 
     @staticmethod
     def _rules_summary(move):
+        if move.mechanic == "brace":
+            return (
+                "Brace against the next enemy action, reducing physical damage by "
+                f"{BRACE_RULES.incoming_reduction_percent}%, and empower your next "
+                f"Heavy attack by {BRACE_RULES.follow_up_damage_bonus_percent}%."
+            )
         if move.presentation is not None and move.presentation.static_summary is not None:
             return move.presentation.static_summary
         return move.description

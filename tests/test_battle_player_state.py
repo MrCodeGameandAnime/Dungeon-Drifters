@@ -4,6 +4,7 @@ import io
 import random
 from types import SimpleNamespace
 from app.combat.battle import Battle as DomainBattle
+from app.combat.brace import BRACE_RULES
 from app.combat.move import (
     DamageType,
     Move,
@@ -456,10 +457,20 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
 
     for index, move in enumerate(non_super_moves, start=1):
         assert f"{index}. {move.name}" in text
-        assert move.description in text or (
-            move.presentation is not None
-            and move.presentation.static_summary in text
-        )
+        if move.mechanic == "brace":
+            assert (
+                f"reducing physical damage by {BRACE_RULES.incoming_reduction_percent}%"
+                in text
+            )
+            assert (
+                f"empower your next Heavy attack by "
+                f"{BRACE_RULES.follow_up_damage_bonus_percent}%"
+                in text
+            )
+        elif move.presentation is not None and move.presentation.static_summary is not None:
+            assert move.presentation.static_summary in text
+        else:
+            assert move.description in text
 
     assert "0. Back" in text
     assert all(move.name not in text for move in super_moves)
