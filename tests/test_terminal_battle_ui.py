@@ -197,6 +197,70 @@ def test_render_uses_injected_output_and_semantic_log_values():
     assert "Choose an action:" in harness.lines
 
 
+def test_render_preserves_all_existing_move_result_categories_and_details():
+    entries = (
+        BattleLogEntry(
+            BattleEventType.DAMAGE,
+            actor_name="Ser Branoc",
+            action_name="Cut",
+            accepted=True,
+            hit=True,
+            amount=7,
+        ),
+        BattleLogEntry(
+            BattleEventType.HEALING,
+            actor_name="Ser Branoc",
+            action_name="Recover",
+            accepted=True,
+            hit=True,
+            amount=3,
+        ),
+        BattleLogEntry(
+            BattleEventType.MISS,
+            actor_name="Goblin",
+            action_name="Whiff",
+            accepted=True,
+            hit=False,
+        ),
+        BattleLogEntry(
+            BattleEventType.ACTION_REJECTED,
+            actor_name="Ser Branoc",
+            action_name="Blocked",
+            accepted=False,
+            hit=False,
+            reason="rejected",
+        ),
+        BattleLogEntry(
+            BattleEventType.UTILITY,
+            actor_name="Ser Branoc",
+            action_name="Brace",
+            accepted=True,
+            hit=True,
+            resource_spent=5,
+            statuses_applied=("ward",),
+        ),
+        BattleLogEntry(
+            BattleEventType.DEFEND,
+            actor_name="Ser Branoc",
+            action_name="Defend",
+            accepted=True,
+            hit=False,
+        ),
+    )
+    ui, harness = _ui(())
+
+    ui.render(_view(log_entries=entries))
+
+    assert "Ser Branoc used Cut. It dealt 7 damage." in harness.lines
+    assert "Ser Branoc used Recover. It restored 3 health." in harness.lines
+    assert "Goblin used Whiff, but missed." in harness.lines
+    assert "Ser Branoc used Blocked, but it failed: rejected." in harness.lines
+    assert "Ser Branoc used Brace. It resolved." in harness.lines
+    assert "Resource spent: 5." in harness.lines
+    assert "Statuses applied: ward." in harness.lines
+    assert "Ser Branoc used Defend." in harness.lines
+
+
 def test_adapter_retains_no_log_or_view_state_and_does_not_mutate_view():
     ui, _ = _ui(())
     view = _view()

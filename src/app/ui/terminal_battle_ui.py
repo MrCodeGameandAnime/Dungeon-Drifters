@@ -14,8 +14,8 @@ from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 
 class TerminalBattleUI:
     def __init__(self, *, input_func=None, output_func=None):
-        self._input = input_func or builtins.input
-        self._output = output_func or builtins.print
+        self._input = input_func or (lambda prompt: builtins.input(prompt))
+        self._output = output_func or (lambda message: builtins.print(message))
 
     def render(self, view):
         if not isinstance(view, BattleView):
@@ -38,6 +38,7 @@ class TerminalBattleUI:
                 tags = " | ".join(move.tags)
                 suffix = "" if move.enabled else " [Unavailable]"
                 self._output(f"{move.number}. {move.name} [{tags}]{suffix}")
+                self._output(f"   {move.rules_summary}")
             self._output("0. Back")
 
         meter = view.super_meter
@@ -123,30 +124,38 @@ class TerminalBattleUI:
         actor = entry.actor_name or "Combatant"
         target = entry.target_name or "target"
         action = entry.action_name or "action"
+        lines = []
         if entry.event_type == BattleEventType.ENCOUNTER_START:
-            return (f"A {target} blocks your path!",)
-        if entry.event_type == BattleEventType.INITIATIVE:
-            return (f"{actor} will go first.",)
-        if entry.event_type == BattleEventType.DAMAGE:
+            lines.append(f"A {target} blocks your path!")
+        elif entry.event_type == BattleEventType.INITIATIVE:
+            lines.append(f"{actor} will go first.")
+        elif entry.event_type == BattleEventType.DAMAGE:
             critical = " Critical hit!" if entry.critical else ""
-            return (f"{actor} used {action}.{critical} It dealt {entry.amount} damage.",)
-        if entry.event_type == BattleEventType.MISS:
-            return (f"{actor} used {action}, but missed.",)
-        if entry.event_type == BattleEventType.HEALING:
-            return (f"{actor} used {action}. It restored {entry.amount} health.",)
-        if entry.event_type == BattleEventType.DEFEND:
-            return (f"{actor} used Defend.",)
-        if entry.event_type == BattleEventType.UTILITY:
-            return (f"{actor} used {action}. It resolved.",)
-        if entry.event_type == BattleEventType.ACTION_REJECTED:
-            return (f"{actor} used {action}, but it failed: {entry.reason}.",)
-        if entry.event_type == BattleEventType.INPUT_REJECTED:
-            return (self._input_rejection_text(entry.rejection_reason),)
-        if entry.event_type == BattleEventType.VICTORY:
-            return (f"{actor} is victorious over {target}.",)
-        if entry.event_type == BattleEventType.DEFEAT:
-            return (f"{actor} was defeated by {target}.",)
-        raise ValueError(f"unsupported battle event type: {entry.event_type!r}")
+            lines.append(f"{actor} used {action}.{critical} It dealt {entry.amount} damage.")
+        elif entry.event_type == BattleEventType.MISS:
+            lines.append(f"{actor} used {action}, but missed.")
+        elif entry.event_type == BattleEventType.HEALING:
+            lines.append(f"{actor} used {action}. It restored {entry.amount} health.")
+        elif entry.event_type == BattleEventType.DEFEND:
+            lines.append(f"{actor} used Defend.")
+        elif entry.event_type == BattleEventType.UTILITY:
+            lines.append(f"{actor} used {action}. It resolved.")
+        elif entry.event_type == BattleEventType.ACTION_REJECTED:
+            lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
+        elif entry.event_type == BattleEventType.INPUT_REJECTED:
+            lines.append(self._input_rejection_text(entry.rejection_reason))
+        elif entry.event_type == BattleEventType.VICTORY:
+            lines.append(f"{actor} is victorious over {target}.")
+        elif entry.event_type == BattleEventType.DEFEAT:
+            lines.append(f"{actor} was defeated by {target}.")
+        else:
+            raise ValueError(f"unsupported battle event type: {entry.event_type!r}")
+
+        if entry.resource_spent:
+            lines.append(f"Resource spent: {entry.resource_spent}.")
+        if entry.statuses_applied:
+            lines.append(f"Statuses applied: {', '.join(entry.statuses_applied)}.")
+        return tuple(lines)
 
     @staticmethod
     def _input_rejection_text(reason):
