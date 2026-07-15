@@ -429,7 +429,8 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
     assert "3. Heal [Unavailable]" in text
     assert "4. Items [Unavailable]" in text
     assert "5. Escape [Unavailable]" in text
-    assert "Super: 0/100" in text
+    assert "SUPER [" in text
+    assert "0/100" in text
     assert "Recover (restore health)" not in text
     assert "steady attack" not in text
     assert "risky heavy attack" not in text
@@ -496,7 +497,8 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     assert "Choose a Super:" in text
     assert f"1. {super_move.name}" in text
     assert "[Super | 100 Super]" in text
-    assert super_move.description in text
+    assert "A forbidden gate manifests" in text
+    assert "Sunder-Spire" in text
     assert "Brawler used test move, but it failed: rejected." in text
     assert battle.combat_state.turn_count == 1
     assert resolver.calls[0] == {
@@ -516,7 +518,7 @@ def test_items_are_unavailable_and_return_to_main_menu_without_advancing_until_a
 
     text = output.getvalue()
     assert "Items is not available." in text
-    assert text.count("Choose an action:") == 1
+    assert text.count("Actions") == 1
     assert battle.combat_state.turn_count == 1
 
 

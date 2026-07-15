@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -87,7 +89,13 @@ def _ui(inputs):
         input_func=harness.input,
         output_func=harness.output,
         width_provider=lambda: 80,
+        ansi_enabled=False,
+        interactive=False,
     ), harness
+
+
+def _contains(harness, text):
+    return any(text in line for line in harness.lines)
 
 
 def test_action_numbers_and_aliases_return_semantic_actions():
@@ -192,13 +200,15 @@ def test_render_uses_injected_output_and_semantic_log_values():
 
     ui.render(_view(log_entries=(entry,)))
 
-    assert "Ser Branoc HP: 116/116" in harness.lines
-    assert "Goblin HP: 60/60" in harness.lines
-    assert (
-        "Ser Branoc used Ironwake Dismemberment. Critical hit! It dealt 21 damage."
-        in harness.lines
+    assert _contains(harness, "Ser Branoc")
+    assert _contains(harness, "HP 116/116")
+    assert _contains(harness, "Goblin")
+    assert _contains(harness, "HP 60/60")
+    assert _contains(
+        harness,
+        "Ser Branoc used Ironwake Dismemberment. Critical hit! It dealt 21 damage.",
     )
-    assert "Choose an action:" in harness.lines
+    assert _contains(harness, "Actions")
 
 
 def test_structured_move_menu_uses_readable_tags_and_wrapped_summaries():
@@ -247,7 +257,9 @@ def test_structured_move_menu_uses_readable_tags_and_wrapped_summaries():
     ui = TerminalBattleUI(
         input_func=harness.input,
         output_func=harness.output,
-        width_provider=lambda: 45,
+        width_provider=lambda: 60,
+        ansi_enabled=False,
+        interactive=False,
     )
 
     ui.render(
@@ -257,29 +269,28 @@ def test_structured_move_menu_uses_readable_tags_and_wrapped_summaries():
         )
     )
 
-    assert "1. Crestgrave Reaping [Normal]" in harness.lines
-    assert "2. Cinderlung Vesper [Fire Magic | 3 Mana]" in harness.lines
-    assert "3. Brace [Utility | 5 Mana]" in harness.lines
-    assert (
-        "4. Ironwake Dismemberment [Heavy | Empowered +30%]"
-        in harness.lines
+    assert _contains(harness, "1. Crestgrave Reaping [Normal]")
+    assert _contains(harness, "2. Cinderlung Vesper [Fire Magic | 3 Mana]")
+    assert _contains(harness, "3. Brace [Utility | 5 Mana]")
+    assert _contains(
+        harness,
+        "4. Ironwake Dismemberment [Heavy | Empowered +30%]",
     )
     assert not any("[none 0]" in line for line in harness.lines)
     assert all(
-        len(line) <= 45
+        len(line) <= 60
         for line in harness.lines
-        if line.startswith("   ")
     )
-    assert any(line.startswith("   Brace against") for line in harness.lines)
-    assert "0. Back" in harness.lines
+    assert _contains(harness, "Brace against")
+    assert _contains(harness, "0. Back")
 
 
 def test_back_is_rendered_only_during_move_phases_and_super_is_separate():
     ui, actions = _ui(())
     ui.render(_view())
 
-    assert "0. Back" not in actions.lines
-    assert not any(line.startswith("6. Super") for line in actions.lines)
+    assert not _contains(actions, "0. Back")
+    assert not _contains(actions, "6. Super")
 
     super_move = MoveOptionView(
         "Third Gate Obsequy",
@@ -299,9 +310,9 @@ def test_back_is_rendered_only_during_move_phases_and_super_is_separate():
         )
     )
 
-    assert "Choose a Super:" in super_menu.lines
-    assert "1. Third Gate Obsequy [Super | 100 Super]" in super_menu.lines
-    assert "0. Back" in super_menu.lines
+    assert _contains(super_menu, "Choose a Super:")
+    assert _contains(super_menu, "1. Third Gate Obsequy [Super | 100 Super]")
+    assert _contains(super_menu, "0. Back")
 
 
 def test_render_preserves_all_existing_move_result_categories_and_details():
@@ -354,18 +365,142 @@ def test_render_preserves_all_existing_move_result_categories_and_details():
             hit=False,
         ),
     )
-    ui, harness = _ui(())
+    ui, _ = _ui(())
 
-    ui.render(_view(log_entries=entries))
+    rendered_lines = tuple(
+        line
+        for entry in entries
+        for line in ui._log_lines(entry)
+    )
 
-    assert "Ser Branoc used Cut. It dealt 7 damage." in harness.lines
-    assert "Ser Branoc used Recover. It restored 3 health." in harness.lines
-    assert "Goblin used Whiff, but missed." in harness.lines
-    assert "Ser Branoc used Blocked, but it failed: rejected." in harness.lines
-    assert "Ser Branoc used Brace. It resolved." in harness.lines
-    assert "Resource spent: 5." in harness.lines
-    assert "Statuses applied: ward." in harness.lines
-    assert "Ser Branoc used Defend." in harness.lines
+    assert "Ser Branoc used Cut. It dealt 7 damage." in rendered_lines
+    assert "Ser Branoc used Recover. It restored 3 health." in rendered_lines
+    assert "Goblin used Whiff, but missed." in rendered_lines
+    assert "Ser Branoc used Blocked, but it failed: rejected." in rendered_lines
+    assert "Ser Branoc used Brace. It resolved." in rendered_lines
+    assert "Resource spent: 5." in rendered_lines
+    assert "Statuses applied: ward." in rendered_lines
+    assert "Ser Branoc used Defend." in rendered_lines
+
+
+def test_persistent_hud_preserves_sections_and_width_at_supported_sizes():
+    base_view = _view(
+        log_entries=(
+            BattleLogEntry(
+                BattleEventType.DAMAGE,
+                actor_name="Ser Branoc",
+                target_name="Goblin",
+                action_name="Crestgrave Reaping",
+                accepted=True,
+                hit=True,
+                amount=10,
+            ),
+            BattleLogEntry(
+                BattleEventType.MISS,
+                actor_name="Goblin",
+                action_name="slash",
+                accepted=True,
+                hit=False,
+            ),
+        ),
+    )
+    base_view = replace(
+        base_view,
+        player=replace(
+            base_view.player,
+            temporary_labels=("Defending", "Brace"),
+            defending=True,
+        ),
+        enemy=CombatantView("Goblin", 40, 60, 3, 5, 20, 100),
+    )
+
+    for width in (120, 80, 60):
+        harness = TerminalHarness()
+        ui = TerminalBattleUI(
+            input_func=harness.input,
+            output_func=harness.output,
+            width_provider=lambda width=width: width,
+            ansi_enabled=False,
+            interactive=False,
+        )
+
+        ui.render(base_view)
+        text = "\n".join(harness.lines)
+
+        assert all(len(line) <= width for line in harness.lines)
+        assert "Ser Branoc" in text and "Goblin" in text
+        assert "HP 116/116" in text and "HP 40/60" in text
+        assert "Mana 46/46" in text and "Mana 3/5" in text
+        assert "Super 20/100" in text
+        assert "State: Defending, Brace" in text
+        assert "VS" in text
+        assert text.index("Crestgrave Reaping") < text.index("Goblin used slash")
+        assert "1. Attack" in text
+        assert "2. Defend" in text
+        assert "3. Heal [Unavailable]" in text
+        assert "4. Items [Unavailable]" in text
+        assert "5. Escape [Unavailable]" in text
+        assert "4. Super" not in text
+        assert "SUPER [" in text and "0/100" in text
+        assert "\033[" not in text
+
+
+def test_ascii_and_linear_fallback_preserve_meaning_without_ansi():
+    harness = TerminalHarness()
+    ui = TerminalBattleUI(
+        input_func=harness.input,
+        output_func=harness.output,
+        width_provider=lambda: 50,
+        unicode_enabled=False,
+        ansi_enabled=False,
+        interactive=False,
+    )
+
+    ui.render(_view())
+    text = "\n".join(harness.lines)
+
+    assert all(len(line) <= 50 for line in harness.lines)
+    assert "STATUS" in text
+    assert "Ser Branoc" in text and "Goblin" in text
+    assert "ACTIONS" in text
+    assert "SUPER [" in text
+    assert "#" not in text
+    assert "-" in text
+    assert not any(character in text for character in "┌┐└┘├┤│─█░")
+    assert "\033[" not in text
+
+
+def test_super_meter_is_persistent_and_ready_text_matches_availability():
+    ui, normal = _ui(())
+    ui.render(_view())
+    normal_text = "\n".join(normal.lines)
+
+    assert "SUPER [" in normal_text
+    assert "0/100" in normal_text
+    assert "READY [S]" not in normal_text
+
+    ui, ready = _ui(())
+    ui.render(_view(super_ready=True))
+    ready_text = "\n".join(ready.lines)
+
+    assert "SUPER [" in ready_text
+    assert "100/100 READY [S]" in ready_text
+
+
+def test_interactive_ansi_mode_refreshes_without_retaining_state():
+    harness = TerminalHarness()
+    ui = TerminalBattleUI(
+        input_func=harness.input,
+        output_func=harness.output,
+        width_provider=lambda: 80,
+        ansi_enabled=True,
+        interactive=True,
+    )
+
+    ui.render(_view())
+
+    assert harness.lines[0].startswith("\033[2J\033[H")
+    assert sum("\033[2J\033[H" in line for line in harness.lines) == 1
 
 
 def test_adapter_retains_no_log_or_view_state_and_does_not_mutate_view():
@@ -376,4 +511,11 @@ def test_adapter_retains_no_log_or_view_state_and_does_not_mutate_view():
     ui.render(view)
 
     assert repr(view) == before
-    assert set(vars(ui)) == {"_input", "_output", "_width_provider"}
+    assert set(vars(ui)) == {
+        "_input",
+        "_output",
+        "_width_provider",
+        "_unicode_enabled",
+        "_ansi_enabled",
+        "_interactive",
+    }
