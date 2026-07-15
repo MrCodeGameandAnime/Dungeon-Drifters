@@ -13,7 +13,6 @@ from app.presentation.battle_models import (
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_session import BattlePresentationSession
 from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
-from app.ui.terminal_battle_ui import TerminalBattleUI
 
 
 class Battle:
@@ -21,8 +20,8 @@ class Battle:
         self,
         player_state,
         foe,
+        ui,
         resolver=None,
-        ui=None,
         presenter=None,
         presentation_session=None,
     ):
@@ -31,7 +30,7 @@ class Battle:
         self.foe = foe
         self.combat_state = CombatState()
         self.resolver = resolver or CombatResolver()
-        self.ui = ui or TerminalBattleUI()
+        self.ui = ui
         self.presenter = presenter or BattlePresenter()
         self.presentation_session = presentation_session or BattlePresentationSession()
         self.interaction_phase = InteractionPhase.ACTIONS

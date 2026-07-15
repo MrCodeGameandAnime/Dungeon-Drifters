@@ -3,7 +3,7 @@ import contextlib
 import io
 import random
 from types import SimpleNamespace
-from app.combat.battle import Battle
+from app.combat.battle import Battle as DomainBattle
 from app.combat.move import (
     DamageType,
     Move,
@@ -25,6 +25,7 @@ from app.presentation.battle_models import (
     InteractionPhase,
 )
 from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.world.character_profiles.roster import get_profile_by_choice
 
 
@@ -130,6 +131,17 @@ class ScriptedBattleUI:
     def read_input(self, view):
         self.input_views.append(view)
         return self.inputs.pop(0)
+
+
+class Battle(DomainBattle):
+    def __init__(self, player_state, foe, resolver=None, ui=None, **kwargs):
+        super().__init__(
+            player_state,
+            foe,
+            ui=ui or TerminalBattleUI(),
+            resolver=resolver,
+            **kwargs,
+        )
 
 
 class LegacyMovesFailingEnemyState(EnemyState):
