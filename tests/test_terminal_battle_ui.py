@@ -1,0 +1,208 @@
+from app.presentation.battle_models import (
+    ActionAvailabilityReason,
+    ActionIntent,
+    ActionOptionView,
+    BattleEventType,
+    BattleLogEntry,
+    BattleView,
+    CombatantView,
+    InteractionPhase,
+    MoveAvailabilityReason,
+    MoveOptionView,
+    SuperMeterView,
+)
+from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.terminal_battle_ui import TerminalBattleUI
+
+
+class TerminalHarness:
+    def __init__(self, inputs=()):
+        self.inputs = iter(inputs)
+        self.lines = []
+
+    def input(self, prompt):
+        self.lines.append(prompt)
+        return next(self.inputs)
+
+    def output(self, message):
+        self.lines.append(message)
+
+
+def _view(
+    *,
+    phase=InteractionPhase.ACTIONS,
+    super_ready=False,
+    action_options=None,
+    move_options=(),
+    log_entries=(),
+):
+    player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
+    enemy = CombatantView("Goblin", 60, 60)
+    actions = action_options or (
+        ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
+        ActionOptionView(ActionIntent.DEFEND, 2, "Defend", True),
+        ActionOptionView(
+            ActionIntent.HEAL,
+            3,
+            "Heal",
+            False,
+            ActionAvailabilityReason.NO_HEALING_MOVES,
+        ),
+        ActionOptionView(
+            ActionIntent.ITEMS,
+            4,
+            "Items",
+            False,
+            ActionAvailabilityReason.NOT_IMPLEMENTED,
+        ),
+        ActionOptionView(
+            ActionIntent.ESCAPE,
+            5,
+            "Escape",
+            False,
+            ActionAvailabilityReason.NOT_IMPLEMENTED,
+        ),
+    )
+    return BattleView(
+        interaction_phase=phase,
+        player=player,
+        enemy=enemy,
+        super_meter=SuperMeterView(
+            current=100 if super_ready else 0,
+            maximum=100,
+            fill_bps=10_000 if super_ready else 0,
+            ready=super_ready,
+            activation_key="S",
+            activation_offered=super_ready,
+        ),
+        action_options=actions,
+        move_options=move_options,
+        log_entries=log_entries,
+    )
+
+
+def _ui(inputs):
+    harness = TerminalHarness(inputs)
+    return TerminalBattleUI(input_func=harness.input, output_func=harness.output), harness
+
+
+def test_action_numbers_and_aliases_return_semantic_actions():
+    for raw, expected in (("1", ActionIntent.ATTACK), ("defend", ActionIntent.DEFEND)):
+        ui, _ = _ui((raw,))
+        assert ui.read_input(_view()) == ChooseAction(expected)
+
+
+def test_super_key_maps_to_semantic_action_from_any_phase():
+    ui, _ = _ui(("S",))
+
+    result = ui.read_input(
+        _view(phase=InteractionPhase.REGULAR_MOVES, super_ready=True)
+    )
+
+    assert result == ChooseAction(ActionIntent.SUPER)
+
+
+def test_move_number_maps_to_opaque_offered_key():
+    move = MoveOptionView(
+        "Ironwake Dismemberment",
+        4,
+        "Ironwake Dismemberment",
+        ("Heavy",),
+        "A crushing strike.",
+        None,
+        True,
+    )
+    ui, _ = _ui(("4",))
+
+    assert ui.read_input(
+        _view(phase=InteractionPhase.REGULAR_MOVES, move_options=(move,))
+    ) == ChooseMove("Ironwake Dismemberment")
+
+
+def test_back_is_returned_only_from_move_selection_phase():
+    ui, harness = _ui(("0", "attack"))
+
+    assert ui.read_input(_view()) == ChooseAction(ActionIntent.ATTACK)
+    assert "That is not a valid move. Please try again." in harness.lines
+
+    ui, _ = _ui(("0",))
+    assert isinstance(
+        ui.read_input(_view(phase=InteractionPhase.REGULAR_MOVES)),
+        GoBack,
+    )
+
+
+def test_malformed_and_disabled_choices_reprompt_locally():
+    ui, harness = _ui(("nonsense", "3", "2"))
+
+    assert ui.read_input(_view()) == ChooseAction(ActionIntent.DEFEND)
+    assert "Heal is not available." in harness.lines
+    assert harness.lines.count("That is not a valid move. Please try again.") == 2
+
+
+def test_disabled_move_is_not_returned():
+    disabled = MoveOptionView(
+        "Brace",
+        1,
+        "Brace",
+        ("Utility", "5 Mana"),
+        "Brace.",
+        "5 Mana",
+        False,
+        MoveAvailabilityReason.INSUFFICIENT_RESOURCE,
+    )
+    enabled = MoveOptionView(
+        "Crestgrave Reaping",
+        2,
+        "Crestgrave Reaping",
+        ("Normal",),
+        "Strike.",
+        None,
+        True,
+    )
+    ui, harness = _ui(("1", "2"))
+
+    result = ui.read_input(
+        _view(
+            phase=InteractionPhase.REGULAR_MOVES,
+            move_options=(disabled, enabled),
+        )
+    )
+
+    assert result == ChooseMove("Crestgrave Reaping")
+    assert "Brace is not available." in harness.lines
+
+
+def test_render_uses_injected_output_and_semantic_log_values():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Ser Branoc",
+        target_name="Goblin",
+        action_name="Ironwake Dismemberment",
+        accepted=True,
+        hit=True,
+        amount=21,
+        critical=True,
+    )
+    ui, harness = _ui(())
+
+    ui.render(_view(log_entries=(entry,)))
+
+    assert "Ser Branoc HP: 116/116" in harness.lines
+    assert "Goblin HP: 60/60" in harness.lines
+    assert (
+        "Ser Branoc used Ironwake Dismemberment. Critical hit! It dealt 21 damage."
+        in harness.lines
+    )
+    assert "Choose an action:" in harness.lines
+
+
+def test_adapter_retains_no_log_or_view_state_and_does_not_mutate_view():
+    ui, _ = _ui(())
+    view = _view()
+    before = repr(view)
+
+    ui.render(view)
+
+    assert repr(view) == before
+    assert set(vars(ui)) == {"_input", "_output"}
