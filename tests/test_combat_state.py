@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
 from app.combat.combat_state import CombatState
 
@@ -7,6 +8,12 @@ from app.combat.combat_state import CombatState
 @dataclass(eq=True, frozen=False)
 class UnhashableCombatant:
     name: str
+
+
+def test_brace_rules_are_the_approved_shared_values():
+    assert BRACE_RULES.incoming_reduction_percent == 40
+    assert BRACE_RULES.follow_up_damage_bonus_percent == 30
+    assert BRACE_RULES.follow_up_mechanic == "heavy_attack"
 
 
 def test_combat_state_starts_with_empty_temporary_state():
@@ -166,6 +173,23 @@ def test_brace_incoming_reduction_query_does_not_consume_state():
     assert combat_state.brace_incoming_reduction_percent(owner, DamageType.PHYSICAL) == 40
 
 
+def test_brace_incoming_protection_query_reports_state_without_consuming_it():
+    combat_state = CombatState()
+    owner = object()
+    opponent = object()
+
+    assert not combat_state.brace_incoming_protection_active(owner)
+
+    combat_state.activate_brace(owner)
+
+    assert combat_state.brace_incoming_protection_active(owner)
+    assert combat_state.brace_incoming_protection_active(owner)
+
+    combat_state.complete_accepted_action(opponent, opposing_combatants=(owner,))
+
+    assert not combat_state.brace_incoming_protection_active(owner)
+
+
 def test_brace_activation_does_not_expire_itself_through_complete_accepted_action():
     combat_state = CombatState()
     owner = object()
@@ -229,6 +253,22 @@ def test_heavy_payoff_does_not_consume_for_nonmatching_mechanics():
     )
 
 
+def test_brace_follow_up_query_is_non_consuming_and_mechanic_specific():
+    combat_state = CombatState()
+    owner = object()
+    combat_state.activate_brace(owner)
+
+    assert combat_state.brace_follow_up_damage_bonus_percent(owner, "basic_attack") == 0
+    assert combat_state.brace_follow_up_damage_bonus_percent(owner, None) == 0
+    assert combat_state.brace_follow_up_damage_bonus_percent(owner, "heavy_attack") == 30
+    assert combat_state.brace_follow_up_damage_bonus_percent(owner, "heavy_attack") == 30
+    assert (
+        combat_state.consume_brace_follow_up_damage_bonus_percent(owner, "heavy_attack")
+        == 30
+    )
+    assert combat_state.brace_follow_up_damage_bonus_percent(owner, "heavy_attack") == 0
+
+
 def test_heavy_payoff_returns_zero_when_no_active_payoff_exists():
     combat_state = CombatState()
     owner = object()
@@ -274,6 +314,10 @@ def test_brace_ownership_is_identity_based_and_unhashable_safe():
 
     combat_state.activate_brace(first)
 
+    assert combat_state.brace_incoming_protection_active(first)
+    assert not combat_state.brace_incoming_protection_active(second)
+    assert combat_state.brace_follow_up_damage_bonus_percent(first, "heavy_attack") == 30
+    assert combat_state.brace_follow_up_damage_bonus_percent(second, "heavy_attack") == 0
     assert combat_state.brace_incoming_reduction_percent(first, DamageType.PHYSICAL) == 40
     assert combat_state.brace_incoming_reduction_percent(second, DamageType.PHYSICAL) == 0
     assert (
