@@ -1,0 +1,337 @@
+"""Stateless terminal rendering and semantic input translation."""
+
+import builtins
+import shutil
+import sys
+import textwrap
+
+from app.presentation.battle_models import (
+    ActionIntent,
+    BattleEventType,
+    BattleView,
+    InputRejectionReason,
+    InteractionPhase,
+)
+from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+
+
+class TerminalBattleUI:
+    def __init__(
+        self,
+        *,
+        input_func=None,
+        output_func=None,
+        width_provider=None,
+        unicode_enabled=True,
+        ansi_enabled=None,
+        interactive=None,
+    ):
+        self._input = input_func or (lambda prompt: builtins.input(prompt))
+        self._output = output_func or (lambda message: builtins.print(message))
+        self._width_provider = width_provider or (
+            lambda: shutil.get_terminal_size((80, 24)).columns
+        )
+        self._unicode_enabled = bool(unicode_enabled)
+        if interactive is None:
+            interactive = sys.stdin.isatty() and sys.stdout.isatty()
+        if ansi_enabled is None:
+            ansi_enabled = interactive
+        self._ansi_enabled = bool(ansi_enabled)
+        self._interactive = bool(interactive)
+
+    def render(self, view):
+        if not isinstance(view, BattleView):
+            raise TypeError("view must be a BattleView")
+
+        width = max(30, int(self._width_provider()))
+        lines = (
+            self._framed_lines(view, width)
+            if width >= 60
+            else self._linear_lines(view, width)
+        )
+        if self._interactive and self._ansi_enabled:
+            lines = ("\033[2J\033[H" + lines[0], *lines[1:])
+        for line in lines:
+            self._output(line)
+
+    def read_input(self, view):
+        if not isinstance(view, BattleView):
+            raise TypeError("view must be a BattleView")
+
+        while True:
+            raw_value = self._input("> ")
+            if not isinstance(raw_value, str):
+                self._output("That is not a valid move. Please try again.")
+                continue
+
+            choice = raw_value.strip().lower()
+            selected = self._translate_choice(view, choice)
+            if selected is not None:
+                return selected
+
+            self._output("That is not a valid move. Please try again.")
+
+    def _translate_choice(self, view, choice):
+        if choice in ("s", "super"):
+            if view.super_meter.activation_offered:
+                return ChooseAction(ActionIntent.SUPER)
+            self._output("Super is not available.")
+            return None
+
+        if view.interaction_phase == InteractionPhase.ACTIONS:
+            return self._translate_action(view, choice)
+
+        if choice in ("0", "back"):
+            return GoBack()
+        return self._translate_move(view, choice)
+
+    def _translate_action(self, view, choice):
+        for option in view.action_options:
+            if choice not in (str(option.number), option.label.lower(), option.intent.value):
+                continue
+            if option.enabled:
+                return ChooseAction(option.intent)
+            self._output(f"{option.label} is not available.")
+            return None
+        return None
+
+    def _translate_move(self, view, choice):
+        for move in view.move_options:
+            if choice not in (str(move.number), move.name.lower()):
+                continue
+            if move.enabled:
+                return ChooseMove(move.selection_key)
+            self._output(f"{move.name} is not available.")
+            return None
+        return None
+
+    def _framed_lines(self, view, width):
+        chars = self._frame_characters()
+        lines = [chars["top_left"] + chars["horizontal"] * (width - 2) + chars["top_right"]]
+        sections = (
+            self._status_lines(view, width - 4),
+            self._visual_lines(view, width - 4),
+            self._display_log_lines(view, width - 4),
+            self._control_lines(view, width - 4),
+            (self._super_meter_line(view, width - 4),),
+        )
+        for section_index, section in enumerate(sections):
+            if section_index:
+                lines.append(
+                    chars["middle_left"]
+                    + chars["horizontal"] * (width - 2)
+                    + chars["middle_right"]
+                )
+            for content in section:
+                lines.append(self._boxed_line(content, width, chars["vertical"]))
+        lines.append(chars["bottom_left"] + chars["horizontal"] * (width - 2) + chars["bottom_right"])
+        return tuple(lines)
+
+    def _linear_lines(self, view, width):
+        lines = ["STATUS"]
+        lines.extend(self._combatant_status(view.player, include_super=False))
+        lines.extend(self._combatant_status(view.enemy, include_super=True))
+        lines.append("VISUALS")
+        lines.extend(self._visual_lines(view, width))
+        lines.append("BATTLE LOG")
+        lines.extend(self._display_log_lines(view, width))
+        lines.append("ACTIONS")
+        lines.extend(self._control_lines(view, width))
+        lines.append(self._super_meter_line(view, width))
+        return tuple(
+            wrapped
+            for line in lines
+            for wrapped in self._wrap(line, width)
+        )
+
+    def _status_lines(self, view, width):
+        player_lines = self._combatant_status(view.player, include_super=False)
+        enemy_lines = self._combatant_status(view.enemy, include_super=True)
+        separator = " │ " if self._unicode_enabled else " | "
+        left_width = (width - len(separator)) // 2
+        right_width = width - len(separator) - left_width
+        rows = []
+        for index in range(max(len(player_lines), len(enemy_lines))):
+            left = player_lines[index] if index < len(player_lines) else ""
+            right = enemy_lines[index] if index < len(enemy_lines) else ""
+            rows.append(
+                self._fit(left, left_width).ljust(left_width)
+                + separator
+                + self._fit(right, right_width)
+            )
+        return tuple(rows)
+
+    @staticmethod
+    def _combatant_status(combatant, *, include_super):
+        lines = [combatant.display_name, f"HP {combatant.hp_current}/{combatant.hp_maximum}"]
+        if combatant.mana_current is not None:
+            lines.append(f"Mana {combatant.mana_current}/{combatant.mana_maximum}")
+        if include_super and combatant.super_current is not None:
+            lines.append(f"Super {combatant.super_current}/{combatant.super_maximum}")
+        if combatant.temporary_labels:
+            lines.append("State: " + ", ".join(combatant.temporary_labels))
+        return tuple(lines)
+
+    def _visual_lines(self, view, width):
+        if view.visual.player_lines or view.visual.enemy_lines:
+            player = " ".join(view.visual.player_lines) or view.player.display_name
+            enemy = " ".join(view.visual.enemy_lines) or view.enemy.display_name
+        else:
+            player = f"[ {view.player.display_name} ]"
+            enemy = f"[ {view.enemy.display_name} ]"
+        return (self._fit(f"{player}   VS   {enemy}", width).center(width),)
+
+    def _display_log_lines(self, view, width):
+        lines = []
+        for entry in view.log_entries:
+            for semantic_line in self._log_lines(entry):
+                lines.extend(self._wrap(semantic_line, width))
+        visible_count = 5 if width >= 76 else 3
+        return tuple(lines[-visible_count:] or ("Battle awaits.",))
+
+    def _control_lines(self, view, width):
+        if view.interaction_phase == InteractionPhase.ACTIONS:
+            labels = tuple(
+                f"{option.number}. {option.label}"
+                + (" [Unavailable]" if not option.enabled else "")
+                for option in view.action_options
+            )
+            first_row = "   ".join(labels[:3])
+            second_row = "   ".join(labels[3:])
+            return (
+                "Actions",
+                *self._wrap(first_row, width),
+                *self._wrap(second_row, width),
+            )
+
+        lines = [self._phase_heading(view.interaction_phase)]
+        for move in view.move_options:
+            tags = " | ".join(move.tags)
+            suffix = " [Unavailable]" if not move.enabled else ""
+            lines.extend(
+                self._wrap(
+                    f"{move.number}. {move.name} [{tags}]{suffix}",
+                    width,
+                )
+            )
+            lines.extend(
+                "   " + summary_line
+                for summary_line in self._wrap(move.rules_summary, max(20, width - 3))
+            )
+        lines.append("0. Back")
+        return tuple(lines)
+
+    def _super_meter_line(self, view, width):
+        meter = view.super_meter
+        suffix = f" {meter.current}/{meter.maximum}"
+        if meter.activation_offered:
+            suffix += " READY [S]"
+        prefix = "SUPER "
+        bar_width = max(8, width - len(prefix) - len(suffix) - 2)
+        filled = bar_width * meter.fill_bps // 10_000
+        if self._unicode_enabled:
+            bar = "█" * filled + "░" * (bar_width - filled)
+        else:
+            bar = "#" * filled + "-" * (bar_width - filled)
+        return self._fit(f"{prefix}[{bar}]{suffix}", width)
+
+    def _frame_characters(self):
+        if self._unicode_enabled:
+            return {
+                "top_left": "┌",
+                "top_right": "┐",
+                "bottom_left": "└",
+                "bottom_right": "┘",
+                "middle_left": "├",
+                "middle_right": "┤",
+                "horizontal": "─",
+                "vertical": "│",
+            }
+        return {
+            "top_left": "+",
+            "top_right": "+",
+            "bottom_left": "+",
+            "bottom_right": "+",
+            "middle_left": "+",
+            "middle_right": "+",
+            "horizontal": "-",
+            "vertical": "|",
+        }
+
+    @staticmethod
+    def _boxed_line(content, width, vertical):
+        inner_width = width - 4
+        return f"{vertical} {content[:inner_width].ljust(inner_width)} {vertical}"
+
+    @staticmethod
+    def _fit(value, width):
+        if len(value) <= width:
+            return value
+        if width <= 3:
+            return value[:width]
+        return value[: width - 3] + "..."
+
+    @staticmethod
+    def _wrap(value, width):
+        return tuple(
+            textwrap.wrap(
+                value,
+                width=max(1, width),
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+            or ("",)
+        )
+
+    @staticmethod
+    def _phase_heading(phase):
+        if phase == InteractionPhase.SUPER_MOVES:
+            return "Choose a Super:"
+        return "Choose a move:"
+
+    def _log_lines(self, entry):
+        actor = entry.actor_name or "Combatant"
+        target = entry.target_name or "target"
+        action = entry.action_name or "action"
+        lines = []
+        if entry.event_type == BattleEventType.ENCOUNTER_START:
+            lines.append(f"A {target} blocks your path!")
+        elif entry.event_type == BattleEventType.INITIATIVE:
+            lines.append(f"{actor} will go first.")
+        elif entry.event_type == BattleEventType.DAMAGE:
+            critical = " Critical hit!" if entry.critical else ""
+            lines.append(f"{actor} used {action}.{critical} It dealt {entry.amount} damage.")
+        elif entry.event_type == BattleEventType.MISS:
+            lines.append(f"{actor} used {action}, but missed.")
+        elif entry.event_type == BattleEventType.HEALING:
+            lines.append(f"{actor} used {action}. It restored {entry.amount} health.")
+        elif entry.event_type == BattleEventType.DEFEND:
+            lines.append(f"{actor} used Defend.")
+        elif entry.event_type == BattleEventType.UTILITY:
+            lines.append(f"{actor} used {action}. It resolved.")
+        elif entry.event_type == BattleEventType.ACTION_REJECTED:
+            lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
+        elif entry.event_type == BattleEventType.INPUT_REJECTED:
+            lines.append(self._input_rejection_text(entry.rejection_reason))
+        elif entry.event_type == BattleEventType.VICTORY:
+            lines.append(f"{actor} is victorious over {target}.")
+        elif entry.event_type == BattleEventType.DEFEAT:
+            lines.append(f"{actor} was defeated by {target}.")
+        else:
+            raise ValueError(f"unsupported battle event type: {entry.event_type!r}")
+
+        if entry.resource_spent:
+            lines.append(f"Resource spent: {entry.resource_spent}.")
+        if entry.statuses_applied:
+            lines.append(f"Statuses applied: {', '.join(entry.statuses_applied)}.")
+        return tuple(lines)
+
+    @staticmethod
+    def _input_rejection_text(reason):
+        if reason == InputRejectionReason.SUPER_UNAVAILABLE:
+            return "Super is not available."
+        if reason == InputRejectionReason.MOVE_UNAVAILABLE:
+            return "That move is not available."
+        if reason == InputRejectionReason.BACK_UNAVAILABLE:
+            return "Back is not available."
+        return "That action is not available."

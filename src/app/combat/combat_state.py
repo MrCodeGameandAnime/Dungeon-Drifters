@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
 
 
@@ -45,8 +46,8 @@ class CombatState:
         self,
         owner,
         *,
-        incoming_reduction_percent=40,
-        heavy_payoff_damage_bonus_percent=30,
+        incoming_reduction_percent=BRACE_RULES.incoming_reduction_percent,
+        heavy_payoff_damage_bonus_percent=BRACE_RULES.follow_up_damage_bonus_percent,
     ):
         brace_state = _BraceState(
             owner=owner,
@@ -77,8 +78,22 @@ class CombatState:
 
         return brace_state.incoming_reduction_percent
 
+    def brace_incoming_protection_active(self, actor):
+        brace_state = self._find_brace_state(actor)
+        return bool(brace_state and brace_state.incoming_protection_active)
+
+    def brace_follow_up_damage_bonus_percent(self, actor, move_mechanic):
+        if move_mechanic != BRACE_RULES.follow_up_mechanic:
+            return 0
+
+        brace_state = self._find_brace_state(actor)
+        if brace_state is None or not brace_state.heavy_payoff_active:
+            return 0
+
+        return brace_state.heavy_payoff_damage_bonus_percent
+
     def consume_brace_follow_up_damage_bonus_percent(self, actor, move_mechanic):
-        if move_mechanic != "heavy_attack":
+        if move_mechanic != BRACE_RULES.follow_up_mechanic:
             return 0
 
         brace_state = self._find_brace_state(actor)

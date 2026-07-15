@@ -10,6 +10,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
+from app.combat.move_presentation import MovePresentation, MoveRole
 
 
 def create_move(**overrides):
@@ -51,6 +52,38 @@ def test_move_is_immutable():
 
     with pytest.raises(FrozenInstanceError):
         setattr(move, "power", 99)
+
+
+def test_move_presentation_is_optional_immutable_and_inert():
+    assert create_move().presentation is None
+
+    presentation = MovePresentation(
+        role="heavy",
+        affinity_label="Fire",
+        static_summary="A concise summary.",
+    )
+    move = create_move(presentation=presentation)
+
+    assert move.presentation is presentation
+    assert presentation.role == MoveRole.HEAVY
+    assert presentation.affinity_label == "Fire"
+    assert presentation.static_summary == "A concise summary."
+
+    with pytest.raises(FrozenInstanceError):
+        setattr(presentation, "role", MoveRole.NORMAL)
+
+
+def test_move_presentation_validation():
+    with pytest.raises(ValueError):
+        MovePresentation(role="unsupported")
+    with pytest.raises(ValueError):
+        MovePresentation(role=MoveRole.NORMAL, affinity_label="")
+    with pytest.raises(TypeError):
+        MovePresentation(role=MoveRole.NORMAL, affinity_label=1)
+    with pytest.raises(ValueError):
+        MovePresentation(role=MoveRole.NORMAL, static_summary="")
+    with pytest.raises(TypeError):
+        create_move(presentation={"role": "normal"})
 
 
 def test_resource_cost_validation():

@@ -1,0 +1,1 @@
+"""Battle user-interface adapters."""
