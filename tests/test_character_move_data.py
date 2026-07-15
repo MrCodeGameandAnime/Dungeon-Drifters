@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move_presentation import MoveRole
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
@@ -168,6 +169,18 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
         move.mechanic in {None, "basic_attack", "heavy_attack", "brace"}
         for move in brawler.combat_moves
     )
+    assert [move.presentation.role for move in brawler.combat_moves] == [
+        MoveRole.NORMAL,
+        MoveRole.NORMAL,
+        MoveRole.UTILITY,
+        MoveRole.HEAVY,
+        MoveRole.SUPER,
+    ]
+    assert brawler.combat_moves[1].presentation.affinity_label == "Fire"
+    assert brawler.combat_moves[3].presentation.static_summary == (
+        "A crushing Sunder-Spire strike."
+    )
+    assert all(move.presentation is not None for move in brawler.combat_moves)
 
 
 def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():

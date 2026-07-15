@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.combat.move_presentation import MovePresentation
+
 
 class MoveKind(StrEnum):
     DAMAGE = "damage"
@@ -52,6 +54,7 @@ class Move:
     damage_type: DamageType
     mechanic: str | None
     description: str
+    presentation: MovePresentation | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "name", _validate_nonempty_string("name", self.name))
@@ -80,6 +83,11 @@ class Move:
             self,
             "description",
             _validate_nonempty_string("description", self.description),
+        )
+        object.__setattr__(
+            self,
+            "presentation",
+            _validate_presentation(self.presentation),
         )
 
         if self.resource_type == ResourceType.NONE and self.resource_cost != 0:
@@ -115,6 +123,13 @@ def _validate_optional_string(name, value):
     if value is None:
         return None
     return _validate_nonempty_string(name, value)
+
+
+def _validate_presentation(value):
+    if value is None or isinstance(value, MovePresentation):
+        return value
+
+    raise TypeError("presentation must be MovePresentation or None")
 
 
 def _validate_nonnegative_integer(name, value):

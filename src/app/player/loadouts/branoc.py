@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move_presentation import MovePresentation, MoveRole
 from app.items.weapon import SunderSpire
 
 
@@ -37,7 +38,8 @@ def create_combat_moves():
             damage_type=DamageType.PHYSICAL,
             mechanic='basic_attack',
             # Deferred mechanic: guard and armor cleave
-            description='Sunder-Spire tears through the target, cleaving guard and armor.'),
+            description='Sunder-Spire tears through the target, cleaving guard and armor.',
+            presentation=MovePresentation(role=MoveRole.NORMAL)),
         Move(
             name='Cinderlung Vesper',
             kind=MoveKind.DAMAGE,
@@ -50,7 +52,11 @@ def create_combat_moves():
             damage_type=DamageType.MAGICAL,
             mechanic=None,
             # Deferred mechanic: line or multi-target war-breath
-            description='A black war-breath erupts forward, searing everything in its path.'),
+            description='A black war-breath erupts forward, searing everything in its path.',
+            presentation=MovePresentation(
+                role=MoveRole.NORMAL,
+                affinity_label='Fire',
+            )),
         Move(
             name='Brace',
             kind=MoveKind.UTILITY,
@@ -62,7 +68,8 @@ def create_combat_moves():
             target=TargetType.SELF,
             damage_type=DamageType.NONE,
             mechanic='brace',
-            description='Branoc plants Sunder-Spire and braces behind the Deep-Iron crest.'),
+            description='Branoc plants Sunder-Spire and braces behind the Deep-Iron crest.',
+            presentation=MovePresentation(role=MoveRole.UTILITY)),
         Move(
             name='Ironwake Dismemberment',
             kind=MoveKind.DAMAGE,
@@ -75,7 +82,11 @@ def create_combat_moves():
             damage_type=DamageType.PHYSICAL,
             mechanic='heavy_attack',
             # Deferred mechanic: battlefield-splitting impact
-            description='Branoc drives Sunder-Spire downward with battlefield-splitting force.'),
+            description='Branoc drives Sunder-Spire downward with battlefield-splitting force.',
+            presentation=MovePresentation(
+                role=MoveRole.HEAVY,
+                static_summary='A crushing Sunder-Spire strike.',
+            )),
         Move(
             name='Third Gate Obsequy',
             kind=MoveKind.DAMAGE,
@@ -88,7 +99,8 @@ def create_combat_moves():
             damage_type=DamageType.HYBRID,
             mechanic=None,
             # Deferred mechanic: Third Gate manifestation
-            description='A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.'),
+            description='A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.',
+            presentation=MovePresentation(role=MoveRole.SUPER)),
     ]
 
 
