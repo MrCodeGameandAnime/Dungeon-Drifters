@@ -41,11 +41,24 @@ class Battle:
     def _enemy_moves(self):
         return self.foe.combat_moves
 
-    def _complete_accepted_action(self, actor, opposing_combatants, result):
+    def _complete_accepted_action(
+        self,
+        actor,
+        opposing_combatants,
+        result,
+        *,
+        reduce_heal_cooldown=True,
+    ):
         if result.accepted:
+            if reduce_heal_cooldown:
+                return self.combat_state.complete_accepted_action(
+                    actor,
+                    opposing_combatants,
+                )
             return self.combat_state.complete_accepted_action(
                 actor,
                 opposing_combatants,
+                reduce_heal_cooldown=False,
             )
 
         return None
@@ -188,7 +201,20 @@ class Battle:
                     self.interaction_phase = InteractionPhase.REGULAR_MOVES
                     continue
                 if battle_input.intent == ActionIntent.HEAL:
-                    self.interaction_phase = InteractionPhase.HEALING_MOVES
+                    result = self.resolver.resolve_heal(
+                        self.player_state,
+                        combat_state=self.combat_state,
+                    )
+                    self._record_move_result(result, actor=self.player_state)
+                    if result.accepted:
+                        self._complete_accepted_action(
+                            self.player_state,
+                            (self.foe,),
+                            result,
+                            reduce_heal_cooldown=False,
+                        )
+                        self.interaction_phase = InteractionPhase.ACTIONS
+                        return True
                     continue
                 if battle_input.intent == ActionIntent.SUPER:
                     self.interaction_phase = InteractionPhase.SUPER_MOVES

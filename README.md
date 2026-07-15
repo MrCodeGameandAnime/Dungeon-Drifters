@@ -39,10 +39,11 @@ currently presents:
 - Items
 - Escape
 
-Attack, Heal, and Super open structured move submenus when eligible moves are
-available. Defend is a core combat action. Items and in-battle Escape are
-visible but disabled until their gameplay contracts are implemented. Super is
-also persistently visible as a separate meter rather than an ordinary action
+Attack and Super open structured move submenus when eligible moves are
+available. Heal is a universal self-heal action with a three-action cooldown.
+Defend is a core combat action. Items and in-battle Escape are visible but
+disabled until their gameplay contracts are implemented. Super is also
+persistently visible as a separate meter rather than an ordinary action
 button.
 
 ## Play Instructions
@@ -63,7 +64,8 @@ During play:
 4. Read the opening story.
 5. Choose to attack or flee.
 6. If combat starts, choose Attack, Defend, Heal, Items, or Escape.
-7. Attack, Heal, and Super open structured move submenus when available.
+7. Use Heal when damaged and ready; it becomes available again after three
+   later accepted actions by that character.
 8. Use the persistent Super meter to open the Super submenu when ready.
 
 ## Screenshots
@@ -326,6 +328,8 @@ v0.2.9 completes the M9 UI/engine separation milestone:
   completion, and victory/defeat flow
 - added the persistent Super meter and five-option ordinary action hierarchy
   with disabled Items and Escape states
+- restored universal Heal as a resolver-backed self-heal with a three-action
+  cooldown, without adding healing moves to character loadouts
 - added structured move roles, affinities, summaries, and dynamic Brace and
   Ironwake presentation without consuming combat state
 - verified all four Drifters through resolver compatibility tests and
@@ -335,8 +339,9 @@ v0.2.9 completes the M9 UI/engine separation milestone:
 ## Known Limitations
 
 - Items and in-battle Escape are visible in the Battle menu but not yet wired.
-- Heal is a presentation category for authored healing moves; no current
-  universal healing action or new healing gameplay has been added.
+- Heal is a universal self-heal that restores 10-16 HP plus effective
+  Constitution and becomes available again after three later accepted
+  actions by that character.
 - Joruun's full structured combat identity and specialized mechanics remain
   deferred.
 - Exact combat formulas and balance are provisional.

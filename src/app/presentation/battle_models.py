@@ -44,6 +44,8 @@ class BattleEventType(StrEnum):
 class ActionAvailabilityReason(StrEnum):
     NO_REGULAR_MOVES = "no_regular_moves"
     NO_HEALING_MOVES = "no_healing_moves"
+    FULL_HP = "full_hp"
+    HEAL_COOLDOWN = "heal_cooldown"
     CANNOT_DEFEND = "cannot_defend"
     NOT_IMPLEMENTED = "not_implemented"
     SUPER_NOT_READY = "super_not_ready"

@@ -2,7 +2,7 @@
 
 import random
 
-from app.combat.combat_state import CombatState
+from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.result import MoveResult
@@ -17,6 +17,8 @@ MAX_ORDINARY_CRIT_CHANCE = 35
 CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
 SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
+HEALING_ROLL_MIN = 10
+HEALING_ROLL_MAX = 16
 
 
 class CombatResolver:
@@ -142,6 +144,37 @@ class CombatResolver:
             resource_spent=0,
             damage=0,
             healing=0,
+            statuses_applied=(),
+            reason=None,
+            critical=False,
+        )
+
+    def resolve_heal(self, actor, *, combat_state):
+        if not _is_valid_combatant(actor):
+            return _rejected("Heal", "invalid_actor")
+        if not actor.is_alive():
+            return _rejected("Heal", "actor_defeated")
+        if not isinstance(combat_state, CombatState):
+            return _rejected("Heal", "invalid_combat_state")
+        if actor.health.current >= actor.health.maximum:
+            return _rejected("Heal", "heal_at_full_health")
+        if combat_state.heal_cooldown_remaining(actor) > 0:
+            return _rejected("Heal", "heal_cooldown")
+
+        rolled_healing = self.rng.randint(HEALING_ROLL_MIN, HEALING_ROLL_MAX)
+        rolled_healing += actor.effective_stat("constitution")
+        before = actor.health.current
+        actor.health.heal(rolled_healing)
+        actual_healing = actor.health.current - before
+        combat_state.start_heal_cooldown(actor, HEAL_COOLDOWN_ACTIONS)
+
+        return MoveResult(
+            accepted=True,
+            hit=True,
+            move_name="Heal",
+            resource_spent=0,
+            damage=0,
+            healing=actual_healing,
             statuses_applied=(),
             reason=None,
             critical=False,

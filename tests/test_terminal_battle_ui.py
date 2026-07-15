@@ -104,6 +104,29 @@ def test_action_numbers_and_aliases_return_semantic_actions():
         assert ui.read_input(_view()) == ChooseAction(expected)
 
 
+def test_mnemonic_action_bindings_are_case_insensitive():
+    actions = tuple(
+        ActionOptionView(intent, number, intent.name.title(), True)
+        for intent, number in (
+            (ActionIntent.ATTACK, 1),
+            (ActionIntent.DEFEND, 2),
+            (ActionIntent.HEAL, 3),
+            (ActionIntent.ITEMS, 4),
+            (ActionIntent.ESCAPE, 5),
+        )
+    )
+    for lower, upper, intent in (
+        ("a", "A", ActionIntent.ATTACK),
+        ("d", "D", ActionIntent.DEFEND),
+        ("h", "H", ActionIntent.HEAL),
+        ("i", "I", ActionIntent.ITEMS),
+        ("e", "E", ActionIntent.ESCAPE),
+    ):
+        for raw in (lower, upper):
+            ui, _ = _ui((raw,))
+            assert ui.read_input(_view(action_options=actions)) == ChooseAction(intent)
+
+
 def test_super_key_maps_to_semantic_action_from_any_phase():
     ui, _ = _ui(("S",))
 
@@ -112,6 +135,13 @@ def test_super_key_maps_to_semantic_action_from_any_phase():
     )
 
     assert result == ChooseAction(ActionIntent.SUPER)
+
+
+def test_unready_super_reports_not_ready_and_reprompts_without_semantic_action():
+    ui, harness = _ui(("s", "a"))
+
+    assert ui.read_input(_view()) == ChooseAction(ActionIntent.ATTACK)
+    assert "Super is not ready." in harness.lines
 
 
 def test_move_number_maps_to_opaque_offered_key():
@@ -435,12 +465,14 @@ def test_persistent_hud_preserves_sections_and_width_at_supported_sizes():
         assert "State: Defending, Brace" in text
         assert "VS" in text
         assert text.index("Crestgrave Reaping") < text.index("Goblin used slash")
-        assert "1. Attack" in text
-        assert "2. Defend" in text
-        assert "3. Heal [Unavailable]" in text
-        assert "4. Items [Unavailable]" in text
-        assert "5. Escape [Unavailable]" in text
-        assert "4. Super" not in text
+        assert "[A] Attack" in text
+        assert "[D] Defend" in text
+        assert "[H]" in text and "Heal" in text
+        assert "[I]" in text and "Items" in text
+        assert "[E]" in text and "Escape" in text
+        assert text.count("[Unavailable]") >= 3
+        assert "[S] Super" in text
+        assert "1. Attack" not in text
         assert "SUPER [" in text and "0/100" in text
         assert "\033[" not in text
 
@@ -477,14 +509,15 @@ def test_super_meter_is_persistent_and_ready_text_matches_availability():
 
     assert "SUPER [" in normal_text
     assert "0/100" in normal_text
-    assert "READY [S]" not in normal_text
+    assert "READY" not in normal_text
 
     ui, ready = _ui(())
     ui.render(_view(super_ready=True))
     ready_text = "\n".join(ready.lines)
 
     assert "SUPER [" in ready_text
-    assert "100/100 READY [S]" in ready_text
+    assert "100/100 READY" in ready_text
+    assert "[S] Super" in ready_text
 
 
 def test_interactive_ansi_mode_refreshes_without_retaining_state():

@@ -92,34 +92,24 @@ def test_presenter_builds_five_ordinary_action_options():
     assert tuple(option.number for option in view.action_options) == (1, 2, 3, 4, 5)
     assert _option(view, ActionIntent.ATTACK).enabled is True
     assert _option(view, ActionIntent.DEFEND).enabled is True
-    assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.NO_HEALING_MOVES
+    assert _option(view, ActionIntent.HEAL).label == "Heal - Full HP"
+    assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.FULL_HP
     assert _option(view, ActionIntent.ITEMS).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
     assert _option(view, ActionIntent.ESCAPE).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
 
 
-def test_heal_only_exposes_existing_non_super_healing_moves():
-    character = Brawler()
-    character.combat_moves.append(
-        Move(
-            name="Recover",
-            kind=MoveKind.HEALING,
-            resource_type=ResourceType.MANA,
-            resource_cost=4,
-            power=8,
-            scales_with=(ScalingAttribute.SPIRIT,),
-            accuracy=100,
-            target=TargetType.SELF,
-            damage_type=DamageType.HEALING,
-            mechanic=None,
-            description="Restore health.",
-        )
+def test_universal_heal_is_not_an_authored_move_submenu():
+    view, player, _, combat_state = _build()
+    player.health.take_damage(10)
+
+    view = BattlePresenter().build(
+        player=player,
+        enemy=EnemyState(Goblin()),
+        combat_state=combat_state,
     )
 
-    view, _, _, _ = _build(character, InteractionPhase.HEALING_MOVES)
-
     assert _option(view, ActionIntent.HEAL).enabled is True
-    assert tuple(move.name for move in view.move_options) == ("Recover",)
-    assert view.move_options[0].tags == ("Healing", "4 Mana")
+    assert view.move_options == ()
 
 
 def test_interaction_phase_filters_move_categories():

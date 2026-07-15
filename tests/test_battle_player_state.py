@@ -424,11 +424,12 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
         battle.player_action()
 
     text = output.getvalue()
-    assert "1. Attack" in text
-    assert "2. Defend" in text
-    assert "3. Heal [Unavailable]" in text
-    assert "4. Items [Unavailable]" in text
-    assert "5. Escape [Unavailable]" in text
+    assert "[A] Attack" in text
+    assert "[D] Defend" in text
+    assert "[H] Heal - Full HP [Unavailable]" in text
+    assert "[I] Items [Unavailable]" in text
+    assert "[E] Escape [Unavailable]" in text
+    assert "[S] Super" in text
     assert "SUPER [" in text
     assert "0/100" in text
     assert "Recover (restore health)" not in text

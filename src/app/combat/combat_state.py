@@ -6,6 +6,9 @@ from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
 
 
+HEAL_COOLDOWN_ACTIONS = 3
+
+
 @dataclass
 class _BraceState:
     owner: object
@@ -15,11 +18,18 @@ class _BraceState:
     heavy_payoff_damage_bonus_percent: int
 
 
+@dataclass
+class _HealCooldown:
+    owner: object
+    remaining_actions: int
+
+
 class CombatState:
     def __init__(self):
         self.turn_count = 0
         self._defending_combatants = []
         self._brace_states = []
+        self._heal_cooldowns = []
         self.statuses = {}
         self.buffs = {}
         self.debuffs = {}
@@ -41,6 +51,26 @@ class CombatState:
             for active in self._defending_combatants
             if active is not combatant
         ]
+
+    def heal_cooldown_remaining(self, actor):
+        cooldown = self._find_heal_cooldown(actor)
+        return cooldown.remaining_actions if cooldown is not None else 0
+
+    def heal_available(self, actor):
+        return (
+            actor.health.current < actor.health.maximum
+            and self.heal_cooldown_remaining(actor) == 0
+        )
+
+    def start_heal_cooldown(self, actor, actions=HEAL_COOLDOWN_ACTIONS):
+        cooldown = self._find_heal_cooldown(actor)
+        if cooldown is None:
+            self._heal_cooldowns.append(
+                _HealCooldown(owner=actor, remaining_actions=actions)
+            )
+            return
+
+        cooldown.remaining_actions = actions
 
     def activate_brace(
         self,
@@ -103,13 +133,22 @@ class CombatState:
         brace_state.heavy_payoff_active = False
         return brace_state.heavy_payoff_damage_bonus_percent
 
-    def complete_accepted_action(self, actor, opposing_combatants):
+    def complete_accepted_action(
+        self,
+        actor,
+        opposing_combatants,
+        *,
+        reduce_heal_cooldown=True,
+    ):
         for opponent in opposing_combatants:
             if opponent is actor:
                 continue
 
             self.clear_defend(opponent)
             self._clear_brace_incoming_protection(opponent)
+
+        if reduce_heal_cooldown:
+            self._decrement_heal_cooldown(actor)
 
         return self.advance_turn()
 
@@ -119,6 +158,20 @@ class CombatState:
                 return brace_state
 
         return None
+
+    def _find_heal_cooldown(self, combatant):
+        for cooldown in self._heal_cooldowns:
+            if cooldown.owner is combatant:
+                return cooldown
+
+        return None
+
+    def _decrement_heal_cooldown(self, combatant):
+        cooldown = self._find_heal_cooldown(combatant)
+        if cooldown is None or cooldown.remaining_actions == 0:
+            return
+
+        cooldown.remaining_actions -= 1
 
     def _clear_brace_incoming_protection(self, combatant):
         brace_state = self._find_brace_state(combatant)

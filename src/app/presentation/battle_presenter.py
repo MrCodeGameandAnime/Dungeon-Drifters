@@ -33,7 +33,7 @@ class BattlePresenter:
             player=self._combatant_view(player, combat_state, is_player=True),
             enemy=self._combatant_view(enemy, combat_state, is_player=False),
             super_meter=self._super_meter_view(player),
-            action_options=self._action_options(player),
+            action_options=self._action_options(player, combat_state),
             move_options=self._move_options(player, combat_state, phase),
             log_entries=tuple(log_entries),
             visual=BattleVisualView(),
@@ -74,10 +74,23 @@ class BattlePresenter:
             return resource.current, resource.maximum
         return None, None
 
-    def _action_options(self, player):
+    def _action_options(self, player, combat_state):
         regular_moves = self._regular_moves(player)
-        healing_moves = self._healing_moves(player)
         can_defend = bool(player.can_defend)
+        heal_cooldown = combat_state.heal_cooldown_remaining(player)
+        if player.health.current >= player.health.maximum:
+            heal_label = "Heal - Full HP"
+            heal_enabled = False
+            heal_reason = ActionAvailabilityReason.FULL_HP
+        elif heal_cooldown:
+            heal_label = f"Heal - {heal_cooldown} actions"
+            heal_enabled = False
+            heal_reason = ActionAvailabilityReason.HEAL_COOLDOWN
+        else:
+            heal_label = "Heal"
+            heal_enabled = combat_state.heal_available(player)
+            heal_reason = None
+
         return (
             self._action_option(
                 ActionIntent.ATTACK,
@@ -96,9 +109,9 @@ class BattlePresenter:
             self._action_option(
                 ActionIntent.HEAL,
                 3,
-                "Heal",
-                enabled=bool(healing_moves),
-                disabled_reason=ActionAvailabilityReason.NO_HEALING_MOVES,
+                heal_label,
+                enabled=heal_enabled,
+                disabled_reason=heal_reason,
             ),
             self._action_option(
                 ActionIntent.ITEMS,

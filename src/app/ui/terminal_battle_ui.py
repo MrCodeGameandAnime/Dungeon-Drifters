@@ -16,6 +16,15 @@ from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 
 
 class TerminalBattleUI:
+    _ACTION_KEYS = {
+        ActionIntent.ATTACK: "A",
+        ActionIntent.DEFEND: "D",
+        ActionIntent.HEAL: "H",
+        ActionIntent.ITEMS: "I",
+        ActionIntent.ESCAPE: "E",
+        ActionIntent.SUPER: "S",
+    }
+
     def __init__(
         self,
         *,
@@ -75,7 +84,7 @@ class TerminalBattleUI:
         if choice in ("s", "super"):
             if view.super_meter.activation_offered:
                 return ChooseAction(ActionIntent.SUPER)
-            self._output("Super is not available.")
+            self._output("Super is not ready.")
             return None
 
         if view.interaction_phase == InteractionPhase.ACTIONS:
@@ -87,7 +96,13 @@ class TerminalBattleUI:
 
     def _translate_action(self, view, choice):
         for option in view.action_options:
-            if choice not in (str(option.number), option.label.lower(), option.intent.value):
+            action_key = self._ACTION_KEYS[option.intent].lower()
+            if choice not in (
+                action_key,
+                str(option.number),
+                option.label.lower(),
+                option.intent.value,
+            ):
                 continue
             if option.enabled:
                 return ChooseAction(option.intent)
@@ -192,10 +207,16 @@ class TerminalBattleUI:
     def _control_lines(self, view, width):
         if view.interaction_phase == InteractionPhase.ACTIONS:
             labels = tuple(
-                f"{option.number}. {option.label}"
+                f"[{self._ACTION_KEYS[option.intent]}] {option.label}"
                 + (" [Unavailable]" if not option.enabled else "")
                 for option in view.action_options
             )
+            labels += ("[S] Super",)
+            if width < 72:
+                return (
+                    "Actions",
+                    *(line for label in labels for line in self._wrap(label, width)),
+                )
             first_row = "   ".join(labels[:3])
             second_row = "   ".join(labels[3:])
             return (
@@ -225,7 +246,7 @@ class TerminalBattleUI:
         meter = view.super_meter
         suffix = f" {meter.current}/{meter.maximum}"
         if meter.activation_offered:
-            suffix += " READY [S]"
+            suffix += " READY"
         prefix = "SUPER "
         bar_width = max(8, width - len(prefix) - len(suffix) - 2)
         filled = bar_width * meter.fill_bps // 10_000
