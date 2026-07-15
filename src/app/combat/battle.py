@@ -165,11 +165,7 @@ class Battle:
                     if player_won
                     else BattleEventType.DEFEAT
                 ),
-                actor_name=(
-                    self.player_state.display_name
-                    if player_won
-                    else self.player_state.display_name
-                ),
+                actor_name=self.player_state.display_name,
                 target_name=self.foe.display_name,
             )
         )
@@ -236,39 +232,6 @@ class Battle:
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
                     return True
-
-    def _player_attack_menu(self):
-        return self._player_move_menu(InteractionPhase.REGULAR_MOVES)
-
-    def _player_super_menu(self):
-        return self._player_move_menu(InteractionPhase.SUPER_MOVES)
-
-    def _player_move_menu(self, phase):
-        self.interaction_phase = phase
-        while True:
-            view = self._render_current_view()
-            battle_input = self.ui.read_input(view)
-            rejection_reason = self._input_rejection_reason(view, battle_input)
-            if rejection_reason is not None:
-                self._record_input_rejection(rejection_reason)
-                continue
-            if isinstance(battle_input, GoBack):
-                self.interaction_phase = InteractionPhase.ACTIONS
-                return False
-            if isinstance(battle_input, ChooseAction):
-                self.interaction_phase = InteractionPhase.SUPER_MOVES
-                continue
-
-            move = self._move_for_key(view, battle_input.move_key)
-            result = self._resolve_player_move(move)
-            if result.accepted:
-                self._complete_accepted_action(
-                    self.player_state,
-                    (self.foe,),
-                    result,
-                )
-                self.interaction_phase = InteractionPhase.ACTIONS
-                return True
 
     def _move_for_key(self, view, move_key):
         for option in view.move_options:

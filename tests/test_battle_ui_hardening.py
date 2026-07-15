@@ -133,7 +133,7 @@ def test_battle_source_has_no_direct_terminal_io_or_adapter_dependency():
     assert "terminal_battle_ui" not in source
 
 
-def test_presenter_and_terminal_contracts_do_not_change_combat_resources():
+def test_presenter_observation_does_not_change_combat_resources():
     player = PlayerState(Brawler())
     enemy = EnemyState(Goblin())
     combat_state = CombatState()

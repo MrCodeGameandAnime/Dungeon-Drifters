@@ -577,19 +577,33 @@ def test_rejected_player_defend_reprompts_without_completion_or_turn_advance():
     assert battle.combat_state.turn_count == 1
 
 
-def test_rejected_player_move_does_not_clear_defend_or_advance_before_backing_out():
+def test_rejected_player_move_preserves_lifecycle_through_back_navigation():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     resolver = RecordingResolver(rejected_result())
-    battle = Battle(player_state, enemy_state, resolver=resolver)
+    inputs = [
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove(player_state.combat_moves[0].name),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    ]
+
+    class LifecycleInspectingUI(ScriptedBattleUI):
+        def read_input(self, view):
+            if len(self.input_views) in (2, 3):
+                assert battle.combat_state.turn_count == 0
+                assert battle.combat_state.is_defending(enemy_state)
+            return super().read_input(view)
+
+    ui = LifecycleInspectingUI(*inputs)
+    battle = Battle(player_state, enemy_state, resolver=resolver, ui=ui)
     battle.combat_state.activate_defend(enemy_state)
 
-    with patched_battle(inputs=["1", "0"]), contextlib.redirect_stdout(io.StringIO()):
-        accepted = battle._player_attack_menu()
+    accepted = battle.player_action()
 
-    assert accepted is False
-    assert battle.combat_state.turn_count == 0
-    assert battle.combat_state.is_defending(enemy_state)
+    assert accepted is True
+    assert battle.combat_state.turn_count == 1
+    assert not battle.combat_state.is_defending(enemy_state)
 
 
 def test_defend_is_not_a_structured_combat_move():
