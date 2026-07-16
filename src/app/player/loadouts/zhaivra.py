@@ -1,3 +1,4 @@
+from app.combat.cinderwrit import CINDERWRIT_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.items.weapon import Sathren
 
@@ -87,8 +88,7 @@ def create_combat_moves():
             accuracy=88,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic=None,
-            # Deferred mechanic: dark-fire burn
+            mechanic=CINDERWRIT_MECHANIC,
             description='A rune-burned arrow embeds in the target, igniting dark fire within.'),
         Move(
             name='Starless Meridian Obsequy',

@@ -407,6 +407,8 @@ class TerminalBattleUI:
                 lines.append(f"{actor} combined Ember Shard with Deep Coal.")
             elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_PREPARED:
                 lines.append("Cinderwrit Barb is ready.")
+            elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_CONSUMED:
+                lines.append(f"{actor} loosed the prepared Cinderwrit Barb.")
             elif outcome.outcome_type == CombatOutcomeType.BURN_APPLIED:
                 lines.append(f"{target} began burning.")
             elif outcome.outcome_type == CombatOutcomeType.BURN_REFRESHED:

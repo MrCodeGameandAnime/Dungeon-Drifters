@@ -1,6 +1,7 @@
 """Pure translation from combat state to immutable battle views."""
 
 from app.combat.brace import BRACE_RULES
+from app.combat.cinderwrit import CINDERWRIT_MECHANIC
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.presentation.battle_models import (
@@ -242,10 +243,23 @@ class BattlePresenter:
             overcharge_bonus = combat_state.arcane_overcharge_bonus_percent(player)
             if overcharge_bonus:
                 tags.append(f"Overcharged +{overcharge_bonus}%")
+        cinderwrit_prepared = True
+        if move.mechanic == CINDERWRIT_MECHANIC:
+            cinderwrit_prepared = player.character_run_state.payload_prepared(
+                PreparedPayloadId.CINDERWRIT
+            )
+            tags.append("Ready" if cinderwrit_prepared else "Requires Prepared Barb")
         if resource_label is not None:
             tags.append(resource_label)
 
-        enabled = self._can_afford(player, move)
+        affordable = self._can_afford(player, move)
+        enabled = affordable and cinderwrit_prepared
+        if enabled:
+            disabled_reason = None
+        elif not affordable:
+            disabled_reason = MoveAvailabilityReason.INSUFFICIENT_RESOURCE
+        else:
+            disabled_reason = MoveAvailabilityReason.REQUIRES_PREPARED_PAYLOAD
         return MoveOptionView(
             selection_key=move.name,
             number=number,
@@ -254,11 +268,7 @@ class BattlePresenter:
             rules_summary=self._rules_summary(move),
             resource_label=resource_label,
             enabled=enabled,
-            disabled_reason=(
-                None
-                if enabled
-                else MoveAvailabilityReason.INSUFFICIENT_RESOURCE
-            ),
+            disabled_reason=disabled_reason,
         )
 
     @staticmethod

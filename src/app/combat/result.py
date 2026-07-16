@@ -14,6 +14,7 @@ class CombatOutcomeType(StrEnum):
     INSTABILITY_APPLIED = "instability_applied"
     COMPOUNDS_CONSUMED = "compounds_consumed"
     CINDERWRIT_PREPARED = "cinderwrit_prepared"
+    CINDERWRIT_CONSUMED = "cinderwrit_consumed"
     BURN_APPLIED = "burn_applied"
     BURN_REFRESHED = "burn_refreshed"
     BURN_TICK = "burn_tick"

@@ -11,6 +11,10 @@ from app.combat.resolver import CombatResolver
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.player.character_run_state import (
+    CINDERWRIT_PREPARATION_COST,
+    PreparedPayloadId,
+)
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionIntent,
@@ -81,12 +85,18 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
         actor = PlayerState(character_type())
         target = EnemyState(Goblin())
         actor.super_resource.gain(actor.super_resource.maximum)
+        if authored_move.mechanic == "cinderwrit_barb":
+            actor.character_run_state.prepare_payload(
+                PreparedPayloadId.CINDERWRIT,
+                CINDERWRIT_PREPARATION_COST,
+            )
         resolution_target = actor if authored_move.target == TargetType.SELF else target
         result = CombatResolver(rng=AlwaysOneRng()).resolve_move(
             actor,
             resolution_target,
             authored_move.name,
             combat_state=CombatState(),
+            character_run_state=actor.character_run_state,
         )
 
         assert result.accepted is True, (

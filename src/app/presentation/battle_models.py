@@ -59,6 +59,7 @@ class ActionAvailabilityReason(StrEnum):
 
 class MoveAvailabilityReason(StrEnum):
     INSUFFICIENT_RESOURCE = "insufficient_resource"
+    REQUIRES_PREPARED_PAYLOAD = "requires_prepared_payload"
 
 
 class InventoryAvailabilityReason(StrEnum):

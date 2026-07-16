@@ -159,6 +159,55 @@ def test_prepared_cinderwrit_inventory_action_is_disabled_without_presenter_muta
     assert player.character_run_state.snapshot() == before
 
 
+def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
+    player, enemy, combat_state = _battle_values(RogueArcher())
+    presenter = BattlePresenter()
+
+    unprepared = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.REGULAR_MOVES,
+    )
+    unprepared_option = _move(unprepared, "Cinderwrit Barb")
+
+    assert unprepared_option.tags == (
+        "Normal",
+        "Requires Prepared Barb",
+        "5 Mana",
+    )
+    assert unprepared_option.enabled is False
+    assert (
+        unprepared_option.disabled_reason
+        == MoveAvailabilityReason.REQUIRES_PREPARED_PAYLOAD
+    )
+
+    InventoryActionResolver().resolve(
+        "prepare_cinderwrit",
+        player.character_run_state,
+    )
+    prepared_before = player.character_run_state.snapshot()
+    prepared = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.REGULAR_MOVES,
+    )
+    repeated = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.REGULAR_MOVES,
+    )
+    prepared_option = _move(prepared, "Cinderwrit Barb")
+
+    assert prepared_option.tags == ("Normal", "Ready", "5 Mana")
+    assert prepared_option.enabled is True
+    assert prepared_option.disabled_reason is None
+    assert prepared == repeated
+    assert player.character_run_state.snapshot() == prepared_before
+
+
 def test_missing_compound_disables_preparation_but_keeps_personal_items_visible():
     character = RogueArcher()
     character.starting_run_inventory = {"ember_shard": 1}

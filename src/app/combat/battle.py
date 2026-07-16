@@ -105,6 +105,7 @@ class Battle:
             target,
             move.name,
             combat_state=self.combat_state,
+            character_run_state=self.player_state.character_run_state,
         )
         if result.accepted:
             self.presentation_session.begin_player_turn()

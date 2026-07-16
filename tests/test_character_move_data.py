@@ -56,7 +56,13 @@ def test_each_playable_class_has_a_distinct_mechanic():
 
 
 def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
-    supported_mechanics = {None, "basic_attack", "heavy_attack", "gravemantle_rupture"}
+    supported_mechanics = {
+        None,
+        "basic_attack",
+        "heavy_attack",
+        "gravemantle_rupture",
+        "cinderwrit_barb",
+    }
     authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
         "stagger",
@@ -210,11 +216,18 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
         {"deadshot", "triple shot", "rain of arrows", "flaming arrow"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {
+            None,
+            "basic_attack",
+            "heavy_attack",
+            "cinderwrit_barb",
+        }
         for move in rogue_archer.combat_moves
     )
     assert rogue_archer.combat_moves[0].mechanic == "basic_attack"
-    assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:])
+    assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:3])
+    assert rogue_archer.combat_moves[3].mechanic == "cinderwrit_barb"
+    assert rogue_archer.combat_moves[4].mechanic is None
 
 
 def test_loadout_resource_types_follow_authored_class_resources():

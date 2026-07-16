@@ -3,6 +3,7 @@
 import random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
+from app.combat.cinderwrit import CINDERWRIT_MECHANIC
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
@@ -13,6 +14,7 @@ from app.combat.result import (
     MoveResult,
 )
 from app.player import scaling
+from app.player.character_run_state import CharacterRunState, PreparedPayloadId
 
 
 BASIS_POINTS = 10_000
@@ -21,7 +23,13 @@ MIN_ORDINARY_HIT_CHANCE = 5
 BASE_ORDINARY_CRIT_CHANCE = 0
 MAX_ORDINARY_CRIT_CHANCE = 35
 CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
-SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack", "gravemantle_rupture")
+SUPPORTED_MECHANICS = (
+    None,
+    "basic_attack",
+    "heavy_attack",
+    "gravemantle_rupture",
+    CINDERWRIT_MECHANIC,
+)
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
 HEALING_ROLL_MAX = 16
@@ -31,7 +39,15 @@ class CombatResolver:
     def __init__(self, rng=random):
         self.rng = rng
 
-    def resolve_move(self, actor, target, move_name, *, combat_state=None):
+    def resolve_move(
+        self,
+        actor,
+        target,
+        move_name,
+        *,
+        combat_state=None,
+        character_run_state=None,
+    ):
         result_move_name = move_name if isinstance(move_name, str) and move_name else "unknown"
 
         if not _is_valid_combatant(actor):
@@ -64,6 +80,9 @@ class CombatResolver:
         if move.mechanic == "gravemantle_rupture" and not move.is_spell:
             return _rejected(move.name, "unsupported_mechanic")
 
+        if move.mechanic == CINDERWRIT_MECHANIC and move.kind != MoveKind.DAMAGE:
+            return _rejected(move.name, "unsupported_mechanic")
+
         if move.is_spell and not isinstance(combat_state, CombatState):
             return _rejected(move.name, "invalid_combat_state")
 
@@ -73,9 +92,24 @@ class CombatResolver:
         if move.kind == MoveKind.UTILITY and not isinstance(combat_state, CombatState):
             return _rejected(move.name, "invalid_combat_state")
 
+        if (
+            move.mechanic == CINDERWRIT_MECHANIC
+            and not isinstance(combat_state, CombatState)
+        ):
+            return _rejected(move.name, "invalid_combat_state")
+
         affordable, insufficient_reason = _can_afford(actor, move)
         if not affordable:
             return _rejected(move.name, insufficient_reason)
+
+        if move.mechanic == CINDERWRIT_MECHANIC:
+            if not isinstance(character_run_state, CharacterRunState):
+                return _rejected(move.name, "invalid_character_run_state")
+            if (
+                not character_run_state.supports_payload(PreparedPayloadId.CINDERWRIT)
+                or not character_run_state.payload_prepared(PreparedPayloadId.CINDERWRIT)
+            ):
+                return _rejected(move.name, "cinderwrit_unprepared")
 
         resource_spent = _spend_resource(actor, move)
 
@@ -94,6 +128,15 @@ class CombatResolver:
             )
 
         outcomes = []
+        if move.mechanic == CINDERWRIT_MECHANIC:
+            character_run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+            outcomes.append(
+                CombatOutcome(
+                    CombatOutcomeType.CINDERWRIT_CONSUMED,
+                    target=CombatOutcomeTarget.ACTOR,
+                )
+            )
+
         arcane_discharge = None
         if move.kind == MoveKind.DAMAGE and move.is_spell:
             arcane_discharge = combat_state.consume_arcane_discharge(actor)
@@ -139,6 +182,8 @@ class CombatResolver:
                             target=CombatOutcomeTarget.TARGET,
                         )
                     )
+                if move.mechanic == CINDERWRIT_MECHANIC and target.is_alive():
+                    outcomes.append(combat_state.apply_burn(actor, target))
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 

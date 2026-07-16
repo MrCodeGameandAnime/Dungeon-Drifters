@@ -8,6 +8,10 @@ from app.combat.combat_state import CombatState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.player.character_run_state import (
+    CINDERWRIT_PREPARATION_COST,
+    PreparedPayloadId,
+)
 from app.player.player_state import PlayerState
 
 
@@ -2076,6 +2080,11 @@ def test_all_four_drifter_structured_moves_are_resolver_compatible():
 
             if prototype_move.resource_type == ResourceType.SUPER:
                 actor.super_resource.gain(actor.super_resource.maximum)
+            if prototype_move.mechanic == "cinderwrit_barb":
+                actor.character_run_state.prepare_payload(
+                    PreparedPayloadId.CINDERWRIT,
+                    CINDERWRIT_PREPARATION_COST,
+                )
 
             combat_state = CombatState()
             result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
@@ -2083,6 +2092,7 @@ def test_all_four_drifter_structured_moves_are_resolver_compatible():
                 target,
                 prototype_move.name,
                 combat_state=combat_state,
+                character_run_state=actor.character_run_state,
             )
 
             assert result.accepted, (

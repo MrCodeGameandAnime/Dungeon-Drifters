@@ -106,13 +106,24 @@ class RecordingResolver:
         self.calls = []
         self.defend_calls = []
 
-    def resolve_move(self, actor, target, move_name, *, combat_state=None):
-        self.calls.append({
+    def resolve_move(
+        self,
+        actor,
+        target,
+        move_name,
+        *,
+        combat_state=None,
+        character_run_state=None,
+    ):
+        call = {
             "actor": actor,
             "target": target,
             "move_name": move_name,
             "combat_state": combat_state,
-        })
+        }
+        if character_run_state is not None:
+            call["character_run_state"] = character_run_state
+        self.calls.append(call)
         return self._results.pop(0) if self._results else accepted_result()
 
     def resolve_defend(self, actor, combat_state):
@@ -831,6 +842,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
         "target": battle.foe,
         "move_name": super_move.name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }
 
 
@@ -1011,7 +1023,33 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
         "target": enemy_state,
         "move_name": player_state.combat_moves[0].name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }]
+
+
+def test_cinderwrit_battle_passes_exact_run_state_without_mutating_payload():
+    player_state = PlayerState(RogueArcher())
+    InventoryActionResolver().resolve(
+        "prepare_cinderwrit",
+        player_state.character_run_state,
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ATTACK),
+            ChooseMove("Cinderwrit Barb"),
+        ),
+    )
+
+    assert battle.player_action() is True
+
+    assert resolver.calls[0]["character_run_state"] is player_state.character_run_state
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.CINDERWRIT
+    ) is True
 
 
 def test_legacy_battle_combat_helpers_are_removed():
@@ -1047,6 +1085,7 @@ def test_self_targeting_player_move_routes_player_state_to_resolver():
         "target": player_state,
         "move_name": self_move.name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }]
 
 

@@ -291,6 +291,64 @@ def test_burn_application_and_refresh_render_against_exact_target():
     assert "Goblin's Burn was refreshed." in lines
 
 
+def test_cinderwrit_primary_resource_consumption_and_burn_render_in_order():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Zhaivra",
+        target_name="Goblin",
+        action_name="Cinderwrit Barb",
+        accepted=True,
+        hit=True,
+        amount=12,
+        resource_spent=5,
+        outcomes=(
+            CombatOutcome(
+                CombatOutcomeType.CINDERWRIT_CONSUMED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.BURN_APPLIED,
+                target=CombatOutcomeTarget.TARGET,
+            ),
+        ),
+    )
+    ui, _ = _ui(())
+
+    lines = ui._log_lines(entry)
+
+    assert lines == (
+        "Zhaivra used Cinderwrit Barb. It dealt 12 damage.",
+        "Resource spent: 5.",
+        "Zhaivra loosed the prepared Cinderwrit Barb.",
+        "Goblin began burning.",
+    )
+
+
+def test_missed_cinderwrit_renders_no_duplicate_damage_or_burn_outcome():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.MISS,
+        actor_name="Zhaivra",
+        target_name="Goblin",
+        action_name="Cinderwrit Barb",
+        accepted=True,
+        hit=False,
+        resource_spent=5,
+        outcomes=(
+            CombatOutcome(
+                CombatOutcomeType.CINDERWRIT_CONSUMED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        ),
+    )
+    ui, _ = _ui(())
+
+    assert ui._log_lines(entry) == (
+        "Zhaivra used Cinderwrit Barb, but missed.",
+        "Resource spent: 5.",
+        "Zhaivra loosed the prepared Cinderwrit Barb.",
+    )
+
+
 def test_back_is_returned_only_from_move_selection_phase():
     ui, harness = _ui(("0", "attack"))
 

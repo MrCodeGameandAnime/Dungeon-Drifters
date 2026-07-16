@@ -257,7 +257,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "cinderwrit_barb",
                 "description": "A rune-burned arrow embeds in the target, igniting dark fire within.",
             },
             {

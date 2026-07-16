@@ -60,6 +60,15 @@ class CharacterRunState:
             self._inventory[item_id] -= quantity
         self._prepared_payloads[payload_id] = True
 
+    def consume_payload(self, payload_id):
+        payload_id = self._validate_payload_id(payload_id)
+        if payload_id not in self._prepared_payloads:
+            raise ValueError("prepared payload is not supported")
+        if not self._prepared_payloads[payload_id]:
+            raise ValueError("prepared payload is not active")
+
+        self._prepared_payloads[payload_id] = False
+
     def snapshot(self):
         return {
             "inventory": {

@@ -5,6 +5,7 @@ from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
+    CINDERWRIT_PREPARATION_COST,
     CharacterRunState,
     PreparedPayloadId,
     RunItemId,
@@ -85,4 +86,22 @@ def test_character_run_state_rejects_invalid_authored_values():
     with pytest.raises(TypeError):
         CharacterRunState(
             prepared_payloads={PreparedPayloadId.CINDERWRIT: 1}
+        )
+
+
+def test_prepared_payload_consumption_is_atomic_and_requires_active_state():
+    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state.prepare_payload(
+        PreparedPayloadId.CINDERWRIT,
+        CINDERWRIT_PREPARATION_COST,
+    )
+
+    run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+
+    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    with pytest.raises(ValueError):
+        run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+    with pytest.raises(ValueError):
+        PlayerState(Brawler()).character_run_state.consume_payload(
+            PreparedPayloadId.CINDERWRIT
         )
