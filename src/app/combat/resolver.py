@@ -2,10 +2,16 @@
 
 import random
 
+from app.combat.arcane import GRAVEMANTLE_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
-from app.combat.result import MoveResult
+from app.combat.result import (
+    CombatOutcome,
+    CombatOutcomeTarget,
+    CombatOutcomeType,
+    MoveResult,
+)
 from app.player import scaling
 
 
@@ -15,7 +21,7 @@ MIN_ORDINARY_HIT_CHANCE = 5
 BASE_ORDINARY_CRIT_CHANCE = 0
 MAX_ORDINARY_CRIT_CHANCE = 35
 CRITICAL_DAMAGE_MULTIPLIER_PERCENT = 150
-SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack")
+SUPPORTED_MECHANICS = (None, "basic_attack", "heavy_attack", "gravemantle_rupture")
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
 HEALING_ROLL_MAX = 16
@@ -55,6 +61,12 @@ class CombatResolver:
         if move.kind != MoveKind.UTILITY and move.mechanic not in SUPPORTED_MECHANICS:
             return _rejected(move.name, "unsupported_mechanic")
 
+        if move.mechanic == "gravemantle_rupture" and not move.is_spell:
+            return _rejected(move.name, "unsupported_mechanic")
+
+        if move.is_spell and not isinstance(combat_state, CombatState):
+            return _rejected(move.name, "invalid_combat_state")
+
         if not _is_valid_target_type(actor, target, move):
             return _rejected(move.name, "invalid_target_type")
 
@@ -81,6 +93,12 @@ class CombatResolver:
                 critical=False,
             )
 
+        outcomes = []
+        arcane_discharge = None
+        if move.kind == MoveKind.DAMAGE and move.is_spell:
+            arcane_discharge = combat_state.consume_arcane_discharge(actor)
+            outcomes.extend(_outcomes_for_discharge(arcane_discharge))
+
         follow_up_damage_bonus_percent = 0
         if move.mechanic == "heavy_attack" and combat_state is not None:
             follow_up_damage_bonus_percent = (
@@ -106,12 +124,68 @@ class CombatResolver:
                     combat_state=combat_state,
                     critical=critical,
                     follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
+                    arcane_discharge=arcane_discharge,
                 )
+
+                if (
+                    combat_state is not None
+                    and arcane_discharge is None
+                    and not target.is_alive()
+                    and combat_state.clear_arcane_break_for_target(target)
+                ):
+                    outcomes.append(
+                        CombatOutcome(
+                            CombatOutcomeType.BREAK_CLEARED,
+                            target=CombatOutcomeTarget.TARGET,
+                        )
+                    )
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
         if hit and move.kind == MoveKind.DAMAGE and move.resource_type != ResourceType.SUPER:
             _grant_super_for_landed_non_super_damage(actor)
+
+        if move.mechanic == "gravemantle_rupture":
+            linked_target = target if hit and target.is_alive() else None
+            combat_state.activate_arcane_overcharge(
+                actor,
+                broken_target=linked_target,
+            )
+            if linked_target is not None:
+                outcomes.append(
+                    CombatOutcome(
+                        CombatOutcomeType.BREAK_APPLIED,
+                        target=CombatOutcomeTarget.TARGET,
+                    )
+                )
+            outcomes.append(
+                CombatOutcome(CombatOutcomeType.OVERCHARGE_GAINED)
+            )
+
+            backlash_roll = self.rng.randint(1, 100)
+            if backlash_roll <= GRAVEMANTLE_RULES.backlash_chance_percent:
+                rolled_backlash = self.rng.randint(
+                    GRAVEMANTLE_RULES.backlash_damage_min,
+                    GRAVEMANTLE_RULES.backlash_damage_max,
+                )
+                before_backlash = actor.health.current
+                actor.health.take_damage(rolled_backlash)
+                actual_backlash = before_backlash - actor.health.current
+                outcomes.append(
+                    CombatOutcome(
+                        CombatOutcomeType.BACKLASH_DAMAGE,
+                        amount=actual_backlash,
+                        target=CombatOutcomeTarget.ACTOR,
+                    )
+                )
+                if actor.is_alive():
+                    combat_state.activate_arcane_instability(actor)
+                    outcomes.append(
+                        CombatOutcome(
+                            CombatOutcomeType.INSTABILITY_APPLIED,
+                            target=CombatOutcomeTarget.ACTOR,
+                        )
+                    )
 
         return MoveResult(
             accepted=True,
@@ -123,6 +197,7 @@ class CombatResolver:
             statuses_applied=(),
             reason=None,
             critical=critical,
+            outcomes=tuple(outcomes),
         )
 
     def resolve_defend(self, actor, combat_state):
@@ -192,7 +267,30 @@ def _rejected(move_name, reason):
         statuses_applied=(),
         reason=reason,
         critical=False,
+        outcomes=(),
     )
+
+
+def _outcomes_for_discharge(discharge):
+    if discharge is None:
+        return ()
+
+    outcomes = [CombatOutcome(CombatOutcomeType.OVERCHARGE_CONSUMED)]
+    if discharge.broken_target is not None:
+        outcomes.append(
+            CombatOutcome(
+                CombatOutcomeType.BREAK_CLEARED,
+                target=CombatOutcomeTarget.TARGET,
+            )
+        )
+    if discharge.instability_was_active:
+        outcomes.append(
+            CombatOutcome(
+                CombatOutcomeType.INSTABILITY_CLEARED,
+                target=CombatOutcomeTarget.ACTOR,
+            )
+        )
+    return tuple(outcomes)
 
 
 def _is_valid_combatant(value):
@@ -301,7 +399,8 @@ def _apply_damage(
         *,
         combat_state=None,
         critical=False,
-        follow_up_damage_bonus_percent=0):
+        follow_up_damage_bonus_percent=0,
+        arcane_discharge=None):
     final_damage = _landed_damage(
         actor,
         target,
@@ -309,6 +408,7 @@ def _apply_damage(
         combat_state=combat_state,
         critical=critical,
         follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
+        arcane_discharge=arcane_discharge,
     )
 
     before = target.health.current
@@ -323,8 +423,15 @@ def _landed_damage(
         *,
         combat_state=None,
         critical=False,
-        follow_up_damage_bonus_percent=0):
+        follow_up_damage_bonus_percent=0,
+    arcane_discharge=None):
     scaled_power = _scaled_damage_power(actor, move)
+    if arcane_discharge is not None and move.is_spell:
+        scaled_power = (
+            scaled_power
+            * (100 + arcane_discharge.spell_bonus_percent)
+            // 100
+        )
     if follow_up_damage_bonus_percent:
         scaled_power = (
             scaled_power
@@ -332,16 +439,29 @@ def _landed_damage(
             // 100
         )
     mitigation = _mitigation(target, move.damage_type)
+    break_reduction_percent = 0
+    if arcane_discharge is not None:
+        if target is arcane_discharge.broken_target:
+            break_reduction_percent = arcane_discharge.break_reduction_percent
+    elif combat_state is not None:
+        break_reduction_percent = combat_state.gravemantle_break_reduction_percent(target)
+    mitigation = mitigation * (100 - break_reduction_percent) // 100
     normal_damage = max(1, scaled_power - mitigation)
     damage_after_strength_negation = _strength_negated_damage(
         target,
         move.damage_type,
         normal_damage,
     )
-    damage_after_brace = _brace_reduced_damage(
+    damage_after_instability = _arcane_instability_damage(
         target,
         move.damage_type,
         damage_after_strength_negation,
+        combat_state,
+    )
+    damage_after_brace = _brace_reduced_damage(
+        target,
+        move.damage_type,
+        damage_after_instability,
         combat_state,
     )
     final_damage = _defended_damage(
@@ -357,6 +477,16 @@ def _landed_damage(
         )
 
     return final_damage
+
+
+def _arcane_instability_damage(target, damage_type, damage, combat_state):
+    if combat_state is None or damage_type != DamageType.PHYSICAL:
+        return damage
+
+    vulnerability_percent = (
+        combat_state.arcane_instability_physical_vulnerability_percent(target)
+    )
+    return damage * (100 + vulnerability_percent) // 100
 
 
 def _scaled_damage_power(actor, move):

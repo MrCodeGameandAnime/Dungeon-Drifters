@@ -12,10 +12,12 @@ from app.presentation.battle_models import (
     InputRejectionReason,
     InteractionPhase,
 )
+from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
 from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 
 
 class TerminalBattleUI:
+    VISIBLE_LOG_LINES = 12
     _ACTION_KEYS = {
         ActionIntent.ATTACK: "A",
         ActionIntent.DEFEND: "D",
@@ -201,8 +203,7 @@ class TerminalBattleUI:
         for entry in view.log_entries:
             for semantic_line in self._log_lines(entry):
                 lines.extend(self._wrap(semantic_line, width))
-        visible_count = 5 if width >= 76 else 3
-        return tuple(lines[-visible_count:] or ("Battle awaits.",))
+        return tuple(lines[-self.VISIBLE_LOG_LINES:] or ("Battle awaits.",))
 
     def _control_lines(self, view, width):
         if view.interaction_phase == InteractionPhase.ACTIONS:
@@ -345,6 +346,29 @@ class TerminalBattleUI:
             lines.append(f"Resource spent: {entry.resource_spent}.")
         if entry.statuses_applied:
             lines.append(f"Statuses applied: {', '.join(entry.statuses_applied)}.")
+        lines.extend(self._outcome_lines(entry))
+        return tuple(lines)
+
+    @staticmethod
+    def _outcome_lines(entry):
+        lines = []
+        actor = entry.actor_name or "Combatant"
+        target = entry.target_name or "target"
+        for outcome in entry.outcomes:
+            if outcome.outcome_type == CombatOutcomeType.OVERCHARGE_CONSUMED:
+                lines.append(f"{actor} discharged Arcane Overcharge.")
+            elif outcome.outcome_type == CombatOutcomeType.OVERCHARGE_GAINED:
+                lines.append(f"{actor} gathered Arcane Overcharge.")
+            elif outcome.outcome_type == CombatOutcomeType.BREAK_CLEARED:
+                lines.append(f"{target}'s Gravemantle Break cleared.")
+            elif outcome.outcome_type == CombatOutcomeType.BREAK_APPLIED:
+                lines.append(f"{target}'s defenses were ruptured.")
+            elif outcome.outcome_type == CombatOutcomeType.BACKLASH_DAMAGE:
+                lines.append(f"{actor} suffered {outcome.amount} backlash damage.")
+            elif outcome.outcome_type == CombatOutcomeType.INSTABILITY_CLEARED:
+                lines.append(f"{actor}'s Arcane Instability cleared.")
+            elif outcome.outcome_type == CombatOutcomeType.INSTABILITY_APPLIED:
+                lines.append(f"{actor} became physically unstable.")
         return tuple(lines)
 
     @staticmethod

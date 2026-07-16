@@ -36,6 +36,7 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.PHYSICAL,
             mechanic='basic_attack',
+            is_spell=False,
             description='A direct scepter strike aimed at the target.'),
         Move(
             name='Gloamweight Sepulcher',
@@ -48,6 +49,7 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
             mechanic=None,
+            is_spell=True,
             description='Dark gravity folds inward, crushing the target beneath impossible weight.'),
         Move(
             name='Mournglass Bloom',
@@ -60,6 +62,7 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
             mechanic=None,
+            is_spell=True,
             # Deferred mechanic: multi-target frost encasement
             description='Black frost erupts outward, encasing nearby enemies in splintering ice.'),
         Move(
@@ -72,7 +75,8 @@ def create_combat_moves():
             accuracy=80,
             target=TargetType.ENEMY,
             damage_type=DamageType.HYBRID,
-            mechanic=None,
+            mechanic='gravemantle_rupture',
+            is_spell=True,
             # Deferred mechanic: balance and armor break
             description='The ground ruptures beneath the target, shattering balance and armor.'),
         Move(
@@ -86,6 +90,7 @@ def create_combat_moves():
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
             mechanic=None,
+            is_spell=True,
             # Deferred mechanic: causality control
             description='Causality collapses around the target, erasing motion before it can occur.'),
     ]

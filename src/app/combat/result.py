@@ -1,6 +1,49 @@
 """Validated combat move result values."""
 
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class CombatOutcomeType(StrEnum):
+    OVERCHARGE_CONSUMED = "overcharge_consumed"
+    OVERCHARGE_GAINED = "overcharge_gained"
+    BREAK_CLEARED = "break_cleared"
+    BREAK_APPLIED = "break_applied"
+    BACKLASH_DAMAGE = "backlash_damage"
+    INSTABILITY_CLEARED = "instability_cleared"
+    INSTABILITY_APPLIED = "instability_applied"
+
+
+class CombatOutcomeTarget(StrEnum):
+    ACTOR = "actor"
+    TARGET = "target"
+
+
+@dataclass(frozen=True)
+class CombatOutcome:
+    outcome_type: CombatOutcomeType
+    amount: int = 0
+    target: CombatOutcomeTarget = CombatOutcomeTarget.TARGET
+
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "outcome_type",
+            _validate_enum("outcome_type", self.outcome_type, CombatOutcomeType),
+        )
+        object.__setattr__(self, "amount", _validate_nonnegative_integer("amount", self.amount))
+        object.__setattr__(
+            self,
+            "target",
+            _validate_enum("target", self.target, CombatOutcomeTarget),
+        )
+        if self.outcome_type == CombatOutcomeType.BACKLASH_DAMAGE:
+            if self.target != CombatOutcomeTarget.ACTOR:
+                raise ValueError("backlash damage must target the actor")
+            if self.amount == 0:
+                raise ValueError("backlash damage must be positive")
+        elif self.amount != 0:
+            raise ValueError("state outcomes must have amount 0")
 
 
 @dataclass(frozen=True)
@@ -14,11 +57,17 @@ class MoveResult:
     statuses_applied: tuple[str, ...]
     reason: str | None
     critical: bool = False
+    outcomes: tuple[CombatOutcome, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "accepted", _validate_bool("accepted", self.accepted))
         object.__setattr__(self, "hit", _validate_bool("hit", self.hit))
         object.__setattr__(self, "critical", _validate_bool("critical", self.critical))
+        object.__setattr__(
+            self,
+            "outcomes",
+            _validate_outcomes(self.outcomes),
+        )
         object.__setattr__(self, "move_name", _validate_nonempty_string("move_name", self.move_name))
         object.__setattr__(
             self,
@@ -75,3 +124,18 @@ def _validate_statuses(statuses):
         _validate_nonempty_string("statuses_applied", status)
         for status in statuses
     )
+
+
+def _validate_enum(name, value, enum_type):
+    try:
+        return enum_type(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"invalid {name}: {value!r}") from error
+
+
+def _validate_outcomes(outcomes):
+    if not isinstance(outcomes, tuple):
+        raise TypeError("outcomes must be a tuple")
+    if not all(isinstance(outcome, CombatOutcome) for outcome in outcomes):
+        raise TypeError("outcomes must contain CombatOutcome values")
+    return outcomes

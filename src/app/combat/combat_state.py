@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.combat.arcane import ArcaneDischarge, GRAVEMANTLE_RULES
 from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
 
@@ -24,12 +25,20 @@ class _HealCooldown:
     remaining_actions: int
 
 
+@dataclass
+class _ArcaneChargeState:
+    owner: object
+    broken_target: object | None
+    instability_active: bool
+
+
 class CombatState:
     def __init__(self):
         self.turn_count = 0
         self._defending_combatants = []
         self._brace_states = []
         self._heal_cooldowns = []
+        self._arcane_charge_states = []
         self.statuses = {}
         self.buffs = {}
         self.debuffs = {}
@@ -133,6 +142,88 @@ class CombatState:
         brace_state.heavy_payoff_active = False
         return brace_state.heavy_payoff_damage_bonus_percent
 
+    def activate_arcane_overcharge(self, owner, *, broken_target=None):
+        state = self._find_arcane_charge_state(owner)
+        if state is None:
+            self._arcane_charge_states.append(
+                _ArcaneChargeState(
+                    owner=owner,
+                    broken_target=broken_target,
+                    instability_active=False,
+                )
+            )
+            return
+
+        state.broken_target = broken_target
+        state.instability_active = False
+
+    def consume_arcane_discharge(self, owner):
+        state = self._find_arcane_charge_state(owner)
+        if state is None:
+            return None
+
+        snapshot = ArcaneDischarge(
+            spell_bonus_percent=GRAVEMANTLE_RULES.overcharge_bonus_percent,
+            broken_target=state.broken_target,
+            break_reduction_percent=(
+                GRAVEMANTLE_RULES.break_mitigation_reduction_percent
+                if state.broken_target is not None
+                else 0
+            ),
+            instability_was_active=state.instability_active,
+        )
+        self._arcane_charge_states = [
+            active
+            for active in self._arcane_charge_states
+            if active.owner is not owner
+        ]
+        return snapshot
+
+    def arcane_overcharge_active(self, actor):
+        return self._find_arcane_charge_state(actor) is not None
+
+    def arcane_overcharge_bonus_percent(self, actor):
+        return (
+            GRAVEMANTLE_RULES.overcharge_bonus_percent
+            if self.arcane_overcharge_active(actor)
+            else 0
+        )
+
+    def gravemantle_break_active(self, target):
+        state = self._find_arcane_charge_state_for_target(target)
+        return state is not None
+
+    def gravemantle_break_reduction_percent(self, target):
+        return (
+            GRAVEMANTLE_RULES.break_mitigation_reduction_percent
+            if self.gravemantle_break_active(target)
+            else 0
+        )
+
+    def arcane_instability_active(self, actor):
+        state = self._find_arcane_charge_state(actor)
+        return bool(state and state.instability_active)
+
+    def arcane_instability_physical_vulnerability_percent(self, actor):
+        return (
+            GRAVEMANTLE_RULES.instability_vulnerability_percent
+            if self.arcane_instability_active(actor)
+            else 0
+        )
+
+    def activate_arcane_instability(self, actor):
+        state = self._find_arcane_charge_state(actor)
+        if state is not None:
+            state.instability_active = True
+
+    def clear_arcane_break_for_target(self, target):
+        state = self._find_arcane_charge_state_for_target(target)
+        if state is None:
+            return False
+
+        state.broken_target = None
+        return True
+
     def complete_accepted_action(
         self,
         actor,
@@ -163,6 +254,20 @@ class CombatState:
         for cooldown in self._heal_cooldowns:
             if cooldown.owner is combatant:
                 return cooldown
+
+        return None
+
+    def _find_arcane_charge_state(self, combatant):
+        for state in self._arcane_charge_states:
+            if state.owner is combatant:
+                return state
+
+        return None
+
+    def _find_arcane_charge_state_for_target(self, target):
+        for state in self._arcane_charge_states:
+            if state.broken_target is target:
+                return state
 
         return None
 

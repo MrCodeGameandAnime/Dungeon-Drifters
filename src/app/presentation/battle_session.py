@@ -3,7 +3,8 @@
 from app.presentation.battle_models import BattleLogEntry
 
 
-DEFAULT_MAX_LOG_ENTRIES = 20
+# Keep enough semantic entries for one complex action and its response.
+DEFAULT_MAX_LOG_ENTRIES = 12
 
 
 class BattlePresentationSession:
@@ -23,6 +24,10 @@ class BattlePresentationSession:
     @property
     def entries(self):
         return tuple(self._entries)
+
+    def begin_player_turn(self):
+        """Replace the displayed history when an accepted player action starts."""
+        self._entries.clear()
 
     def record(self, entry):
         if not isinstance(entry, BattleLogEntry):

@@ -22,6 +22,7 @@ from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionIntent,
     BattleEventType,
+    BattleLogEntry,
     InputRejectionReason,
     InteractionPhase,
 )
@@ -212,6 +213,95 @@ def test_battle_accepts_injected_semantic_ui():
     assert resolver.calls[0]["move_name"] == "Crestgrave Reaping"
 
 
+def test_accepted_player_action_replaces_previous_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert tuple(entry.action_name for entry in battle.presentation_session.entries) == (
+        "test move",
+    )
+
+
+def test_navigation_and_rejected_action_preserve_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        GoBack(),
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(rejected_result(), accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert any(
+        entry.action_name == "old turn"
+        for entry in ui.input_views[4].log_entries
+    )
+    assert any(
+        entry.reason == "rejected"
+        for entry in ui.input_views[4].log_entries
+    )
+    names = tuple(entry.action_name for entry in battle.presentation_session.entries)
+    assert "old turn" not in names
+    assert names[-1] == "test move"
+
+
+def test_accepted_miss_starts_a_new_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(result_with(hit=False))
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert tuple(entry.action_name for entry in battle.presentation_session.entries) == (
+        "test move",
+    )
+
+
 def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
     ui = ScriptedBattleUI(
         ChooseAction(ActionIntent.ITEMS),
@@ -230,9 +320,11 @@ def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
     assert resolver.calls == []
     assert len(resolver.defend_calls) == 1
     assert battle.combat_state.turn_count == 1
-    rejection = battle.presentation_session.entries[0]
-    assert rejection.event_type == BattleEventType.INPUT_REJECTED
-    assert rejection.rejection_reason == InputRejectionReason.ACTION_UNAVAILABLE
+    assert any(
+        entry.event_type == BattleEventType.INPUT_REJECTED
+        and entry.rejection_reason == InputRejectionReason.ACTION_UNAVAILABLE
+        for entry in ui.input_views[1].log_entries
+    )
 
 
 def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():

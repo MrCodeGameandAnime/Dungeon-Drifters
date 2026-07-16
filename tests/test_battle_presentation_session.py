@@ -19,10 +19,10 @@ def _entry(index):
     )
 
 
-def test_session_defaults_to_twenty_entries():
+def test_session_defaults_to_twelve_entries_for_complex_actions():
     session = BattlePresentationSession()
 
-    assert session.max_entries == DEFAULT_MAX_LOG_ENTRIES == 20
+    assert session.max_entries == DEFAULT_MAX_LOG_ENTRIES == 12
     assert session.entries == ()
 
 
@@ -33,6 +33,24 @@ def test_session_retention_discards_oldest_entries_and_preserves_order():
         session.record(_entry(index))
 
     assert tuple(entry.amount for entry in session.entries) == (2, 3, 4)
+
+
+def test_session_keeps_complete_current_action_before_eviction():
+    session = BattlePresentationSession()
+    old_entries = tuple(_entry(index) for index in range(2))
+    current_action = tuple(_entry(index + 2) for index in range(10))
+
+    for entry in old_entries + current_action:
+        session.record(entry)
+    assert tuple(entry.amount for entry in session.entries) == tuple(
+        entry.amount for entry in old_entries + current_action
+    )
+
+    session.record(_entry(12))
+
+    assert tuple(entry.amount for entry in session.entries) == tuple(
+        entry.amount for entry in (old_entries[1],) + current_action + (_entry(12),)
+    )
 
 
 def test_session_exposes_immutable_entry_snapshots():
@@ -46,6 +64,14 @@ def test_session_exposes_immutable_entry_snapshots():
     session.record(_entry(2))
     assert tuple(entry.amount for entry in snapshot) == (1,)
     assert tuple(entry.amount for entry in session.entries) == (1, 2)
+
+
+def test_begin_player_turn_clears_only_when_orchestrator_starts_accepted_turn():
+    session = BattlePresentationSession()
+    session.record(_entry(1))
+    session.begin_player_turn()
+
+    assert session.entries == ()
 
 
 def test_session_accepts_only_semantic_entries():

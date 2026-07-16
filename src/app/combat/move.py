@@ -55,6 +55,7 @@ class Move:
     mechanic: str | None
     description: str
     presentation: MovePresentation | None = None
+    is_spell: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "name", _validate_nonempty_string("name", self.name))
@@ -89,6 +90,7 @@ class Move:
             "presentation",
             _validate_presentation(self.presentation),
         )
+        object.__setattr__(self, "is_spell", _validate_bool("is_spell", self.is_spell))
 
         if self.resource_type == ResourceType.NONE and self.resource_cost != 0:
             raise ValueError("resource_type 'none' requires resource_cost 0")
@@ -137,6 +139,13 @@ def _validate_nonnegative_integer(name, value):
         raise TypeError(f"{name} must be an integer")
     if value < 0:
         raise ValueError(f"{name} must not be negative")
+
+    return value
+
+
+def _validate_bool(name, value):
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a boolean")
 
     return value
 

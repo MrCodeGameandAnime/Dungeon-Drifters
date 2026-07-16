@@ -165,7 +165,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": None,
+                "mechanic": "gravemantle_rupture",
                 "description": "The ground ruptures beneath the target, shattering balance and armor.",
             },
             {

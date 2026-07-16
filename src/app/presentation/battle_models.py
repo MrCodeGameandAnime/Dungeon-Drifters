@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from app.combat.result import CombatOutcome
+
 
 class ActionIntent(StrEnum):
     ATTACK = "attack"
@@ -189,6 +191,7 @@ class BattleLogEntry:
     statuses_applied: tuple[str, ...] = ()
     reason: str | None = None
     rejection_reason: InputRejectionReason | None = None
+    outcomes: tuple[CombatOutcome, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "event_type", _validate_enum("event_type", self.event_type, BattleEventType))
@@ -217,6 +220,10 @@ class BattleLogEntry:
                 InputRejectionReason,
             ),
         )
+        if not isinstance(self.outcomes, tuple):
+            raise TypeError("outcomes must be a tuple")
+        if not all(isinstance(outcome, CombatOutcome) for outcome in self.outcomes):
+            raise TypeError("outcomes must contain CombatOutcome values")
         if self.event_type == BattleEventType.INPUT_REJECTED and self.rejection_reason is None:
             raise ValueError("input_rejected events require rejection_reason")
         if self.event_type != BattleEventType.INPUT_REJECTED and self.rejection_reason is not None:

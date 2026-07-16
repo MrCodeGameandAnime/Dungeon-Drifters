@@ -13,6 +13,7 @@ from app.presentation.battle_models import (
     MoveOptionView,
     SuperMeterView,
 )
+from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
 from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 from app.ui.terminal_battle_ui import TerminalBattleUI
 
@@ -239,6 +240,92 @@ def test_render_uses_injected_output_and_semantic_log_values():
         "Ser Branoc used Ironwake Dismemberment. Critical hit! It dealt 21 damage.",
     )
     assert _contains(harness, "Actions")
+
+
+def test_complex_gravemantle_log_keeps_primary_result_and_ordered_outcomes():
+    outcomes = (
+        CombatOutcome(CombatOutcomeType.OVERCHARGE_CONSUMED),
+        CombatOutcome(CombatOutcomeType.BREAK_CLEARED),
+        CombatOutcome(
+            CombatOutcomeType.INSTABILITY_CLEARED,
+            target=CombatOutcomeTarget.ACTOR,
+        ),
+        CombatOutcome(CombatOutcomeType.BREAK_APPLIED),
+        CombatOutcome(CombatOutcomeType.OVERCHARGE_GAINED),
+        CombatOutcome(
+            CombatOutcomeType.BACKLASH_DAMAGE,
+            amount=8,
+            target=CombatOutcomeTarget.ACTOR,
+        ),
+        CombatOutcome(
+            CombatOutcomeType.INSTABILITY_APPLIED,
+            target=CombatOutcomeTarget.ACTOR,
+        ),
+    )
+    primary = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Azhvielle",
+        target_name="Goblin",
+        action_name="Gravemantle Rupture",
+        accepted=True,
+        hit=True,
+        amount=20,
+        resource_spent=12,
+        outcomes=outcomes,
+    )
+    enemy_response = BattleLogEntry(
+        event_type=BattleEventType.MISS,
+        actor_name="Goblin",
+        action_name="slash",
+        accepted=True,
+        hit=False,
+    )
+    ui, harness = _ui(())
+
+    ui.render(_view(log_entries=(primary, enemy_response)))
+    text = "\n".join(harness.lines)
+
+    assert "Azhvielle used Gravemantle Rupture. It dealt 20 damage." in text
+    assert "Resource spent: 12." in text
+    assert "Azhvielle discharged Arcane Overcharge." in text
+    assert "Goblin's Gravemantle Break cleared." in text
+    assert "Azhvielle's Arcane Instability cleared." in text
+    assert "Goblin's defenses were ruptured." in text
+    assert "Azhvielle gathered Arcane Overcharge." in text
+    assert "Azhvielle suffered 8 backlash damage." in text
+    assert "Azhvielle became physically unstable." in text
+    assert "Goblin used slash, but missed." in text
+
+
+def test_complex_log_remains_width_safe_at_narrow_terminal_width():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Azhvielle",
+        target_name="Goblin",
+        action_name="Gravemantle Rupture",
+        accepted=True,
+        hit=True,
+        amount=20,
+        outcomes=(
+            CombatOutcome(
+                CombatOutcomeType.BACKLASH_DAMAGE,
+                amount=8,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        ),
+    )
+    harness = TerminalHarness()
+    ui = TerminalBattleUI(
+        input_func=harness.input,
+        output_func=harness.output,
+        width_provider=lambda: 60,
+        ansi_enabled=False,
+        interactive=False,
+    )
+
+    ui.render(_view(log_entries=(entry,)))
+
+    assert all(len(line) <= 60 for line in harness.lines)
 
 
 def test_structured_move_menu_uses_readable_tags_and_wrapped_summaries():

@@ -47,6 +47,12 @@ class BattlePresenter:
             labels.append("Defending")
         if combat_state.brace_incoming_protection_active(combatant):
             labels.append("Brace")
+        if combat_state.arcane_overcharge_active(combatant):
+            labels.append("Arcane Overcharge")
+        if combat_state.arcane_instability_active(combatant):
+            labels.append("Arcane Instability")
+        if combat_state.gravemantle_break_active(combatant):
+            labels.append("Gravemantle Break")
 
         return CombatantView(
             display_name=combatant.display_name,
@@ -177,6 +183,10 @@ class BattlePresenter:
         )
         if follow_up_bonus:
             tags.append(f"Empowered +{follow_up_bonus}%")
+        if move.is_spell and move.kind == MoveKind.DAMAGE:
+            overcharge_bonus = combat_state.arcane_overcharge_bonus_percent(player)
+            if overcharge_bonus:
+                tags.append(f"Overcharged +{overcharge_bonus}%")
         if resource_label is not None:
             tags.append(resource_label)
 

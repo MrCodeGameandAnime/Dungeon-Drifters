@@ -79,6 +79,8 @@ class Battle:
             move.name,
             combat_state=self.combat_state,
         )
+        if result.accepted:
+            self.presentation_session.begin_player_turn()
         self._record_move_result(result, actor=self.player_state, target=target)
         return result
 
@@ -115,6 +117,7 @@ class Battle:
                 resource_spent=result.resource_spent,
                 statuses_applied=result.statuses_applied,
                 reason=result.reason,
+                outcomes=result.outcomes,
             )
         )
 
@@ -170,7 +173,7 @@ class Battle:
             if action_accepted:
                 player_turn = not player_turn
 
-        player_won = not self.foe.is_alive()
+        player_won = not self.foe.is_alive() and self.player_state.is_alive()
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=(
@@ -205,6 +208,8 @@ class Battle:
                         self.player_state,
                         combat_state=self.combat_state,
                     )
+                    if result.accepted:
+                        self.presentation_session.begin_player_turn()
                     self._record_move_result(result, actor=self.player_state)
                     if result.accepted:
                         self._complete_accepted_action(
@@ -224,6 +229,8 @@ class Battle:
                         self.player_state,
                         self.combat_state,
                     )
+                    if result.accepted:
+                        self.presentation_session.begin_player_turn()
                     self._record_move_result(
                         result,
                         actor=self.player_state,

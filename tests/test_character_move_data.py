@@ -56,7 +56,7 @@ def test_each_playable_class_has_a_distinct_mechanic():
 
 
 def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
-    supported_mechanics = {None, "basic_attack", "heavy_attack"}
+    supported_mechanics = {None, "basic_attack", "heavy_attack", "gravemantle_rupture"}
     authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
         "stagger",
@@ -120,12 +120,16 @@ def test_black_mage_roster_is_four_standard_attacks_and_one_super():
         {"fireball", "heal", "thunderbolt"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {None, "basic_attack", "heavy_attack", "gravemantle_rupture"}
         for move in black_mage.combat_moves
     )
     assert all(
-        move.mechanic is None
+        move.mechanic is None or move.mechanic == "gravemantle_rupture"
         for move in black_mage.combat_moves[1:]
+    )
+    assert all(
+        move.is_spell is (move.name != "Scepter Sweep")
+        for move in black_mage.combat_moves
     )
 
 
