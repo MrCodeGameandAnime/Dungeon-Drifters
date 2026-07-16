@@ -56,17 +56,39 @@ class Battle:
     ):
         if result.accepted:
             if reduce_heal_cooldown:
-                return self.combat_state.complete_accepted_action(
+                outcomes = self.combat_state.complete_accepted_action(
                     actor,
                     opposing_combatants,
                 )
-            return self.combat_state.complete_accepted_action(
-                actor,
-                opposing_combatants,
-                reduce_heal_cooldown=False,
-            )
+            else:
+                outcomes = self.combat_state.complete_accepted_action(
+                    actor,
+                    opposing_combatants,
+                    reduce_heal_cooldown=False,
+                )
+            if outcomes:
+                self._record_lifecycle_outcomes(
+                    actor,
+                    opposing_combatants,
+                    outcomes,
+                )
+            return outcomes
 
         return None
+
+    def _record_lifecycle_outcomes(self, actor, opposing_combatants, outcomes):
+        target = next(
+            (combatant for combatant in opposing_combatants if combatant is not actor),
+            None,
+        )
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.STATUS,
+                actor_name=actor.display_name,
+                target_name=target.display_name if target is not None else None,
+                outcomes=outcomes,
+            )
+        )
 
     def _player_target_for_move(self, move):
         if move.target == TargetType.ENEMY:

@@ -24,7 +24,7 @@ def test_combat_state_starts_with_empty_temporary_state():
     assert not hasattr(combat_state, "defending")
     assert not hasattr(combat_state, "set_defending")
     assert not hasattr(combat_state, "clear_turn_flags")
-    assert combat_state.statuses == {}
+    assert not hasattr(combat_state, "statuses")
     assert combat_state.buffs == {}
     assert combat_state.debuffs == {}
 
@@ -33,12 +33,10 @@ def test_mutable_containers_are_per_instance():
     first_state = CombatState()
     second_state = CombatState()
 
-    first_state.statuses["burn"] = 2
     first_state.buffs["attack"] = 1
     first_state.debuffs["defense"] = 1
     first_state.activate_defend(object())
 
-    assert second_state.statuses == {}
     assert second_state.buffs == {}
     assert second_state.debuffs == {}
     assert not second_state.is_defending(object())
@@ -97,7 +95,7 @@ def test_complete_accepted_action_clears_opponents_and_preserves_actor():
         opposing_combatants=(actor, first_opponent, first_opponent),
     )
 
-    assert result == 1
+    assert result == ()
     assert combat_state.turn_count == 1
     assert combat_state.is_defending(actor)
     assert not combat_state.is_defending(first_opponent)
@@ -112,7 +110,7 @@ def test_complete_accepted_action_with_empty_opponents_still_advances_once():
 
     result = combat_state.complete_accepted_action(actor, opposing_combatants=())
 
-    assert result == 1
+    assert result == ()
     assert combat_state.turn_count == 1
     assert combat_state.is_defending(actor)
 
@@ -127,19 +125,17 @@ def test_rejected_action_without_completion_does_not_clear_or_advance():
     assert combat_state.turn_count == 0
 
 
-def test_defend_completion_does_not_delete_existing_containers():
+def test_defend_completion_does_not_delete_existing_placeholder_containers():
     combat_state = CombatState()
     actor = object()
     opponent = object()
     combat_state.activate_defend(opponent)
-    combat_state.statuses["burn"] = 2
     combat_state.buffs["attack"] = 1
     combat_state.debuffs["defense"] = 1
 
     combat_state.complete_accepted_action(actor, opposing_combatants=(opponent,))
 
     assert not combat_state.is_defending(opponent)
-    assert combat_state.statuses == {"burn": 2}
     assert combat_state.buffs == {"attack": 1}
     assert combat_state.debuffs == {"defense": 1}
 
@@ -198,7 +194,7 @@ def test_brace_activation_does_not_expire_itself_through_complete_accepted_actio
     combat_state.activate_brace(owner)
     result = combat_state.complete_accepted_action(owner, opposing_combatants=(opponent,))
 
-    assert result == 1
+    assert result == ()
     assert combat_state.brace_incoming_reduction_percent(owner, DamageType.PHYSICAL) == 40
 
 

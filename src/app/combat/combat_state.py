@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from app.combat.arcane import ArcaneDischarge, GRAVEMANTLE_RULES
 from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
+from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
+from app.combat.status_state import StatusState
 
 
 HEAL_COOLDOWN_ACTIONS = 3
@@ -39,7 +41,7 @@ class CombatState:
         self._brace_states = []
         self._heal_cooldowns = []
         self._arcane_charge_states = []
-        self.statuses = {}
+        self._status_state = StatusState()
         self.buffs = {}
         self.debuffs = {}
 
@@ -224,6 +226,18 @@ class CombatState:
         state.broken_target = None
         return True
 
+    def apply_burn(self, source, target):
+        return self._status_state.apply_burn(source, target)
+
+    def burn_active(self, target):
+        return self._status_state.burn_active(target)
+
+    def burn_status(self, target):
+        return self._status_state.burn_status(target)
+
+    def clear_statuses(self):
+        self._status_state.clear_all()
+
     def complete_accepted_action(
         self,
         actor,
@@ -231,17 +245,27 @@ class CombatState:
         *,
         reduce_heal_cooldown=True,
     ):
+        outcomes = []
         for opponent in opposing_combatants:
             if opponent is actor:
                 continue
 
             self.clear_defend(opponent)
             self._clear_brace_incoming_protection(opponent)
+            if self._status_state.clear_defeated_target(opponent):
+                outcomes.append(
+                    CombatOutcome(
+                        CombatOutcomeType.BURN_EXPIRED,
+                        target=CombatOutcomeTarget.TARGET,
+                    )
+                )
 
         if reduce_heal_cooldown:
             self._decrement_heal_cooldown(actor)
 
-        return self.advance_turn()
+        outcomes.extend(self._status_state.advance_after_accepted_action(actor))
+        self.advance_turn()
+        return tuple(outcomes)
 
     def _find_brace_state(self, combatant):
         for brace_state in self._brace_states:

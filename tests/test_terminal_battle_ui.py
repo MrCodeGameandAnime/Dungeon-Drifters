@@ -243,6 +243,54 @@ def test_preparation_outcomes_render_in_completed_mutation_order():
     assert compound_line < prepared_line
 
 
+def test_burn_lifecycle_outcomes_render_as_status_damage_then_expiration():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.STATUS,
+        actor_name="Goblin",
+        outcomes=(
+            CombatOutcome(
+                CombatOutcomeType.BURN_TICK,
+                amount=6,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.BURN_EXPIRED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        ),
+    )
+    ui, _ = _ui(())
+
+    lines = ui._log_lines(entry)
+
+    assert lines == (
+        "Goblin suffered 6 Burn damage.",
+        "Goblin's Burn expired.",
+    )
+
+
+def test_burn_application_and_refresh_render_against_exact_target():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Zhaivra",
+        target_name="Goblin",
+        action_name="Cinderwrit Barb",
+        accepted=True,
+        hit=True,
+        amount=12,
+        outcomes=(
+            CombatOutcome(CombatOutcomeType.BURN_APPLIED),
+            CombatOutcome(CombatOutcomeType.BURN_REFRESHED),
+        ),
+    )
+    ui, _ = _ui(())
+
+    lines = ui._log_lines(entry)
+
+    assert "Goblin began burning." in lines
+    assert "Goblin's Burn was refreshed." in lines
+
+
 def test_back_is_returned_only_from_move_selection_phase():
     ui, harness = _ui(("0", "attack"))
 

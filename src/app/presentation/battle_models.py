@@ -44,6 +44,7 @@ class BattleEventType(StrEnum):
     VICTORY = "victory"
     DEFEAT = "defeat"
     INVENTORY = "inventory"
+    STATUS = "status"
 
 
 class ActionAvailabilityReason(StrEnum):

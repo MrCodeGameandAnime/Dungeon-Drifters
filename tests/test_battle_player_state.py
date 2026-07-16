@@ -5,7 +5,6 @@ import random
 from types import SimpleNamespace
 from app.combat.battle import Battle as DomainBattle
 from app.combat.brace import BRACE_RULES
-from app.combat.combat_state import CombatState
 from app.combat.move import (
     DamageType,
     Move,
@@ -272,13 +271,6 @@ class LethalEnemyResolver(RecordingResolver):
         return result_with(move_name=move_name, damage=damage)
 
 
-class LethalPlayerCompletionState(CombatState):
-    def complete_accepted_action(self, actor, opposing_combatants, **kwargs):
-        turn = super().complete_accepted_action(actor, opposing_combatants, **kwargs)
-        actor.health.take_damage(actor.health.current)
-        return turn
-
-
 def test_accepted_preparation_allows_exactly_one_enemy_response():
     player_state = PlayerState(RogueArcher())
     resolver = LethalEnemyResolver()
@@ -312,7 +304,8 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
         ),
         resolver=resolver,
     )
-    battle.combat_state = LethalPlayerCompletionState()
+    player_state.health.take_damage(player_state.health.current - 1)
+    battle.combat_state.apply_burn(player_state, player_state)
 
     with patched_battle(randint=lambda _start, _end: 1):
         winner = battle.run()
@@ -320,6 +313,81 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
     assert winner == "enemy"
     assert resolver.calls == []
     assert battle.combat_state.turn_count == 1
+    assert tuple(
+        outcome.outcome_type
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    ) == (
+        CombatOutcomeType.COMPOUNDS_CONSUMED,
+        CombatOutcomeType.CINDERWRIT_PREPARED,
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.BURN_EXPIRED,
+    )
+
+
+def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
+    player_state = PlayerState(RogueArcher())
+    enemy_state = EnemyState(Goblin())
+    enemy_state.health.take_damage(enemy_state.health.current - 1)
+    ui = ScriptedBattleUI()
+    battle = Battle(player_state, enemy_state, ui=ui)
+    battle.combat_state.apply_burn(player_state, enemy_state)
+
+    with patched_battle(randint=lambda _start, _end: 2):
+        winner = battle.run()
+
+    assert winner == "player"
+    assert ui.input_views == []
+    assert battle.combat_state.turn_count == 1
+    assert tuple(entry.event_type for entry in battle.presentation_session.entries[-2:]) == (
+        BattleEventType.STATUS,
+        BattleEventType.VICTORY,
+    )
+    status_entry = next(
+        entry
+        for entry in battle.presentation_session.entries
+        if entry.event_type == BattleEventType.STATUS
+    )
+    assert tuple(outcome.outcome_type for outcome in status_entry.outcomes) == (
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.BURN_EXPIRED,
+    )
+    assert status_entry.outcomes[0].amount == 1
+
+
+def test_burn_does_not_tick_during_navigation_or_rejected_action():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver(
+        accepted_result(),
+        defend_results=(rejected_result(),),
+    )
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Mournpoint Verdict"),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ui,
+        resolver=resolver,
+    )
+    battle.combat_state.apply_burn(player_state, player_state)
+    before = player_state.health.current
+
+    assert battle.player_action() is True
+
+    assert all(view.player.hp_current == before for view in ui.input_views)
+    assert player_state.health.current == before - 7
+    assert battle.combat_state.turn_count == 1
+    status_entries = tuple(
+        entry
+        for entry in battle.presentation_session.entries
+        if entry.event_type == BattleEventType.STATUS
+    )
+    assert len(status_entries) == 1
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -590,7 +658,7 @@ def test_complete_accepted_action_advances_when_result_is_accepted():
         result=accepted_result(),
     )
 
-    assert result == 1
+    assert result == ()
     assert battle.combat_state.turn_count == 1
     assert not battle.combat_state.is_defending(enemy_state)
 
@@ -1010,12 +1078,16 @@ def test_battles_do_not_share_combat_state():
     second_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
 
     first_battle.combat_state.advance_turn()
-    first_battle.combat_state.statuses["burn"] = 2
+    first_battle.combat_state.apply_burn(
+        first_battle.player_state,
+        first_battle.foe,
+    )
 
     assert first_battle.combat_state is not second_battle.combat_state
     assert first_battle.combat_state.turn_count == 1
     assert second_battle.combat_state.turn_count == 0
-    assert second_battle.combat_state.statuses == {}
+    assert first_battle.combat_state.burn_active(first_battle.foe) is True
+    assert second_battle.combat_state.burn_active(first_battle.foe) is False
 
 
 def test_battle_view_contains_resources_and_temporary_state_when_relevant():
@@ -1138,7 +1210,7 @@ def test_run_does_not_advance_turn_outside_accepted_action_completion():
     def fake_complete(actor, opposing_combatants):
         battle.foe.health.take_damage(1)
         battle.combat_state.turn_count += 1
-        return battle.combat_state.turn_count
+        return ()
 
     battle.combat_state.complete_accepted_action = fake_complete
     battle.combat_state.advance_turn = lambda: (_ for _ in ()).throw(

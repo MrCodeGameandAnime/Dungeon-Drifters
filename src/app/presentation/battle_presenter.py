@@ -63,6 +63,8 @@ class BattlePresenter:
             labels.append("Arcane Instability")
         if combat_state.gravemantle_break_active(combatant):
             labels.append("Gravemantle Break")
+        if combat_state.burn_active(combatant):
+            labels.append("Burn")
 
         return CombatantView(
             display_name=combatant.display_name,

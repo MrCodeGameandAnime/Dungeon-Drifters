@@ -14,6 +14,10 @@ class CombatOutcomeType(StrEnum):
     INSTABILITY_APPLIED = "instability_applied"
     COMPOUNDS_CONSUMED = "compounds_consumed"
     CINDERWRIT_PREPARED = "cinderwrit_prepared"
+    BURN_APPLIED = "burn_applied"
+    BURN_REFRESHED = "burn_refreshed"
+    BURN_TICK = "burn_tick"
+    BURN_EXPIRED = "burn_expired"
 
 
 class CombatOutcomeTarget(StrEnum):
@@ -39,11 +43,14 @@ class CombatOutcome:
             "target",
             _validate_enum("target", self.target, CombatOutcomeTarget),
         )
-        if self.outcome_type == CombatOutcomeType.BACKLASH_DAMAGE:
+        if self.outcome_type in (
+            CombatOutcomeType.BACKLASH_DAMAGE,
+            CombatOutcomeType.BURN_TICK,
+        ):
             if self.target != CombatOutcomeTarget.ACTOR:
-                raise ValueError("backlash damage must target the actor")
+                raise ValueError("secondary damage must target the actor")
             if self.amount == 0:
-                raise ValueError("backlash damage must be positive")
+                raise ValueError("secondary damage must be positive")
         elif self.amount != 0:
             raise ValueError("state outcomes must have amount 0")
 

@@ -363,6 +363,8 @@ class TerminalBattleUI:
         elif entry.event_type == BattleEventType.INVENTORY:
             if not entry.accepted:
                 lines.append("That inventory action is not available.")
+        elif entry.event_type == BattleEventType.STATUS:
+            pass
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
             lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
         elif entry.event_type == BattleEventType.INPUT_REJECTED:
@@ -405,6 +407,19 @@ class TerminalBattleUI:
                 lines.append(f"{actor} combined Ember Shard with Deep Coal.")
             elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_PREPARED:
                 lines.append("Cinderwrit Barb is ready.")
+            elif outcome.outcome_type == CombatOutcomeType.BURN_APPLIED:
+                lines.append(f"{target} began burning.")
+            elif outcome.outcome_type == CombatOutcomeType.BURN_REFRESHED:
+                lines.append(f"{target}'s Burn was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.BURN_TICK:
+                lines.append(f"{actor} suffered {outcome.amount} Burn damage.")
+            elif outcome.outcome_type == CombatOutcomeType.BURN_EXPIRED:
+                subject = (
+                    actor
+                    if outcome.target == CombatOutcomeTarget.ACTOR
+                    else target
+                )
+                lines.append(f"{subject}'s Burn expired.")
         return tuple(lines)
 
     @staticmethod

@@ -406,3 +406,26 @@ def test_presenter_build_does_not_mutate_domain_state():
         combat_state.turn_count,
     )
     assert after == before
+
+
+def test_presenter_observes_burn_without_advancing_or_consuming_it():
+    player, enemy, combat_state = _battle_values(RogueArcher())
+    combat_state.apply_burn(player, enemy)
+    before_hp = enemy.health.current
+    before_status = combat_state.burn_status(enemy)
+
+    first = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
+    second = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
+
+    assert "Burn" in first.enemy.temporary_labels
+    assert first == second
+    assert enemy.health.current == before_hp
+    assert combat_state.burn_status(enemy) == before_status
