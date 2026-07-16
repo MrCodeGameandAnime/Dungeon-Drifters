@@ -23,7 +23,7 @@ def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload(
     run_state = PlayerState(RogueArcher()).character_run_state
 
     result = InventoryActionResolver().resolve(
-        InventoryActionId.PREPARE_CINDERWRIT,
+        InventoryActionId.PREPARE_FIRE_INFUSION,
         run_state,
     )
 
@@ -31,10 +31,10 @@ def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload(
     assert result.reason is None
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert run_state.item_quantity(RunItemId.DEEP_COAL) == 0
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is True
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is True
     assert tuple(outcome.outcome_type for outcome in result.outcomes) == (
         CombatOutcomeType.COMPOUNDS_CONSUMED,
-        CombatOutcomeType.CINDERWRIT_PREPARED,
+        CombatOutcomeType.FIRE_INFUSION_PREPARED,
     )
     assert all(
         outcome.target == CombatOutcomeTarget.ACTOR
@@ -93,12 +93,12 @@ def test_poison_preparation_is_rejected_when_fire_payload_is_already_prepared():
 def test_missing_ingredient_rejects_without_partial_consumption(inventory):
     run_state = CharacterRunState(
         inventory=inventory,
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: None},
+        prepared_payloads={PreparedPayloadId.INFUSED_BARB: None},
     )
     before = run_state.snapshot()
 
     result = InventoryActionResolver().resolve(
-        InventoryActionId.PREPARE_CINDERWRIT,
+        InventoryActionId.PREPARE_FIRE_INFUSION,
         run_state,
     )
 
@@ -113,7 +113,7 @@ def test_character_without_authored_payload_cannot_prepare_zhaivra_resource():
     before = run_state.snapshot()
 
     result = InventoryActionResolver().resolve(
-        InventoryActionId.PREPARE_CINDERWRIT,
+        InventoryActionId.PREPARE_FIRE_INFUSION,
         run_state,
     )
 
@@ -125,10 +125,10 @@ def test_character_without_authored_payload_cannot_prepare_zhaivra_resource():
 def test_repeated_preparation_is_rejected_without_stacking_or_mutation():
     run_state = PlayerState(RogueArcher()).character_run_state
     resolver = InventoryActionResolver()
-    first = resolver.resolve(InventoryActionId.PREPARE_CINDERWRIT, run_state)
+    first = resolver.resolve(InventoryActionId.PREPARE_FIRE_INFUSION, run_state)
     after_first = run_state.snapshot()
 
-    second = resolver.resolve(InventoryActionId.PREPARE_CINDERWRIT, run_state)
+    second = resolver.resolve(InventoryActionId.PREPARE_FIRE_INFUSION, run_state)
 
     assert first.accepted is True
     assert second.accepted is False
@@ -139,7 +139,7 @@ def test_repeated_preparation_is_rejected_without_stacking_or_mutation():
 
 def test_inventory_action_result_is_immutable_and_validates_rejection_contract():
     result = InventoryActionResult(
-        InventoryActionId.PREPARE_CINDERWRIT,
+        InventoryActionId.PREPARE_FIRE_INFUSION,
         accepted=False,
         reason=InventoryActionRejectionReason.MISSING_INGREDIENTS,
     )
@@ -148,19 +148,19 @@ def test_inventory_action_result_is_immutable_and_validates_rejection_contract()
         result.accepted = True
     with pytest.raises(ValueError):
         InventoryActionResult(
-            InventoryActionId.PREPARE_CINDERWRIT,
+            InventoryActionId.PREPARE_FIRE_INFUSION,
             accepted=False,
         )
     with pytest.raises(ValueError):
         InventoryActionResult(
-            InventoryActionId.PREPARE_CINDERWRIT,
+            InventoryActionId.PREPARE_FIRE_INFUSION,
             accepted=False,
             reason=InventoryActionRejectionReason.MISSING_INGREDIENTS,
-            outcomes=(CombatOutcome(CombatOutcomeType.CINDERWRIT_PREPARED),),
+            outcomes=(CombatOutcome(CombatOutcomeType.FIRE_INFUSION_PREPARED),),
         )
     with pytest.raises(TypeError):
         InventoryActionResult(
-            InventoryActionId.PREPARE_CINDERWRIT,
+            InventoryActionId.PREPARE_FIRE_INFUSION,
             accepted=True,
             outcomes=[],
         )
@@ -169,13 +169,13 @@ def test_inventory_action_result_is_immutable_and_validates_rejection_contract()
 def test_prepare_payload_mutation_revalidates_entire_cost_before_mutating():
     run_state = CharacterRunState(
         inventory={RunItemId.EMBER_SHARD: 1},
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: None},
+        prepared_payloads={PreparedPayloadId.INFUSED_BARB: None},
     )
     before = run_state.snapshot()
 
     with pytest.raises(ValueError):
         run_state.prepare_payload(
-            PreparedPayloadId.CINDERWRIT,
+            PreparedPayloadId.INFUSED_BARB,
             {
                 RunItemId.EMBER_SHARD: 1,
                 RunItemId.DEEP_COAL: 1,

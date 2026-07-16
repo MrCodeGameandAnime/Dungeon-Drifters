@@ -137,14 +137,14 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
         item.number for item in inventory.inventory_items
     ) == (1, 2, 3)
     assert all(item.enabled for item in inventory.inventory_items)
-    assert all(item.item_id != "prepare_cinderwrit" for item in inventory.inventory_items)
+    assert all(item.item_id != "prepare_fire_infusion" for item in inventory.inventory_items)
     assert inventory == repeated
     assert player.character_run_state.snapshot() == before
 
 
 def test_consumed_compounds_leave_unrelated_items_available_without_presenter_mutation():
     player, enemy, combat_state = _battle_values(RogueArcher())
-    InventoryActionResolver().resolve("prepare_cinderwrit", player.character_run_state)
+    InventoryActionResolver().resolve("prepare_fire_infusion", player.character_run_state)
     before = player.character_run_state.snapshot()
 
     actions = BattlePresenter().build(
@@ -164,7 +164,7 @@ def test_consumed_compounds_leave_unrelated_items_available_without_presenter_mu
     assert player.character_run_state.snapshot() == before
 
 
-def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
+def test_infused_barb_move_readiness_is_dynamic_typed_and_non_consuming():
     player, enemy, combat_state = _battle_values(RogueArcher())
     presenter = BattlePresenter()
 
@@ -188,7 +188,7 @@ def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
     )
 
     InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         player.character_run_state,
     )
     prepared_before = player.character_run_state.snapshot()

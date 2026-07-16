@@ -1,7 +1,7 @@
 import inspect
 
 import app.combat.resolver as resolver_module
-from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.combat_state import CombatState
 from app.combat.move import (
     DamageType,
@@ -17,7 +17,7 @@ from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
+    FIRE_INFUSION_REQUIREMENTS,
     CharacterRunState,
     InfusionKind,
     PreparedPayloadId,
@@ -38,15 +38,15 @@ class ScriptedRng:
         return self.rolls.pop(0)
 
 
-def _prepare_cinderwrit(run_state):
+def _prepare_fire_infusion(run_state):
     run_state.prepare_payload(
-        PreparedPayloadId.CINDERWRIT,
-        CINDERWRIT_PREPARATION_COST,
+        PreparedPayloadId.INFUSED_BARB,
+        FIRE_INFUSION_REQUIREMENTS,
     )
     return run_state
 
 
-def _resolve_cinderwrit(actor, target, combat_state, run_state, *rolls):
+def _resolve_infused_barb(actor, target, combat_state, run_state, *rolls):
     rng = ScriptedRng(*rolls)
     result = CombatResolver(rng=rng).resolve_move(
         actor,
@@ -69,7 +69,7 @@ def _prepare_poison_infusion(run_state):
     return run_state
 
 
-def test_authored_cinderwrit_contract_preserves_existing_combat_values():
+def test_authored_infused_barb_contract_preserves_existing_combat_values():
     move = next(
         move
         for move in PlayerState(RogueArcher()).combat_moves
@@ -90,7 +90,7 @@ def test_authored_cinderwrit_contract_preserves_existing_combat_values():
     assert move.damage_type == DamageType.MAGICAL
 
 
-def test_unprepared_cinderwrit_is_rejected_before_mana_rng_or_state_mutation():
+def test_unprepared_infused_barb_is_rejected_before_mana_rng_or_state_mutation():
     actor = PlayerState(RogueArcher())
     target = EnemyState(Goblin())
     combat_state = CombatState()
@@ -111,17 +111,17 @@ def test_unprepared_cinderwrit_is_rejected_before_mana_rng_or_state_mutation():
     assert result.reason == "infused_barb_unprepared"
     assert result.outcomes == ()
     assert actor.mana_resource.current == mana_before
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert target.health.current == target_hp_before
     assert combat_state.burn_active(target) is False
     assert rng.calls == []
 
 
-def test_unaffordable_cinderwrit_preserves_prepared_payload_and_uses_no_rng():
+def test_unaffordable_infused_barb_preserves_prepared_payload_and_uses_no_rng():
     actor = PlayerState(RogueArcher())
     target = EnemyState(Goblin())
     combat_state = CombatState()
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
     actor.mana_resource.spend(actor.mana_resource.current)
     rng = ScriptedRng()
 
@@ -135,7 +135,7 @@ def test_unaffordable_cinderwrit_preserves_prepared_payload_and_uses_no_rng():
 
     assert result.accepted is False
     assert result.reason == "insufficient_mana"
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is True
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is True
     assert actor.mana_resource.current == 0
     assert rng.calls == []
 
@@ -144,7 +144,7 @@ def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
     actor = PlayerState(RogueArcher())
     target = EnemyState(Goblin())
     combat_state = CombatState()
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
 
     invalid_target = CombatResolver(rng=ScriptedRng()).resolve_move(
@@ -170,7 +170,7 @@ def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
     assert invalid_target.reason == "invalid_target_type"
     assert invalid_combat_state.reason == "invalid_combat_state"
     assert invalid_run_state.reason == "invalid_character_run_state"
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is True
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is True
     assert actor.mana_resource.current == mana_before
     assert combat_state.burn_active(target) is False
 
@@ -180,11 +180,11 @@ def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn
     target = EnemyState(Goblin())
     other_target = EnemyState(Goblin())
     combat_state = CombatState()
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
     target_hp_before = target.health.current
 
-    result, rng = _resolve_cinderwrit(
+    result, rng = _resolve_infused_barb(
         actor,
         target,
         combat_state,
@@ -199,7 +199,7 @@ def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn
     assert result.damage > 0
     assert result.resource_spent == 5
     assert actor.mana_resource.current == mana_before - 5
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert tuple(outcome.outcome_type for outcome in result.outcomes) == (
         CombatOutcomeType.INFUSED_BARB_CONSUMED,
         CombatOutcomeType.BURN_APPLIED,
@@ -221,7 +221,7 @@ def test_accepted_hit_routes_poison_infusion_to_standard_poison():
     combat_state = CombatState()
     run_state = _prepare_poison_infusion(actor.character_run_state)
 
-    result, _ = _resolve_cinderwrit(
+    result, _ = _resolve_infused_barb(
         actor,
         target,
         combat_state,
@@ -246,12 +246,12 @@ def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
     actor = PlayerState(RogueArcher())
     target = EnemyState(Goblin())
     combat_state = CombatState()
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
     super_before = actor.super_resource.current
     target_hp_before = target.health.current
 
-    result, rng = _resolve_cinderwrit(
+    result, rng = _resolve_infused_barb(
         actor,
         target,
         combat_state,
@@ -268,7 +268,7 @@ def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
     )
     assert actor.mana_resource.current == mana_before - 5
     assert actor.super_resource.current == super_before
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert target.health.current == target_hp_before
     assert combat_state.burn_active(target) is False
     assert rng.calls == [(1, 100)]
@@ -279,9 +279,9 @@ def test_direct_defeat_consumes_payload_without_creating_dead_target_burn():
     target = EnemyState(Goblin())
     target.health.take_damage(target.health.current - 1)
     combat_state = CombatState()
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
 
-    result, _ = _resolve_cinderwrit(
+    result, _ = _resolve_infused_barb(
         actor,
         target,
         combat_state,
@@ -304,9 +304,9 @@ def test_landed_hit_refreshes_existing_burn_after_payload_consumption():
     combat_state = CombatState()
     combat_state.apply_burn(actor, target)
     combat_state.complete_accepted_action(target, (actor,))
-    run_state = _prepare_cinderwrit(actor.character_run_state)
+    run_state = _prepare_fire_infusion(actor.character_run_state)
 
-    result, _ = _resolve_cinderwrit(
+    result, _ = _resolve_infused_barb(
         actor,
         target,
         combat_state,
@@ -341,7 +341,7 @@ def test_mechanic_marker_not_move_or_character_name_controls_integration():
     target = EnemyState(Goblin())
     combat_state = CombatState()
     run_state = CharacterRunState(
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: InfusionKind.FIRE}
+        prepared_payloads={PreparedPayloadId.INFUSED_BARB: InfusionKind.FIRE}
     )
 
     result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
@@ -353,11 +353,11 @@ def test_mechanic_marker_not_move_or_character_name_controls_integration():
     )
 
     assert result.accepted is True
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert combat_state.burn_active(target) is True
 
 
-def test_cinderwrit_marker_is_rejected_on_non_damage_moves_without_consumption():
+def test_infused_barb_marker_is_rejected_on_non_damage_moves_without_consumption():
     actor = PlayerState(Brawler())
     move = Move(
         name="Prepared Recovery",
@@ -374,7 +374,7 @@ def test_cinderwrit_marker_is_rejected_on_non_damage_moves_without_consumption()
     )
     actor.character.combat_moves.append(move)
     run_state = CharacterRunState(
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: InfusionKind.FIRE}
+        prepared_payloads={PreparedPayloadId.INFUSED_BARB: InfusionKind.FIRE}
     )
     rng = ScriptedRng()
 
@@ -388,11 +388,11 @@ def test_cinderwrit_marker_is_rejected_on_non_damage_moves_without_consumption()
 
     assert result.accepted is False
     assert result.reason == "unsupported_mechanic"
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is True
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is True
     assert rng.calls == []
 
 
-def test_resolver_owns_no_player_game_or_display_name_lookup_for_cinderwrit():
+def test_resolver_owns_no_player_game_or_display_name_lookup_for_infused_barb():
     source = inspect.getsource(resolver_module)
 
     assert "PlayerState" not in source

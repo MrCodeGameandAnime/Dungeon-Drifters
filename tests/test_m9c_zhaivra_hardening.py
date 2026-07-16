@@ -143,7 +143,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
     assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
     assert player.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is False
     assert battle.combat_state.burn_active(enemy) is False
     assert ui.defend_count == 2
@@ -162,13 +162,13 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         if outcome.outcome_type == CombatOutcomeType.BURN_TICK
     ) == (7, 7, 7)
 
-    ready_cinderwrit = tuple(
+    ready_infused_barb = tuple(
         move
         for view in ui.rendered_views
         for move in view.move_options
         if move.name == "Infused Barb" and "Ready: Fire" in move.tags
     )
-    assert ready_cinderwrit
+    assert ready_infused_barb
 
     # The displayed log remains turn-scoped even though the test recorder audits history.
     assert tuple(entry.event_type for entry in session.entries) == (
@@ -179,7 +179,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         outcome.outcome_type
         in {
             CombatOutcomeType.COMPOUNDS_CONSUMED,
-            CombatOutcomeType.CINDERWRIT_PREPARED,
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
             CombatOutcomeType.INFUSED_BARB_CONSUMED,
             CombatOutcomeType.BURN_TICK,
         }
@@ -210,7 +210,7 @@ def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
     assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 0
     assert player.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is False
     assert battle.combat_state.poison_active(enemy) is False
 
@@ -241,7 +241,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     zhaivra = PlayerState(RogueArcher())
     run_state = zhaivra.character_run_state
     preparation = InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         run_state,
     )
     first_combat_state = CombatState()
@@ -263,7 +263,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
         character_run_state=run_state,
     )
     second_preparation = InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         run_state,
     )
 
@@ -276,7 +276,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     assert tuple(outcome.outcome_type for outcome in missed.outcomes) == (
         CombatOutcomeType.INFUSED_BARB_CONSUMED,
     )
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert second_preparation.accepted is False
     assert second_preparation.reason == InventoryActionRejectionReason.MISSING_INGREDIENTS
 
@@ -286,7 +286,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
 
     branoc = PlayerState(Brawler())
     foreign_preparation = InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         branoc.character_run_state,
     )
     assert foreign_preparation.accepted is False

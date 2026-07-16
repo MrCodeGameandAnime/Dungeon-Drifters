@@ -137,7 +137,7 @@ def test_zhaivra_snapshot_includes_character_owned_run_state():
 def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
     player_state = PlayerState(RogueArcher())
     InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         player_state.character_run_state,
     )
 

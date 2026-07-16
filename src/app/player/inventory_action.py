@@ -40,7 +40,6 @@ class InventoryActionResolver:
         action_id = _validate_action_id(action_id)
         if not isinstance(character_run_state, CharacterRunState):
             raise TypeError("character_run_state must be CharacterRunState")
-        legacy_cinderwrit = action_id == InventoryActionId.PREPARE_CINDERWRIT
         recipe = self._recipe_for_action(action_id)
         if recipe is None:
             return self._rejected(
@@ -50,12 +49,7 @@ class InventoryActionResolver:
         return self._prepare_recipe(
             recipe,
             character_run_state,
-            result_action_id=(
-                InventoryActionId.PREPARE_CINDERWRIT
-                if legacy_cinderwrit
-                else recipe.action_id
-            ),
-            legacy_cinderwrit=legacy_cinderwrit,
+            result_action_id=recipe.action_id,
         )
 
     def _prepare_recipe(
@@ -64,7 +58,6 @@ class InventoryActionResolver:
         character_run_state,
         *,
         result_action_id,
-        legacy_cinderwrit,
     ):
         action_id = result_action_id
         if not character_run_state.supports_payload("infused_barb"):
@@ -86,13 +79,9 @@ class InventoryActionResolver:
 
         character_run_state.prepare_infusion(recipe.infusion_kind, requirements)
         prepared_outcome = (
-            CombatOutcomeType.CINDERWRIT_PREPARED
-            if legacy_cinderwrit
-            else (
-                CombatOutcomeType.FIRE_INFUSION_PREPARED
-                if recipe.infusion_kind.value == "fire"
-                else CombatOutcomeType.POISON_INFUSION_PREPARED
-            )
+            CombatOutcomeType.FIRE_INFUSION_PREPARED
+            if recipe.infusion_kind.value == "fire"
+            else CombatOutcomeType.POISON_INFUSION_PREPARED
         )
         return InventoryActionResult(
             action_id=action_id,
@@ -111,8 +100,6 @@ class InventoryActionResolver:
 
     @staticmethod
     def _recipe_for_action(action_id):
-        if action_id == InventoryActionId.PREPARE_CINDERWRIT:
-            action_id = InventoryActionId.PREPARE_FIRE_INFUSION
         return next(
             (recipe for recipe in INVENTORY_RECIPES if recipe.action_id == action_id),
             None,

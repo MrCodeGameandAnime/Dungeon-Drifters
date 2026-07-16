@@ -93,7 +93,7 @@ def rejected_result():
     )
 
 
-def cinderwrit_preparation_inputs(source_item_id="ember_shard", *, confirmed=True):
+def fire_infusion_preparation_inputs(source_item_id="ember_shard", *, confirmed=True):
     companion_item_id = (
         "deep_coal" if source_item_id == "ember_shard" else "ember_shard"
     )
@@ -225,7 +225,7 @@ def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
     mana_before = player_state.mana_resource.current
     super_before = player_state.super_resource.current
     ui = ScriptedBattleUI(
-        *cinderwrit_preparation_inputs(),
+        *fire_infusion_preparation_inputs(),
     )
     battle = Battle(player_state, EnemyState(Goblin()), ui=ui)
 
@@ -237,7 +237,7 @@ def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
     assert player_state.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert player_state.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
     assert player_state.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is True
     entry = battle.presentation_session.entries[0]
     assert entry.event_type == BattleEventType.INVENTORY
@@ -257,7 +257,7 @@ def test_prepared_payload_persists_through_actions_enemy_response_and_encounters
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            *cinderwrit_preparation_inputs(),
+        *fire_infusion_preparation_inputs(),
         ),
         resolver=resolver,
     )
@@ -284,7 +284,7 @@ def test_prepared_payload_persists_through_actions_enemy_response_and_encounters
     )
 
     assert player_state.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is True
     assert next_battle.player_state.character_run_state is player_state.character_run_state
 
@@ -309,7 +309,7 @@ def test_accepted_preparation_allows_exactly_one_enemy_response():
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            *cinderwrit_preparation_inputs(),
+        *fire_infusion_preparation_inputs(),
         ),
         resolver=resolver,
     )
@@ -329,7 +329,7 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            *cinderwrit_preparation_inputs(),
+        *fire_infusion_preparation_inputs(),
         ),
         resolver=resolver,
     )
@@ -1045,10 +1045,10 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
     }]
 
 
-def test_cinderwrit_battle_passes_exact_run_state_without_mutating_payload():
+def test_infused_barb_battle_passes_exact_run_state_without_mutating_payload():
     player_state = PlayerState(RogueArcher())
     InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         player_state.character_run_state,
     )
     resolver = RecordingResolver(accepted_result())
@@ -1066,7 +1066,7 @@ def test_cinderwrit_battle_passes_exact_run_state_without_mutating_payload():
 
     assert resolver.calls[0]["character_run_state"] is player_state.character_run_state
     assert player_state.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is True
 
 

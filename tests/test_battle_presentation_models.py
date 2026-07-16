@@ -90,7 +90,7 @@ def test_models_are_frozen():
             "Ember Shard",
             "deep_coal",
             "Deep Coal",
-            "prepare_cinderwrit",
+            "prepare_fire_infusion",
             "Infused Barb",
         ),
         _meter(),

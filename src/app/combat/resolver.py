@@ -3,7 +3,7 @@
 import random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
-from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType

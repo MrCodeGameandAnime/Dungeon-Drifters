@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
+    FIRE_INFUSION_REQUIREMENTS,
     InfusionKind,
     InventoryActionId,
     RunItemId,
@@ -84,7 +84,7 @@ RUN_ITEM_DEFINITIONS = (
 
 FIRE_INFUSION_RECIPE = InventoryRecipeDefinition(
     action_id=InventoryActionId.PREPARE_FIRE_INFUSION,
-    ingredient_ids=tuple(CINDERWRIT_PREPARATION_COST),
+    ingredient_ids=tuple(FIRE_INFUSION_REQUIREMENTS),
     result_display_name="Fire-Infused Barb",
     infusion_kind=InfusionKind.FIRE,
 )
@@ -96,8 +96,6 @@ POISON_INFUSION_RECIPE = InventoryRecipeDefinition(
     infusion_kind=InfusionKind.POISON,
 )
 
-# Compatibility name for the pre-M9C-7 recipe API; the authored catalog uses both recipes.
-CINDERWRIT_RECIPE = FIRE_INFUSION_RECIPE
 INVENTORY_RECIPES = (FIRE_INFUSION_RECIPE, POISON_INFUSION_RECIPE)
 
 

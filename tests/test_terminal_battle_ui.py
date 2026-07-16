@@ -201,7 +201,7 @@ def test_inventory_phase_renders_owned_items_and_translates_stable_item_ids():
     assert ui.read_input(view) == ChooseInventoryItem("ember_shard")
     assert _contains(harness, "Choose an item:")
     assert _contains(harness, "Ember Shard x1")
-    assert not _contains(harness, "Prepare Cinderwrit Barb")
+    assert not _contains(harness, "Prepare Fire-Infused Barb")
 
 
 def test_item_commands_inspection_and_companion_selection_are_semantic():
@@ -259,8 +259,8 @@ def test_inventory_confirmation_renders_and_translates_yes_no_and_back():
         "Ember Shard",
         "deep_coal",
         "Deep Coal",
-        "prepare_cinderwrit",
-        "Cinderwrit Barb",
+        "prepare_fire_infusion",
+        "Fire-Infused Barb",
     )
     view = _view(
         phase=InteractionPhase.INVENTORY_CONFIRMATION,
@@ -271,7 +271,7 @@ def test_inventory_confirmation_renders_and_translates_yes_no_and_back():
 
     assert ui.read_input(view) == ConfirmInventoryUse(True)
     assert _contains(harness, "Combine Ember Shard and Deep Coal")
-    assert _contains(harness, "to prepare Cinderwrit Barb?")
+    assert _contains(harness, "to prepare Fire-Infused Barb?")
     assert _ui(("n",))[0].read_input(view) == ConfirmInventoryUse(False)
     assert _ui(("0",))[0].read_input(view) == GoBack()
 
@@ -300,7 +300,7 @@ def test_preparation_outcomes_render_in_completed_mutation_order():
     entry = BattleLogEntry(
         event_type=BattleEventType.INVENTORY,
         actor_name="Zhaivra",
-        action_name="prepare_cinderwrit",
+        action_name="prepare_fire_infusion",
         accepted=True,
         outcomes=(
             CombatOutcome(
@@ -308,7 +308,7 @@ def test_preparation_outcomes_render_in_completed_mutation_order():
                 target=CombatOutcomeTarget.ACTOR,
             ),
             CombatOutcome(
-                CombatOutcomeType.CINDERWRIT_PREPARED,
+                CombatOutcomeType.FIRE_INFUSION_PREPARED,
                 target=CombatOutcomeTarget.ACTOR,
             ),
         ),
@@ -325,7 +325,7 @@ def test_preparation_outcomes_render_in_completed_mutation_order():
     prepared_line = next(
         index
         for index, line in enumerate(harness.lines)
-        if "Cinderwrit Barb is ready." in line
+        if "Fire-Infused Barb is ready." in line
     )
     assert compound_line < prepared_line
 
@@ -409,7 +409,7 @@ def test_poison_outcomes_render_as_secondary_infused_barb_results():
     )
 
 
-def test_cinderwrit_primary_resource_consumption_and_burn_render_in_order():
+def test_infused_barb_primary_resource_consumption_and_burn_render_in_order():
     entry = BattleLogEntry(
         event_type=BattleEventType.DAMAGE,
         actor_name="Zhaivra",
@@ -442,7 +442,7 @@ def test_cinderwrit_primary_resource_consumption_and_burn_render_in_order():
     )
 
 
-def test_missed_cinderwrit_renders_no_duplicate_damage_or_burn_outcome():
+def test_missed_infused_barb_renders_no_duplicate_damage_or_burn_outcome():
     entry = BattleLogEntry(
         event_type=BattleEventType.MISS,
         actor_name="Zhaivra",

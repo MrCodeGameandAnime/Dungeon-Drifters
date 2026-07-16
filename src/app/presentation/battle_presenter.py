@@ -1,7 +1,7 @@
 """Pure translation from combat state to immutable battle views."""
 
 from app.combat.brace import BRACE_RULES
-from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.presentation.battle_models import (
@@ -234,7 +234,7 @@ class BattlePresenter:
             selected_item.item_id,
         )
         payload_active = player.character_run_state.payload_prepared(
-            PreparedPayloadId.CINDERWRIT
+            PreparedPayloadId.INFUSED_BARB
         )
         options = []
         for number, command in enumerate(definition.commands, start=1):

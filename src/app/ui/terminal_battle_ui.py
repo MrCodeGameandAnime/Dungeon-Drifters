@@ -498,20 +498,16 @@ class TerminalBattleUI:
             elif outcome.outcome_type == CombatOutcomeType.INSTABILITY_APPLIED:
                 lines.append(f"{actor} became physically unstable.")
             elif outcome.outcome_type == CombatOutcomeType.COMPOUNDS_CONSUMED:
-                if entry.action_name == "prepare_cinderwrit":
+                if entry.action_name == "prepare_fire_infusion":
                     lines.append(f"{actor} combined Ember Shard with Deep Coal.")
                 elif entry.action_name == "prepare_poison_infusion":
                     lines.append(f"{actor} combined Deep Coal with Night Berry.")
                 else:
                     lines.append(f"{actor} combined Deep Coal with Ember Shard.")
-            elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_PREPARED:
-                lines.append("Cinderwrit Barb is ready.")
             elif outcome.outcome_type == CombatOutcomeType.FIRE_INFUSION_PREPARED:
                 lines.append("A Fire-Infused Barb is ready.")
             elif outcome.outcome_type == CombatOutcomeType.POISON_INFUSION_PREPARED:
                 lines.append("A Poison-Infused Barb is ready.")
-            elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_CONSUMED:
-                lines.append(f"{actor} loosed the prepared Cinderwrit Barb.")
             elif outcome.outcome_type == CombatOutcomeType.INFUSED_BARB_CONSUMED:
                 lines.append(f"{actor} loosed the prepared Infused Barb.")
             elif outcome.outcome_type == CombatOutcomeType.BURN_APPLIED:

@@ -185,11 +185,11 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_it
         ("night_berry", "Night Berry", 1),
     )
     assert not any(
-        item.item_id == "prepare_cinderwrit" for item in initial.inventory_items
+        item.item_id == "prepare_fire_infusion" for item in initial.inventory_items
     )
 
     InventoryActionResolver().resolve(
-        "prepare_cinderwrit",
+        "prepare_fire_infusion",
         player.character_run_state,
     )
     empty_actions = presenter.build(
@@ -326,7 +326,7 @@ def test_confirming_either_item_order_routes_one_internal_preparation(source_ite
     assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
     assert player.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is True
     assert battle.combat_state.turn_count == 1
     confirmation_view = ui.input_views[-1].inventory_confirmation
@@ -379,7 +379,7 @@ def test_fabricated_item_and_companion_ids_are_rejected_before_resolution():
     assert len(inventory_resolver.calls) == 1
     assert battle.combat_state.turn_count == 1
     assert player.character_run_state.payload_prepared(
-        PreparedPayloadId.CINDERWRIT
+        PreparedPayloadId.INFUSED_BARB
     ) is True
 
 

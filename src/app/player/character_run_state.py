@@ -11,7 +11,6 @@ class RunItemId(StrEnum):
 
 class PreparedPayloadId(StrEnum):
     INFUSED_BARB = "infused_barb"
-    CINDERWRIT = "infused_barb"
 
 
 class InfusionKind(StrEnum):
@@ -22,10 +21,9 @@ class InfusionKind(StrEnum):
 class InventoryActionId(StrEnum):
     PREPARE_FIRE_INFUSION = "prepare_fire_infusion"
     PREPARE_POISON_INFUSION = "prepare_poison_infusion"
-    PREPARE_CINDERWRIT = "prepare_cinderwrit"
 
 
-CINDERWRIT_PREPARATION_COST = {
+FIRE_INFUSION_REQUIREMENTS = {
     RunItemId.EMBER_SHARD: 1,
     RunItemId.DEEP_COAL: 1,
 }

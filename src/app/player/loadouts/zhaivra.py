@@ -1,4 +1,4 @@
-from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.items.weapon import Sathren
 

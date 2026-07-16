@@ -5,7 +5,7 @@ from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
+    FIRE_INFUSION_REQUIREMENTS,
     CharacterRunState,
     InfusionKind,
     PreparedPayloadId,
@@ -29,8 +29,8 @@ def test_zhaivra_starts_with_personal_compounds_and_unprepared_payload():
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
     assert run_state.item_quantity(RunItemId.DEEP_COAL) == 1
     assert run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
-    assert run_state.supports_payload(PreparedPayloadId.CINDERWRIT) is True
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.supports_payload(PreparedPayloadId.INFUSED_BARB) is True
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
 
 
 @pytest.mark.parametrize("character_type", (Brawler, BlackMage, Monk))
@@ -39,7 +39,7 @@ def test_other_drifters_do_not_receive_zhaivra_run_resources(character_type):
 
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert run_state.item_quantity(RunItemId.DEEP_COAL) == 0
-    assert run_state.supports_payload(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.supports_payload(PreparedPayloadId.INFUSED_BARB) is False
     assert run_state.snapshot() == {"inventory": {}, "prepared_payloads": {}}
 
 
@@ -88,26 +88,26 @@ def test_character_run_state_rejects_invalid_authored_values():
         CharacterRunState(inventory={RunItemId.EMBER_SHARD: True})
     with pytest.raises(ValueError):
         CharacterRunState(
-            prepared_payloads={PreparedPayloadId.CINDERWRIT: 1}
+            prepared_payloads={PreparedPayloadId.INFUSED_BARB: 1}
         )
 
 
 def test_prepared_payload_consumption_is_atomic_and_requires_active_state():
     run_state = PlayerState(RogueArcher()).character_run_state
     run_state.prepare_payload(
-        PreparedPayloadId.CINDERWRIT,
-        CINDERWRIT_PREPARATION_COST,
+        PreparedPayloadId.INFUSED_BARB,
+        FIRE_INFUSION_REQUIREMENTS,
     )
 
-    run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+    run_state.consume_payload(PreparedPayloadId.INFUSED_BARB)
 
-    assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
     assert run_state.prepared_infusion() is None
     with pytest.raises(ValueError):
-        run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+        run_state.consume_payload(PreparedPayloadId.INFUSED_BARB)
     with pytest.raises(ValueError):
         PlayerState(Brawler()).character_run_state.consume_payload(
-            PreparedPayloadId.CINDERWRIT
+            PreparedPayloadId.INFUSED_BARB
         )
 
 

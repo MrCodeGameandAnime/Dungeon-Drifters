@@ -12,7 +12,7 @@ from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
+    FIRE_INFUSION_REQUIREMENTS,
     PreparedPayloadId,
 )
 from app.player.player_state import PlayerState
@@ -87,8 +87,8 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
         actor.super_resource.gain(actor.super_resource.maximum)
         if authored_move.mechanic == "infused_barb":
             actor.character_run_state.prepare_payload(
-                PreparedPayloadId.CINDERWRIT,
-                CINDERWRIT_PREPARATION_COST,
+                PreparedPayloadId.INFUSED_BARB,
+                FIRE_INFUSION_REQUIREMENTS,
             )
         resolution_target = actor if authored_move.target == TargetType.SELF else target
         result = CombatResolver(rng=AlwaysOneRng()).resolve_move(
