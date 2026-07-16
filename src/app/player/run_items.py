@@ -5,6 +5,7 @@ from enum import StrEnum
 
 from app.player.character_run_state import (
     CINDERWRIT_PREPARATION_COST,
+    InfusionKind,
     InventoryActionId,
     RunItemId,
 )
@@ -42,9 +43,11 @@ class InventoryRecipeDefinition:
     action_id: InventoryActionId
     ingredient_ids: tuple[RunItemId, ...]
     result_display_name: str
+    infusion_kind: InfusionKind
 
     def __post_init__(self):
         object.__setattr__(self, "action_id", InventoryActionId(self.action_id))
+        object.__setattr__(self, "infusion_kind", InfusionKind(self.infusion_kind))
         if not isinstance(self.ingredient_ids, tuple):
             raise TypeError("ingredient_ids must be a tuple")
         ingredient_ids = tuple(RunItemId(item_id) for item_id in self.ingredient_ids)
@@ -74,18 +77,28 @@ RUN_ITEM_DEFINITIONS = (
     RunItemDefinition(
         item_id=RunItemId.NIGHT_BERRY,
         display_name="Night Berry",
-        description="A bitter nocturnal fruit reserved for venomous alchemical infusions.",
+        description="A dusk-grown berry whose concentrated juices carry a slow, invasive toxin.",
         commands=(InventoryCommand.INSPECT, InventoryCommand.USE),
     ),
 )
 
-CINDERWRIT_RECIPE = InventoryRecipeDefinition(
-    action_id=InventoryActionId.PREPARE_CINDERWRIT,
+FIRE_INFUSION_RECIPE = InventoryRecipeDefinition(
+    action_id=InventoryActionId.PREPARE_FIRE_INFUSION,
     ingredient_ids=tuple(CINDERWRIT_PREPARATION_COST),
-    result_display_name="Cinderwrit Barb",
+    result_display_name="Fire-Infused Barb",
+    infusion_kind=InfusionKind.FIRE,
 )
 
-INVENTORY_RECIPES = (CINDERWRIT_RECIPE,)
+POISON_INFUSION_RECIPE = InventoryRecipeDefinition(
+    action_id=InventoryActionId.PREPARE_POISON_INFUSION,
+    ingredient_ids=(RunItemId.DEEP_COAL, RunItemId.NIGHT_BERRY),
+    result_display_name="Poison-Infused Barb",
+    infusion_kind=InfusionKind.POISON,
+)
+
+# Compatibility name for the pre-M9C-7 recipe API; the authored catalog uses both recipes.
+CINDERWRIT_RECIPE = FIRE_INFUSION_RECIPE
+INVENTORY_RECIPES = (FIRE_INFUSION_RECIPE, POISON_INFUSION_RECIPE)
 
 
 def run_item_definition(item_id):

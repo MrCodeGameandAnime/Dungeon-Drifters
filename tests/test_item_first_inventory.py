@@ -98,7 +98,11 @@ def _preparation_inputs(source_item_id, *, confirmed=True):
     companion_item_id = (
         RunItemId.DEEP_COAL.value
         if source_item_id == RunItemId.EMBER_SHARD.value
-        else RunItemId.EMBER_SHARD.value
+        else (
+            RunItemId.DEEP_COAL.value
+            if source_item_id == RunItemId.NIGHT_BERRY.value
+            else RunItemId.EMBER_SHARD.value
+        )
     )
     return (
         ChooseAction(ActionIntent.ITEMS),
@@ -134,7 +138,7 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
         (
             "night_berry",
             "Night Berry",
-            "A bitter nocturnal fruit reserved for venomous alchemical infusions.",
+            "A dusk-grown berry whose concentrated juices carry a slow, invasive toxin.",
             (InventoryCommand.INSPECT, InventoryCommand.USE),
         ),
     )
@@ -142,9 +146,13 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
     reverse = inventory_recipe_for_pair("deep_coal", "ember_shard")
 
     assert forward is reverse
-    assert forward.action_id.value == "prepare_cinderwrit"
+    assert forward.action_id.value == "prepare_fire_infusion"
     assert inventory_recipe_for_pair("ember_shard", "ember_shard") is None
     assert inventory_recipe_for_pair("ember_shard", "unknown") is None
+    poison_forward = inventory_recipe_for_pair("deep_coal", "night_berry")
+    poison_reverse = inventory_recipe_for_pair("night_berry", "deep_coal")
+    assert poison_forward is poison_reverse
+    assert poison_forward.action_id.value == "prepare_poison_infusion"
 
 
 def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_items():
@@ -313,7 +321,7 @@ def test_confirming_either_item_order_routes_one_internal_preparation(source_ite
     assert battle.player_action() is True
 
     assert inventory_resolver.calls == [
-        ("prepare_cinderwrit", player.character_run_state)
+        ("prepare_fire_infusion", player.character_run_state)
     ]
     assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
@@ -323,7 +331,28 @@ def test_confirming_either_item_order_routes_one_internal_preparation(source_ite
     assert battle.combat_state.turn_count == 1
     confirmation_view = ui.input_views[-1].inventory_confirmation
     assert confirmation_view.source_item_id == source_item_id
-    assert confirmation_view.action_id == "prepare_cinderwrit"
+    assert confirmation_view.action_id == "prepare_fire_infusion"
+
+
+def test_confirming_night_berry_order_routes_poison_preparation():
+    player = PlayerState(RogueArcher())
+    inventory_resolver = RecordingInventoryActionResolver()
+    ui = ScriptedUI(*_preparation_inputs(RunItemId.NIGHT_BERRY.value))
+    battle = Battle(
+        player,
+        EnemyState(Goblin()),
+        ui=ui,
+        inventory_action_resolver=inventory_resolver,
+    )
+
+    assert battle.player_action() is True
+    assert inventory_resolver.calls == [
+        ("prepare_poison_infusion", player.character_run_state)
+    ]
+    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 0
+    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
+    assert ui.input_views[-1].inventory_confirmation.action_id == "prepare_poison_infusion"
 
 
 def test_fabricated_item_and_companion_ids_are_rejected_before_resolution():

@@ -145,7 +145,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     outcomes = _outcomes(session.history)
     outcome_types = tuple(outcome.outcome_type for outcome in outcomes)
     assert outcome_types.count(CombatOutcomeType.COMPOUNDS_CONSUMED) == 1
-    assert outcome_types.count(CombatOutcomeType.CINDERWRIT_PREPARED) == 1
+    assert outcome_types.count(CombatOutcomeType.FIRE_INFUSION_PREPARED) == 1
     assert outcome_types.count(CombatOutcomeType.CINDERWRIT_CONSUMED) == 1
     assert outcome_types.count(CombatOutcomeType.BURN_APPLIED) == 1
     assert outcome_types.count(CombatOutcomeType.BURN_TICK) == 3

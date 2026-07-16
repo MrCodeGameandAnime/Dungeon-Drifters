@@ -6,6 +6,7 @@ from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeT
 from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
     CharacterRunState,
+    InfusionKind,
     InventoryActionId,
     PreparedPayloadId,
     RunItemId,
@@ -40,6 +41,45 @@ def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload(
         and outcome.amount == 0
         for outcome in result.outcomes
     )
+
+
+def test_poison_preparation_consumes_deep_coal_and_night_berry_only():
+    run_state = PlayerState(RogueArcher()).character_run_state
+
+    result = InventoryActionResolver().resolve(
+        InventoryActionId.PREPARE_POISON_INFUSION,
+        run_state,
+    )
+
+    assert result.accepted is True
+    assert run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert run_state.item_quantity(RunItemId.NIGHT_BERRY) == 0
+    assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
+    assert run_state.prepared_infusion() is InfusionKind.POISON
+    assert tuple(outcome.outcome_type for outcome in result.outcomes) == (
+        CombatOutcomeType.COMPOUNDS_CONSUMED,
+        CombatOutcomeType.POISON_INFUSION_PREPARED,
+    )
+
+
+def test_poison_preparation_is_rejected_when_fire_payload_is_already_prepared():
+    run_state = PlayerState(RogueArcher()).character_run_state
+    fire = InventoryActionResolver().resolve(
+        InventoryActionId.PREPARE_FIRE_INFUSION,
+        run_state,
+    )
+    before = run_state.snapshot()
+
+    poison = InventoryActionResolver().resolve(
+        InventoryActionId.PREPARE_POISON_INFUSION,
+        run_state,
+    )
+
+    assert fire.accepted is True
+    assert poison.accepted is False
+    assert poison.reason == InventoryActionRejectionReason.ALREADY_PREPARED
+    assert poison.outcomes == ()
+    assert run_state.snapshot() == before
 
 
 @pytest.mark.parametrize(

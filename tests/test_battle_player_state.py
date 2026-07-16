@@ -243,7 +243,7 @@ def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
     assert entry.event_type == BattleEventType.INVENTORY
     assert tuple(outcome.outcome_type for outcome in entry.outcomes) == (
         CombatOutcomeType.COMPOUNDS_CONSUMED,
-        CombatOutcomeType.CINDERWRIT_PREPARED,
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
     )
 
 
@@ -348,7 +348,7 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
         for outcome in entry.outcomes
     ) == (
         CombatOutcomeType.COMPOUNDS_CONSUMED,
-        CombatOutcomeType.CINDERWRIT_PREPARED,
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
         CombatOutcomeType.BURN_TICK,
         CombatOutcomeType.BURN_EXPIRED,
     )

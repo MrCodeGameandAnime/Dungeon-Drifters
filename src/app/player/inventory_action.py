@@ -4,12 +4,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
-from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
-    CharacterRunState,
-    InventoryActionId,
-    PreparedPayloadId,
-)
+from app.player.character_run_state import CharacterRunState, InventoryActionId
+from app.player.run_items import INVENTORY_RECIPES
 
 
 class InventoryActionRejectionReason(StrEnum):
@@ -44,34 +40,59 @@ class InventoryActionResolver:
         action_id = _validate_action_id(action_id)
         if not isinstance(character_run_state, CharacterRunState):
             raise TypeError("character_run_state must be CharacterRunState")
-        if action_id != InventoryActionId.PREPARE_CINDERWRIT:
+        legacy_cinderwrit = action_id == InventoryActionId.PREPARE_CINDERWRIT
+        recipe = self._recipe_for_action(action_id)
+        if recipe is None:
             return self._rejected(
                 action_id,
                 InventoryActionRejectionReason.ACTION_UNAVAILABLE,
             )
-        return self._prepare_cinderwrit(character_run_state)
+        return self._prepare_recipe(
+            recipe,
+            character_run_state,
+            result_action_id=(
+                InventoryActionId.PREPARE_CINDERWRIT
+                if legacy_cinderwrit
+                else recipe.action_id
+            ),
+            legacy_cinderwrit=legacy_cinderwrit,
+        )
 
-    def _prepare_cinderwrit(self, character_run_state):
-        action_id = InventoryActionId.PREPARE_CINDERWRIT
-        if not character_run_state.supports_payload(PreparedPayloadId.CINDERWRIT):
+    def _prepare_recipe(
+        self,
+        recipe,
+        character_run_state,
+        *,
+        result_action_id,
+        legacy_cinderwrit,
+    ):
+        action_id = result_action_id
+        if not character_run_state.supports_payload("infused_barb"):
             return self._rejected(
                 action_id,
                 InventoryActionRejectionReason.ACTION_UNAVAILABLE,
             )
-        if character_run_state.payload_prepared(PreparedPayloadId.CINDERWRIT):
+        if character_run_state.prepared_infusion() is not None:
             return self._rejected(
                 action_id,
                 InventoryActionRejectionReason.ALREADY_PREPARED,
             )
-        if not character_run_state.has_items(CINDERWRIT_PREPARATION_COST):
+        requirements = {item_id: 1 for item_id in recipe.ingredient_ids}
+        if not character_run_state.has_items(requirements):
             return self._rejected(
                 action_id,
                 InventoryActionRejectionReason.MISSING_INGREDIENTS,
             )
 
-        character_run_state.prepare_payload(
-            PreparedPayloadId.CINDERWRIT,
-            CINDERWRIT_PREPARATION_COST,
+        character_run_state.prepare_infusion(recipe.infusion_kind, requirements)
+        prepared_outcome = (
+            CombatOutcomeType.CINDERWRIT_PREPARED
+            if legacy_cinderwrit
+            else (
+                CombatOutcomeType.FIRE_INFUSION_PREPARED
+                if recipe.infusion_kind.value == "fire"
+                else CombatOutcomeType.POISON_INFUSION_PREPARED
+            )
         )
         return InventoryActionResult(
             action_id=action_id,
@@ -82,10 +103,19 @@ class InventoryActionResolver:
                     target=CombatOutcomeTarget.ACTOR,
                 ),
                 CombatOutcome(
-                    CombatOutcomeType.CINDERWRIT_PREPARED,
+                    prepared_outcome,
                     target=CombatOutcomeTarget.ACTOR,
                 ),
             ),
+        )
+
+    @staticmethod
+    def _recipe_for_action(action_id):
+        if action_id == InventoryActionId.PREPARE_CINDERWRIT:
+            action_id = InventoryActionId.PREPARE_FIRE_INFUSION
+        return next(
+            (recipe for recipe in INVENTORY_RECIPES if recipe.action_id == action_id),
+            None,
         )
 
     @staticmethod

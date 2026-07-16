@@ -20,6 +20,8 @@ class InfusionKind(StrEnum):
 
 
 class InventoryActionId(StrEnum):
+    PREPARE_FIRE_INFUSION = "prepare_fire_infusion"
+    PREPARE_POISON_INFUSION = "prepare_poison_infusion"
     PREPARE_CINDERWRIT = "prepare_cinderwrit"
 
 
