@@ -16,6 +16,7 @@ class CombatOutcomeType(StrEnum):
     CINDERWRIT_PREPARED = "cinderwrit_prepared"
     FIRE_INFUSION_PREPARED = "fire_infusion_prepared"
     POISON_INFUSION_PREPARED = "poison_infusion_prepared"
+    INFUSED_BARB_CONSUMED = "infused_barb_consumed"
     CINDERWRIT_CONSUMED = "cinderwrit_consumed"
     BURN_APPLIED = "burn_applied"
     BURN_REFRESHED = "burn_refreshed"

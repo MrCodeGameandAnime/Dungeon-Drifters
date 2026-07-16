@@ -204,7 +204,7 @@ EXPECTED_LOADOUTS = {
             1: "Mournpoint Verdict",
             2: "Hollowstring Trine",
             3: "Nightskein Deluge",
-            4: "Cinderwrit Barb",
+            4: "Infused Barb",
             5: "Starless Meridian Obsequy",
         },
         "combat_moves": [
@@ -248,7 +248,7 @@ EXPECTED_LOADOUTS = {
                 "description": "A woven storm of shadow-arrows descends across the battlefield.",
             },
             {
-                "name": "Cinderwrit Barb",
+                "name": "Infused Barb",
                 "kind": "damage",
                 "resource_type": "mana",
                 "resource_cost": 5,
@@ -257,8 +257,8 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": "cinderwrit_barb",
-                "description": "A rune-burned arrow embeds in the target, igniting dark fire within.",
+                "mechanic": "infused_barb",
+                "description": "A prepared alchemical arrow carries fire or poison into the target.",
             },
             {
                 "name": "Starless Meridian Obsequy",

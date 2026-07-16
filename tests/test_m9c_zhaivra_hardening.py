@@ -88,7 +88,7 @@ class ZhaivraLoopUI:
         elif view.interaction_phase == InteractionPhase.REGULAR_MOVES:
             if self.stage == "fire":
                 self.stage = "hold"
-                selection_key = "Cinderwrit Barb"
+                selection_key = "Infused Barb"
             else:
                 selection_key = "Mournpoint Verdict"
             battle_input = ChooseMove(selection_key)
@@ -146,7 +146,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     outcome_types = tuple(outcome.outcome_type for outcome in outcomes)
     assert outcome_types.count(CombatOutcomeType.COMPOUNDS_CONSUMED) == 1
     assert outcome_types.count(CombatOutcomeType.FIRE_INFUSION_PREPARED) == 1
-    assert outcome_types.count(CombatOutcomeType.CINDERWRIT_CONSUMED) == 1
+    assert outcome_types.count(CombatOutcomeType.INFUSED_BARB_CONSUMED) == 1
     assert outcome_types.count(CombatOutcomeType.BURN_APPLIED) == 1
     assert outcome_types.count(CombatOutcomeType.BURN_TICK) == 3
     assert outcome_types.count(CombatOutcomeType.BURN_EXPIRED) == 1
@@ -160,7 +160,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         move
         for view in ui.rendered_views
         for move in view.move_options
-        if move.name == "Cinderwrit Barb" and "Ready" in move.tags
+        if move.name == "Infused Barb" and "Ready: Fire" in move.tags
     )
     assert ready_cinderwrit
 
@@ -174,7 +174,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         in {
             CombatOutcomeType.COMPOUNDS_CONSUMED,
             CombatOutcomeType.CINDERWRIT_PREPARED,
-            CombatOutcomeType.CINDERWRIT_CONSUMED,
+            CombatOutcomeType.INFUSED_BARB_CONSUMED,
             CombatOutcomeType.BURN_TICK,
         }
         for outcome in _outcomes(session.entries)
@@ -195,14 +195,14 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     rejected = CombatResolver(rng=ScriptedRng()).resolve_move(
         zhaivra,
         zhaivra,
-        "Cinderwrit Barb",
+        "Infused Barb",
         combat_state=first_combat_state,
         character_run_state=run_state,
     )
     missed = CombatResolver(rng=ScriptedRng(100)).resolve_move(
         zhaivra,
         target,
-        "Cinderwrit Barb",
+        "Infused Barb",
         combat_state=first_combat_state,
         character_run_state=run_state,
     )
@@ -218,7 +218,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     assert missed.hit is False
     assert mana_before - zhaivra.mana_resource.current == 5
     assert tuple(outcome.outcome_type for outcome in missed.outcomes) == (
-        CombatOutcomeType.CINDERWRIT_CONSUMED,
+        CombatOutcomeType.INFUSED_BARB_CONSUMED,
     )
     assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
     assert second_preparation.accepted is False

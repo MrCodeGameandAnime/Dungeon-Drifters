@@ -2080,7 +2080,7 @@ def test_all_four_drifter_structured_moves_are_resolver_compatible():
 
             if prototype_move.resource_type == ResourceType.SUPER:
                 actor.super_resource.gain(actor.super_resource.maximum)
-            if prototype_move.mechanic == "cinderwrit_barb":
+            if prototype_move.mechanic == "infused_barb":
                 actor.character_run_state.prepare_payload(
                     PreparedPayloadId.CINDERWRIT,
                     CINDERWRIT_PREPARATION_COST,

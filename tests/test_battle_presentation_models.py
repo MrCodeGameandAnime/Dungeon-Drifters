@@ -91,7 +91,7 @@ def test_models_are_frozen():
             "deep_coal",
             "Deep Coal",
             "prepare_cinderwrit",
-            "Cinderwrit Barb",
+            "Infused Barb",
         ),
         _meter(),
         BattleLogEntry(BattleEventType.ENCOUNTER_START),

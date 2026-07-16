@@ -1,7 +1,7 @@
 """Pure translation from combat state to immutable battle views."""
 
 from app.combat.brace import BRACE_RULES
-from app.combat.cinderwrit import CINDERWRIT_MECHANIC
+from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.presentation.battle_models import (
@@ -22,6 +22,7 @@ from app.presentation.battle_models import (
     SuperMeterView,
 )
 from app.player.character_run_state import (
+    InfusionKind,
     PreparedPayloadId,
 )
 from app.player.run_items import (
@@ -93,6 +94,8 @@ class BattlePresenter:
             labels.append("Gravemantle Break")
         if combat_state.burn_active(combatant):
             labels.append("Burn")
+        if getattr(combat_state, "poison_active", lambda _actor: False)(combatant):
+            labels.append("Poison")
 
         return CombatantView(
             display_name=combatant.display_name,
@@ -367,17 +370,21 @@ class BattlePresenter:
             overcharge_bonus = combat_state.arcane_overcharge_bonus_percent(player)
             if overcharge_bonus:
                 tags.append(f"Overcharged +{overcharge_bonus}%")
-        cinderwrit_prepared = True
-        if move.mechanic == CINDERWRIT_MECHANIC:
-            cinderwrit_prepared = player.character_run_state.payload_prepared(
-                PreparedPayloadId.CINDERWRIT
-            )
-            tags.append("Ready" if cinderwrit_prepared else "Requires Prepared Barb")
+        infusion_ready = True
+        if move.mechanic == INFUSED_BARB_MECHANIC:
+            infusion_kind = player.character_run_state.prepared_infusion()
+            infusion_ready = infusion_kind is not None
+            if infusion_kind == InfusionKind.FIRE:
+                tags.append("Ready: Fire")
+            elif infusion_kind == InfusionKind.POISON:
+                tags.append("Ready: Poison")
+            else:
+                tags.append("Requires Prepared Infusion")
         if resource_label is not None:
             tags.append(resource_label)
 
         affordable = self._can_afford(player, move)
-        enabled = affordable and cinderwrit_prepared
+        enabled = affordable and infusion_ready
         if enabled:
             disabled_reason = None
         elif not affordable:

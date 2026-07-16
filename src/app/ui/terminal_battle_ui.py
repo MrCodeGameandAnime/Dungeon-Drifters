@@ -512,6 +512,8 @@ class TerminalBattleUI:
                 lines.append("A Poison-Infused Barb is ready.")
             elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_CONSUMED:
                 lines.append(f"{actor} loosed the prepared Cinderwrit Barb.")
+            elif outcome.outcome_type == CombatOutcomeType.INFUSED_BARB_CONSUMED:
+                lines.append(f"{actor} loosed the prepared Infused Barb.")
             elif outcome.outcome_type == CombatOutcomeType.BURN_APPLIED:
                 lines.append(f"{target} began burning.")
             elif outcome.outcome_type == CombatOutcomeType.BURN_REFRESHED:
@@ -525,6 +527,19 @@ class TerminalBattleUI:
                     else target
                 )
                 lines.append(f"{subject}'s Burn expired.")
+            elif outcome.outcome_type == CombatOutcomeType.POISON_APPLIED:
+                lines.append(f"{target} began suffering Poison.")
+            elif outcome.outcome_type == CombatOutcomeType.POISON_REFRESHED:
+                lines.append(f"{target}'s Poison was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.POISON_TICK:
+                lines.append(f"{actor} suffered {outcome.amount} Poison damage.")
+            elif outcome.outcome_type == CombatOutcomeType.POISON_EXPIRED:
+                subject = (
+                    actor
+                    if outcome.target == CombatOutcomeTarget.ACTOR
+                    else target
+                )
+                lines.append(f"{subject}'s Poison expired.")
         return tuple(lines)
 
     @staticmethod

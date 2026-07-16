@@ -85,7 +85,7 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
         actor = PlayerState(character_type())
         target = EnemyState(Goblin())
         actor.super_resource.gain(actor.super_resource.maximum)
-        if authored_move.mechanic == "cinderwrit_barb":
+        if authored_move.mechanic == "infused_barb":
             actor.character_run_state.prepare_payload(
                 PreparedPayloadId.CINDERWRIT,
                 CINDERWRIT_PREPARATION_COST,

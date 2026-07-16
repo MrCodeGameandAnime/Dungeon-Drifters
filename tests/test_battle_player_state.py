@@ -1058,7 +1058,7 @@ def test_cinderwrit_battle_passes_exact_run_state_without_mutating_payload():
         resolver=resolver,
         ui=ScriptedBattleUI(
             ChooseAction(ActionIntent.ATTACK),
-            ChooseMove("Cinderwrit Barb"),
+            ChooseMove("Infused Barb"),
         ),
     )
 

@@ -3,7 +3,7 @@
 import random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
-from app.combat.cinderwrit import CINDERWRIT_MECHANIC
+from app.combat.cinderwrit import INFUSED_BARB_MECHANIC
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
@@ -14,7 +14,7 @@ from app.combat.result import (
     MoveResult,
 )
 from app.player import scaling
-from app.player.character_run_state import CharacterRunState, PreparedPayloadId
+from app.player.character_run_state import CharacterRunState, InfusionKind, PreparedPayloadId
 
 
 BASIS_POINTS = 10_000
@@ -28,7 +28,7 @@ SUPPORTED_MECHANICS = (
     "basic_attack",
     "heavy_attack",
     "gravemantle_rupture",
-    CINDERWRIT_MECHANIC,
+    INFUSED_BARB_MECHANIC,
 )
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
@@ -80,7 +80,7 @@ class CombatResolver:
         if move.mechanic == "gravemantle_rupture" and not move.is_spell:
             return _rejected(move.name, "unsupported_mechanic")
 
-        if move.mechanic == CINDERWRIT_MECHANIC and move.kind != MoveKind.DAMAGE:
+        if move.mechanic == INFUSED_BARB_MECHANIC and move.kind != MoveKind.DAMAGE:
             return _rejected(move.name, "unsupported_mechanic")
 
         if move.is_spell and not isinstance(combat_state, CombatState):
@@ -93,7 +93,7 @@ class CombatResolver:
             return _rejected(move.name, "invalid_combat_state")
 
         if (
-            move.mechanic == CINDERWRIT_MECHANIC
+            move.mechanic == INFUSED_BARB_MECHANIC
             and not isinstance(combat_state, CombatState)
         ):
             return _rejected(move.name, "invalid_combat_state")
@@ -102,14 +102,14 @@ class CombatResolver:
         if not affordable:
             return _rejected(move.name, insufficient_reason)
 
-        if move.mechanic == CINDERWRIT_MECHANIC:
+        if move.mechanic == INFUSED_BARB_MECHANIC:
             if not isinstance(character_run_state, CharacterRunState):
                 return _rejected(move.name, "invalid_character_run_state")
             if (
-                not character_run_state.supports_payload(PreparedPayloadId.CINDERWRIT)
-                or not character_run_state.payload_prepared(PreparedPayloadId.CINDERWRIT)
+                not character_run_state.supports_payload(PreparedPayloadId.INFUSED_BARB)
+                or character_run_state.prepared_infusion() is None
             ):
-                return _rejected(move.name, "cinderwrit_unprepared")
+                return _rejected(move.name, "infused_barb_unprepared")
 
         resource_spent = _spend_resource(actor, move)
 
@@ -128,11 +128,12 @@ class CombatResolver:
             )
 
         outcomes = []
-        if move.mechanic == CINDERWRIT_MECHANIC:
-            character_run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
+        infusion_kind = None
+        if move.mechanic == INFUSED_BARB_MECHANIC:
+            infusion_kind = character_run_state.consume_infusion()
             outcomes.append(
                 CombatOutcome(
-                    CombatOutcomeType.CINDERWRIT_CONSUMED,
+                    CombatOutcomeType.INFUSED_BARB_CONSUMED,
                     target=CombatOutcomeTarget.ACTOR,
                 )
             )
@@ -182,8 +183,11 @@ class CombatResolver:
                             target=CombatOutcomeTarget.TARGET,
                         )
                     )
-                if move.mechanic == CINDERWRIT_MECHANIC and target.is_alive():
-                    outcomes.append(combat_state.apply_burn(actor, target))
+                if move.mechanic == INFUSED_BARB_MECHANIC and target.is_alive():
+                    if infusion_kind == InfusionKind.FIRE:
+                        outcomes.append(combat_state.apply_burn(actor, target))
+                    elif infusion_kind == InfusionKind.POISON:
+                        outcomes.append(combat_state.apply_poison(actor, target))
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 

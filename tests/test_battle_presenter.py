@@ -174,11 +174,11 @@ def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
         combat_state=combat_state,
         interaction_phase=InteractionPhase.REGULAR_MOVES,
     )
-    unprepared_option = _move(unprepared, "Cinderwrit Barb")
+    unprepared_option = _move(unprepared, "Infused Barb")
 
     assert unprepared_option.tags == (
         "Normal",
-        "Requires Prepared Barb",
+        "Requires Prepared Infusion",
         "5 Mana",
     )
     assert unprepared_option.enabled is False
@@ -204,9 +204,9 @@ def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
         combat_state=combat_state,
         interaction_phase=InteractionPhase.REGULAR_MOVES,
     )
-    prepared_option = _move(prepared, "Cinderwrit Barb")
+    prepared_option = _move(prepared, "Infused Barb")
 
-    assert prepared_option.tags == ("Normal", "Ready", "5 Mana")
+    assert prepared_option.tags == ("Normal", "Ready: Fire", "5 Mana")
     assert prepared_option.enabled is True
     assert prepared_option.disabled_reason is None
     assert prepared == repeated

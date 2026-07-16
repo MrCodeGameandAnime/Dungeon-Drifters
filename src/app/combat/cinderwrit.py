@@ -1,4 +1,6 @@
-"""Narrow authored contract for Zhaivra's prepared Cinderwrit shot."""
+"""Narrow authored contract for Zhaivra's prepared infused shot."""
 
 
-CINDERWRIT_MECHANIC = "cinderwrit_barb"
+INFUSED_BARB_MECHANIC = "infused_barb"
+# Compatibility alias for older callers; authored and resolver paths use the new marker.
+CINDERWRIT_MECHANIC = INFUSED_BARB_MECHANIC

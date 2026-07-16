@@ -61,7 +61,7 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         "basic_attack",
         "heavy_attack",
         "gravemantle_rupture",
-        "cinderwrit_barb",
+        "infused_barb",
     }
     authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
@@ -200,7 +200,7 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
         "Mournpoint Verdict",
         "Hollowstring Trine",
         "Nightskein Deluge",
-        "Cinderwrit Barb",
+        "Infused Barb",
         "Starless Meridian Obsequy",
     ]
     assert all(move.kind == MoveKind.DAMAGE for move in rogue_archer.combat_moves)
@@ -220,13 +220,13 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
             None,
             "basic_attack",
             "heavy_attack",
-            "cinderwrit_barb",
+            "infused_barb",
         }
         for move in rogue_archer.combat_moves
     )
     assert rogue_archer.combat_moves[0].mechanic == "basic_attack"
     assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:3])
-    assert rogue_archer.combat_moves[3].mechanic == "cinderwrit_barb"
+    assert rogue_archer.combat_moves[3].mechanic == "infused_barb"
     assert rogue_archer.combat_moves[4].mechanic is None
 
 

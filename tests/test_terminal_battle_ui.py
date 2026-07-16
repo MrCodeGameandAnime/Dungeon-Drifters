@@ -361,7 +361,7 @@ def test_burn_application_and_refresh_render_against_exact_target():
         event_type=BattleEventType.DAMAGE,
         actor_name="Zhaivra",
         target_name="Goblin",
-        action_name="Cinderwrit Barb",
+        action_name="Infused Barb",
         accepted=True,
         hit=True,
         amount=12,
@@ -378,19 +378,50 @@ def test_burn_application_and_refresh_render_against_exact_target():
     assert "Goblin's Burn was refreshed." in lines
 
 
+def test_poison_outcomes_render_as_secondary_infused_barb_results():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.DAMAGE,
+        actor_name="Zhaivra",
+        target_name="Goblin",
+        action_name="Infused Barb",
+        accepted=True,
+        hit=True,
+        amount=12,
+        outcomes=(
+            CombatOutcome(CombatOutcomeType.INFUSED_BARB_CONSUMED),
+            CombatOutcome(CombatOutcomeType.POISON_APPLIED),
+            CombatOutcome(
+                CombatOutcomeType.POISON_TICK,
+                amount=5,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(CombatOutcomeType.POISON_EXPIRED),
+        ),
+    )
+    ui, _ = _ui(())
+
+    assert ui._log_lines(entry) == (
+        "Zhaivra used Infused Barb. It dealt 12 damage.",
+        "Zhaivra loosed the prepared Infused Barb.",
+        "Goblin began suffering Poison.",
+        "Zhaivra suffered 5 Poison damage.",
+        "Goblin's Poison expired.",
+    )
+
+
 def test_cinderwrit_primary_resource_consumption_and_burn_render_in_order():
     entry = BattleLogEntry(
         event_type=BattleEventType.DAMAGE,
         actor_name="Zhaivra",
         target_name="Goblin",
-        action_name="Cinderwrit Barb",
+        action_name="Infused Barb",
         accepted=True,
         hit=True,
         amount=12,
         resource_spent=5,
         outcomes=(
             CombatOutcome(
-                CombatOutcomeType.CINDERWRIT_CONSUMED,
+                CombatOutcomeType.INFUSED_BARB_CONSUMED,
                 target=CombatOutcomeTarget.ACTOR,
             ),
             CombatOutcome(
@@ -404,9 +435,9 @@ def test_cinderwrit_primary_resource_consumption_and_burn_render_in_order():
     lines = ui._log_lines(entry)
 
     assert lines == (
-        "Zhaivra used Cinderwrit Barb. It dealt 12 damage.",
+        "Zhaivra used Infused Barb. It dealt 12 damage.",
         "Resource spent: 5.",
-        "Zhaivra loosed the prepared Cinderwrit Barb.",
+        "Zhaivra loosed the prepared Infused Barb.",
         "Goblin began burning.",
     )
 
@@ -416,13 +447,13 @@ def test_missed_cinderwrit_renders_no_duplicate_damage_or_burn_outcome():
         event_type=BattleEventType.MISS,
         actor_name="Zhaivra",
         target_name="Goblin",
-        action_name="Cinderwrit Barb",
+        action_name="Infused Barb",
         accepted=True,
         hit=False,
         resource_spent=5,
         outcomes=(
             CombatOutcome(
-                CombatOutcomeType.CINDERWRIT_CONSUMED,
+                CombatOutcomeType.INFUSED_BARB_CONSUMED,
                 target=CombatOutcomeTarget.ACTOR,
             ),
         ),
@@ -430,9 +461,9 @@ def test_missed_cinderwrit_renders_no_duplicate_damage_or_burn_outcome():
     ui, _ = _ui(())
 
     assert ui._log_lines(entry) == (
-        "Zhaivra used Cinderwrit Barb, but missed.",
+        "Zhaivra used Infused Barb, but missed.",
         "Resource spent: 5.",
-        "Zhaivra loosed the prepared Cinderwrit Barb.",
+        "Zhaivra loosed the prepared Infused Barb.",
     )
 
 
