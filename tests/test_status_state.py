@@ -325,6 +325,26 @@ def test_burn_lethal_tick_clears_poison_without_post_defeat_damage():
     assert state.poison_active(target) is False
 
 
+def test_poison_lethal_tick_clears_remaining_burn_status():
+    source = FakeCombatant("source")
+    target = FakeCombatant("target", maximum_hp=11)
+    state = StatusState()
+    state.apply_burn(source, target)
+    state.apply_poison(source, target)
+
+    outcomes = state.advance_after_accepted_action(target)
+
+    assert tuple(outcome.outcome_type for outcome in outcomes) == (
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.POISON_TICK,
+        CombatOutcomeType.POISON_EXPIRED,
+        CombatOutcomeType.BURN_EXPIRED,
+    )
+    assert target.health.current == 0
+    assert state.burn_active(target) is False
+    assert state.poison_active(target) is False
+
+
 def test_burn_target_and_source_ownership_are_identity_safe_and_unhashable():
     first_source = FakeCombatant("same")
     second_source = FakeCombatant("same")

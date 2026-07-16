@@ -258,6 +258,8 @@ class StatusState:
                     target=CombatOutcomeTarget.ACTOR,
                 )
             )
+            if not actor.is_alive():
+                outcomes.extend(self._clear_defeated_statuses(actor))
         else:
             self._replace_poison(
                 poison,
