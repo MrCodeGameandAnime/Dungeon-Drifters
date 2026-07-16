@@ -235,6 +235,15 @@ class CombatState:
     def burn_status(self, target):
         return self._status_state.burn_status(target)
 
+    def apply_poison(self, source, target):
+        return self._status_state.apply_poison(source, target)
+
+    def poison_active(self, target):
+        return self._status_state.poison_active(target)
+
+    def poison_status(self, target):
+        return self._status_state.poison_status(target)
+
     def clear_statuses(self):
         self._status_state.clear_all()
 
@@ -252,13 +261,9 @@ class CombatState:
 
             self.clear_defend(opponent)
             self._clear_brace_incoming_protection(opponent)
-            if self._status_state.clear_defeated_target(opponent):
-                outcomes.append(
-                    CombatOutcome(
-                        CombatOutcomeType.BURN_EXPIRED,
-                        target=CombatOutcomeTarget.TARGET,
-                    )
-                )
+            outcomes.extend(
+                self._status_state.clear_defeated_target_outcomes(opponent)
+            )
 
         if reduce_heal_cooldown:
             self._decrement_heal_cooldown(actor)

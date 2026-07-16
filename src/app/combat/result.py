@@ -21,6 +21,10 @@ class CombatOutcomeType(StrEnum):
     BURN_REFRESHED = "burn_refreshed"
     BURN_TICK = "burn_tick"
     BURN_EXPIRED = "burn_expired"
+    POISON_APPLIED = "poison_applied"
+    POISON_REFRESHED = "poison_refreshed"
+    POISON_TICK = "poison_tick"
+    POISON_EXPIRED = "poison_expired"
 
 
 class CombatOutcomeTarget(StrEnum):
@@ -49,6 +53,7 @@ class CombatOutcome:
         if self.outcome_type in (
             CombatOutcomeType.BACKLASH_DAMAGE,
             CombatOutcomeType.BURN_TICK,
+            CombatOutcomeType.POISON_TICK,
         ):
             if self.target != CombatOutcomeTarget.ACTOR:
                 raise ValueError("secondary damage must target the actor")
