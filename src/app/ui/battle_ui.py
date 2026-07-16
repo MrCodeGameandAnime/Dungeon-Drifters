@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias, runtime_checkable
 
+from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import ActionIntent, BattleView
 
 
@@ -30,14 +31,40 @@ class ChooseMove:
 
 
 @dataclass(frozen=True)
-class ChooseInventoryAction:
-    action_id: str
+class ChooseInventoryItem:
+    item_id: str
 
     def __post_init__(self):
-        if not isinstance(self.action_id, str):
-            raise TypeError("action_id must be a string")
-        if not self.action_id.strip():
-            raise ValueError("action_id must not be empty")
+        _validate_nonempty_string("item_id", self.item_id)
+
+
+@dataclass(frozen=True)
+class ChooseInventoryCommand:
+    command: InventoryCommand
+
+    def __post_init__(self):
+        try:
+            command = InventoryCommand(self.command)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"invalid inventory command: {self.command!r}") from error
+        object.__setattr__(self, "command", command)
+
+
+@dataclass(frozen=True)
+class ChooseInventoryCompanion:
+    item_id: str
+
+    def __post_init__(self):
+        _validate_nonempty_string("item_id", self.item_id)
+
+
+@dataclass(frozen=True)
+class ConfirmInventoryUse:
+    confirmed: bool
+
+    def __post_init__(self):
+        if not isinstance(self.confirmed, bool):
+            raise TypeError("confirmed must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -45,7 +72,15 @@ class GoBack:
     pass
 
 
-BattleInput: TypeAlias = ChooseAction | ChooseMove | ChooseInventoryAction | GoBack
+BattleInput: TypeAlias = (
+    ChooseAction
+    | ChooseMove
+    | ChooseInventoryItem
+    | ChooseInventoryCommand
+    | ChooseInventoryCompanion
+    | ConfirmInventoryUse
+    | GoBack
+)
 
 
 @runtime_checkable
@@ -55,3 +90,10 @@ class BattleUI(Protocol):
 
     def read_input(self, view: BattleView) -> BattleInput:
         ...
+
+
+def _validate_nonempty_string(name, value):
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string")
+    if not value.strip():
+        raise ValueError(f"{name} must not be empty")

@@ -13,6 +13,7 @@ from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
+from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -95,7 +96,7 @@ def test_presenter_builds_five_ordinary_action_options():
     assert _option(view, ActionIntent.DEFEND).enabled is True
     assert _option(view, ActionIntent.HEAL).label == "Heal - Full HP"
     assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.FULL_HP
-    assert _option(view, ActionIntent.ITEMS).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
+    assert _option(view, ActionIntent.ITEMS).disabled_reason == ActionAvailabilityReason.EMPTY_INVENTORY
     assert _option(view, ActionIntent.ESCAPE).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
 
 
@@ -124,27 +125,32 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
 
     assert _option(actions, ActionIntent.ITEMS).enabled is True
     assert inventory.move_options == ()
-    assert len(inventory.inventory_options) == 1
-    option = inventory.inventory_options[0]
-    assert option.action_id == "prepare_cinderwrit"
-    assert option.label == "Prepare Cinderwrit Barb"
-    assert option.enabled is True
     assert tuple(
-        (ingredient.item_id, ingredient.display_name, ingredient.current, ingredient.required)
-        for ingredient in option.ingredients
+        (item.item_id, item.display_name, item.quantity)
+        for item in inventory.inventory_items
     ) == (
-        ("ember_shard", "Ember Shard", 1, 1),
-        ("deep_coal", "Deep Coal", 1, 1),
+        ("ember_shard", "Ember Shard", 1),
+        ("deep_coal", "Deep Coal", 1),
     )
+    assert tuple(
+        item.number for item in inventory.inventory_items
+    ) == (1, 2)
+    assert all(item.enabled for item in inventory.inventory_items)
+    assert all(item.item_id != "prepare_cinderwrit" for item in inventory.inventory_items)
     assert inventory == repeated
     assert player.character_run_state.snapshot() == before
 
 
-def test_prepared_cinderwrit_inventory_action_is_disabled_without_presenter_mutation():
+def test_consumed_compounds_make_items_unavailable_without_presenter_mutation():
     player, enemy, combat_state = _battle_values(RogueArcher())
     InventoryActionResolver().resolve("prepare_cinderwrit", player.character_run_state)
     before = player.character_run_state.snapshot()
 
+    actions = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
     view = BattlePresenter().build(
         player=player,
         enemy=enemy,
@@ -152,10 +158,12 @@ def test_prepared_cinderwrit_inventory_action_is_disabled_without_presenter_muta
         interaction_phase=InteractionPhase.INVENTORY,
     )
 
-    option = view.inventory_options[0]
-    assert option.enabled is False
-    assert option.disabled_reason.value == "already_prepared"
-    assert tuple(ingredient.current for ingredient in option.ingredients) == (0, 0)
+    assert _option(actions, ActionIntent.ITEMS).enabled is False
+    assert (
+        _option(actions, ActionIntent.ITEMS).disabled_reason
+        == ActionAvailabilityReason.EMPTY_INVENTORY
+    )
+    assert view.inventory_items == ()
     assert player.character_run_state.snapshot() == before
 
 
@@ -208,7 +216,7 @@ def test_cinderwrit_move_readiness_is_dynamic_typed_and_non_consuming():
     assert player.character_run_state.snapshot() == prepared_before
 
 
-def test_missing_compound_disables_preparation_but_keeps_personal_items_visible():
+def test_missing_companion_disables_use_but_keeps_owned_item_visible():
     character = RogueArcher()
     character.starting_run_inventory = {"ember_shard": 1}
     player = PlayerState(character)
@@ -226,11 +234,26 @@ def test_missing_compound_disables_preparation_but_keeps_personal_items_visible(
         combat_state=combat_state,
         interaction_phase=InteractionPhase.INVENTORY,
     )
+    item_view = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY_ITEM,
+        selected_inventory_item_id="ember_shard",
+    )
 
     assert _option(actions, ActionIntent.ITEMS).enabled is True
-    option = inventory.inventory_options[0]
-    assert option.enabled is False
-    assert option.disabled_reason.value == "missing_ingredients"
+    assert tuple(item.item_id for item in inventory.inventory_items) == (
+        "ember_shard",
+    )
+    assert item_view.selected_inventory_item.item_id == "ember_shard"
+    assert tuple(command.command for command in item_view.inventory_commands) == (
+        InventoryCommand.INSPECT,
+        InventoryCommand.USE,
+    )
+    use = item_view.inventory_commands[1]
+    assert use.enabled is False
+    assert use.disabled_reason.value == "missing_companion"
 
 
 def test_universal_heal_is_not_an_authored_move_submenu():

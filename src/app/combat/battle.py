@@ -13,7 +13,16 @@ from app.presentation.battle_models import (
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_session import BattlePresentationSession
 from app.player.inventory_action import InventoryActionResolver
-from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
+from app.player.run_items import InventoryCommand
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+    GoBack,
+)
 
 
 class Battle:
@@ -39,6 +48,8 @@ class Battle:
             inventory_action_resolver or InventoryActionResolver()
         )
         self.interaction_phase = InteractionPhase.ACTIONS
+        self._selected_inventory_item_id = None
+        self._selected_inventory_companion_id = None
 
     def _player_moves(self):
         return self.player_state.combat_moves
@@ -168,6 +179,8 @@ class Battle:
             combat_state=self.combat_state,
             log_entries=self.presentation_session.entries,
             interaction_phase=self.interaction_phase,
+            selected_inventory_item_id=self._selected_inventory_item_id,
+            selected_inventory_companion_id=self._selected_inventory_companion_id,
         )
 
     def _render_current_view(self):
@@ -214,11 +227,13 @@ class Battle:
             )
         )
         self.interaction_phase = InteractionPhase.ACTIONS
+        self._clear_inventory_navigation()
         self._render_current_view()
         return "player" if player_won else "enemy"
 
     def player_action(self):
         self.interaction_phase = InteractionPhase.ACTIONS
+        self._clear_inventory_navigation()
         while True:
             view = self._render_current_view()
             battle_input = self.ui.read_input(view)
@@ -229,6 +244,7 @@ class Battle:
 
             if isinstance(battle_input, ChooseAction):
                 if battle_input.intent == ActionIntent.ATTACK:
+                    self._clear_inventory_navigation()
                     self.interaction_phase = InteractionPhase.REGULAR_MOVES
                     continue
                 if battle_input.intent == ActionIntent.HEAL:
@@ -250,9 +266,11 @@ class Battle:
                         return True
                     continue
                 if battle_input.intent == ActionIntent.SUPER:
+                    self._clear_inventory_navigation()
                     self.interaction_phase = InteractionPhase.SUPER_MOVES
                     continue
                 if battle_input.intent == ActionIntent.ITEMS:
+                    self._clear_inventory_navigation()
                     self.interaction_phase = InteractionPhase.INVENTORY
                     continue
                 if battle_input.intent == ActionIntent.DEFEND:
@@ -282,12 +300,36 @@ class Battle:
                     continue
 
             if isinstance(battle_input, GoBack):
-                self.interaction_phase = InteractionPhase.ACTIONS
+                self._navigate_back()
                 continue
 
-            if isinstance(battle_input, ChooseInventoryAction):
+            if isinstance(battle_input, ChooseInventoryItem):
+                self._selected_inventory_item_id = battle_input.item_id
+                self._selected_inventory_companion_id = None
+                self.interaction_phase = InteractionPhase.INVENTORY_ITEM
+                continue
+
+            if isinstance(battle_input, ChooseInventoryCommand):
+                self._selected_inventory_companion_id = None
+                if battle_input.command == InventoryCommand.INSPECT:
+                    self.interaction_phase = InteractionPhase.INVENTORY_INSPECT
+                else:
+                    self.interaction_phase = InteractionPhase.INVENTORY_COMBINATION
+                continue
+
+            if isinstance(battle_input, ChooseInventoryCompanion):
+                self._selected_inventory_companion_id = battle_input.item_id
+                self.interaction_phase = InteractionPhase.INVENTORY_CONFIRMATION
+                continue
+
+            if isinstance(battle_input, ConfirmInventoryUse):
+                if not battle_input.confirmed:
+                    self._selected_inventory_companion_id = None
+                    self.interaction_phase = InteractionPhase.INVENTORY_ITEM
+                    continue
+                confirmation = view.inventory_confirmation
                 result = self.inventory_action_resolver.resolve(
-                    battle_input.action_id,
+                    confirmation.action_id,
                     self.player_state.character_run_state,
                 )
                 if result.accepted:
@@ -300,6 +342,7 @@ class Battle:
                         result,
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
+                    self._clear_inventory_navigation()
                     return True
                 continue
 
@@ -313,7 +356,31 @@ class Battle:
                         result,
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
+                    self._clear_inventory_navigation()
                     return True
+
+    def _navigate_back(self):
+        if self.interaction_phase == InteractionPhase.INVENTORY_ITEM:
+            self.interaction_phase = InteractionPhase.INVENTORY
+            self._clear_inventory_navigation()
+            return
+        if self.interaction_phase in {
+            InteractionPhase.INVENTORY_INSPECT,
+            InteractionPhase.INVENTORY_COMBINATION,
+        }:
+            self.interaction_phase = InteractionPhase.INVENTORY_ITEM
+            self._selected_inventory_companion_id = None
+            return
+        if self.interaction_phase == InteractionPhase.INVENTORY_CONFIRMATION:
+            self.interaction_phase = InteractionPhase.INVENTORY_COMBINATION
+            self._selected_inventory_companion_id = None
+            return
+        self.interaction_phase = InteractionPhase.ACTIONS
+        self._clear_inventory_navigation()
+
+    def _clear_inventory_navigation(self):
+        self._selected_inventory_item_id = None
+        self._selected_inventory_companion_id = None
 
     def _move_for_key(self, view, move_key):
         for option in view.move_options:
@@ -360,15 +427,43 @@ class Battle:
                 return None
             return InputRejectionReason.MOVE_UNAVAILABLE
 
-        if isinstance(battle_input, ChooseInventoryAction):
+        if isinstance(battle_input, ChooseInventoryItem):
             if view.interaction_phase != InteractionPhase.INVENTORY:
-                return InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
+                return InputRejectionReason.INVENTORY_ITEM_UNAVAILABLE
             if any(
-                option.action_id == battle_input.action_id and option.enabled
-                for option in view.inventory_options
+                option.item_id == battle_input.item_id and option.enabled
+                for option in view.inventory_items
             ):
                 return None
-            return InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
+            return InputRejectionReason.INVENTORY_ITEM_UNAVAILABLE
+
+        if isinstance(battle_input, ChooseInventoryCommand):
+            if view.interaction_phase != InteractionPhase.INVENTORY_ITEM:
+                return InputRejectionReason.INVENTORY_COMMAND_UNAVAILABLE
+            if any(
+                option.command == battle_input.command and option.enabled
+                for option in view.inventory_commands
+            ):
+                return None
+            return InputRejectionReason.INVENTORY_COMMAND_UNAVAILABLE
+
+        if isinstance(battle_input, ChooseInventoryCompanion):
+            if view.interaction_phase != InteractionPhase.INVENTORY_COMBINATION:
+                return InputRejectionReason.INVENTORY_COMPANION_UNAVAILABLE
+            if any(
+                option.item_id == battle_input.item_id and option.enabled
+                for option in view.inventory_companions
+            ):
+                return None
+            return InputRejectionReason.INVENTORY_COMPANION_UNAVAILABLE
+
+        if isinstance(battle_input, ConfirmInventoryUse):
+            if (
+                view.interaction_phase == InteractionPhase.INVENTORY_CONFIRMATION
+                and view.inventory_confirmation is not None
+            ):
+                return None
+            return InputRejectionReason.INVENTORY_CONFIRMATION_UNAVAILABLE
 
         if isinstance(battle_input, GoBack):
             if view.interaction_phase != InteractionPhase.ACTIONS:

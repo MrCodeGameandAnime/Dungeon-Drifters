@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from app.combat.result import CombatOutcome
+from app.player.run_items import InventoryCommand
 
 
 class ActionIntent(StrEnum):
@@ -21,6 +22,10 @@ class InteractionPhase(StrEnum):
     HEALING_MOVES = "healing_moves"
     SUPER_MOVES = "super_moves"
     INVENTORY = "inventory"
+    INVENTORY_ITEM = "inventory_item"
+    INVENTORY_INSPECT = "inventory_inspect"
+    INVENTORY_COMBINATION = "inventory_combination"
+    INVENTORY_CONFIRMATION = "inventory_confirmation"
 
 
 class InputRejectionReason(StrEnum):
@@ -28,7 +33,10 @@ class InputRejectionReason(StrEnum):
     MOVE_UNAVAILABLE = "move_unavailable"
     BACK_UNAVAILABLE = "back_unavailable"
     SUPER_UNAVAILABLE = "super_unavailable"
-    INVENTORY_ACTION_UNAVAILABLE = "inventory_action_unavailable"
+    INVENTORY_ITEM_UNAVAILABLE = "inventory_item_unavailable"
+    INVENTORY_COMMAND_UNAVAILABLE = "inventory_command_unavailable"
+    INVENTORY_COMPANION_UNAVAILABLE = "inventory_companion_unavailable"
+    INVENTORY_CONFIRMATION_UNAVAILABLE = "inventory_confirmation_unavailable"
 
 
 class BattleEventType(StrEnum):
@@ -55,6 +63,7 @@ class ActionAvailabilityReason(StrEnum):
     CANNOT_DEFEND = "cannot_defend"
     NOT_IMPLEMENTED = "not_implemented"
     SUPER_NOT_READY = "super_not_ready"
+    EMPTY_INVENTORY = "empty_inventory"
 
 
 class MoveAvailabilityReason(StrEnum):
@@ -63,9 +72,9 @@ class MoveAvailabilityReason(StrEnum):
 
 
 class InventoryAvailabilityReason(StrEnum):
-    NOT_IMPLEMENTED = "not_implemented"
     ALREADY_PREPARED = "already_prepared"
-    MISSING_INGREDIENTS = "missing_ingredients"
+    ITEM_UNAVAILABLE = "item_unavailable"
+    MISSING_COMPANION = "missing_companion"
 
 
 @dataclass(frozen=True)
@@ -162,49 +171,27 @@ class MoveOptionView:
 
 
 @dataclass(frozen=True)
-class InventoryIngredientView:
+class InventoryItemOptionView:
     item_id: str
-    display_name: str
-    current: int
-    required: int
-
-    def __post_init__(self):
-        object.__setattr__(self, "item_id", _validate_nonempty_string("item_id", self.item_id))
-        object.__setattr__(
-            self,
-            "display_name",
-            _validate_nonempty_string("display_name", self.display_name),
-        )
-        object.__setattr__(self, "current", _validate_nonnegative_integer("current", self.current))
-        object.__setattr__(self, "required", _validate_positive_integer("required", self.required))
-
-
-@dataclass(frozen=True)
-class InventoryActionOptionView:
-    action_id: str
     number: int
-    label: str
-    ingredients: tuple[InventoryIngredientView, ...]
+    display_name: str
+    quantity: int
     enabled: bool
     disabled_reason: InventoryAvailabilityReason | None = None
 
     def __post_init__(self):
         object.__setattr__(
             self,
-            "action_id",
-            _validate_nonempty_string("action_id", self.action_id),
+            "item_id",
+            _validate_nonempty_string("item_id", self.item_id),
         )
         object.__setattr__(self, "number", _validate_positive_integer("number", self.number))
-        object.__setattr__(self, "label", _validate_nonempty_string("label", self.label))
         object.__setattr__(
             self,
-            "ingredients",
-            _validate_instance_tuple(
-                "ingredients",
-                self.ingredients,
-                InventoryIngredientView,
-            ),
+            "display_name",
+            _validate_nonempty_string("display_name", self.display_name),
         )
+        object.__setattr__(self, "quantity", _validate_positive_integer("quantity", self.quantity))
         object.__setattr__(self, "enabled", _validate_bool("enabled", self.enabled))
         object.__setattr__(
             self,
@@ -216,6 +203,71 @@ class InventoryActionOptionView:
             ),
         )
         _validate_availability(self.enabled, self.disabled_reason)
+
+
+@dataclass(frozen=True)
+class InventoryCommandOptionView:
+    command: InventoryCommand
+    number: int
+    label: str
+    enabled: bool
+    disabled_reason: InventoryAvailabilityReason | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "command", _validate_enum("command", self.command, InventoryCommand))
+        object.__setattr__(self, "number", _validate_positive_integer("number", self.number))
+        object.__setattr__(self, "label", _validate_nonempty_string("label", self.label))
+        object.__setattr__(self, "enabled", _validate_bool("enabled", self.enabled))
+        object.__setattr__(
+            self,
+            "disabled_reason",
+            _validate_optional_enum(
+                "disabled_reason",
+                self.disabled_reason,
+                InventoryAvailabilityReason,
+            ),
+        )
+        _validate_availability(self.enabled, self.disabled_reason)
+
+
+@dataclass(frozen=True)
+class InventoryInspectionView:
+    item_id: str
+    display_name: str
+    description: str
+
+    def __post_init__(self):
+        for field_name in ("item_id", "display_name", "description"):
+            object.__setattr__(
+                self,
+                field_name,
+                _validate_nonempty_string(field_name, getattr(self, field_name)),
+            )
+
+
+@dataclass(frozen=True)
+class InventoryConfirmationView:
+    source_item_id: str
+    source_display_name: str
+    companion_item_id: str
+    companion_display_name: str
+    action_id: str
+    result_display_name: str
+
+    def __post_init__(self):
+        for field_name in (
+            "source_item_id",
+            "source_display_name",
+            "companion_item_id",
+            "companion_display_name",
+            "action_id",
+            "result_display_name",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _validate_nonempty_string(field_name, getattr(self, field_name)),
+            )
 
 
 @dataclass(frozen=True)
@@ -316,7 +368,12 @@ class BattleView:
     super_meter: SuperMeterView
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
-    inventory_options: tuple[InventoryActionOptionView, ...] = ()
+    inventory_items: tuple[InventoryItemOptionView, ...] = ()
+    selected_inventory_item: InventoryItemOptionView | None = None
+    inventory_commands: tuple[InventoryCommandOptionView, ...] = ()
+    inventory_inspection: InventoryInspectionView | None = None
+    inventory_companions: tuple[InventoryItemOptionView, ...] = ()
+    inventory_confirmation: InventoryConfirmationView | None = None
     log_entries: tuple[BattleLogEntry, ...] = ()
     visual: BattleVisualView = field(default_factory=BattleVisualView)
 
@@ -341,11 +398,56 @@ class BattleView:
         )
         object.__setattr__(
             self,
-            "inventory_options",
+            "inventory_items",
             _validate_instance_tuple(
-                "inventory_options",
-                self.inventory_options,
-                InventoryActionOptionView,
+                "inventory_items",
+                self.inventory_items,
+                InventoryItemOptionView,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "selected_inventory_item",
+            _validate_optional_instance(
+                "selected_inventory_item",
+                self.selected_inventory_item,
+                InventoryItemOptionView,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "inventory_commands",
+            _validate_instance_tuple(
+                "inventory_commands",
+                self.inventory_commands,
+                InventoryCommandOptionView,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "inventory_inspection",
+            _validate_optional_instance(
+                "inventory_inspection",
+                self.inventory_inspection,
+                InventoryInspectionView,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "inventory_companions",
+            _validate_instance_tuple(
+                "inventory_companions",
+                self.inventory_companions,
+                InventoryItemOptionView,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "inventory_confirmation",
+            _validate_optional_instance(
+                "inventory_confirmation",
+                self.inventory_confirmation,
+                InventoryConfirmationView,
             ),
         )
         object.__setattr__(
@@ -451,6 +553,12 @@ def _validate_instance(name, value, expected_type):
     if not isinstance(value, expected_type):
         raise TypeError(f"{name} must be {expected_type.__name__}")
     return value
+
+
+def _validate_optional_instance(name, value, expected_type):
+    if value is None:
+        return None
+    return _validate_instance(name, value, expected_type)
 
 
 def _validate_instance_tuple(name, values, expected_type):

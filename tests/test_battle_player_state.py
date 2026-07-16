@@ -21,6 +21,7 @@ from app.player.character import Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
+from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import (
     ActionIntent,
     BattleEventType,
@@ -28,7 +29,15 @@ from app.presentation.battle_models import (
     InputRejectionReason,
     InteractionPhase,
 )
-from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+    GoBack,
+)
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.world.character_profiles.roster import get_profile_by_choice
 
@@ -81,6 +90,19 @@ def rejected_result():
         healing=0,
         statuses_applied=(),
         reason="rejected",
+    )
+
+
+def cinderwrit_preparation_inputs(source_item_id="ember_shard", *, confirmed=True):
+    companion_item_id = (
+        "deep_coal" if source_item_id == "ember_shard" else "ember_shard"
+    )
+    return (
+        ChooseAction(ActionIntent.ITEMS),
+        ChooseInventoryItem(source_item_id),
+        ChooseInventoryCommand(InventoryCommand.USE),
+        ChooseInventoryCompanion(companion_item_id),
+        ConfirmInventoryUse(confirmed),
     )
 
 
@@ -203,8 +225,7 @@ def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
     mana_before = player_state.mana_resource.current
     super_before = player_state.super_resource.current
     ui = ScriptedBattleUI(
-        ChooseAction(ActionIntent.ITEMS),
-        ChooseInventoryAction("prepare_cinderwrit"),
+        *cinderwrit_preparation_inputs(),
     )
     battle = Battle(player_state, EnemyState(Goblin()), ui=ui)
 
@@ -236,8 +257,7 @@ def test_prepared_payload_persists_through_actions_enemy_response_and_encounters
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            ChooseAction(ActionIntent.ITEMS),
-            ChooseInventoryAction("prepare_cinderwrit"),
+            *cinderwrit_preparation_inputs(),
         ),
         resolver=resolver,
     )
@@ -289,8 +309,7 @@ def test_accepted_preparation_allows_exactly_one_enemy_response():
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            ChooseAction(ActionIntent.ITEMS),
-            ChooseInventoryAction("prepare_cinderwrit"),
+            *cinderwrit_preparation_inputs(),
         ),
         resolver=resolver,
     )
@@ -310,8 +329,7 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
         player_state,
         EnemyState(Goblin()),
         ui=ScriptedBattleUI(
-            ChooseAction(ActionIntent.ITEMS),
-            ChooseInventoryAction("prepare_cinderwrit"),
+            *cinderwrit_preparation_inputs(),
         ),
         resolver=resolver,
     )

@@ -13,7 +13,15 @@ from app.presentation.battle_models import (
     InteractionPhase,
 )
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
-from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+    GoBack,
+)
 
 
 class TerminalBattleUI:
@@ -95,7 +103,19 @@ class TerminalBattleUI:
         if choice in ("0", "back"):
             return GoBack()
         if view.interaction_phase == InteractionPhase.INVENTORY:
-            return self._translate_inventory_action(view, choice)
+            return self._translate_inventory_item(view, choice)
+        if view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
+            return self._translate_inventory_command(view, choice)
+        if view.interaction_phase == InteractionPhase.INVENTORY_COMBINATION:
+            return self._translate_inventory_companion(view, choice)
+        if view.interaction_phase == InteractionPhase.INVENTORY_CONFIRMATION:
+            if choice in ("y", "yes", "1"):
+                return ConfirmInventoryUse(True)
+            if choice in ("n", "no", "2"):
+                return ConfirmInventoryUse(False)
+            return None
+        if view.interaction_phase == InteractionPhase.INVENTORY_INSPECT:
+            return None
         return self._translate_move(view, choice)
 
     def _translate_action(self, view, choice):
@@ -124,13 +144,45 @@ class TerminalBattleUI:
             return None
         return None
 
-    def _translate_inventory_action(self, view, choice):
-        for option in view.inventory_options:
-            if choice not in (str(option.number), option.label.lower(), option.action_id):
+    def _translate_inventory_item(self, view, choice):
+        for option in view.inventory_items:
+            if choice not in (
+                str(option.number),
+                option.display_name.lower(),
+                option.item_id,
+            ):
                 continue
             if option.enabled:
-                return ChooseInventoryAction(option.action_id)
+                return ChooseInventoryItem(option.item_id)
+            self._output(f"{option.display_name} is not available.")
+            return None
+        return None
+
+    def _translate_inventory_command(self, view, choice):
+        for option in view.inventory_commands:
+            if choice not in (
+                str(option.number),
+                option.label.lower(),
+                option.command.value,
+            ):
+                continue
+            if option.enabled:
+                return ChooseInventoryCommand(option.command)
             self._output(f"{option.label} is not available.")
+            return None
+        return None
+
+    def _translate_inventory_companion(self, view, choice):
+        for option in view.inventory_companions:
+            if choice not in (
+                str(option.number),
+                option.display_name.lower(),
+                option.item_id,
+            ):
+                continue
+            if option.enabled:
+                return ChooseInventoryCompanion(option.item_id)
+            self._output(f"{option.display_name} is not available.")
             return None
         return None
 
@@ -238,22 +290,16 @@ class TerminalBattleUI:
                 *self._wrap(second_row, width),
             )
 
+        if view.interaction_phase in {
+            InteractionPhase.INVENTORY,
+            InteractionPhase.INVENTORY_ITEM,
+            InteractionPhase.INVENTORY_INSPECT,
+            InteractionPhase.INVENTORY_COMBINATION,
+            InteractionPhase.INVENTORY_CONFIRMATION,
+        }:
+            return self._inventory_control_lines(view, width)
+
         lines = [self._phase_heading(view.interaction_phase)]
-        if view.interaction_phase == InteractionPhase.INVENTORY:
-            for option in view.inventory_options:
-                suffix = " [Unavailable]" if not option.enabled else ""
-                lines.extend(self._wrap(f"{option.number}. {option.label}{suffix}", width))
-                for ingredient in option.ingredients:
-                    lines.extend(
-                        "   " + ingredient_line
-                        for ingredient_line in self._wrap(
-                            f"{ingredient.display_name} "
-                            f"{ingredient.current}/{ingredient.required}",
-                            max(20, width - 3),
-                        )
-                    )
-            lines.append("0. Back")
-            return tuple(lines)
         for move in view.move_options:
             tags = " | ".join(move.tags)
             suffix = " [Unavailable]" if not move.enabled else ""
@@ -267,6 +313,56 @@ class TerminalBattleUI:
                 "   " + summary_line
                 for summary_line in self._wrap(move.rules_summary, max(20, width - 3))
             )
+        lines.append("0. Back")
+        return tuple(lines)
+
+    def _inventory_control_lines(self, view, width):
+        if view.interaction_phase == InteractionPhase.INVENTORY:
+            lines = ["Choose an item:"]
+            lines.extend(
+                line
+                for option in view.inventory_items
+                for line in self._wrap(
+                    f"{option.number}. {option.display_name} x{option.quantity}",
+                    width,
+                )
+            )
+        elif view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
+            item = view.selected_inventory_item
+            lines = [f"{item.display_name} x{item.quantity}", ""]
+            for option in view.inventory_commands:
+                suffix = " [Unavailable]" if not option.enabled else ""
+                lines.extend(
+                    self._wrap(f"{option.number}. {option.label}{suffix}", width)
+                )
+        elif view.interaction_phase == InteractionPhase.INVENTORY_INSPECT:
+            inspection = view.inventory_inspection
+            lines = [inspection.display_name, ""]
+            lines.extend(self._wrap(inspection.description, width))
+            lines.append("")
+        elif view.interaction_phase == InteractionPhase.INVENTORY_COMBINATION:
+            item = view.selected_inventory_item
+            lines = [f"Use {item.display_name} with:", ""]
+            lines.extend(
+                line
+                for option in view.inventory_companions
+                for line in self._wrap(
+                    f"{option.number}. {option.display_name} x{option.quantity}",
+                    width,
+                )
+            )
+        else:
+            confirmation = view.inventory_confirmation
+            lines = [
+                (
+                    f"Combine {confirmation.source_display_name} and "
+                    f"{confirmation.companion_display_name}"
+                ),
+                f"to prepare {confirmation.result_display_name}?",
+                "",
+                "[Y] Yes",
+                "[N] No",
+            ]
         lines.append("0. Back")
         return tuple(lines)
 
@@ -334,8 +430,6 @@ class TerminalBattleUI:
 
     @staticmethod
     def _phase_heading(phase):
-        if phase == InteractionPhase.INVENTORY:
-            return "Choose an inventory action:"
         if phase == InteractionPhase.SUPER_MOVES:
             return "Choose a Super:"
         return "Choose a move:"

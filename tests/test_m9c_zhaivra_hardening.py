@@ -12,9 +12,17 @@ from app.player.inventory_action import (
     InventoryActionResolver,
 )
 from app.player.player_state import PlayerState
+from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import ActionIntent, BattleEventType, InteractionPhase
 from app.presentation.battle_session import BattlePresentationSession
-from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+)
 
 
 class AlwaysOneRng:
@@ -69,8 +77,14 @@ class ZhaivraLoopUI:
                 self.stage = "finish"
                 battle_input = ChooseAction(ActionIntent.ATTACK)
         elif view.interaction_phase == InteractionPhase.INVENTORY:
+            battle_input = ChooseInventoryItem("ember_shard")
+        elif view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
+            battle_input = ChooseInventoryCommand(InventoryCommand.USE)
+        elif view.interaction_phase == InteractionPhase.INVENTORY_COMBINATION:
+            battle_input = ChooseInventoryCompanion("deep_coal")
+        elif view.interaction_phase == InteractionPhase.INVENTORY_CONFIRMATION:
             self.stage = "fire"
-            battle_input = ChooseInventoryAction("prepare_cinderwrit")
+            battle_input = ConfirmInventoryUse(True)
         elif view.interaction_phase == InteractionPhase.REGULAR_MOVES:
             if self.stage == "fire":
                 self.stage = "hold"

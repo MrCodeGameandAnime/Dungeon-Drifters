@@ -13,13 +13,16 @@ from app.presentation.battle_models import (
     CombatantView,
     InputRejectionReason,
     InteractionPhase,
-    InventoryActionOptionView,
+    InventoryCommandOptionView,
+    InventoryConfirmationView,
     InventoryAvailabilityReason,
-    InventoryIngredientView,
+    InventoryInspectionView,
+    InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
 )
+from app.player.run_items import InventoryCommand
 
 
 def _combatant(**overrides):
@@ -73,14 +76,22 @@ def test_models_are_frozen():
         _combatant(),
         ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
         MoveOptionView("Brace", 1, "Brace", ("Utility",), "Brace.", "5 Mana", True),
-        InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),
-        InventoryActionOptionView(
-            "prepare_cinderwrit",
+        InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True),
+        InventoryCommandOptionView(
+            InventoryCommand.USE,
             1,
-            "Prepare Cinderwrit Barb",
-            (InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),),
+            "Use",
             False,
-            InventoryAvailabilityReason.NOT_IMPLEMENTED,
+            InventoryAvailabilityReason.MISSING_COMPANION,
+        ),
+        InventoryInspectionView("ember_shard", "Ember Shard", "A hot mineral."),
+        InventoryConfirmationView(
+            "ember_shard",
+            "Ember Shard",
+            "deep_coal",
+            "Deep Coal",
+            "prepare_cinderwrit",
+            "Cinderwrit Barb",
         ),
         _meter(),
         BattleLogEntry(BattleEventType.ENCOUNTER_START),
@@ -105,7 +116,7 @@ def test_model_collections_require_tuples():
     with pytest.raises(TypeError):
         _view(log_entries=[])
     with pytest.raises(TypeError):
-        _view(inventory_options=[])
+        _view(inventory_items=[])
 
 
 def test_resources_reject_negative_or_inconsistent_values():

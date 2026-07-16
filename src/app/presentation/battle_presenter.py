@@ -12,18 +12,24 @@ from app.presentation.battle_models import (
     BattleVisualView,
     CombatantView,
     InteractionPhase,
-    InventoryActionOptionView,
+    InventoryCommandOptionView,
+    InventoryConfirmationView,
     InventoryAvailabilityReason,
-    InventoryIngredientView,
+    InventoryInspectionView,
+    InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
 )
 from app.player.character_run_state import (
-    CINDERWRIT_PREPARATION_COST,
-    InventoryActionId,
     PreparedPayloadId,
-    RunItemId,
+)
+from app.player.run_items import (
+    InventoryCommand,
+    inventory_recipe_for_pair,
+    owned_inventory_companions,
+    owned_run_item_definitions,
+    run_item_definition,
 )
 
 
@@ -36,8 +42,15 @@ class BattlePresenter:
         combat_state,
         log_entries=(),
         interaction_phase=InteractionPhase.ACTIONS,
+        selected_inventory_item_id=None,
+        selected_inventory_companion_id=None,
     ):
         phase = InteractionPhase(interaction_phase)
+        selected_item = self._selected_inventory_item(
+            player,
+            phase,
+            selected_inventory_item_id,
+        )
         return BattleView(
             interaction_phase=phase,
             player=self._combatant_view(player, combat_state, is_player=True),
@@ -45,7 +58,21 @@ class BattlePresenter:
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
             move_options=self._move_options(player, combat_state, phase),
-            inventory_options=self._inventory_options(player, phase),
+            inventory_items=self._inventory_items(player, phase),
+            selected_inventory_item=selected_item,
+            inventory_commands=self._inventory_commands(player, phase, selected_item),
+            inventory_inspection=self._inventory_inspection(phase, selected_item),
+            inventory_companions=self._inventory_companions(
+                player,
+                phase,
+                selected_item,
+            ),
+            inventory_confirmation=self._inventory_confirmation(
+                player,
+                phase,
+                selected_item,
+                selected_inventory_companion_id,
+            ),
             log_entries=tuple(log_entries),
             visual=BattleVisualView(),
         )
@@ -97,8 +124,8 @@ class BattlePresenter:
         regular_moves = self._regular_moves(player)
         can_defend = bool(player.can_defend)
         heal_cooldown = combat_state.heal_cooldown_remaining(player)
-        has_inventory_actions = player.character_run_state.supports_payload(
-            PreparedPayloadId.CINDERWRIT
+        has_inventory_items = bool(
+            owned_run_item_definitions(player.character_run_state)
         )
         if player.health.current >= player.health.maximum:
             heal_label = "Heal - Full HP"
@@ -139,8 +166,8 @@ class BattlePresenter:
                 ActionIntent.ITEMS,
                 4,
                 "Items",
-                enabled=has_inventory_actions,
-                disabled_reason=ActionAvailabilityReason.NOT_IMPLEMENTED,
+                enabled=has_inventory_items,
+                disabled_reason=ActionAvailabilityReason.EMPTY_INVENTORY,
             ),
             self._action_option(
                 ActionIntent.ESCAPE,
@@ -152,43 +179,136 @@ class BattlePresenter:
         )
 
     @staticmethod
-    def _inventory_options(player, phase):
+    def _inventory_items(player, phase):
         if phase != InteractionPhase.INVENTORY:
             return ()
         run_state = player.character_run_state
-        if not run_state.supports_payload(PreparedPayloadId.CINDERWRIT):
+        return tuple(
+            InventoryItemOptionView(
+                item_id=definition.item_id.value,
+                number=number,
+                display_name=definition.display_name,
+                quantity=run_state.item_quantity(definition.item_id),
+                enabled=True,
+            )
+            for number, definition in enumerate(
+                owned_run_item_definitions(run_state),
+                start=1,
+            )
+        )
+
+    @staticmethod
+    def _selected_inventory_item(player, phase, selected_item_id):
+        inventory_phases = {
+            InteractionPhase.INVENTORY_ITEM,
+            InteractionPhase.INVENTORY_INSPECT,
+            InteractionPhase.INVENTORY_COMBINATION,
+            InteractionPhase.INVENTORY_CONFIRMATION,
+        }
+        if phase not in inventory_phases:
+            return None
+        definition = run_item_definition(selected_item_id)
+        if definition is None:
+            return None
+        quantity = player.character_run_state.item_quantity(definition.item_id)
+        if quantity <= 0:
+            return None
+        return InventoryItemOptionView(
+            item_id=definition.item_id.value,
+            number=1,
+            display_name=definition.display_name,
+            quantity=quantity,
+            enabled=True,
+        )
+
+    @staticmethod
+    def _inventory_commands(player, phase, selected_item):
+        if phase != InteractionPhase.INVENTORY_ITEM or selected_item is None:
             return ()
-        if run_state.payload_prepared(PreparedPayloadId.CINDERWRIT):
-            enabled = False
-            disabled_reason = InventoryAvailabilityReason.ALREADY_PREPARED
-        elif not run_state.has_items(CINDERWRIT_PREPARATION_COST):
-            enabled = False
-            disabled_reason = InventoryAvailabilityReason.MISSING_INGREDIENTS
-        else:
+        definition = run_item_definition(selected_item.item_id)
+        companions = owned_inventory_companions(
+            player.character_run_state,
+            selected_item.item_id,
+        )
+        payload_active = player.character_run_state.payload_prepared(
+            PreparedPayloadId.CINDERWRIT
+        )
+        options = []
+        for number, command in enumerate(definition.commands, start=1):
             enabled = True
             disabled_reason = None
-        return (
-            InventoryActionOptionView(
-                action_id=InventoryActionId.PREPARE_CINDERWRIT.value,
-                number=1,
-                label="Prepare Cinderwrit Barb",
-                ingredients=(
-                    InventoryIngredientView(
-                        item_id=RunItemId.EMBER_SHARD.value,
-                        display_name="Ember Shard",
-                        current=run_state.item_quantity(RunItemId.EMBER_SHARD),
-                        required=1,
-                    ),
-                    InventoryIngredientView(
-                        item_id=RunItemId.DEEP_COAL.value,
-                        display_name="Deep Coal",
-                        current=run_state.item_quantity(RunItemId.DEEP_COAL),
-                        required=1,
-                    ),
-                ),
-                enabled=enabled,
-                disabled_reason=disabled_reason,
-            ),
+            if command == InventoryCommand.USE and payload_active:
+                enabled = False
+                disabled_reason = InventoryAvailabilityReason.ALREADY_PREPARED
+            elif command == InventoryCommand.USE and not companions:
+                enabled = False
+                disabled_reason = InventoryAvailabilityReason.MISSING_COMPANION
+            options.append(
+                InventoryCommandOptionView(
+                    command=command,
+                    number=number,
+                    label=command.value.title(),
+                    enabled=enabled,
+                    disabled_reason=disabled_reason,
+                )
+            )
+        return tuple(options)
+
+    @staticmethod
+    def _inventory_inspection(phase, selected_item):
+        if phase != InteractionPhase.INVENTORY_INSPECT or selected_item is None:
+            return None
+        definition = run_item_definition(selected_item.item_id)
+        return InventoryInspectionView(
+            item_id=definition.item_id.value,
+            display_name=definition.display_name,
+            description=definition.description,
+        )
+
+    @staticmethod
+    def _inventory_companions(player, phase, selected_item):
+        if phase != InteractionPhase.INVENTORY_COMBINATION or selected_item is None:
+            return ()
+        run_state = player.character_run_state
+        return tuple(
+            InventoryItemOptionView(
+                item_id=definition.item_id.value,
+                number=number,
+                display_name=definition.display_name,
+                quantity=run_state.item_quantity(definition.item_id),
+                enabled=True,
+            )
+            for number, definition in enumerate(
+                owned_inventory_companions(run_state, selected_item.item_id),
+                start=1,
+            )
+        )
+
+    @staticmethod
+    def _inventory_confirmation(
+        player,
+        phase,
+        selected_item,
+        selected_companion_id,
+    ):
+        if phase != InteractionPhase.INVENTORY_CONFIRMATION or selected_item is None:
+            return None
+        companion = run_item_definition(selected_companion_id)
+        recipe = inventory_recipe_for_pair(
+            selected_item.item_id,
+            selected_companion_id,
+        )
+        if companion is None or recipe is None:
+            return None
+        if player.character_run_state.item_quantity(companion.item_id) <= 0:
+            return None
+        return InventoryConfirmationView(
+            source_item_id=selected_item.item_id,
+            source_display_name=selected_item.display_name,
+            companion_item_id=companion.item_id.value,
+            companion_display_name=companion.display_name,
+            action_id=recipe.action_id.value,
+            result_display_name=recipe.result_display_name,
         )
 
     @staticmethod
@@ -216,7 +336,11 @@ class BattlePresenter:
         )
 
     def _move_options(self, player, combat_state, phase):
-        if phase in (InteractionPhase.ACTIONS, InteractionPhase.INVENTORY):
+        if phase not in {
+            InteractionPhase.REGULAR_MOVES,
+            InteractionPhase.HEALING_MOVES,
+            InteractionPhase.SUPER_MOVES,
+        }:
             return ()
         if phase == InteractionPhase.REGULAR_MOVES:
             moves = self._regular_moves(player)

@@ -9,15 +9,26 @@ from app.presentation.battle_models import (
     BattleView,
     CombatantView,
     InteractionPhase,
-    InventoryActionOptionView,
+    InventoryCommandOptionView,
+    InventoryConfirmationView,
     InventoryAvailabilityReason,
-    InventoryIngredientView,
+    InventoryInspectionView,
+    InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
 )
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
-from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
+from app.player.run_items import InventoryCommand
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+    GoBack,
+)
 from app.ui.terminal_battle_ui import TerminalBattleUI
 
 
@@ -40,7 +51,12 @@ def _view(
     super_ready=False,
     action_options=None,
     move_options=(),
-    inventory_options=(),
+    inventory_items=(),
+    selected_inventory_item=None,
+    inventory_commands=(),
+    inventory_inspection=None,
+    inventory_companions=(),
+    inventory_confirmation=None,
     log_entries=(),
 ):
     player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
@@ -84,7 +100,12 @@ def _view(
         ),
         action_options=actions,
         move_options=move_options,
-        inventory_options=inventory_options,
+        inventory_items=inventory_items,
+        selected_inventory_item=selected_inventory_item,
+        inventory_commands=inventory_commands,
+        inventory_inspection=inventory_inspection,
+        inventory_companions=inventory_companions,
+        inventory_confirmation=inventory_confirmation,
         log_entries=log_entries,
     )
 
@@ -167,46 +188,112 @@ def test_move_number_maps_to_opaque_offered_key():
     ) == ChooseMove("Ironwake Dismemberment")
 
 
-def test_inventory_phase_renders_counts_and_translates_only_enabled_actions():
-    ingredient = InventoryIngredientView("ember_shard", "Ember Shard", 1, 1)
-    action = InventoryActionOptionView(
-        "prepare_cinderwrit",
-        1,
-        "Prepare Cinderwrit Barb",
-        (ingredient,),
-        True,
-    )
+def test_inventory_phase_renders_owned_items_and_translates_stable_item_ids():
+    item = InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True)
     view = _view(
         phase=InteractionPhase.INVENTORY,
-        inventory_options=(action,),
+        inventory_items=(item,),
     )
     ui, harness = _ui(("1",))
 
     ui.render(view)
 
-    assert ui.read_input(view) == ChooseInventoryAction("prepare_cinderwrit")
-    assert _contains(harness, "Choose an inventory action:")
-    assert _contains(harness, "Prepare Cinderwrit Barb")
-    assert _contains(harness, "Ember Shard 1/1")
+    assert ui.read_input(view) == ChooseInventoryItem("ember_shard")
+    assert _contains(harness, "Choose an item:")
+    assert _contains(harness, "Ember Shard x1")
+    assert not _contains(harness, "Prepare Cinderwrit Barb")
 
 
-def test_disabled_inventory_action_reprompts_and_back_remains_semantic():
-    action = InventoryActionOptionView(
+def test_item_commands_inspection_and_companion_selection_are_semantic():
+    item = InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True)
+    commands = (
+        InventoryCommandOptionView(InventoryCommand.INSPECT, 1, "Inspect", True),
+        InventoryCommandOptionView(InventoryCommand.USE, 2, "Use", True),
+    )
+    command_view = _view(
+        phase=InteractionPhase.INVENTORY_ITEM,
+        selected_inventory_item=item,
+        inventory_commands=commands,
+    )
+    ui, harness = _ui(("2",))
+
+    ui.render(command_view)
+
+    assert ui.read_input(command_view) == ChooseInventoryCommand(InventoryCommand.USE)
+    assert _contains(harness, "Ember Shard x1")
+    assert _contains(harness, "1. Inspect")
+    assert _contains(harness, "2. Use")
+
+    inspection_view = _view(
+        phase=InteractionPhase.INVENTORY_INSPECT,
+        selected_inventory_item=item,
+        inventory_inspection=InventoryInspectionView(
+            "ember_shard",
+            "Ember Shard",
+            "A heat-bearing mineral used to empower weapons with fire.",
+        ),
+    )
+    inspection_ui, inspection_harness = _ui(("0",))
+    inspection_ui.render(inspection_view)
+    assert inspection_ui.read_input(inspection_view) == GoBack()
+    assert _contains(inspection_harness, "A heat-bearing mineral")
+
+    companion = InventoryItemOptionView("deep_coal", 1, "Deep Coal", 1, True)
+    combination_view = _view(
+        phase=InteractionPhase.INVENTORY_COMBINATION,
+        selected_inventory_item=item,
+        inventory_companions=(companion,),
+    )
+    companion_ui, companion_harness = _ui(("1",))
+    companion_ui.render(combination_view)
+    assert companion_ui.read_input(combination_view) == ChooseInventoryCompanion(
+        "deep_coal"
+    )
+    assert _contains(companion_harness, "Use Ember Shard with:")
+    assert _contains(companion_harness, "Deep Coal x1")
+
+
+def test_inventory_confirmation_renders_and_translates_yes_no_and_back():
+    confirmation = InventoryConfirmationView(
+        "ember_shard",
+        "Ember Shard",
+        "deep_coal",
+        "Deep Coal",
         "prepare_cinderwrit",
-        1,
-        "Prepare Cinderwrit Barb",
-        (InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),),
-        False,
-        InventoryAvailabilityReason.NOT_IMPLEMENTED,
+        "Cinderwrit Barb",
     )
     view = _view(
-        phase=InteractionPhase.INVENTORY,
-        inventory_options=(action,),
+        phase=InteractionPhase.INVENTORY_CONFIRMATION,
+        inventory_confirmation=confirmation,
     )
-    ui, harness = _ui(("1", "0"))
+    ui, harness = _ui(("y",))
+    ui.render(view)
+
+    assert ui.read_input(view) == ConfirmInventoryUse(True)
+    assert _contains(harness, "Combine Ember Shard and Deep Coal")
+    assert _contains(harness, "to prepare Cinderwrit Barb?")
+    assert _ui(("n",))[0].read_input(view) == ConfirmInventoryUse(False)
+    assert _ui(("0",))[0].read_input(view) == GoBack()
+
+
+def test_disabled_inventory_command_reprompts_and_back_remains_semantic():
+    item = InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True)
+    command = InventoryCommandOptionView(
+        InventoryCommand.USE,
+        2,
+        "Use",
+        False,
+        InventoryAvailabilityReason.MISSING_COMPANION,
+    )
+    view = _view(
+        phase=InteractionPhase.INVENTORY_ITEM,
+        selected_inventory_item=item,
+        inventory_commands=(command,),
+    )
+    ui, harness = _ui(("2", "0"))
 
     assert ui.read_input(view) == GoBack()
-    assert "Prepare Cinderwrit Barb is not available." in harness.lines
+    assert "Use is not available." in harness.lines
 
 
 def test_preparation_outcomes_render_in_completed_mutation_order():
