@@ -13,6 +13,19 @@ def create_starting_stats():
     }
 
 
+def create_starting_run_inventory():
+    return {
+        "ember_shard": 1,
+        "deep_coal": 1,
+    }
+
+
+def create_starting_prepared_payloads():
+    return {
+        "cinderwrit_payload": False,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Mournpoint Verdict',

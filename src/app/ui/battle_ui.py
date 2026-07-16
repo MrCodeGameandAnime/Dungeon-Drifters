@@ -30,11 +30,22 @@ class ChooseMove:
 
 
 @dataclass(frozen=True)
+class ChooseInventoryAction:
+    action_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.action_id, str):
+            raise TypeError("action_id must be a string")
+        if not self.action_id.strip():
+            raise ValueError("action_id must not be empty")
+
+
+@dataclass(frozen=True)
 class GoBack:
     pass
 
 
-BattleInput: TypeAlias = ChooseAction | ChooseMove | GoBack
+BattleInput: TypeAlias = ChooseAction | ChooseMove | ChooseInventoryAction | GoBack
 
 
 @runtime_checkable

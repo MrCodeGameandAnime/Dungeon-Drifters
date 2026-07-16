@@ -3,7 +3,7 @@
 import math
 
 
-STATE_SCHEMA_VERSION = 5
+STATE_SCHEMA_VERSION = 6
 
 
 def to_plain_value(value, path="snapshot"):

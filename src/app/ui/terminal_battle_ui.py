@@ -13,7 +13,7 @@ from app.presentation.battle_models import (
     InteractionPhase,
 )
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
 
 
 class TerminalBattleUI:
@@ -94,6 +94,8 @@ class TerminalBattleUI:
 
         if choice in ("0", "back"):
             return GoBack()
+        if view.interaction_phase == InteractionPhase.INVENTORY:
+            return self._translate_inventory_action(view, choice)
         return self._translate_move(view, choice)
 
     def _translate_action(self, view, choice):
@@ -119,6 +121,16 @@ class TerminalBattleUI:
             if move.enabled:
                 return ChooseMove(move.selection_key)
             self._output(f"{move.name} is not available.")
+            return None
+        return None
+
+    def _translate_inventory_action(self, view, choice):
+        for option in view.inventory_options:
+            if choice not in (str(option.number), option.label.lower(), option.action_id):
+                continue
+            if option.enabled:
+                return ChooseInventoryAction(option.action_id)
+            self._output(f"{option.label} is not available.")
             return None
         return None
 
@@ -227,6 +239,21 @@ class TerminalBattleUI:
             )
 
         lines = [self._phase_heading(view.interaction_phase)]
+        if view.interaction_phase == InteractionPhase.INVENTORY:
+            for option in view.inventory_options:
+                suffix = " [Unavailable]" if not option.enabled else ""
+                lines.extend(self._wrap(f"{option.number}. {option.label}{suffix}", width))
+                for ingredient in option.ingredients:
+                    lines.extend(
+                        "   " + ingredient_line
+                        for ingredient_line in self._wrap(
+                            f"{ingredient.display_name} "
+                            f"{ingredient.current}/{ingredient.required}",
+                            max(20, width - 3),
+                        )
+                    )
+            lines.append("0. Back")
+            return tuple(lines)
         for move in view.move_options:
             tags = " | ".join(move.tags)
             suffix = " [Unavailable]" if not move.enabled else ""
@@ -307,6 +334,8 @@ class TerminalBattleUI:
 
     @staticmethod
     def _phase_heading(phase):
+        if phase == InteractionPhase.INVENTORY:
+            return "Choose an inventory action:"
         if phase == InteractionPhase.SUPER_MOVES:
             return "Choose a Super:"
         return "Choose a move:"

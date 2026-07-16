@@ -10,7 +10,7 @@ from app.combat.move import (
 )
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler
+from app.player.character import BlackMage, Brawler, RogueArcher
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
@@ -96,6 +96,47 @@ def test_presenter_builds_five_ordinary_action_options():
     assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.FULL_HP
     assert _option(view, ActionIntent.ITEMS).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
     assert _option(view, ActionIntent.ESCAPE).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
+
+
+def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
+    player, enemy, combat_state = _battle_values(RogueArcher())
+    before = player.character_run_state.snapshot()
+    presenter = BattlePresenter()
+
+    actions = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
+    inventory = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY,
+    )
+    repeated = presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY,
+    )
+
+    assert _option(actions, ActionIntent.ITEMS).enabled is True
+    assert inventory.move_options == ()
+    assert len(inventory.inventory_options) == 1
+    option = inventory.inventory_options[0]
+    assert option.action_id == "prepare_cinderwrit"
+    assert option.label == "Prepare Cinderwrit Barb"
+    assert option.enabled is False
+    assert tuple(
+        (ingredient.item_id, ingredient.display_name, ingredient.current, ingredient.required)
+        for ingredient in option.ingredients
+    ) == (
+        ("ember_shard", "Ember Shard", 1, 1),
+        ("deep_coal", "Deep Coal", 1, 1),
+    )
+    assert inventory == repeated
+    assert player.character_run_state.snapshot() == before
 
 
 def test_universal_heal_is_not_an_authored_move_submenu():

@@ -9,12 +9,15 @@ from app.presentation.battle_models import (
     BattleView,
     CombatantView,
     InteractionPhase,
+    InventoryActionOptionView,
+    InventoryAvailabilityReason,
+    InventoryIngredientView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
 )
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
 from app.ui.terminal_battle_ui import TerminalBattleUI
 
 
@@ -37,6 +40,7 @@ def _view(
     super_ready=False,
     action_options=None,
     move_options=(),
+    inventory_options=(),
     log_entries=(),
 ):
     player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
@@ -80,6 +84,7 @@ def _view(
         ),
         action_options=actions,
         move_options=move_options,
+        inventory_options=inventory_options,
         log_entries=log_entries,
     )
 
@@ -160,6 +165,48 @@ def test_move_number_maps_to_opaque_offered_key():
     assert ui.read_input(
         _view(phase=InteractionPhase.REGULAR_MOVES, move_options=(move,))
     ) == ChooseMove("Ironwake Dismemberment")
+
+
+def test_inventory_phase_renders_counts_and_translates_only_enabled_actions():
+    ingredient = InventoryIngredientView("ember_shard", "Ember Shard", 1, 1)
+    action = InventoryActionOptionView(
+        "prepare_cinderwrit",
+        1,
+        "Prepare Cinderwrit Barb",
+        (ingredient,),
+        True,
+    )
+    view = _view(
+        phase=InteractionPhase.INVENTORY,
+        inventory_options=(action,),
+    )
+    ui, harness = _ui(("1",))
+
+    ui.render(view)
+
+    assert ui.read_input(view) == ChooseInventoryAction("prepare_cinderwrit")
+    assert _contains(harness, "Choose an inventory action:")
+    assert _contains(harness, "Prepare Cinderwrit Barb")
+    assert _contains(harness, "Ember Shard 1/1")
+
+
+def test_disabled_inventory_action_reprompts_and_back_remains_semantic():
+    action = InventoryActionOptionView(
+        "prepare_cinderwrit",
+        1,
+        "Prepare Cinderwrit Barb",
+        (InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),),
+        False,
+        InventoryAvailabilityReason.NOT_IMPLEMENTED,
+    )
+    view = _view(
+        phase=InteractionPhase.INVENTORY,
+        inventory_options=(action,),
+    )
+    ui, harness = _ui(("1", "0"))
+
+    assert ui.read_input(view) == GoBack()
+    assert "Prepare Cinderwrit Barb is not available." in harness.lines
 
 
 def test_back_is_returned_only_from_move_selection_phase():

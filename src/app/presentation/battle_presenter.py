@@ -11,9 +11,17 @@ from app.presentation.battle_models import (
     BattleVisualView,
     CombatantView,
     InteractionPhase,
+    InventoryActionOptionView,
+    InventoryAvailabilityReason,
+    InventoryIngredientView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
+)
+from app.player.character_run_state import (
+    InventoryActionId,
+    PreparedPayloadId,
+    RunItemId,
 )
 
 
@@ -35,6 +43,7 @@ class BattlePresenter:
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
             move_options=self._move_options(player, combat_state, phase),
+            inventory_options=self._inventory_options(player, phase),
             log_entries=tuple(log_entries),
             visual=BattleVisualView(),
         )
@@ -84,6 +93,9 @@ class BattlePresenter:
         regular_moves = self._regular_moves(player)
         can_defend = bool(player.can_defend)
         heal_cooldown = combat_state.heal_cooldown_remaining(player)
+        has_inventory_actions = player.character_run_state.supports_payload(
+            PreparedPayloadId.CINDERWRIT
+        )
         if player.health.current >= player.health.maximum:
             heal_label = "Heal - Full HP"
             heal_enabled = False
@@ -123,7 +135,7 @@ class BattlePresenter:
                 ActionIntent.ITEMS,
                 4,
                 "Items",
-                enabled=False,
+                enabled=has_inventory_actions,
                 disabled_reason=ActionAvailabilityReason.NOT_IMPLEMENTED,
             ),
             self._action_option(
@@ -132,6 +144,37 @@ class BattlePresenter:
                 "Escape",
                 enabled=False,
                 disabled_reason=ActionAvailabilityReason.NOT_IMPLEMENTED,
+            ),
+        )
+
+    @staticmethod
+    def _inventory_options(player, phase):
+        if phase != InteractionPhase.INVENTORY:
+            return ()
+        run_state = player.character_run_state
+        if not run_state.supports_payload(PreparedPayloadId.CINDERWRIT):
+            return ()
+        return (
+            InventoryActionOptionView(
+                action_id=InventoryActionId.PREPARE_CINDERWRIT.value,
+                number=1,
+                label="Prepare Cinderwrit Barb",
+                ingredients=(
+                    InventoryIngredientView(
+                        item_id=RunItemId.EMBER_SHARD.value,
+                        display_name="Ember Shard",
+                        current=run_state.item_quantity(RunItemId.EMBER_SHARD),
+                        required=1,
+                    ),
+                    InventoryIngredientView(
+                        item_id=RunItemId.DEEP_COAL.value,
+                        display_name="Deep Coal",
+                        current=run_state.item_quantity(RunItemId.DEEP_COAL),
+                        required=1,
+                    ),
+                ),
+                enabled=False,
+                disabled_reason=InventoryAvailabilityReason.NOT_IMPLEMENTED,
             ),
         )
 
@@ -160,7 +203,7 @@ class BattlePresenter:
         )
 
     def _move_options(self, player, combat_state, phase):
-        if phase == InteractionPhase.ACTIONS:
+        if phase in (InteractionPhase.ACTIONS, InteractionPhase.INVENTORY):
             return ()
         if phase == InteractionPhase.REGULAR_MOVES:
             moves = self._regular_moves(player)

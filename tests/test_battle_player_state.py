@@ -17,7 +17,7 @@ from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, Monk
+from app.player.character import Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionIntent,
@@ -26,7 +26,7 @@ from app.presentation.battle_models import (
     InputRejectionReason,
     InteractionPhase,
 )
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.world.character_profiles.roster import get_profile_by_choice
 
@@ -157,6 +157,39 @@ class ManaBearingEnemyState(EnemyState):
         super().__init__(enemy_definition, tier=tier)
         self.mana_resource.set_maximum(5)
         self.mana_resource.restore(3)
+
+
+def test_inventory_navigation_and_unavailable_action_do_not_mutate_or_advance():
+    player_state = PlayerState(RogueArcher())
+    before = player_state.character_run_state.snapshot()
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        ChooseInventoryAction("prepare_cinderwrit"),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ui,
+        resolver=RecordingResolver(defend_results=(accepted_result(),)),
+    )
+
+    assert battle.player_action() is True
+
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.INVENTORY,
+        InteractionPhase.INVENTORY,
+        InteractionPhase.ACTIONS,
+    )
+    assert battle.combat_state.turn_count == 1
+    assert player_state.character_run_state.snapshot() == before
+    assert any(
+        entry.rejection_reason
+        == InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
+        for entry in ui.input_views[2].log_entries
+    )
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():

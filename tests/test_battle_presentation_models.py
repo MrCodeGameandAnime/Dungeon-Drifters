@@ -13,6 +13,9 @@ from app.presentation.battle_models import (
     CombatantView,
     InputRejectionReason,
     InteractionPhase,
+    InventoryActionOptionView,
+    InventoryAvailabilityReason,
+    InventoryIngredientView,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
@@ -70,6 +73,15 @@ def test_models_are_frozen():
         _combatant(),
         ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
         MoveOptionView("Brace", 1, "Brace", ("Utility",), "Brace.", "5 Mana", True),
+        InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),
+        InventoryActionOptionView(
+            "prepare_cinderwrit",
+            1,
+            "Prepare Cinderwrit Barb",
+            (InventoryIngredientView("ember_shard", "Ember Shard", 1, 1),),
+            False,
+            InventoryAvailabilityReason.NOT_IMPLEMENTED,
+        ),
         _meter(),
         BattleLogEntry(BattleEventType.ENCOUNTER_START),
         BattleVisualView(("player",), ("enemy",)),
@@ -92,6 +104,8 @@ def test_model_collections_require_tuples():
         _view(action_options=[])
     with pytest.raises(TypeError):
         _view(log_entries=[])
+    with pytest.raises(TypeError):
+        _view(inventory_options=[])
 
 
 def test_resources_reject_negative_or_inconsistent_values():

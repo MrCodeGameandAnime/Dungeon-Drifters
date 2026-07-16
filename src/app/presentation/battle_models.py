@@ -20,6 +20,7 @@ class InteractionPhase(StrEnum):
     REGULAR_MOVES = "regular_moves"
     HEALING_MOVES = "healing_moves"
     SUPER_MOVES = "super_moves"
+    INVENTORY = "inventory"
 
 
 class InputRejectionReason(StrEnum):
@@ -27,6 +28,7 @@ class InputRejectionReason(StrEnum):
     MOVE_UNAVAILABLE = "move_unavailable"
     BACK_UNAVAILABLE = "back_unavailable"
     SUPER_UNAVAILABLE = "super_unavailable"
+    INVENTORY_ACTION_UNAVAILABLE = "inventory_action_unavailable"
 
 
 class BattleEventType(StrEnum):
@@ -55,6 +57,10 @@ class ActionAvailabilityReason(StrEnum):
 
 class MoveAvailabilityReason(StrEnum):
     INSUFFICIENT_RESOURCE = "insufficient_resource"
+
+
+class InventoryAvailabilityReason(StrEnum):
+    NOT_IMPLEMENTED = "not_implemented"
 
 
 @dataclass(frozen=True)
@@ -145,6 +151,63 @@ class MoveOptionView:
                 "disabled_reason",
                 self.disabled_reason,
                 MoveAvailabilityReason,
+            ),
+        )
+        _validate_availability(self.enabled, self.disabled_reason)
+
+
+@dataclass(frozen=True)
+class InventoryIngredientView:
+    item_id: str
+    display_name: str
+    current: int
+    required: int
+
+    def __post_init__(self):
+        object.__setattr__(self, "item_id", _validate_nonempty_string("item_id", self.item_id))
+        object.__setattr__(
+            self,
+            "display_name",
+            _validate_nonempty_string("display_name", self.display_name),
+        )
+        object.__setattr__(self, "current", _validate_nonnegative_integer("current", self.current))
+        object.__setattr__(self, "required", _validate_positive_integer("required", self.required))
+
+
+@dataclass(frozen=True)
+class InventoryActionOptionView:
+    action_id: str
+    number: int
+    label: str
+    ingredients: tuple[InventoryIngredientView, ...]
+    enabled: bool
+    disabled_reason: InventoryAvailabilityReason | None = None
+
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "action_id",
+            _validate_nonempty_string("action_id", self.action_id),
+        )
+        object.__setattr__(self, "number", _validate_positive_integer("number", self.number))
+        object.__setattr__(self, "label", _validate_nonempty_string("label", self.label))
+        object.__setattr__(
+            self,
+            "ingredients",
+            _validate_instance_tuple(
+                "ingredients",
+                self.ingredients,
+                InventoryIngredientView,
+            ),
+        )
+        object.__setattr__(self, "enabled", _validate_bool("enabled", self.enabled))
+        object.__setattr__(
+            self,
+            "disabled_reason",
+            _validate_optional_enum(
+                "disabled_reason",
+                self.disabled_reason,
+                InventoryAvailabilityReason,
             ),
         )
         _validate_availability(self.enabled, self.disabled_reason)
@@ -248,6 +311,7 @@ class BattleView:
     super_meter: SuperMeterView
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
+    inventory_options: tuple[InventoryActionOptionView, ...] = ()
     log_entries: tuple[BattleLogEntry, ...] = ()
     visual: BattleVisualView = field(default_factory=BattleVisualView)
 
@@ -269,6 +333,15 @@ class BattleView:
             self,
             "move_options",
             _validate_instance_tuple("move_options", self.move_options, MoveOptionView),
+        )
+        object.__setattr__(
+            self,
+            "inventory_options",
+            _validate_instance_tuple(
+                "inventory_options",
+                self.inventory_options,
+                InventoryActionOptionView,
+            ),
         )
         object.__setattr__(
             self,

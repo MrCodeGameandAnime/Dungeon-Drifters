@@ -12,7 +12,7 @@ from app.presentation.battle_models import (
 )
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_session import BattlePresentationSession
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
 
 
 class Battle:
@@ -224,6 +224,9 @@ class Battle:
                 if battle_input.intent == ActionIntent.SUPER:
                     self.interaction_phase = InteractionPhase.SUPER_MOVES
                     continue
+                if battle_input.intent == ActionIntent.ITEMS:
+                    self.interaction_phase = InteractionPhase.INVENTORY
+                    continue
                 if battle_input.intent == ActionIntent.DEFEND:
                     result = self.resolver.resolve_defend(
                         self.player_state,
@@ -298,6 +301,16 @@ class Battle:
             ):
                 return None
             return InputRejectionReason.MOVE_UNAVAILABLE
+
+        if isinstance(battle_input, ChooseInventoryAction):
+            if view.interaction_phase != InteractionPhase.INVENTORY:
+                return InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
+            if any(
+                option.action_id == battle_input.action_id and option.enabled
+                for option in view.inventory_options
+            ):
+                return None
+            return InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
 
         if isinstance(battle_input, GoBack):
             if view.interaction_phase != InteractionPhase.ACTIONS:

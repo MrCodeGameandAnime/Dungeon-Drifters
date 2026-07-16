@@ -51,6 +51,10 @@ def test_default_player_snapshot_has_required_shape():
     assert "next_exp_threshold" not in snapshot["progression"]
     assert snapshot["gold"] == 0
     assert snapshot["inventory"] == []
+    assert snapshot["run_state"] == {
+        "inventory": {},
+        "prepared_payloads": {},
+    }
     assert tuple(snapshot["equipment"].keys()) == PlayerState.EQUIPMENT_SLOTS
     assert snapshot["equipment"]["weapon"] == {
         "type": "SunderSpire",
@@ -110,6 +114,21 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
     assert snapshot["progression"] == {"level": 3, "exp": 25}
     assert snapshot["gold"] == 15
     assert snapshot["inventory"] == ["tonic", "tonic"]
+    assert_strict_json(snapshot)
+
+
+def test_zhaivra_snapshot_includes_character_owned_run_state():
+    snapshot = PlayerState(RogueArcher()).snapshot()
+
+    assert snapshot["run_state"] == {
+        "inventory": {
+            "deep_coal": 1,
+            "ember_shard": 1,
+        },
+        "prepared_payloads": {
+            "cinderwrit_payload": False,
+        },
+    }
     assert_strict_json(snapshot)
 
 

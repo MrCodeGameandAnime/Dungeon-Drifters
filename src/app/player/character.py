@@ -21,7 +21,9 @@ class Character:
             moves,
             combat_moves=None,
             class_mechanic=None,
-            starting_equipment=None):
+            starting_equipment=None,
+            starting_run_inventory=None,
+            starting_prepared_payloads=None):
         self.permanent_stats = stats.PermanentStats(
             constitution=constitution,
             spirit=spirit,
@@ -36,6 +38,8 @@ class Character:
         self.combat_moves = list(combat_moves or [])
         self.class_mechanic = dict(class_mechanic or {})
         self.starting_equipment = dict(starting_equipment or {})
+        self.starting_run_inventory = dict(starting_run_inventory or {})
+        self.starting_prepared_payloads = dict(starting_prepared_payloads or {})
         self.profile = None
         self.level_state = progression.Level()
         self.stats = stats.Stats(self.permanent_stats)
@@ -226,6 +230,8 @@ class RogueArcher(Character):
             moves=zhaivra.create_legacy_moves(),
             combat_moves=zhaivra.create_combat_moves(),
             class_mechanic=zhaivra.create_class_mechanic(),
+            starting_run_inventory=zhaivra.create_starting_run_inventory(),
+            starting_prepared_payloads=zhaivra.create_starting_prepared_payloads(),
             starting_equipment={"weapon": zhaivra.create_starting_weapon()})
 
 
