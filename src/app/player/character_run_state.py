@@ -16,6 +16,12 @@ class InventoryActionId(StrEnum):
     PREPARE_CINDERWRIT = "prepare_cinderwrit"
 
 
+CINDERWRIT_PREPARATION_COST = {
+    RunItemId.EMBER_SHARD: 1,
+    RunItemId.DEEP_COAL: 1,
+}
+
+
 class CharacterRunState:
     def __init__(self, *, inventory=None, prepared_payloads=None):
         self._inventory = self._validated_quantities(inventory or {})
@@ -32,6 +38,27 @@ class CharacterRunState:
     def payload_prepared(self, payload_id):
         payload_id = self._validate_payload_id(payload_id)
         return self._prepared_payloads.get(payload_id, False)
+
+    def has_items(self, requirements):
+        requirements = self._validated_requirements(requirements)
+        return all(
+            self._inventory.get(item_id, 0) >= quantity
+            for item_id, quantity in requirements.items()
+        )
+
+    def prepare_payload(self, payload_id, requirements):
+        payload_id = self._validate_payload_id(payload_id)
+        requirements = self._validated_requirements(requirements)
+        if payload_id not in self._prepared_payloads:
+            raise ValueError("prepared payload is not supported")
+        if self._prepared_payloads[payload_id]:
+            raise ValueError("prepared payload is already active")
+        if not self.has_items(requirements):
+            raise ValueError("required inventory items are unavailable")
+
+        for item_id, quantity in requirements.items():
+            self._inventory[item_id] -= quantity
+        self._prepared_payloads[payload_id] = True
 
     def snapshot(self):
         return {
@@ -66,6 +93,13 @@ class CharacterRunState:
             if not isinstance(prepared, bool):
                 raise TypeError("prepared payload state must be a boolean")
             validated[cls._validate_payload_id(payload_id)] = prepared
+        return validated
+
+    @classmethod
+    def _validated_requirements(cls, requirements):
+        validated = cls._validated_quantities(requirements)
+        if any(quantity == 0 for quantity in validated.values()):
+            raise ValueError("inventory requirements must be positive")
         return validated
 
     @staticmethod

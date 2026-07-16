@@ -5,6 +5,7 @@ import pytest
 from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.inventory_action import InventoryActionResolver
 from app.snapshot import validate_plain_value
 from app.world.character_profiles.roster import get_profile_by_choice
 
@@ -127,6 +128,27 @@ def test_zhaivra_snapshot_includes_character_owned_run_state():
         },
         "prepared_payloads": {
             "cinderwrit_payload": False,
+        },
+    }
+    assert_strict_json(snapshot)
+
+
+def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
+    player_state = PlayerState(RogueArcher())
+    InventoryActionResolver().resolve(
+        "prepare_cinderwrit",
+        player_state.character_run_state,
+    )
+
+    snapshot = player_state.snapshot()
+
+    assert snapshot["run_state"] == {
+        "inventory": {
+            "deep_coal": 0,
+            "ember_shard": 0,
+        },
+        "prepared_payloads": {
+            "cinderwrit_payload": True,
         },
     }
     assert_strict_json(snapshot)

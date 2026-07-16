@@ -5,6 +5,7 @@ import random
 from types import SimpleNamespace
 from app.combat.battle import Battle as DomainBattle
 from app.combat.brace import BRACE_RULES
+from app.combat.combat_state import CombatState
 from app.combat.move import (
     DamageType,
     Move,
@@ -14,10 +15,12 @@ from app.combat.move import (
     TargetType,
 )
 from app.combat.resolver import CombatResolver
-from app.combat.result import MoveResult
+from app.combat.result import CombatOutcomeType, MoveResult
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, Monk, RogueArcher
+from app.player.character_run_state import PreparedPayloadId, RunItemId
+from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionIntent,
@@ -159,12 +162,11 @@ class ManaBearingEnemyState(EnemyState):
         self.mana_resource.restore(3)
 
 
-def test_inventory_navigation_and_unavailable_action_do_not_mutate_or_advance():
+def test_inventory_navigation_does_not_mutate_or_advance():
     player_state = PlayerState(RogueArcher())
     before = player_state.character_run_state.snapshot()
     ui = ScriptedBattleUI(
         ChooseAction(ActionIntent.ITEMS),
-        ChooseInventoryAction("prepare_cinderwrit"),
         GoBack(),
         ChooseAction(ActionIntent.DEFEND),
     )
@@ -180,16 +182,144 @@ def test_inventory_navigation_and_unavailable_action_do_not_mutate_or_advance():
     assert tuple(view.interaction_phase for view in ui.input_views) == (
         InteractionPhase.ACTIONS,
         InteractionPhase.INVENTORY,
-        InteractionPhase.INVENTORY,
         InteractionPhase.ACTIONS,
     )
     assert battle.combat_state.turn_count == 1
     assert player_state.character_run_state.snapshot() == before
-    assert any(
-        entry.rejection_reason
-        == InputRejectionReason.INVENTORY_ACTION_UNAVAILABLE
-        for entry in ui.input_views[2].log_entries
+
+
+def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
+    player_state = PlayerState(RogueArcher())
+    mana_before = player_state.mana_resource.current
+    super_before = player_state.super_resource.current
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        ChooseInventoryAction("prepare_cinderwrit"),
     )
+    battle = Battle(player_state, EnemyState(Goblin()), ui=ui)
+
+    assert battle.player_action() is True
+
+    assert battle.combat_state.turn_count == 1
+    assert player_state.mana_resource.current == mana_before
+    assert player_state.super_resource.current == super_before
+    assert player_state.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
+    assert player_state.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.CINDERWRIT
+    ) is True
+    entry = battle.presentation_session.entries[0]
+    assert entry.event_type == BattleEventType.INVENTORY
+    assert tuple(outcome.outcome_type for outcome in entry.outcomes) == (
+        CombatOutcomeType.COMPOUNDS_CONSUMED,
+        CombatOutcomeType.CINDERWRIT_PREPARED,
+    )
+
+
+def test_prepared_payload_persists_through_actions_enemy_response_and_encounters():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver(
+        accepted_result(),
+        defend_results=(accepted_result(),),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ITEMS),
+            ChooseInventoryAction("prepare_cinderwrit"),
+        ),
+        resolver=resolver,
+    )
+    battle.player_action()
+
+    battle.ui = ScriptedBattleUI(ChooseAction(ActionIntent.DEFEND))
+    battle.player_action()
+    battle.enemy_action()
+    battle.resolver = CombatResolver(
+        rng=SimpleNamespace(randint=lambda start, _end: start)
+    )
+    player_state.health.take_damage(10)
+    battle.ui = ScriptedBattleUI(ChooseAction(ActionIntent.HEAL))
+    battle.player_action()
+    battle.ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Mournpoint Verdict"),
+    )
+    battle.player_action()
+    next_battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(),
+    )
+
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.CINDERWRIT
+    ) is True
+    assert next_battle.player_state.character_run_state is player_state.character_run_state
+
+
+class LethalEnemyResolver(RecordingResolver):
+    def resolve_move(self, actor, target, move_name, *, combat_state=None):
+        self.calls.append({
+            "actor": actor,
+            "target": target,
+            "move_name": move_name,
+            "combat_state": combat_state,
+        })
+        damage = target.health.current
+        target.health.take_damage(damage)
+        return result_with(move_name=move_name, damage=damage)
+
+
+class LethalPlayerCompletionState(CombatState):
+    def complete_accepted_action(self, actor, opposing_combatants, **kwargs):
+        turn = super().complete_accepted_action(actor, opposing_combatants, **kwargs)
+        actor.health.take_damage(actor.health.current)
+        return turn
+
+
+def test_accepted_preparation_allows_exactly_one_enemy_response():
+    player_state = PlayerState(RogueArcher())
+    resolver = LethalEnemyResolver()
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ITEMS),
+            ChooseInventoryAction("prepare_cinderwrit"),
+        ),
+        resolver=resolver,
+    )
+
+    with patched_battle(randint=lambda _start, _end: 1):
+        winner = battle.run()
+
+    assert winner == "enemy"
+    assert len(resolver.calls) == 1
+    assert battle.combat_state.turn_count == 2
+
+
+def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver()
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ITEMS),
+            ChooseInventoryAction("prepare_cinderwrit"),
+        ),
+        resolver=resolver,
+    )
+    battle.combat_state = LethalPlayerCompletionState()
+
+    with patched_battle(randint=lambda _start, _end: 1):
+        winner = battle.run()
+
+    assert winner == "enemy"
+    assert resolver.calls == []
+    assert battle.combat_state.turn_count == 1
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -214,6 +344,7 @@ def test_battle_creates_combat_resolver_by_default():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
 
     assert isinstance(battle.resolver, CombatResolver)
+    assert isinstance(battle.inventory_action_resolver, InventoryActionResolver)
 
 
 def test_battle_accepts_injected_resolver():

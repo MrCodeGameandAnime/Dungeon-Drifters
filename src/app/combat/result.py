@@ -12,6 +12,8 @@ class CombatOutcomeType(StrEnum):
     BACKLASH_DAMAGE = "backlash_damage"
     INSTABILITY_CLEARED = "instability_cleared"
     INSTABILITY_APPLIED = "instability_applied"
+    COMPOUNDS_CONSUMED = "compounds_consumed"
+    CINDERWRIT_PREPARED = "cinderwrit_prepared"
 
 
 class CombatOutcomeTarget(StrEnum):

@@ -12,6 +12,7 @@ from app.presentation.battle_models import (
 )
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_session import BattlePresentationSession
+from app.player.inventory_action import InventoryActionResolver
 from app.ui.battle_ui import ChooseAction, ChooseInventoryAction, ChooseMove, GoBack
 
 
@@ -24,6 +25,7 @@ class Battle:
         resolver=None,
         presenter=None,
         presentation_session=None,
+        inventory_action_resolver=None,
     ):
         self.player_state = player_state
         self.player = player_state.character
@@ -33,6 +35,9 @@ class Battle:
         self.ui = ui
         self.presenter = presenter or BattlePresenter()
         self.presentation_session = presentation_session or BattlePresentationSession()
+        self.inventory_action_resolver = (
+            inventory_action_resolver or InventoryActionResolver()
+        )
         self.interaction_phase = InteractionPhase.ACTIONS
 
     def _player_moves(self):
@@ -257,6 +262,24 @@ class Battle:
                 self.interaction_phase = InteractionPhase.ACTIONS
                 continue
 
+            if isinstance(battle_input, ChooseInventoryAction):
+                result = self.inventory_action_resolver.resolve(
+                    battle_input.action_id,
+                    self.player_state.character_run_state,
+                )
+                if result.accepted:
+                    self.presentation_session.begin_player_turn()
+                self._record_inventory_action_result(result)
+                if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        (self.foe,),
+                        result,
+                    )
+                    self.interaction_phase = InteractionPhase.ACTIONS
+                    return True
+                continue
+
             if isinstance(battle_input, ChooseMove):
                 move = self._move_for_key(view, battle_input.move_key)
                 result = self._resolve_player_move(move)
@@ -276,6 +299,18 @@ class Battle:
                     if move.name == option.selection_key:
                         return move
         raise ValueError("move key was not offered")
+
+    def _record_inventory_action_result(self, result):
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.INVENTORY,
+                actor_name=self.player_state.display_name,
+                action_name=result.action_id.value,
+                accepted=result.accepted,
+                reason=result.reason.value if result.reason is not None else None,
+                outcomes=result.outcomes,
+            )
+        )
 
     def _input_rejection_reason(self, view, battle_input):
         if isinstance(battle_input, ChooseAction):

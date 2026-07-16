@@ -43,6 +43,7 @@ class BattleEventType(StrEnum):
     INPUT_REJECTED = "input_rejected"
     VICTORY = "victory"
     DEFEAT = "defeat"
+    INVENTORY = "inventory"
 
 
 class ActionAvailabilityReason(StrEnum):
@@ -61,6 +62,8 @@ class MoveAvailabilityReason(StrEnum):
 
 class InventoryAvailabilityReason(StrEnum):
     NOT_IMPLEMENTED = "not_implemented"
+    ALREADY_PREPARED = "already_prepared"
+    MISSING_INGREDIENTS = "missing_ingredients"
 
 
 @dataclass(frozen=True)

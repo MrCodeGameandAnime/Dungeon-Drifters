@@ -19,6 +19,7 @@ from app.presentation.battle_models import (
     SuperMeterView,
 )
 from app.player.character_run_state import (
+    CINDERWRIT_PREPARATION_COST,
     InventoryActionId,
     PreparedPayloadId,
     RunItemId,
@@ -154,6 +155,15 @@ class BattlePresenter:
         run_state = player.character_run_state
         if not run_state.supports_payload(PreparedPayloadId.CINDERWRIT):
             return ()
+        if run_state.payload_prepared(PreparedPayloadId.CINDERWRIT):
+            enabled = False
+            disabled_reason = InventoryAvailabilityReason.ALREADY_PREPARED
+        elif not run_state.has_items(CINDERWRIT_PREPARATION_COST):
+            enabled = False
+            disabled_reason = InventoryAvailabilityReason.MISSING_INGREDIENTS
+        else:
+            enabled = True
+            disabled_reason = None
         return (
             InventoryActionOptionView(
                 action_id=InventoryActionId.PREPARE_CINDERWRIT.value,
@@ -173,8 +183,8 @@ class BattlePresenter:
                         required=1,
                     ),
                 ),
-                enabled=False,
-                disabled_reason=InventoryAvailabilityReason.NOT_IMPLEMENTED,
+                enabled=enabled,
+                disabled_reason=disabled_reason,
             ),
         )
 

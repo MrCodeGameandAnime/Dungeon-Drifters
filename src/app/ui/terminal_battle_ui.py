@@ -360,6 +360,9 @@ class TerminalBattleUI:
             lines.append(f"{actor} used Defend.")
         elif entry.event_type == BattleEventType.UTILITY:
             lines.append(f"{actor} used {action}. It resolved.")
+        elif entry.event_type == BattleEventType.INVENTORY:
+            if not entry.accepted:
+                lines.append("That inventory action is not available.")
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
             lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
         elif entry.event_type == BattleEventType.INPUT_REJECTED:
@@ -398,6 +401,10 @@ class TerminalBattleUI:
                 lines.append(f"{actor}'s Arcane Instability cleared.")
             elif outcome.outcome_type == CombatOutcomeType.INSTABILITY_APPLIED:
                 lines.append(f"{actor} became physically unstable.")
+            elif outcome.outcome_type == CombatOutcomeType.COMPOUNDS_CONSUMED:
+                lines.append(f"{actor} combined Ember Shard with Deep Coal.")
+            elif outcome.outcome_type == CombatOutcomeType.CINDERWRIT_PREPARED:
+                lines.append("Cinderwrit Barb is ready.")
         return tuple(lines)
 
     @staticmethod

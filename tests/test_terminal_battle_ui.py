@@ -209,6 +209,40 @@ def test_disabled_inventory_action_reprompts_and_back_remains_semantic():
     assert "Prepare Cinderwrit Barb is not available." in harness.lines
 
 
+def test_preparation_outcomes_render_in_completed_mutation_order():
+    entry = BattleLogEntry(
+        event_type=BattleEventType.INVENTORY,
+        actor_name="Zhaivra",
+        action_name="prepare_cinderwrit",
+        accepted=True,
+        outcomes=(
+            CombatOutcome(
+                CombatOutcomeType.COMPOUNDS_CONSUMED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.CINDERWRIT_PREPARED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        ),
+    )
+    ui, harness = _ui(())
+
+    ui.render(_view(log_entries=(entry,)))
+
+    compound_line = next(
+        index
+        for index, line in enumerate(harness.lines)
+        if "Zhaivra combined Ember Shard with Deep Coal." in line
+    )
+    prepared_line = next(
+        index
+        for index, line in enumerate(harness.lines)
+        if "Cinderwrit Barb is ready." in line
+    )
+    assert compound_line < prepared_line
+
+
 def test_back_is_returned_only_from_move_selection_phase():
     ui, harness = _ui(("0", "attack"))
 

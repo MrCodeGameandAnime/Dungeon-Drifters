@@ -12,6 +12,7 @@ from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.inventory_action import InventoryActionResolver
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -127,7 +128,7 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
     option = inventory.inventory_options[0]
     assert option.action_id == "prepare_cinderwrit"
     assert option.label == "Prepare Cinderwrit Barb"
-    assert option.enabled is False
+    assert option.enabled is True
     assert tuple(
         (ingredient.item_id, ingredient.display_name, ingredient.current, ingredient.required)
         for ingredient in option.ingredients
@@ -137,6 +138,50 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
     )
     assert inventory == repeated
     assert player.character_run_state.snapshot() == before
+
+
+def test_prepared_cinderwrit_inventory_action_is_disabled_without_presenter_mutation():
+    player, enemy, combat_state = _battle_values(RogueArcher())
+    InventoryActionResolver().resolve("prepare_cinderwrit", player.character_run_state)
+    before = player.character_run_state.snapshot()
+
+    view = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY,
+    )
+
+    option = view.inventory_options[0]
+    assert option.enabled is False
+    assert option.disabled_reason.value == "already_prepared"
+    assert tuple(ingredient.current for ingredient in option.ingredients) == (0, 0)
+    assert player.character_run_state.snapshot() == before
+
+
+def test_missing_compound_disables_preparation_but_keeps_personal_items_visible():
+    character = RogueArcher()
+    character.starting_run_inventory = {"ember_shard": 1}
+    player = PlayerState(character)
+    enemy = EnemyState(Goblin())
+    combat_state = CombatState()
+
+    actions = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
+    inventory = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY,
+    )
+
+    assert _option(actions, ActionIntent.ITEMS).enabled is True
+    option = inventory.inventory_options[0]
+    assert option.enabled is False
+    assert option.disabled_reason.value == "missing_ingredients"
 
 
 def test_universal_heal_is_not_an_authored_move_submenu():
