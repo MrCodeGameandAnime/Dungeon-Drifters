@@ -52,11 +52,13 @@ class RecordingPresentationSession(BattlePresentationSession):
 
 
 class ZhaivraLoopUI:
-    def __init__(self):
+    def __init__(self, *, first_item="ember_shard", companion="deep_coal"):
         self.stage = "stock"
         self.rendered_views = []
         self.inputs = []
         self.defend_count = 0
+        self.first_item = first_item
+        self.companion = companion
 
     def render(self, view):
         self.rendered_views.append(view)
@@ -70,18 +72,21 @@ class ZhaivraLoopUI:
                 battle_input = ChooseAction(ActionIntent.ITEMS)
             elif self.stage == "fire":
                 battle_input = ChooseAction(ActionIntent.ATTACK)
-            elif self.stage == "hold" and "Burn" in view.enemy.temporary_labels:
+            elif self.stage == "hold" and any(
+                label in view.enemy.temporary_labels
+                for label in ("Burn", "Poison")
+            ):
                 self.defend_count += 1
                 battle_input = ChooseAction(ActionIntent.DEFEND)
             else:
                 self.stage = "finish"
                 battle_input = ChooseAction(ActionIntent.ATTACK)
         elif view.interaction_phase == InteractionPhase.INVENTORY:
-            battle_input = ChooseInventoryItem("ember_shard")
+            battle_input = ChooseInventoryItem(self.first_item)
         elif view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
             battle_input = ChooseInventoryCommand(InventoryCommand.USE)
         elif view.interaction_phase == InteractionPhase.INVENTORY_COMBINATION:
-            battle_input = ChooseInventoryCompanion("deep_coal")
+            battle_input = ChooseInventoryCompanion(self.companion)
         elif view.interaction_phase == InteractionPhase.INVENTORY_CONFIRMATION:
             self.stage = "fire"
             battle_input = ConfirmInventoryUse(True)
@@ -136,6 +141,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     assert enemy.health.current == 0
     assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
     assert player.character_run_state.payload_prepared(
         PreparedPayloadId.CINDERWRIT
     ) is False
@@ -179,6 +185,56 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         }
         for outcome in _outcomes(session.entries)
     )
+
+
+def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
+    monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
+    monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
+    player = PlayerState(RogueArcher())
+    enemy = EnemyState(Goblin())
+    ui = ZhaivraLoopUI(first_item="deep_coal", companion="night_berry")
+    session = RecordingPresentationSession()
+    battle = Battle(
+        player,
+        enemy,
+        ui=ui,
+        resolver=CombatResolver(rng=AlwaysOneRng()),
+        presentation_session=session,
+    )
+
+    winner = battle.run()
+
+    assert winner == "player"
+    assert enemy.health.current == 0
+    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
+    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 0
+    assert player.character_run_state.payload_prepared(
+        PreparedPayloadId.CINDERWRIT
+    ) is False
+    assert battle.combat_state.poison_active(enemy) is False
+
+    outcomes = _outcomes(session.history)
+    outcome_types = tuple(outcome.outcome_type for outcome in outcomes)
+    assert outcome_types.count(CombatOutcomeType.COMPOUNDS_CONSUMED) == 1
+    assert outcome_types.count(CombatOutcomeType.POISON_INFUSION_PREPARED) == 1
+    assert outcome_types.count(CombatOutcomeType.INFUSED_BARB_CONSUMED) == 1
+    assert outcome_types.count(CombatOutcomeType.POISON_APPLIED) == 1
+    assert outcome_types.count(CombatOutcomeType.POISON_TICK) == 4
+    assert outcome_types.count(CombatOutcomeType.POISON_EXPIRED) == 1
+    assert tuple(
+        outcome.amount
+        for outcome in outcomes
+        if outcome.outcome_type == CombatOutcomeType.POISON_TICK
+    ) == (5, 5, 5, 5)
+
+    ready_poison = tuple(
+        move
+        for view in ui.rendered_views
+        for move in view.move_options
+        if move.name == "Infused Barb" and "Ready: Poison" in move.tags
+    )
+    assert ready_poison
 
 
 def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
