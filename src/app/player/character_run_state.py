@@ -6,10 +6,17 @@ from enum import StrEnum
 class RunItemId(StrEnum):
     EMBER_SHARD = "ember_shard"
     DEEP_COAL = "deep_coal"
+    NIGHT_BERRY = "night_berry"
 
 
 class PreparedPayloadId(StrEnum):
-    CINDERWRIT = "cinderwrit_payload"
+    INFUSED_BARB = "infused_barb"
+    CINDERWRIT = "infused_barb"
+
+
+class InfusionKind(StrEnum):
+    FIRE = "fire"
+    POISON = "poison"
 
 
 class InventoryActionId(StrEnum):
@@ -37,7 +44,12 @@ class CharacterRunState:
 
     def payload_prepared(self, payload_id):
         payload_id = self._validate_payload_id(payload_id)
-        return self._prepared_payloads.get(payload_id, False)
+        return self._prepared_payloads.get(payload_id) is not None
+
+    def prepared_infusion(self):
+        if PreparedPayloadId.INFUSED_BARB not in self._prepared_payloads:
+            return None
+        return self._prepared_payloads[PreparedPayloadId.INFUSED_BARB]
 
     def has_items(self, requirements):
         requirements = self._validated_requirements(requirements)
@@ -48,26 +60,41 @@ class CharacterRunState:
 
     def prepare_payload(self, payload_id, requirements):
         payload_id = self._validate_payload_id(payload_id)
+        if payload_id != PreparedPayloadId.INFUSED_BARB:
+            raise ValueError("prepared payload is not supported")
+        self.prepare_infusion(InfusionKind.FIRE, requirements)
+
+    def prepare_infusion(self, infusion_kind, requirements):
+        infusion_kind = self._validate_infusion_kind(infusion_kind)
         requirements = self._validated_requirements(requirements)
+        payload_id = PreparedPayloadId.INFUSED_BARB
         if payload_id not in self._prepared_payloads:
             raise ValueError("prepared payload is not supported")
-        if self._prepared_payloads[payload_id]:
+        if self._prepared_payloads[payload_id] is not None:
             raise ValueError("prepared payload is already active")
         if not self.has_items(requirements):
             raise ValueError("required inventory items are unavailable")
 
         for item_id, quantity in requirements.items():
             self._inventory[item_id] -= quantity
-        self._prepared_payloads[payload_id] = True
+        self._prepared_payloads[payload_id] = infusion_kind
 
     def consume_payload(self, payload_id):
         payload_id = self._validate_payload_id(payload_id)
+        if payload_id != PreparedPayloadId.INFUSED_BARB:
+            raise ValueError("prepared payload is not supported")
+        self.consume_infusion()
+
+    def consume_infusion(self):
+        payload_id = PreparedPayloadId.INFUSED_BARB
         if payload_id not in self._prepared_payloads:
             raise ValueError("prepared payload is not supported")
-        if not self._prepared_payloads[payload_id]:
+        infusion_kind = self._prepared_payloads[payload_id]
+        if infusion_kind is None:
             raise ValueError("prepared payload is not active")
 
-        self._prepared_payloads[payload_id] = False
+        self._prepared_payloads[payload_id] = None
+        return infusion_kind
 
     def snapshot(self):
         return {
@@ -76,7 +103,11 @@ class CharacterRunState:
                 for item_id in sorted(self._inventory, key=lambda value: value.value)
             },
             "prepared_payloads": {
-                payload_id.value: self._prepared_payloads[payload_id]
+                payload_id.value: (
+                    None
+                    if self._prepared_payloads[payload_id] is None
+                    else self._prepared_payloads[payload_id].value
+                )
                 for payload_id in sorted(
                     self._prepared_payloads,
                     key=lambda value: value.value,
@@ -98,10 +129,11 @@ class CharacterRunState:
         if not isinstance(payloads, dict):
             raise TypeError("prepared_payloads must be a dictionary")
         validated = {}
-        for payload_id, prepared in payloads.items():
-            if not isinstance(prepared, bool):
-                raise TypeError("prepared payload state must be a boolean")
-            validated[cls._validate_payload_id(payload_id)] = prepared
+        for payload_id, infusion_kind in payloads.items():
+            payload_id = cls._validate_payload_id(payload_id)
+            if infusion_kind is not None:
+                infusion_kind = cls._validate_infusion_kind(infusion_kind)
+            validated[payload_id] = infusion_kind
         return validated
 
     @classmethod
@@ -124,6 +156,13 @@ class CharacterRunState:
             return PreparedPayloadId(payload_id)
         except (TypeError, ValueError) as error:
             raise ValueError(f"invalid prepared payload identifier: {payload_id!r}") from error
+
+    @staticmethod
+    def _validate_infusion_kind(infusion_kind):
+        try:
+            return InfusionKind(infusion_kind)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"invalid infusion kind: {infusion_kind!r}") from error
 
     @staticmethod
     def _validate_quantity(quantity):

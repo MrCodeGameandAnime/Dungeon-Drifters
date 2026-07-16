@@ -7,6 +7,7 @@ from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
     CINDERWRIT_PREPARATION_COST,
     CharacterRunState,
+    InfusionKind,
     PreparedPayloadId,
     RunItemId,
 )
@@ -27,6 +28,7 @@ def test_zhaivra_starts_with_personal_compounds_and_unprepared_payload():
 
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
     assert run_state.item_quantity(RunItemId.DEEP_COAL) == 1
+    assert run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
     assert run_state.supports_payload(PreparedPayloadId.CINDERWRIT) is True
     assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
 
@@ -68,9 +70,10 @@ def test_run_state_snapshot_is_deterministic_and_separate_from_equipment_invento
         "inventory": {
             "deep_coal": 1,
             "ember_shard": 1,
+            "night_berry": 1,
         },
         "prepared_payloads": {
-            "cinderwrit_payload": False,
+            "infused_barb": None,
         },
     }
     assert player.snapshot()["run_state"] == player.character_run_state.snapshot()
@@ -83,7 +86,7 @@ def test_character_run_state_rejects_invalid_authored_values():
         CharacterRunState(inventory={RunItemId.EMBER_SHARD: -1})
     with pytest.raises(TypeError):
         CharacterRunState(inventory={RunItemId.EMBER_SHARD: True})
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         CharacterRunState(
             prepared_payloads={PreparedPayloadId.CINDERWRIT: 1}
         )
@@ -99,9 +102,23 @@ def test_prepared_payload_consumption_is_atomic_and_requires_active_state():
     run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
 
     assert run_state.payload_prepared(PreparedPayloadId.CINDERWRIT) is False
+    assert run_state.prepared_infusion() is None
     with pytest.raises(ValueError):
         run_state.consume_payload(PreparedPayloadId.CINDERWRIT)
     with pytest.raises(ValueError):
         PlayerState(Brawler()).character_run_state.consume_payload(
             PreparedPayloadId.CINDERWRIT
         )
+
+
+def test_prepared_infused_barb_payload_is_typed_and_snapshotted():
+    run_state = CharacterRunState(
+        prepared_payloads={
+            PreparedPayloadId.INFUSED_BARB: InfusionKind.POISON,
+        }
+    )
+
+    assert run_state.prepared_infusion() is InfusionKind.POISON
+    assert run_state.snapshot()["prepared_payloads"] == {"infused_barb": "poison"}
+    assert run_state.consume_infusion() is InfusionKind.POISON
+    assert run_state.snapshot()["prepared_payloads"] == {"infused_barb": None}

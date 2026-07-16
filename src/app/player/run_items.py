@@ -71,6 +71,12 @@ RUN_ITEM_DEFINITIONS = (
         description="A dense black catalyst used to bind heat into weapon runes.",
         commands=(InventoryCommand.INSPECT, InventoryCommand.USE),
     ),
+    RunItemDefinition(
+        item_id=RunItemId.NIGHT_BERRY,
+        display_name="Night Berry",
+        description="A bitter nocturnal fruit reserved for venomous alchemical infusions.",
+        commands=(InventoryCommand.INSPECT, InventoryCommand.USE),
+    ),
 )
 
 CINDERWRIT_RECIPE = InventoryRecipeDefinition(

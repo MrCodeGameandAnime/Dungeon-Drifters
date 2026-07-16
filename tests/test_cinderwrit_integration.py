@@ -19,6 +19,7 @@ from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
     CINDERWRIT_PREPARATION_COST,
     CharacterRunState,
+    InfusionKind,
     PreparedPayloadId,
 )
 from app.player.player_state import PlayerState
@@ -301,7 +302,7 @@ def test_mechanic_marker_not_move_or_character_name_controls_integration():
     target = EnemyState(Goblin())
     combat_state = CombatState()
     run_state = CharacterRunState(
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: True}
+        prepared_payloads={PreparedPayloadId.CINDERWRIT: InfusionKind.FIRE}
     )
 
     result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
@@ -334,7 +335,7 @@ def test_cinderwrit_marker_is_rejected_on_non_damage_moves_without_consumption()
     )
     actor.character.combat_moves.append(move)
     run_state = CharacterRunState(
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: True}
+        prepared_payloads={PreparedPayloadId.CINDERWRIT: InfusionKind.FIRE}
     )
     rng = ScriptedRng()
 

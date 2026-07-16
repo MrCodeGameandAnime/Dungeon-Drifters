@@ -131,17 +131,18 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
     ) == (
         ("ember_shard", "Ember Shard", 1),
         ("deep_coal", "Deep Coal", 1),
+        ("night_berry", "Night Berry", 1),
     )
     assert tuple(
         item.number for item in inventory.inventory_items
-    ) == (1, 2)
+    ) == (1, 2, 3)
     assert all(item.enabled for item in inventory.inventory_items)
     assert all(item.item_id != "prepare_cinderwrit" for item in inventory.inventory_items)
     assert inventory == repeated
     assert player.character_run_state.snapshot() == before
 
 
-def test_consumed_compounds_make_items_unavailable_without_presenter_mutation():
+def test_consumed_compounds_leave_unrelated_items_available_without_presenter_mutation():
     player, enemy, combat_state = _battle_values(RogueArcher())
     InventoryActionResolver().resolve("prepare_cinderwrit", player.character_run_state)
     before = player.character_run_state.snapshot()
@@ -158,12 +159,8 @@ def test_consumed_compounds_make_items_unavailable_without_presenter_mutation():
         interaction_phase=InteractionPhase.INVENTORY,
     )
 
-    assert _option(actions, ActionIntent.ITEMS).enabled is False
-    assert (
-        _option(actions, ActionIntent.ITEMS).disabled_reason
-        == ActionAvailabilityReason.EMPTY_INVENTORY
-    )
-    assert view.inventory_items == ()
+    assert _option(actions, ActionIntent.ITEMS).enabled is True
+    assert tuple(item.item_id for item in view.inventory_items) == ("night_berry",)
     assert player.character_run_state.snapshot() == before
 
 

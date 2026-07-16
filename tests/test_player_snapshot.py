@@ -125,9 +125,10 @@ def test_zhaivra_snapshot_includes_character_owned_run_state():
         "inventory": {
             "deep_coal": 1,
             "ember_shard": 1,
+            "night_berry": 1,
         },
         "prepared_payloads": {
-            "cinderwrit_payload": False,
+            "infused_barb": None,
         },
     }
     assert_strict_json(snapshot)
@@ -146,9 +147,10 @@ def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
         "inventory": {
             "deep_coal": 0,
             "ember_shard": 0,
+            "night_berry": 1,
         },
         "prepared_payloads": {
-            "cinderwrit_payload": True,
+            "infused_barb": "fire",
         },
     }
     assert_strict_json(snapshot)

@@ -18,12 +18,13 @@ def create_starting_run_inventory():
     return {
         "ember_shard": 1,
         "deep_coal": 1,
+        "night_berry": 1,
     }
 
 
 def create_starting_prepared_payloads():
     return {
-        "cinderwrit_payload": False,
+        "infused_barb": None,
     }
 
 

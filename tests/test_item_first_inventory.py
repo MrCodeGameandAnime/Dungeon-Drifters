@@ -131,6 +131,12 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
             "A dense black catalyst used to bind heat into weapon runes.",
             (InventoryCommand.INSPECT, InventoryCommand.USE),
         ),
+        (
+            "night_berry",
+            "Night Berry",
+            "A bitter nocturnal fruit reserved for venomous alchemical infusions.",
+            (InventoryCommand.INSPECT, InventoryCommand.USE),
+        ),
     )
     forward = inventory_recipe_for_pair("ember_shard", "deep_coal")
     reverse = inventory_recipe_for_pair("deep_coal", "ember_shard")
@@ -141,7 +147,7 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
     assert inventory_recipe_for_pair("ember_shard", "unknown") is None
 
 
-def test_presenter_lists_owned_items_not_recipe_actions_and_becomes_empty():
+def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_items():
     player = PlayerState(RogueArcher())
     enemy = EnemyState(Goblin())
     presenter = BattlePresenter()
@@ -168,6 +174,7 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_becomes_empty():
     ) == (
         ("ember_shard", "Ember Shard", 1),
         ("deep_coal", "Deep Coal", 1),
+        ("night_berry", "Night Berry", 1),
     )
     assert not any(
         item.item_id == "prepare_cinderwrit" for item in initial.inventory_items
@@ -182,11 +189,13 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_becomes_empty():
         enemy=enemy,
         combat_state=combat_state,
     )
-    assert _option(empty_actions, ActionIntent.ITEMS).enabled is False
-    assert (
-        _option(empty_actions, ActionIntent.ITEMS).disabled_reason
-        == ActionAvailabilityReason.EMPTY_INVENTORY
-    )
+    assert _option(empty_actions, ActionIntent.ITEMS).enabled is True
+    assert tuple(item.item_id for item in presenter.build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+        interaction_phase=InteractionPhase.INVENTORY,
+    ).inventory_items) == ("night_berry",)
 
     branoc = PlayerState(Brawler())
     branoc_actions = presenter.build(

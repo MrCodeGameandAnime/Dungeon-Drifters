@@ -53,7 +53,7 @@ def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload(
 def test_missing_ingredient_rejects_without_partial_consumption(inventory):
     run_state = CharacterRunState(
         inventory=inventory,
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: False},
+        prepared_payloads={PreparedPayloadId.CINDERWRIT: None},
     )
     before = run_state.snapshot()
 
@@ -129,7 +129,7 @@ def test_inventory_action_result_is_immutable_and_validates_rejection_contract()
 def test_prepare_payload_mutation_revalidates_entire_cost_before_mutating():
     run_state = CharacterRunState(
         inventory={RunItemId.EMBER_SHARD: 1},
-        prepared_payloads={PreparedPayloadId.CINDERWRIT: False},
+        prepared_payloads={PreparedPayloadId.CINDERWRIT: None},
     )
     before = run_state.snapshot()
 
