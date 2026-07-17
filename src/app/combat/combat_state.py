@@ -244,6 +244,39 @@ class CombatState:
     def poison_status(self, target):
         return self._status_state.poison_status(target)
 
+    def apply_conductive(self, source, target):
+        return self._status_state.apply_conductive(source, target)
+
+    def conductive_active(self, source, target):
+        return self._status_state.conductive_active(source, target)
+
+    def consume_conductive(self, source, target):
+        return self._status_state.consume_conductive(source, target)
+
+    def apply_turbulence(self, source, target):
+        return self._status_state.apply_turbulence(source, target)
+
+    def turbulence_active(self, source, target):
+        return self._status_state.turbulence_active(source, target)
+
+    def consume_turbulence(self, source, target):
+        return self._status_state.consume_turbulence(source, target)
+
+    def apply_stun(self, source, target):
+        return self._status_state.apply_stun(source, target)
+
+    def stun_active(self, target):
+        return self._status_state.stun_active(target)
+
+    def stun_status(self, target):
+        return self._status_state.stun_status(target)
+
+    def consume_stun_for_action_opportunity(self, actor):
+        return self._status_state.consume_stun_for_action_opportunity(actor)
+
+    def active_status_kinds(self, target):
+        return self._status_state.active_status_kinds(target)
+
     def clear_statuses(self):
         self._status_state.clear_all()
 

@@ -24,6 +24,16 @@ class CombatOutcomeType(StrEnum):
     POISON_REFRESHED = "poison_refreshed"
     POISON_TICK = "poison_tick"
     POISON_EXPIRED = "poison_expired"
+    CONDUCTIVE_APPLIED = "conductive_applied"
+    CONDUCTIVE_REFRESHED = "conductive_refreshed"
+    CONDUCTIVE_CONSUMED = "conductive_consumed"
+    TURBULENCE_APPLIED = "turbulence_applied"
+    TURBULENCE_REFRESHED = "turbulence_refreshed"
+    TURBULENCE_CONSUMED = "turbulence_consumed"
+    LIGHTNING_STORM_TRIGGERED = "lightning_storm_triggered"
+    STUN_APPLIED = "stun_applied"
+    STUN_TRIGGERED = "stun_triggered"
+    STUN_EXPIRED = "stun_expired"
 
 
 class CombatOutcomeTarget(StrEnum):

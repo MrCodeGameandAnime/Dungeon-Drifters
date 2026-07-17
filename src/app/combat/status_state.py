@@ -1,4 +1,4 @@
-"""Narrow encounter-local status ownership and standard Burn behavior."""
+"""Narrow encounter-local ownership for reusable combat statuses."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -17,6 +17,9 @@ POISON_STAT_DIVISOR = 8
 class StatusKind(StrEnum):
     BURN = "burn"
     POISON = "poison"
+    CONDUCTIVE = "conductive"
+    TURBULENCE = "turbulence"
+    STUN = "stun"
 
 
 @dataclass(frozen=True)
@@ -43,10 +46,31 @@ class PoisonStatus:
         _validate_positive_integer("damage_per_tick", self.damage_per_tick)
 
 
+@dataclass(frozen=True)
+class ConductiveStatus:
+    source: object
+    target: object
+
+
+@dataclass(frozen=True)
+class TurbulenceStatus:
+    source: object
+    target: object
+
+
+@dataclass(frozen=True)
+class StunStatus:
+    source: object
+    target: object
+
+
 class StatusState:
     def __init__(self):
         self._burns = []
         self._poisons = []
+        self._conductive_statuses = []
+        self._turbulence_statuses = []
+        self._stuns = []
 
     def apply_burn(self, source, target):
         _validate_burn_source(source)
@@ -138,6 +162,108 @@ class StatusState:
     def poison_status(self, target):
         return self._find_poison(target)
 
+    def apply_conductive(self, source, target):
+        _validate_binary_status_combatants(source, target, "Conductive")
+        existing = self._find_conductive(source, target)
+        if existing is None:
+            self._conductive_statuses.append(ConductiveStatus(source, target))
+            outcome_type = CombatOutcomeType.CONDUCTIVE_APPLIED
+        else:
+            outcome_type = CombatOutcomeType.CONDUCTIVE_REFRESHED
+        return CombatOutcome(outcome_type, target=CombatOutcomeTarget.TARGET)
+
+    def conductive_active(self, source, target):
+        return self._find_conductive(source, target) is not None
+
+    def consume_conductive(self, source, target):
+        status = self._find_conductive(source, target)
+        if status is None:
+            return None
+        self._conductive_statuses = [
+            active for active in self._conductive_statuses if active is not status
+        ]
+        return CombatOutcome(
+            CombatOutcomeType.CONDUCTIVE_CONSUMED,
+            target=CombatOutcomeTarget.TARGET,
+        )
+
+    def apply_turbulence(self, source, target):
+        _validate_binary_status_combatants(source, target, "Turbulence")
+        existing = self._find_turbulence(source, target)
+        if existing is None:
+            self._turbulence_statuses.append(TurbulenceStatus(source, target))
+            outcome_type = CombatOutcomeType.TURBULENCE_APPLIED
+        else:
+            outcome_type = CombatOutcomeType.TURBULENCE_REFRESHED
+        return CombatOutcome(outcome_type, target=CombatOutcomeTarget.TARGET)
+
+    def turbulence_active(self, source, target):
+        return self._find_turbulence(source, target) is not None
+
+    def consume_turbulence(self, source, target):
+        status = self._find_turbulence(source, target)
+        if status is None:
+            return None
+        self._turbulence_statuses = [
+            active for active in self._turbulence_statuses if active is not status
+        ]
+        return CombatOutcome(
+            CombatOutcomeType.TURBULENCE_CONSUMED,
+            target=CombatOutcomeTarget.TARGET,
+        )
+
+    def apply_stun(self, source, target):
+        _validate_binary_status_combatants(source, target, "Stun")
+        existing = self._find_stun(target)
+        replacement = StunStatus(source, target)
+        if existing is None:
+            self._stuns.append(replacement)
+        else:
+            self._stuns = [
+                replacement if active is existing else active
+                for active in self._stuns
+            ]
+        return CombatOutcome(
+            CombatOutcomeType.STUN_APPLIED,
+            target=CombatOutcomeTarget.TARGET,
+        )
+
+    def stun_active(self, target):
+        return self._find_stun(target) is not None
+
+    def stun_status(self, target):
+        return self._find_stun(target)
+
+    def consume_stun_for_action_opportunity(self, actor):
+        status = self._find_stun(actor)
+        if status is None:
+            return ()
+        self._stuns = [active for active in self._stuns if active is not status]
+        return (
+            CombatOutcome(
+                CombatOutcomeType.STUN_TRIGGERED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.STUN_EXPIRED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        )
+
+    def active_status_kinds(self, target):
+        active = []
+        if self.burn_active(target):
+            active.append(StatusKind.BURN)
+        if self.poison_active(target):
+            active.append(StatusKind.POISON)
+        if any(status.target is target for status in self._conductive_statuses):
+            active.append(StatusKind.CONDUCTIVE)
+        if any(status.target is target for status in self._turbulence_statuses):
+            active.append(StatusKind.TURBULENCE)
+        if self.stun_active(target):
+            active.append(StatusKind.STUN)
+        return tuple(active)
+
     def advance_after_accepted_action(self, actor):
         if self._find_burn(actor) is None and self._find_poison(actor) is None:
             return ()
@@ -160,16 +286,13 @@ class StatusState:
         return tuple(outcomes)
 
     def clear_defeated_target(self, target):
-        if (
-            self._find_burn(target) is None
-            and self._find_poison(target) is None
-        ) or target.is_alive():
+        if not self._has_status_associated_with(target) or target.is_alive():
             return False
         self._clear_defeated_statuses(target)
         return True
 
     def clear_defeated_target_outcomes(self, target):
-        if self._find_burn(target) is None and self._find_poison(target) is None:
+        if not self._has_status_associated_with(target):
             return ()
         if not callable(getattr(target, "is_alive", None)) or target.is_alive():
             return ()
@@ -185,6 +308,9 @@ class StatusState:
     def clear_all(self):
         self._burns.clear()
         self._poisons.clear()
+        self._conductive_statuses.clear()
+        self._turbulence_statuses.clear()
+        self._stuns.clear()
 
     def _find_burn(self, target):
         for burn in self._burns:
@@ -197,6 +323,42 @@ class StatusState:
             if poison.target is target:
                 return poison
         return None
+
+    def _find_conductive(self, source, target):
+        for status in self._conductive_statuses:
+            if status.source is source and status.target is target:
+                return status
+        return None
+
+    def _find_turbulence(self, source, target):
+        for status in self._turbulence_statuses:
+            if status.source is source and status.target is target:
+                return status
+        return None
+
+    def _find_stun(self, target):
+        for status in self._stuns:
+            if status.target is target:
+                return status
+        return None
+
+    def _has_status_associated_with(self, combatant):
+        return (
+            self._find_burn(combatant) is not None
+            or self._find_poison(combatant) is not None
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._conductive_statuses
+            )
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._turbulence_statuses
+            )
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._stuns
+            )
+        )
 
     def _advance_burn(self, actor):
         burn = self._find_burn(actor)
@@ -292,6 +454,21 @@ class StatusState:
                     target=CombatOutcomeTarget.ACTOR,
                 )
             )
+        self._conductive_statuses = [
+            status
+            for status in self._conductive_statuses
+            if status.source is not target and status.target is not target
+        ]
+        self._turbulence_statuses = [
+            status
+            for status in self._turbulence_statuses
+            if status.source is not target and status.target is not target
+        ]
+        self._stuns = [
+            status
+            for status in self._stuns
+            if status.source is not target and status.target is not target
+        ]
         return tuple(outcomes)
 
     def _replace_burn(self, existing, replacement):
@@ -355,7 +532,7 @@ def _validate_burn_source(source):
 
 def _validate_status_source(source):
     if source is None or not callable(getattr(source, "effective_stat", None)):
-        raise TypeError("Burn source must expose effective_stat")
+        raise TypeError("status source must expose effective_stat")
 
 
 def _validate_burn_target(target):
@@ -364,10 +541,17 @@ def _validate_burn_target(target):
 
 def _validate_status_target(target):
     if target is None or not callable(getattr(target, "is_alive", None)):
-        raise TypeError("Burn target must expose is_alive")
+        raise TypeError("status target must expose is_alive")
     health = getattr(target, "health", None)
     if health is None or not callable(getattr(health, "take_damage", None)):
-        raise TypeError("Burn target must expose mutable health")
+        raise TypeError("status target must expose mutable health")
+
+
+def _validate_binary_status_combatants(source, target, status_name):
+    _validate_status_source(source)
+    _validate_status_target(target)
+    if not target.is_alive():
+        raise ValueError(f"{status_name} cannot be applied to a defeated target")
 
 
 def _validate_nonnegative_integer(name, value):
