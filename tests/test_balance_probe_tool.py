@@ -94,6 +94,10 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert metadata == saved_metadata
 
 
+def test_default_output_root_is_under_tools():
+    assert balance_probe.OUTPUT_ROOT == TOOL_PATH.parent / "balance_probe_outputs"
+
+
 def test_runs_with_different_timestamps_do_not_overwrite(tmp_path, monkeypatch):
     monkeypatch.setattr(balance_probe, "collect_results", _fake_results)
     monkeypatch.setattr(

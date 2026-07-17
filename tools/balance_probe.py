@@ -38,7 +38,7 @@ from app.player.run_items import InventoryCommand
 PROBE_VERSION = "1"
 SEEDS = (11, 23, 47)
 STRESS_HP = 300
-OUTPUT_ROOT = REPOSITORY_ROOT / "balance_probe_outputs"
+OUTPUT_ROOT = REPOSITORY_ROOT / "tools" / "balance_probe_outputs"
 
 
 @dataclass(frozen=True)
@@ -388,7 +388,7 @@ def main():
     print()
     print("Outputs:")
     for suffix in ("report.md", "results.json", "metadata.json"):
-        print(f"balance_probe_outputs/{run_id}/{run_id} {suffix}")
+        print(f"tools/balance_probe_outputs/{run_id}/{run_id} {suffix}")
 
 
 if __name__ == "__main__":
