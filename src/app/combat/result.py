@@ -34,6 +34,17 @@ class CombatOutcomeType(StrEnum):
     STUN_APPLIED = "stun_applied"
     STUN_TRIGGERED = "stun_triggered"
     STUN_EXPIRED = "stun_expired"
+    FROST_APPLIED = "frost_applied"
+    FROST_TRIGGERED = "frost_triggered"
+    FROST_CHARGES_CONSUMED = "frost_charges_consumed"
+    FROZEN_APPLIED = "frozen_applied"
+    FROZEN_REFRESHED = "frozen_refreshed"
+    FROZEN_TRIGGERED = "frozen_triggered"
+    FROZEN_EXPIRED = "frozen_expired"
+    FROSTBITE_APPLIED = "frostbite_applied"
+    FROSTBITE_REFRESHED = "frostbite_refreshed"
+    FROSTBITE_TICK = "frostbite_tick"
+    FROSTBITE_EXPIRED = "frostbite_expired"
 
 
 class CombatOutcomeTarget(StrEnum):
@@ -46,6 +57,7 @@ class CombatOutcome:
     outcome_type: CombatOutcomeType
     amount: int = 0
     target: CombatOutcomeTarget = CombatOutcomeTarget.TARGET
+    charge_count: int | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -59,10 +71,16 @@ class CombatOutcome:
             "target",
             _validate_enum("target", self.target, CombatOutcomeTarget),
         )
+        if self.outcome_type == CombatOutcomeType.FROST_APPLIED:
+            if self.charge_count not in (1, 2):
+                raise ValueError("FROST_APPLIED charge_count must be 1 or 2")
+        elif self.charge_count is not None:
+            raise ValueError("charge_count is only valid for FROST_APPLIED")
         if self.outcome_type in (
             CombatOutcomeType.BACKLASH_DAMAGE,
             CombatOutcomeType.BURN_TICK,
             CombatOutcomeType.POISON_TICK,
+            CombatOutcomeType.FROSTBITE_TICK,
         ):
             if self.target != CombatOutcomeTarget.ACTOR:
                 raise ValueError("secondary damage must target the actor")

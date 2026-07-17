@@ -12,6 +12,8 @@ BURN_BASE_DAMAGE = 2
 BURN_STAT_DIVISOR = 5
 POISON_BASE_DAMAGE = 2
 POISON_STAT_DIVISOR = 8
+FROSTBITE_DURATION_TICKS = 3
+FROSTBITE_DAMAGE_PER_TICK = 5
 
 
 class StatusKind(StrEnum):
@@ -20,6 +22,9 @@ class StatusKind(StrEnum):
     CONDUCTIVE = "conductive"
     TURBULENCE = "turbulence"
     STUN = "stun"
+    FROST = "frost"
+    FROZEN = "frozen"
+    FROSTBITE = "frostbite"
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,35 @@ class StunStatus:
     target: object
 
 
+@dataclass(frozen=True)
+class FrostCharge:
+    source: object
+    target: object
+    charge_count: int
+
+    def __post_init__(self):
+        if self.charge_count not in (1, 2):
+            raise ValueError("Frost charge count must be 1 or 2")
+
+
+@dataclass(frozen=True)
+class FrozenStatus:
+    source: object
+    target: object
+
+
+@dataclass(frozen=True)
+class FrostbiteStatus:
+    source: object
+    target: object
+    remaining_ticks: int
+    damage_per_tick: int
+
+    def __post_init__(self):
+        _validate_positive_integer("remaining_ticks", self.remaining_ticks)
+        _validate_positive_integer("damage_per_tick", self.damage_per_tick)
+
+
 class StatusState:
     def __init__(self):
         self._burns = []
@@ -71,6 +105,9 @@ class StatusState:
         self._conductive_statuses = []
         self._turbulence_statuses = []
         self._stuns = []
+        self._frost_charges = []
+        self._frozen = []
+        self._frostbites = []
 
     def apply_burn(self, source, target):
         _validate_burn_source(source)
@@ -250,12 +287,143 @@ class StatusState:
             ),
         )
 
+    def apply_frost_charge(self, source, target):
+        _validate_binary_status_combatants(source, target, "Frost")
+        existing = self._find_frost_charge(source, target)
+        if existing is None:
+            self._frost_charges.append(FrostCharge(source, target, 1))
+            return (
+                CombatOutcome(
+                    CombatOutcomeType.FROST_APPLIED,
+                    target=CombatOutcomeTarget.TARGET,
+                    charge_count=1,
+                ),
+            )
+        if existing.charge_count == 1:
+            self._replace_frost_charge(
+                existing,
+                FrostCharge(source, target, 2),
+            )
+            return (
+                CombatOutcome(
+                    CombatOutcomeType.FROST_APPLIED,
+                    target=CombatOutcomeTarget.TARGET,
+                    charge_count=2,
+                ),
+            )
+
+        self._remove_frost_charge(existing)
+        outcomes = [
+            CombatOutcome(
+                CombatOutcomeType.FROST_TRIGGERED,
+                target=CombatOutcomeTarget.TARGET,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.FROST_CHARGES_CONSUMED,
+                target=CombatOutcomeTarget.TARGET,
+            ),
+        ]
+        outcomes.append(self.apply_frozen(source, target))
+        outcomes.append(
+            self.apply_frostbite(
+                source,
+                target,
+                damage_per_tick=FROSTBITE_DAMAGE_PER_TICK,
+                ticks=FROSTBITE_DURATION_TICKS,
+            )
+        )
+        return tuple(outcomes)
+
+    def frost_charge_count(self, source, target):
+        status = self._find_frost_charge(source, target)
+        return status.charge_count if status is not None else 0
+
+    def frost_active(self, source, target):
+        return self._find_frost_charge(source, target) is not None
+
+    def clear_frost_charges(self, source, target):
+        status = self._find_frost_charge(source, target)
+        if status is None:
+            return False
+        self._remove_frost_charge(status)
+        return True
+
+    def apply_frozen(self, source, target):
+        _validate_binary_status_combatants(source, target, "Frozen")
+        replacement = FrozenStatus(source, target)
+        existing = self._find_frozen(target)
+        if existing is None:
+            self._frozen.append(replacement)
+            outcome_type = CombatOutcomeType.FROZEN_APPLIED
+        else:
+            self._frozen = [
+                replacement if active is existing else active
+                for active in self._frozen
+            ]
+            outcome_type = CombatOutcomeType.FROZEN_REFRESHED
+        return CombatOutcome(outcome_type, target=CombatOutcomeTarget.TARGET)
+
+    def frozen_active(self, target):
+        return self._find_frozen(target) is not None
+
+    def frozen_status(self, target):
+        return self._find_frozen(target)
+
+    def consume_frozen_for_action_opportunity(self, actor):
+        status = self._find_frozen(actor)
+        if status is None:
+            return ()
+        self._frozen = [active for active in self._frozen if active is not status]
+        return (
+            CombatOutcome(
+                CombatOutcomeType.FROZEN_TRIGGERED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+            CombatOutcome(
+                CombatOutcomeType.FROZEN_EXPIRED,
+                target=CombatOutcomeTarget.ACTOR,
+            ),
+        )
+
+    def consume_action_opportunity_suppression(self, actor):
+        frozen = self.consume_frozen_for_action_opportunity(actor)
+        if frozen:
+            return frozen
+        return self.consume_stun_for_action_opportunity(actor)
+
+    def apply_frostbite(self, source, target, *, damage_per_tick, ticks):
+        _validate_binary_status_combatants(source, target, "Frostbite")
+        replacement = FrostbiteStatus(source, target, ticks, damage_per_tick)
+        existing = self._find_frostbite(target)
+        if existing is None:
+            self._frostbites.append(replacement)
+            outcome_type = CombatOutcomeType.FROSTBITE_APPLIED
+        else:
+            self._frostbites = [
+                replacement if active is existing else active
+                for active in self._frostbites
+            ]
+            outcome_type = CombatOutcomeType.FROSTBITE_REFRESHED
+        return CombatOutcome(outcome_type, target=CombatOutcomeTarget.TARGET)
+
+    def frostbite_active(self, target):
+        return self._find_frostbite(target) is not None
+
+    def frostbite_status(self, target):
+        return self._find_frostbite(target)
+
     def active_status_kinds(self, target):
         active = []
         if self.burn_active(target):
             active.append(StatusKind.BURN)
         if self.poison_active(target):
             active.append(StatusKind.POISON)
+        if any(status.target is target for status in self._frost_charges):
+            active.append(StatusKind.FROST)
+        if self.frostbite_active(target):
+            active.append(StatusKind.FROSTBITE)
+        if self.frozen_active(target):
+            active.append(StatusKind.FROZEN)
         if any(status.target is target for status in self._conductive_statuses):
             active.append(StatusKind.CONDUCTIVE)
         if any(status.target is target for status in self._turbulence_statuses):
@@ -269,22 +437,20 @@ class StatusState:
             return ()
         if not actor.is_alive():
             return self._clear_defeated_statuses(actor)
-        if self._find_burn(actor) is None and self._find_poison(actor) is None:
+        if (
+            self._find_burn(actor) is None
+            and self._find_poison(actor) is None
+            and self._find_frostbite(actor) is None
+        ):
             return ()
 
         outcomes = list(self._advance_burn(actor))
         if actor.is_alive():
             outcomes.extend(self._advance_poison(actor))
-        else:
-            poison = self._find_poison(actor)
-            if poison is not None:
-                self._remove_poison(poison)
-                outcomes.append(
-                    CombatOutcome(
-                        CombatOutcomeType.POISON_EXPIRED,
-                        target=CombatOutcomeTarget.ACTOR,
-                    )
-                )
+        if actor.is_alive():
+            outcomes.extend(self._advance_frostbite(actor))
+        if not actor.is_alive():
+            outcomes.extend(self._clear_defeated_statuses(actor))
         return tuple(outcomes)
 
     def clear_defeated_target(self, target):
@@ -313,6 +479,9 @@ class StatusState:
         self._conductive_statuses.clear()
         self._turbulence_statuses.clear()
         self._stuns.clear()
+        self._frost_charges.clear()
+        self._frozen.clear()
+        self._frostbites.clear()
 
     def _find_burn(self, target):
         for burn in self._burns:
@@ -359,6 +528,18 @@ class StatusState:
             or any(
                 status.source is combatant or status.target is combatant
                 for status in self._stuns
+            )
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._frost_charges
+            )
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._frozen
+            )
+            or any(
+                status.source is combatant or status.target is combatant
+                for status in self._frostbites
             )
         )
 
@@ -436,6 +617,43 @@ class StatusState:
             )
         return tuple(outcomes)
 
+    def _advance_frostbite(self, actor):
+        frostbite = self._find_frostbite(actor)
+        if frostbite is None:
+            return ()
+
+        before = actor.health.current
+        actor.health.take_damage(frostbite.damage_per_tick)
+        actual_damage = before - actor.health.current
+        remaining_ticks = frostbite.remaining_ticks - 1
+        outcomes = [
+            CombatOutcome(
+                CombatOutcomeType.FROSTBITE_TICK,
+                amount=actual_damage,
+                target=CombatOutcomeTarget.ACTOR,
+            )
+        ]
+        if remaining_ticks == 0 or not actor.is_alive():
+            self._remove_frostbite(frostbite)
+            if remaining_ticks == 0 and actor.is_alive():
+                outcomes.append(
+                    CombatOutcome(
+                        CombatOutcomeType.FROSTBITE_EXPIRED,
+                        target=CombatOutcomeTarget.ACTOR,
+                    )
+                )
+        else:
+            self._replace_frostbite(
+                frostbite,
+                FrostbiteStatus(
+                    source=frostbite.source,
+                    target=frostbite.target,
+                    remaining_ticks=remaining_ticks,
+                    damage_per_tick=frostbite.damage_per_tick,
+                ),
+            )
+        return tuple(outcomes)
+
     def _clear_defeated_statuses(self, target):
         outcomes = []
         burn = self._find_burn(target)
@@ -471,6 +689,21 @@ class StatusState:
             for status in self._stuns
             if status.source is not target and status.target is not target
         ]
+        self._frost_charges = [
+            status
+            for status in self._frost_charges
+            if status.source is not target and status.target is not target
+        ]
+        self._frozen = [
+            status
+            for status in self._frozen
+            if status.source is not target and status.target is not target
+        ]
+        self._frostbites = [
+            status
+            for status in self._frostbites
+            if status.source is not target and status.target is not target
+        ]
         return tuple(outcomes)
 
     def _replace_burn(self, existing, replacement):
@@ -490,6 +723,46 @@ class StatusState:
 
     def _remove_poison(self, poison):
         self._poisons = [active for active in self._poisons if active is not poison]
+
+    def _find_frost_charge(self, source, target):
+        for status in self._frost_charges:
+            if status.source is source and status.target is target:
+                return status
+        return None
+
+    def _replace_frost_charge(self, existing, replacement):
+        self._frost_charges = [
+            replacement if status is existing else status
+            for status in self._frost_charges
+        ]
+
+    def _remove_frost_charge(self, status):
+        self._frost_charges = [
+            active for active in self._frost_charges if active is not status
+        ]
+
+    def _find_frozen(self, target):
+        for status in self._frozen:
+            if status.target is target:
+                return status
+        return None
+
+    def _find_frostbite(self, target):
+        for status in self._frostbites:
+            if status.target is target:
+                return status
+        return None
+
+    def _replace_frostbite(self, existing, replacement):
+        self._frostbites = [
+            replacement if status is existing else status
+            for status in self._frostbites
+        ]
+
+    def _remove_frostbite(self, status):
+        self._frostbites = [
+            active for active in self._frostbites if active is not status
+        ]
 
 
 def burn_damage_per_tick(source):

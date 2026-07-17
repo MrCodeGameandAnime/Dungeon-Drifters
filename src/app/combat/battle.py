@@ -207,7 +207,7 @@ class Battle:
 
         while self.player_state.is_alive() and self.foe.is_alive():
             current_actor = self.player_state if player_turn else self.foe
-            if self._skip_stunned_action_opportunity(current_actor):
+            if self._skip_action_opportunity_suppression(current_actor):
                 player_turn = not player_turn
                 continue
             if player_turn:
@@ -236,7 +236,10 @@ class Battle:
         return "player" if player_won else "enemy"
 
     def _skip_stunned_action_opportunity(self, actor):
-        outcomes = self.combat_state.consume_stun_for_action_opportunity(actor)
+        return self._skip_action_opportunity_suppression(actor)
+
+    def _skip_action_opportunity_suppression(self, actor):
+        outcomes = self.combat_state.consume_action_opportunity_suppression(actor)
         if not outcomes:
             return False
         opposing = self.foe if actor is self.player_state else self.player_state

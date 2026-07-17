@@ -274,6 +274,47 @@ class CombatState:
     def consume_stun_for_action_opportunity(self, actor):
         return self._status_state.consume_stun_for_action_opportunity(actor)
 
+    def consume_action_opportunity_suppression(self, actor):
+        return self._status_state.consume_action_opportunity_suppression(actor)
+
+    def apply_frost_charge(self, source, target):
+        return self._status_state.apply_frost_charge(source, target)
+
+    def frost_charge_count(self, source, target):
+        return self._status_state.frost_charge_count(source, target)
+
+    def frost_active(self, source, target):
+        return self._status_state.frost_active(source, target)
+
+    def clear_frost_charges(self, source, target):
+        return self._status_state.clear_frost_charges(source, target)
+
+    def apply_frozen(self, source, target):
+        return self._status_state.apply_frozen(source, target)
+
+    def frozen_active(self, target):
+        return self._status_state.frozen_active(target)
+
+    def frozen_status(self, target):
+        return self._status_state.frozen_status(target)
+
+    def consume_frozen_for_action_opportunity(self, actor):
+        return self._status_state.consume_frozen_for_action_opportunity(actor)
+
+    def apply_frostbite(self, source, target, *, damage_per_tick, ticks):
+        return self._status_state.apply_frostbite(
+            source,
+            target,
+            damage_per_tick=damage_per_tick,
+            ticks=ticks,
+        )
+
+    def frostbite_active(self, target):
+        return self._status_state.frostbite_active(target)
+
+    def frostbite_status(self, target):
+        return self._status_state.frostbite_status(target)
+
     def active_status_kinds(self, target):
         return self._status_state.active_status_kinds(target)
 
