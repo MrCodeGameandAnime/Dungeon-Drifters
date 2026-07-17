@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.storm import HYDRO_WHIP_MECHANIC, LIGHTNING_PALM_MECHANIC
 from app.items.weapon import SkyNeedle
 
 
@@ -52,8 +53,7 @@ def create_combat_moves():
             accuracy=70,
             target=TargetType.ENEMY,
             damage_type=DamageType.HYBRID,
-            mechanic=None,
-            # Deferred mechanic: lightning current
+            mechanic=LIGHTNING_PALM_MECHANIC,
             description='A risky palm strike that carries lightning through the point of impact.'),
         Move(
             name='Tempest Surge',
@@ -78,8 +78,7 @@ def create_combat_moves():
             accuracy=88,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic=None,
-            # Deferred mechanic: water repositioning
+            mechanic=HYDRO_WHIP_MECHANIC,
             description='A snapping water current used to lash and reposition an enemy.'),
         Move(
             name='Coagulated Torrent',

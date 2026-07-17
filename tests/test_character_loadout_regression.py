@@ -323,7 +323,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 70,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": None,
+                "mechanic": "lightning_palm",
                 "description": "A risky palm strike that carries lightning through the point of impact.",
             },
             {
@@ -349,7 +349,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "hydro_whip",
                 "description": "A snapping water current used to lash and reposition an enemy.",
             },
             {

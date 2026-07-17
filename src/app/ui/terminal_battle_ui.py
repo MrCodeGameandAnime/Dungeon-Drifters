@@ -538,6 +538,18 @@ class TerminalBattleUI:
                     else target
                 )
                 lines.append(f"{subject}'s Poison expired.")
+            elif outcome.outcome_type == CombatOutcomeType.CONDUCTIVE_APPLIED:
+                lines.append(f"{target} became Conductive.")
+            elif outcome.outcome_type == CombatOutcomeType.CONDUCTIVE_REFRESHED:
+                lines.append(f"{target}'s Conductive state was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.CONDUCTIVE_CONSUMED:
+                lines.append(f"{actor} discharged Conductive through Lightning Palm.")
+            elif outcome.outcome_type == CombatOutcomeType.STUN_APPLIED:
+                lines.append(f"{target} was Stunned.")
+            elif outcome.outcome_type == CombatOutcomeType.STUN_TRIGGERED:
+                lines.append(f"{actor} could not act.")
+            elif outcome.outcome_type == CombatOutcomeType.STUN_EXPIRED:
+                lines.append(f"{actor} is no longer Stunned.")
         return tuple(lines)
 
     @staticmethod

@@ -206,6 +206,10 @@ class Battle:
         )
 
         while self.player_state.is_alive() and self.foe.is_alive():
+            current_actor = self.player_state if player_turn else self.foe
+            if self._skip_stunned_action_opportunity(current_actor):
+                player_turn = not player_turn
+                continue
             if player_turn:
                 action_accepted = self.player_action()
             else:
@@ -230,6 +234,21 @@ class Battle:
         self._clear_inventory_navigation()
         self._render_current_view()
         return "player" if player_won else "enemy"
+
+    def _skip_stunned_action_opportunity(self, actor):
+        outcomes = self.combat_state.consume_stun_for_action_opportunity(actor)
+        if not outcomes:
+            return False
+        opposing = self.foe if actor is self.player_state else self.player_state
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.STATUS,
+                actor_name=actor.display_name,
+                target_name=opposing.display_name,
+                outcomes=outcomes,
+            )
+        )
+        return True
 
     def player_action(self):
         self.interaction_phase = InteractionPhase.ACTIONS

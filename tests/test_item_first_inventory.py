@@ -166,6 +166,7 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_it
         arcane_instability_active=lambda _actor: False,
         gravemantle_break_active=lambda _actor: False,
         burn_active=lambda _actor: False,
+        active_status_kinds=lambda _actor: (),
         heal_cooldown_remaining=lambda _actor: 0,
         heal_available=lambda _actor: True,
     )

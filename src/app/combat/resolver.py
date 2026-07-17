@@ -13,6 +13,11 @@ from app.combat.result import (
     CombatOutcomeType,
     MoveResult,
 )
+from app.combat.storm import (
+    HYDRO_WHIP_MECHANIC,
+    LIGHTNING_PALM_MECHANIC,
+    STORM_RULES,
+)
 from app.player import scaling
 from app.player.character_run_state import CharacterRunState, InfusionKind, PreparedPayloadId
 
@@ -29,6 +34,8 @@ SUPPORTED_MECHANICS = (
     "heavy_attack",
     "gravemantle_rupture",
     INFUSED_BARB_MECHANIC,
+    HYDRO_WHIP_MECHANIC,
+    LIGHTNING_PALM_MECHANIC,
 )
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
@@ -81,6 +88,12 @@ class CombatResolver:
             return _rejected(move.name, "unsupported_mechanic")
 
         if move.mechanic == INFUSED_BARB_MECHANIC and move.kind != MoveKind.DAMAGE:
+            return _rejected(move.name, "unsupported_mechanic")
+
+        if (
+            move.mechanic in (HYDRO_WHIP_MECHANIC, LIGHTNING_PALM_MECHANIC)
+            and move.kind != MoveKind.DAMAGE
+        ):
             return _rejected(move.name, "unsupported_mechanic")
 
         if move.is_spell and not isinstance(combat_state, CombatState):
@@ -143,6 +156,14 @@ class CombatResolver:
             arcane_discharge = combat_state.consume_arcane_discharge(actor)
             outcomes.extend(_outcomes_for_discharge(arcane_discharge))
 
+        conductive_lightning = False
+        if move.mechanic == LIGHTNING_PALM_MECHANIC:
+            conductive = combat_state.conductive_active(actor, target)
+            turbulence = combat_state.turbulence_active(actor, target)
+            conductive_lightning = conductive and not turbulence
+            if conductive_lightning:
+                outcomes.append(combat_state.consume_conductive(actor, target))
+
         follow_up_damage_bonus_percent = 0
         if move.mechanic == "heavy_attack" and combat_state is not None:
             follow_up_damage_bonus_percent = (
@@ -169,6 +190,11 @@ class CombatResolver:
                     critical=critical,
                     follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
                     arcane_discharge=arcane_discharge,
+                    storm_damage_bonus_percent=(
+                        STORM_RULES.conductive_damage_bonus_percent
+                        if conductive_lightning
+                        else 0
+                    ),
                 )
 
                 if (
@@ -188,6 +214,12 @@ class CombatResolver:
                         outcomes.append(combat_state.apply_burn(actor, target))
                     elif infusion_kind == InfusionKind.POISON:
                         outcomes.append(combat_state.apply_poison(actor, target))
+                if move.mechanic == HYDRO_WHIP_MECHANIC and target.is_alive():
+                    outcomes.append(combat_state.apply_conductive(actor, target))
+                if conductive_lightning and target.is_alive():
+                    stun_roll = self.rng.randint(1, 100)
+                    if stun_roll <= STORM_RULES.stun_chance_percent:
+                        outcomes.append(combat_state.apply_stun(actor, target))
             elif move.kind == MoveKind.HEALING:
                 healing = _apply_healing(actor, target, move)
 
@@ -449,7 +481,8 @@ def _apply_damage(
         combat_state=None,
         critical=False,
         follow_up_damage_bonus_percent=0,
-        arcane_discharge=None):
+        arcane_discharge=None,
+        storm_damage_bonus_percent=0):
     final_damage = _landed_damage(
         actor,
         target,
@@ -458,6 +491,7 @@ def _apply_damage(
         critical=critical,
         follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
         arcane_discharge=arcane_discharge,
+        storm_damage_bonus_percent=storm_damage_bonus_percent,
     )
 
     before = target.health.current
@@ -473,7 +507,8 @@ def _landed_damage(
         combat_state=None,
         critical=False,
         follow_up_damage_bonus_percent=0,
-    arcane_discharge=None):
+    arcane_discharge=None,
+    storm_damage_bonus_percent=0):
     scaled_power = _scaled_damage_power(actor, move)
     if arcane_discharge is not None and move.is_spell:
         scaled_power = (
@@ -485,6 +520,12 @@ def _landed_damage(
         scaled_power = (
             scaled_power
             * (100 + follow_up_damage_bonus_percent)
+            // 100
+        )
+    if storm_damage_bonus_percent:
+        scaled_power = (
+            scaled_power
+            * (100 + storm_damage_bonus_percent)
             // 100
         )
     mitigation = _mitigation(target, move.damage_type)

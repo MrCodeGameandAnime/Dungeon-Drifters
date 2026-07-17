@@ -4,6 +4,8 @@ from app.combat.brace import BRACE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
+from app.combat.status_state import StatusKind
+from app.combat.storm import LIGHTNING_PALM_MECHANIC, STORM_RULES
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -58,7 +60,7 @@ class BattlePresenter:
             enemy=self._combatant_view(enemy, combat_state, is_player=False),
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
-            move_options=self._move_options(player, combat_state, phase),
+            move_options=self._move_options(player, enemy, combat_state, phase),
             inventory_items=self._inventory_items(player, phase),
             selected_inventory_item=selected_item,
             inventory_commands=self._inventory_commands(player, phase, selected_item),
@@ -92,10 +94,17 @@ class BattlePresenter:
             labels.append("Arcane Instability")
         if combat_state.gravemantle_break_active(combatant):
             labels.append("Gravemantle Break")
-        if combat_state.burn_active(combatant):
-            labels.append("Burn")
-        if getattr(combat_state, "poison_active", lambda _actor: False)(combatant):
-            labels.append("Poison")
+        status_labels = {
+            StatusKind.BURN: "Burn",
+            StatusKind.POISON: "Poison",
+            StatusKind.CONDUCTIVE: "Conductive",
+            StatusKind.TURBULENCE: "Turbulence",
+            StatusKind.STUN: "Stunned",
+        }
+        labels.extend(
+            status_labels[kind]
+            for kind in combat_state.active_status_kinds(combatant)
+        )
 
         return CombatantView(
             display_name=combatant.display_name,
@@ -335,7 +344,7 @@ class BattlePresenter:
             activation_offered=ready,
         )
 
-    def _move_options(self, player, combat_state, phase):
+    def _move_options(self, player, enemy, combat_state, phase):
         if phase not in {
             InteractionPhase.REGULAR_MOVES,
             InteractionPhase.HEALING_MOVES,
@@ -350,13 +359,21 @@ class BattlePresenter:
             moves = self._super_moves(player)
 
         return tuple(
-            self._move_option(player, combat_state, move, number)
+            self._move_option(player, enemy, combat_state, move, number)
             for number, move in enumerate(moves, start=1)
         )
 
-    def _move_option(self, player, combat_state, move, number):
+    def _move_option(self, player, enemy, combat_state, move, number):
         resource_label = self._resource_label(move)
         tags = [self._static_category(move)]
+        conductive_lightning = False
+        if move.mechanic == LIGHTNING_PALM_MECHANIC:
+            conductive = combat_state.conductive_active(player, enemy)
+            turbulence = combat_state.turbulence_active(player, enemy)
+            conductive_lightning = conductive and not turbulence
+            tags = ["Hybrid"]
+            if conductive_lightning:
+                tags.append("Conductive")
         follow_up_bonus = combat_state.brace_follow_up_damage_bonus_percent(
             player,
             move.mechanic,
@@ -393,7 +410,7 @@ class BattlePresenter:
             number=number,
             name=move.name,
             tags=tuple(tags),
-            rules_summary=self._rules_summary(move),
+            rules_summary=self._rules_summary(move, conductive_lightning),
             resource_label=resource_label,
             enabled=enabled,
             disabled_reason=disabled_reason,
@@ -464,12 +481,18 @@ class BattlePresenter:
         return "Normal"
 
     @staticmethod
-    def _rules_summary(move):
+    def _rules_summary(move, conductive_lightning=False):
         if move.mechanic == "brace":
             return (
                 "Brace against the next enemy action, reducing physical damage by "
                 f"{BRACE_RULES.incoming_reduction_percent}%, and empower your next "
                 f"Heavy attack by {BRACE_RULES.follow_up_damage_bonus_percent}%."
+            )
+        if move.mechanic == LIGHTNING_PALM_MECHANIC and conductive_lightning:
+            return (
+                "Consume Conductive for "
+                f"{STORM_RULES.conductive_damage_bonus_percent}% increased damage "
+                f"and a {STORM_RULES.stun_chance_percent}% chance to Stun."
             )
         if move.presentation is not None and move.presentation.static_summary is not None:
             return move.presentation.static_summary
