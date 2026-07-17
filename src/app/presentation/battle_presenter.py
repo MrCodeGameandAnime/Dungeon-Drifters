@@ -127,9 +127,6 @@ class BattlePresenter:
         regular_moves = self._regular_moves(player)
         can_defend = bool(player.can_defend)
         heal_cooldown = combat_state.heal_cooldown_remaining(player)
-        has_inventory_items = bool(
-            owned_run_item_definitions(player.character_run_state)
-        )
         if player.health.current >= player.health.maximum:
             heal_label = "Heal - Full HP"
             heal_enabled = False
@@ -169,8 +166,8 @@ class BattlePresenter:
                 ActionIntent.ITEMS,
                 4,
                 "Items",
-                enabled=has_inventory_items,
-                disabled_reason=ActionAvailabilityReason.EMPTY_INVENTORY,
+                enabled=True,
+                disabled_reason=None,
             ),
             self._action_option(
                 ActionIntent.ESCAPE,

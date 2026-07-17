@@ -63,7 +63,6 @@ class ActionAvailabilityReason(StrEnum):
     CANNOT_DEFEND = "cannot_defend"
     NOT_IMPLEMENTED = "not_implemented"
     SUPER_NOT_READY = "super_not_ready"
-    EMPTY_INVENTORY = "empty_inventory"
 
 
 class MoveAvailabilityReason(StrEnum):

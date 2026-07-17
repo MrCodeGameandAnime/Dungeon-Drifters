@@ -10,7 +10,7 @@ from app.combat.move import (
 )
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, RogueArcher
+from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
 from app.player.run_items import InventoryCommand
@@ -96,8 +96,22 @@ def test_presenter_builds_five_ordinary_action_options():
     assert _option(view, ActionIntent.DEFEND).enabled is True
     assert _option(view, ActionIntent.HEAL).label == "Heal - Full HP"
     assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.FULL_HP
-    assert _option(view, ActionIntent.ITEMS).disabled_reason == ActionAvailabilityReason.EMPTY_INVENTORY
+    assert _option(view, ActionIntent.ITEMS).enabled is True
+    assert _option(view, ActionIntent.ITEMS).disabled_reason is None
     assert _option(view, ActionIntent.ESCAPE).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
+
+
+def test_items_action_is_enabled_for_every_empty_personal_inventory():
+    for character in (Brawler(), BlackMage(), Monk()):
+        player, enemy, combat_state = _battle_values(character)
+        view = BattlePresenter().build(
+            player=player,
+            enemy=enemy,
+            combat_state=combat_state,
+        )
+        items = _option(view, ActionIntent.ITEMS)
+        assert items.enabled is True
+        assert items.disabled_reason is None
 
 
 def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():

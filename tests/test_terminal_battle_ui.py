@@ -204,6 +204,18 @@ def test_inventory_phase_renders_owned_items_and_translates_stable_item_ids():
     assert not _contains(harness, "Prepare Fire-Infused Barb")
 
 
+def test_empty_inventory_renders_real_empty_state_and_back():
+    ui, harness = _ui(("0",))
+    view = _view(phase=InteractionPhase.INVENTORY, inventory_items=())
+
+    ui.render(view)
+
+    assert ui.read_input(view) == GoBack()
+    assert _contains(harness, "Inventory")
+    assert _contains(harness, "Your inventory is empty.")
+    assert _contains(harness, "0. Back")
+
+
 def test_item_commands_inspection_and_companion_selection_are_semantic():
     item = InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True)
     commands = (

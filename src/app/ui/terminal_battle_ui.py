@@ -319,6 +319,8 @@ class TerminalBattleUI:
     def _inventory_control_lines(self, view, width):
         if view.interaction_phase == InteractionPhase.INVENTORY:
             lines = ["Choose an item:"]
+            if not view.inventory_items:
+                lines = ["Inventory", "", "Your inventory is empty."]
             lines.extend(
                 line
                 for option in view.inventory_items

@@ -566,6 +566,7 @@ def test_accepted_miss_starts_a_new_displayed_turn():
 def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
     ui = ScriptedBattleUI(
         ChooseAction(ActionIntent.ITEMS),
+        GoBack(),
         ChooseAction(ActionIntent.DEFEND),
     )
     resolver = RecordingResolver(defend_results=(accepted_result(),))
@@ -578,14 +579,9 @@ def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
 
     assert battle.player_action() is True
 
-    assert resolver.calls == []
     assert len(resolver.defend_calls) == 1
     assert battle.combat_state.turn_count == 1
-    assert any(
-        entry.event_type == BattleEventType.INPUT_REJECTED
-        and entry.rejection_reason == InputRejectionReason.ACTION_UNAVAILABLE
-        for entry in ui.input_views[1].log_entries
-    )
+    assert ui.input_views[1].interaction_phase == InteractionPhase.INVENTORY
 
 
 def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():
@@ -780,7 +776,8 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
     assert "[A] Attack" in text
     assert "[D] Defend" in text
     assert "[H] Heal - Full HP [Unavailable]" in text
-    assert "[I] Items [Unavailable]" in text
+    assert "[I] Items" in text
+    assert "[I] Items [Unavailable]" not in text
     assert "[E] Escape [Unavailable]" in text
     assert "[S] Super" in text
     assert "SUPER [" in text
@@ -864,16 +861,17 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     }
 
 
-def test_items_are_unavailable_and_return_to_main_menu_without_advancing_until_accepted_action():
+def test_empty_items_opens_and_returns_without_advancing_until_accepted_action():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["items", "attack", "1"]), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["items", "0", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
-    assert "Items is not available." in text
-    assert text.count("Actions") == 1
+    assert "Your inventory is empty." in text
+    assert "Items is not available." not in text
+    assert text.count("Actions") == 2
     assert battle.combat_state.turn_count == 1
 
 

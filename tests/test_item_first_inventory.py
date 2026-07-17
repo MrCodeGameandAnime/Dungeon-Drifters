@@ -211,7 +211,7 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_it
         enemy=enemy,
         combat_state=combat_state,
     )
-    assert _option(branoc_actions, ActionIntent.ITEMS).enabled is False
+    assert _option(branoc_actions, ActionIntent.ITEMS).enabled is True
 
 
 @pytest.mark.parametrize(
