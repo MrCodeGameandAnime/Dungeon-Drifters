@@ -64,8 +64,9 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         "infused_barb",
         "hydro_whip",
         "lightning_palm",
-        "tempest_surge",
-    }
+            "tempest_surge",
+            "frost_attack",
+        }
     authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
         "stagger",
@@ -129,11 +130,20 @@ def test_black_mage_roster_is_four_standard_attacks_and_one_super():
         {"fireball", "heal", "thunderbolt"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack", "gravemantle_rupture"}
+        move.mechanic in {
+            None,
+            "basic_attack",
+            "heavy_attack",
+            "gravemantle_rupture",
+            "frost_attack",
+        }
         for move in black_mage.combat_moves
     )
     assert all(
-        move.mechanic is None or move.mechanic == "gravemantle_rupture"
+        move.mechanic is None or move.mechanic in {
+            "gravemantle_rupture",
+            "frost_attack",
+        }
         for move in black_mage.combat_moves[1:]
     )
     assert all(

@@ -1,3 +1,4 @@
+from app.combat.frost import FROST_ATTACK_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.items.weapon import NeedleOfPlainIron
 
@@ -61,9 +62,8 @@ def create_combat_moves():
             accuracy=90,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic=None,
+            mechanic=FROST_ATTACK_MECHANIC,
             is_spell=True,
-            # Deferred mechanic: multi-target frost encasement
             description='Black frost erupts outward, encasing nearby enemies in splintering ice.'),
         Move(
             name='Gravemantle Rupture',

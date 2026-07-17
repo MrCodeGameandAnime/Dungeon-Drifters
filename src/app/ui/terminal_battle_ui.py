@@ -560,6 +560,31 @@ class TerminalBattleUI:
                 lines.append(f"{actor} could not act.")
             elif outcome.outcome_type == CombatOutcomeType.STUN_EXPIRED:
                 lines.append(f"{actor} is no longer Stunned.")
+            elif outcome.outcome_type == CombatOutcomeType.FROST_APPLIED:
+                lines.append(f"{target} gained Frost ({outcome.charge_count}/3).")
+            elif outcome.outcome_type == CombatOutcomeType.FROST_TRIGGERED:
+                lines.append(f"Frost consumed all charges on {target}.")
+            elif outcome.outcome_type == CombatOutcomeType.FROSTBITE_APPLIED:
+                lines.append(f"{target} was afflicted with Frostbite.")
+            elif outcome.outcome_type == CombatOutcomeType.FROSTBITE_REFRESHED:
+                lines.append(f"{target}'s Frostbite was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.FROSTBITE_TICK:
+                lines.append(f"{actor} suffered {outcome.amount} Frostbite damage.")
+            elif outcome.outcome_type == CombatOutcomeType.FROSTBITE_EXPIRED:
+                subject = actor if outcome.target == CombatOutcomeTarget.ACTOR else target
+                lines.append(f"{subject}'s Frostbite expired.")
+            elif outcome.outcome_type == CombatOutcomeType.FROST_BACKLASH_TRIGGERED:
+                lines.append(f"{actor} was caught in the Frost eruption and became Frozen.")
+            elif outcome.outcome_type == CombatOutcomeType.FROST_CHARGES_CONSUMED:
+                pass
+            elif outcome.outcome_type == CombatOutcomeType.FROZEN_APPLIED:
+                lines.append(f"{target} was Frozen.")
+            elif outcome.outcome_type == CombatOutcomeType.FROZEN_REFRESHED:
+                lines.append(f"{target}'s Frozen state was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.FROZEN_TRIGGERED:
+                lines.append(f"{actor} could not act while Frozen.")
+            elif outcome.outcome_type == CombatOutcomeType.FROZEN_EXPIRED:
+                lines.append(f"{actor} is no longer Frozen.")
         return tuple(lines)
 
     @staticmethod

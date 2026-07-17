@@ -4,6 +4,7 @@ import random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
+from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
@@ -38,6 +39,7 @@ SUPPORTED_MECHANICS = (
     HYDRO_WHIP_MECHANIC,
     LIGHTNING_PALM_MECHANIC,
     TEMPEST_SURGE_MECHANIC,
+    FROST_ATTACK_MECHANIC,
 )
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
@@ -244,6 +246,22 @@ class CombatResolver:
                     outcomes.append(combat_state.apply_conductive(actor, target))
                 if move.mechanic == TEMPEST_SURGE_MECHANIC and target.is_alive():
                     outcomes.append(combat_state.apply_turbulence(actor, target))
+                if move.mechanic == FROST_ATTACK_MECHANIC and target.is_alive():
+                    frost_outcomes = combat_state.apply_frost_charge(actor, target)
+                    outcomes.extend(frost_outcomes)
+                    if any(
+                        outcome.outcome_type == CombatOutcomeType.FROST_TRIGGERED
+                        for outcome in frost_outcomes
+                    ):
+                        backlash_roll = self.rng.randint(1, 100)
+                        if backlash_roll <= FROST_RULES.mournglass_backlash_chance_percent:
+                            combat_state.apply_frozen(actor, actor)
+                            outcomes.append(
+                                CombatOutcome(
+                                    CombatOutcomeType.FROST_BACKLASH_TRIGGERED,
+                                    target=CombatOutcomeTarget.ACTOR,
+                                )
+                            )
                 if conductive_lightning and target.is_alive():
                     stun_roll = self.rng.randint(1, 100)
                     if stun_roll <= STORM_RULES.stun_chance_percent:

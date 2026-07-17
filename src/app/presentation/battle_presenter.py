@@ -2,6 +2,7 @@
 
 from app.combat.brace import BRACE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
+from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.combat.status_state import StatusKind
@@ -56,8 +57,12 @@ class BattlePresenter:
         )
         return BattleView(
             interaction_phase=phase,
-            player=self._combatant_view(player, combat_state, is_player=True),
-            enemy=self._combatant_view(enemy, combat_state, is_player=False),
+            player=self._combatant_view(
+                player, enemy, combat_state, is_player=True
+            ),
+            enemy=self._combatant_view(
+                enemy, player, combat_state, is_player=False
+            ),
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
             move_options=self._move_options(player, enemy, combat_state, phase),
@@ -80,7 +85,7 @@ class BattlePresenter:
             visual=BattleVisualView(),
         )
 
-    def _combatant_view(self, combatant, combat_state, *, is_player):
+    def _combatant_view(self, combatant, opposing, combat_state, *, is_player):
         mana_current, mana_maximum = self._relevant_mana(combatant, is_player=is_player)
         super_current, super_maximum = self._relevant_super(combatant, is_player=is_player)
         labels = []
@@ -94,6 +99,28 @@ class BattlePresenter:
             labels.append("Arcane Instability")
         if combat_state.gravemantle_break_active(combatant):
             labels.append("Gravemantle Break")
+        frost_count = getattr(combat_state, "frost_charge_count", lambda *_: 0)(
+            combatant,
+            opposing,
+        )
+        if frost_count:
+            labels.append(f"Frost {frost_count}/3")
+        frostbite_active = getattr(
+            combat_state,
+            "frostbite_active",
+            lambda _combatant: False,
+        )
+        frostbite_status = getattr(
+            combat_state,
+            "frostbite_status",
+            lambda _combatant: None,
+        )
+        if frostbite_active(combatant):
+            labels.append(
+                f"Frostbite: {frostbite_status(combatant).remaining_ticks}"
+            )
+        if getattr(combat_state, "frozen_active", lambda _combatant: False)(combatant):
+            labels.append("Frozen")
         status_labels = {
             StatusKind.BURN: "Burn",
             StatusKind.POISON: "Poison",
@@ -104,6 +131,11 @@ class BattlePresenter:
         labels.extend(
             status_labels[kind]
             for kind in combat_state.active_status_kinds(combatant)
+            if kind not in {
+                StatusKind.FROST,
+                StatusKind.FROSTBITE,
+                StatusKind.FROZEN,
+            }
         )
 
         return CombatantView(
@@ -382,6 +414,8 @@ class BattlePresenter:
                 tags.append("Conductive")
             elif turbulent_lightning:
                 tags.append("Turbulence")
+        if move.mechanic == FROST_ATTACK_MECHANIC:
+            tags = ["Magical", "Frost"]
         follow_up_bonus = combat_state.brace_follow_up_damage_bonus_percent(
             player,
             move.mechanic,
@@ -521,6 +555,12 @@ class BattlePresenter:
             return (
                 "Consume Turbulence for "
                 f"{STORM_RULES.turbulence_damage_bonus_percent}% increased damage."
+            )
+        if move.mechanic == FROST_ATTACK_MECHANIC:
+            return (
+                "Landed hits apply Frost. At 3 Frost, the target becomes Frozen "
+                f"and suffers Frostbite for {FROST_RULES.frostbite_duration_ticks} "
+                "accepted actions."
             )
         if move.presentation is not None and move.presentation.static_summary is not None:
             return move.presentation.static_summary

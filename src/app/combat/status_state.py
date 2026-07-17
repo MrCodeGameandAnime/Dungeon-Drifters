@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
+from app.combat.frost import FROST_RULES
 
 
 BURN_DURATION_TICKS = 3
@@ -12,8 +13,8 @@ BURN_BASE_DAMAGE = 2
 BURN_STAT_DIVISOR = 5
 POISON_BASE_DAMAGE = 2
 POISON_STAT_DIVISOR = 8
-FROSTBITE_DURATION_TICKS = 3
-FROSTBITE_DAMAGE_PER_TICK = 5
+FROSTBITE_DURATION_TICKS = FROST_RULES.frostbite_duration_ticks
+FROSTBITE_DAMAGE_PER_TICK = FROST_RULES.frostbite_damage_per_tick
 
 
 class StatusKind(StrEnum):

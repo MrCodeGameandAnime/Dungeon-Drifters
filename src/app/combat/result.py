@@ -45,6 +45,7 @@ class CombatOutcomeType(StrEnum):
     FROSTBITE_REFRESHED = "frostbite_refreshed"
     FROSTBITE_TICK = "frostbite_tick"
     FROSTBITE_EXPIRED = "frostbite_expired"
+    FROST_BACKLASH_TRIGGERED = "frost_backlash_triggered"
 
 
 class CombatOutcomeTarget(StrEnum):
@@ -86,6 +87,9 @@ class CombatOutcome:
                 raise ValueError("secondary damage must target the actor")
             if self.amount == 0:
                 raise ValueError("secondary damage must be positive")
+        elif self.outcome_type == CombatOutcomeType.FROST_BACKLASH_TRIGGERED:
+            if self.target != CombatOutcomeTarget.ACTOR:
+                raise ValueError("Frost backlash must target the actor")
         elif self.amount != 0:
             raise ValueError("state outcomes must have amount 0")
 

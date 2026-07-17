@@ -152,7 +152,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 90,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "frost_attack",
                 "description": "Black frost erupts outward, encasing nearby enemies in splintering ice.",
             },
             {
