@@ -367,13 +367,17 @@ class BattlePresenter:
         resource_label = self._resource_label(move)
         tags = [self._static_category(move)]
         conductive_lightning = False
+        turbulent_lightning = False
         if move.mechanic == LIGHTNING_PALM_MECHANIC:
             conductive = combat_state.conductive_active(player, enemy)
             turbulence = combat_state.turbulence_active(player, enemy)
             conductive_lightning = conductive and not turbulence
+            turbulent_lightning = turbulence and not conductive
             tags = ["Hybrid"]
             if conductive_lightning:
                 tags.append("Conductive")
+            elif turbulent_lightning:
+                tags.append("Turbulence")
         follow_up_bonus = combat_state.brace_follow_up_damage_bonus_percent(
             player,
             move.mechanic,
@@ -410,7 +414,11 @@ class BattlePresenter:
             number=number,
             name=move.name,
             tags=tuple(tags),
-            rules_summary=self._rules_summary(move, conductive_lightning),
+            rules_summary=self._rules_summary(
+                move,
+                conductive_lightning,
+                turbulent_lightning,
+            ),
             resource_label=resource_label,
             enabled=enabled,
             disabled_reason=disabled_reason,
@@ -481,7 +489,11 @@ class BattlePresenter:
         return "Normal"
 
     @staticmethod
-    def _rules_summary(move, conductive_lightning=False):
+    def _rules_summary(
+        move,
+        conductive_lightning=False,
+        turbulent_lightning=False,
+    ):
         if move.mechanic == "brace":
             return (
                 "Brace against the next enemy action, reducing physical damage by "
@@ -493,6 +505,11 @@ class BattlePresenter:
                 "Consume Conductive for "
                 f"{STORM_RULES.conductive_damage_bonus_percent}% increased damage "
                 f"and a {STORM_RULES.stun_chance_percent}% chance to Stun."
+            )
+        if move.mechanic == LIGHTNING_PALM_MECHANIC and turbulent_lightning:
+            return (
+                "Consume Turbulence for "
+                f"{STORM_RULES.turbulence_damage_bonus_percent}% increased damage."
             )
         if move.presentation is not None and move.presentation.static_summary is not None:
             return move.presentation.static_summary

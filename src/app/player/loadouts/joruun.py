@@ -1,5 +1,9 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
-from app.combat.storm import HYDRO_WHIP_MECHANIC, LIGHTNING_PALM_MECHANIC
+from app.combat.storm import (
+    HYDRO_WHIP_MECHANIC,
+    LIGHTNING_PALM_MECHANIC,
+    TEMPEST_SURGE_MECHANIC,
+)
 from app.items.weapon import SkyNeedle
 
 
@@ -65,8 +69,7 @@ def create_combat_moves():
             accuracy=82,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic=None,
-            # Deferred mechanic: storm effect
+            mechanic=TEMPEST_SURGE_MECHANIC,
             description='A controlled burst of storm force shaped through Sky-Needle.'),
         Move(
             name='Hydro Whip',

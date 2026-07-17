@@ -336,7 +336,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 82,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "tempest_surge",
                 "description": "A controlled burst of storm force shaped through Sky-Needle.",
             },
             {

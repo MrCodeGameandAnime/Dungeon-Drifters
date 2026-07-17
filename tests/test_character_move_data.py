@@ -64,6 +64,7 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         "infused_barb",
         "hydro_whip",
         "lightning_palm",
+        "tempest_surge",
     }
     authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {

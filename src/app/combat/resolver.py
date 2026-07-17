@@ -17,6 +17,7 @@ from app.combat.storm import (
     HYDRO_WHIP_MECHANIC,
     LIGHTNING_PALM_MECHANIC,
     STORM_RULES,
+    TEMPEST_SURGE_MECHANIC,
 )
 from app.player import scaling
 from app.player.character_run_state import CharacterRunState, InfusionKind, PreparedPayloadId
@@ -36,6 +37,7 @@ SUPPORTED_MECHANICS = (
     INFUSED_BARB_MECHANIC,
     HYDRO_WHIP_MECHANIC,
     LIGHTNING_PALM_MECHANIC,
+    TEMPEST_SURGE_MECHANIC,
 )
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
@@ -91,7 +93,11 @@ class CombatResolver:
             return _rejected(move.name, "unsupported_mechanic")
 
         if (
-            move.mechanic in (HYDRO_WHIP_MECHANIC, LIGHTNING_PALM_MECHANIC)
+            move.mechanic in (
+                HYDRO_WHIP_MECHANIC,
+                LIGHTNING_PALM_MECHANIC,
+                TEMPEST_SURGE_MECHANIC,
+            )
             and move.kind != MoveKind.DAMAGE
         ):
             return _rejected(move.name, "unsupported_mechanic")
@@ -157,12 +163,16 @@ class CombatResolver:
             outcomes.extend(_outcomes_for_discharge(arcane_discharge))
 
         conductive_lightning = False
+        turbulent_lightning = False
         if move.mechanic == LIGHTNING_PALM_MECHANIC:
             conductive = combat_state.conductive_active(actor, target)
             turbulence = combat_state.turbulence_active(actor, target)
             conductive_lightning = conductive and not turbulence
+            turbulent_lightning = turbulence and not conductive
             if conductive_lightning:
                 outcomes.append(combat_state.consume_conductive(actor, target))
+            elif turbulent_lightning:
+                outcomes.append(combat_state.consume_turbulence(actor, target))
 
         follow_up_damage_bonus_percent = 0
         if move.mechanic == "heavy_attack" and combat_state is not None:
@@ -193,7 +203,11 @@ class CombatResolver:
                     storm_damage_bonus_percent=(
                         STORM_RULES.conductive_damage_bonus_percent
                         if conductive_lightning
-                        else 0
+                        else (
+                            STORM_RULES.turbulence_damage_bonus_percent
+                            if turbulent_lightning
+                            else 0
+                        )
                     ),
                 )
 
@@ -216,6 +230,8 @@ class CombatResolver:
                         outcomes.append(combat_state.apply_poison(actor, target))
                 if move.mechanic == HYDRO_WHIP_MECHANIC and target.is_alive():
                     outcomes.append(combat_state.apply_conductive(actor, target))
+                if move.mechanic == TEMPEST_SURGE_MECHANIC and target.is_alive():
+                    outcomes.append(combat_state.apply_turbulence(actor, target))
                 if conductive_lightning and target.is_alive():
                     stun_roll = self.rng.randint(1, 100)
                     if stun_roll <= STORM_RULES.stun_chance_percent:

@@ -544,6 +544,12 @@ class TerminalBattleUI:
                 lines.append(f"{target}'s Conductive state was refreshed.")
             elif outcome.outcome_type == CombatOutcomeType.CONDUCTIVE_CONSUMED:
                 lines.append(f"{actor} discharged Conductive through Lightning Palm.")
+            elif outcome.outcome_type == CombatOutcomeType.TURBULENCE_APPLIED:
+                lines.append(f"{target} became surrounded by Turbulence.")
+            elif outcome.outcome_type == CombatOutcomeType.TURBULENCE_REFRESHED:
+                lines.append(f"{target}'s Turbulence was refreshed.")
+            elif outcome.outcome_type == CombatOutcomeType.TURBULENCE_CONSUMED:
+                lines.append(f"{actor} discharged Turbulence through Lightning Palm.")
             elif outcome.outcome_type == CombatOutcomeType.STUN_APPLIED:
                 lines.append(f"{target} was Stunned.")
             elif outcome.outcome_type == CombatOutcomeType.STUN_TRIGGERED:
