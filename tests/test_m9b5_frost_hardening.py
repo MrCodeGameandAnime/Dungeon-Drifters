@@ -203,6 +203,41 @@ def test_poison_then_frostbite_order_and_later_tick_cleanup():
     assert not state.frostbite_active(target)
 
 
+def test_lethal_frostbite_clears_all_statuses_without_natural_expiration():
+    state = CombatState()
+    source = PlayerState(BlackMage())
+    target = EnemyState(Goblin())
+    target.health.current = 16
+    state.apply_burn(source, target)
+    state.apply_poison(source, target)
+    state.apply_frostbite(source, target, damage_per_tick=5, ticks=3)
+    state.apply_frost_charge(source, target)
+    state.apply_frozen(source, target)
+
+    outcomes = state.complete_accepted_action(target, (source,))
+
+    assert _outcome_types(outcomes)[:3] == (
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.POISON_TICK,
+        CombatOutcomeType.FROSTBITE_TICK,
+    )
+    assert _outcome_types(outcomes) == (
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.POISON_TICK,
+        CombatOutcomeType.FROSTBITE_TICK,
+        CombatOutcomeType.BURN_EXPIRED,
+        CombatOutcomeType.POISON_EXPIRED,
+    )
+    assert target.health.current == 0
+    assert CombatOutcomeType.FROSTBITE_EXPIRED not in _outcome_types(outcomes)
+    assert not state.burn_active(target)
+    assert not state.poison_active(target)
+    assert not state.frostbite_active(target)
+    assert not state.frozen_active(target)
+    assert state.frost_charge_count(source, target) == 0
+    assert state.complete_accepted_action(target, (source,)) == ()
+
+
 def test_frost_source_defeat_clears_all_its_frost_effects_only():
     state = CombatState()
     source_a = PlayerState(BlackMage())
