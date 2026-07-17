@@ -241,7 +241,6 @@ def _encounter(route, seed, *, stress):
         if entry.accepted is True
         and entry.actor_name == player.display_name
         and entry.action_name in super_names
-        for entry in session.history
     )
     return {
         "seed": seed,
