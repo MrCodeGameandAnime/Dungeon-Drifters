@@ -35,8 +35,9 @@ from app.ui.battle_ui import (
 from app.player.run_items import InventoryCommand
 
 
-PROBE_VERSION = "1"
-SEEDS = (11, 23, 47)
+PROBE_VERSION = "2"
+GOBLIN_SEEDS = (11, 23, 47)
+STRESS_SEEDS = (101, 202)
 STRESS_HP = 300
 OUTPUT_ROOT = REPOSITORY_ROOT / "tools" / "balance_probe_outputs"
 
@@ -210,21 +211,24 @@ def _encounter(route, seed, *, stress):
 
 def collect_results():
     results = {"goblin_results": [], "stress_results": []}
-    for encounter_type, stress in (("goblin", False), ("stress_300_hp", True)):
+    for encounter_type, stress, seeds in (
+        ("goblin", False, GOBLIN_SEEDS),
+        ("stress_300_hp", True, STRESS_SEEDS),
+    ):
         bucket = results["goblin_results" if not stress else "stress_results"]
         for route in ROUTES:
-            encounters = [_encounter(route, seed, stress=stress) for seed in SEEDS]
-            bucket.append(_aggregate(route, encounter_type, encounters))
+            encounters = [_encounter(route, seed, stress=stress) for seed in seeds]
+            bucket.append(_aggregate(route, encounter_type, seeds, encounters))
     return results
 
 
-def _aggregate(route, encounter_type, encounters):
+def _aggregate(route, encounter_type, seeds, encounters):
     return {
         "character": route.label.split()[0],
         "path": route.label,
         "enemy": "Goblin",
         "encounter_type": encounter_type,
-        "seeds": list(SEEDS),
+        "seeds": list(seeds),
         "wins": sum(item["won"] for item in encounters),
         "attempts": len(encounters),
         "average_turns": sum(item["turns"] for item in encounters) / len(encounters),
@@ -266,7 +270,8 @@ def render_report(results, metadata):
         f"- Commit SHA: `{metadata['commit_sha']}`",
         f"- Working-tree state: `{metadata['working_tree_state']}`",
         f"- Python version: `{metadata['python_version']}`",
-        f"- Seeds: `{metadata['seeds']}`",
+        f"- Goblin seeds: `{metadata['goblin_seeds']}`",
+        f"- Stress seeds: `{metadata['stress_seeds']}`",
         f"- Scenario count: `{metadata['scenario_count']}`",
         "",
     ]
@@ -287,7 +292,7 @@ def render_report(results, metadata):
 def _git_state():
     def run(*args):
         try:
-            return subprocess.run(
+            result = subprocess.run(
                 [
                     "git",
                     "-c",
@@ -298,15 +303,20 @@ def _git_state():
                 check=True,
                 capture_output=True,
                 text=True,
-            ).stdout.strip()
+            )
+            return True, result.stdout.strip()
         except (OSError, subprocess.CalledProcessError):
-            return ""
+            return False, ""
 
-    status = run("status", "--porcelain", "--untracked-files=all")
+    status_succeeded, status = run("status", "--porcelain", "--untracked-files=all")
+    branch_succeeded, branch = run("branch", "--show-current")
+    commit_succeeded, commit_sha = run("rev-parse", "HEAD")
     return {
-        "branch": run("branch", "--show-current") or "unknown",
-        "commit_sha": run("rev-parse", "HEAD") or "unknown",
-        "working_tree_state": "clean" if not status else "dirty",
+        "branch": branch if branch_succeeded and branch else "unknown",
+        "commit_sha": commit_sha if commit_succeeded and commit_sha else "unknown",
+        "working_tree_state": (
+            "unknown" if not status_succeeded else ("clean" if not status else "dirty")
+        ),
         "tracked_changes": [line for line in status.splitlines() if line and not line.startswith("??")],
         "untracked_files": [line[3:] for line in status.splitlines() if line.startswith("?? ")],
     }
@@ -328,8 +338,9 @@ def run_probe(*, output_root=OUTPUT_ROOT, now=None):
         "python_version": platform.python_version(),
         "probe_file": "tools/balance_probe.py",
         "probe_version": PROBE_VERSION,
-        "seeds": list(SEEDS),
-        "scenario_count": len(ROUTES) * 2 * len(SEEDS),
+        "goblin_seeds": list(GOBLIN_SEEDS),
+        "stress_seeds": list(STRESS_SEEDS),
+        "scenario_count": len(ROUTES) * (len(GOBLIN_SEEDS) + len(STRESS_SEEDS)),
         "output_directory": str(Path(output_root) / run_id),
         "tracked_changes": state["tracked_changes"],
         "untracked_files": state["untracked_files"],

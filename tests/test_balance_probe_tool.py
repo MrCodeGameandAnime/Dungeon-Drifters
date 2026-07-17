@@ -86,6 +86,9 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert saved_metadata["run_id"] == run_id
     assert saved_metadata["probe_file"] == "tools/balance_probe.py"
     assert saved_metadata["working_tree_state"] == "dirty"
+    assert saved_metadata["scenario_count"] == 35
+    assert saved_metadata["goblin_seeds"] == [11, 23, 47]
+    assert saved_metadata["stress_seeds"] == [101, 202]
     assert "balance_probe_outputs" not in " ".join(
         saved_metadata["untracked_files"]
     )
@@ -122,6 +125,76 @@ def test_runs_with_different_timestamps_do_not_overwrite(tmp_path, monkeypatch):
     assert second[3].is_dir()
 
 
+def test_failed_git_status_reports_unknown(monkeypatch):
+    def fake_run(command, **_kwargs):
+        if "status" in command:
+            raise subprocess.CalledProcessError(1, command)
+        output = "v0.2.9" if "--show-current" in command else "abc123"
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    monkeypatch.setattr(balance_probe.subprocess, "run", fake_run)
+
+    assert balance_probe._git_state()["working_tree_state"] == "unknown"
+
+
+def test_write_failure_leaves_no_final_or_temporary_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(balance_probe, "collect_results", _fake_results)
+    monkeypatch.setattr(
+        balance_probe,
+        "_git_state",
+        lambda: {
+            "branch": "v0.2.9",
+            "commit_sha": "abc123",
+            "working_tree_state": "clean",
+            "tracked_changes": [],
+            "untracked_files": [],
+        },
+    )
+    original_write_text = Path.write_text
+    writes = 0
+
+    def fail_on_second_write(path, text, *args, **kwargs):
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            raise OSError("injected write failure")
+        return original_write_text(path, text, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_on_second_write)
+    with pytest.raises(OSError, match="injected write failure"):
+        balance_probe.run_probe(output_root=tmp_path, now=FIXED_START)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_probe_uses_separate_original_seed_sets(monkeypatch):
+    calls = []
+
+    def fake_encounter(route, seed, *, stress):
+        calls.append((route.label, seed, stress))
+        return {
+            "seed": seed,
+            "won": True,
+            "turns": 1,
+            "final_hp": 1,
+            "maximum_hp": 1,
+            "final_mana": 1,
+            "maximum_mana": 1,
+        }
+
+    monkeypatch.setattr(balance_probe, "_encounter", fake_encounter)
+    balance_probe.collect_results()
+
+    assert {seed for _label, seed, stress in calls if not stress} == set(
+        balance_probe.GOBLIN_SEEDS
+    )
+    assert {seed for _label, seed, stress in calls if stress} == set(
+        balance_probe.STRESS_SEEDS
+    )
+    assert sum(not stress for _label, _seed, stress in calls) == 21
+    assert sum(stress for _label, _seed, stress in calls) == 14
+
+
 def test_real_probe_scenarios_render_both_tables():
     results = balance_probe.collect_results()
     report = balance_probe.render_report(
@@ -136,8 +209,9 @@ def test_real_probe_scenarios_render_both_tables():
             "python_version": "test",
             "probe_file": "tools/balance_probe.py",
             "probe_version": "1",
-            "seeds": list(balance_probe.SEEDS),
-            "scenario_count": 42,
+            "goblin_seeds": list(balance_probe.GOBLIN_SEEDS),
+            "stress_seeds": list(balance_probe.STRESS_SEEDS),
+            "scenario_count": 35,
             "output_directory": "test",
         },
     )
