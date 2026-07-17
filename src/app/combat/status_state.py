@@ -265,10 +265,12 @@ class StatusState:
         return tuple(active)
 
     def advance_after_accepted_action(self, actor):
-        if self._find_burn(actor) is None and self._find_poison(actor) is None:
+        if not self._has_status_associated_with(actor):
             return ()
         if not actor.is_alive():
             return self._clear_defeated_statuses(actor)
+        if self._find_burn(actor) is None and self._find_poison(actor) is None:
+            return ()
 
         outcomes = list(self._advance_burn(actor))
         if actor.is_alive():
