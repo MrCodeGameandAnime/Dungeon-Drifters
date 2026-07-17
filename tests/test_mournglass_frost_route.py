@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.combat.combat_state import CombatState
 from app.combat.frost import FROST_ATTACK_MECHANIC
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
@@ -28,11 +30,11 @@ def _combatants(target_hp=200):
     return actor, target
 
 
-def _cast(actor, target, state, rng):
+def _cast(actor, target, state, rng, move_name="Mournglass Bloom"):
     return CombatResolver(rng=rng).resolve_move(
         actor,
         target,
-        "Mournglass Bloom",
+        move_name,
         combat_state=state,
         character_run_state=actor.character_run_state,
     )
@@ -45,6 +47,7 @@ def test_mournglass_marker_preserves_authored_values_and_presents_frost_route():
     assert move.mechanic == FROST_ATTACK_MECHANIC
     assert (move.resource_cost, move.power, move.accuracy) == (6, 12, 90)
     assert move.is_spell is True
+    assert move.frost_backlash is True
 
     view = BattlePresenter().build(
         player=actor,
@@ -165,3 +168,74 @@ def test_backlash_frozen_caster_skips_only_one_player_opportunity():
     ]
     assert not state.frozen_active(actor)
     assert state.turn_count == 0
+
+
+def test_general_frost_marker_does_not_imply_mournglass_backlash():
+    actor, target = _combatants()
+    original = next(
+        move for move in actor.combat_moves if move.name == "Mournglass Bloom"
+    )
+    frost_dart = replace(
+        original,
+        name="Frost Dart",
+        frost_backlash=False,
+    )
+    actor.character.combat_moves = [
+        frost_dart if move.name == original.name else move
+        for move in actor.combat_moves
+    ]
+    state = CombatState()
+    _cast(actor, target, state, ScriptedRng(1, 100), "Frost Dart")
+    _cast(actor, target, state, ScriptedRng(1, 100), "Frost Dart")
+
+    rng = ScriptedRng(1, 100)
+    result = _cast(actor, target, state, rng, "Frost Dart")
+
+    assert state.frozen_active(target)
+    assert state.frostbite_active(target)
+    assert not state.frozen_active(actor)
+    assert rng.calls == [(1, 100), (1, 100)]
+    assert all(
+        outcome.outcome_type != CombatOutcomeType.FROST_BACKLASH_TRIGGERED
+        for outcome in result.outcomes
+    )
+
+
+def test_presenter_shows_frost_on_exact_affected_opposing_pair_only():
+    actor, target = _combatants()
+    state = CombatState()
+    state.apply_frost_charge(actor, target)
+
+    view = BattlePresenter().build(player=actor, enemy=target, combat_state=state)
+    assert "Frost 1/3" not in view.player.temporary_labels
+    assert "Frost 1/3" in view.enemy.temporary_labels
+
+    state.apply_frost_charge(actor, target)
+    rebuilt = BattlePresenter().build(player=actor, enemy=target, combat_state=state)
+    assert "Frost 2/3" not in rebuilt.player.temporary_labels
+    assert "Frost 2/3" in rebuilt.enemy.temporary_labels
+    assert state.frost_charge_count(actor, target) == 2
+
+
+def test_presenter_shows_enemy_applied_frost_on_player_only():
+    actor, target = _combatants()
+    state = CombatState()
+    state.apply_frost_charge(target, actor)
+
+    view = BattlePresenter().build(player=actor, enemy=target, combat_state=state)
+
+    assert "Frost 1/3" in view.player.temporary_labels
+    assert "Frost 1/3" not in view.enemy.temporary_labels
+
+
+def test_presenter_does_not_leak_equal_but_distinct_frost_sources():
+    actor, target = _combatants()
+    other_actor, _ = _combatants()
+    state = CombatState()
+    state.apply_frost_charge(other_actor, target)
+
+    view = BattlePresenter().build(player=actor, enemy=target, combat_state=state)
+
+    assert "Frost 1/3" not in view.player.temporary_labels
+    assert "Frost 1/3" not in view.enemy.temporary_labels
+    assert state.frost_charge_count(other_actor, target) == 1

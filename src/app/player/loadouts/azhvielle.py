@@ -64,6 +64,7 @@ def create_combat_moves():
             damage_type=DamageType.MAGICAL,
             mechanic=FROST_ATTACK_MECHANIC,
             is_spell=True,
+            frost_backlash=True,
             description='Black frost erupts outward, encasing nearby enemies in splintering ice.'),
         Move(
             name='Gravemantle Rupture',

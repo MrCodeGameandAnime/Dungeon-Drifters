@@ -56,6 +56,7 @@ class Move:
     description: str
     presentation: MovePresentation | None = None
     is_spell: bool = False
+    frost_backlash: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "name", _validate_nonempty_string("name", self.name))
@@ -91,6 +92,11 @@ class Move:
             _validate_presentation(self.presentation),
         )
         object.__setattr__(self, "is_spell", _validate_bool("is_spell", self.is_spell))
+        object.__setattr__(
+            self,
+            "frost_backlash",
+            _validate_bool("frost_backlash", self.frost_backlash),
+        )
 
         if self.resource_type == ResourceType.NONE and self.resource_cost != 0:
             raise ValueError("resource_type 'none' requires resource_cost 0")

@@ -249,7 +249,7 @@ class CombatResolver:
                 if move.mechanic == FROST_ATTACK_MECHANIC and target.is_alive():
                     frost_outcomes = combat_state.apply_frost_charge(actor, target)
                     outcomes.extend(frost_outcomes)
-                    if any(
+                    if move.frost_backlash and any(
                         outcome.outcome_type == CombatOutcomeType.FROST_TRIGGERED
                         for outcome in frost_outcomes
                     ):

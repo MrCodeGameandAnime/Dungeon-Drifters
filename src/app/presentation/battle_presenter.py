@@ -100,8 +100,8 @@ class BattlePresenter:
         if combat_state.gravemantle_break_active(combatant):
             labels.append("Gravemantle Break")
         frost_count = getattr(combat_state, "frost_charge_count", lambda *_: 0)(
-            combatant,
             opposing,
+            combatant,
         )
         if frost_count:
             labels.append(f"Frost {frost_count}/3")
