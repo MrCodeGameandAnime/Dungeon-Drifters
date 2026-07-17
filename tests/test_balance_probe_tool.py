@@ -248,14 +248,11 @@ def test_super_action_priority_and_super_move_validation():
     route = balance_probe.ROUTES[0]
     ui = balance_probe.ProbeUI(route)
 
-    def action(intent, enabled):
-        return SimpleNamespace(intent=intent, enabled=enabled)
-
     enabled_super = SimpleNamespace(
-        action_options=(action(balance_probe.ActionIntent.SUPER, True),)
+        super_meter=SimpleNamespace(activation_offered=True)
     )
     disabled_super = SimpleNamespace(
-        action_options=(action(balance_probe.ActionIntent.SUPER, False),)
+        super_meter=SimpleNamespace(activation_offered=False)
     )
     assert ui._action_input(enabled_super) == balance_probe.ChooseAction(
         balance_probe.ActionIntent.SUPER

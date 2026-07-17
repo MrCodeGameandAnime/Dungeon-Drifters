@@ -129,10 +129,7 @@ class ProbeUI:
         if self.route.signature == "zhaivra" and self.stage == "start":
             self.stage = "inventory"
             return ChooseAction(ActionIntent.ITEMS)
-        if any(
-            option.intent == ActionIntent.SUPER and option.enabled
-            for option in view.action_options
-        ):
+        if view.super_meter.activation_offered:
             return ChooseAction(ActionIntent.SUPER)
         return ChooseAction(ActionIntent.ATTACK)
 
