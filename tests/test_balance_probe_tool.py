@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -39,8 +40,11 @@ def _fake_results():
         "seeds": [11],
         "wins": 1,
         "attempts": 1,
+        "win_rate": 1.0,
         "average_turns": 4,
+        "median_turns": 4,
         "average_final_hp": 80,
+        "average_final_mana": 12,
         "maximum_hp": 100,
         "encounters": [encounter],
     }
@@ -76,7 +80,7 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert "# Dungeon Drifters Balance Probe" in report
     assert "## Goblin Results" in report
     assert "## 300-HP Stress Results" in report
-    assert "| Character/path | Wins | Avg turns | Avg final HP |" in report
+    assert "| Character/path | Wins | Win rate | Avg turns | Median turns | Avg final HP | Avg final Mana |" in report
 
     results = json.loads((output_dir / f"{run_id} results.json").read_text())
     saved_metadata = json.loads(
@@ -86,9 +90,10 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert saved_metadata["run_id"] == run_id
     assert saved_metadata["probe_file"] == "tools/balance_probe.py"
     assert saved_metadata["working_tree_state"] == "dirty"
-    assert saved_metadata["scenario_count"] == 35
-    assert saved_metadata["goblin_seeds"] == [11, 23, 47]
-    assert saved_metadata["stress_seeds"] == [101, 202]
+    assert saved_metadata["scenario_count"] == 1000
+    assert saved_metadata["route_count"] == 8
+    assert saved_metadata["goblin_seed_count"] == 25
+    assert saved_metadata["stress_seed_count"] == 100
     assert "balance_probe_outputs" not in " ".join(
         saved_metadata["untracked_files"]
     )
@@ -191,12 +196,80 @@ def test_probe_uses_separate_original_seed_sets(monkeypatch):
     assert {seed for _label, seed, stress in calls if stress} == set(
         balance_probe.STRESS_SEEDS
     )
-    assert sum(not stress for _label, _seed, stress in calls) == 21
-    assert sum(stress for _label, _seed, stress in calls) == 14
+    assert sum(not stress for _label, _seed, stress in calls) == 8 * 25
+    assert sum(stress for _label, _seed, stress in calls) == 8 * 100
+    assert len(calls) == 1000
 
 
-def test_real_probe_scenarios_render_both_tables():
-    results = balance_probe.collect_results()
+def test_seed_corpus_and_route_registry_are_locked():
+    assert balance_probe.GOBLIN_SEEDS == tuple(range(1, 25)) + (47,)
+    assert balance_probe.STRESS_SEEDS == tuple(range(1, 99)) + (101, 202)
+    assert len(balance_probe.ROUTES) == 8
+    labels = [route.label for route in balance_probe.ROUTES]
+    assert labels == [
+        "Branoc Brace",
+        "Azhvielle Gravemantle",
+        "Azhvielle Frost",
+        "Zhaivra Fire",
+        "Zhaivra Poison",
+        "Joruun Water",
+        "Joruun Air",
+        "Joruun Storm",
+    ]
+    assert len(set(labels)) == 8
+    assert balance_probe.ROUTES[1].signature != balance_probe.ROUTES[2].signature
+
+
+def test_frost_route_uses_mournglass_then_scepter_fallback():
+    route = next(route for route in balance_probe.ROUTES if route.signature == "azhvielle_frost")
+    ui = balance_probe.ProbeUI(route)
+    enabled = SimpleNamespace(
+        move_options=[SimpleNamespace(selection_key="Mournglass Bloom", enabled=True)]
+    )
+    disabled = SimpleNamespace(
+        move_options=[SimpleNamespace(selection_key="Mournglass Bloom", enabled=False)]
+    )
+
+    assert ui._move_key(enabled) == "Mournglass Bloom"
+    assert ui._move_key(disabled) == "Scepter Sweep"
+    assert "Gravemantle Rupture" not in route.label
+
+
+def test_snapshot_metadata_and_report_are_versioned():
+    metadata = {
+        "run_id": "test",
+        "started_at": FIXED_START.isoformat(),
+        "branch": "v0.2.9",
+        "commit_sha": "test",
+        "working_tree_state": "clean",
+        "python_version": "test",
+        "probe_version": "3",
+        "snapshot_id": "m9-pre-progression",
+        "snapshot_label": "M9 base roster before XP, leveling, and skill trees",
+        "seed_corpus_version": 1,
+        "route_policy_version": 1,
+        "goblin_seeds": list(balance_probe.GOBLIN_SEEDS),
+        "stress_seeds": list(balance_probe.STRESS_SEEDS),
+        "route_count": 8,
+        "goblin_seed_count": 25,
+        "stress_seed_count": 100,
+        "scenario_count": 1000,
+        "route_policies": [
+            {"label": route.label, "version": 1} for route in balance_probe.ROUTES
+        ],
+    }
+    report = balance_probe.render_report(_fake_results(), metadata)
+
+    assert "Azhvielle Frost" in report
+    assert "Win rate" in report
+    assert "Median turns" in report
+    assert "m9-pre-progression" in report
+    assert "Seed corpus version" in report
+    assert "Route policy version" in report
+
+
+def test_report_fixture_renders_both_tables():
+    results = _fake_results()
     report = balance_probe.render_report(
         results,
         {
@@ -208,17 +281,27 @@ def test_real_probe_scenarios_render_both_tables():
             "working_tree_state": "clean",
             "python_version": "test",
             "probe_file": "tools/balance_probe.py",
-            "probe_version": "1",
+            "probe_version": "3",
+            "snapshot_id": "m9-pre-progression",
+            "snapshot_label": "M9 base roster before XP, leveling, and skill trees",
+            "seed_corpus_version": 1,
+            "route_policy_version": 1,
             "goblin_seeds": list(balance_probe.GOBLIN_SEEDS),
             "stress_seeds": list(balance_probe.STRESS_SEEDS),
-            "scenario_count": 35,
+            "route_count": 8,
+            "goblin_seed_count": 25,
+            "stress_seed_count": 100,
+            "scenario_count": 1000,
+            "route_policies": [
+                {"label": route.label, "version": 1} for route in balance_probe.ROUTES
+            ],
             "output_directory": "test",
         },
     )
-    assert len(results["goblin_results"]) == 7
-    assert len(results["stress_results"]) == 7
-    assert "| Branoc |" in report
-    assert "| Joruun Storm |" in report
+    assert len(results["goblin_results"]) == 1
+    assert len(results["stress_results"]) == 1
+    assert "| Test |" in report
+    assert "- Joruun Storm (v1)" in report
     assert "## Goblin Results" in report
     assert "## 300-HP Stress Results" in report
 

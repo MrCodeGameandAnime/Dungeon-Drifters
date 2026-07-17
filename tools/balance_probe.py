@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import platform
 import random
+from statistics import median
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -35,9 +36,13 @@ from app.ui.battle_ui import (
 from app.player.run_items import InventoryCommand
 
 
-PROBE_VERSION = "2"
-GOBLIN_SEEDS = (11, 23, 47)
-STRESS_SEEDS = (101, 202)
+PROBE_VERSION = "3"
+SNAPSHOT_ID = "m9-pre-progression"
+SNAPSHOT_LABEL = "M9 base roster before XP, leveling, and skill trees"
+SEED_CORPUS_VERSION = 1
+ROUTE_POLICY_VERSION = 1
+GOBLIN_SEEDS = tuple(range(1, 25)) + (47,)
+STRESS_SEEDS = tuple(range(1, 99)) + (101, 202)
 STRESS_HP = 300
 OUTPUT_ROOT = REPOSITORY_ROOT / "tools" / "balance_probe_outputs"
 
@@ -49,11 +54,18 @@ class Route:
     signature: str
     infusion_item: str | None = None
     infusion_companion: str | None = None
+    description: str = ""
 
 
 ROUTES = (
-    Route("Branoc", Brawler, "branoc"),
-    Route("Azhvielle", BlackMage, "azhvielle"),
+    Route("Branoc Brace", Brawler, "branoc"),
+    Route("Azhvielle Gravemantle", BlackMage, "azhvielle"),
+    Route(
+        "Azhvielle Frost",
+        BlackMage,
+        "azhvielle_frost",
+        description="Mournglass Bloom while affordable, then Scepter Sweep.",
+    ),
     Route("Zhaivra Fire", RogueArcher, "zhaivra", "ember_shard", "deep_coal"),
     Route("Zhaivra Poison", RogueArcher, "zhaivra", "deep_coal", "night_berry"),
     Route("Joruun Water", Monk, "water"),
@@ -123,6 +135,11 @@ class ProbeUI:
                 return "Gravemantle Rupture"
             if "Gloamweight Sepulcher" in offered and offered["Gloamweight Sepulcher"].enabled:
                 return "Gloamweight Sepulcher"
+            return "Scepter Sweep"
+
+        if self.route.signature == "azhvielle_frost":
+            if "Mournglass Bloom" in offered and offered["Mournglass Bloom"].enabled:
+                return "Mournglass Bloom"
             return "Scepter Sweep"
 
         if self.route.signature == "zhaivra":
@@ -231,8 +248,11 @@ def _aggregate(route, encounter_type, seeds, encounters):
         "seeds": list(seeds),
         "wins": sum(item["won"] for item in encounters),
         "attempts": len(encounters),
+        "win_rate": sum(item["won"] for item in encounters) / len(encounters),
         "average_turns": sum(item["turns"] for item in encounters) / len(encounters),
+        "median_turns": median(item["turns"] for item in encounters),
         "average_final_hp": sum(item["final_hp"] for item in encounters) / len(encounters),
+        "average_final_mana": sum(item["final_mana"] for item in encounters) / len(encounters),
         "maximum_hp": encounters[0]["maximum_hp"],
         "encounters": encounters,
     }
@@ -246,14 +266,16 @@ def _table(title, records):
     lines = [
         f"## {title}",
         "",
-        "| Character/path | Wins | Avg turns | Avg final HP |",
-        "|---|---:|---:|---:|",
+        "| Character/path | Wins | Win rate | Avg turns | Median turns | Avg final HP | Avg final Mana |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for record in records:
         lines.append(
             f"| {record['path']} | {record['wins']}/{record['attempts']} | "
-            f"{_number(record['average_turns'])} | "
-            f"{_number(record['average_final_hp'])}/{record['maximum_hp']} |"
+            f"{record['win_rate']:.1%} | {_number(record['average_turns'])} | "
+            f"{_number(record['median_turns'])} | "
+            f"{_number(record['average_final_hp'])}/{record['maximum_hp']} | "
+            f"{_number(record['average_final_mana'])} |"
         )
     return lines
 
@@ -272,7 +294,19 @@ def render_report(results, metadata):
         f"- Python version: `{metadata['python_version']}`",
         f"- Goblin seeds: `{metadata['goblin_seeds']}`",
         f"- Stress seeds: `{metadata['stress_seeds']}`",
+        f"- Snapshot ID: `{metadata['snapshot_id']}`",
+        f"- Snapshot label: `{metadata['snapshot_label']}`",
+        f"- Probe version: `{metadata['probe_version']}`",
+        f"- Seed corpus version: `{metadata['seed_corpus_version']}`",
+        f"- Route policy version: `{metadata['route_policy_version']}`",
+        f"- Route count: `{metadata['route_count']}`",
+        f"- Goblin seed count: `{metadata['goblin_seed_count']}`",
+        f"- Stress seed count: `{metadata['stress_seed_count']}`",
         f"- Scenario count: `{metadata['scenario_count']}`",
+        "",
+        "## Route Policies",
+        "",
+        *[f"- {route['label']} (v{route['version']})" for route in metadata["route_policies"]],
         "",
     ]
     lines.extend(_table("Goblin Results", results["goblin_results"]))
@@ -338,9 +372,20 @@ def run_probe(*, output_root=OUTPUT_ROOT, now=None):
         "python_version": platform.python_version(),
         "probe_file": "tools/balance_probe.py",
         "probe_version": PROBE_VERSION,
+        "snapshot_id": SNAPSHOT_ID,
+        "snapshot_label": SNAPSHOT_LABEL,
+        "seed_corpus_version": SEED_CORPUS_VERSION,
+        "route_policy_version": ROUTE_POLICY_VERSION,
         "goblin_seeds": list(GOBLIN_SEEDS),
         "stress_seeds": list(STRESS_SEEDS),
+        "route_count": len(ROUTES),
+        "goblin_seed_count": len(GOBLIN_SEEDS),
+        "stress_seed_count": len(STRESS_SEEDS),
         "scenario_count": len(ROUTES) * (len(GOBLIN_SEEDS) + len(STRESS_SEEDS)),
+        "route_policies": [
+            {"label": route.label, "version": ROUTE_POLICY_VERSION}
+            for route in ROUTES
+        ],
         "output_directory": str(Path(output_root) / run_id),
         "tracked_changes": state["tracked_changes"],
         "untracked_files": state["untracked_files"],
@@ -376,7 +421,7 @@ def run_probe(*, output_root=OUTPUT_ROOT, now=None):
 def _console_report(results):
     return "\n".join(
         [
-            "3 seeded Goblin encounters for every character, using their signature mechanics, plus longer 300-HP stress encounters.",
+            "25 seeded Goblin encounters for every route, using their signature mechanics, plus 100 longer 300-HP stress encounters.",
             "",
             "**Goblin results**",
             "",
