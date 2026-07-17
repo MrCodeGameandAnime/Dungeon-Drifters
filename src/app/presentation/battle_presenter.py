@@ -368,13 +368,17 @@ class BattlePresenter:
         tags = [self._static_category(move)]
         conductive_lightning = False
         turbulent_lightning = False
+        lightning_storm = False
         if move.mechanic == LIGHTNING_PALM_MECHANIC:
             conductive = combat_state.conductive_active(player, enemy)
             turbulence = combat_state.turbulence_active(player, enemy)
+            lightning_storm = conductive and turbulence
             conductive_lightning = conductive and not turbulence
             turbulent_lightning = turbulence and not conductive
             tags = ["Hybrid"]
-            if conductive_lightning:
+            if lightning_storm:
+                tags.append("Conductive + Turbulence")
+            elif conductive_lightning:
                 tags.append("Conductive")
             elif turbulent_lightning:
                 tags.append("Turbulence")
@@ -412,12 +416,13 @@ class BattlePresenter:
         return MoveOptionView(
             selection_key=move.name,
             number=number,
-            name=move.name,
+            name="Lightning Storm" if lightning_storm else move.name,
             tags=tuple(tags),
             rules_summary=self._rules_summary(
                 move,
                 conductive_lightning,
                 turbulent_lightning,
+                lightning_storm,
             ),
             resource_label=resource_label,
             enabled=enabled,
@@ -493,6 +498,7 @@ class BattlePresenter:
         move,
         conductive_lightning=False,
         turbulent_lightning=False,
+        lightning_storm=False,
     ):
         if move.mechanic == "brace":
             return (
@@ -505,6 +511,11 @@ class BattlePresenter:
                 "Consume Conductive for "
                 f"{STORM_RULES.conductive_damage_bonus_percent}% increased damage "
                 f"and a {STORM_RULES.stun_chance_percent}% chance to Stun."
+            )
+        if move.mechanic == LIGHTNING_PALM_MECHANIC and lightning_storm:
+            return (
+                "Consume Conductive and Turbulence for "
+                f"{STORM_RULES.lightning_storm_damage_bonus_percent}% increased damage."
             )
         if move.mechanic == LIGHTNING_PALM_MECHANIC and turbulent_lightning:
             return (

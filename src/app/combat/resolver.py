@@ -164,12 +164,20 @@ class CombatResolver:
 
         conductive_lightning = False
         turbulent_lightning = False
+        lightning_storm = False
         if move.mechanic == LIGHTNING_PALM_MECHANIC:
             conductive = combat_state.conductive_active(actor, target)
             turbulence = combat_state.turbulence_active(actor, target)
+            lightning_storm = conductive and turbulence
             conductive_lightning = conductive and not turbulence
             turbulent_lightning = turbulence and not conductive
-            if conductive_lightning:
+            if lightning_storm:
+                outcomes.append(
+                    CombatOutcome(CombatOutcomeType.LIGHTNING_STORM_TRIGGERED)
+                )
+                outcomes.append(combat_state.consume_conductive(actor, target))
+                outcomes.append(combat_state.consume_turbulence(actor, target))
+            elif conductive_lightning:
                 outcomes.append(combat_state.consume_conductive(actor, target))
             elif turbulent_lightning:
                 outcomes.append(combat_state.consume_turbulence(actor, target))
@@ -201,12 +209,16 @@ class CombatResolver:
                     follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
                     arcane_discharge=arcane_discharge,
                     storm_damage_bonus_percent=(
-                        STORM_RULES.conductive_damage_bonus_percent
-                        if conductive_lightning
+                        STORM_RULES.lightning_storm_damage_bonus_percent
+                        if lightning_storm
                         else (
-                            STORM_RULES.turbulence_damage_bonus_percent
-                            if turbulent_lightning
-                            else 0
+                            STORM_RULES.conductive_damage_bonus_percent
+                            if conductive_lightning
+                            else (
+                                STORM_RULES.turbulence_damage_bonus_percent
+                                if turbulent_lightning
+                                else 0
+                            )
                         )
                     ),
                 )
@@ -287,7 +299,7 @@ class CombatResolver:
         return MoveResult(
             accepted=True,
             hit=hit,
-            move_name=move.name,
+            move_name="Lightning Storm" if lightning_storm else move.name,
             resource_spent=resource_spent,
             damage=damage,
             healing=healing,
