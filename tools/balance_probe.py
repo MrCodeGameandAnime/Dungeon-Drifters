@@ -36,11 +36,11 @@ from app.ui.battle_ui import (
 from app.player.run_items import InventoryCommand
 
 
-PROBE_VERSION = "3"
+PROBE_VERSION = "4"
 SNAPSHOT_ID = "m9-pre-progression"
 SNAPSHOT_LABEL = "M9 base roster before XP, leveling, and skill trees"
 SEED_CORPUS_VERSION = 1
-ROUTE_POLICY_VERSION = 1
+ROUTE_POLICY_VERSION = 2
 GOBLIN_SEEDS = tuple(range(1, 25)) + (47,)
 STRESS_SEEDS = tuple(range(1, 99)) + (101, 202)
 STRESS_HP = 300
@@ -73,6 +73,11 @@ ROUTES = (
     Route("Joruun Storm", Monk, "storm"),
 )
 
+SUPER_USAGE_POLICY = (
+    "Use the authored Super immediately when the typed Super action is offered "
+    "and enabled, after required initial route preparation."
+)
+
 
 class RecordingSession(BattlePresentationSession):
     def __init__(self):
@@ -98,7 +103,15 @@ class ProbeUI:
         if self.inputs > 400:
             raise RuntimeError(f"probe did not terminate: {self.route.label}")
         if view.interaction_phase == InteractionPhase.ACTIONS:
-            return self._action_input()
+            return self._action_input(view)
+        if view.interaction_phase == InteractionPhase.SUPER_MOVES:
+            enabled = [option for option in view.move_options if option.enabled]
+            if len(enabled) != 1:
+                raise RuntimeError(
+                    f"expected exactly one enabled Super move for {self.route.label}, "
+                    f"got {len(enabled)}"
+                )
+            return ChooseMove(enabled[0].selection_key)
         if view.interaction_phase == InteractionPhase.REGULAR_MOVES:
             return ChooseMove(self._move_key(view))
         if view.interaction_phase == InteractionPhase.INVENTORY:
@@ -112,10 +125,15 @@ class ProbeUI:
             return ConfirmInventoryUse(True)
         raise RuntimeError(f"unexpected probe phase: {view.interaction_phase}")
 
-    def _action_input(self):
+    def _action_input(self, view):
         if self.route.signature == "zhaivra" and self.stage == "start":
             self.stage = "inventory"
             return ChooseAction(ActionIntent.ITEMS)
+        if any(
+            option.intent == ActionIntent.SUPER and option.enabled
+            for option in view.action_options
+        ):
+            return ChooseAction(ActionIntent.SUPER)
         return ChooseAction(ActionIntent.ATTACK)
 
     def _move_key(self, view):
@@ -215,6 +233,19 @@ def _encounter(route, seed, *, stress):
         )
         for entry in session.history
     )
+    super_names = {
+        move.name
+        for move in player.combat_moves
+        if move.resource_type.value == "super"
+    }
+    super_uses = sum(
+        1
+        for entry in session.history
+        if entry.accepted is True
+        and entry.actor_name == player.display_name
+        and entry.action_name in super_names
+        for entry in session.history
+    )
     return {
         "seed": seed,
         "won": winner == "player",
@@ -223,6 +254,9 @@ def _encounter(route, seed, *, stress):
         "maximum_hp": player.health.maximum,
         "final_mana": player.mana_resource.current,
         "maximum_mana": player.mana_resource.maximum,
+        "super_uses": super_uses,
+        "final_super": player.super_resource.current,
+        "maximum_super": player.super_resource.maximum,
     }
 
 
@@ -253,6 +287,9 @@ def _aggregate(route, encounter_type, seeds, encounters):
         "median_turns": median(item["turns"] for item in encounters),
         "average_final_hp": sum(item["final_hp"] for item in encounters) / len(encounters),
         "average_final_mana": sum(item["final_mana"] for item in encounters) / len(encounters),
+        "total_super_uses": sum(item["super_uses"] for item in encounters),
+        "encounters_with_super": sum(item["super_uses"] > 0 for item in encounters),
+        "average_super_uses": sum(item["super_uses"] for item in encounters) / len(encounters),
         "maximum_hp": encounters[0]["maximum_hp"],
         "encounters": encounters,
     }
@@ -266,8 +303,8 @@ def _table(title, records):
     lines = [
         f"## {title}",
         "",
-        "| Character/path | Wins | Win rate | Avg turns | Median turns | Avg final HP | Avg final Mana |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Character/path | Wins | Win rate | Avg turns | Median turns | Avg final HP | Avg final Mana | Super uses | Encounters using Super | Avg Supers |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for record in records:
         lines.append(
@@ -275,7 +312,9 @@ def _table(title, records):
             f"{record['win_rate']:.1%} | {_number(record['average_turns'])} | "
             f"{_number(record['median_turns'])} | "
             f"{_number(record['average_final_hp'])}/{record['maximum_hp']} | "
-            f"{_number(record['average_final_mana'])} |"
+            f"{_number(record['average_final_mana'])} | "
+            f"{record['total_super_uses']} | {record['encounters_with_super']} | "
+            f"{_number(record['average_super_uses'])} |"
         )
     return lines
 
@@ -303,6 +342,7 @@ def render_report(results, metadata):
         f"- Goblin seed count: `{metadata['goblin_seed_count']}`",
         f"- Stress seed count: `{metadata['stress_seed_count']}`",
         f"- Scenario count: `{metadata['scenario_count']}`",
+        f"- Super usage policy: `{metadata['super_usage_policy']}`",
         "",
         "## Route Policies",
         "",
@@ -386,6 +426,7 @@ def run_probe(*, output_root=OUTPUT_ROOT, now=None):
             {"label": route.label, "version": ROUTE_POLICY_VERSION}
             for route in ROUTES
         ],
+        "super_usage_policy": SUPER_USAGE_POLICY,
         "output_directory": str(Path(output_root) / run_id),
         "tracked_changes": state["tracked_changes"],
         "untracked_files": state["untracked_files"],

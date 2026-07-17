@@ -45,6 +45,9 @@ def _fake_results():
         "median_turns": 4,
         "average_final_hp": 80,
         "average_final_mana": 12,
+        "total_super_uses": 1,
+        "encounters_with_super": 1,
+        "average_super_uses": 1,
         "maximum_hp": 100,
         "encounters": [encounter],
     }
@@ -80,7 +83,7 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert "# Dungeon Drifters Balance Probe" in report
     assert "## Goblin Results" in report
     assert "## 300-HP Stress Results" in report
-    assert "| Character/path | Wins | Win rate | Avg turns | Median turns | Avg final HP | Avg final Mana |" in report
+    assert "Super uses" in report
 
     results = json.loads((output_dir / f"{run_id} results.json").read_text())
     saved_metadata = json.loads(
@@ -94,6 +97,9 @@ def test_run_id_is_reused_for_directory_and_all_artifacts(tmp_path, monkeypatch)
     assert saved_metadata["route_count"] == 8
     assert saved_metadata["goblin_seed_count"] == 25
     assert saved_metadata["stress_seed_count"] == 100
+    assert saved_metadata["probe_version"] == "4"
+    assert saved_metadata["route_policy_version"] == 2
+    assert saved_metadata["super_usage_policy"] == balance_probe.SUPER_USAGE_POLICY
     assert "balance_probe_outputs" not in " ".join(
         saved_metadata["untracked_files"]
     )
@@ -183,9 +189,12 @@ def test_probe_uses_separate_original_seed_sets(monkeypatch):
             "turns": 1,
             "final_hp": 1,
             "maximum_hp": 1,
-            "final_mana": 1,
-            "maximum_mana": 1,
-        }
+                "final_mana": 1,
+                "maximum_mana": 1,
+                "super_uses": 0,
+                "final_super": 0,
+                "maximum_super": 100,
+            }
 
     monkeypatch.setattr(balance_probe, "_encounter", fake_encounter)
     balance_probe.collect_results()
@@ -235,6 +244,88 @@ def test_frost_route_uses_mournglass_then_scepter_fallback():
     assert "Gravemantle Rupture" not in route.label
 
 
+def test_super_action_priority_and_super_move_validation():
+    route = balance_probe.ROUTES[0]
+    ui = balance_probe.ProbeUI(route)
+
+    def action(intent, enabled):
+        return SimpleNamespace(intent=intent, enabled=enabled)
+
+    enabled_super = SimpleNamespace(
+        action_options=(action(balance_probe.ActionIntent.SUPER, True),)
+    )
+    disabled_super = SimpleNamespace(
+        action_options=(action(balance_probe.ActionIntent.SUPER, False),)
+    )
+    assert ui._action_input(enabled_super) == balance_probe.ChooseAction(
+        balance_probe.ActionIntent.SUPER
+    )
+    assert ui._action_input(disabled_super) == balance_probe.ChooseAction(
+        balance_probe.ActionIntent.ATTACK
+    )
+
+    ui.stage = "braced"
+    super_view = SimpleNamespace(
+        interaction_phase=balance_probe.InteractionPhase.SUPER_MOVES,
+        move_options=(SimpleNamespace(selection_key="Third Gate Obsequy", enabled=True),),
+    )
+    assert ui.read_input(super_view) == balance_probe.ChooseMove("Third Gate Obsequy")
+    assert ui.stage == "braced"
+    with pytest.raises(RuntimeError):
+        ui.read_input(
+            SimpleNamespace(
+                interaction_phase=balance_probe.InteractionPhase.SUPER_MOVES,
+                move_options=(),
+            )
+        )
+
+    zhaivra = next(route for route in balance_probe.ROUTES if route.signature == "zhaivra")
+    zhaivra_ui = balance_probe.ProbeUI(zhaivra)
+    assert zhaivra_ui._action_input(enabled_super) == balance_probe.ChooseAction(
+        balance_probe.ActionIntent.ITEMS
+    )
+    zhaivra_ui.stage = "prepared"
+    assert zhaivra_ui._action_input(enabled_super) == balance_probe.ChooseAction(
+        balance_probe.ActionIntent.SUPER
+    )
+
+
+def test_super_aggregate_metrics_use_accepted_encounter_counts():
+    route = balance_probe.ROUTES[0]
+    encounters = [
+        {
+            "seed": 1,
+            "won": True,
+            "turns": 4,
+            "final_hp": 80,
+            "maximum_hp": 100,
+            "final_mana": 10,
+            "maximum_mana": 20,
+            "super_uses": 1,
+            "final_super": 0,
+            "maximum_super": 100,
+        },
+        {
+            "seed": 2,
+            "won": False,
+            "turns": 6,
+            "final_hp": 0,
+            "maximum_hp": 100,
+            "final_mana": 5,
+            "maximum_mana": 20,
+            "super_uses": 0,
+            "final_super": 30,
+            "maximum_super": 100,
+        },
+    ]
+
+    aggregate = balance_probe._aggregate(route, "goblin", (1, 2), encounters)
+
+    assert aggregate["total_super_uses"] == 1
+    assert aggregate["encounters_with_super"] == 1
+    assert aggregate["average_super_uses"] == 0.5
+
+
 def test_snapshot_metadata_and_report_are_versioned():
     metadata = {
         "run_id": "test",
@@ -243,17 +334,18 @@ def test_snapshot_metadata_and_report_are_versioned():
         "commit_sha": "test",
         "working_tree_state": "clean",
         "python_version": "test",
-        "probe_version": "3",
+        "probe_version": "4",
         "snapshot_id": "m9-pre-progression",
         "snapshot_label": "M9 base roster before XP, leveling, and skill trees",
         "seed_corpus_version": 1,
-        "route_policy_version": 1,
+        "route_policy_version": 2,
         "goblin_seeds": list(balance_probe.GOBLIN_SEEDS),
         "stress_seeds": list(balance_probe.STRESS_SEEDS),
         "route_count": 8,
         "goblin_seed_count": 25,
         "stress_seed_count": 100,
         "scenario_count": 1000,
+        "super_usage_policy": balance_probe.SUPER_USAGE_POLICY,
         "route_policies": [
             {"label": route.label, "version": 1} for route in balance_probe.ROUTES
         ],
@@ -281,17 +373,18 @@ def test_report_fixture_renders_both_tables():
             "working_tree_state": "clean",
             "python_version": "test",
             "probe_file": "tools/balance_probe.py",
-            "probe_version": "3",
+            "probe_version": "4",
             "snapshot_id": "m9-pre-progression",
             "snapshot_label": "M9 base roster before XP, leveling, and skill trees",
             "seed_corpus_version": 1,
-            "route_policy_version": 1,
+            "route_policy_version": 2,
             "goblin_seeds": list(balance_probe.GOBLIN_SEEDS),
             "stress_seeds": list(balance_probe.STRESS_SEEDS),
             "route_count": 8,
             "goblin_seed_count": 25,
             "stress_seed_count": 100,
             "scenario_count": 1000,
+            "super_usage_policy": balance_probe.SUPER_USAGE_POLICY,
             "route_policies": [
                 {"label": route.label, "version": 1} for route in balance_probe.ROUTES
             ],
