@@ -77,9 +77,10 @@ class FakeEnemyFactory:
 class FakeBattle:
     instances = []
 
-    def __init__(self, player_state, foe):
+    def __init__(self, player_state, foe, *, ui):
         self.player_state = player_state
         self.foe = foe
+        self.ui = ui
         self.__class__.instances.append(self)
 
     def run(self):
@@ -94,6 +95,13 @@ class FakeConsole:
     @staticmethod
     def clear_console():
         CALLS.append("clear_console")
+
+
+class FakeTerminalBattleUI:
+    instances = []
+
+    def __init__(self):
+        self.__class__.instances.append(self)
 
 
 CALLS = []
@@ -111,6 +119,7 @@ def reset_fakes():
     FakeEnemyFactory.calls = []
     FakeEnemyFactory.enemy_state = object()
     FakeBattle.instances = []
+    FakeTerminalBattleUI.instances = []
 
 
 def run_with_fakes(encounter):
@@ -124,6 +133,7 @@ def run_with_fakes(encounter):
     original_battle = main_loop.Battle
     original_create_enemy_state = main_loop.create_enemy_state
     original_console = main_loop.console
+    original_terminal_battle_ui = main_loop.TerminalBattleUI
 
     main_loop.PlayerState = FakePlayerState
     main_loop.GameState = FakeGameState
@@ -132,6 +142,7 @@ def run_with_fakes(encounter):
     main_loop.Battle = FakeBattle
     main_loop.create_enemy_state = FakeEnemyFactory.create_enemy_state
     main_loop.console = FakeConsole
+    main_loop.TerminalBattleUI = FakeTerminalBattleUI
 
     try:
         main_loop.main()
@@ -143,6 +154,7 @@ def run_with_fakes(encounter):
         main_loop.Battle = original_battle
         main_loop.create_enemy_state = original_create_enemy_state
         main_loop.console = original_console
+        main_loop.TerminalBattleUI = original_terminal_battle_ui
 
     return FakeEvents.selected_character, FakeStoryElements.instances[0], list(CALLS)
 
@@ -174,6 +186,8 @@ def test_battle_path_wraps_character_once_and_uses_wrapped_character():
     assert FakeBattle.instances[0].player_state is FakeGameState.instances[0].player_state
     assert FakeEnemyFactory.calls == [("goblin", 0)]
     assert FakeBattle.instances[0].foe is FakeEnemyFactory.enemy_state
+    assert len(FakeTerminalBattleUI.instances) == 1
+    assert FakeBattle.instances[0].ui is FakeTerminalBattleUI.instances[0]
     assert story.escaped_character is None
     assert story.battle_ending_character is selected_character
     assert story.battle_ending_winner == "player"

@@ -1,4 +1,5 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move_presentation import MoveRole
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
@@ -55,7 +56,18 @@ def test_each_playable_class_has_a_distinct_mechanic():
 
 
 def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
-    supported_mechanics = {None, "basic_attack", "heavy_attack"}
+    supported_mechanics = {
+        None,
+        "basic_attack",
+        "heavy_attack",
+        "gravemantle_rupture",
+        "infused_barb",
+        "hydro_whip",
+        "lightning_palm",
+            "tempest_surge",
+            "frost_attack",
+        }
+    authored_deferred_mechanics = {"brace"}
     deferred_mechanics = {
         "stagger",
         "burn",
@@ -88,7 +100,10 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         assert len(standard_moves) == 4
         assert len(super_moves) == 1
         assert super_moves[0].resource_cost == 100
-        assert all(move.mechanic in supported_mechanics for move in player.combat_moves)
+        assert all(
+            move.mechanic in supported_mechanics | authored_deferred_mechanics
+            for move in player.combat_moves
+        )
         assert all(move.mechanic not in deferred_mechanics for move in player.combat_moves)
 
 
@@ -115,12 +130,25 @@ def test_black_mage_roster_is_four_standard_attacks_and_one_super():
         {"fireball", "heal", "thunderbolt"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {
+            None,
+            "basic_attack",
+            "heavy_attack",
+            "gravemantle_rupture",
+            "frost_attack",
+        }
         for move in black_mage.combat_moves
     )
     assert all(
-        move.mechanic is None
+        move.mechanic is None or move.mechanic in {
+            "gravemantle_rupture",
+            "frost_attack",
+        }
         for move in black_mage.combat_moves[1:]
+    )
+    assert all(
+        move.is_spell is (move.name != "Scepter Sweep")
+        for move in black_mage.combat_moves
     )
 
 
@@ -130,11 +158,17 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
     assert [move.name for move in brawler.combat_moves] == [
         "Crestgrave Reaping",
         "Cinderlung Vesper",
-        "Ghalmour Compression",
+        "Brace",
         "Ironwake Dismemberment",
         "Third Gate Obsequy",
     ]
-    assert all(move.kind == MoveKind.DAMAGE for move in brawler.combat_moves)
+    assert [move.kind for move in brawler.combat_moves] == [
+        MoveKind.DAMAGE,
+        MoveKind.DAMAGE,
+        MoveKind.UTILITY,
+        MoveKind.DAMAGE,
+        MoveKind.DAMAGE,
+    ]
     assert [move.resource_type for move in brawler.combat_moves] == [
         ResourceType.NONE,
         ResourceType.MANA,
@@ -142,14 +176,34 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
         ResourceType.NONE,
         ResourceType.SUPER,
     ]
+    brace = brawler.combat_moves[2]
+    assert brace.target == TargetType.SELF
+    assert brace.resource_cost == 5
+    assert brace.power == 0
+    assert brace.scales_with == (ScalingAttribute.NONE,)
+    assert brace.accuracy == 100
+    assert brace.damage_type == DamageType.NONE
+    assert brace.mechanic == "brace"
     assert brawler.combat_moves[-1].resource_cost == 100
     assert {move.name for move in brawler.combat_moves}.isdisjoint(
         {"slash", "jumping slash", "suplex"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {None, "basic_attack", "heavy_attack", "brace"}
         for move in brawler.combat_moves
     )
+    assert [move.presentation.role for move in brawler.combat_moves] == [
+        MoveRole.NORMAL,
+        MoveRole.NORMAL,
+        MoveRole.UTILITY,
+        MoveRole.HEAVY,
+        MoveRole.SUPER,
+    ]
+    assert brawler.combat_moves[1].presentation.affinity_label == "Fire"
+    assert brawler.combat_moves[3].presentation.static_summary == (
+        "A crushing Sunder-Spire strike."
+    )
+    assert all(move.presentation is not None for move in brawler.combat_moves)
 
 
 def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
@@ -159,7 +213,7 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
         "Mournpoint Verdict",
         "Hollowstring Trine",
         "Nightskein Deluge",
-        "Cinderwrit Barb",
+        "Infused Barb",
         "Starless Meridian Obsequy",
     ]
     assert all(move.kind == MoveKind.DAMAGE for move in rogue_archer.combat_moves)
@@ -175,11 +229,18 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
         {"deadshot", "triple shot", "rain of arrows", "flaming arrow"}
     )
     assert all(
-        move.mechanic in {None, "basic_attack", "heavy_attack"}
+        move.mechanic in {
+            None,
+            "basic_attack",
+            "heavy_attack",
+            "infused_barb",
+        }
         for move in rogue_archer.combat_moves
     )
     assert rogue_archer.combat_moves[0].mechanic == "basic_attack"
-    assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:])
+    assert all(move.mechanic is None for move in rogue_archer.combat_moves[1:3])
+    assert rogue_archer.combat_moves[3].mechanic == "infused_barb"
+    assert rogue_archer.combat_moves[4].mechanic is None
 
 
 def test_loadout_resource_types_follow_authored_class_resources():

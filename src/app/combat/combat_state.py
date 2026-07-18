@@ -1,11 +1,47 @@
 """Temporary combat state for one encounter."""
 
+from dataclasses import dataclass
+
+from app.combat.arcane import ArcaneDischarge, GRAVEMANTLE_RULES
+from app.combat.brace import BRACE_RULES
+from app.combat.move import DamageType
+from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
+from app.combat.status_state import StatusState
+
+
+HEAL_COOLDOWN_ACTIONS = 3
+
+
+@dataclass
+class _BraceState:
+    owner: object
+    incoming_protection_active: bool
+    incoming_reduction_percent: int
+    heavy_payoff_active: bool
+    heavy_payoff_damage_bonus_percent: int
+
+
+@dataclass
+class _HealCooldown:
+    owner: object
+    remaining_actions: int
+
+
+@dataclass
+class _ArcaneChargeState:
+    owner: object
+    broken_target: object | None
+    instability_active: bool
+
 
 class CombatState:
     def __init__(self):
         self.turn_count = 0
         self._defending_combatants = []
-        self.statuses = {}
+        self._brace_states = []
+        self._heal_cooldowns = []
+        self._arcane_charge_states = []
+        self._status_state = StatusState()
         self.buffs = {}
         self.debuffs = {}
 
@@ -27,11 +63,327 @@ class CombatState:
             if active is not combatant
         ]
 
-    def complete_accepted_action(self, actor, opposing_combatants):
+    def heal_cooldown_remaining(self, actor):
+        cooldown = self._find_heal_cooldown(actor)
+        return cooldown.remaining_actions if cooldown is not None else 0
+
+    def heal_available(self, actor):
+        return (
+            actor.health.current < actor.health.maximum
+            and self.heal_cooldown_remaining(actor) == 0
+        )
+
+    def start_heal_cooldown(self, actor, actions=HEAL_COOLDOWN_ACTIONS):
+        cooldown = self._find_heal_cooldown(actor)
+        if cooldown is None:
+            self._heal_cooldowns.append(
+                _HealCooldown(owner=actor, remaining_actions=actions)
+            )
+            return
+
+        cooldown.remaining_actions = actions
+
+    def activate_brace(
+        self,
+        owner,
+        *,
+        incoming_reduction_percent=BRACE_RULES.incoming_reduction_percent,
+        heavy_payoff_damage_bonus_percent=BRACE_RULES.follow_up_damage_bonus_percent,
+    ):
+        brace_state = _BraceState(
+            owner=owner,
+            incoming_protection_active=True,
+            incoming_reduction_percent=incoming_reduction_percent,
+            heavy_payoff_active=True,
+            heavy_payoff_damage_bonus_percent=heavy_payoff_damage_bonus_percent,
+        )
+
+        existing = self._find_brace_state(owner)
+        if existing is None:
+            self._brace_states.append(brace_state)
+            return
+
+        existing.incoming_protection_active = brace_state.incoming_protection_active
+        existing.incoming_reduction_percent = brace_state.incoming_reduction_percent
+        existing.heavy_payoff_active = brace_state.heavy_payoff_active
+        existing.heavy_payoff_damage_bonus_percent = (
+            brace_state.heavy_payoff_damage_bonus_percent
+        )
+
+    def brace_incoming_reduction_percent(self, target, damage_type):
+        brace_state = self._find_brace_state(target)
+        if brace_state is None or not brace_state.incoming_protection_active:
+            return 0
+        if damage_type != DamageType.PHYSICAL:
+            return 0
+
+        return brace_state.incoming_reduction_percent
+
+    def brace_incoming_protection_active(self, actor):
+        brace_state = self._find_brace_state(actor)
+        return bool(brace_state and brace_state.incoming_protection_active)
+
+    def brace_follow_up_damage_bonus_percent(self, actor, move_mechanic):
+        if move_mechanic != BRACE_RULES.follow_up_mechanic:
+            return 0
+
+        brace_state = self._find_brace_state(actor)
+        if brace_state is None or not brace_state.heavy_payoff_active:
+            return 0
+
+        return brace_state.heavy_payoff_damage_bonus_percent
+
+    def consume_brace_follow_up_damage_bonus_percent(self, actor, move_mechanic):
+        if move_mechanic != BRACE_RULES.follow_up_mechanic:
+            return 0
+
+        brace_state = self._find_brace_state(actor)
+        if brace_state is None or not brace_state.heavy_payoff_active:
+            return 0
+
+        brace_state.heavy_payoff_active = False
+        return brace_state.heavy_payoff_damage_bonus_percent
+
+    def activate_arcane_overcharge(self, owner, *, broken_target=None):
+        state = self._find_arcane_charge_state(owner)
+        if state is None:
+            self._arcane_charge_states.append(
+                _ArcaneChargeState(
+                    owner=owner,
+                    broken_target=broken_target,
+                    instability_active=False,
+                )
+            )
+            return
+
+        state.broken_target = broken_target
+        state.instability_active = False
+
+    def consume_arcane_discharge(self, owner):
+        state = self._find_arcane_charge_state(owner)
+        if state is None:
+            return None
+
+        snapshot = ArcaneDischarge(
+            spell_bonus_percent=GRAVEMANTLE_RULES.overcharge_bonus_percent,
+            broken_target=state.broken_target,
+            break_reduction_percent=(
+                GRAVEMANTLE_RULES.break_mitigation_reduction_percent
+                if state.broken_target is not None
+                else 0
+            ),
+            instability_was_active=state.instability_active,
+        )
+        self._arcane_charge_states = [
+            active
+            for active in self._arcane_charge_states
+            if active.owner is not owner
+        ]
+        return snapshot
+
+    def arcane_overcharge_active(self, actor):
+        return self._find_arcane_charge_state(actor) is not None
+
+    def arcane_overcharge_bonus_percent(self, actor):
+        return (
+            GRAVEMANTLE_RULES.overcharge_bonus_percent
+            if self.arcane_overcharge_active(actor)
+            else 0
+        )
+
+    def gravemantle_break_active(self, target):
+        state = self._find_arcane_charge_state_for_target(target)
+        return state is not None
+
+    def gravemantle_break_reduction_percent(self, target):
+        return (
+            GRAVEMANTLE_RULES.break_mitigation_reduction_percent
+            if self.gravemantle_break_active(target)
+            else 0
+        )
+
+    def arcane_instability_active(self, actor):
+        state = self._find_arcane_charge_state(actor)
+        return bool(state and state.instability_active)
+
+    def arcane_instability_physical_vulnerability_percent(self, actor):
+        return (
+            GRAVEMANTLE_RULES.instability_vulnerability_percent
+            if self.arcane_instability_active(actor)
+            else 0
+        )
+
+    def activate_arcane_instability(self, actor):
+        state = self._find_arcane_charge_state(actor)
+        if state is not None:
+            state.instability_active = True
+
+    def clear_arcane_break_for_target(self, target):
+        state = self._find_arcane_charge_state_for_target(target)
+        if state is None:
+            return False
+
+        state.broken_target = None
+        return True
+
+    def apply_burn(self, source, target):
+        return self._status_state.apply_burn(source, target)
+
+    def burn_active(self, target):
+        return self._status_state.burn_active(target)
+
+    def burn_status(self, target):
+        return self._status_state.burn_status(target)
+
+    def apply_poison(self, source, target):
+        return self._status_state.apply_poison(source, target)
+
+    def poison_active(self, target):
+        return self._status_state.poison_active(target)
+
+    def poison_status(self, target):
+        return self._status_state.poison_status(target)
+
+    def apply_conductive(self, source, target):
+        return self._status_state.apply_conductive(source, target)
+
+    def conductive_active(self, source, target):
+        return self._status_state.conductive_active(source, target)
+
+    def consume_conductive(self, source, target):
+        return self._status_state.consume_conductive(source, target)
+
+    def apply_turbulence(self, source, target):
+        return self._status_state.apply_turbulence(source, target)
+
+    def turbulence_active(self, source, target):
+        return self._status_state.turbulence_active(source, target)
+
+    def consume_turbulence(self, source, target):
+        return self._status_state.consume_turbulence(source, target)
+
+    def apply_stun(self, source, target):
+        return self._status_state.apply_stun(source, target)
+
+    def stun_active(self, target):
+        return self._status_state.stun_active(target)
+
+    def stun_status(self, target):
+        return self._status_state.stun_status(target)
+
+    def consume_stun_for_action_opportunity(self, actor):
+        return self._status_state.consume_stun_for_action_opportunity(actor)
+
+    def consume_action_opportunity_suppression(self, actor):
+        return self._status_state.consume_action_opportunity_suppression(actor)
+
+    def apply_frost_charge(self, source, target):
+        return self._status_state.apply_frost_charge(source, target)
+
+    def frost_charge_count(self, source, target):
+        return self._status_state.frost_charge_count(source, target)
+
+    def frost_active(self, source, target):
+        return self._status_state.frost_active(source, target)
+
+    def clear_frost_charges(self, source, target):
+        return self._status_state.clear_frost_charges(source, target)
+
+    def apply_frozen(self, source, target):
+        return self._status_state.apply_frozen(source, target)
+
+    def frozen_active(self, target):
+        return self._status_state.frozen_active(target)
+
+    def frozen_status(self, target):
+        return self._status_state.frozen_status(target)
+
+    def consume_frozen_for_action_opportunity(self, actor):
+        return self._status_state.consume_frozen_for_action_opportunity(actor)
+
+    def apply_frostbite(self, source, target, *, damage_per_tick, ticks):
+        return self._status_state.apply_frostbite(
+            source,
+            target,
+            damage_per_tick=damage_per_tick,
+            ticks=ticks,
+        )
+
+    def frostbite_active(self, target):
+        return self._status_state.frostbite_active(target)
+
+    def frostbite_status(self, target):
+        return self._status_state.frostbite_status(target)
+
+    def active_status_kinds(self, target):
+        return self._status_state.active_status_kinds(target)
+
+    def clear_statuses(self):
+        self._status_state.clear_all()
+
+    def complete_accepted_action(
+        self,
+        actor,
+        opposing_combatants,
+        *,
+        reduce_heal_cooldown=True,
+    ):
+        outcomes = []
         for opponent in opposing_combatants:
             if opponent is actor:
                 continue
 
             self.clear_defend(opponent)
+            self._clear_brace_incoming_protection(opponent)
+            outcomes.extend(
+                self._status_state.clear_defeated_target_outcomes(opponent)
+            )
 
-        return self.advance_turn()
+        if reduce_heal_cooldown:
+            self._decrement_heal_cooldown(actor)
+
+        outcomes.extend(self._status_state.advance_after_accepted_action(actor))
+        self.advance_turn()
+        return tuple(outcomes)
+
+    def _find_brace_state(self, combatant):
+        for brace_state in self._brace_states:
+            if brace_state.owner is combatant:
+                return brace_state
+
+        return None
+
+    def _find_heal_cooldown(self, combatant):
+        for cooldown in self._heal_cooldowns:
+            if cooldown.owner is combatant:
+                return cooldown
+
+        return None
+
+    def _find_arcane_charge_state(self, combatant):
+        for state in self._arcane_charge_states:
+            if state.owner is combatant:
+                return state
+
+        return None
+
+    def _find_arcane_charge_state_for_target(self, target):
+        for state in self._arcane_charge_states:
+            if state.broken_target is target:
+                return state
+
+        return None
+
+    def _decrement_heal_cooldown(self, combatant):
+        cooldown = self._find_heal_cooldown(combatant)
+        if cooldown is None or cooldown.remaining_actions == 0:
+            return
+
+        cooldown.remaining_actions -= 1
+
+    def _clear_brace_incoming_protection(self, combatant):
+        brace_state = self._find_brace_state(combatant)
+        if brace_state is None:
+            return
+
+        brace_state.incoming_protection_active = False

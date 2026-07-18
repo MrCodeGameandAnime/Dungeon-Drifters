@@ -3,14 +3,42 @@ import contextlib
 import io
 import random
 from types import SimpleNamespace
-from app.combat.battle import Battle
-from app.combat.move import TargetType
+from app.combat.battle import Battle as DomainBattle
+from app.combat.brace import BRACE_RULES
+from app.combat.move import (
+    DamageType,
+    Move,
+    MoveKind,
+    ResourceType,
+    ScalingAttribute,
+    TargetType,
+)
 from app.combat.resolver import CombatResolver
-from app.combat.result import MoveResult
+from app.combat.result import CombatOutcomeType, MoveResult
 from app.enemies.goblin.definition import Goblin
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, Monk
+from app.player.character import Brawler, Monk, RogueArcher
+from app.player.character_run_state import PreparedPayloadId, RunItemId
+from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
+from app.player.run_items import InventoryCommand
+from app.presentation.battle_models import (
+    ActionIntent,
+    BattleEventType,
+    BattleLogEntry,
+    InputRejectionReason,
+    InteractionPhase,
+)
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ConfirmInventoryUse,
+    GoBack,
+)
+from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.world.character_profiles.roster import get_profile_by_choice
 
 
@@ -65,6 +93,19 @@ def rejected_result():
     )
 
 
+def fire_infusion_preparation_inputs(source_item_id="ember_shard", *, confirmed=True):
+    companion_item_id = (
+        "deep_coal" if source_item_id == "ember_shard" else "ember_shard"
+    )
+    return (
+        ChooseAction(ActionIntent.ITEMS),
+        ChooseInventoryItem(source_item_id),
+        ChooseInventoryCommand(InventoryCommand.USE),
+        ChooseInventoryCompanion(companion_item_id),
+        ConfirmInventoryUse(confirmed),
+    )
+
+
 def result_with(**overrides):
     values = {
         "accepted": True,
@@ -87,13 +128,24 @@ class RecordingResolver:
         self.calls = []
         self.defend_calls = []
 
-    def resolve_move(self, actor, target, move_name, *, combat_state=None):
-        self.calls.append({
+    def resolve_move(
+        self,
+        actor,
+        target,
+        move_name,
+        *,
+        combat_state=None,
+        character_run_state=None,
+    ):
+        call = {
             "actor": actor,
             "target": target,
             "move_name": move_name,
             "combat_state": combat_state,
-        })
+        }
+        if character_run_state is not None:
+            call["character_run_state"] = character_run_state
+        self.calls.append(call)
         return self._results.pop(0) if self._results else accepted_result()
 
     def resolve_defend(self, actor, combat_state):
@@ -102,6 +154,31 @@ class RecordingResolver:
             "combat_state": combat_state,
         })
         return self._defend_results.pop(0) if self._defend_results else accepted_result()
+
+
+class ScriptedBattleUI:
+    def __init__(self, *inputs):
+        self.inputs = list(inputs)
+        self.rendered_views = []
+        self.input_views = []
+
+    def render(self, view):
+        self.rendered_views.append(view)
+
+    def read_input(self, view):
+        self.input_views.append(view)
+        return self.inputs.pop(0)
+
+
+class Battle(DomainBattle):
+    def __init__(self, player_state, foe, resolver=None, ui=None, **kwargs):
+        super().__init__(
+            player_state,
+            foe,
+            ui=ui or TerminalBattleUI(),
+            resolver=resolver,
+            **kwargs,
+        )
 
 
 class LegacyMovesFailingEnemyState(EnemyState):
@@ -115,6 +192,231 @@ class ManaBearingEnemyState(EnemyState):
         super().__init__(enemy_definition, tier=tier)
         self.mana_resource.set_maximum(5)
         self.mana_resource.restore(3)
+
+
+def test_inventory_navigation_does_not_mutate_or_advance():
+    player_state = PlayerState(RogueArcher())
+    before = player_state.character_run_state.snapshot()
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ui,
+        resolver=RecordingResolver(defend_results=(accepted_result(),)),
+    )
+
+    assert battle.player_action() is True
+
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.INVENTORY,
+        InteractionPhase.ACTIONS,
+    )
+    assert battle.combat_state.turn_count == 1
+    assert player_state.character_run_state.snapshot() == before
+
+
+def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
+    player_state = PlayerState(RogueArcher())
+    mana_before = player_state.mana_resource.current
+    super_before = player_state.super_resource.current
+    ui = ScriptedBattleUI(
+        *fire_infusion_preparation_inputs(),
+    )
+    battle = Battle(player_state, EnemyState(Goblin()), ui=ui)
+
+    assert battle.player_action() is True
+
+    assert battle.combat_state.turn_count == 1
+    assert player_state.mana_resource.current == mana_before
+    assert player_state.super_resource.current == super_before
+    assert player_state.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
+    assert player_state.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.INFUSED_BARB
+    ) is True
+    entry = battle.presentation_session.entries[0]
+    assert entry.event_type == BattleEventType.INVENTORY
+    assert tuple(outcome.outcome_type for outcome in entry.outcomes) == (
+        CombatOutcomeType.COMPOUNDS_CONSUMED,
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
+    )
+
+
+def test_prepared_payload_persists_through_actions_enemy_response_and_encounters():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver(
+        accepted_result(),
+        defend_results=(accepted_result(),),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+        *fire_infusion_preparation_inputs(),
+        ),
+        resolver=resolver,
+    )
+    battle.player_action()
+
+    battle.ui = ScriptedBattleUI(ChooseAction(ActionIntent.DEFEND))
+    battle.player_action()
+    battle.enemy_action()
+    battle.resolver = CombatResolver(
+        rng=SimpleNamespace(randint=lambda start, _end: start)
+    )
+    player_state.health.take_damage(10)
+    battle.ui = ScriptedBattleUI(ChooseAction(ActionIntent.HEAL))
+    battle.player_action()
+    battle.ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Mournpoint Verdict"),
+    )
+    battle.player_action()
+    next_battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(),
+    )
+
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.INFUSED_BARB
+    ) is True
+    assert next_battle.player_state.character_run_state is player_state.character_run_state
+
+
+class LethalEnemyResolver(RecordingResolver):
+    def resolve_move(self, actor, target, move_name, *, combat_state=None):
+        self.calls.append({
+            "actor": actor,
+            "target": target,
+            "move_name": move_name,
+            "combat_state": combat_state,
+        })
+        damage = target.health.current
+        target.health.take_damage(damage)
+        return result_with(move_name=move_name, damage=damage)
+
+
+def test_accepted_preparation_allows_exactly_one_enemy_response():
+    player_state = PlayerState(RogueArcher())
+    resolver = LethalEnemyResolver()
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+        *fire_infusion_preparation_inputs(),
+        ),
+        resolver=resolver,
+    )
+
+    with patched_battle(randint=lambda _start, _end: 1):
+        winner = battle.run()
+
+    assert winner == "enemy"
+    assert len(resolver.calls) == 1
+    assert battle.combat_state.turn_count == 2
+
+
+def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver()
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ScriptedBattleUI(
+        *fire_infusion_preparation_inputs(),
+        ),
+        resolver=resolver,
+    )
+    player_state.health.take_damage(player_state.health.current - 1)
+    battle.combat_state.apply_burn(player_state, player_state)
+
+    with patched_battle(randint=lambda _start, _end: 1):
+        winner = battle.run()
+
+    assert winner == "enemy"
+    assert resolver.calls == []
+    assert battle.combat_state.turn_count == 1
+    assert tuple(
+        outcome.outcome_type
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    ) == (
+        CombatOutcomeType.COMPOUNDS_CONSUMED,
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.BURN_EXPIRED,
+    )
+
+
+def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
+    player_state = PlayerState(RogueArcher())
+    enemy_state = EnemyState(Goblin())
+    enemy_state.health.take_damage(enemy_state.health.current - 1)
+    ui = ScriptedBattleUI()
+    battle = Battle(player_state, enemy_state, ui=ui)
+    battle.combat_state.apply_burn(player_state, enemy_state)
+
+    with patched_battle(randint=lambda _start, _end: 2):
+        winner = battle.run()
+
+    assert winner == "player"
+    assert ui.input_views == []
+    assert battle.combat_state.turn_count == 1
+    assert tuple(entry.event_type for entry in battle.presentation_session.entries[-2:]) == (
+        BattleEventType.STATUS,
+        BattleEventType.VICTORY,
+    )
+    status_entry = next(
+        entry
+        for entry in battle.presentation_session.entries
+        if entry.event_type == BattleEventType.STATUS
+    )
+    assert tuple(outcome.outcome_type for outcome in status_entry.outcomes) == (
+        CombatOutcomeType.BURN_TICK,
+        CombatOutcomeType.BURN_EXPIRED,
+    )
+    assert status_entry.outcomes[0].amount == 1
+
+
+def test_burn_does_not_tick_during_navigation_or_rejected_action():
+    player_state = PlayerState(RogueArcher())
+    resolver = RecordingResolver(
+        accepted_result(),
+        defend_results=(rejected_result(),),
+    )
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Mournpoint Verdict"),
+    )
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        ui=ui,
+        resolver=resolver,
+    )
+    battle.combat_state.apply_burn(player_state, player_state)
+    before = player_state.health.current
+
+    assert battle.player_action() is True
+
+    assert all(view.player.hp_current == before for view in ui.input_views)
+    assert player_state.health.current == before - 7
+    assert battle.combat_state.turn_count == 1
+    status_entries = tuple(
+        entry
+        for entry in battle.presentation_session.entries
+        if entry.event_type == BattleEventType.STATUS
+    )
+    assert len(status_entries) == 1
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -139,6 +441,7 @@ def test_battle_creates_combat_resolver_by_default():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
 
     assert isinstance(battle.resolver, CombatResolver)
+    assert isinstance(battle.inventory_action_resolver, InventoryActionResolver)
 
 
 def test_battle_accepts_injected_resolver():
@@ -146,6 +449,217 @@ def test_battle_accepts_injected_resolver():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()), resolver=resolver)
 
     assert battle.resolver is resolver
+
+
+def test_battle_accepts_injected_semantic_ui():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+
+    accepted = battle.player_action()
+
+    assert accepted is True
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.REGULAR_MOVES,
+    )
+    assert resolver.calls[0]["move_name"] == "Crestgrave Reaping"
+
+
+def test_accepted_player_action_replaces_previous_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert tuple(entry.action_name for entry in battle.presentation_session.entries) == (
+        "test move",
+    )
+
+
+def test_navigation_and_rejected_action_preserve_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        GoBack(),
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(rejected_result(), accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert any(
+        entry.action_name == "old turn"
+        for entry in ui.input_views[4].log_entries
+    )
+    assert any(
+        entry.reason == "rejected"
+        for entry in ui.input_views[4].log_entries
+    )
+    names = tuple(entry.action_name for entry in battle.presentation_session.entries)
+    assert "old turn" not in names
+    assert names[-1] == "test move"
+
+
+def test_accepted_miss_starts_a_new_displayed_turn():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(result_with(hit=False))
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+    battle.presentation_session.record(
+        BattleLogEntry(
+            event_type=BattleEventType.DAMAGE,
+            actor_name="old",
+            action_name="old turn",
+        )
+    )
+
+    assert battle.player_action() is True
+    assert tuple(entry.action_name for entry in battle.presentation_session.entries) == (
+        "test move",
+    )
+
+
+def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ITEMS),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    )
+    resolver = RecordingResolver(defend_results=(accepted_result(),))
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+
+    assert battle.player_action() is True
+
+    assert len(resolver.defend_calls) == 1
+    assert battle.combat_state.turn_count == 1
+    assert ui.input_views[1].interaction_phase == InteractionPhase.INVENTORY
+
+
+def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    )
+    resolver = RecordingResolver(defend_results=(accepted_result(),))
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+
+    assert battle.player_action() is True
+
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.REGULAR_MOVES,
+        InteractionPhase.ACTIONS,
+    )
+    assert resolver.calls == []
+    assert battle.combat_state.turn_count == 1
+
+
+def test_super_opens_from_regular_move_phase_without_advancing():
+    player_state = PlayerState(Brawler())
+    player_state.super_resource.gain(100)
+    super_move = player_state.combat_moves[-1]
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseAction(ActionIntent.SUPER),
+        ChooseMove(super_move.name),
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+
+    assert battle.player_action() is True
+
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.REGULAR_MOVES,
+        InteractionPhase.SUPER_MOVES,
+    )
+    assert resolver.calls[0]["move_name"] == super_move.name
+    assert battle.combat_state.turn_count == 1
+
+
+def test_resolver_rejection_retains_move_phase_until_accepted():
+    ui = ScriptedBattleUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Crestgrave Reaping"),
+        ChooseMove("Crestgrave Reaping"),
+    )
+    resolver = RecordingResolver(rejected_result(), accepted_result())
+    battle = Battle(
+        PlayerState(Brawler()),
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ui,
+    )
+
+    assert battle.player_action() is True
+
+    assert tuple(view.interaction_phase for view in ui.input_views) == (
+        InteractionPhase.ACTIONS,
+        InteractionPhase.REGULAR_MOVES,
+        InteractionPhase.REGULAR_MOVES,
+    )
+    assert len(resolver.calls) == 2
+    assert battle.combat_state.turn_count == 1
 
 
 def test_structured_move_helpers_read_player_and_enemy_combat_moves():
@@ -169,7 +683,7 @@ def test_complete_accepted_action_advances_when_result_is_accepted():
         result=accepted_result(),
     )
 
-    assert result == 1
+    assert result == ()
     assert battle.combat_state.turn_count == 1
     assert not battle.combat_state.is_defending(enemy_state)
 
@@ -191,62 +705,64 @@ def test_complete_accepted_action_does_nothing_when_result_is_rejected():
     assert battle.combat_state.is_defending(enemy_state)
 
 
-def test_result_renderer_prints_critical_damage_and_preserves_other_result_rendering():
+def test_move_results_become_structured_semantic_events():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
-    output = io.StringIO()
 
-    with contextlib.redirect_stdout(output):
-        battle._render_move_result(
-            result_with(move_name="Cut", damage=7),
-            actor=battle.player_state,
-            target=battle.foe,
-        )
-        battle._render_move_result(
-            result_with(move_name="Smash", damage=16, critical=True),
-            actor=battle.player_state,
-            target=battle.foe,
-        )
-        battle._render_move_result(
-            result_with(move_name="Recover", healing=3),
-            actor=battle.player_state,
-            target=battle.player_state,
-        )
-        battle._render_move_result(
-            result_with(move_name="Whiff", hit=False),
-            actor=battle.foe,
-            target=battle.player_state,
-        )
-        battle._render_move_result(
-            rejected_result(),
-            actor=battle.player_state,
-            target=battle.foe,
-        )
-        battle._render_move_result(
-            result_with(
-                move_name="Spark",
-                resource_spent=4,
-                statuses_applied=("burn", "shock"),
-            ),
-            actor=battle.player_state,
-            target=battle.foe,
-        )
-        battle._render_move_result(
-            result_with(move_name="Defend", hit=False),
-            actor=battle.player_state,
-        )
+    battle._record_move_result(
+        result_with(move_name="Cut", damage=7),
+        actor=battle.player_state,
+        target=battle.foe,
+    )
+    battle._record_move_result(
+        result_with(move_name="Smash", damage=16, critical=True),
+        actor=battle.player_state,
+        target=battle.foe,
+    )
+    battle._record_move_result(
+        result_with(move_name="Recover", healing=3),
+        actor=battle.player_state,
+        target=battle.player_state,
+    )
+    battle._record_move_result(
+        result_with(move_name="Whiff", hit=False),
+        actor=battle.foe,
+        target=battle.player_state,
+    )
+    battle._record_move_result(
+        rejected_result(),
+        actor=battle.player_state,
+        target=battle.foe,
+    )
+    battle._record_move_result(
+        result_with(
+            move_name="Spark",
+            resource_spent=4,
+            statuses_applied=("burn", "shock"),
+        ),
+        actor=battle.player_state,
+        target=battle.foe,
+    )
+    battle._record_move_result(
+        result_with(move_name="Defend", hit=False),
+        actor=battle.player_state,
+        event_type=BattleEventType.DEFEND,
+    )
 
-    text = output.getvalue()
-    assert "Brawler used Cut. It dealt 7 damage." in text
-    assert "Brawler used Smash. Critical hit! It dealt 16 damage." in text
-    assert "Brawler used Recover. It restored 3 health." in text
-    assert "Goblin used Whiff, but missed." in text
-    assert "Brawler used test move, but it failed: rejected." in text
-    assert "Resource spent: 4." in text
-    assert "Statuses applied: burn, shock." in text
-    assert "Brawler used Defend." in text
-    assert "Defend missed" not in text
-    assert "Whiff. It dealt" not in text
-    assert "Brawler used Cut. Critical hit!" not in text
+    entries = battle.presentation_session.entries
+    assert tuple(entry.event_type for entry in entries) == (
+        BattleEventType.DAMAGE,
+        BattleEventType.DAMAGE,
+        BattleEventType.HEALING,
+        BattleEventType.MISS,
+        BattleEventType.ACTION_REJECTED,
+        BattleEventType.UTILITY,
+        BattleEventType.DEFEND,
+    )
+    assert entries[0].amount == 7 and entries[0].critical is False
+    assert entries[1].amount == 16 and entries[1].critical is True
+    assert entries[4].reason == "rejected"
+    assert entries[5].resource_spent == 4
+    assert entries[5].statuses_applied == ("burn", "shock")
 
 
 def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_labels():
@@ -257,10 +773,15 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
         battle.player_action()
 
     text = output.getvalue()
-    assert "1. Attack" in text
-    assert "2. Defend" in text
-    assert "3. Items" in text
-    assert "4. Super" in text
+    assert "[A] Attack" in text
+    assert "[D] Defend" in text
+    assert "[H] Heal - Full HP [Unavailable]" in text
+    assert "[I] Items" in text
+    assert "[I] Items [Unavailable]" not in text
+    assert "[E] Escape [Unavailable]" in text
+    assert "[S] Super" in text
+    assert "SUPER [" in text
+    assert "0/100" in text
     assert "Recover (restore health)" not in text
     assert "steady attack" not in text
     assert "risky heavy attack" not in text
@@ -288,8 +809,20 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
 
     for index, move in enumerate(non_super_moves, start=1):
         assert f"{index}. {move.name}" in text
-        assert f"[{move.resource_type.value} {move.resource_cost}]" in text
-        assert move.description in text
+        if move.mechanic == "brace":
+            assert (
+                f"reducing physical damage by {BRACE_RULES.incoming_reduction_percent}%"
+                in text
+            )
+            assert (
+                f"empower your next Heavy attack by "
+                f"{BRACE_RULES.follow_up_damage_bonus_percent}%"
+                in text
+            )
+        elif move.presentation is not None and move.presentation.static_summary is not None:
+            assert move.presentation.static_summary in text
+        else:
+            assert move.description in text
 
     assert "0. Back" in text
     assert all(move.name not in text for move in super_moves)
@@ -297,6 +830,7 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
 
 def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     player_state = PlayerState(Brawler())
+    player_state.super_resource.gain(100)
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(player_state, EnemyState(Goblin()), resolver=resolver)
     output = io.StringIO()
@@ -313,8 +847,9 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
 
     assert "Choose a Super:" in text
     assert f"1. {super_move.name}" in text
-    assert f"[{super_move.resource_type.value} {super_move.resource_cost}]" in text
-    assert super_move.description in text
+    assert "[Super | 100 Super]" in text
+    assert "A forbidden gate manifests" in text
+    assert "Sunder-Spire" in text
     assert "Brawler used test move, but it failed: rejected." in text
     assert battle.combat_state.turn_count == 1
     assert resolver.calls[0] == {
@@ -322,19 +857,21 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
         "target": battle.foe,
         "move_name": super_move.name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }
 
 
-def test_items_are_unavailable_and_return_to_main_menu_without_advancing_until_accepted_action():
+def test_empty_items_opens_and_returns_without_advancing_until_accepted_action():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
     output = io.StringIO()
 
-    with patched_battle(inputs=["items", "attack", "1"]), contextlib.redirect_stdout(output):
+    with patched_battle(inputs=["items", "0", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
-    assert "Items are not available yet." in text
-    assert text.count("Choose an action:") == 2
+    assert "Your inventory is empty." in text
+    assert "Items is not available." not in text
+    assert text.count("Actions") == 2
     assert battle.combat_state.turn_count == 1
 
 
@@ -393,19 +930,33 @@ def test_rejected_player_defend_reprompts_without_completion_or_turn_advance():
     assert battle.combat_state.turn_count == 1
 
 
-def test_rejected_player_move_does_not_clear_defend_or_advance_before_backing_out():
+def test_rejected_player_move_preserves_lifecycle_through_back_navigation():
     player_state = PlayerState(Brawler())
     enemy_state = EnemyState(Goblin())
     resolver = RecordingResolver(rejected_result())
-    battle = Battle(player_state, enemy_state, resolver=resolver)
+    inputs = [
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove(player_state.combat_moves[0].name),
+        GoBack(),
+        ChooseAction(ActionIntent.DEFEND),
+    ]
+
+    class LifecycleInspectingUI(ScriptedBattleUI):
+        def read_input(self, view):
+            if len(self.input_views) in (2, 3):
+                assert battle.combat_state.turn_count == 0
+                assert battle.combat_state.is_defending(enemy_state)
+            return super().read_input(view)
+
+    ui = LifecycleInspectingUI(*inputs)
+    battle = Battle(player_state, enemy_state, resolver=resolver, ui=ui)
     battle.combat_state.activate_defend(enemy_state)
 
-    with patched_battle(inputs=["1", "0"]), contextlib.redirect_stdout(io.StringIO()):
-        accepted = battle._player_attack_menu()
+    accepted = battle.player_action()
 
-    assert accepted is False
-    assert battle.combat_state.turn_count == 0
-    assert battle.combat_state.is_defending(enemy_state)
+    assert accepted is True
+    assert battle.combat_state.turn_count == 1
+    assert not battle.combat_state.is_defending(enemy_state)
 
 
 def test_defend_is_not_a_structured_combat_move():
@@ -429,15 +980,17 @@ def test_player_menu_display_does_not_depend_on_legacy_character_moves():
 
 
 def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
-    battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
+    player_state = PlayerState(Brawler())
+    player_state.super_resource.gain(100)
+    battle = Battle(player_state, EnemyState(Goblin()))
     output = io.StringIO()
 
     with patched_battle(inputs=["attack", "bad", "0", "super", "bad", "0", "attack", "1"]), contextlib.redirect_stdout(output):
         battle.player_action()
 
     text = output.getvalue()
-    assert text.count("Choose an attack:") == 3
-    assert text.count("Choose a Super:") == 2
+    assert text.count("Choose a move:") == 2
+    assert text.count("Choose a Super:") == 1
     assert text.count("That is not a valid move. Please try again.") == 2
     assert battle.combat_state.turn_count == 1
 
@@ -486,7 +1039,33 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
         "target": enemy_state,
         "move_name": player_state.combat_moves[0].name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }]
+
+
+def test_infused_barb_battle_passes_exact_run_state_without_mutating_payload():
+    player_state = PlayerState(RogueArcher())
+    InventoryActionResolver().resolve(
+        "prepare_fire_infusion",
+        player_state.character_run_state,
+    )
+    resolver = RecordingResolver(accepted_result())
+    battle = Battle(
+        player_state,
+        EnemyState(Goblin()),
+        resolver=resolver,
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ATTACK),
+            ChooseMove("Infused Barb"),
+        ),
+    )
+
+    assert battle.player_action() is True
+
+    assert resolver.calls[0]["character_run_state"] is player_state.character_run_state
+    assert player_state.character_run_state.payload_prepared(
+        PreparedPayloadId.INFUSED_BARB
+    ) is True
 
 
 def test_legacy_battle_combat_helpers_are_removed():
@@ -497,12 +1076,18 @@ def test_legacy_battle_combat_helpers_are_removed():
 
 def test_self_targeting_player_move_routes_player_state_to_resolver():
     player_state = PlayerState(Brawler())
-    self_move = SimpleNamespace(
+    self_move = Move(
         name="test self move",
-        resource_type=SimpleNamespace(value="none"),
+        kind=MoveKind.UTILITY,
+        resource_type=ResourceType.NONE,
         resource_cost=0,
-        description="A test self-targeting move.",
+        power=0,
+        scales_with=(ScalingAttribute.NONE,),
+        accuracy=100,
         target=TargetType.SELF,
+        damage_type=DamageType.NONE,
+        mechanic=None,
+        description="A test self-targeting move.",
     )
     player_state.character.combat_moves = [self_move]
     resolver = RecordingResolver(accepted_result())
@@ -516,6 +1101,7 @@ def test_self_targeting_player_move_routes_player_state_to_resolver():
         "target": player_state,
         "move_name": self_move.name,
         "combat_state": battle.combat_state,
+        "character_run_state": player_state.character_run_state,
     }]
 
 
@@ -547,15 +1133,19 @@ def test_battles_do_not_share_combat_state():
     second_battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
 
     first_battle.combat_state.advance_turn()
-    first_battle.combat_state.statuses["burn"] = 2
+    first_battle.combat_state.apply_burn(
+        first_battle.player_state,
+        first_battle.foe,
+    )
 
     assert first_battle.combat_state is not second_battle.combat_state
     assert first_battle.combat_state.turn_count == 1
     assert second_battle.combat_state.turn_count == 0
-    assert second_battle.combat_state.statuses == {}
+    assert first_battle.combat_state.burn_active(first_battle.foe) is True
+    assert second_battle.combat_state.burn_active(first_battle.foe) is False
 
 
-def test_hud_prints_resources_and_temporary_state_when_relevant():
+def test_battle_view_contains_resources_and_temporary_state_when_relevant():
     player_state = PlayerState(Brawler())
     enemy_state = ManaBearingEnemyState(Goblin())
     battle = Battle(player_state, enemy_state)
@@ -564,39 +1154,25 @@ def test_hud_prints_resources_and_temporary_state_when_relevant():
     enemy_state.super_resource.gain(20)
     battle.combat_state.activate_defend(player_state)
     battle.combat_state.activate_defend(enemy_state)
-    battle.combat_state.statuses["burn"] = 1
-    battle.combat_state.buffs["guard"] = 1
-    battle.combat_state.debuffs["slow"] = 1
-    output = io.StringIO()
+    view = battle._build_view()
 
-    with contextlib.redirect_stdout(output):
-        battle.print_health()
-
-    text = output.getvalue()
-    assert "Brawler HP:" in text
-    assert "Brawler Mana:" in text
-    assert "Brawler Super: 10/100" in text
-    assert "Brawler Defending: yes" in text
-    assert "Goblin HP: 60/60" in text
-    assert "Goblin Mana: 3/5" in text
-    assert "Goblin Super: 20/100" in text
-    assert "Goblin Defending: yes" in text
-    assert "Statuses: {'burn': 1}" in text
-    assert "Buffs: {'guard': 1}" in text
-    assert "Debuffs: {'slow': 1}" in text
+    assert (view.player.hp_current, view.player.hp_maximum) == (116, 116)
+    assert (view.player.mana_current, view.player.mana_maximum) == (44, 46)
+    assert (view.player.super_current, view.player.super_maximum) == (10, 100)
+    assert view.player.temporary_labels == ("Defending",)
+    assert (view.enemy.hp_current, view.enemy.hp_maximum) == (60, 60)
+    assert (view.enemy.mana_current, view.enemy.mana_maximum) == (3, 5)
+    assert (view.enemy.super_current, view.enemy.super_maximum) == (20, 100)
+    assert view.enemy.temporary_labels == ("Defending",)
 
 
-def test_hud_omits_enemy_mana_and_super_when_not_relevant():
+def test_battle_view_omits_enemy_mana_and_super_when_not_relevant():
     battle = Battle(PlayerState(Brawler()), EnemyState(Goblin()))
-    output = io.StringIO()
+    view = battle._build_view()
 
-    with contextlib.redirect_stdout(output):
-        battle.print_health()
-
-    text = output.getvalue()
-    assert "Goblin HP: 60/60" in text
-    assert "Goblin Mana:" not in text
-    assert "Goblin Super:" not in text
+    assert (view.enemy.hp_current, view.enemy.hp_maximum) == (60, 60)
+    assert view.enemy.mana_current is None
+    assert view.enemy.super_current is None
 
 
 def test_enemy_action_routes_authored_combat_move_through_resolver():
@@ -689,7 +1265,7 @@ def test_run_does_not_advance_turn_outside_accepted_action_completion():
     def fake_complete(actor, opposing_combatants):
         battle.foe.health.take_damage(1)
         battle.combat_state.turn_count += 1
-        return battle.combat_state.turn_count
+        return ()
 
     battle.combat_state.complete_accepted_action = fake_complete
     battle.combat_state.advance_turn = lambda: (_ for _ in ()).throw(
@@ -733,27 +1309,20 @@ def test_low_health_enemy_does_not_use_universal_recovery_branch():
     assert len(resolver.calls) == 1
 
 
-def test_battle_player_output_uses_canonical_short_identity_when_profile_attached():
+def test_battle_presentation_uses_canonical_short_identity_when_profile_attached():
     character = get_profile_by_choice("1").create_character()
     player_state = PlayerState(character)
     battle = Battle(player_state, EnemyState(Goblin()))
-    output = io.StringIO()
+    battle._record_move_result(
+        result_with(move_name="Crestgrave Reaping", damage=12),
+        actor=battle.player_state,
+        target=battle.foe,
+    )
+    view = battle._build_view()
 
-    with contextlib.redirect_stdout(output):
-        battle.print_health()
-        battle._render_move_result(
-            result_with(move_name="Crestgrave Reaping", damage=12),
-            actor=battle.player_state,
-            target=battle.foe,
-        )
-
-    text = output.getvalue()
-    assert "Ser Branoc HP:" in text
-    assert "Ser Branoc Mana:" in text
-    assert "Ser Branoc Super:" in text
-    assert "Ser Branoc used Crestgrave Reaping." in text
-    assert "Brawler HP:" not in text
-    assert "Brawler used Crestgrave Reaping" not in text
+    assert view.player.display_name == "Ser Branoc"
+    assert view.log_entries[-1].actor_name == "Ser Branoc"
+    assert view.player.display_name != "Brawler"
 
 
 def test_battle_starts_from_existing_persistent_health():

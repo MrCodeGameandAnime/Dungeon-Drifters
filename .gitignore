@@ -49,3 +49,6 @@ update info/
 # OS files
 .DS_Store
 Thumbs.db
+# Generated balance probe runs; keep the usage README tracked.
+tools/balance_probe_outputs/*
+!tools/balance_probe_outputs/README.md

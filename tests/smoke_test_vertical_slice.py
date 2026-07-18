@@ -74,7 +74,8 @@ def test_attack_path_reaches_victory_ending():
     assert "You have chosen Joruun Veyr, the Bloody Storm Monk!" in text
     assert "You ready your weapon" in text
     assert "A Goblin blocks your path" in text
-    assert "Joruun Veyr HP:" in text
+    assert "Joruun Veyr" in text
+    assert "HP 100/100" in text
     assert "Victory. Your adventure has begun." in text
 
 

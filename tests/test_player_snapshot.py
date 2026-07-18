@@ -5,6 +5,7 @@ import pytest
 from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.inventory_action import InventoryActionResolver
 from app.snapshot import validate_plain_value
 from app.world.character_profiles.roster import get_profile_by_choice
 
@@ -51,6 +52,10 @@ def test_default_player_snapshot_has_required_shape():
     assert "next_exp_threshold" not in snapshot["progression"]
     assert snapshot["gold"] == 0
     assert snapshot["inventory"] == []
+    assert snapshot["run_state"] == {
+        "inventory": {},
+        "prepared_payloads": {},
+    }
     assert tuple(snapshot["equipment"].keys()) == PlayerState.EQUIPMENT_SLOTS
     assert snapshot["equipment"]["weapon"] == {
         "type": "SunderSpire",
@@ -110,6 +115,44 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
     assert snapshot["progression"] == {"level": 3, "exp": 25}
     assert snapshot["gold"] == 15
     assert snapshot["inventory"] == ["tonic", "tonic"]
+    assert_strict_json(snapshot)
+
+
+def test_zhaivra_snapshot_includes_character_owned_run_state():
+    snapshot = PlayerState(RogueArcher()).snapshot()
+
+    assert snapshot["run_state"] == {
+        "inventory": {
+            "deep_coal": 1,
+            "ember_shard": 1,
+            "night_berry": 1,
+        },
+        "prepared_payloads": {
+            "infused_barb": None,
+        },
+    }
+    assert_strict_json(snapshot)
+
+
+def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
+    player_state = PlayerState(RogueArcher())
+    InventoryActionResolver().resolve(
+        "prepare_fire_infusion",
+        player_state.character_run_state,
+    )
+
+    snapshot = player_state.snapshot()
+
+    assert snapshot["run_state"] == {
+        "inventory": {
+            "deep_coal": 0,
+            "ember_shard": 0,
+            "night_berry": 1,
+        },
+        "prepared_payloads": {
+            "infused_barb": "fire",
+        },
+    }
     assert_strict_json(snapshot)
 
 

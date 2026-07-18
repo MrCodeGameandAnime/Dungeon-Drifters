@@ -5,6 +5,7 @@ from app.combat.move import DamageType
 from app.player import resources
 from app.snapshot import to_plain_value
 from app.player.character import Character
+from app.player.character_run_state import CharacterRunState
 from app.player.inventory import Inventory
 
 
@@ -24,6 +25,10 @@ class PlayerState:
         self._character = character
         self._gold = self._validate_gold_amount(gold)
         self._inventory = Inventory()
+        self._character_run_state = CharacterRunState(
+            inventory=character.starting_run_inventory,
+            prepared_payloads=character.starting_prepared_payloads,
+        )
         self._super_resource = resources.Super()
         self._equipment = {
             slot: None
@@ -40,6 +45,10 @@ class PlayerState:
     @property
     def inventory(self):
         return self._inventory
+
+    @property
+    def character_run_state(self):
+        return self._character_run_state
 
     @property
     def gold(self):
@@ -196,6 +205,7 @@ class PlayerState:
                 self._snapshot_item(item, f"player.inventory[{index}]")
                 for index, item in enumerate(self.inventory.items)
             ],
+            "run_state": self.character_run_state.snapshot(),
             "equipment": {
                 slot: self._snapshot_item(item, f"player.equipment.{slot}")
                 for slot, item in self.equipment.items()

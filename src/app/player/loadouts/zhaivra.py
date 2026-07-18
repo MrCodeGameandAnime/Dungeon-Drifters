@@ -1,3 +1,4 @@
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.items.weapon import Sathren
 
@@ -13,12 +14,26 @@ def create_starting_stats():
     }
 
 
+def create_starting_run_inventory():
+    return {
+        "ember_shard": 1,
+        "deep_coal": 1,
+        "night_berry": 1,
+    }
+
+
+def create_starting_prepared_payloads():
+    return {
+        "infused_barb": None,
+    }
+
+
 def create_legacy_moves():
     return {
         1: 'Mournpoint Verdict',
         2: 'Hollowstring Trine',
         3: 'Nightskein Deluge',
-        4: 'Cinderwrit Barb',
+        4: 'Infused Barb',
         5: 'Starless Meridian Obsequy',
     }
 
@@ -65,7 +80,7 @@ def create_combat_moves():
             # Deferred mechanic: multi-target shadow volley
             description='A woven storm of shadow-arrows descends across the battlefield.'),
         Move(
-            name='Cinderwrit Barb',
+            name='Infused Barb',
             kind=MoveKind.DAMAGE,
             resource_type=ResourceType.MANA,
             resource_cost=5,
@@ -74,9 +89,8 @@ def create_combat_moves():
             accuracy=88,
             target=TargetType.ENEMY,
             damage_type=DamageType.MAGICAL,
-            mechanic=None,
-            # Deferred mechanic: dark-fire burn
-            description='A rune-burned arrow embeds in the target, igniting dark fire within.'),
+            mechanic=INFUSED_BARB_MECHANIC,
+            description='A prepared alchemical arrow carries fire or poison into the target.'),
         Move(
             name='Starless Meridian Obsequy',
             kind=MoveKind.DAMAGE,

@@ -19,7 +19,7 @@ EXPECTED_LOADOUTS = {
         "moves": {
             1: "Crestgrave Reaping",
             2: "Cinderlung Vesper",
-            3: "Ghalmour Compression",
+            3: "Brace",
             4: "Ironwake Dismemberment",
             5: "Third Gate Obsequy",
         },
@@ -51,17 +51,17 @@ EXPECTED_LOADOUTS = {
                 "description": "A black war-breath erupts forward, searing everything in its path.",
             },
             {
-                "name": "Ghalmour Compression",
-                "kind": "damage",
+                "name": "Brace",
+                "kind": "utility",
                 "resource_type": "mana",
                 "resource_cost": 5,
-                "power": 12,
-                "scales_with": ["spirit", "intuition"],
-                "accuracy": 78,
-                "target": "enemy",
-                "damage_type": "magical",
-                "mechanic": None,
-                "description": "Invisible pressure closes around the target, crushing flesh against bone.",
+                "power": 0,
+                "scales_with": ["none"],
+                "accuracy": 100,
+                "target": "self",
+                "damage_type": "none",
+                "mechanic": "brace",
+                "description": "Branoc plants Sunder-Spire and braces behind the Deep-Iron crest.",
             },
             {
                 "name": "Ironwake Dismemberment",
@@ -152,7 +152,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 90,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "frost_attack",
                 "description": "Black frost erupts outward, encasing nearby enemies in splintering ice.",
             },
             {
@@ -165,7 +165,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 80,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": None,
+                "mechanic": "gravemantle_rupture",
                 "description": "The ground ruptures beneath the target, shattering balance and armor.",
             },
             {
@@ -204,7 +204,7 @@ EXPECTED_LOADOUTS = {
             1: "Mournpoint Verdict",
             2: "Hollowstring Trine",
             3: "Nightskein Deluge",
-            4: "Cinderwrit Barb",
+            4: "Infused Barb",
             5: "Starless Meridian Obsequy",
         },
         "combat_moves": [
@@ -248,7 +248,7 @@ EXPECTED_LOADOUTS = {
                 "description": "A woven storm of shadow-arrows descends across the battlefield.",
             },
             {
-                "name": "Cinderwrit Barb",
+                "name": "Infused Barb",
                 "kind": "damage",
                 "resource_type": "mana",
                 "resource_cost": 5,
@@ -257,8 +257,8 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
-                "description": "A rune-burned arrow embeds in the target, igniting dark fire within.",
+                "mechanic": "infused_barb",
+                "description": "A prepared alchemical arrow carries fire or poison into the target.",
             },
             {
                 "name": "Starless Meridian Obsequy",
@@ -323,7 +323,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 70,
                 "target": "enemy",
                 "damage_type": "hybrid",
-                "mechanic": None,
+                "mechanic": "lightning_palm",
                 "description": "A risky palm strike that carries lightning through the point of impact.",
             },
             {
@@ -336,7 +336,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 82,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "tempest_surge",
                 "description": "A controlled burst of storm force shaped through Sky-Needle.",
             },
             {
@@ -349,7 +349,7 @@ EXPECTED_LOADOUTS = {
                 "accuracy": 88,
                 "target": "enemy",
                 "damage_type": "magical",
-                "mechanic": None,
+                "mechanic": "hydro_whip",
                 "description": "A snapping water current used to lash and reposition an enemy.",
             },
             {
@@ -446,7 +446,7 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
     (
         crestgrave_reaping,
         cinderlung_vesper,
-        ghalmour_compression,
+        brace,
         ironwake_dismemberment,
         third_gate_obsequy,
     ) = player.combat_moves
@@ -459,7 +459,7 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
 
     assert crestgrave_reaping.mechanic == "basic_attack"
     assert cinderlung_vesper.mechanic is None
-    assert ghalmour_compression.mechanic is None
+    assert brace.mechanic == "brace"
     assert ironwake_dismemberment.mechanic == "heavy_attack"
     assert third_gate_obsequy.mechanic is None
     assert player.class_mechanic["name"] != "Momentum"

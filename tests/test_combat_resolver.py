@@ -8,6 +8,10 @@ from app.combat.combat_state import CombatState
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.resolver import CombatResolver
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.player.character_run_state import (
+    FIRE_INFUSION_REQUIREMENTS,
+    PreparedPayloadId,
+)
 from app.player.player_state import PlayerState
 
 
@@ -197,6 +201,33 @@ def test_unsupported_kind_and_specialized_mechanic_are_rejected_before_mutation(
         assert rng.calls == []
 
 
+def test_brace_mechanic_is_rejected_on_damage_and_healing_moves():
+    damage = make_move(name="malformed damage", mechanic="brace")
+    healing = make_move(
+        name="malformed healing",
+        kind=MoveKind.HEALING,
+        damage_type=DamageType.HEALING,
+        target=TargetType.SELF,
+        scales_with=(ScalingAttribute.NONE,),
+        mechanic="brace",
+    )
+    actor = SimpleCombatant(moves=(damage, healing))
+    combat_state = CombatState()
+
+    for move in (damage, healing):
+        rng = ScriptedRng(1)
+        result = CombatResolver(rng=rng).resolve_move(
+            actor,
+            actor if move.kind == MoveKind.HEALING else EnemyState(Goblin()),
+            move.name,
+            combat_state=combat_state,
+        )
+
+        assert not result.accepted
+        assert result.reason == "unsupported_mechanic"
+        assert rng.calls == []
+
+
 def test_self_and_enemy_target_rules_are_identity_based():
     actor = PlayerState(Brawler())
     other = EnemyState(Goblin())
@@ -224,6 +255,364 @@ def test_self_and_enemy_target_rules_are_identity_based():
         CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, actor, "Crestgrave Reaping").reason
         == "invalid_target_type"
     )
+
+
+def test_brace_accepts_self_target_spends_mana_activates_state_and_uses_no_rng():
+    actor = PlayerState(Brawler())
+    combat_state = CombatState()
+    rng = ScriptedRng(1)
+
+    result = CombatResolver(rng=rng).resolve_move(
+        actor,
+        actor,
+        "Brace",
+        combat_state=combat_state,
+    )
+
+    assert result.accepted
+    assert result.hit
+    assert result.resource_spent == 5
+    assert result.damage == 0
+    assert result.healing == 0
+    assert not result.critical
+    assert actor.mana_resource.current == 41
+    assert actor.super_resource.current == 0
+    assert combat_state.brace_incoming_reduction_percent(actor, DamageType.PHYSICAL) == 40
+    assert rng.calls == []
+
+
+def test_brace_requires_valid_combat_state_before_spending_mana():
+    actor = PlayerState(Brawler())
+    mana_before = actor.mana_resource.current
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        actor,
+        "Brace",
+    )
+
+    assert not result.accepted
+    assert result.reason == "invalid_combat_state"
+    assert actor.mana_resource.current == mana_before
+
+
+def test_unaffordable_brace_does_not_spend_mana_or_activate_state():
+    actor = PlayerState(Brawler())
+    actor.mana_resource.spend(actor.mana_resource.current - 4)
+    combat_state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        actor,
+        "Brace",
+        combat_state=combat_state,
+    )
+
+    assert not result.accepted
+    assert result.reason == "insufficient_mana"
+    assert actor.mana_resource.current == 4
+    assert combat_state.brace_incoming_reduction_percent(actor, DamageType.PHYSICAL) == 0
+
+
+def test_brace_rejects_non_self_target_without_mutation():
+    actor = PlayerState(Brawler())
+    target = EnemyState(Goblin())
+    combat_state = CombatState()
+    mana_before = actor.mana_resource.current
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        "Brace",
+        combat_state=combat_state,
+    )
+
+    assert not result.accepted
+    assert result.reason == "invalid_target_type"
+    assert actor.mana_resource.current == mana_before
+    assert combat_state.brace_incoming_reduction_percent(actor, DamageType.PHYSICAL) == 0
+
+
+def test_brace_reduces_only_incoming_physical_damage():
+    moves = tuple(
+        make_move(
+            name=damage_type.value,
+            power=20,
+            damage_type=damage_type,
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        for damage_type in (DamageType.PHYSICAL, DamageType.MAGICAL, DamageType.HYBRID)
+    )
+    actor = SimpleCombatant(moves=moves)
+    target_stats = {
+        "constitution": 1,
+        "spirit": 1,
+        "intelligence": 10,
+        "strength": 10,
+        "dexterity": 10,
+        "intuition": 10,
+    }
+
+    expected = {
+        DamageType.PHYSICAL.value: 12,
+        DamageType.MAGICAL.value: 20,
+        DamageType.HYBRID.value: 20,
+    }
+    for move in moves:
+        target = SimpleCombatant(effective_stats=target_stats)
+        combat_state = CombatState()
+        combat_state.activate_brace(target)
+
+        result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+            actor,
+            target,
+            move.name,
+            combat_state=combat_state,
+        )
+
+        assert result.damage == expected[move.name]
+
+
+def test_brace_protection_persists_across_multiple_hits_before_lifecycle_completion():
+    physical = make_move(
+        name="repeated physical",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    actor = SimpleCombatant(moves=(physical,))
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    combat_state = CombatState()
+    combat_state.activate_brace(target)
+
+    first = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        physical.name,
+        combat_state=combat_state,
+    )
+    second = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        physical.name,
+        combat_state=combat_state,
+    )
+
+    assert first.damage == 12
+    assert second.damage == 12
+    assert combat_state.brace_incoming_reduction_percent(target, DamageType.PHYSICAL) == 40
+
+
+def test_accepted_heavy_attack_consumes_brace_payoff_before_hit_resolution():
+    heavy = make_move(
+        name="heavy",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        mechanic="heavy_attack",
+    )
+    actor = SimpleCombatant(
+        moves=(heavy,),
+        effective_stats={
+            "constitution": 10,
+            "spirit": 10,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    combat_state = CombatState()
+    combat_state.activate_brace(actor)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        heavy.name,
+        combat_state=combat_state,
+    )
+
+    assert result.accepted
+    assert result.hit
+    assert result.damage == 26
+    assert target.health.current == target.health.maximum - 26
+    assert (
+        combat_state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack")
+        == 0
+    )
+
+
+def test_heavy_brace_payoff_is_applied_before_final_crit_multiplier():
+    heavy = make_move(
+        name="critical heavy",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        mechanic="heavy_attack",
+    )
+    actor = SimpleCombatant(
+        moves=(heavy,),
+        effective_stats={
+            "constitution": 10,
+            "spirit": 10,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 100,
+        },
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    combat_state = CombatState()
+    combat_state.activate_brace(actor)
+
+    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
+        actor,
+        target,
+        heavy.name,
+        combat_state=combat_state,
+    )
+
+    assert result.critical
+    assert result.damage == 39
+    assert target.health.current == target.health.maximum - 39
+
+
+def test_accepted_missed_heavy_attack_consumes_brace_payoff():
+    heavy = make_move(
+        name="missed heavy",
+        accuracy=0,
+        scales_with=(ScalingAttribute.NONE,),
+        mechanic="heavy_attack",
+    )
+    actor = SimpleCombatant(moves=(heavy,))
+    target = SimpleCombatant()
+    combat_state = CombatState()
+    combat_state.activate_brace(actor)
+
+    result = CombatResolver(rng=ScriptedRng(100)).resolve_move(
+        actor,
+        target,
+        heavy.name,
+        combat_state=combat_state,
+    )
+
+    assert result.accepted
+    assert not result.hit
+    assert (
+        combat_state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack")
+        == 0
+    )
+
+
+def test_rejected_heavy_attack_preserves_brace_payoff_and_nonmatching_move_does_not_consume_it():
+    heavy = make_move(
+        name="expensive heavy",
+        resource_type=ResourceType.MANA,
+        resource_cost=5,
+        mechanic="heavy_attack",
+    )
+    basic = make_move(
+        name="basic",
+        scales_with=(ScalingAttribute.NONE,),
+        mechanic="basic_attack",
+    )
+    actor = SimpleCombatant(moves=(heavy, basic))
+    actor.mana_resource.spend(actor.mana_resource.current)
+    target = SimpleCombatant()
+    combat_state = CombatState()
+    combat_state.activate_brace(actor)
+
+    rejected = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        heavy.name,
+        combat_state=combat_state,
+    )
+    assert rejected.reason == "insufficient_mana"
+    assert (
+        combat_state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack")
+        == 30
+    )
+
+    combat_state.activate_brace(actor)
+    accepted = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        basic.name,
+        combat_state=combat_state,
+    )
+    assert accepted.accepted
+    assert (
+        combat_state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack")
+        == 30
+    )
+
+
+def test_brace_reduction_is_applied_before_final_crit_damage():
+    physical = make_move(
+        name="critical physical",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+    )
+    actor = SimpleCombatant(
+        moves=(physical,),
+        effective_stats={
+            "constitution": 10,
+            "spirit": 10,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 100,
+        },
+    )
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    combat_state = CombatState()
+    combat_state.activate_brace(target)
+
+    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
+        actor,
+        target,
+        physical.name,
+        combat_state=combat_state,
+    )
+
+    assert result.critical
+    assert result.damage == 18
+    assert target.health.current == target.health.maximum - 18
 
 
 def test_invalid_and_defeated_combatants_are_rejected_before_resource_spend():
@@ -348,25 +737,25 @@ def test_mana_spending_affordability_and_miss_behavior():
     result = CombatResolver(rng=ScriptedRng(100)).resolve_move(
         actor,
         target,
-        "Ghalmour Compression",
+        "Cinderlung Vesper",
     )
 
     assert result.accepted
     assert not result.hit
-    assert result.resource_spent == 5
-    assert actor.mana_resource.current == 41
+    assert result.resource_spent == 3
+    assert actor.mana_resource.current == 43
     assert target.health.current == target.health.maximum
     assert actor.super_resource.current == 0
 
     actor = PlayerState(Brawler())
     target = EnemyState(Goblin())
-    actor.mana_resource.spend(42)
+    actor.mana_resource.spend(44)
     rng = ScriptedRng(1)
 
-    result = CombatResolver(rng=rng).resolve_move(actor, target, "Ghalmour Compression")
+    result = CombatResolver(rng=rng).resolve_move(actor, target, "Cinderlung Vesper")
 
     assert result.reason == "insufficient_mana"
-    assert actor.mana_resource.current == 4
+    assert actor.mana_resource.current == 2
     assert actor.super_resource.current == 0
     assert rng.calls == []
 
@@ -1691,11 +2080,19 @@ def test_all_four_drifter_structured_moves_are_resolver_compatible():
 
             if prototype_move.resource_type == ResourceType.SUPER:
                 actor.super_resource.gain(actor.super_resource.maximum)
+            if prototype_move.mechanic == "infused_barb":
+                actor.character_run_state.prepare_payload(
+                    PreparedPayloadId.INFUSED_BARB,
+                    FIRE_INFUSION_REQUIREMENTS,
+                )
 
+            combat_state = CombatState()
             result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
                 actor,
                 target,
                 prototype_move.name,
+                combat_state=combat_state,
+                character_run_state=actor.character_run_state,
             )
 
             assert result.accepted, (
