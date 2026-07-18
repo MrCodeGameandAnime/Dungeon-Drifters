@@ -25,6 +25,26 @@ from app.ui.battle_ui import (
 )
 
 
+def select_enemy_move(enemy, rng=random):
+    """Choose uniformly from the enemy's currently affordable moves."""
+    eligible_moves = tuple(
+        move
+        for move in enemy.combat_moves
+        if move.resource_type.value == "none"
+        or (
+            move.resource_type.value == "mana"
+            and enemy.mana_resource.can_afford(move.resource_cost)
+        )
+        or (
+            move.resource_type.value == "super"
+            and enemy.super_resource.can_afford(move.resource_cost)
+        )
+    )
+    if not eligible_moves:
+        raise ValueError("enemy has no legal affordable moves")
+    return rng.choice(eligible_moves)
+
+
 class Battle:
     def __init__(
         self,
@@ -503,7 +523,7 @@ class Battle:
         )
 
     def enemy_action(self):
-        move = random.choice(list(self._enemy_moves()))
+        move = select_enemy_move(self.foe)
         result = self._resolve_enemy_move(move)
         if result.accepted:
             self._complete_accepted_action(
