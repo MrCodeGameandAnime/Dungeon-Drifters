@@ -7,7 +7,8 @@ structured Goblin Battle, stat-scaling, M8 hardening, and M9 UI/engine
 separation checkpoint between **v0.2** and the unfinished **v0.3** release.
 The playable baseline is still a small Goblin vertical slice, but it now runs
 through structured moves, the combat resolver, encounter-owned combat state,
-and a renderer-neutral presentation boundary.
+and a renderer-neutral presentation boundary. M9 character identity mechanics
+are live in the combat slice.
 
 ## Current Playable State
 
@@ -41,10 +42,14 @@ currently presents:
 
 Attack and Super open structured move submenus when eligible moves are
 available. Heal is a universal self-heal action with a three-action cooldown.
-Defend is a core combat action. Items and in-battle Escape are visible but
-disabled until their gameplay contracts are implemented. Super is also
-persistently visible as a separate meter rather than an ordinary action
-button.
+Defend is a core combat action. Items opens each character's personal run
+inventory; Zhaivra can prepare Fire or Poison Infused Barb payloads. Escape
+remains visible but disabled. Super is persistently visible through the meter
+and opens its submenu when ready.
+
+Branoc's Brace, Azhvielle's Gravemantle and Frost routes, Zhaivra's Burn and
+Poison infusions, and Joruun's Water, Air, Lightning, and Stun mechanics are
+implemented through the resolver and encounter-local state boundaries.
 
 ## Play Instructions
 
@@ -67,6 +72,22 @@ During play:
 7. Use Heal when damaged and ready; it becomes available again after three
    later accepted actions by that character.
 8. Use the persistent Super meter to open the Super submenu when ready.
+
+## Balance Snapshot
+
+The permanent M9 balance probe captures the pre-progression roster with fixed
+seed banks and real combat routes:
+
+```powershell
+.\.venv\Scripts\python.exe tools\balance_probe.py
+```
+
+Each run records Markdown, raw JSON, and metadata under
+`tools/balance_probe_outputs/<run_id>/`. The canonical M9 snapshot uses eight
+route policies, 25 Goblin seeds, 100 stress seeds, and 1,000 total encounters.
+It also records natural Super usage and the exact commit, seed corpus, and
+route policy versions used for the run. Generated runs are ignored so they can
+be retained locally and zipped for later balance review.
 
 ## Screenshots
 
@@ -152,8 +173,9 @@ Momentum is deferred shared encounter state. It is not an active move resource.
 Ki may appear as Joruun identity or technique flavor. It is not an active
 resource state.
 
-Focus, ammunition, compounds, prepared charges, Momentum, Ki meters, and other
-character-specific resource systems are not implemented as active resources.
+Momentum and Ki meters remain deferred. Character-specific compounds and
+prepared infusions are active through each character's personal run state;
+they are not shared party resources.
 
 ## Test Instructions
 
@@ -335,23 +357,29 @@ v0.2.9 completes the M9 UI/engine separation milestone:
 - verified all four Drifters through resolver compatibility tests and
   deterministic Goblin vertical slices
 - removed the obsolete private Battle menu bridge after the UI migration
+- completed the four Drifter identity pass with encounter-local mechanics for
+  Brace, Gravemantle, Frost, Infused Barb, Burn, Poison, Conductive,
+  Turbulence, Lightning Storm, Stun, and universal Heal
+- added the deterministic M9 balance snapshot tool with fixed 25-seed Goblin,
+  100-seed stress, eight-route, and natural Super-usage coverage
 
 ## Known Limitations
 
-- Items and in-battle Escape are visible in the Battle menu but not yet wired.
+- In-battle Escape remains visible but is not yet wired.
 - Heal is a universal self-heal that restores 10-16 HP plus effective
   Constitution and becomes available again after three later accepted
   actions by that character.
-- Joruun's full structured combat identity and specialized mechanics remain
-  deferred.
+- Character balance remains provisional pending larger enemies, progression,
+  and future M10 content.
 - Exact combat formulas and balance are provisional.
 - XP, Growth Points, secured/unsecured extraction loops, and reward persistence
   remain parked for a later progression milestone.
 - Momentum implementation is deferred.
-- Ammunition, compounds, and prepared-charge systems are not implemented.
-- Status effects and elemental interactions are not active.
-- Temporary effect storage exists only as narrow encounter state; a fuller
-  effect contract remains future work.
+- The current inventory and infusion loop is limited to the authored M9
+  compounds and payloads; broader loot and crafting systems remain future
+  work.
+- Status effects and elemental interactions are limited to the authored M9
+  mechanics; no general effect scripting system exists.
 - Enemy AI is still simple random selection from authored structured moves.
 - Multi-enemy, party-targeting, and area-targeting encounters are not
   implemented.
