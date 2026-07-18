@@ -1,5 +1,21 @@
 # Dungeon Drifters M10 — Overworld Route and Multi-Enemy Combat
 
+## Contract Authority
+
+Implementation and orchestration must use the dedicated M10 contracts below as
+the authority for locked product decisions. Earlier question lists and planning
+language do not override these files.
+
+| Milestone | Authoritative contract files |
+|---|---|
+| M10A | `docs/m10/m10 overworld session contract.md` |
+| M10B | `docs/m10/m10 encounter route manifest.md`; `docs/m10/m10 enemy definitions.md` |
+| M10C | `docs/m10/m10 multi enemy battle contract.md` |
+| M10D | `docs/m10/m10 equipment.md` |
+| M10E | `docs/m10/m10 leveling.md`; `docs/m10/m10 gold.md`; `docs/m10/m10 encounter route manifest.md` |
+| M10F | `docs/m10/m10 rest contract.md` |
+| M10G | `docs/m10/m10 save load.md` |
+
 ---
 
 # M10A — Session and Overworld Shell
@@ -7,6 +23,9 @@
 ## Purpose
 
 Replace the current one-battle ending with a persistent non-combat session loop that can return from Battle, preserve the selected Drifter, and continue toward the next authored encounter.
+
+The complete Session and Overworld contract is recorded in
+`docs/m10/m10 overworld session contract.md`.
 
 ## Repository seams
 
@@ -61,14 +80,11 @@ The same selected Drifter and persistent resources must carry into the next enco
 - terminal input remains outside session mechanics
 - the first Goblin-to-overworld transition works end to end
 
-## Unresolved product decisions
+## Decision Authority
 
-- exact overworld menu wording and navigation
-- exact meaning of “Return or exit where appropriate”
-- what the player can do after defeat
-- whether unavailable M10 features appear disabled before their section lands
-- which existing `StoryState` and `WorldState` fields own each route fact
-- whether leaving the game before M10G simply exits without persistence
+Menu wording, semantic navigation, victory and defeat return behavior, state
+ownership, disabled and hidden controls, and exit behavior are locked by
+`docs/m10/m10 overworld session contract.md`.
 
 ## Completion gate
 
@@ -98,6 +114,10 @@ The complete M10 enemy-definition lock is recorded in
 `docs/m10/m10 enemy definitions.md`. It covers the four new archetypes,
 their authored moves and metadata, tier 0 support, the shared affordable-move
 policy, and the final Goblin Lord composition.
+
+The complete route order, stable node IDs, encounter compositions, rewards,
+Rest-node placement, boss designation, completion behavior, and next
+destinations are recorded in `docs/m10/m10 encounter route manifest.md`.
 
 The roadmap requires encounters to define composition, identifier, reward values, rest boundary, next destination, boss status, and completion state.
 
@@ -136,13 +156,12 @@ The ordinary Goblin retains its current production balance unless a separate app
 - completed encounters are represented persistently
 - authored enemy definitions are not mutated by combat
 
-## Unresolved product decisions
+## Decision Authority
 
-- exact encounter identifiers
-- exact reward values
-- exact rest boundaries
-- exact boss flags and completion semantics
-- exact display labels for duplicate enemies
+Route identifiers, rewards, Rest boundaries, boss flags, and completion
+semantics come from `docs/m10/m10 encounter route manifest.md`. Duplicate-enemy
+labels and runtime target identity come from
+`docs/m10/m10 multi enemy battle contract.md`.
 
 ## Completion gate
 
@@ -155,6 +174,9 @@ Every required enemy archetype exists through the current registry/factory patte
 ## Purpose
 
 Expand the current one-player-versus-one-enemy Battle to support one player against multiple independent enemies without rewriting the established combat, presentation, or UI ownership boundaries.
+
+The complete Multi-Enemy Battle contract is recorded in
+`docs/m10/m10 multi enemy battle contract.md`.
 
 ## Repository seams
 
@@ -214,16 +236,20 @@ Mutual player/enemy death remains defeat.
 - current single-enemy Battle behavior and winner return values do not regress
 - presentation and terminal input remain renderer-neutral and semantic
 
-## Unresolved product decisions
+## Locked M10C Decisions
 
-- exact enemy turn sequencing when several enemies are alive
-- how initiative interacts with multiple enemy actions
-- whether one remaining enemy is auto-targeted or still selected
-- how defeated enemies remain visible in presentation
-- exact duplicate-enemy labels and numbering
-- how target selection returns to move selection
-- whether Battle accepts a collection directly or an encounter runtime object
-- whether any existing compatibility accessor remains temporarily
+- Battle accepts an authored-order enemy collection directly.
+- Initiative remains one side-level roll.
+- Every living enemy receives one opportunity per enemy phase in authored order.
+- One living enemy is auto-targeted; multiple living enemies require semantic
+  target selection after move selection.
+- Enemy target IDs are stable encounter-local IDs independent of display names.
+- Duplicate display names are numbered in authored order.
+- Defeated enemies remain visible, untargetable, and unable to act.
+- Back from target selection returns to the originating move phase.
+- `Battle.enemies` and `BattleView.enemies` are canonical.
+- Single-enemy compatibility accessors may remain only when they fail explicitly
+  for multi-enemy encounters.
 
 ## Completion gate
 
@@ -283,9 +309,10 @@ Equipment persists into later encounters and appears in persistent state.
 - temporary combat state never becomes equipment state
 - the read-only Weapon tab cannot mutate state through presentation objects
 
-## Unresolved product decisions
+## Decision Authority
 
-- stable item identity required for save/load
+Supported signature weapons, stable identifiers, effective bonuses, and the
+read-only Weapon tab come from `docs/m10/m10 equipment.md`.
 
 ## Completion gate
 
@@ -300,6 +327,11 @@ encounters without mutating permanent attributes or losing equipment state.
 ## Purpose
 
 Connect encounter victory to persistent EXP, level state, gold or other already-supported persistent rewards, and controlled permanent growth.
+
+The M10 progression curve and level cap are recorded in
+`docs/m10/m10 leveling.md`. Exact encounter EXP and gold rewards, atomic reward
+rules, and the expected dungeon-entrance totals are recorded in
+`docs/m10/m10 gold.md` and `docs/m10/m10 encounter route manifest.md`.
 
 ## Repository seams
 
@@ -342,16 +374,12 @@ The first Goblin does not automatically grant a level unless the approved progre
 - snapshots and save/load data represent the resulting progression
 - the approved route reaches the approved level points
 
-## Unresolved product decisions
+## Decision Authority
 
-- exact EXP and gold rewards for every encounter
-- whether M10 uses permanent-stat rewards
-- when the first level should occur
-- expected level before the Goblin Lord encounter and at the dungeon entrance
-- whether current HP and Mana increase when their maxima increase
-- whether the Intuition secured-XP helper is active in M10
-- whether any reward other than EXP, gold, or controlled growth is required
-- exact reward presentation
+M10 uses the exact progression curve, Growth Point economy, encounter rewards,
+and route totals in the linked progression documents. Orchestration must not
+substitute alternate rewards, random variance, per-enemy immediate rewards, or
+Intuition-based reward scaling.
 
 ## Completion gate
 
@@ -364,6 +392,9 @@ A full encounter victory applies one approved persistent reward, progression sur
 ## Purpose
 
 Provide the simple deterministic between-encounter recovery action required by a route with persistent HP and Mana.
+
+The complete Rest contract is recorded in
+`docs/m10/m10 rest contract.md`.
 
 ## Repository seams
 
@@ -380,9 +411,11 @@ No rest operation currently exists.
 
 ## Required player-visible behavior
 
-At approved overworld boundaries, the player can choose Rest.
+At an authored overworld Rest node, the player can choose Rest, Save, Quit, or
+Menu, or continue without resting.
 
-Rest applies the approved recovery contract and returns the player to the overworld.
+Rest fully restores HP and Mana, leaves Super unchanged, consumes the single-use
+Rest node, and advances to the next authored route node.
 
 Rest does not occur during combat.
 
@@ -403,18 +436,17 @@ The player can continue without resting whenever the approved contract allows it
 - rest availability persists through save/load
 - resting does not advance or repeat encounter rewards
 
-## Unresolved product decisions
+## Locked M10 Rest Decisions
 
-- full or partial HP/Mana recovery
-- whether rest has a gold, time, item, or no cost
-- whether rest is always available or boundary-specific
-- whether rest is optional at every available boundary
-- whether a boundary can be used more than once
-- whether rest is available after the final Goblin Lord encounter
-- whether Super changes during rest
-- exact treatment of prepared Infusion state
-- whether resting affects story progression
-- exact player-facing text
+- Rest occurs only at authored map Rest nodes.
+- The three M10 Rest nodes are single-use.
+- Rest fully restores HP and Mana.
+- Rest does not reset or increase Super.
+- Rest has no gold, time, item, or resource cost.
+- Continue Without Rest is available and consumes the node without recovery.
+- Save and Quit do not consume the node.
+- Menu returns to the normal Main Overworld Menu.
+- Rest does not alter persistent state unrelated to HP and Mana.
 
 ## Completion gate
 
@@ -478,11 +510,11 @@ No active combat, open menu, presenter model, RNG object, enemy runtime object, 
 - loading does not create shared mutable state with another session
 - the restored game can continue into the next encounter
 
-## Unresolved product decisions
+## Decision Authority
 
-- exact player-facing wording for invalid-save feedback
-- whether a save is allowed immediately before or after the final Goblin Lord encounter
-- exact canonical item identifiers where existing identifiers are insufficient
+Save boundaries, schema behavior, missing and invalid save behavior, and
+persistence ownership come from `docs/m10/m10 save load.md`. Canonical item
+identifiers come from their approved item contracts and authored registries.
 
 ## Completion gate
 

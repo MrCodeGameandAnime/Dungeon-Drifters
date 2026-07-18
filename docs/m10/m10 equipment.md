@@ -9,12 +9,15 @@ implementation of the future signature-weapon progression system.
 M10 supports the existing `weapon` equipment slot and the four authored
 signature weapons:
 
-| Drifter   | Weapon               | Weapon type            | Current stat bonuses                  |
-|-----------|----------------------|------------------------|---------------------------------------|
-| Branoc    | Sunder-Spire         | Great Flamberge        | Strength +3, Constitution +1          |
-| Azhvielle | Needle of Plain Iron | Ritual Needle          | Intelligence +3, Spirit +1            |
-| Zhaivra   | Sathren              | Alchemical Recurve Bow | Dexterity +3, Intuition +1            |
-| Joruun    | Sky-Needle           | Conductive Shakujō     | Spirit +2, Dexterity +1, Intuition +1 |
+| Stable item ID | Drifter | Weapon | Weapon type | Current stat bonuses |
+|---|---|---|---|---|
+| `sunder_spire` | Branoc | Sunder-Spire | Great Flamberge | Strength +3, Constitution +1 |
+| `needle_of_plain_iron` | Azhvielle | Needle of Plain Iron | Ritual Needle | Intelligence +3, Spirit +1 |
+| `sathren` | Zhaivra | Sathren | Alchemical Recurve Bow | Dexterity +3, Intuition +1 |
+| `sky_needle` | Joruun | Sky-Needle | Conductive Shakujō | Spirit +2, Dexterity +1, Intuition +1 |
+
+These stable item IDs are used by M10 save/load. Display names remain
+presentation data and are never used to reconstruct equipment.
 
 Existing intended-wielder restrictions and authored weapon data remain
 authoritative. Signature weapons are not routinely replaced during M10.
