@@ -66,7 +66,7 @@ The current code already supports carryover and gaining multiple levels from one
 ## Exact curve milestones
 
 | Current level | XP for next level | Total XP spent to reach level |
-| ------------: | ----------------: | ----------------------------: |
+|--------------:|------------------:|------------------------------:|
 |             1 |               100 |                             0 |
 |            10 |               166 |                         1,150 |
 |            25 |             1,259 |                        10,035 |
@@ -131,7 +131,7 @@ The expected practical build range can remain far below the absolute cap. Level 
 # Growth Points by level
 
 | Level | Total Growth Points earned |
-| ----: | -------------------------: |
+|------:|---------------------------:|
 |    10 |                         27 |
 |    25 |                         72 |
 |    50 |                        147 |
@@ -167,7 +167,7 @@ Goblin Lord:    200 XP
 The encounter reward is calculated from its composition but awarded only once after the entire encounter is defeated:
 
 | Encounter                      | Reward | Resulting level state |
-| ------------------------------ | -----: | --------------------- |
+|--------------------------------|-------:|-----------------------|
 | 1 Goblin                       |     40 | Level 1, 40 / 100     |
 | 2 Goblins                      |     80 | Level 2, 20 / 106     |
 | 1 Goblin Warrior               |     60 | Level 2, 80 / 106     |
