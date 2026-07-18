@@ -94,6 +94,11 @@ Current implementation already provides:
 - structured enemy moves
 - one registered ordinary Goblin
 
+The complete M10 enemy-definition lock is recorded in
+`docs/m10/m10 enemy definitions.md`. It covers the four new archetypes,
+their authored moves and metadata, tier 0 support, the shared affordable-move
+policy, and the final Goblin Lord composition.
+
 The roadmap requires encounters to define composition, identifier, reward values, rest boundary, next destination, boss status, and completion state.
 
 ## Required player-visible behavior
@@ -133,7 +138,6 @@ The ordinary Goblin retains its current production balance unless a separate app
 
 ## Unresolved product decisions
 
-- exact enemy stats, moves, capabilities, and tiers
 - exact encounter identifiers
 - exact reward values
 - exact rest boundaries
