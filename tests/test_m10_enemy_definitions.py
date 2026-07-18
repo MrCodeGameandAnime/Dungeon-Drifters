@@ -5,7 +5,10 @@ from app.combat.resolver import CombatResolver
 from app.enemies import create_enemy_state
 from app.enemies.definition import EnemyCapability, EnemyRank, EnemyRole
 from app.enemies.goblin.definition import Goblin
-from app.enemies.m10 import GoblinElite, GoblinLord, GoblinShaman, GoblinWarrior
+from app.enemies.goblin_elite.definition import GoblinElite
+from app.enemies.goblin_lord.definition import GoblinLord
+from app.enemies.goblin_shaman.definition import GoblinShaman
+from app.enemies.goblin_warrior.definition import GoblinWarrior
 from app.enemies.state import EnemyState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
@@ -110,6 +113,36 @@ def test_m10_enemy_definitions_match_authored_contract(archetype_id, expected):
     ) == expected["moves"]
 
 
+DESCRIPTIONS = {
+    "goblin_warrior": (
+        "A disciplined cleaver strike delivered with greater force than an ordinary Goblin slash.",
+        "A committed overhead chop intended to break through a defended position.",
+    ),
+    "goblin_shaman": (
+        "A quick strike from the Shaman's crooked ritual staff.",
+        "A concentrated ember of Goblin sorcery hurled at the target.",
+        "The Shaman compresses unstable ritual energy into a violent magical discharge.",
+    ),
+    "goblin_elite": (
+        "A practiced slash delivered with the speed and control of an experienced killer.",
+        "The Elite surges forward and drives its weapon through the target’s guard.",
+        "A brutal descending strike that sacrifices accuracy for overwhelming force.",
+    ),
+    "goblin_lord": (
+        "The Goblin Lord swings its enormous cleaver with practiced authority.",
+        "The Lord commits its full weight to a crushing blow meant to end resistance immediately.",
+        "Dark fire gathers around the Lord’s battle standard before surging toward the target.",
+        "The Goblin Lord combines raw physical force with unstable sorcery in one devastating assault.",
+    ),
+}
+
+
+@pytest.mark.parametrize("archetype_id", EXPECTED)
+def test_m10_enemy_descriptions_match_authored_contract(archetype_id):
+    state = create_enemy_state(archetype_id)
+    assert tuple(move.description for move in state.combat_moves) == DESCRIPTIONS[archetype_id]
+
+
 @pytest.mark.parametrize("archetype_id", EXPECTED)
 def test_m10_archetypes_support_only_tier_zero(archetype_id):
     assert create_enemy_state(archetype_id, tier=0).tier == 0
@@ -142,7 +175,7 @@ class RecordingChoice:
         return self.selected or options[0]
 
 
-@pytest.mark.parametrize("archetype_id", ("goblin_shaman", "goblin_lord"))
+@pytest.mark.parametrize("archetype_id", EXPECTED)
 def test_selecting_enemy_move_does_not_mutate_mana(archetype_id):
     enemy = create_enemy_state(archetype_id)
     before = enemy.mana_resource.current
@@ -161,8 +194,9 @@ def test_selection_excludes_unaffordable_shaman_mana_moves_and_keeps_staff():
     assert selected.name == "Crooked Staff"
 
 
-def test_selection_passes_each_eligible_move_once_and_each_can_be_selected():
-    enemy = create_enemy_state("goblin_shaman")
+@pytest.mark.parametrize("archetype_id", EXPECTED)
+def test_selection_passes_each_eligible_move_once_and_each_can_be_selected(archetype_id):
+    enemy = create_enemy_state(archetype_id)
     expected = tuple(enemy.combat_moves)
 
     for wanted in expected:

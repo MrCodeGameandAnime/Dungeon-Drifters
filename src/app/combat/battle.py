@@ -1,7 +1,7 @@
 import random
 
 from app.combat.combat_state import CombatState
-from app.combat.move import TargetType
+from app.combat.move import ResourceType, TargetType
 from app.combat.resolver import CombatResolver
 from app.presentation.battle_models import (
     ActionIntent,
@@ -30,14 +30,10 @@ def select_enemy_move(enemy, rng=random):
     eligible_moves = tuple(
         move
         for move in enemy.combat_moves
-        if move.resource_type.value == "none"
+        if move.resource_type is ResourceType.NONE
         or (
-            move.resource_type.value == "mana"
+            move.resource_type is ResourceType.MANA
             and enemy.mana_resource.can_afford(move.resource_cost)
-        )
-        or (
-            move.resource_type.value == "super"
-            and enemy.super_resource.can_afford(move.resource_cost)
         )
     )
     if not eligible_moves:

@@ -3,27 +3,19 @@
 from types import MappingProxyType
 
 from app.enemies.goblin.registration import GOBLIN_REGISTRATION
+from app.enemies.goblin_elite.registration import GOBLIN_ELITE_REGISTRATION
+from app.enemies.goblin_lord.registration import GOBLIN_LORD_REGISTRATION
+from app.enemies.goblin_shaman.registration import GOBLIN_SHAMAN_REGISTRATION
+from app.enemies.goblin_warrior.registration import GOBLIN_WARRIOR_REGISTRATION
 from app.enemies.registration import EnemyArchetypeRegistration
-from app.enemies.m10 import GoblinElite, GoblinLord, GoblinShaman, GoblinWarrior
-
-
-def _identity_scaling(enemy_definition, tier):
-    if tier != 0:
-        raise ValueError(f"{enemy_definition.archetype_id} does not support tier {tier}")
-    return enemy_definition
-
-
-M10_REGISTRATIONS = (
-    EnemyArchetypeRegistration("goblin_warrior", GoblinWarrior, _identity_scaling),
-    EnemyArchetypeRegistration("goblin_shaman", GoblinShaman, _identity_scaling),
-    EnemyArchetypeRegistration("goblin_elite", GoblinElite, _identity_scaling),
-    EnemyArchetypeRegistration("goblin_lord", GoblinLord, _identity_scaling),
-)
 
 
 _BUILTIN_REGISTRATIONS = (
     GOBLIN_REGISTRATION,
-    *M10_REGISTRATIONS,
+    GOBLIN_WARRIOR_REGISTRATION,
+    GOBLIN_SHAMAN_REGISTRATION,
+    GOBLIN_ELITE_REGISTRATION,
+    GOBLIN_LORD_REGISTRATION,
 )
 
 
