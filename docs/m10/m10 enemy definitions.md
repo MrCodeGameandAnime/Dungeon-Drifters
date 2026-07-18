@@ -51,10 +51,10 @@ Tier: 0
 
 Moves:
 
-| Move | Cost | Power | Scaling | Accuracy | Damage | Mechanic |
-|---|---:|---:|---|---:|---|---|
-| Cleaver Strike | 0 | 10 | Strength | 92 | Physical | `basic_attack` |
-| Shieldbreaker Chop | 0 | 15 | Strength | 78 | Physical | `heavy_attack` |
+| Move               | Cost | Power | Scaling  | Accuracy | Damage   | Mechanic       |
+|--------------------|-----:|------:|----------|---------:|----------|----------------|
+| Cleaver Strike     |    0 |    10 | Strength |       92 | Physical | `basic_attack` |
+| Shieldbreaker Chop |    0 |    15 | Strength |       78 | Physical | `heavy_attack` |
 
 ## Goblin Shaman
 
@@ -79,11 +79,11 @@ Tier: 0
 
 Moves:
 
-| Move | Resource | Cost | Power | Scaling | Accuracy | Damage | Mechanic |
-|---|---|---:|---:|---|---:|---|---|
-| Crooked Staff | None | 0 | 7 | Dexterity | 90 | Physical | `basic_attack` |
-| Cinder Hex | Mana | 5 | 11 | Intelligence | 90 | Magical | `basic_attack` |
-| Blight Spark | Mana | 10 | 16 | Intelligence, Spirit | 80 | Magical | `heavy_attack` |
+| Move          | Resource | Cost | Power | Scaling              | Accuracy | Damage   | Mechanic       |
+|---------------|----------|-----:|------:|----------------------|---------:|----------|----------------|
+| Crooked Staff | None     |    0 |     7 | Dexterity            |       90 | Physical | `basic_attack` |
+| Cinder Hex    | Mana     |    5 |    11 | Intelligence         |       90 | Magical  | `basic_attack` |
+| Blight Spark  | Mana     |   10 |    16 | Intelligence, Spirit |       80 | Magical  | `heavy_attack` |
 
 ## Goblin Elite
 
@@ -108,11 +108,11 @@ Tier: 0
 
 Moves:
 
-| Move | Cost | Power | Scaling | Accuracy | Damage | Mechanic |
-|---|---:|---:|---|---:|---|---|
-| Veteran Slash | 0 | 13 | Strength, Dexterity | 92 | Physical | `basic_attack` |
-| Butcher’s Advance | 0 | 18 | Strength | 84 | Physical | `heavy_attack` |
-| Executioner’s Drop | 0 | 24 | Strength | 72 | Physical | `heavy_attack` |
+| Move               | Cost | Power | Scaling             | Accuracy | Damage   | Mechanic       |
+|--------------------|-----:|------:|---------------------|---------:|----------|----------------|
+| Veteran Slash      |    0 |    13 | Strength, Dexterity |       92 | Physical | `basic_attack` |
+| Butcher’s Advance  |    0 |    18 | Strength            |       84 | Physical | `heavy_attack` |
+| Executioner’s Drop |    0 |    24 | Strength            |       72 | Physical | `heavy_attack` |
 
 ## Goblin Lord
 
@@ -137,12 +137,12 @@ Tier: 0
 
 Moves:
 
-| Move | Resource | Cost | Power | Scaling | Accuracy | Damage | Mechanic |
-|---|---|---:|---:|---|---:|---|---|
-| King’s Cleaver | None | 0 | 18 | Strength | 92 | Physical | `basic_attack` |
-| Iron Decree | None | 0 | 25 | Strength, Intuition | 80 | Physical | `heavy_attack` |
-| Black Banner Flame | Mana | 8 | 17 | Intelligence, Spirit | 88 | Magical | `basic_attack` |
-| Tyrant’s Ruin | Mana | 14 | 26 | Strength, Intelligence | 75 | Hybrid | `heavy_attack` |
+| Move               | Resource | Cost | Power | Scaling                | Accuracy | Damage   | Mechanic       |
+|--------------------|----------|-----:|------:|------------------------|---------:|----------|----------------|
+| King’s Cleaver     | None     |    0 |    18 | Strength               |       92 | Physical | `basic_attack` |
+| Iron Decree        | None     |    0 |    25 | Strength, Intuition    |       80 | Physical | `heavy_attack` |
+| Black Banner Flame | Mana     |    8 |    17 | Intelligence, Spirit   |       88 | Magical  | `basic_attack` |
+| Tyrant’s Ruin      | Mana     |   14 |    26 | Strength, Intelligence |       75 | Hybrid   | `heavy_attack` |
 
 ## Shared Enemy Action Policy
 

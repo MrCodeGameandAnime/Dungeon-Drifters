@@ -235,7 +235,11 @@ The two-Goblin architecture gate passes manually and automatically: the player c
 
 ## Purpose
 
-Connect the existing equipment system to effective combat values and make equipment inspectable and manageable from the overworld.
+Connect the existing signature-weapon equipment system to effective combat
+values and make the current weapon inspectable from the overworld.
+
+The complete M10 equipment boundary is recorded in
+`docs/m10/m10 equipment.md`.
 
 ## Repository seams
 
@@ -253,11 +257,13 @@ Current implementation already provides:
 
 ## Required player-visible behavior
 
-From the overworld, the player can inspect current equipment and manage supported owned equipment.
+From the overworld, the player can inspect the currently equipped signature
+weapon through a read-only Weapon tab.
 
 Equipping an item changes the effective values that item is intended to modify.
 
-Unequipping or replacing it restores the correct effective values.
+Existing equip, replace, and unequip APIs continue to preserve the correct
+effective values, but M10 does not add a broader equipment-management screen.
 
 Permanent base attributes remain unchanged.
 
@@ -275,22 +281,17 @@ Equipment persists into later encounters and appears in persistent state.
 - equipment remains present across encounters
 - equipment appears in snapshots and later save/load data
 - temporary combat state never becomes equipment state
-- overworld equipment input cannot mutate state through presentation objects
+- the read-only Weapon tab cannot mutate state through presentation objects
 
 ## Unresolved product decisions
 
-- which equipment slots and item types are supported during M10
-- whether M10 requires any new equipment content beyond the current signature weapons
-- which derived values count as “supported” for equipment integration
-- whether Constitution or Spirit equipment changes maximum HP or Mana in M10
-- how current HP or Mana should react if a maximum changes
-- exact equipment menu behavior
 - stable item identity required for save/load
-- whether intended-wielder restrictions are enforced
 
 ## Completion gate
 
-The player can inspect and manage supported equipment from the overworld, observe the approved effective-value changes in combat, and move between encounters without mutating permanent attributes or losing equipment state.
+The player can inspect the equipped signature weapon from the overworld,
+observe the approved effective-value changes in combat, and move between
+encounters without mutating permanent attributes or losing equipment state.
 
 ---
 
@@ -427,6 +428,9 @@ At an approved post-encounter boundary, the player can rest, receive exactly the
 
 Persist the meaningful M10 session state outside active combat and restore it into a playable session.
 
+The complete M10 Save/Load contract is recorded in
+`docs/m10/m10 save load.md`.
+
 ## Repository seams
 
 Current implementation already provides:
@@ -443,7 +447,8 @@ Current implementation already provides:
 
 There is no disk save/load service or reconstruction path.
 
-Current schema version is `7`.
+The current in-memory inspection snapshot remains schema `7`. M10 disk saves
+use schema `8`, with deterministic migration from schema 7.
 
 ## Required player-visible behavior
 
@@ -475,17 +480,9 @@ No active combat, open menu, presenter model, RNG object, enemy runtime object, 
 
 ## Unresolved product decisions
 
-- whether save/load reuses the inspection snapshot shape or has a separate persistence shape
-- whether the schema version changes during M10
-- exact save-file location and filename
-- exact safe save boundaries
-- whether saving is manual only
-- opening-menu behavior when no save exists
-- invalid-save handling and player-facing message
-- whether defeated player state may be saved
-- whether saving is allowed immediately before or after the final Goblin Lord encounter
-- exact canonical item identifiers
-- whether backward compatibility with schema 7 is required
+- exact player-facing wording for invalid-save feedback
+- whether a save is allowed immediately before or after the final Goblin Lord encounter
+- exact canonical item identifiers where existing identifiers are insufficient
 
 ## Completion gate
 
