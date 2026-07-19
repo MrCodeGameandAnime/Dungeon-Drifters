@@ -66,27 +66,34 @@ def patched_game(inputs):
 def test_attack_path_reaches_victory_ending():
     output = io.StringIO()
 
-    with patched_game(["", "4", "Y", "1", "1", "2", "1", "2", "1", "2", "1", "2", "1", "2", "1", "2"]), contextlib.redirect_stdout(output):
+    with patched_game([
+        "", "4", "Y", "e",
+        *("a", "hydro whip") * 4,
+        "o", "q", "y",
+    ]), contextlib.redirect_stdout(output):
         run_game.main()
 
     text = output.getvalue()
     assert "A tale from Ketlyv" in text
     assert "You have chosen Joruun Veyr, the Bloody Storm Monk!" in text
-    assert "You ready your weapon" in text
+    assert "OVERWORLD  |  Goblin Ambush" in text
     assert "A Goblin blocks your path" in text
     assert "Joruun Veyr" in text
     assert "HP 100/100" in text
-    assert "Victory. Your adventure has begun." in text
+    assert "OVERWORLD  |  Goblin Pair" in text
+    assert "The first Goblin falls" in text
+    assert "Exit this session without saving?" in text
 
 
-def test_flee_path_reaches_escape_ending():
+def test_player_can_quit_from_the_initial_overworld_without_starting_battle():
     output = io.StringIO()
 
-    with patched_game(["", "1", "Y", "2"]), contextlib.redirect_stdout(output):
+    with patched_game(["", "1", "Y", "o", "q", "y"]), contextlib.redirect_stdout(output):
         run_game.main()
 
     text = output.getvalue()
     assert "A tale from Ketlyv" in text
     assert "You have chosen Ser Branoc, the Unbroken Crest!" in text
-    assert "You escaped in the nick of time" in text
-    assert "Ser Branoc, you break through the brush and escape the ambush" in text
+    assert "OVERWORLD  |  Goblin Ambush" in text
+    assert "Exit this session without saving?" in text
+    assert "will go first" not in text

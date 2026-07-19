@@ -1,12 +1,25 @@
 """Persistent player state for one playthrough."""
 
+from dataclasses import dataclass
+
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
 from app.player import resources
 from app.snapshot import to_plain_value
 from app.player.character import Character
-from app.player.character_run_state import CharacterRunState
+from app.player.character_run_state import (
+    CharacterRunCheckpoint,
+    CharacterRunState,
+)
 from app.player.inventory import Inventory
+
+
+@dataclass(frozen=True)
+class PlayerBattleCheckpoint:
+    health_current: int
+    mana_current: int
+    super_current: int
+    character_run_state: CharacterRunCheckpoint
 
 
 class PlayerState:
@@ -171,6 +184,28 @@ class PlayerState:
     def get_equipped(self, slot):
         self._validate_equipment_slot(slot)
         return self._equipment[slot]
+
+    def create_battle_checkpoint(self):
+        return PlayerBattleCheckpoint(
+            health_current=self.health.current,
+            mana_current=self.mana_resource.current,
+            super_current=self.super_resource.current,
+            character_run_state=self.character_run_state.create_checkpoint(),
+        )
+
+    def restore_battle_checkpoint(self, checkpoint):
+        if not isinstance(checkpoint, PlayerBattleCheckpoint):
+            raise TypeError("checkpoint must be a PlayerBattleCheckpoint")
+        self.health.current = self.health.clamp(checkpoint.health_current)
+        self.mana_resource.current = self.mana_resource.clamp(
+            checkpoint.mana_current
+        )
+        self.super_resource.current = self.super_resource._validate_current(
+            checkpoint.super_current
+        )
+        self.character_run_state.restore_checkpoint(
+            checkpoint.character_run_state
+        )
 
     def snapshot(self):
         profile = self._snapshot_profile()

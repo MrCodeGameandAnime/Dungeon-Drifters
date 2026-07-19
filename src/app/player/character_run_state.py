@@ -1,5 +1,6 @@
 """Character-owned mutable state that persists for one run."""
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -27,6 +28,14 @@ FIRE_INFUSION_REQUIREMENTS = {
     RunItemId.EMBER_SHARD: 1,
     RunItemId.DEEP_COAL: 1,
 }
+
+
+@dataclass(frozen=True)
+class CharacterRunCheckpoint:
+    inventory: tuple[tuple[RunItemId, int], ...]
+    prepared_payloads: tuple[
+        tuple[PreparedPayloadId, InfusionKind | None], ...
+    ]
 
 
 class CharacterRunState:
@@ -95,6 +104,31 @@ class CharacterRunState:
 
         self._prepared_payloads[payload_id] = None
         return infusion_kind
+
+    def create_checkpoint(self):
+        return CharacterRunCheckpoint(
+            inventory=tuple(
+                sorted(self._inventory.items(), key=lambda pair: pair[0].value)
+            ),
+            prepared_payloads=tuple(
+                sorted(
+                    self._prepared_payloads.items(),
+                    key=lambda pair: pair[0].value,
+                )
+            ),
+        )
+
+    def restore_checkpoint(self, checkpoint):
+        if not isinstance(checkpoint, CharacterRunCheckpoint):
+            raise TypeError("checkpoint must be a CharacterRunCheckpoint")
+        inventory = self._validated_quantities(dict(checkpoint.inventory))
+        prepared_payloads = self._validated_payloads(
+            dict(checkpoint.prepared_payloads)
+        )
+        self._inventory.clear()
+        self._inventory.update(inventory)
+        self._prepared_payloads.clear()
+        self._prepared_payloads.update(prepared_payloads)
 
     def snapshot(self):
         return {

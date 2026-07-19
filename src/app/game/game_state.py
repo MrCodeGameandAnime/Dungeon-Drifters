@@ -1,6 +1,7 @@
 """Persistent root state for one active game session."""
 
 from app.game.story_state import StoryState
+from app.game.overworld_state import OverworldState
 from app.game.world_state import WorldState
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value
@@ -14,6 +15,7 @@ class GameState:
         self._player_state = player_state
         self._story_state = StoryState()
         self._world_state = WorldState()
+        self._overworld_state = OverworldState()
         self._metadata = {}
 
     @property
@@ -29,6 +31,10 @@ class GameState:
         return self._world_state
 
     @property
+    def overworld_state(self):
+        return self._overworld_state
+
+    @property
     def metadata(self):
         return dict(self._metadata)
 
@@ -42,6 +48,7 @@ class GameState:
                 "player": self.player_state.snapshot(),
                 "story": self.story_state.snapshot(),
                 "world": self.world_state.snapshot(),
+                "overworld": self.overworld_state.snapshot(),
                 "metadata": self.metadata,
             },
             "game",

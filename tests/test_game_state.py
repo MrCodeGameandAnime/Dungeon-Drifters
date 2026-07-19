@@ -1,6 +1,7 @@
 import pytest
 
 from app.game.game_state import GameState
+from app.game.overworld_state import OverworldState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
 from app.player.character import Brawler
@@ -15,6 +16,7 @@ def test_valid_player_state_constructs_game_state():
     assert game_state.player_state is player_state
     assert isinstance(game_state.story_state, StoryState)
     assert isinstance(game_state.world_state, WorldState)
+    assert isinstance(game_state.overworld_state, OverworldState)
     assert game_state.metadata == {}
 
 
@@ -34,6 +36,8 @@ def test_ownership_properties_cannot_be_replaced():
         setattr(game_state, "story_state", None)
     with pytest.raises(AttributeError):
         setattr(game_state, "world_state", None)
+    with pytest.raises(AttributeError):
+        setattr(game_state, "overworld_state", None)
     with pytest.raises(AttributeError):
         setattr(game_state, "metadata", {})
 
@@ -61,6 +65,7 @@ def test_game_state_instances_do_not_share_state_containers():
     assert second.metadata == {}
     assert first.story_state is not second.story_state
     assert first.world_state is not second.world_state
+    assert first.overworld_state is not second.overworld_state
     assert first.story_state.story_flags == ("met_goblin",)
     assert second.story_state.story_flags == ()
     assert first.world_state.discovered_locations == ("woods",)
