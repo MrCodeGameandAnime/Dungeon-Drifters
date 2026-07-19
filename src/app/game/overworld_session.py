@@ -146,7 +146,10 @@ class OverworldSession:
             self._navigate_back()
             return None
         if action is OverworldAction.INSPECT:
-            self._screen = OverworldScreen.ITEM_INSPECT
+            if self._screen is OverworldScreen.ITEMS:
+                self._screen = OverworldScreen.ITEM_INSPECT
+            elif self._screen is OverworldScreen.MAP:
+                self._screen = OverworldScreen.MAP_INSPECT
             return None
         if action is OverworldAction.QUIT:
             self._screen = OverworldScreen.QUIT_CONFIRMATION
@@ -172,6 +175,9 @@ class OverworldSession:
             return
         if self._screen is OverworldScreen.ITEM_INSPECT:
             self._screen = OverworldScreen.ITEMS
+            return
+        if self._screen is OverworldScreen.MAP_INSPECT:
+            self._screen = OverworldScreen.MAP
             return
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None

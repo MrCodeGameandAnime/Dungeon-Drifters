@@ -1,5 +1,9 @@
 """Pure translation from persistent session state to overworld views."""
 
+from itertools import groupby
+
+from app.enemies.registry import get_enemy_registration
+from app.game.encounter_manifest import inspectable_encounter_for_node
 from app.game.game_state import GameState
 from app.game.overworld_route import RouteNodeKind, SURFACE_ROUTE_NODES, route_node
 from app.game.overworld_state import ContextualRoutePhase
@@ -13,6 +17,7 @@ from app.presentation.overworld_models import (
     MapNodeState,
     MapNodeView,
     MapView,
+    MapEncounterInspectionView,
     OverworldAction,
     OverworldAvailabilityReason,
     OverworldItemView,
@@ -108,6 +113,11 @@ class OverworldPresenter:
             route_map=(
                 self._map_view(game_state)
                 if screen is OverworldScreen.MAP
+                else None
+            ),
+            encounter_inspection=(
+                self._map_encounter_inspection_view(game_state)
+                if screen is OverworldScreen.MAP_INSPECT
                 else None
             ),
         )
@@ -265,6 +275,30 @@ class OverworldPresenter:
             )
         )
 
+    @staticmethod
+    def _map_encounter_inspection_view(game_state):
+        encounter = inspectable_encounter_for_node(
+            game_state.overworld_state.current_route_node_id
+        )
+        if encounter is None:
+            return None
+
+        composition = []
+        for archetype_id, grouped_ids in groupby(encounter.enemy_archetype_ids):
+            count = sum(1 for _ in grouped_ids)
+            definition = get_enemy_registration(archetype_id).definition_factory()
+            composition.append(
+                definition.name
+                if count == 1
+                else f"{count} {definition.name}s"
+            )
+
+        return MapEncounterInspectionView(
+            encounter_label=route_node(encounter.encounter_id).display_label,
+            composition=tuple(composition),
+            boss=encounter.boss,
+        )
+
     def _options(self, game_state, screen, selected_item):
         enabled = self._enabled_option
         disabled = self._disabled_option
@@ -317,14 +351,21 @@ class OverworldPresenter:
                 enabled(OverworldAction.BACK, "Back"),
             )
         if screen is OverworldScreen.MAP:
-            return (
-                disabled(
+            inspectable = inspectable_encounter_for_node(
+                game_state.overworld_state.current_route_node_id
+            )
+            inspect_option = (
+                enabled(OverworldAction.INSPECT, "Inspect")
+                if inspectable is not None
+                else disabled(
                     OverworldAction.INSPECT,
                     "Inspect",
                     OverworldAvailabilityReason.ENCOUNTER_INSPECTION_UNAVAILABLE,
-                ),
-                enabled(OverworldAction.BACK, "Back"),
+                )
             )
+            return (inspect_option, enabled(OverworldAction.BACK, "Back"))
+        if screen is OverworldScreen.MAP_INSPECT:
+            return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.OPTIONS:
             return (
                 disabled(
