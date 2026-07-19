@@ -19,6 +19,7 @@ from app.ui.battle_ui import (
     ChooseInventoryCompanion,
     ChooseInventoryItem,
     ChooseMove,
+    ChooseTarget,
     ConfirmInventoryUse,
     GoBack,
 )
@@ -102,6 +103,8 @@ class TerminalBattleUI:
 
         if choice in ("0", "back"):
             return GoBack()
+        if view.interaction_phase == InteractionPhase.TARGETS:
+            return self._translate_target(view, choice)
         if view.interaction_phase == InteractionPhase.INVENTORY:
             return self._translate_inventory_item(view, choice)
         if view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
@@ -141,6 +144,19 @@ class TerminalBattleUI:
             if move.enabled:
                 return ChooseMove(move.selection_key)
             self._output(f"{move.name} is not available.")
+            return None
+        return None
+
+    def _translate_target(self, view, choice):
+        for option in view.target_options:
+            if choice not in (
+                str(option.number),
+                option.display_label.lower(),
+            ):
+                continue
+            if option.enabled:
+                return ChooseTarget(option.target_id)
+            self._output(f"{option.display_label} is not available.")
             return None
         return None
 
@@ -310,6 +326,37 @@ class TerminalBattleUI:
             InteractionPhase.INVENTORY_CONFIRMATION,
         }:
             return self._inventory_control_lines(view, width)
+
+        if view.interaction_phase == InteractionPhase.TARGETS:
+            lines = ["Choose a target:"]
+            for option in view.target_options:
+                states = (
+                    " | " + ", ".join(option.temporary_labels)
+                    if option.temporary_labels
+                    else ""
+                )
+                suffix = " [Unavailable]" if not option.enabled else ""
+                lines.extend(
+                    self._wrap(
+                        (
+                            f"{option.number}. {option.display_label} - "
+                            f"HP {option.hp_current}/{option.hp_maximum}"
+                            f"{states}{suffix}"
+                        ),
+                        width,
+                    )
+                )
+                preview = option.move_preview
+                tags = " | ".join(preview.tags)
+                lines.extend(
+                    "   " + preview_line
+                    for preview_line in self._wrap(
+                        f"{preview.name} [{tags}] - {preview.rules_summary}",
+                        max(20, width - 3),
+                    )
+                )
+            lines.append("0. Back")
+            return tuple(lines)
 
         lines = [self._phase_heading(view.interaction_phase)]
         for move in view.move_options:
@@ -605,6 +652,8 @@ class TerminalBattleUI:
             return "Super is not available."
         if reason == InputRejectionReason.MOVE_UNAVAILABLE:
             return "That move is not available."
+        if reason == InputRejectionReason.TARGET_UNAVAILABLE:
+            return "That target is not available."
         if reason == InputRejectionReason.BACK_UNAVAILABLE:
             return "Back is not available."
         return "That action is not available."

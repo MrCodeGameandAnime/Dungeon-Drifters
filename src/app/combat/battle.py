@@ -23,6 +23,7 @@ from app.ui.battle_ui import (
     ChooseInventoryCompanion,
     ChooseInventoryItem,
     ChooseMove,
+    ChooseTarget,
     ConfirmInventoryUse,
     GoBack,
 )
@@ -81,6 +82,8 @@ class Battle:
         self.interaction_phase = InteractionPhase.ACTIONS
         self._selected_inventory_item_id = None
         self._selected_inventory_companion_id = None
+        self._selected_move_key = None
+        self._originating_move_phase = None
 
     @staticmethod
     def _normalize_enemies(enemies):
@@ -151,6 +154,7 @@ class Battle:
         result,
         *,
         reduce_heal_cooldown=True,
+        presentation_target=None,
     ):
         if result.accepted:
             if reduce_heal_cooldown:
@@ -167,37 +171,56 @@ class Battle:
             if outcomes:
                 self._record_lifecycle_outcomes(
                     actor,
-                    opposing_combatants,
+                    presentation_target,
                     outcomes,
                 )
             return outcomes
 
         return None
 
-    def _record_lifecycle_outcomes(self, actor, opposing_combatants, outcomes):
-        target = next(
-            (combatant for combatant in opposing_combatants if combatant is not actor),
-            None,
-        )
+    def _record_lifecycle_outcomes(self, actor, target, outcomes):
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=BattleEventType.STATUS,
-                actor_name=actor.display_name,
-                target_name=target.display_name if target is not None else None,
+                actor_name=self._display_name_for(actor),
+                target_name=(
+                    self._display_name_for(target) if target is not None else None
+                ),
                 outcomes=outcomes,
             )
         )
 
+    def _display_name_for(self, combatant):
+        if combatant is self.player_state:
+            return self.player_state.display_name
+        for enemy, label in zip(
+            self.enemies,
+            self.enemy_display_labels,
+            strict=True,
+        ):
+            if combatant is enemy:
+                return label
+        return combatant.display_name
+
+    def _living_enemies(self):
+        return tuple(enemy for enemy in self.enemies if enemy.is_alive())
+
     def _player_target_for_move(self, move):
         if move.target == TargetType.ENEMY:
-            return self.foe
+            living_enemies = self._living_enemies()
+            if len(living_enemies) == 1:
+                return living_enemies[0]
+            if not living_enemies:
+                raise ValueError("no living enemy is available")
+            raise ValueError("an exact enemy target is required")
         if move.target == TargetType.SELF:
             return self.player_state
 
         raise ValueError(f"Unsupported player move target: {move.target!r}")
 
-    def _resolve_player_move(self, move):
-        target = self._player_target_for_move(move)
+    def _resolve_player_move(self, move, target=None):
+        if target is None:
+            target = self._player_target_for_move(move)
         result = self.resolver.resolve_move(
             self.player_state,
             target,
@@ -233,8 +256,10 @@ class Battle:
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=event_type or self._event_type_for_result(result),
-                actor_name=actor.display_name,
-                target_name=target.display_name if target is not None else None,
+                actor_name=self._display_name_for(actor),
+                target_name=(
+                    self._display_name_for(target) if target is not None else None
+                ),
                 action_name=result.move_name,
                 accepted=result.accepted,
                 hit=result.hit,
@@ -270,6 +295,8 @@ class Battle:
             interaction_phase=self.interaction_phase,
             selected_inventory_item_id=self._selected_inventory_item_id,
             selected_inventory_companion_id=self._selected_inventory_companion_id,
+            selected_move_key=self._selected_move_key,
+            originating_move_phase=self._originating_move_phase,
         )
 
     def _render_current_view(self):
@@ -345,6 +372,7 @@ class Battle:
     def player_action(self):
         self.interaction_phase = InteractionPhase.ACTIONS
         self._clear_inventory_navigation()
+        self._clear_move_target_navigation()
         while True:
             view = self._render_current_view()
             battle_input = self.ui.read_input(view)
@@ -356,6 +384,7 @@ class Battle:
             if isinstance(battle_input, ChooseAction):
                 if battle_input.intent == ActionIntent.ATTACK:
                     self._clear_inventory_navigation()
+                    self._clear_move_target_navigation()
                     self.interaction_phase = InteractionPhase.REGULAR_MOVES
                     continue
                 if battle_input.intent == ActionIntent.HEAL:
@@ -369,7 +398,7 @@ class Battle:
                     if result.accepted:
                         self._complete_accepted_action(
                             self.player_state,
-                            (self.foe,),
+                            self.enemies,
                             result,
                             reduce_heal_cooldown=False,
                         )
@@ -378,6 +407,7 @@ class Battle:
                     continue
                 if battle_input.intent == ActionIntent.SUPER:
                     self._clear_inventory_navigation()
+                    self._clear_move_target_navigation()
                     self.interaction_phase = InteractionPhase.SUPER_MOVES
                     continue
                 if battle_input.intent == ActionIntent.ITEMS:
@@ -403,7 +433,7 @@ class Battle:
                     if result.accepted:
                         self._complete_accepted_action(
                             self.player_state,
-                            (self.foe,),
+                            self.enemies,
                             result,
                         )
                         self.interaction_phase = InteractionPhase.ACTIONS
@@ -449,7 +479,7 @@ class Battle:
                 if result.accepted:
                     self._complete_accepted_action(
                         self.player_state,
-                        (self.foe,),
+                        self.enemies,
                         result,
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
@@ -459,18 +489,49 @@ class Battle:
 
             if isinstance(battle_input, ChooseMove):
                 move = self._move_for_key(view, battle_input.move_key)
-                result = self._resolve_player_move(move)
+                if move.target == TargetType.ENEMY and len(self._living_enemies()) > 1:
+                    self._selected_move_key = move.name
+                    self._originating_move_phase = self.interaction_phase
+                    self.interaction_phase = InteractionPhase.TARGETS
+                    continue
+
+                target = self._player_target_for_move(move)
+                result = self._resolve_player_move(move, target)
                 if result.accepted:
                     self._complete_accepted_action(
                         self.player_state,
-                        (self.foe,),
+                        self.enemies,
                         result,
+                        presentation_target=(
+                            target if move.target == TargetType.ENEMY else None
+                        ),
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
                     self._clear_inventory_navigation()
+                    self._clear_move_target_navigation()
+                    return True
+
+            if isinstance(battle_input, ChooseTarget):
+                move = self._pending_move()
+                target = self._enemy_for_target_id(battle_input.target_id)
+                result = self._resolve_player_move(move, target)
+                if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        self.enemies,
+                        result,
+                        presentation_target=target,
+                    )
+                    self.interaction_phase = InteractionPhase.ACTIONS
+                    self._clear_inventory_navigation()
+                    self._clear_move_target_navigation()
                     return True
 
     def _navigate_back(self):
+        if self.interaction_phase == InteractionPhase.TARGETS:
+            self.interaction_phase = self._originating_move_phase
+            self._clear_move_target_navigation()
+            return
         if self.interaction_phase == InteractionPhase.INVENTORY_ITEM:
             self.interaction_phase = InteractionPhase.INVENTORY
             self._clear_inventory_navigation()
@@ -488,10 +549,68 @@ class Battle:
             return
         self.interaction_phase = InteractionPhase.ACTIONS
         self._clear_inventory_navigation()
+        self._clear_move_target_navigation()
 
     def _clear_inventory_navigation(self):
         self._selected_inventory_item_id = None
         self._selected_inventory_companion_id = None
+
+    def _clear_move_target_navigation(self):
+        self._selected_move_key = None
+        self._originating_move_phase = None
+
+    def _enemy_for_target_id(self, target_id):
+        for current_id, enemy in zip(
+            self.enemy_target_ids,
+            self.enemies,
+            strict=True,
+        ):
+            if current_id == target_id:
+                return enemy
+        raise ValueError("target ID does not belong to this Battle")
+
+    def _pending_move(self):
+        if self.interaction_phase != InteractionPhase.TARGETS:
+            raise ValueError("Battle is not selecting a target")
+        if self._selected_move_key is None or self._originating_move_phase is None:
+            raise ValueError("no authored move is pending")
+        for move in self._player_moves():
+            if move.name == self._selected_move_key:
+                return move
+        raise ValueError("pending authored move is unavailable")
+
+    def _target_rejection_reason(self, target_id):
+        if self.interaction_phase != InteractionPhase.TARGETS:
+            return InputRejectionReason.TARGET_UNAVAILABLE
+        try:
+            move = self._pending_move()
+            target = self._enemy_for_target_id(target_id)
+        except ValueError:
+            return InputRejectionReason.TARGET_UNAVAILABLE
+        if move.target != TargetType.ENEMY or not target.is_alive():
+            return InputRejectionReason.TARGET_UNAVAILABLE
+
+        origin_view = self.presenter.build(
+            player=self.player_state,
+            enemies=self.enemies,
+            enemy_target_ids=self.enemy_target_ids,
+            enemy_display_labels=self.enemy_display_labels,
+            combat_state=self.combat_state,
+            interaction_phase=self._originating_move_phase,
+        )
+        if not any(
+            option.selection_key == self._selected_move_key and option.enabled
+            for option in origin_view.move_options
+        ):
+            return InputRejectionReason.TARGET_UNAVAILABLE
+
+        current_view = self._build_view()
+        if not any(
+            option.target_id == target_id and option.enabled
+            for option in current_view.target_options
+        ):
+            return InputRejectionReason.TARGET_UNAVAILABLE
+        return None
 
     def _move_for_key(self, view, move_key):
         for option in view.move_options:
@@ -537,6 +656,9 @@ class Battle:
             ):
                 return None
             return InputRejectionReason.MOVE_UNAVAILABLE
+
+        if isinstance(battle_input, ChooseTarget):
+            return self._target_rejection_reason(battle_input.target_id)
 
         if isinstance(battle_input, ChooseInventoryItem):
             if view.interaction_phase != InteractionPhase.INVENTORY:

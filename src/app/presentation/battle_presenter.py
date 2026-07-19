@@ -15,6 +15,7 @@ from app.presentation.battle_models import (
     BattleVisualView,
     CombatantView,
     EnemyCombatantView,
+    InputRejectionReason,
     InteractionPhase,
     InventoryCommandOptionView,
     InventoryConfirmationView,
@@ -24,6 +25,7 @@ from app.presentation.battle_models import (
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
+    TargetOptionView,
 )
 from app.player.character_run_state import (
     InfusionKind,
@@ -50,6 +52,8 @@ class BattlePresenter:
         enemy_display_labels=None,
         log_entries=(),
         interaction_phase=InteractionPhase.ACTIONS,
+        selected_move_key=None,
+        originating_move_phase=None,
         selected_inventory_item_id=None,
         selected_inventory_companion_id=None,
     ):
@@ -74,6 +78,21 @@ class BattlePresenter:
             phase,
             selected_inventory_item_id,
         )
+        enemy_views = tuple(
+            self._enemy_combatant_view(
+                current,
+                player,
+                combat_state,
+                target_id=target_id,
+                display_label=display_label,
+            )
+            for current, target_id, display_label in zip(
+                enemies,
+                enemy_target_ids,
+                enemy_display_labels,
+                strict=True,
+            )
+        )
         return BattleView(
             interaction_phase=phase,
             player=self._combatant_view(
@@ -82,21 +101,7 @@ class BattlePresenter:
                 combat_state,
                 is_player=True,
             ),
-            enemies=tuple(
-                self._enemy_combatant_view(
-                    current,
-                    player,
-                    combat_state,
-                    target_id=target_id,
-                    display_label=display_label,
-                )
-                for current, target_id, display_label in zip(
-                    enemies,
-                    enemy_target_ids,
-                    enemy_display_labels,
-                    strict=True,
-                )
-            ),
+            enemies=enemy_views,
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
             move_options=self._move_options(
@@ -104,6 +109,15 @@ class BattlePresenter:
                 exact_move_target,
                 combat_state,
                 phase,
+            ),
+            target_options=self._target_options(
+                player,
+                enemies,
+                enemy_views,
+                combat_state,
+                phase,
+                selected_move_key,
+                originating_move_phase,
             ),
             inventory_items=self._inventory_items(player, phase),
             selected_inventory_item=selected_item,
@@ -482,17 +496,81 @@ class BattlePresenter:
             InteractionPhase.SUPER_MOVES,
         }:
             return ()
-        if phase == InteractionPhase.REGULAR_MOVES:
-            moves = self._regular_moves(player)
-        elif phase == InteractionPhase.HEALING_MOVES:
-            moves = self._healing_moves(player)
-        else:
-            moves = self._super_moves(player)
+        moves = self._moves_for_phase(player, phase)
 
         return tuple(
             self._move_option(player, enemy, combat_state, move, number)
             for number, move in enumerate(moves, start=1)
         )
+
+    def _target_options(
+        self,
+        player,
+        enemies,
+        enemy_views,
+        combat_state,
+        phase,
+        selected_move_key,
+        originating_move_phase,
+    ):
+        if phase != InteractionPhase.TARGETS:
+            return ()
+        if selected_move_key is None or originating_move_phase is None:
+            return ()
+
+        origin = InteractionPhase(originating_move_phase)
+        moves = self._moves_for_phase(player, origin)
+        selected = next(
+            (
+                (number, move)
+                for number, move in enumerate(moves, start=1)
+                if move.name == selected_move_key
+            ),
+            None,
+        )
+        if selected is None:
+            return ()
+        move_number, move = selected
+
+        options = []
+        for enemy, enemy_view in zip(enemies, enemy_views, strict=True):
+            if not enemy.is_alive():
+                continue
+            preview = self._move_option(
+                player,
+                enemy,
+                combat_state,
+                move,
+                move_number,
+            )
+            options.append(
+                TargetOptionView(
+                    target_id=enemy_view.target_id,
+                    number=len(options) + 1,
+                    display_label=enemy_view.display_label,
+                    hp_current=enemy_view.hp_current,
+                    hp_maximum=enemy_view.hp_maximum,
+                    temporary_labels=enemy_view.temporary_labels,
+                    move_preview=preview,
+                    enabled=preview.enabled,
+                    disabled_reason=(
+                        None
+                        if preview.enabled
+                        else InputRejectionReason.TARGET_UNAVAILABLE
+                    ),
+                )
+            )
+        return tuple(options)
+
+    def _moves_for_phase(self, player, phase):
+        phase = InteractionPhase(phase)
+        if phase == InteractionPhase.REGULAR_MOVES:
+            return self._regular_moves(player)
+        if phase == InteractionPhase.HEALING_MOVES:
+            return self._healing_moves(player)
+        if phase == InteractionPhase.SUPER_MOVES:
+            return self._super_moves(player)
+        return ()
 
     def _move_option(self, player, enemy, combat_state, move, number):
         resource_label = self._resource_label(move)

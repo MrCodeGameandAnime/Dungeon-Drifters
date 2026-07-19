@@ -31,6 +31,14 @@ class ChooseMove:
 
 
 @dataclass(frozen=True)
+class ChooseTarget:
+    target_id: str
+
+    def __post_init__(self):
+        _validate_nonempty_string("target_id", self.target_id)
+
+
+@dataclass(frozen=True)
 class ChooseInventoryItem:
     item_id: str
 
@@ -75,6 +83,7 @@ class GoBack:
 BattleInput: TypeAlias = (
     ChooseAction
     | ChooseMove
+    | ChooseTarget
     | ChooseInventoryItem
     | ChooseInventoryCommand
     | ChooseInventoryCompanion
