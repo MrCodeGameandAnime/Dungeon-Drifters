@@ -2,8 +2,12 @@
 
 from enum import StrEnum
 
+from app.game.encounter_manifest import (
+    create_route_encounter_enemies,
+    route_manifest_node,
+)
 from app.game.game_state import GameState
-from app.game.overworld_route import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
+from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
 from app.presentation.overworld_models import (
     OverworldAction,
@@ -25,11 +29,8 @@ class OverworldSession:
     INITIAL_ADVENTURE_TEXT = (
         "A Goblin blocks the road through Ketlyv. The surface route begins here."
     )
-    VICTORY_ADVENTURE_TEXT = (
-        "The first Goblin falls. Two more wait farther along the road."
-    )
     DEFEAT_ADVENTURE_TEXT = (
-        "The Goblin drove you back. Your footing is restored; retry when ready."
+        "The encounter drove you back. Your footing is restored; retry when ready."
     )
 
     def __init__(
@@ -160,7 +161,7 @@ class OverworldSession:
         if action is OverworldAction.CONFIRM:
             return OverworldSessionResult.QUIT
         if action in {OverworldAction.ENTER_ENCOUNTER, OverworldAction.RETRY}:
-            self._run_first_encounter()
+            self._run_current_encounter()
             return None
         self._notice = self._unavailable_action_message(action)
         return None
@@ -182,29 +183,46 @@ class OverworldSession:
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
 
-    def _run_first_encounter(self):
+    def _run_current_encounter(self):
         overworld = self.game_state.overworld_state
-        if overworld.current_route_node_id != FIRST_SURFACE_NODE_ID:
+        current_node_id = overworld.current_route_node_id
+        manifest_node = route_manifest_node(current_node_id)
+        if manifest_node.encounter is None:
             self._notice = "No encounter is available here."
             return
+
         checkpoint = self.game_state.player_state.create_battle_checkpoint()
         overworld.begin_surface_route()
-        enemy = self._enemy_factory("goblin", tier=0)
+        enemies = create_route_encounter_enemies(
+            current_node_id,
+            enemy_factory=self._enemy_factory,
+        )
         battle = self._battle_factory(
             self.game_state.player_state,
-            enemy,
+            enemies,
             ui=self._battle_ui_factory(),
         )
         winner = battle.run()
         if winner == "player":
+            if not self._battle_enemies_are_defeated(battle):
+                raise RuntimeError(
+                    "Battle reported victory before every enemy was defeated"
+                )
             self.game_state.world_state.mark_encounter_defeated(
-                FIRST_SURFACE_NODE_ID
+                manifest_node.encounter.encounter_id
             )
-            overworld.advance_to(
-                SECOND_SURFACE_NODE_ID,
-                contextual_phase=ContextualRoutePhase.NONE,
+            next_node_id = manifest_node.next_node_id
+            if next_node_id is None:
+                raise RuntimeError(
+                    "a completed encounter must have an authored successor"
+                )
+            next_node = route_node(next_node_id)
+            next_phase = self._contextual_phase_for_node(next_node.kind)
+            overworld.advance_to(next_node_id, contextual_phase=next_phase)
+            self._adventure_text = self._victory_adventure_text(
+                current_node_id,
+                next_node_id,
             )
-            self._adventure_text = self.VICTORY_ADVENTURE_TEXT
         else:
             self.game_state.player_state.restore_battle_checkpoint(checkpoint)
             overworld.set_contextual_route_phase(ContextualRoutePhase.RETRY)
@@ -212,6 +230,25 @@ class OverworldSession:
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._notice = None
+
+    @staticmethod
+    def _battle_enemies_are_defeated(battle):
+        enemies = getattr(battle, "enemies", None)
+        if enemies is None:
+            return True
+        return bool(enemies) and all(not enemy.is_alive() for enemy in enemies)
+
+    @staticmethod
+    def _contextual_phase_for_node(node_kind):
+        if node_kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
+            return ContextualRoutePhase.ENTER_ENCOUNTER
+        return ContextualRoutePhase.NONE
+
+    @staticmethod
+    def _victory_adventure_text(completed_node_id, next_node_id):
+        completed = route_node(completed_node_id).display_label
+        next_node = route_node(next_node_id).display_label
+        return f"{completed} is defeated. The route continues toward {next_node}."
 
     @staticmethod
     def _unavailable_action_message(action):
