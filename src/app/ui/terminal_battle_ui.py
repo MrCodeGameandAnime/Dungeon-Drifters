@@ -28,7 +28,7 @@ from app.ui.battle_ui import (
 class TerminalBattleUI:
     # The semantic session remains bounded at twelve entries. This rendered
     # bound retains the wrapped lines from one complete four-enemy turn.
-    VISIBLE_LOG_LINES = 27
+    VISIBLE_LOG_LINES = 28
     _ACTION_KEYS = {
         ActionIntent.ATTACK: "A",
         ActionIntent.DEFEND: "D",

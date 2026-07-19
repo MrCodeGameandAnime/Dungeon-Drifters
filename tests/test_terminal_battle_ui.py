@@ -15,6 +15,7 @@ from app.presentation.battle_models import (
     InventoryAvailabilityReason,
     InventoryInspectionView,
     InventoryItemOptionView,
+    InputRejectionReason,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
@@ -31,6 +32,7 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.terminal_battle_ui import TerminalBattleUI
+from app.presentation.battle_session import BattlePresentationSession
 
 
 class TerminalHarness:
@@ -1025,7 +1027,17 @@ def test_four_enemy_turn_log_remains_visible_after_wrapping():
             target_name="Goblin 1, Goblin 2, Goblin 3, Goblin 4",
         )
     )
-    view = _view(log_entries=tuple(entries))
+    session = BattlePresentationSession()
+    for entry in entries:
+        session.record(entry)
+    rejection = BattleLogEntry(
+        BattleEventType.INPUT_REJECTED,
+        rejection_reason=InputRejectionReason.TARGET_UNAVAILABLE,
+    )
+    session.record_transient_rejection(rejection)
+    assert session.entries[:-1] == tuple(entries)
+    assert session.entries[-1] is rejection
+    view = _view(log_entries=session.entries)
 
     for width in (50, 60, 80, 120):
         harness = TerminalHarness()
@@ -1041,7 +1053,7 @@ def test_four_enemy_turn_log_remains_visible_after_wrapping():
 
         assert len(rendered) <= ui.VISIBLE_LOG_LINES
         if width == 50:
-            assert len(rendered) == 27
+            assert len(rendered) == 28
         assert any("Ser Branoc used Ironwake Dismemberment" in line for line in rendered)
         for index in range(1, 5):
             assert any(
@@ -1061,6 +1073,7 @@ def test_four_enemy_turn_log_remains_visible_after_wrapping():
                 for line in rendered
             )
         assert any("Ser Branoc is victorious over" in line for line in rendered)
+        assert any("That target is not available." in line for line in rendered)
 
 
 def test_super_meter_is_persistent_and_ready_text_matches_availability():
