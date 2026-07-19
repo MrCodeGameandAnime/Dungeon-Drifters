@@ -103,7 +103,7 @@ class TerminalOverworldUI:
             OverworldScreen.OPTIONS,
             OverworldScreen.QUIT_CONFIRMATION,
         }
-        for number, option in enumerate(view.options, start=1):
+        for number, option in enumerate(self._control_options(view), start=1):
             key = self._ACTION_KEYS[option.action].lower()
             aliases = {key, option.label.lower(), option.action.value}
             if numbered_options:
@@ -203,6 +203,7 @@ class TerminalOverworldUI:
                 f"Level {character.level}",
                 f"HP {character.hp_current}/{character.hp_maximum}",
                 f"Mana {character.mana_current}/{character.mana_maximum}",
+                f"Super {character.super_current}/{character.super_maximum}",
                 self._meter_line(
                     "XP",
                     character.exp_current,
@@ -284,7 +285,7 @@ class TerminalOverworldUI:
 
     def _control_lines(self, view, width):
         labels = []
-        for number, option in enumerate(view.options, start=1):
+        for number, option in enumerate(self._control_options(view), start=1):
             key = self._ACTION_KEYS[option.action]
             prefix = f"[{key}]"
             if view.screen not in {
@@ -299,6 +300,12 @@ class TerminalOverworldUI:
         if not labels:
             return ("",)
         return self._two_column_values(labels, width)
+
+    @staticmethod
+    def _control_options(view):
+        if view.contextual_route_option is None:
+            return view.options
+        return (*view.options, view.contextual_route_option)
 
     @staticmethod
     def _two_column_values(values, width):

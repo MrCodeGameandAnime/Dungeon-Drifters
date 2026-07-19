@@ -117,6 +117,8 @@ class CharacterOverviewView:
     hp_maximum: int
     mana_current: int
     mana_maximum: int
+    super_current: int
+    super_maximum: int
 
     def __post_init__(self):
         _validate_text("display_name", self.display_name)
@@ -131,6 +133,8 @@ class CharacterOverviewView:
             "hp_maximum",
             "mana_current",
             "mana_maximum",
+            "super_current",
+            "super_maximum",
         ):
             _validate_nonnegative(name, getattr(self, name))
         if not 0 <= self.exp_fill_bps <= 10_000:
@@ -272,6 +276,7 @@ class OverworldView:
     location_label: str
     adventure_text: str
     options: tuple[OverworldOptionView, ...]
+    contextual_route_option: OverworldOptionView | None = None
     notice: str | None = None
     character: CharacterOverviewView | None = None
     skills: SkillsView | None = None
@@ -285,6 +290,30 @@ class OverworldView:
         _validate_text("location_label", self.location_label)
         _validate_text("adventure_text", self.adventure_text)
         _validate_instance_tuple("options", self.options, OverworldOptionView)
+        if any(
+            option.action in {
+                OverworldAction.ENTER_ENCOUNTER,
+                OverworldAction.RETRY,
+            }
+            for option in self.options
+        ):
+            raise ValueError(
+                "contextual route actions must not be stored in options"
+            )
+        if self.contextual_route_option is not None:
+            if not isinstance(self.contextual_route_option, OverworldOptionView):
+                raise TypeError(
+                    "contextual_route_option must be an OverworldOptionView"
+                )
+            if self.screen is not OverworldScreen.MAIN:
+                raise ValueError(
+                    "contextual_route_option is valid only on the Main screen"
+                )
+            if self.contextual_route_option.action not in {
+                OverworldAction.ENTER_ENCOUNTER,
+                OverworldAction.RETRY,
+            }:
+                raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)
         for name, expected_type in (

@@ -5,6 +5,7 @@ from app.presentation.overworld_models import (
     OverworldAvailabilityReason,
     OverworldOptionView,
     OverworldScreen,
+    OverworldView,
     StatRowView,
 )
 from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem, OverworldUI
@@ -71,3 +72,37 @@ def test_all_approved_screen_values_are_typed():
         "options",
         "quit_confirmation",
     )
+
+
+def test_contextual_route_actions_have_a_dedicated_main_screen_boundary():
+    contextual = OverworldOptionView(
+        OverworldAction.ENTER_ENCOUNTER,
+        "Enter Encounter",
+        True,
+    )
+
+    view = OverworldView(
+        OverworldScreen.MAIN,
+        "Goblin Ambush",
+        "The road begins here.",
+        (),
+        contextual_route_option=contextual,
+    )
+
+    assert view.options == ()
+    assert view.contextual_route_option is contextual
+    with pytest.raises(ValueError, match="must not be stored in options"):
+        OverworldView(
+            OverworldScreen.MAIN,
+            "Goblin Ambush",
+            "The road begins here.",
+            (contextual,),
+        )
+    with pytest.raises(ValueError, match="only on the Main screen"):
+        OverworldView(
+            OverworldScreen.OPTIONS,
+            "Goblin Ambush",
+            "The road begins here.",
+            (),
+            contextual_route_option=contextual,
+        )

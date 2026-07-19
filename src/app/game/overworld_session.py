@@ -114,6 +114,13 @@ class OverworldSession:
 
     @staticmethod
     def _action_is_offered(view, action):
+        contextual = view.contextual_route_option
+        if (
+            contextual is not None
+            and contextual.action is action
+            and contextual.enabled
+        ):
+            return True
         return any(
             option.action is action and option.enabled
             for option in view.options

@@ -56,7 +56,10 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
 @pytest.mark.parametrize(
     ("screen", "required_text"),
     (
-        (OverworldScreen.CHARACTER, ("CHARACTER", "STATS", "Level 1", "XP [")),
+        (
+            OverworldScreen.CHARACTER,
+            ("CHARACTER", "STATS", "Level 1", "Super 0/100", "XP ["),
+        ),
         (OverworldScreen.SKILLS, ("SKILLS", "LEVEL UP", "[+ Unavailable]", "ATTACKS")),
         (OverworldScreen.WEAPON, ("WEAPON", "Sunder-Spire", "BONUSES", "DESCRIPTION")),
         (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
@@ -117,6 +120,19 @@ def test_narrow_terminal_uses_readable_linear_fallback():
     assert "STATS" in text
     assert not any(line.startswith("+") for line in lines)
     assert all(len(line) <= 42 for line in lines)
+
+
+def test_character_screen_renders_the_exact_current_super_resource():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.super_resource.gain(41)
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    )
+
+    text = "\n".join(rendered(view))
+
+    assert "Super 41/100" in text
 
 
 def test_main_and_character_inputs_translate_to_semantic_actions():

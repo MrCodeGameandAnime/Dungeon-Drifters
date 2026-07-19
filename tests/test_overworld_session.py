@@ -221,10 +221,7 @@ def test_victory_preserves_battle_mutations_and_advances_to_paused_pair_node():
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
     post_victory = ui.views[1]
     assert post_victory.location_label == "Goblin Pair"
-    assert not any(
-        option.action in {OverworldAction.ENTER_ENCOUNTER, OverworldAction.RETRY}
-        for option in post_victory.options
-    )
+    assert post_victory.contextual_route_option is None
     assert identities == (
         player,
         player.character,
@@ -275,9 +272,9 @@ def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
     assert game.world_state.defeated_encounters == ()
     assert game.overworld_state.current_route_node_id == FIRST_SURFACE_NODE_ID
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.RETRY
-    assert any(
-        option.action is OverworldAction.RETRY
-        for option in ui.views[1].options
+    assert (
+        ui.views[1].contextual_route_option.action
+        is OverworldAction.RETRY
     )
 
 

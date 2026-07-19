@@ -58,6 +58,10 @@ class OverworldPresenter:
             None,
         )
         options = self._options(game_state, screen, selected_item)
+        contextual_route_option = self._contextual_route_option(
+            game_state,
+            screen,
+        )
 
         return OverworldView(
             screen=screen,
@@ -65,6 +69,7 @@ class OverworldPresenter:
             adventure_text=adventure_text,
             notice=notice,
             options=options,
+            contextual_route_option=contextual_route_option,
             character=(
                 self._character_view(game_state)
                 if screen is OverworldScreen.CHARACTER
@@ -134,6 +139,8 @@ class OverworldPresenter:
             hp_maximum=player.health.maximum,
             mana_current=player.mana_resource.current,
             mana_maximum=player.mana_resource.maximum,
+            super_current=player.super_resource.current,
+            super_maximum=player.super_resource.maximum,
         )
 
     def _skills_view(self, game_state):
@@ -222,7 +229,18 @@ class OverworldPresenter:
     @staticmethod
     def _map_view(game_state):
         current_id = game_state.overworld_state.current_route_node_id
-        completed = set(game_state.world_state.defeated_encounters)
+        defeated_encounters = set(game_state.world_state.defeated_encounters)
+        resolved_rest_nodes = set(
+            game_state.overworld_state.resolved_rest_node_ids
+        )
+
+        def is_completed(node):
+            if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
+                return node.node_id in defeated_encounters
+            if node.kind is RouteNodeKind.REST:
+                return node.node_id in resolved_rest_nodes
+            return False
+
         return MapView(
             nodes=tuple(
                 MapNodeView(
@@ -238,7 +256,7 @@ class OverworldPresenter:
                         if node.node_id == current_id
                         else (
                             MapNodeState.COMPLETED
-                            if node.node_id in completed
+                            if is_completed(node)
                             else MapNodeState.REMAINING
                         )
                     ),
@@ -251,20 +269,12 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
-            options = [
+            return (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
                 enabled(OverworldAction.OPTIONS, "Options"),
-            ]
-            phase = game_state.overworld_state.current_contextual_route_phase
-            if phase is ContextualRoutePhase.ENTER_ENCOUNTER:
-                options.append(
-                    enabled(OverworldAction.ENTER_ENCOUNTER, "Enter Encounter")
-                )
-            elif phase is ContextualRoutePhase.RETRY:
-                options.append(enabled(OverworldAction.RETRY, "Retry"))
-            return tuple(options)
+            )
         if screen is OverworldScreen.CHARACTER:
             return (
                 enabled(OverworldAction.SKILLS, "Skills"),
@@ -336,6 +346,19 @@ class OverworldPresenter:
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
         raise ValueError(f"unsupported overworld screen: {screen!r}")
+
+    def _contextual_route_option(self, game_state, screen):
+        if screen is not OverworldScreen.MAIN:
+            return None
+        phase = game_state.overworld_state.current_contextual_route_phase
+        if phase is ContextualRoutePhase.ENTER_ENCOUNTER:
+            return self._enabled_option(
+                OverworldAction.ENTER_ENCOUNTER,
+                "Enter Encounter",
+            )
+        if phase is ContextualRoutePhase.RETRY:
+            return self._enabled_option(OverworldAction.RETRY, "Retry")
+        return None
 
     @staticmethod
     def _enabled_option(action, label):
