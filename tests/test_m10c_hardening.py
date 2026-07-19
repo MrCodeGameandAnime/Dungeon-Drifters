@@ -5,13 +5,19 @@ from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
 from app.enemies.goblin.definition import Goblin
+from app.enemies.factory import create_enemy_state
 from app.enemies.state import EnemyState
 from app.game.encounter_manifest import create_route_encounter_enemies
+from app.game.game_state import GameState
+from app.game.overworld_session import OverworldSession, OverworldSessionResult
+from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, InteractionPhase
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+from app.ui.terminal_battle_ui import TerminalBattleUI
+from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
 
 class AlwaysOneRng:
@@ -32,6 +38,33 @@ class ScriptedBattleUI:
 
     def read_input(self, _view):
         return next(self.inputs)
+
+
+class RecordingCombatResolver(CombatResolver):
+    def __init__(self, *, rng):
+        super().__init__(rng=rng)
+        self.calls = []
+        self.player = None
+        self.enemies = ()
+        self.other_enemy = None
+        self.first_player_target_hp = None
+        self.first_player_other_hp = None
+        self.player_snapshots = []
+
+    def resolve_move(self, actor, target, move_name, **kwargs):
+        result = super().resolve_move(actor, target, move_name, **kwargs)
+        self.calls.append((actor, target, move_name, result))
+        if actor is self.player:
+            self.player_snapshots.append(
+                (target, tuple(enemy.health.current for enemy in self.enemies))
+            )
+        if (
+            len(self.calls) == 1
+            and actor is self.player
+        ):
+            self.first_player_target_hp = target.health.current
+            self.first_player_other_hp = self.other_enemy.health.current
+        return result
 
 
 ENCOUNTER_COMPOSITIONS = {
@@ -106,6 +139,192 @@ def test_real_two_goblin_target_flow_keeps_labels_and_requires_both_defeats():
         "Goblin 1",
         "Goblin 2",
     )
+
+
+def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_target():
+    player = PlayerState(Brawler(), gold=23)
+    player.exp_state.gain(41)
+    game = GameState(player)
+    game.overworld_state.advance_to(
+        "surface_goblin_pair",
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+    player_identity = player
+    before_exp = player.exp_state.current
+    before_level = player.level_state.current
+    before_gold = player.gold
+    overworld_output = []
+    battle_output = []
+    overworld_inputs = iter(("e", "o", "q", "y"))
+    battle_inputs = iter(
+        (
+            "a",
+            "crestgrave reaping",
+            "2",
+            "a",
+            "ironwake dismemberment",
+            "1",
+            "a",
+            "ironwake dismemberment",
+        )
+    )
+    created = {}
+    enemy_count = 0
+
+    class RecordingTerminalBattleUI(TerminalBattleUI):
+        def __init__(self):
+            super().__init__(
+                input_func=lambda _prompt: next(battle_inputs),
+                output_func=battle_output.append,
+                width_provider=lambda: 100,
+                unicode_enabled=False,
+                ansi_enabled=False,
+                interactive=False,
+            )
+            self.views = []
+
+        def render(self, view):
+            self.views.append(view)
+            super().render(view)
+
+    def enemy_factory(archetype_id, *, tier):
+        nonlocal enemy_count
+        enemy = create_enemy_state(archetype_id, tier=tier)
+        if enemy_count == 0:
+            enemy.health.current = 1
+        else:
+            enemy.health.current = 20
+        enemy_count += 1
+        return enemy
+
+    def battle_factory(acting_player, enemies, *, ui):
+        rng = AlwaysOneRng()
+        resolver = RecordingCombatResolver(rng=rng)
+        resolver.player = acting_player
+        resolver.enemies = tuple(enemies)
+        resolver.other_enemy = resolver.enemies[0]
+        battle = Battle(
+            acting_player,
+            enemies,
+            ui=ui,
+            resolver=resolver,
+            rng=rng,
+        )
+        created["battle"] = battle
+        created["resolver"] = resolver
+        return battle
+
+    overworld_ui = TerminalOverworldUI(
+        input_func=lambda _prompt: next(overworld_inputs),
+        output_func=overworld_output.append,
+        width_provider=lambda: 100,
+        unicode_enabled=False,
+        ansi_enabled=False,
+        interactive=False,
+    )
+
+    def battle_ui_factory():
+        return RecordingTerminalBattleUI()
+
+    result = OverworldSession(
+        game,
+        ui=overworld_ui,
+        battle_factory=battle_factory,
+        enemy_factory=enemy_factory,
+        battle_ui_factory=battle_ui_factory,
+    ).run()
+
+    battle = created["battle"]
+    resolver = created["resolver"]
+    battle_ui = battle.ui
+    first, second = battle.enemies
+    assert result is OverworldSessionResult.QUIT
+    assert player_identity is battle.player_state is player
+    assert resolver.first_player_target_hp is not None
+    assert 0 < resolver.first_player_target_hp < second.health.maximum
+    assert resolver.first_player_other_hp == 1
+    assert tuple(call[0] for call in resolver.calls[:3]) == (
+        player,
+        first,
+        second,
+    )
+    assert tuple(call[1] for call in resolver.calls[:3]) == (
+        second,
+        player,
+        player,
+    )
+    assert tuple(call[0] for call in resolver.calls[3:]) == (
+        player,
+        second,
+        player,
+    )
+    assert tuple(call[1] for call in resolver.calls[3:]) == (
+        first,
+        player,
+        second,
+    )
+    assert resolver.player_snapshots[1][0] is first
+    assert resolver.player_snapshots[1][1][0] == 0
+    assert resolver.player_snapshots[1][1][1] > 0
+    assert resolver.player_snapshots[2][0] is second
+    assert resolver.player_snapshots[2][1] == (0, 0)
+    assert tuple(enemy.display_label for enemy in battle._build_view().enemies) == (
+        "Goblin 1",
+        "Goblin 2",
+    )
+    assert "Goblin 1" in "\n".join(battle_output)
+    assert "Goblin 2" in "\n".join(battle_output)
+    assert sum(
+        view.interaction_phase is InteractionPhase.TARGETS
+        for view in battle_ui.views
+    ) == 2
+    final = battle_ui.views[-1]
+    assert final.interaction_phase is InteractionPhase.COMPLETE
+    assert final.action_options == ()
+    assert final.move_options == ()
+    assert final.target_options == ()
+    assert final.inventory_items == ()
+    assert tuple(enemy.temporary_labels for enemy in final.enemies) == (
+        ("Defeated",),
+        ("Defeated",),
+    )
+    assert "OVERWORLD  |  Goblin Warrior" in "\n".join(overworld_output)
+    assert game.world_state.defeated_encounters == ("surface_goblin_pair",)
+    assert game.overworld_state.current_route_node_id == "surface_warrior_solo"
+    assert player.exp_state.current == before_exp
+    assert player.level_state.current == before_level
+    assert player.gold == before_gold
+
+
+def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
+    enemies = create_route_encounter_enemies("surface_goblin_lord")
+    battle = Battle(
+        PlayerState(Brawler()),
+        enemies,
+        ui=ScriptedBattleUI(()),
+        resolver=CombatResolver(rng=AlwaysOneRng()),
+        rng=AlwaysOneRng(),
+    )
+    view = battle._build_view()
+    expected_labels = ("Goblin Lord", "Goblin", "Goblin Warrior")
+
+    for width in (50, 80, 120):
+        output = []
+        TerminalBattleUI(
+            output_func=output.append,
+            width_provider=lambda width=width: width,
+            unicode_enabled=False,
+            ansi_enabled=False,
+            interactive=False,
+        ).render(view)
+        rendered = "\n".join(output)
+        assert all(label in rendered for label in expected_labels)
+        assert all(len(line) <= width for line in output)
+        first_indexes = [
+            next(index for index, line in enumerate(output) if label in line)
+            for label in expected_labels
+        ]
+        assert first_indexes == sorted(first_indexes)
 
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():
