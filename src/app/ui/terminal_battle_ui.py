@@ -26,7 +26,9 @@ from app.ui.battle_ui import (
 
 
 class TerminalBattleUI:
-    VISIBLE_LOG_LINES = 12
+    # The semantic session remains bounded at twelve entries. This rendered
+    # bound retains the wrapped lines from one complete four-enemy turn.
+    VISIBLE_LOG_LINES = 27
     _ACTION_KEYS = {
         ActionIntent.ATTACK: "A",
         ActionIntent.DEFEND: "D",
@@ -282,6 +284,18 @@ class TerminalBattleUI:
         return tuple(lines)
 
     def _visual_lines(self, view, width):
+        if len(view.enemies) > 1:
+            player = " ".join(view.visual.player_lines) or view.player.display_name
+            enemy_lines = view.visual.enemy_lines or tuple(
+                f"[ {current.display_label} ]" for current in view.enemies
+            )
+            lines = [self._fit(f"{player}   VS", width).center(width)]
+            lines.extend(
+                self._fit(f"  {enemy_line}", width).center(width)
+                for enemy_line in enemy_lines
+            )
+            return tuple(lines)
+
         if view.visual.player_lines or view.visual.enemy_lines:
             player = " ".join(view.visual.player_lines) or view.player.display_name
             enemy = " ".join(view.visual.enemy_lines) or ", ".join(
@@ -512,11 +526,20 @@ class TerminalBattleUI:
             lines.append(f"{actor} will go first.")
         elif entry.event_type == BattleEventType.DAMAGE:
             critical = " Critical hit!" if entry.critical else ""
-            lines.append(f"{actor} used {action}.{critical} It dealt {entry.amount} damage.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}.{critical} "
+                f"It dealt {entry.amount} damage."
+            )
         elif entry.event_type == BattleEventType.MISS:
-            lines.append(f"{actor} used {action}, but missed.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(f"{actor} used {action}{target_context}, but missed.")
         elif entry.event_type == BattleEventType.HEALING:
-            lines.append(f"{actor} used {action}. It restored {entry.amount} health.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}. "
+                f"It restored {entry.amount} health."
+            )
         elif entry.event_type == BattleEventType.DEFEND:
             lines.append(f"{actor} used Defend.")
         elif entry.event_type == BattleEventType.UTILITY:
@@ -527,7 +550,11 @@ class TerminalBattleUI:
         elif entry.event_type == BattleEventType.STATUS:
             pass
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
-            lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}, "
+                f"but it failed: {entry.reason}."
+            )
         elif entry.event_type == BattleEventType.INPUT_REJECTED:
             lines.append(self._input_rejection_text(entry.rejection_reason))
         elif entry.event_type == BattleEventType.VICTORY:
@@ -543,6 +570,12 @@ class TerminalBattleUI:
             lines.append(f"Statuses applied: {', '.join(entry.statuses_applied)}.")
         lines.extend(self._outcome_lines(entry))
         return tuple(lines)
+
+    @staticmethod
+    def _target_context(actor, target):
+        if target is None or target == actor:
+            return ""
+        return f" against {target}"
 
     @staticmethod
     def _outcome_lines(entry):

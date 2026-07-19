@@ -181,7 +181,7 @@ def test_terminal_uses_lightning_storm_identity_and_ordered_outcomes():
     ui = TerminalBattleUI(output_func=lambda _line: None)
 
     assert ui._log_lines(entry) == (
-        "Joruun Veyr used Lightning Storm. It dealt 40 damage.",
+        "Joruun Veyr used Lightning Storm against Goblin. It dealt 40 damage.",
         "Lightning Palm became Lightning Storm.",
         "Joruun Veyr discharged Conductive through Lightning Storm.",
         "Joruun Veyr discharged Turbulence through Lightning Storm.",

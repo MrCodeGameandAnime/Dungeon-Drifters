@@ -853,7 +853,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
     assert "[Super | 100 Super]" in text
     assert "A forbidden gate manifests" in text
     assert "Sunder-Spire" in text
-    assert "Brawler used test move, but it failed: rejected." in text
+    assert "Brawler used test move against Goblin, but it failed: rejected." in text
     assert battle.combat_state.turn_count == 1
     assert resolver.calls[0] == {
         "actor": player_state,
