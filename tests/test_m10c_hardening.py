@@ -268,6 +268,22 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
     assert resolver.player_snapshots[1][1][1] > 0
     assert resolver.player_snapshots[2][0] is second
     assert resolver.player_snapshots[2][1] == (0, 0)
+    intermediate = next(
+        view
+        for view in battle_ui.views
+        if view.enemies[0].hp_current == 0
+        and view.enemies[1].hp_current > 0
+    )
+    assert tuple(enemy.target_id for enemy in intermediate.enemies) == (
+        "enemy_1",
+        "enemy_2",
+    )
+    assert tuple(enemy.display_label for enemy in intermediate.enemies) == (
+        "Goblin 1",
+        "Goblin 2",
+    )
+    assert intermediate.enemies[0].temporary_labels == ("Defeated",)
+    assert intermediate.enemies[1].temporary_labels != ("Defeated",)
     assert tuple(enemy.display_label for enemy in battle._build_view().enemies) == (
         "Goblin 1",
         "Goblin 2",
@@ -317,14 +333,15 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
             ansi_enabled=False,
             interactive=False,
         ).render(view)
-        rendered = "\n".join(output)
-        assert all(label in rendered for label in expected_labels)
-        assert all(len(line) <= width for line in output)
-        first_indexes = [
-            next(index for index, line in enumerate(output) if label in line)
-            for label in expected_labels
+        normalized_rows = [
+            line.strip().strip("|│").strip()
+            for line in output
         ]
-        assert first_indexes == sorted(first_indexes)
+        status_labels = [
+            row for row in normalized_rows if row in expected_labels
+        ]
+        assert status_labels == list(expected_labels)
+        assert all(len(line) <= width for line in output)
 
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():
