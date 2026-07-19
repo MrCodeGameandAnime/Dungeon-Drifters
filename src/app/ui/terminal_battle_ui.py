@@ -211,7 +211,8 @@ class TerminalBattleUI:
     def _linear_lines(self, view, width):
         lines = ["STATUS"]
         lines.extend(self._combatant_status(view.player, include_super=False))
-        lines.extend(self._combatant_status(view.enemy, include_super=True))
+        for enemy in view.enemies:
+            lines.extend(self._combatant_status(enemy, include_super=True))
         lines.append("VISUALS")
         lines.extend(self._visual_lines(view, width))
         lines.append("BATTLE LOG")
@@ -227,6 +228,13 @@ class TerminalBattleUI:
 
     def _status_lines(self, view, width):
         player_lines = self._combatant_status(view.player, include_super=False)
+        if len(view.enemies) > 1:
+            rows = list(player_lines)
+            rows.append("Enemies")
+            for enemy in view.enemies:
+                rows.extend(self._combatant_status(enemy, include_super=True))
+            return tuple(rows)
+
         enemy_lines = self._combatant_status(view.enemy, include_super=True)
         separator = " │ " if self._unicode_enabled else " | "
         left_width = (width - len(separator)) // 2
@@ -256,10 +264,14 @@ class TerminalBattleUI:
     def _visual_lines(self, view, width):
         if view.visual.player_lines or view.visual.enemy_lines:
             player = " ".join(view.visual.player_lines) or view.player.display_name
-            enemy = " ".join(view.visual.enemy_lines) or view.enemy.display_name
+            enemy = " ".join(view.visual.enemy_lines) or ", ".join(
+                current.display_label for current in view.enemies
+            )
         else:
             player = f"[ {view.player.display_name} ]"
-            enemy = f"[ {view.enemy.display_name} ]"
+            enemy = "  ".join(
+                f"[ {current.display_label} ]" for current in view.enemies
+            )
         return (self._fit(f"{player}   VS   {enemy}", width).center(width),)
 
     def _display_log_lines(self, view, width):

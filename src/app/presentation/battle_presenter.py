@@ -14,6 +14,7 @@ from app.presentation.battle_models import (
     BattleView,
     BattleVisualView,
     CombatantView,
+    EnemyCombatantView,
     InteractionPhase,
     InventoryCommandOptionView,
     InventoryConfirmationView,
@@ -42,14 +43,32 @@ class BattlePresenter:
         self,
         *,
         player,
-        enemy,
         combat_state,
+        enemies=None,
+        enemy=None,
+        enemy_target_ids=None,
+        enemy_display_labels=None,
         log_entries=(),
         interaction_phase=InteractionPhase.ACTIONS,
         selected_inventory_item_id=None,
         selected_inventory_companion_id=None,
     ):
         phase = InteractionPhase(interaction_phase)
+        enemies = self._normalize_enemies(enemy=enemy, enemies=enemies)
+        enemy_target_ids = self._metadata_values(
+            enemy_target_ids,
+            tuple(f"enemy_{index}" for index in range(1, len(enemies) + 1)),
+            len(enemies),
+            "enemy_target_ids",
+        )
+        enemy_display_labels = self._metadata_values(
+            enemy_display_labels,
+            tuple(current.display_name for current in enemies),
+            len(enemies),
+            "enemy_display_labels",
+        )
+        living_enemies = tuple(current for current in enemies if current.is_alive())
+        exact_move_target = living_enemies[0] if len(living_enemies) == 1 else None
         selected_item = self._selected_inventory_item(
             player,
             phase,
@@ -58,14 +77,34 @@ class BattlePresenter:
         return BattleView(
             interaction_phase=phase,
             player=self._combatant_view(
-                player, enemy, combat_state, is_player=True
+                player,
+                enemies[0] if len(enemies) == 1 else None,
+                combat_state,
+                is_player=True,
             ),
-            enemy=self._combatant_view(
-                enemy, player, combat_state, is_player=False
+            enemies=tuple(
+                self._enemy_combatant_view(
+                    current,
+                    player,
+                    combat_state,
+                    target_id=target_id,
+                    display_label=display_label,
+                )
+                for current, target_id, display_label in zip(
+                    enemies,
+                    enemy_target_ids,
+                    enemy_display_labels,
+                    strict=True,
+                )
             ),
             super_meter=self._super_meter_view(player),
             action_options=self._action_options(player, combat_state),
-            move_options=self._move_options(player, enemy, combat_state, phase),
+            move_options=self._move_options(
+                player,
+                exact_move_target,
+                combat_state,
+                phase,
+            ),
             inventory_items=self._inventory_items(player, phase),
             selected_inventory_item=selected_item,
             inventory_commands=self._inventory_commands(player, phase, selected_item),
@@ -85,6 +124,62 @@ class BattlePresenter:
             visual=BattleVisualView(),
         )
 
+    @staticmethod
+    def _normalize_enemies(*, enemy, enemies):
+        if enemy is not None and enemies is not None:
+            raise ValueError("provide enemy or enemies, not both")
+        if enemies is None:
+            if enemy is None:
+                raise ValueError("at least one enemy is required")
+            return (enemy,)
+        if not isinstance(enemies, tuple):
+            raise TypeError("enemies must be a tuple")
+        if not enemies:
+            raise ValueError("at least one enemy is required")
+        if len(enemies) > 4:
+            raise ValueError("at most four enemies are supported")
+        return enemies
+
+    @staticmethod
+    def _metadata_values(values, defaults, expected_length, name):
+        if values is None:
+            return defaults
+        if not isinstance(values, tuple):
+            raise TypeError(f"{name} must be a tuple")
+        if len(values) != expected_length:
+            raise ValueError(f"{name} must align with enemies")
+        return values
+
+    def _enemy_combatant_view(
+        self,
+        enemy,
+        player,
+        combat_state,
+        *,
+        target_id,
+        display_label,
+    ):
+        view = self._combatant_view(
+            enemy,
+            player,
+            combat_state,
+            is_player=False,
+        )
+        defeated = not enemy.is_alive()
+        return EnemyCombatantView(
+            target_id=target_id,
+            display_label=display_label,
+            hp_current=view.hp_current,
+            hp_maximum=view.hp_maximum,
+            mana_current=view.mana_current,
+            mana_maximum=view.mana_maximum,
+            super_current=view.super_current,
+            super_maximum=view.super_maximum,
+            defending=view.defending,
+            temporary_labels=("Defeated",) if defeated else view.temporary_labels,
+            defeated=defeated,
+        )
+
     def _combatant_view(self, combatant, opposing, combat_state, *, is_player):
         mana_current, mana_maximum = self._relevant_mana(combatant, is_player=is_player)
         super_current, super_maximum = self._relevant_super(combatant, is_player=is_player)
@@ -99,9 +194,13 @@ class BattlePresenter:
             labels.append("Arcane Instability")
         if combat_state.gravemantle_break_active(combatant):
             labels.append("Gravemantle Break")
-        frost_count = getattr(combat_state, "frost_charge_count", lambda *_: 0)(
-            opposing,
-            combatant,
+        frost_count = (
+            getattr(combat_state, "frost_charge_count", lambda *_: 0)(
+                opposing,
+                combatant,
+            )
+            if opposing is not None
+            else 0
         )
         if frost_count:
             labels.append(f"Frost {frost_count}/3")
@@ -401,7 +500,7 @@ class BattlePresenter:
         conductive_lightning = False
         turbulent_lightning = False
         lightning_storm = False
-        if move.mechanic == LIGHTNING_PALM_MECHANIC:
+        if move.mechanic == LIGHTNING_PALM_MECHANIC and enemy is not None:
             conductive = combat_state.conductive_active(player, enemy)
             turbulence = combat_state.turbulence_active(player, enemy)
             lightning_storm = conductive and turbulence

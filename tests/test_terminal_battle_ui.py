@@ -8,6 +8,7 @@ from app.presentation.battle_models import (
     BattleLogEntry,
     BattleView,
     CombatantView,
+    EnemyCombatantView,
     InteractionPhase,
     InventoryCommandOptionView,
     InventoryConfirmationView,
@@ -60,7 +61,7 @@ def _view(
     log_entries=(),
 ):
     player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
-    enemy = CombatantView("Goblin", 60, 60)
+    enemy = EnemyCombatantView("enemy_1", "Goblin", 60, 60)
     actions = action_options or (
         ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
         ActionOptionView(ActionIntent.DEFEND, 2, "Defend", True),
@@ -89,7 +90,7 @@ def _view(
     return BattleView(
         interaction_phase=phase,
         player=player,
-        enemy=enemy,
+        enemies=(enemy,),
         super_meter=SuperMeterView(
             current=100 if super_ready else 0,
             maximum=100,
@@ -845,7 +846,18 @@ def test_persistent_hud_preserves_sections_and_width_at_supported_sizes():
             temporary_labels=("Defending", "Brace"),
             defending=True,
         ),
-        enemy=CombatantView("Goblin", 40, 60, 3, 5, 20, 100),
+        enemies=(
+            EnemyCombatantView(
+                "enemy_1",
+                "Goblin",
+                40,
+                60,
+                3,
+                5,
+                20,
+                100,
+            ),
+        ),
     )
 
     for width in (120, 80, 60):

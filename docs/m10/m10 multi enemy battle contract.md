@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved implementation plan for one Drifter fighting one to three independent
+Approved implementation plan for one Drifter fighting one to four independent
 enemies during the M10 surface route.
 
 ## Purpose
@@ -48,7 +48,7 @@ M10C does not add:
 ## Battle Participants
 
 The canonical Battle boundary receives one exact `PlayerState` and an ordered
-collection containing one to three exact `EnemyState` objects. The collection
+collection containing one to four exact `EnemyState` objects. The collection
 is supplied in authored encounter-composition order. Empty collections and
 collections larger than the supported M10 maximum are rejected explicitly.
 
@@ -59,7 +59,7 @@ The same `EnemyState` object cannot appear twice in one Battle. Duplicate
 archetypes require separate runtime objects with independent HP, Mana, and
 identity-based temporary state.
 
-M10 presentation supports one, two, or three enemies. The enemies are not a
+M10 presentation supports one, two, three, or four enemies. The enemies are not a
 party and have no shared HP, Mana, status, or action state.
 
 ## Runtime Target Identity
@@ -71,6 +71,7 @@ position:
 enemy_1
 enemy_2
 enemy_3
+enemy_4
 ```
 
 Target IDs:
@@ -283,8 +284,8 @@ Existing lifecycle rules remain:
 - defeated-target cleanup occurs before the next opportunity
 - winner evaluation occurs immediately after lifecycle outcomes
 
-One player action followed by three accepted enemy actions increments turn count
-four times.
+One player action followed by four accepted enemy actions increments turn count
+five times.
 
 ## Defend and Brace
 
@@ -394,7 +395,7 @@ temporary statuses never persist into the overworld or next encounter.
 contains its target ID, unique display label, resources, and exact temporary
 labels.
 
-The terminal renders all one to three enemy panels in authored order, without
+The terminal renders all one to four enemy panels in authored order, without
 overlap, with independent HP, Mana, and state labels, in framed and narrow
 layouts. Defeated enemies remain visible.
 
@@ -421,7 +422,7 @@ selection, Back, invalid input, rejected actions, and suppression do not clear
 the sequence.
 
 The bounded presentation session must retain one maximum-complexity M10 player
-turn with three enemy responses. If deterministic tests prove the existing cap
+turn with four enemy responses. If deterministic tests prove the existing cap
 insufficient, increase it only enough for that complete turn; do not retain
 encounter-wide history.
 
@@ -451,7 +452,7 @@ authored enemy definition change is required.
 
 ### M10C-1 - Participant and View Contracts
 
-- normalize one to three enemy participants
+- normalize one to four enemy participants
 - assign stable target IDs and duplicate labels
 - add immutable enemy and target views
 - add semantic target input and phase
@@ -475,7 +476,7 @@ authored enemy definition change is required.
 
 ### M10C-4 - Presentation and Logging
 
-- render one to three independent enemy panels
+- render one to four independent enemy panels
 - retain defeated enemies visibly
 - attribute logs with unique labels
 - preserve turn-scoped history through all responses
@@ -494,7 +495,7 @@ authored enemy definition change is required.
 
 ### Participants and Targeting
 
-- Empty collections, collections above three enemies, and duplicate runtime
+- Empty collections, collections above four enemies, and duplicate runtime
   objects are rejected.
 - Separate equal-archetype enemies remain independent.
 - Target IDs and duplicate labels are stable and deterministic.
@@ -549,10 +550,10 @@ authored enemy definition change is required.
 
 ### Presentation and Regression
 
-- One, two, and three enemy panels render at supported widths.
+- One, two, three, and four enemy panels render at supported widths.
 - Defeated enemies remain visible and untargetable.
 - Duplicate labels keep logs attributable.
-- A complete player turn plus three enemy responses remains visible.
+- A complete player turn plus four enemy responses remains visible.
 - Rejected targeting does not clear the turn-scoped log.
 - Final inactive views offer no controls.
 - Existing single-Goblin behavior and winner values remain compatible.

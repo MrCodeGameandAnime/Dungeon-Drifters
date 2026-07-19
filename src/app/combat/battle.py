@@ -1,6 +1,9 @@
 import random
+from collections import Counter
+from collections.abc import Sequence
 
 from app.combat.combat_state import CombatState
+from app.combat.combatant import EnemyCombatant
 from app.combat.move import ResourceType, TargetType
 from app.combat.resolver import CombatResolver
 from app.presentation.battle_models import (
@@ -45,18 +48,30 @@ class Battle:
     def __init__(
         self,
         player_state,
-        foe,
+        enemies,
         ui,
         resolver=None,
+        rng=random,
         presenter=None,
         presentation_session=None,
         inventory_action_resolver=None,
     ):
         self.player_state = player_state
         self.player = player_state.character
-        self.foe = foe
+        self._enemies = self._normalize_enemies(enemies)
+        self._enemy_target_ids = tuple(
+            f"enemy_{index}" for index in range(1, len(self._enemies) + 1)
+        )
+        self._enemy_display_labels = self._build_enemy_display_labels(
+            self._enemies
+        )
+        if not callable(getattr(rng, "randint", None)):
+            raise TypeError("rng must provide randint")
+        if not callable(getattr(rng, "choice", None)):
+            raise TypeError("rng must provide choice")
+        self.rng = rng
         self.combat_state = CombatState()
-        self.resolver = resolver or CombatResolver()
+        self.resolver = resolver or CombatResolver(rng=self.rng)
         self.ui = ui
         self.presenter = presenter or BattlePresenter()
         self.presentation_session = presentation_session or BattlePresentationSession()
@@ -66,6 +81,62 @@ class Battle:
         self.interaction_phase = InteractionPhase.ACTIONS
         self._selected_inventory_item_id = None
         self._selected_inventory_companion_id = None
+
+    @staticmethod
+    def _normalize_enemies(enemies):
+        if isinstance(enemies, EnemyCombatant):
+            normalized = (enemies,)
+        elif isinstance(enemies, Sequence) and not isinstance(
+            enemies,
+            (str, bytes, bytearray),
+        ):
+            normalized = tuple(enemies)
+        else:
+            raise TypeError(
+                "enemies must be an enemy combatant or an ordered enemy sequence"
+            )
+
+        if not normalized:
+            raise ValueError("Battle requires at least one enemy")
+        if len(normalized) > 4:
+            raise ValueError("Battle supports at most four enemies")
+        if not all(isinstance(enemy, EnemyCombatant) for enemy in normalized):
+            raise TypeError("all Battle enemies must be enemy combatants")
+        if len({id(enemy) for enemy in normalized}) != len(normalized):
+            raise ValueError("the same EnemyState cannot appear more than once")
+        return normalized
+
+    @staticmethod
+    def _build_enemy_display_labels(enemies):
+        counts = Counter(enemy.display_name for enemy in enemies)
+        positions = Counter()
+        labels = []
+        for enemy in enemies:
+            name = enemy.display_name
+            if counts[name] == 1:
+                labels.append(name)
+                continue
+            positions[name] += 1
+            labels.append(f"{name} {positions[name]}")
+        return tuple(labels)
+
+    @property
+    def enemies(self):
+        return self._enemies
+
+    @property
+    def foe(self):
+        if len(self.enemies) != 1:
+            raise ValueError("Battle.foe is available only for single-enemy battles")
+        return self.enemies[0]
+
+    @property
+    def enemy_target_ids(self):
+        return self._enemy_target_ids
+
+    @property
+    def enemy_display_labels(self):
+        return self._enemy_display_labels
 
     def _player_moves(self):
         return self.player_state.combat_moves
@@ -191,7 +262,9 @@ class Battle:
     def _build_view(self):
         return self.presenter.build(
             player=self.player_state,
-            enemy=self.foe,
+            enemies=self.enemies,
+            enemy_target_ids=self.enemy_target_ids,
+            enemy_display_labels=self.enemy_display_labels,
             combat_state=self.combat_state,
             log_entries=self.presentation_session.entries,
             interaction_phase=self.interaction_phase,
@@ -212,7 +285,7 @@ class Battle:
             )
         )
 
-        player_turn = random.randint(1, 2) == 1
+        player_turn = self.rng.randint(1, 2) == 1
         first_actor = self.player_state if player_turn else self.foe
         self.presentation_session.record(
             BattleLogEntry(
@@ -519,7 +592,7 @@ class Battle:
         )
 
     def enemy_action(self):
-        move = select_enemy_move(self.foe)
+        move = select_enemy_move(self.foe, self.rng)
         result = self._resolve_enemy_move(move)
         if result.accepted:
             self._complete_accepted_action(

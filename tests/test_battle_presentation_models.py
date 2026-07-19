@@ -11,6 +11,7 @@ from app.presentation.battle_models import (
     BattleView,
     BattleVisualView,
     CombatantView,
+    EnemyCombatantView,
     InputRejectionReason,
     InteractionPhase,
     InventoryCommandOptionView,
@@ -21,6 +22,7 @@ from app.presentation.battle_models import (
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
+    TargetOptionView,
 )
 from app.player.run_items import InventoryCommand
 
@@ -52,19 +54,22 @@ def _meter(**overrides):
     return SuperMeterView(**values)
 
 
+def _enemy(**overrides):
+    values = {
+        "target_id": "enemy_1",
+        "display_label": "Goblin",
+        "hp_current": 60,
+        "hp_maximum": 60,
+    }
+    values.update(overrides)
+    return EnemyCombatantView(**values)
+
+
 def _view(**overrides):
     values = {
         "interaction_phase": InteractionPhase.ACTIONS,
         "player": _combatant(),
-        "enemy": _combatant(
-            display_name="Goblin",
-            hp_current=60,
-            hp_maximum=60,
-            mana_current=None,
-            mana_maximum=None,
-            super_current=None,
-            super_maximum=None,
-        ),
+        "enemies": (_enemy(),),
         "super_meter": _meter(),
     }
     values.update(overrides)
@@ -74,8 +79,27 @@ def _view(**overrides):
 def test_models_are_frozen():
     models = [
         _combatant(),
+        _enemy(),
         ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
         MoveOptionView("Brace", 1, "Brace", ("Utility",), "Brace.", "5 Mana", True),
+        TargetOptionView(
+            "enemy_1",
+            1,
+            "Goblin",
+            60,
+            60,
+            (),
+            MoveOptionView(
+                "Crestgrave Reaping",
+                1,
+                "Crestgrave Reaping",
+                ("Normal",),
+                "Strike.",
+                None,
+                True,
+            ),
+            True,
+        ),
         InventoryItemOptionView("ember_shard", 1, "Ember Shard", 1, True),
         InventoryCommandOptionView(
             InventoryCommand.USE,
