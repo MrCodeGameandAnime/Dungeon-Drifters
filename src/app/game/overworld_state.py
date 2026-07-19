@@ -6,6 +6,7 @@ from app.game.overworld_route import (
     DUNGEON_ENTRANCE_NODE_ID,
     FIRST_SURFACE_NODE_ID,
     SURFACE_REST_NODE_IDS,
+    SURFACE_ROUTE_NODE_IDS,
     route_node,
 )
 from app.snapshot import to_plain_value
@@ -64,10 +65,24 @@ class OverworldState:
 
     def advance_to(self, node_id, *, contextual_phase=ContextualRoutePhase.NONE):
         node = route_node(node_id)
-        self._current_route_node_id = node.node_id
-        self._current_contextual_route_phase = ContextualRoutePhase(
-            contextual_phase
+        phase = ContextualRoutePhase(contextual_phase)
+        if self.route_complete:
+            raise ValueError("the surface route is already complete")
+
+        current_index = SURFACE_ROUTE_NODE_IDS.index(
+            self.current_route_node_id
         )
+        next_index = current_index + 1
+        if (
+            next_index >= len(SURFACE_ROUTE_NODE_IDS)
+            or node.node_id != SURFACE_ROUTE_NODE_IDS[next_index]
+        ):
+            raise ValueError(
+                "route advancement must use the immediate authored successor"
+            )
+
+        self._current_route_node_id = node.node_id
+        self._current_contextual_route_phase = phase
         if node.node_id == DUNGEON_ENTRANCE_NODE_ID:
             self._dungeon_entrance_reached = True
             self._route_complete = True
