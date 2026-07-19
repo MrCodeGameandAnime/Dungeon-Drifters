@@ -233,23 +233,25 @@ class Battle:
         self._record_move_result(result, actor=self.player_state, target=target)
         return result
 
-    def _enemy_target_for_move(self, move):
+    def _enemy_target_for_move(self, move, enemy=None):
+        enemy = self.foe if enemy is None else enemy
         if move.target == TargetType.ENEMY:
             return self.player_state
         if move.target == TargetType.SELF:
-            return self.foe
+            return enemy
 
         raise ValueError(f"Unsupported enemy move target: {move.target!r}")
 
-    def _resolve_enemy_move(self, move):
-        target = self._enemy_target_for_move(move)
+    def _resolve_enemy_move(self, move, enemy=None):
+        enemy = self.foe if enemy is None else enemy
+        target = self._enemy_target_for_move(move, enemy)
         result = self.resolver.resolve_move(
-            self.foe,
+            enemy,
             target,
             move.name,
             combat_state=self.combat_state,
         )
-        self._record_move_result(result, actor=self.foe, target=target)
+        self._record_move_result(result, actor=enemy, target=target)
         return result
 
     def _record_move_result(self, result, actor, target=None, event_type=None):
@@ -308,48 +310,67 @@ class Battle:
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=BattleEventType.ENCOUNTER_START,
-                target_name=self.foe.display_name,
+                target_name=self._enemy_group_label(),
             )
         )
 
-        player_turn = self.rng.randint(1, 2) == 1
-        first_actor = self.player_state if player_turn else self.foe
+        player_side_turn = self.rng.randint(1, 2) == 1
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=BattleEventType.INITIATIVE,
-                actor_name=first_actor.display_name,
+                actor_name="Player side" if player_side_turn else "Enemy side",
             )
         )
 
-        while self.player_state.is_alive() and self.foe.is_alive():
-            current_actor = self.player_state if player_turn else self.foe
-            if self._skip_action_opportunity_suppression(current_actor):
-                player_turn = not player_turn
+        winner = self._winner()
+        while winner is None:
+            if player_side_turn and self._skip_action_opportunity_suppression(
+                self.player_state
+            ):
+                player_side_turn = False
                 continue
-            if player_turn:
-                action_accepted = self.player_action()
+
+            if player_side_turn:
+                self.player_action()
+                winner = self._winner()
+                if winner is not None:
+                    break
             else:
-                action_accepted = self.enemy_action()
+                self.enemy_phase()
+                winner = self._winner()
+                if winner is not None:
+                    break
 
-            if action_accepted:
-                player_turn = not player_turn
+            player_side_turn = not player_side_turn
 
-        player_won = not self.foe.is_alive() and self.player_state.is_alive()
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=(
                     BattleEventType.VICTORY
-                    if player_won
+                    if winner == "player"
                     else BattleEventType.DEFEAT
                 ),
                 actor_name=self.player_state.display_name,
-                target_name=self.foe.display_name,
+                target_name=self._enemy_group_label(),
             )
         )
-        self.interaction_phase = InteractionPhase.ACTIONS
+        self.interaction_phase = InteractionPhase.COMPLETE
         self._clear_inventory_navigation()
+        self._clear_move_target_navigation()
         self._render_current_view()
-        return "player" if player_won else "enemy"
+        return winner
+
+    def _enemy_group_label(self):
+        return ", ".join(self.enemy_display_labels)
+
+    def _winner(self):
+        player_alive = self.player_state.is_alive()
+        all_enemies_defeated = all(not enemy.is_alive() for enemy in self.enemies)
+        if not player_alive:
+            return "enemy"
+        if all_enemies_defeated:
+            return "player"
+        return None
 
     def _skip_stunned_action_opportunity(self, actor):
         return self._skip_action_opportunity_suppression(actor)
@@ -358,12 +379,16 @@ class Battle:
         outcomes = self.combat_state.consume_action_opportunity_suppression(actor)
         if not outcomes:
             return False
-        opposing = self.foe if actor is self.player_state else self.player_state
+        opposing_name = (
+            self._enemy_group_label()
+            if actor is self.player_state
+            else self.player_state.display_name
+        )
         self.presentation_session.record(
             BattleLogEntry(
                 event_type=BattleEventType.STATUS,
-                actor_name=actor.display_name,
-                target_name=opposing.display_name,
+                actor_name=self._display_name_for(actor),
+                target_name=opposing_name,
                 outcomes=outcomes,
             )
         )
@@ -715,14 +740,34 @@ class Battle:
             return
         self.presentation_session.record(entry)
 
-    def enemy_action(self):
-        move = select_enemy_move(self.foe, self.rng)
-        result = self._resolve_enemy_move(move)
-        if result.accepted:
-            self._complete_accepted_action(
-                self.foe,
-                (self.player_state,),
-                result,
-            )
+    def enemy_phase(self):
+        for enemy in self.enemies:
+            if self._winner() is not None:
+                return
+            if not enemy.is_alive():
+                continue
+            if self._skip_action_opportunity_suppression(enemy):
+                continue
+            self.enemy_action(enemy)
+            if self._winner() is not None:
+                return
 
-        return result.accepted
+    def enemy_action(self, enemy=None):
+        enemy = self.foe if enemy is None else enemy
+        if not any(current is enemy for current in self.enemies):
+            raise ValueError("enemy does not belong to this Battle")
+        if not enemy.is_alive():
+            raise ValueError("defeated enemies cannot act")
+
+        move = select_enemy_move(enemy, self.rng)
+        result = self._resolve_enemy_move(move, enemy)
+        if not result.accepted:
+            raise RuntimeError("enemy resolver rejected a legal selected move")
+
+        self._complete_accepted_action(
+            enemy,
+            (self.player_state,),
+            result,
+            presentation_target=self.player_state,
+        )
+        return True

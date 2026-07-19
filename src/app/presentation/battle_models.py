@@ -27,6 +27,7 @@ class InteractionPhase(StrEnum):
     INVENTORY_COMBINATION = "inventory_combination"
     INVENTORY_CONFIRMATION = "inventory_confirmation"
     TARGETS = "targets"
+    COMPLETE = "complete"
 
 
 class InputRejectionReason(StrEnum):

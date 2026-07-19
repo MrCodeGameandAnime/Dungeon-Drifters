@@ -92,6 +92,8 @@ class TerminalBattleUI:
             self._output("That is not a valid move. Please try again.")
 
     def _translate_choice(self, view, choice):
+        if view.interaction_phase == InteractionPhase.COMPLETE:
+            return None
         if choice in ("s", "super"):
             if view.super_meter.activation_offered:
                 return ChooseAction(ActionIntent.SUPER)
@@ -205,13 +207,14 @@ class TerminalBattleUI:
     def _framed_lines(self, view, width):
         chars = self._frame_characters()
         lines = [chars["top_left"] + chars["horizontal"] * (width - 2) + chars["top_right"]]
-        sections = (
+        sections = [
             self._status_lines(view, width - 4),
             self._visual_lines(view, width - 4),
             self._display_log_lines(view, width - 4),
-            self._control_lines(view, width - 4),
-            (self._super_meter_line(view, width - 4),),
-        )
+        ]
+        if view.interaction_phase != InteractionPhase.COMPLETE:
+            sections.append(self._control_lines(view, width - 4))
+        sections.append((self._super_meter_line(view, width - 4),))
         for section_index, section in enumerate(sections):
             if section_index:
                 lines.append(
@@ -233,8 +236,9 @@ class TerminalBattleUI:
         lines.extend(self._visual_lines(view, width))
         lines.append("BATTLE LOG")
         lines.extend(self._display_log_lines(view, width))
-        lines.append("ACTIONS")
-        lines.extend(self._control_lines(view, width))
+        if view.interaction_phase != InteractionPhase.COMPLETE:
+            lines.append("ACTIONS")
+            lines.extend(self._control_lines(view, width))
         lines.append(self._super_meter_line(view, width))
         return tuple(
             wrapped
@@ -298,6 +302,8 @@ class TerminalBattleUI:
         return tuple(lines[-self.VISIBLE_LOG_LINES:] or ("Battle awaits.",))
 
     def _control_lines(self, view, width):
+        if view.interaction_phase == InteractionPhase.COMPLETE:
+            return ()
         if view.interaction_phase == InteractionPhase.ACTIONS:
             labels = tuple(
                 f"[{self._ACTION_KEYS[option.intent]}] {option.label}"

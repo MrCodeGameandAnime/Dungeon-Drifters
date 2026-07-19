@@ -321,6 +321,29 @@ class CombatState:
     def clear_statuses(self):
         self._status_state.clear_all()
 
+    def clear_defeated_combatant(self, combatant):
+        if not self._combatant_is_defeated(combatant):
+            return ()
+
+        self.clear_defend(combatant)
+        self._brace_states = [
+            state for state in self._brace_states if state.owner is not combatant
+        ]
+        self._heal_cooldowns = [
+            cooldown
+            for cooldown in self._heal_cooldowns
+            if cooldown.owner is not combatant
+        ]
+        self._arcane_charge_states = [
+            state
+            for state in self._arcane_charge_states
+            if state.owner is not combatant
+        ]
+        for state in self._arcane_charge_states:
+            if state.broken_target is combatant:
+                state.broken_target = None
+        return self._status_state.clear_defeated_target_outcomes(combatant)
+
     def complete_accepted_action(
         self,
         actor,
@@ -335,16 +358,24 @@ class CombatState:
 
             self.clear_defend(opponent)
             self._clear_brace_incoming_protection(opponent)
-            outcomes.extend(
-                self._status_state.clear_defeated_target_outcomes(opponent)
-            )
+            outcomes.extend(self.clear_defeated_combatant(opponent))
 
-        if reduce_heal_cooldown:
+        outcomes.extend(self.clear_defeated_combatant(actor))
+
+        actor_defeated = self._combatant_is_defeated(actor)
+        if reduce_heal_cooldown and not actor_defeated:
             self._decrement_heal_cooldown(actor)
 
-        outcomes.extend(self._status_state.advance_after_accepted_action(actor))
+        if not actor_defeated:
+            outcomes.extend(self._status_state.advance_after_accepted_action(actor))
+            outcomes.extend(self.clear_defeated_combatant(actor))
         self.advance_turn()
         return tuple(outcomes)
+
+    @staticmethod
+    def _combatant_is_defeated(combatant):
+        is_alive = getattr(combatant, "is_alive", None)
+        return callable(is_alive) and not is_alive()
 
     def _find_brace_state(self, combatant):
         for brace_state in self._brace_states:

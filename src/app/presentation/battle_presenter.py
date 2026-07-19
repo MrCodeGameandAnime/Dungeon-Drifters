@@ -102,8 +102,15 @@ class BattlePresenter:
                 is_player=True,
             ),
             enemies=enemy_views,
-            super_meter=self._super_meter_view(player),
-            action_options=self._action_options(player, combat_state),
+            super_meter=self._super_meter_view(
+                player,
+                activation_allowed=phase != InteractionPhase.COMPLETE,
+            ),
+            action_options=(
+                ()
+                if phase == InteractionPhase.COMPLETE
+                else self._action_options(player, combat_state)
+            ),
             move_options=self._move_options(
                 player,
                 exact_move_target,
@@ -475,7 +482,7 @@ class BattlePresenter:
             disabled_reason=None if enabled else disabled_reason,
         )
 
-    def _super_meter_view(self, player):
+    def _super_meter_view(self, player, *, activation_allowed=True):
         resource = player.super_resource
         super_moves = self._super_moves(player)
         ready = any(self._can_afford(player, move) for move in super_moves)
@@ -486,7 +493,7 @@ class BattlePresenter:
             fill_bps=fill_bps,
             ready=ready,
             activation_key="S",
-            activation_offered=ready,
+            activation_offered=ready and activation_allowed,
         )
 
     def _move_options(self, player, enemy, combat_state, phase):

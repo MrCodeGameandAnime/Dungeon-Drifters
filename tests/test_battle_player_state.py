@@ -3,6 +3,9 @@ import contextlib
 import io
 import random
 from types import SimpleNamespace
+
+import pytest
+
 from app.combat.battle import Battle as DomainBattle
 from app.combat.brace import BRACE_RULES
 from app.combat.move import (
@@ -1249,9 +1252,9 @@ def test_rejected_enemy_action_does_not_clear_defend_or_advance():
     battle.combat_state.activate_defend(player_state)
 
     with patched_battle(), contextlib.redirect_stdout(io.StringIO()):
-        accepted = battle.enemy_action()
+        with pytest.raises(RuntimeError, match="enemy resolver rejected"):
+            battle.enemy_action()
 
-    assert accepted is False
     assert battle.combat_state.turn_count == 0
     assert battle.combat_state.is_defending(player_state)
 
