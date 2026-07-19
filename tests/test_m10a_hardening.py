@@ -122,7 +122,7 @@ def test_transient_screen_selection_notice_and_confirmation_never_enter_snapshot
     game = GameState(PlayerState(profile.create_character()))
     baseline = game.snapshot()
     output = []
-    inputs = ("i", "1", "inspect", "b", "b", "o", "q", "n", "b", "o", "q", "y")
+    inputs = ("i", "1", "i", "b", "b", "o", "q", "n", "b", "o", "q", "y")
     session = OverworldSession(
         game,
         ui=terminal_ui(inputs, output),

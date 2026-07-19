@@ -64,7 +64,7 @@ class TerminalOverworldUI:
     def render(self, view):
         if not isinstance(view, OverworldView):
             raise TypeError("view must be an OverworldView")
-        width = max(30, int(self._width_provider()))
+        width = max(1, int(self._width_provider()))
         lines = (
             self._framed_lines(view, width)
             if width >= 60
@@ -94,23 +94,12 @@ class TerminalOverworldUI:
     def _translate_choice(self, view, choice):
         if view.screen is OverworldScreen.ITEMS and view.inventory is not None:
             for number, item in enumerate(view.inventory.items, start=1):
-                if choice in (str(number), item.display_name.lower()):
+                if choice == str(number):
                     return ChooseOverworldItem(item.selection_key)
 
-        numbered_options = view.screen not in {
-            OverworldScreen.ITEMS,
-            OverworldScreen.MAP,
-            OverworldScreen.OPTIONS,
-            OverworldScreen.QUIT_CONFIRMATION,
-        }
-        for number, option in enumerate(self._control_options(view), start=1):
+        for option in self._input_options(view):
             key = self._ACTION_KEYS[option.action].lower()
-            aliases = {key, option.label.lower(), option.action.value}
-            if numbered_options:
-                aliases.add(str(number))
-            if option.action is OverworldAction.BACK:
-                aliases.add("0")
-            if choice not in aliases:
+            if choice != key:
                 continue
             if option.enabled:
                 return ChooseOverworldAction(option.action)
@@ -164,6 +153,16 @@ class TerminalOverworldUI:
         }:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
+            if (
+                view.screen is OverworldScreen.MAIN
+                and view.contextual_route_option is not None
+            ):
+                lines.extend(
+                    (
+                        "",
+                        self._option_label(view.contextual_route_option),
+                    )
+                )
             if view.screen is OverworldScreen.QUIT_CONFIRMATION:
                 lines.extend(("", "Exit this session without saving?"))
         elif view.screen is OverworldScreen.CHARACTER:
@@ -196,7 +195,11 @@ class TerminalOverworldUI:
             f"{row.label}: {row.value}"
             for row in character.stats
         ]
-        lines.extend(self._two_column_values(stat_pairs, width))
+        lines.extend(
+            stat_pairs
+            if width < 60
+            else self._two_column_values(stat_pairs, width)
+        )
         lines.extend(
             (
                 "",
@@ -281,31 +284,26 @@ class TerminalOverworldUI:
             if index < len(view.route_map.nodes) - 1:
                 lines.append("   |")
         lines.extend(("", "Travel is fixed; the map is inspection-only."))
-        return tuple(self._fit(line, width) for line in lines)
+        return tuple(lines)
 
     def _control_lines(self, view, width):
-        labels = []
-        for number, option in enumerate(self._control_options(view), start=1):
-            key = self._ACTION_KEYS[option.action]
-            prefix = f"[{key}]"
-            if view.screen not in {
-                OverworldScreen.ITEMS,
-                OverworldScreen.MAP,
-                OverworldScreen.OPTIONS,
-                OverworldScreen.QUIT_CONFIRMATION,
-            }:
-                prefix = f"[{number}/{key}]"
-            suffix = " [Unavailable]" if not option.enabled else ""
-            labels.append(f"{prefix} {option.label}{suffix}")
+        labels = [self._option_label(option) for option in view.options]
         if not labels:
             return ("",)
+        if width < 60:
+            return tuple(labels)
         return self._two_column_values(labels, width)
 
     @staticmethod
-    def _control_options(view):
+    def _input_options(view):
         if view.contextual_route_option is None:
             return view.options
         return (*view.options, view.contextual_route_option)
+
+    def _option_label(self, option):
+        key = self._ACTION_KEYS[option.action]
+        suffix = " [Unavailable]" if not option.enabled else ""
+        return f"[{key}] {option.label}{suffix}"
 
     @staticmethod
     def _two_column_values(values, width):
@@ -319,6 +317,8 @@ class TerminalOverworldUI:
 
     def _meter_line(self, label, current, maximum, fill_bps, width):
         suffix = f" {current}/{maximum}"
+        if width < 30:
+            return f"{label}{suffix}"
         bar_width = max(8, width - len(label) - len(suffix) - 4)
         filled = bar_width * fill_bps // 10_000
         if self._unicode_enabled:
