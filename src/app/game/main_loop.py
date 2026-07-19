@@ -2,8 +2,10 @@ from app.combat.battle import Battle
 from app.enemies.factory import create_enemy_state
 from app.game import console
 from app.game.game_state import GameState
+from app.game.overworld_session import OverworldSession
 from app.player.player_state import PlayerState
 from app.ui.terminal_battle_ui import TerminalBattleUI
+from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.world.event import Events
 from app.world.story import StoryElements
 
@@ -19,18 +21,13 @@ def main():
     console.clear_console()
     player_state = PlayerState(character)
     game_state = GameState(player_state)
-    encounter = story.day_one(events)
-
-    if encounter == "escaped":
-        story.escaped_ending(game_state.player_state.character)
-        return
-
-    winner = Battle(
-        game_state.player_state,
-        create_enemy_state("goblin", tier=0),
-        ui=TerminalBattleUI(),
+    OverworldSession(
+        game_state,
+        ui=TerminalOverworldUI(),
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        battle_ui_factory=TerminalBattleUI,
     ).run()
-    story.battle_ending(game_state.player_state.character, winner)
 
 
 if __name__ == "__main__":
