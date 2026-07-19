@@ -66,6 +66,16 @@ class RecordingUI:
         raise AssertionError("no input is expected")
 
 
+class OrdinaryPlayerOpportunity(Exception):
+    pass
+
+
+class SentinelUI(RecordingUI):
+    def read_input(self, _view):
+        self.read_count += 1
+        raise OrdinaryPlayerOpportunity
+
+
 def _enemies(count):
     return tuple(EnemyState(Goblin()) for _ in range(count))
 
@@ -255,6 +265,48 @@ def test_run_uses_side_initiative_and_enemy_phase_stops_after_lethal_first_actio
         if entry.event_type == BattleEventType.INITIATIVE
     )
     assert initiative.actor_name == "Enemy side"
+
+
+def test_suppressed_player_is_followed_by_complete_living_enemy_phase():
+    resolver = RecordingResolver()
+    rng = RecordingRng(initiative=1)
+    ui = SentinelUI()
+    battle = _battle(resolver=resolver, rng=rng, ui=ui)
+    player = battle.player_state
+    battle.combat_state.apply_frozen(battle.enemies[0], player)
+    battle.combat_state.apply_burn(battle.enemies[0], player)
+    battle.combat_state.apply_poison(battle.enemies[1], player)
+    battle.combat_state.apply_frostbite(
+        battle.enemies[2],
+        player,
+        damage_per_tick=5,
+        ticks=3,
+    )
+    battle.combat_state.start_heal_cooldown(player)
+    hp_before = player.health.current
+    mana_before = player.mana_resource.current
+    super_before = player.super_resource.current
+    burn_before = battle.combat_state.burn_status(player)
+    poison_before = battle.combat_state.poison_status(player)
+    frostbite_before = battle.combat_state.frostbite_status(player)
+
+    with pytest.raises(OrdinaryPlayerOpportunity):
+        battle.run()
+
+    assert rng.randint_calls == [(1, 2)]
+    assert tuple(call[0] for call in resolver.calls) == battle.enemies
+    assert all(call[1] is player for call in resolver.calls)
+    assert len(rng.choice_calls) == len(battle.enemies)
+    assert ui.read_count == 1
+    assert not battle.combat_state.frozen_active(player)
+    assert battle.combat_state.turn_count == len(battle.enemies)
+    assert battle.combat_state.heal_cooldown_remaining(player) == 3
+    assert battle.combat_state.burn_status(player) is burn_before
+    assert battle.combat_state.poison_status(player) is poison_before
+    assert battle.combat_state.frostbite_status(player) is frostbite_before
+    assert player.health.current == hp_before
+    assert player.mana_resource.current == mana_before
+    assert player.super_resource.current == super_before
 
 
 def test_final_view_is_complete_inactive_and_requires_no_input():
