@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from app.enemies.factory import create_enemy_state
 from app.game.overworld_route import (
     RouteNodeKind,
     SURFACE_ROUTE_NODES,
@@ -192,6 +193,22 @@ def inspectable_encounter_for_node(node_id):
     return None
 
 
+def create_route_encounter_enemies(
+    node_id,
+    *,
+    enemy_factory=create_enemy_state,
+):
+    if not callable(enemy_factory):
+        raise TypeError("enemy_factory must be callable")
+    node = route_manifest_node(node_id)
+    if node.encounter is None:
+        raise ValueError(f"route node does not define an encounter: {node_id!r}")
+    return tuple(
+        enemy_factory(archetype_id, tier=0)
+        for archetype_id in node.encounter.enemy_archetype_ids
+    )
+
+
 def _validate_surface_route_manifest():
     if set(_MANIFEST_DETAILS) != {node.node_id for node in SURFACE_ROUTE_NODES}:
         raise ValueError("surface route manifest must cover every route node exactly")
@@ -233,6 +250,7 @@ __all__ = [
     "EncounterManifest",
     "RouteManifestNode",
     "SURFACE_ROUTE_MANIFEST",
+    "create_route_encounter_enemies",
     "encounter_manifest",
     "inspectable_encounter_for_node",
     "route_manifest_node",
