@@ -3,6 +3,7 @@ from app.game.overworld_route import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
+    CharacterRunCheckpoint,
     FIRE_INFUSION_REQUIREMENTS,
     InfusionKind,
     PreparedPayloadId,
@@ -236,17 +237,51 @@ def test_victory_preserves_battle_mutations_and_advances_to_paused_pair_node():
 
 def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
     player = PlayerState(RogueArcher())
+    player.health.take_damage(9)
+    assert player.mana_resource.spend(4) is True
+    player.super_resource.gain(17)
+    player.character_run_state.prepare_infusion(
+        InfusionKind.FIRE,
+        FIRE_INFUSION_REQUIREMENTS,
+    )
     game = GameState(player)
-    character = player.character
-    run_state = player.character_run_state
+    identities = (
+        player,
+        player.character,
+        player.health,
+        player.mana_resource,
+        player.super_resource,
+        player.inventory,
+        player.character_run_state,
+    )
+    equipped = {
+        slot: item
+        for slot, item in player.equipment.items()
+        if item is not None
+    }
+    expected_health = player.health.current
+    expected_mana = player.mana_resource.current
+    expected_super = player.super_resource.current
 
     def mutate(acting_player):
         acting_player.health.take_damage(33)
         acting_player.mana_resource.spend(8)
         acting_player.super_resource.gain(50)
-        acting_player.character_run_state.prepare_infusion(
-            InfusionKind.FIRE,
-            FIRE_INFUSION_REQUIREMENTS,
+        assert (
+            acting_player.character_run_state.consume_infusion()
+            is InfusionKind.FIRE
+        )
+        acting_player.character_run_state.restore_checkpoint(
+            CharacterRunCheckpoint(
+                inventory=(
+                    (RunItemId.EMBER_SHARD, 0),
+                    (RunItemId.DEEP_COAL, 0),
+                    (RunItemId.NIGHT_BERRY, 0),
+                ),
+                prepared_payloads=(
+                    (PreparedPayloadId.INFUSED_BARB, None),
+                ),
+            )
         )
 
     inputs = [
@@ -260,15 +295,27 @@ def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
         mutations=(mutate,),
     )
 
-    assert player.character is character
-    assert player.character_run_state is run_state
-    assert player.health.current == player.health.maximum
-    assert player.mana_resource.current == player.mana_resource.maximum
-    assert player.super_resource.current == 0
-    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
+    assert identities == (
+        player,
+        player.character,
+        player.health,
+        player.mana_resource,
+        player.super_resource,
+        player.inventory,
+        player.character_run_state,
+    )
+    for slot, item in equipped.items():
+        assert player.get_equipped(slot) is item
+    assert player.health.current == expected_health
+    assert player.mana_resource.current == expected_mana
+    assert player.super_resource.current == expected_super
+    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
+    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
     assert player.character_run_state.payload_prepared(
         PreparedPayloadId.INFUSED_BARB
-    ) is False
+    ) is True
+    assert player.character_run_state.prepared_infusion() is InfusionKind.FIRE
     assert game.world_state.defeated_encounters == ()
     assert game.overworld_state.current_route_node_id == FIRST_SURFACE_NODE_ID
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.RETRY

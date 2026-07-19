@@ -68,7 +68,7 @@ def test_attack_path_reaches_victory_ending():
 
     with patched_game([
         "", "4", "Y", "e",
-        *("a", "hydro whip") * 12,
+        *("a", "hydro whip") * 4,
         "o", "q", "y",
     ]), contextlib.redirect_stdout(output):
         run_game.main()
