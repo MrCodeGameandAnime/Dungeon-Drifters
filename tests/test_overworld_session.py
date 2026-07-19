@@ -116,6 +116,8 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
         ChooseOverworldAction(OverworldAction.ITEMS),
         ChooseOverworldAction(OverworldAction.BACK),
         ChooseOverworldAction(OverworldAction.MAP),
+        ChooseOverworldAction(OverworldAction.INSPECT),
+        ChooseOverworldAction(OverworldAction.BACK),
         ChooseOverworldAction(OverworldAction.BACK),
         *quit_inputs(),
     ]
@@ -135,6 +137,8 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
         OverworldScreen.MAIN,
         OverworldScreen.ITEMS,
         OverworldScreen.MAIN,
+        OverworldScreen.MAP,
+        OverworldScreen.MAP_INSPECT,
         OverworldScreen.MAP,
         OverworldScreen.MAIN,
         OverworldScreen.OPTIONS,

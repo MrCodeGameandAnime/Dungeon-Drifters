@@ -106,6 +106,10 @@ def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
         (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
         (OverworldScreen.ITEMS, ("ITEMS", "Your persistent inventory is empty.", "Craft")),
         (OverworldScreen.MAP, ("MAP", "SURFACE ROUTE", "Goblin Ambush", "Dungeon Entrance")),
+        (
+            OverworldScreen.MAP_INSPECT,
+            ("ENCOUNTER INSPECTION", "Goblin Ambush", "COMPOSITION", "Goblin"),
+        ),
         (OverworldScreen.OPTIONS, ("OPTIONS", "Save", "Quit", "Load", "Back")),
         (OverworldScreen.QUIT_CONFIRMATION, ("QUIT", "Exit this session without saving?", "Confirm", "Cancel")),
     ),
@@ -180,6 +184,7 @@ def test_narrow_terminal_uses_width_safe_stacked_linear_fallback(width):
         OverworldScreen.EQUIPMENT,
         OverworldScreen.ITEMS,
         OverworldScreen.MAP,
+        OverworldScreen.MAP_INSPECT,
         OverworldScreen.OPTIONS,
         OverworldScreen.QUIT_CONFIRMATION,
     ),

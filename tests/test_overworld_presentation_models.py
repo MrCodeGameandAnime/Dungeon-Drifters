@@ -69,6 +69,7 @@ def test_all_approved_screen_values_are_typed():
         "items",
         "item_inspect",
         "map",
+        "map_inspect",
         "options",
         "quit_confirmation",
     )

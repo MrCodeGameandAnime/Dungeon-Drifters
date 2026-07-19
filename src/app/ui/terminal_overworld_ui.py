@@ -177,6 +177,8 @@ class TerminalOverworldUI:
             lines = list(self._inventory_lines(view, width))
         elif view.screen is OverworldScreen.MAP:
             lines = list(self._map_lines(view, width))
+        elif view.screen is OverworldScreen.MAP_INSPECT:
+            lines = list(self._map_inspection_lines(view))
         else:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
@@ -284,6 +286,20 @@ class TerminalOverworldUI:
             if index < len(view.route_map.nodes) - 1:
                 lines.append("   |")
         lines.extend(("", "Travel is fixed; the map is inspection-only."))
+        return tuple(lines)
+
+    @staticmethod
+    def _map_inspection_lines(view):
+        inspection = view.encounter_inspection
+        if inspection is None:
+            return ("No later M10 encounter is available.",)
+        lines = [
+            inspection.encounter_label,
+            "Boss Encounter" if inspection.boss else "Encounter",
+            "",
+            "COMPOSITION",
+        ]
+        lines.extend(inspection.composition)
         return tuple(lines)
 
     def _control_lines(self, view, width):
@@ -401,6 +417,7 @@ class TerminalOverworldUI:
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
             OverworldScreen.MAP: "MAP",
+            OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",
             OverworldScreen.QUIT_CONFIRMATION: "QUIT",
         }[screen]
@@ -421,7 +438,7 @@ class TerminalOverworldUI:
                 "That item cannot be used from the overworld."
             ),
             OverworldAvailabilityReason.ENCOUNTER_INSPECTION_UNAVAILABLE: (
-                "Encounter inspection is not yet available."
+                "No later M10 encounter is available."
             ),
             OverworldAvailabilityReason.SAVE_UNAVAILABLE: (
                 "Saving is not yet available."

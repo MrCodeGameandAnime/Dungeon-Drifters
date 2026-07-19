@@ -216,7 +216,7 @@ def test_map_is_complete_read_only_and_marks_exact_current_and_completed_nodes()
     assert sum(node.kind_label == "Rest" for node in view.route_map.nodes) == 3
     assert view.route_map.nodes[-2].kind_label == "Boss"
     assert view.route_map.nodes[-1].kind_label == "Dungeon"
-    assert option(view, OverworldAction.INSPECT).enabled is False
+    assert option(view, OverworldAction.INSPECT).enabled is True
     assert "surface_" not in repr(view)
 
 
@@ -292,6 +292,7 @@ def test_presenter_rebuilds_are_pure_and_return_independent_immutable_views():
         (OverworldScreen.ITEMS, "inventory"),
         (OverworldScreen.ITEM_INSPECT, "inventory"),
         (OverworldScreen.MAP, "route_map"),
+        (OverworldScreen.MAP_INSPECT, "encounter_inspection"),
         (OverworldScreen.OPTIONS, None),
         (OverworldScreen.QUIT_CONFIRMATION, None),
     ),
@@ -321,6 +322,7 @@ def test_each_screen_exposes_only_its_approved_screen_specific_model(
         "equipment",
         "inventory",
         "route_map",
+        "encounter_inspection",
     )
 
     assert tuple(
@@ -344,6 +346,6 @@ def test_all_deferred_and_illegal_presentation_controls_remain_disabled():
     assert all(not row.increase_enabled for row in skills.skills.stats)
     assert option(items, OverworldAction.CRAFT).enabled is False
     assert option(selected, OverworldAction.USE).enabled is False
-    assert option(route_map, OverworldAction.INSPECT).enabled is False
+    assert option(route_map, OverworldAction.INSPECT).enabled is True
     assert option(options, OverworldAction.SAVE).enabled is False
     assert option(options, OverworldAction.LOAD).enabled is False

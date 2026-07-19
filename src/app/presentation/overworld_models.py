@@ -13,6 +13,7 @@ class OverworldScreen(StrEnum):
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     MAP = "map"
+    MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
     QUIT_CONFIRMATION = "quit_confirmation"
 
@@ -271,6 +272,20 @@ class MapView:
 
 
 @dataclass(frozen=True)
+class MapEncounterInspectionView:
+    encounter_label: str
+    composition: tuple[str, ...]
+    boss: bool
+
+    def __post_init__(self):
+        _validate_text("encounter_label", self.encounter_label)
+        _validate_text_tuple("composition", self.composition)
+        if not self.composition:
+            raise ValueError("composition must not be empty")
+        _validate_bool("boss", self.boss)
+
+
+@dataclass(frozen=True)
 class OverworldView:
     screen: OverworldScreen
     location_label: str
@@ -284,6 +299,7 @@ class OverworldView:
     equipment: EquipmentView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
+    encounter_inspection: MapEncounterInspectionView | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -323,6 +339,7 @@ class OverworldView:
             ("equipment", EquipmentView),
             ("inventory", InventoryView),
             ("route_map", MapView),
+            ("encounter_inspection", MapEncounterInspectionView),
         ):
             value = getattr(self, name)
             if value is not None and not isinstance(value, expected_type):
