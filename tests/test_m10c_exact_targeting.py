@@ -439,3 +439,62 @@ def test_terminal_target_input_uses_offered_number_or_unique_label_not_target_id
     assert "Goblin 2" in rendered
     assert "enemy_1" not in rendered
     assert "enemy_2" not in rendered
+
+
+def test_repeated_unavailable_targets_preserve_full_bounded_turn_history():
+    resolver = RecordingResolver()
+    rng = RecordingRng()
+    ui = ScriptedUI(
+        ChooseAction(ActionIntent.ATTACK),
+        ChooseMove("Infused Barb"),
+        ChooseTarget("unknown_1"),
+        ChooseTarget("unknown_2"),
+        ChooseTarget("unknown_3"),
+    )
+    battle, player, enemies = _battle(
+        RogueArcher(),
+        resolver=resolver,
+        ui=ui,
+        rng=rng,
+    )
+    InventoryActionResolver().resolve(
+        "prepare_fire_infusion",
+        player.character_run_state,
+    )
+    originals = tuple(
+        BattleLogEntry(
+            BattleEventType.STATUS,
+            actor_name=f"Original {number}",
+        )
+        for number in range(battle.presentation_session.max_entries)
+    )
+    for entry in originals:
+        battle.presentation_session.record(entry)
+    battle.combat_state.activate_defend(enemies[0])
+    mana_before = player.mana_resource.current
+    super_before = player.super_resource.current
+    inventory_before = player.character_run_state.snapshot()
+    turn_before = battle.combat_state.turn_count
+
+    with pytest.raises(StopIteration):
+        battle.player_action()
+
+    final_target_view = ui.views[-1]
+    assert final_target_view.interaction_phase == InteractionPhase.TARGETS
+    assert final_target_view.log_entries[:-1] == originals
+    assert len(final_target_view.log_entries) == len(originals) + 1
+    assert final_target_view.log_entries[-1].event_type == BattleEventType.INPUT_REJECTED
+    assert (
+        final_target_view.log_entries[-1].rejection_reason
+        == InputRejectionReason.TARGET_UNAVAILABLE
+    )
+    assert resolver.calls == []
+    assert rng.calls == []
+    assert player.mana_resource.current == mana_before
+    assert player.super_resource.current == super_before
+    assert player.character_run_state.snapshot() == inventory_before
+    assert player.character_run_state.payload_prepared(
+        PreparedPayloadId.INFUSED_BARB
+    )
+    assert battle.combat_state.is_defending(enemies[0])
+    assert battle.combat_state.turn_count == turn_before

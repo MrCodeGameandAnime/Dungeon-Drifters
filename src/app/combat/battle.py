@@ -706,12 +706,14 @@ class Battle:
         return InputRejectionReason.ACTION_UNAVAILABLE
 
     def _record_input_rejection(self, reason):
-        self.presentation_session.record(
-            BattleLogEntry(
-                event_type=BattleEventType.INPUT_REJECTED,
-                rejection_reason=reason,
-            )
+        entry = BattleLogEntry(
+            event_type=BattleEventType.INPUT_REJECTED,
+            rejection_reason=reason,
         )
+        if reason == InputRejectionReason.TARGET_UNAVAILABLE:
+            self.presentation_session.record_transient_rejection(entry)
+            return
+        self.presentation_session.record(entry)
 
     def enemy_action(self):
         move = select_enemy_move(self.foe, self.rng)

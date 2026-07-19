@@ -1,6 +1,6 @@
 """Encounter-local ownership of bounded semantic battle history."""
 
-from app.presentation.battle_models import BattleLogEntry
+from app.presentation.battle_models import BattleEventType, BattleLogEntry
 
 
 # Keep enough semantic entries for one complex action and its response.
@@ -16,6 +16,7 @@ class BattlePresentationSession:
 
         self._max_entries = max_entries
         self._entries = []
+        self._transient_rejection = None
 
     @property
     def max_entries(self):
@@ -23,17 +24,30 @@ class BattlePresentationSession:
 
     @property
     def entries(self):
-        return tuple(self._entries)
+        entries = tuple(self._entries)
+        if self._transient_rejection is None:
+            return entries
+        return (*entries, self._transient_rejection)
 
     def begin_player_turn(self):
         """Replace the displayed history when an accepted player action starts."""
         self._entries.clear()
+        self._transient_rejection = None
 
     def record(self, entry):
         if not isinstance(entry, BattleLogEntry):
             raise TypeError("entry must be a BattleLogEntry")
 
+        self._transient_rejection = None
         self._entries.append(entry)
         overflow = len(self._entries) - self._max_entries
         if overflow > 0:
             del self._entries[:overflow]
+
+    def record_transient_rejection(self, entry):
+        """Replace one visible rejection without consuming semantic history."""
+        if not isinstance(entry, BattleLogEntry):
+            raise TypeError("entry must be a BattleLogEntry")
+        if entry.event_type != BattleEventType.INPUT_REJECTED:
+            raise ValueError("transient rejection must be an input rejection")
+        self._transient_rejection = entry
