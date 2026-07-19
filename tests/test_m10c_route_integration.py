@@ -104,6 +104,7 @@ def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
     assert enemies.calls == [("goblin", 0), ("goblin", 0)]
     assert battles.calls[0].enemies == tuple(enemies.enemies)
     assert battles.calls[0].enemies[0] is not battles.calls[0].enemies[1]
+    assert "Goblin Pair awaits along the surface route." in ui.views[0].adventure_text
     assert game.world_state.defeated_encounters == ("surface_goblin_pair",)
     assert game.overworld_state.current_route_node_id == "surface_warrior_solo"
     assert (
@@ -117,7 +118,12 @@ def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
 
 
 def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
-    game = GameState(PlayerState(Brawler()))
+    player = PlayerState(Brawler(), gold=31)
+    player.exp_state.gain(19)
+    game = GameState(player)
+    before_exp = player.exp_state.current
+    before_level = player.level_state.current
+    before_gold = player.gold
     game.overworld_state.advance_to("surface_goblin_pair")
     game.overworld_state.advance_to(
         "surface_warrior_solo",
@@ -146,6 +152,9 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
     assert game.overworld_state.resolved_rest_node_ids == ()
     assert ui.views[1].contextual_route_option is None
+    assert player.exp_state.current == before_exp
+    assert player.level_state.current == before_level
+    assert player.gold == before_gold
 
 
 def test_reported_victory_with_living_enemy_fails_before_route_mutation():
@@ -171,3 +180,72 @@ def test_reported_victory_with_living_enemy_fails_before_route_mutation():
 
     assert game.world_state.defeated_encounters == ()
     assert game.overworld_state.current_route_node_id == "surface_goblin_solo"
+
+
+def test_goblin_lord_victory_reaches_dungeon_without_rewards_or_continuation():
+    player = PlayerState(Brawler(), gold=47)
+    player.exp_state.gain(61)
+    player.health.take_damage(11)
+    assert player.mana_resource.spend(3) is True
+    player.super_resource.gain(14)
+    equipped_weapon = player.get_equipped("weapon")
+    before_exp = player.exp_state.current
+    before_level = player.level_state.current
+    before_gold = player.gold
+    before_health = player.health.current
+    before_mana = player.mana_resource.current
+    before_super = player.super_resource.current
+    game = GameState(player)
+    for node_id, phase in (
+        ("surface_goblin_pair", ContextualRoutePhase.NONE),
+        ("surface_warrior_solo", ContextualRoutePhase.ENTER_ENCOUNTER),
+        ("surface_rest_after_warrior_solo", ContextualRoutePhase.NONE),
+        ("surface_warrior_pair", ContextualRoutePhase.ENTER_ENCOUNTER),
+        ("surface_shaman_solo", ContextualRoutePhase.ENTER_ENCOUNTER),
+        ("surface_shaman_pair", ContextualRoutePhase.ENTER_ENCOUNTER),
+        ("surface_rest_after_shaman_pair", ContextualRoutePhase.NONE),
+        ("surface_elite_patrol", ContextualRoutePhase.ENTER_ENCOUNTER),
+        ("surface_rest_before_goblin_lord", ContextualRoutePhase.NONE),
+        ("surface_goblin_lord", ContextualRoutePhase.ENTER_ENCOUNTER),
+    ):
+        game.overworld_state.advance_to(node_id, contextual_phase=phase)
+    enemies = RouteEnemyFactory()
+    battles = RouteBattleFactory()
+    ui = ScriptedUI(
+        (
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            *_quit_inputs(),
+        )
+    )
+
+    result = OverworldSession(
+        game,
+        ui=ui,
+        battle_factory=battles,
+        enemy_factory=enemies,
+        battle_ui_factory=object,
+    ).run()
+
+    assert result is OverworldSessionResult.QUIT
+    assert enemies.calls == [
+        ("goblin_lord", 0),
+        ("goblin", 0),
+        ("goblin_warrior", 0),
+    ]
+    assert battles.calls[0].player_state is player
+    assert battles.calls[0].enemies == tuple(enemies.enemies)
+    assert game.world_state.defeated_encounters == ("surface_goblin_lord",)
+    assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
+    assert game.overworld_state.dungeon_entrance_reached is True
+    assert game.overworld_state.route_complete is True
+    assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
+    assert game.overworld_state.resolved_rest_node_ids == ()
+    assert ui.views[1].contextual_route_option is None
+    assert "Dungeon Entrance" in ui.views[1].adventure_text
+    assert player.exp_state.current == before_exp
+    assert player.level_state.current == before_level
+    assert player.gold == before_gold
+    assert player.health.current == before_health
+    assert player.mana_resource.current == before_mana
+    assert player.super_resource.current == before_super
+    assert player.get_equipped("weapon") is equipped_weapon

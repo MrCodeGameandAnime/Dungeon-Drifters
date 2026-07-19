@@ -108,14 +108,26 @@ def test_first_victory_remains_reward_free_and_pair_combat_is_next():
 
     def enemy_factory(archetype_id, *, tier):
         enemy_calls.append((archetype_id, tier))
-        return object()
+        return StubEnemy()
 
-    def battle_factory(acting_player, enemy, *, ui):
+    class StubEnemy:
+        def __init__(self):
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+    def battle_factory(acting_player, enemies, *, ui):
         assert acting_player is player
 
         class WinningBattle:
+            def __init__(self):
+                self.enemies = tuple(enemies)
+
             @staticmethod
             def run():
+                for enemy in enemies:
+                    enemy.alive = False
                 return "player"
 
         return WinningBattle()

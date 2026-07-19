@@ -43,12 +43,16 @@ class BattleHarness:
         class FakeBattle:
             def __init__(self):
                 self.player_state = player_state
-                self.enemy = enemy
+                self.enemies = tuple(enemy)
+                self.enemy = self.enemies
                 self.ui = ui
 
             def run(self):
                 if index < len(harness.mutations):
                     harness.mutations[index](self.player_state)
+                if harness.winners[index] == "player":
+                    for enemy in self.enemies:
+                        enemy.alive = False
                 return harness.winners[index]
 
         battle = FakeBattle()
@@ -62,10 +66,18 @@ class EnemyFactory:
         self.enemies = []
 
     def __call__(self, archetype_id, *, tier):
-        enemy = object()
+        enemy = StubEnemy()
         self.calls.append((archetype_id, tier))
         self.enemies.append(enemy)
         return enemy
+
+
+class StubEnemy:
+    def __init__(self):
+        self.alive = True
+
+    def is_alive(self):
+        return self.alive
 
 
 class BattleUIFactory:

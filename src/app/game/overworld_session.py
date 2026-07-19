@@ -26,9 +26,6 @@ class OverworldSessionResult(StrEnum):
 
 
 class OverworldSession:
-    INITIAL_ADVENTURE_TEXT = (
-        "A Goblin blocks the road through Ketlyv. The surface route begins here."
-    )
     DEFEAT_ADVENTURE_TEXT = (
         "The encounter drove you back. Your footing is restored; retry when ready."
     )
@@ -67,7 +64,7 @@ class OverworldSession:
         self._presenter = presenter
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
-        self._adventure_text = self.INITIAL_ADVENTURE_TEXT
+        self._adventure_text = None
         self._notice = None
 
     @property
@@ -235,8 +232,14 @@ class OverworldSession:
     def _battle_enemies_are_defeated(battle):
         enemies = getattr(battle, "enemies", None)
         if enemies is None:
-            return True
-        return bool(enemies) and all(not enemy.is_alive() for enemy in enemies)
+            raise RuntimeError(
+                "a winning Battle must expose its canonical enemy tuple"
+            )
+        if not enemies:
+            raise RuntimeError(
+                "a winning Battle must expose at least one enemy"
+            )
+        return all(not enemy.is_alive() for enemy in enemies)
 
     @staticmethod
     def _contextual_phase_for_node(node_kind):
