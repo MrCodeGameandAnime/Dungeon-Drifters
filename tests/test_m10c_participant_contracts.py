@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+import app.combat.battle as battle_module
 from app.combat.battle import Battle
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
@@ -220,6 +221,31 @@ def test_enemy_selection_uses_the_battle_rng_without_mutating_selection_state():
     assert enemy.health.current == hp_before
     assert enemy.mana_resource.current == mana_before
     assert resolver.calls[0][0] is enemy
+
+
+def test_run_uses_the_injected_battle_rng_for_the_first_initiative_roll(
+    monkeypatch,
+):
+    rng = RecordingRng()
+    enemy = EnemyState(Goblin())
+    battle = _battle(enemy, rng=rng)
+    opportunities = []
+
+    def accept_player_opportunity():
+        opportunities.append("player")
+        enemy.health.take_damage(enemy.health.maximum)
+        return True
+
+    def reject_enemy_opportunity():
+        raise AssertionError("the injected initiative roll must select the player")
+
+    battle.player_action = accept_player_opportunity
+    battle.enemy_action = reject_enemy_opportunity
+    monkeypatch.setattr(battle_module, "random", object())
+
+    assert battle.run() == "player"
+    assert rng.randint_calls == [(1, 2)]
+    assert opportunities == ["player"]
 
 
 @pytest.mark.parametrize("rng", [object(), type("OnlyRandint", (), {"randint": lambda *_: 1})()])

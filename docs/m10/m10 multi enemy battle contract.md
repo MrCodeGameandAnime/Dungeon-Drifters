@@ -414,6 +414,7 @@ accepted player result and lifecycle outcomes
 -> enemy 1 result and lifecycle outcomes
 -> enemy 2 result and lifecycle outcomes
 -> enemy 3 result and lifecycle outcomes
+-> enemy 4 result and lifecycle outcomes
 -> victory or defeat when applicable
 ```
 
