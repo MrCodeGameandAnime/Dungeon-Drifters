@@ -172,9 +172,14 @@ class OverworldPresenter:
 
     def _skills_view(self, game_state):
         player = game_state.player_state
+        growth_points = player.growth_points
         return SkillsView(
-            growth_points_available=None,
-            growth_message="Growth Point spending is not yet available.",
+            growth_points_available=growth_points,
+            growth_message=(
+                "Spend 1 Growth Point to increase one permanent stat by 1."
+                if growth_points
+                else "Earn Growth Points by leveling up."
+            ),
             stats=self._stats(player, increase_controls=True),
             moves=tuple(
                 SkillMoveView(move.name, move.description)
@@ -187,14 +192,27 @@ class OverworldPresenter:
         values = player.character.permanent_stats.as_dict()
         return tuple(
             StatRowView(
+                stat_name=name,
                 label=label,
                 value=values[name],
                 increase_visible=increase_controls,
-                increase_enabled=False,
+                increase_enabled=(
+                    increase_controls
+                    and values[name] < player.character.permanent_stats.MAXIMUM
+                    and player.growth_points > 0
+                ),
                 disabled_reason=(
-                    OverworldAvailabilityReason.GROWTH_UNAVAILABLE
-                    if increase_controls
-                    else None
+                    None
+                    if not increase_controls
+                    or (
+                        values[name] < player.character.permanent_stats.MAXIMUM
+                        and player.growth_points > 0
+                    )
+                    else (
+                        OverworldAvailabilityReason.STAT_AT_MAXIMUM
+                        if values[name] >= player.character.permanent_stats.MAXIMUM
+                        else OverworldAvailabilityReason.NO_GROWTH_POINTS
+                    )
                 ),
             )
             for name, label in STAT_ORDER

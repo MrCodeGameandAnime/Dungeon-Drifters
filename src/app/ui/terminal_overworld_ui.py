@@ -12,7 +12,11 @@ from app.presentation.overworld_models import (
     OverworldScreen,
     OverworldView,
 )
-from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
+from app.ui.overworld_ui import (
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
+)
 
 
 class TerminalOverworldUI:
@@ -96,6 +100,15 @@ class TerminalOverworldUI:
             for number, item in enumerate(view.inventory.items, start=1):
                 if choice == str(number):
                     return ChooseOverworldItem(item.selection_key)
+
+        if view.screen is OverworldScreen.SKILLS and view.skills is not None:
+            for number, row in enumerate(view.skills.stats, start=1):
+                if choice != str(number):
+                    continue
+                if row.increase_enabled:
+                    return ChoosePermanentStatIncrease(row.stat_name)
+                self._output(self._disabled_message(row.disabled_reason))
+                return self._REJECTED
 
         for option in self._input_options(view):
             key = self._ACTION_KEYS[option.action].lower()
@@ -226,9 +239,24 @@ class TerminalOverworldUI:
 
     def _skills_lines(self, view, width):
         skills = view.skills
-        lines = ["LEVEL UP", "Growth Points: Unavailable", skills.growth_message, ""]
-        for row in skills.stats:
-            lines.append(f"{row.label:<14} {row.value:>3}  [+ Unavailable]")
+        lines = [
+            "LEVEL UP",
+            f"Growth Points: {skills.growth_points_available}",
+            skills.growth_message,
+            "",
+        ]
+        for number, row in enumerate(skills.stats, start=1):
+            if row.increase_enabled:
+                control = "[+1]"
+            elif row.disabled_reason is OverworldAvailabilityReason.NO_GROWTH_POINTS:
+                control = "[No Growth Points]"
+            elif row.disabled_reason is OverworldAvailabilityReason.STAT_AT_MAXIMUM:
+                control = "[Maximum]"
+            else:
+                control = "[Unavailable]"
+            lines.append(
+                f"{number}. {row.label:<14} {row.value:>3}  {control}"
+            )
         lines.extend(("", "ATTACKS"))
         lines.extend(move.name for move in skills.moves)
         return tuple(lines)
@@ -431,6 +459,12 @@ class TerminalOverworldUI:
         return {
             OverworldAvailabilityReason.GROWTH_UNAVAILABLE: (
                 "Growth Point spending is not yet available."
+            ),
+            OverworldAvailabilityReason.NO_GROWTH_POINTS: (
+                "Earn Growth Points by leveling up."
+            ),
+            OverworldAvailabilityReason.STAT_AT_MAXIMUM: (
+                "That stat is already at its maximum."
             ),
             OverworldAvailabilityReason.CRAFT_UNAVAILABLE: (
                 "Crafting is not yet available."

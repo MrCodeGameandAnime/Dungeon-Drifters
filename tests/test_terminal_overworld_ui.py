@@ -8,7 +8,11 @@ from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
-from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
+from app.ui.overworld_ui import (
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
+)
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
 
@@ -139,7 +143,16 @@ def test_character_screen_renders_normal_and_capped_exp_at_supported_widths():
             OverworldScreen.CHARACTER,
             ("CHARACTER", "STATS", "Level 1", "Super 0/100", "XP ["),
         ),
-        (OverworldScreen.SKILLS, ("SKILLS", "LEVEL UP", "[+ Unavailable]", "ATTACKS")),
+        (
+            OverworldScreen.SKILLS,
+            (
+                "SKILLS",
+                "LEVEL UP",
+                "Growth Points: 0",
+                "[No Growth Points]",
+                "ATTACKS",
+            ),
+        ),
         (OverworldScreen.WEAPON, ("WEAPON", "Sunder-Spire", "BONUSES", "DESCRIPTION")),
         (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
         (OverworldScreen.ITEMS, ("ITEMS", "Your persistent inventory is empty.", "Craft")),
@@ -335,6 +348,40 @@ def test_character_submenu_accepts_only_its_displayed_mnemonics():
 
     assert result == ChooseOverworldAction(OverworldAction.WEAPON)
     assert output == ["That option is not available."] * 2
+
+
+def test_skills_numeric_input_translates_to_canonical_stat_and_disables_without_points():
+    view = create_view(OverworldScreen.SKILLS)
+
+    result, output = read(view, ["1", "b"])
+
+    assert result == ChooseOverworldAction(OverworldAction.BACK)
+    assert output == ["Earn Growth Points by leveling up."]
+
+
+def test_skills_numeric_input_exposes_enabled_stat_increase():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.gain_experience(100)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    result, output = read(view, ["1"])
+
+    assert result == ChoosePermanentStatIncrease("strength")
+    assert output == []
+
+
+def test_skills_render_maximum_and_enabled_controls():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.gain_experience(100)
+    game.player_state.character.permanent_stats.set_stat("strength", 100)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    text = "\n".join(rendered(view))
+
+    assert "Growth Points: 3" in text
+    assert "1. Strength" in text
+    assert "[Maximum]" in text
+    assert "[+1]" in text
 
 
 def test_item_number_selects_the_item_without_exposing_its_key():

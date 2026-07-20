@@ -12,7 +12,11 @@ from app.player.character_run_state import (
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
-from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
+from app.ui.overworld_ui import (
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
+)
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 
 
@@ -187,6 +191,79 @@ def test_item_selection_and_inspection_are_transient_and_non_consuming():
     assert item_views[-1].inventory.selected_item_key == ember.selection_key
     assert inspection.inventory.inspected_item.display_name == "Ember Shard"
     assert game.snapshot() == before
+
+
+def test_skills_stat_input_delegates_growth_and_stays_on_skills():
+    player = PlayerState(Brawler())
+    player.gain_experience(100)
+    game = GameState(player)
+    strength_before = player.character.permanent_stats.strength
+
+    inputs = [
+        ChooseOverworldAction(OverworldAction.CHARACTER),
+        ChooseOverworldAction(OverworldAction.SKILLS),
+        ChoosePermanentStatIncrease("strength"),
+        ChooseOverworldAction(OverworldAction.BACK),
+        ChooseOverworldAction(OverworldAction.BACK),
+        *quit_inputs(),
+    ]
+
+    result, ui, _, _, _ = run_session(game, inputs)
+
+    assert result is OverworldSessionResult.QUIT
+    assert player.character.permanent_stats.strength == strength_before + 1
+    assert player.growth_points == 2
+    skills_views = [
+        view
+        for view in ui.views
+        if view.screen is OverworldScreen.SKILLS
+    ]
+    assert skills_views[-1].notice == (
+        "Strength increased to "
+        f"{strength_before + 1}. Growth Points remaining: 2."
+    )
+    assert [view.screen for view in ui.views[:4]] == [
+        OverworldScreen.MAIN,
+        OverworldScreen.CHARACTER,
+        OverworldScreen.SKILLS,
+        OverworldScreen.SKILLS,
+    ]
+
+
+def test_disabled_or_offscreen_stat_input_changes_nothing():
+    player = PlayerState(Brawler())
+    game = GameState(player)
+    before = game.snapshot()
+    inputs = [
+        ChoosePermanentStatIncrease("strength"),
+        ChooseOverworldAction(OverworldAction.OPTIONS),
+        ChooseOverworldAction(OverworldAction.QUIT),
+        ChooseOverworldAction(OverworldAction.CONFIRM),
+    ]
+
+    result, ui, _, _, _ = run_session(game, inputs)
+
+    assert result is OverworldSessionResult.QUIT
+    assert game.snapshot() == before
+    assert ui.views[1].notice == "That stat is not available."
+
+    player = PlayerState(Brawler())
+    game = GameState(player)
+    before = game.snapshot()
+    inputs = [
+        ChooseOverworldAction(OverworldAction.CHARACTER),
+        ChooseOverworldAction(OverworldAction.SKILLS),
+        ChoosePermanentStatIncrease("strength"),
+        ChooseOverworldAction(OverworldAction.BACK),
+        ChooseOverworldAction(OverworldAction.BACK),
+        *quit_inputs(),
+    ]
+
+    result, ui, _, _, _ = run_session(game, inputs)
+
+    assert result is OverworldSessionResult.QUIT
+    assert game.snapshot() == before
+    assert ui.views[3].notice == "Earn Growth Points by leveling up."
 
 
 def test_victory_preserves_battle_mutations_and_advances_to_pair_node():

@@ -11,12 +11,14 @@ from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
 from app.presentation.overworld_models import (
     OverworldAction,
+    OverworldAvailabilityReason,
     OverworldScreen,
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
     OverworldUI,
 )
 
@@ -76,6 +78,9 @@ class OverworldSession:
             view = self._build_view()
             self._ui.render(view)
             overworld_input = self._ui.read_input(view)
+            if isinstance(overworld_input, ChoosePermanentStatIncrease):
+                self._increase_permanent_stat(view, overworld_input)
+                continue
             if isinstance(overworld_input, ChooseOverworldItem):
                 self._select_item(view, overworld_input)
                 continue
@@ -109,6 +114,47 @@ class OverworldSession:
             return
         self._selected_item_key = overworld_input.selection_key
         self._notice = None
+
+    def _increase_permanent_stat(self, view, overworld_input):
+        if view.screen is not OverworldScreen.SKILLS or view.skills is None:
+            self._notice = "That stat is not available."
+            return
+
+        row = next(
+            (
+                row
+                for row in view.skills.stats
+                if row.stat_name == overworld_input.stat_name
+            ),
+            None,
+        )
+        if row is None or not row.increase_enabled:
+            self._notice = self._stat_unavailable_message(
+                row.disabled_reason if row is not None else None
+            )
+            return
+
+        try:
+            new_value = self.game_state.player_state.increase_permanent_stat(
+                row.stat_name
+            )
+        except (TypeError, ValueError):
+            self._notice = "That stat is not available."
+            return
+
+        self._notice = (
+            f"{row.label} increased to {new_value}. "
+            f"Growth Points remaining: "
+            f"{self.game_state.player_state.growth_points}."
+        )
+
+    @staticmethod
+    def _stat_unavailable_message(reason):
+        if reason is OverworldAvailabilityReason.NO_GROWTH_POINTS:
+            return "Earn Growth Points by leveling up."
+        if reason is OverworldAvailabilityReason.STAT_AT_MAXIMUM:
+            return "That stat is already at its maximum."
+        return "That stat is not available."
 
     @staticmethod
     def _action_is_offered(view, action):

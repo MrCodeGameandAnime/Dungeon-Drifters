@@ -41,6 +41,8 @@ class OverworldAction(StrEnum):
 
 class OverworldAvailabilityReason(StrEnum):
     GROWTH_UNAVAILABLE = "growth_unavailable"
+    NO_GROWTH_POINTS = "no_growth_points"
+    STAT_AT_MAXIMUM = "stat_at_maximum"
     CRAFT_UNAVAILABLE = "craft_unavailable"
     NO_ITEM_SELECTED = "no_item_selected"
     NO_OVERWORLD_USE = "no_overworld_use"
@@ -78,6 +80,7 @@ class OverworldOptionView:
 
 @dataclass(frozen=True)
 class StatRowView:
+    stat_name: str
     label: str
     value: int
     increase_visible: bool = False
@@ -85,6 +88,7 @@ class StatRowView:
     disabled_reason: OverworldAvailabilityReason | None = None
 
     def __post_init__(self):
+        _validate_text("stat_name", self.stat_name)
         _validate_text("label", self.label)
         _validate_nonnegative("value", self.value)
         _validate_bool("increase_visible", self.increase_visible)
