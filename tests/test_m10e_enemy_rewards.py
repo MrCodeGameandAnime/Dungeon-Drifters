@@ -1,6 +1,7 @@
 import pytest
 
-from app.enemies.factory import create_enemy_state
+from app.enemies.factory import create_enemy_definition, create_enemy_state
+from app.enemies.state import EnemyState
 from app.enemies.registry import get_enemy_registration
 
 
@@ -74,3 +75,14 @@ def test_authored_reward_properties_are_read_only():
         definition.exp_reward = 0
     with pytest.raises(AttributeError):
         definition.gold_reward = 0
+
+
+@pytest.mark.parametrize("archetype_id", EXPECTED_REWARDS)
+def test_factory_exposes_fresh_canonical_scaled_definitions(archetype_id):
+    first = create_enemy_definition(archetype_id, tier=0)
+    second = create_enemy_definition(archetype_id, tier=0)
+
+    assert not isinstance(first, EnemyState)
+    assert first is not second
+    assert first.archetype_id == archetype_id
+    assert (first.exp_reward, first.gold_reward) == EXPECTED_REWARDS[archetype_id]
