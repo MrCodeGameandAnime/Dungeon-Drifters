@@ -1,3 +1,5 @@
+import pytest
+
 from app.game.game_state import GameState
 from app.game.overworld_route import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -258,6 +260,97 @@ def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node():
         OverworldScreen.REST,
     ]
     assert ui.views[1].options[1].enabled is False
+
+
+def test_rest_quit_confirmation_does_not_recover_or_consume_node():
+    player = PlayerState(Brawler())
+    player.health.take_damage(12)
+    player.mana_resource.spend(4)
+    game = GameState(player)
+    move_to_woodland_rest(game)
+    before_resources = (player.health.current, player.mana_resource.current)
+
+    result, ui, battles, _, _ = run_session(
+        game,
+        [
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.QUIT),
+            ChooseOverworldAction(OverworldAction.CONFIRM),
+        ],
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert battles.instances == []
+    assert (player.health.current, player.mana_resource.current) == before_resources
+    assert game.overworld_state.current_route_node_id == (
+        "surface_rest_after_warrior_solo"
+    )
+    assert game.overworld_state.resolved_rest_node_ids == ()
+    assert ui.views[-1].screen is OverworldScreen.QUIT_CONFIRMATION
+
+
+@pytest.mark.parametrize(
+    "stale_action",
+    (OverworldAction.REST, OverworldAction.SKIP_REST),
+)
+def test_stale_rest_actions_cannot_resolve_or_recover_again(stale_action):
+    player = PlayerState(Brawler(), gold=9)
+    player.health.take_damage(12)
+    player.mana_resource.spend(4)
+    player.super_resource.gain(19)
+    player.gain_experience(40)
+    game = GameState(player)
+    move_to_woodland_rest(game)
+    rest_node_id = game.overworld_state.current_route_node_id
+    before = {
+        "health": player.health.current,
+        "mana": player.mana_resource.current,
+        "super": player.super_resource.current,
+        "exp": player.exp_state.current,
+        "gold": player.gold,
+        "resolved": game.overworld_state.resolved_rest_node_ids,
+    }
+
+    class StaleRestUI(ScriptedUI):
+        def __init__(self):
+            super().__init__(
+                [
+                    ChooseOverworldAction(OverworldAction.REST),
+                    ChooseOverworldAction(OverworldAction.QUIT),
+                    ChooseOverworldAction(OverworldAction.CONFIRM),
+                ]
+            )
+            self.injected = False
+
+        def read_input(self, view):
+            if view.screen is OverworldScreen.REST and not self.injected:
+                game.overworld_state.record_resolved_rest_node(rest_node_id)
+                game.overworld_state.advance_to("surface_warrior_pair")
+                self.injected = True
+                return ChooseOverworldAction(stale_action)
+            return super().read_input(view)
+
+    ui = StaleRestUI()
+    session = OverworldSession(
+        game,
+        ui=ui,
+        battle_factory=BattleHarness(()).factory,
+        enemy_factory=EnemyFactory(),
+        battle_ui_factory=BattleUIFactory(),
+    )
+
+    result = session.run()
+
+    assert result is OverworldSessionResult.QUIT
+    assert player.health.current == before["health"]
+    assert player.mana_resource.current == before["mana"]
+    assert player.super_resource.current == before["super"]
+    assert player.exp_state.current == before["exp"]
+    assert player.gold == before["gold"]
+    assert game.overworld_state.resolved_rest_node_ids == (rest_node_id,)
+    assert game.overworld_state.current_route_node_id == "surface_warrior_pair"
+    assert ui.views[2].notice == "That Rest is not available."
+    assert ui.views[2].screen is OverworldScreen.REST
 
 
 def test_rest_is_rejected_at_a_combat_node_without_mutation():
