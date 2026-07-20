@@ -11,6 +11,8 @@ class Goblin(Enemy):
             dex=1,
             hp=60,
             mana=0,
+            exp_reward=40,
+            gold_reward=3,
             name="Goblin",
             archetype_id="goblin",
             rank=EnemyRank.COMMON,

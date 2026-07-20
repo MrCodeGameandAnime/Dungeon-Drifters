@@ -117,6 +117,8 @@ def create_enemy_state_with_capabilities(
             dex=1,
             hp=60,
             mana=0,
+            exp_reward=0,
+            gold_reward=0,
             name=name,
             archetype_id=archetype_id,
             rank=rank,
