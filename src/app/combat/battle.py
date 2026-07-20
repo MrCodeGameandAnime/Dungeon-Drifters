@@ -53,6 +53,7 @@ class Battle:
         ui,
         resolver=None,
         rng=random,
+        encounter_label=None,
         presenter=None,
         presentation_session=None,
         inventory_action_resolver=None,
@@ -66,6 +67,7 @@ class Battle:
         self._enemy_display_labels = self._build_enemy_display_labels(
             self._enemies
         )
+        self.encounter_label = encounter_label or self._enemy_group_label()
         if not callable(getattr(rng, "randint", None)):
             raise TypeError("rng must provide randint")
         if not callable(getattr(rng, "choice", None)):
@@ -290,6 +292,7 @@ class Battle:
         return self.presenter.build(
             player=self.player_state,
             enemies=self.enemies,
+            encounter_label=self.encounter_label,
             enemy_target_ids=self.enemy_target_ids,
             enemy_display_labels=self.enemy_display_labels,
             combat_state=self.combat_state,

@@ -198,6 +198,7 @@ class OverworldSession:
             self.game_state.player_state,
             enemies,
             ui=self._battle_ui_factory(),
+            encounter_label=route_node(current_node_id).display_label,
         )
         winner = battle.run()
         if winner == "player":

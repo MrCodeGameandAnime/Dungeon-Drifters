@@ -250,17 +250,14 @@ class TerminalBattleUI:
 
     def _status_lines(self, view, width):
         player_lines = self._combatant_status(view.player, include_super=False)
-        if len(view.enemies) > 1:
-            rows = list(player_lines)
-            rows.append("Enemies")
-            for enemy in view.enemies:
-                rows.extend(self._combatant_status(enemy, include_super=True))
-            return tuple(rows)
-
-        enemy_lines = self._combatant_status(view.enemy, include_super=True)
         separator = " │ " if self._unicode_enabled else " | "
         left_width = (width - len(separator)) // 2
         right_width = width - len(separator) - left_width
+        enemy_blocks = tuple(
+            self._combatant_status(enemy, include_super=True)
+            for enemy in view.enemies
+        )
+        enemy_lines = self._enemy_side_lines(enemy_blocks, right_width)
         rows = []
         for index in range(max(len(player_lines), len(enemy_lines))):
             left = player_lines[index] if index < len(player_lines) else ""
@@ -271,6 +268,32 @@ class TerminalBattleUI:
                 + self._fit(right, right_width)
             )
         return tuple(rows)
+
+    @classmethod
+    def _enemy_side_lines(cls, enemy_blocks, width):
+        participant_count = len(enemy_blocks)
+        column_width = width // participant_count
+        longest_label = max(len(block[0]) for block in enemy_blocks)
+        if participant_count == 1 or column_width >= max(12, longest_label):
+            widths = [column_width] * participant_count
+            for index in range(width - (column_width * participant_count)):
+                widths[index] += 1
+            rows = []
+            for line_index in range(
+                max(len(block) for block in enemy_blocks)
+            ):
+                row = []
+                for block, block_width in zip(enemy_blocks, widths, strict=True):
+                    value = block[line_index] if line_index < len(block) else ""
+                    row.append(cls._fit(value, block_width).ljust(block_width))
+                rows.append("".join(row).rstrip())
+            return tuple(rows)
+
+        return tuple(
+            line
+            for block in enemy_blocks
+            for line in block
+        )
 
     @staticmethod
     def _combatant_status(combatant, *, include_super):
@@ -284,29 +307,16 @@ class TerminalBattleUI:
         return tuple(lines)
 
     def _visual_lines(self, view, width):
-        if len(view.enemies) > 1:
-            player = " ".join(view.visual.player_lines) or view.player.display_name
-            enemy_lines = view.visual.enemy_lines or tuple(
-                f"[ {current.display_label} ]" for current in view.enemies
-            )
-            lines = [self._fit(f"{player}   VS", width).center(width)]
-            lines.extend(
-                self._fit(f"  {enemy_line}", width).center(width)
-                for enemy_line in enemy_lines
-            )
-            return tuple(lines)
-
         if view.visual.player_lines or view.visual.enemy_lines:
             player = " ".join(view.visual.player_lines) or view.player.display_name
-            enemy = " ".join(view.visual.enemy_lines) or ", ".join(
-                current.display_label for current in view.enemies
-            )
         else:
-            player = f"[ {view.player.display_name} ]"
-            enemy = "  ".join(
-                f"[ {current.display_label} ]" for current in view.enemies
-            )
-        return (self._fit(f"{player}   VS   {enemy}", width).center(width),)
+            player = view.player.display_name
+        return (
+            self._fit(
+                f"[ {player} ]   VS   [ {view.encounter_label} ]",
+                width,
+            ).center(width),
+        )
 
     def _display_log_lines(self, view, width):
         lines = []

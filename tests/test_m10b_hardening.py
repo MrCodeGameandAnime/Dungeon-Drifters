@@ -117,7 +117,7 @@ def test_first_victory_remains_reward_free_and_pair_combat_is_next():
         def is_alive(self):
             return self.alive
 
-    def battle_factory(acting_player, enemies, *, ui):
+    def battle_factory(acting_player, enemies, *, ui, encounter_label=None):
         assert acting_player is player
 
         class WinningBattle:

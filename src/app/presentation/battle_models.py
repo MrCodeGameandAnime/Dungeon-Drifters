@@ -447,6 +447,7 @@ class BattleView:
     player: CombatantView
     enemies: tuple[EnemyCombatantView, ...]
     super_meter: SuperMeterView
+    encounter_label: str = "Battle"
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
     target_options: tuple[TargetOptionView, ...] = ()
@@ -478,6 +479,11 @@ class BattleView:
         if len({enemy.target_id for enemy in self.enemies}) != len(self.enemies):
             raise ValueError("enemy target IDs must be unique")
         _validate_instance("super_meter", self.super_meter, SuperMeterView)
+        object.__setattr__(
+            self,
+            "encounter_label",
+            _validate_nonempty_string("encounter_label", self.encounter_label),
+        )
         object.__setattr__(
             self,
             "action_options",

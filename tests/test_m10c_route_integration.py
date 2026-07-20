@@ -33,7 +33,7 @@ class RouteBattleFactory:
         self.defeat_enemies = defeat_enemies
         self.calls = []
 
-    def __call__(self, player_state, enemies, *, ui):
+    def __call__(self, player_state, enemies, *, ui, encounter_label=None):
         factory = self
 
         class FakeBattle:
@@ -41,6 +41,7 @@ class RouteBattleFactory:
                 self.player_state = player_state
                 self.enemies = tuple(enemies)
                 self.ui = ui
+                self.encounter_label = encounter_label
 
             def run(self):
                 if factory.winner == "player" and factory.defeat_enemies:
@@ -103,6 +104,7 @@ def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
     assert result is OverworldSessionResult.QUIT
     assert enemies.calls == [("goblin", 0), ("goblin", 0)]
     assert battles.calls[0].enemies == tuple(enemies.enemies)
+    assert battles.calls[0].encounter_label == "Goblin Pair"
     assert battles.calls[0].enemies[0] is not battles.calls[0].enemies[1]
     assert "Goblin Pair awaits along the surface route." in ui.views[0].adventure_text
     assert game.world_state.defeated_encounters == ("surface_goblin_pair",)
@@ -234,6 +236,7 @@ def test_goblin_lord_victory_reaches_dungeon_without_rewards_or_continuation():
     ]
     assert battles.calls[0].player_state is player
     assert battles.calls[0].enemies == tuple(enemies.enemies)
+    assert battles.calls[0].encounter_label == "Goblin Lord"
     assert game.world_state.defeated_encounters == ("surface_goblin_lord",)
     assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
     assert game.overworld_state.dungeon_entrance_reached is True

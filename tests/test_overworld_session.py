@@ -36,7 +36,7 @@ class BattleHarness:
         self.mutations = list(mutations)
         self.instances = []
 
-    def factory(self, player_state, enemy, *, ui):
+    def factory(self, player_state, enemy, *, ui, encounter_label=None):
         index = len(self.instances)
         harness = self
 
@@ -46,6 +46,7 @@ class BattleHarness:
                 self.enemies = tuple(enemy)
                 self.enemy = self.enemies
                 self.ui = ui
+                self.encounter_label = encounter_label
 
             def run(self):
                 if index < len(harness.mutations):
