@@ -187,7 +187,10 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
 
 
 def test_reported_victory_with_living_enemy_fails_before_route_mutation():
-    game = GameState(PlayerState(Brawler()))
+    player = PlayerState(Brawler(), gold=11)
+    player.exp_state.gain(13)
+    before_player = player.snapshot()
+    game = GameState(player)
     enemies = RouteEnemyFactory()
     battles = RouteBattleFactory(defeat_enemies=False)
     ui = ScriptedUI((ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),))
@@ -209,6 +212,7 @@ def test_reported_victory_with_living_enemy_fails_before_route_mutation():
 
     assert game.world_state.defeated_encounters == ()
     assert game.overworld_state.current_route_node_id == "surface_goblin_solo"
+    assert player.snapshot() == before_player
 
 
 def test_goblin_lord_victory_reaches_dungeon_with_rewards_and_without_continuation():

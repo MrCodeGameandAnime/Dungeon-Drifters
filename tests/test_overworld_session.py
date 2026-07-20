@@ -256,7 +256,8 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
 
 
 def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(RogueArcher(), gold=11)
+    player.exp_state.gain(13)
     player.health.take_damage(9)
     assert player.mana_resource.spend(4) is True
     player.super_resource.gain(17)
@@ -282,6 +283,8 @@ def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
     expected_health = player.health.current
     expected_mana = player.mana_resource.current
     expected_super = player.super_resource.current
+    expected_exp = player.exp_state.current
+    expected_gold = player.gold
 
     def mutate(acting_player):
         acting_player.health.take_damage(33)
@@ -329,6 +332,8 @@ def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
     assert player.health.current == expected_health
     assert player.mana_resource.current == expected_mana
     assert player.super_resource.current == expected_super
+    assert player.exp_state.current == expected_exp
+    assert player.gold == expected_gold
     assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
     assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
