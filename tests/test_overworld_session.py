@@ -266,6 +266,62 @@ def test_disabled_or_offscreen_stat_input_changes_nothing():
     assert ui.views[3].notice == "Earn Growth Points by leveling up."
 
 
+def test_stale_enabled_stat_input_is_rejected_after_points_are_spent():
+    player = PlayerState(Brawler())
+    player.gain_experience(100)
+    game = GameState(player)
+    initial_strength = player.character.permanent_stats.strength
+    initial_hp = player.health.current
+    initial_mana = player.mana_resource.current
+
+    class StaleSkillsUI(ScriptedUI):
+        def __init__(self):
+            super().__init__(
+                [
+                    ChooseOverworldAction(OverworldAction.CHARACTER),
+                    ChooseOverworldAction(OverworldAction.SKILLS),
+                    ChooseOverworldAction(OverworldAction.BACK),
+                    ChooseOverworldAction(OverworldAction.BACK),
+                    *quit_inputs(),
+                ]
+            )
+            self.mutated_before_dispatch = False
+
+        def read_input(self, view):
+            if (
+                view.screen is OverworldScreen.SKILLS
+                and not self.mutated_before_dispatch
+            ):
+                for _ in range(3):
+                    player.increase_permanent_stat("strength")
+                self.mutated_before_dispatch = True
+                return ChoosePermanentStatIncrease("strength")
+            return super().read_input(view)
+
+    ui = StaleSkillsUI()
+    session = OverworldSession(
+        game,
+        ui=ui,
+        battle_factory=BattleHarness(()).factory,
+        enemy_factory=EnemyFactory(),
+        battle_ui_factory=BattleUIFactory(),
+    )
+
+    result = session.run()
+
+    assert result is OverworldSessionResult.QUIT
+    assert player.character.permanent_stats.strength == initial_strength + 3
+    assert player.growth_points == 0
+    assert player.health.current == initial_hp
+    assert player.mana_resource.current == initial_mana
+    skills_views = [
+        view for view in ui.views if view.screen is OverworldScreen.SKILLS
+    ]
+    assert skills_views[0].skills.stats[0].increase_enabled is True
+    assert skills_views[1].notice == "That stat is not available."
+    assert skills_views[1].screen is OverworldScreen.SKILLS
+
+
 def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     player = PlayerState(RogueArcher())
     game = GameState(player)
