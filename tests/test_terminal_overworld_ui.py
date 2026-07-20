@@ -5,6 +5,7 @@ from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
@@ -92,6 +93,43 @@ def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
                 "[O] Options",
             )
         )
+
+
+def test_character_screen_renders_normal_and_capped_exp_at_supported_widths():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.exp_state.current = 40
+    normal = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    )
+
+    game.player_state.level_state.current = MAXIMUM_LEVEL
+    game.player_state.exp_state.current = 0
+    capped = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    )
+
+    for width in (50, 100):
+        for unicode_enabled in (False, True):
+            normal_text = "\n".join(
+                rendered(
+                    normal,
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+            capped_text = "\n".join(
+                rendered(
+                    capped,
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+            assert "XP [" in normal_text
+            assert "40/100" in normal_text
+            assert "XP MAX LEVEL" in capped_text
+            assert "None" not in capped_text
 
 
 @pytest.mark.parametrize(

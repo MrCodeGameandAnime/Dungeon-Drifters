@@ -149,7 +149,11 @@ class OverworldPresenter:
         level = player.level_state
         exp = player.exp_state
         threshold = level.next_threshold
-        fill_bps = min(10_000, exp.current * 10_000 // threshold)
+        fill_bps = (
+            10_000
+            if threshold is None
+            else min(10_000, exp.current * 10_000 // threshold)
+        )
         return CharacterOverviewView(
             display_name=player.character.full_display_name,
             archetype_label=player.character.archetype_name,

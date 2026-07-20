@@ -112,7 +112,7 @@ class CharacterOverviewView:
     stats: tuple[StatRowView, ...]
     level: int
     exp_current: int
-    exp_threshold: int
+    exp_threshold: int | None
     exp_fill_bps: int
     hp_current: int
     hp_maximum: int
@@ -128,7 +128,6 @@ class CharacterOverviewView:
         for name in (
             "level",
             "exp_current",
-            "exp_threshold",
             "exp_fill_bps",
             "hp_current",
             "hp_maximum",
@@ -138,6 +137,8 @@ class CharacterOverviewView:
             "super_maximum",
         ):
             _validate_nonnegative(name, getattr(self, name))
+        if self.exp_threshold is not None:
+            _validate_nonnegative("exp_threshold", self.exp_threshold)
         if not 0 <= self.exp_fill_bps <= 10_000:
             raise ValueError("exp_fill_bps must be between 0 and 10000")
 

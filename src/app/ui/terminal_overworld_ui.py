@@ -202,22 +202,26 @@ class TerminalOverworldUI:
             if width < 60
             else self._two_column_values(stat_pairs, width)
         )
-        lines.extend(
-            (
-                "",
-                f"Level {character.level}",
-                f"HP {character.hp_current}/{character.hp_maximum}",
-                f"Mana {character.mana_current}/{character.mana_maximum}",
-                f"Super {character.super_current}/{character.super_maximum}",
+        progression_lines = [
+            "",
+            f"Level {character.level}",
+            f"HP {character.hp_current}/{character.hp_maximum}",
+            f"Mana {character.mana_current}/{character.mana_maximum}",
+            f"Super {character.super_current}/{character.super_maximum}",
+        ]
+        if character.exp_threshold is None:
+            progression_lines.append("XP MAX LEVEL")
+        else:
+            progression_lines.append(
                 self._meter_line(
                     "XP",
                     character.exp_current,
                     character.exp_threshold,
                     character.exp_fill_bps,
                     width,
-                ),
+                )
             )
-        )
+        lines.extend(progression_lines)
         return tuple(lines)
 
     def _skills_lines(self, view, width):

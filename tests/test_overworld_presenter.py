@@ -5,6 +5,7 @@ from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.progression import MAXIMUM_LEVEL
 from app.player.run_items import owned_run_item_definitions
 from app.presentation.overworld_models import (
     MapNodeState,
@@ -139,6 +140,38 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     assert game.snapshot() == before
     with pytest.raises(AttributeError):
         character.character.super_current = 0
+
+
+def test_character_progression_presents_zero_and_partial_exp_without_mutation():
+    game = create_game()
+    presenter = OverworldPresenter()
+
+    zero = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+    game.player_state.exp_state.current = 40
+    partial = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+
+    assert zero.exp_current == 0
+    assert zero.exp_threshold == 100
+    assert zero.exp_fill_bps == 0
+    assert partial.exp_current == 40
+    assert partial.exp_threshold == 100
+    assert partial.exp_fill_bps == 4_000
+
+
+def test_character_progression_presents_level_cap_without_dividing_by_none():
+    game = create_game()
+    game.player_state.level_state.current = MAXIMUM_LEVEL
+    game.player_state.exp_state.current = 0
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    ).character
+
+    assert view.level == MAXIMUM_LEVEL
+    assert view.exp_current == 0
+    assert view.exp_threshold is None
+    assert view.exp_fill_bps == 10_000
 
 
 def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
