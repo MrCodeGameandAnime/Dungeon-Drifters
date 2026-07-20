@@ -106,6 +106,7 @@ def test_all_approved_screen_values_are_typed():
         "map_inspect",
         "options",
         "quit_confirmation",
+        "rest",
     )
 
 
@@ -133,7 +134,7 @@ def test_contextual_route_actions_have_a_dedicated_main_screen_boundary():
             "The road begins here.",
             (contextual,),
         )
-    with pytest.raises(ValueError, match="only on the Main screen"):
+    with pytest.raises(ValueError, match="only on the Main or Rest screen"):
         OverworldView(
             OverworldScreen.OPTIONS,
             "Goblin Ambush",

@@ -34,6 +34,13 @@ def test_main_view_uses_authored_labels_and_only_the_valid_contextual_action():
     retry = presenter.build(game)
     game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
     paused = presenter.build(game)
+    game.overworld_state.advance_to(
+        "surface_warrior_solo",
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+    game.overworld_state.advance_to("surface_rest_after_warrior_solo")
+    rest_main = presenter.build(game)
+    rest_screen = presenter.build(game, screen=OverworldScreen.REST)
 
     assert initial.location_label == "Goblin Ambush"
     assert [value.label for value in initial.options] == [
@@ -51,6 +58,15 @@ def test_main_view_uses_authored_labels_and_only_the_valid_contextual_action():
     assert retry.contextual_route_option.action is OverworldAction.RETRY
     assert paused.contextual_route_option is None
     assert paused.location_label == "Goblin Pair"
+    assert rest_main.contextual_route_option.action is OverworldAction.REST
+    assert rest_screen.contextual_route_option.action is OverworldAction.SKIP_REST
+    assert [option.label for option in rest_screen.options] == [
+        "Rest",
+        "Save",
+        "Quit",
+        "Menu",
+    ]
+    assert rest_screen.options[1].enabled is False
     assert "surface_" not in repr(initial)
     assert "surface_" not in repr(paused)
 

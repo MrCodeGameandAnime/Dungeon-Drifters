@@ -16,6 +16,7 @@ class OverworldScreen(StrEnum):
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
     QUIT_CONFIRMATION = "quit_confirmation"
+    REST = "rest"
 
 
 class OverworldAction(StrEnum):
@@ -37,6 +38,9 @@ class OverworldAction(StrEnum):
     CANCEL = "cancel"
     ENTER_ENCOUNTER = "enter_encounter"
     RETRY = "retry"
+    REST = "rest"
+    SKIP_REST = "skip_rest"
+    MENU = "menu"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -326,14 +330,19 @@ class OverworldView:
                 raise TypeError(
                     "contextual_route_option must be an OverworldOptionView"
                 )
-            if self.screen is not OverworldScreen.MAIN:
+            allowed_contextual_actions = {
+                OverworldScreen.MAIN: {
+                    OverworldAction.ENTER_ENCOUNTER,
+                    OverworldAction.RETRY,
+                    OverworldAction.REST,
+                },
+                OverworldScreen.REST: {OverworldAction.SKIP_REST},
+            }.get(self.screen, set())
+            if not allowed_contextual_actions:
                 raise ValueError(
-                    "contextual_route_option is valid only on the Main screen"
+                    "contextual_route_option is valid only on the Main or Rest screen"
                 )
-            if self.contextual_route_option.action not in {
-                OverworldAction.ENTER_ENCOUNTER,
-                OverworldAction.RETRY,
-            }:
+            if self.contextual_route_option.action not in allowed_contextual_actions:
                 raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)

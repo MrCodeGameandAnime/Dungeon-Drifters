@@ -119,6 +119,165 @@ def quit_inputs():
     ]
 
 
+def move_to_woodland_rest(game):
+    game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
+    game.overworld_state.advance_to(
+        "surface_warrior_solo",
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+    game.overworld_state.advance_to("surface_rest_after_warrior_solo")
+
+
+def test_rest_fully_recovers_without_changing_unrelated_player_state():
+    player = PlayerState(RogueArcher(), gold=17)
+    player.gain_experience(140)
+    player.increase_permanent_stat("strength")
+    player.health.take_damage(23)
+    player.mana_resource.spend(8)
+    player.super_resource.gain(31)
+    signature_weapon = player.get_equipped("weapon")
+    player.inventory.add_item(signature_weapon)
+    player.character_run_state.prepare_infusion(
+        InfusionKind.FIRE,
+        FIRE_INFUSION_REQUIREMENTS,
+    )
+    game = GameState(player)
+    game.world_state.mark_encounter_defeated(FIRST_SURFACE_NODE_ID)
+    game.world_state.mark_encounter_defeated(SECOND_SURFACE_NODE_ID)
+    game.world_state.mark_encounter_defeated("surface_warrior_solo")
+    move_to_woodland_rest(game)
+    before = {
+        "super": player.super_resource.current,
+        "exp": player.exp_state.current,
+        "level": player.level_state.current,
+        "growth_points": player.growth_points,
+        "gold": player.gold,
+        "equipment": player.equipment,
+        "inventory": player.inventory,
+        "run_state": player.character_run_state,
+        "prepared": player.character_run_state.prepared_infusion(),
+    }
+
+    result, ui, battles, _, _ = run_session(
+        game,
+        [
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.REST),
+            *quit_inputs(),
+        ],
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert battles.instances == []
+    assert ui.views[1].screen is OverworldScreen.REST
+    assert player.health.current == player.health.maximum
+    assert player.mana_resource.current == player.mana_resource.maximum
+    assert player.super_resource.current == before["super"]
+    assert player.exp_state.current == before["exp"]
+    assert player.level_state.current == before["level"]
+    assert player.growth_points == before["growth_points"]
+    assert player.gold == before["gold"]
+    assert player.equipment == before["equipment"]
+    assert player.inventory is before["inventory"]
+    assert player.character_run_state is before["run_state"]
+    assert player.character_run_state.prepared_infusion() is before["prepared"]
+    assert game.world_state.defeated_encounters == (
+        FIRST_SURFACE_NODE_ID,
+        SECOND_SURFACE_NODE_ID,
+        "surface_warrior_solo",
+    )
+    assert game.overworld_state.resolved_rest_node_ids == (
+        "surface_rest_after_warrior_solo",
+    )
+    assert game.overworld_state.current_route_node_id == "surface_warrior_pair"
+    assert ui.views[-1].adventure_text == (
+        "You rest at Woodland Rest. HP and Mana are fully restored. "
+        "The route continues toward Warrior Patrol."
+    )
+
+
+def test_skip_rest_consumes_node_without_recovery():
+    player = PlayerState(Brawler())
+    player.health.take_damage(12)
+    player.mana_resource.spend(4)
+    game = GameState(player)
+    move_to_woodland_rest(game)
+    before = (player.health.current, player.mana_resource.current)
+
+    result, ui, battles, _, _ = run_session(
+        game,
+        [
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.SKIP_REST),
+            *quit_inputs(),
+        ],
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert battles.instances == []
+    assert (player.health.current, player.mana_resource.current) == before
+    assert game.overworld_state.resolved_rest_node_ids == (
+        "surface_rest_after_warrior_solo",
+    )
+    assert game.overworld_state.current_route_node_id == "surface_warrior_pair"
+    assert ui.views[-1].adventure_text == (
+        "You continue from Woodland Rest without resting. "
+        "The route continues toward Warrior Patrol."
+    )
+
+
+def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node():
+    game = GameState(PlayerState(Brawler()))
+    move_to_woodland_rest(game)
+
+    result, ui, _, _, _ = run_session(
+        game,
+        [
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.MENU),
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.SAVE),
+            ChooseOverworldAction(OverworldAction.QUIT),
+            ChooseOverworldAction(OverworldAction.CANCEL),
+            ChooseOverworldAction(OverworldAction.SKIP_REST),
+            *quit_inputs(),
+        ],
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert game.overworld_state.resolved_rest_node_ids == (
+        "surface_rest_after_warrior_solo",
+    )
+    assert [view.screen for view in ui.views[:7]] == [
+        OverworldScreen.MAIN,
+        OverworldScreen.REST,
+        OverworldScreen.MAIN,
+        OverworldScreen.REST,
+        OverworldScreen.REST,
+        OverworldScreen.QUIT_CONFIRMATION,
+        OverworldScreen.REST,
+    ]
+    assert ui.views[1].options[1].enabled is False
+
+
+def test_rest_is_rejected_at_a_combat_node_without_mutation():
+    game = GameState(PlayerState(Brawler()))
+    before = game.snapshot()
+
+    result, ui, battles, _, _ = run_session(
+        game,
+        [
+            ChooseOverworldAction(OverworldAction.REST),
+            *quit_inputs(),
+        ],
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert battles.instances == []
+    assert game.snapshot() == before
+    assert ui.views[1].notice == "That option is not available."
+
+
 def test_navigation_covers_every_shell_and_back_returns_one_level():
     game = GameState(PlayerState(Brawler()))
     inputs = [

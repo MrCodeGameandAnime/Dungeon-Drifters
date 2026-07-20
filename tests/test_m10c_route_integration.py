@@ -182,7 +182,7 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
     )
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
     assert game.overworld_state.resolved_rest_node_ids == ()
-    assert ui.views[1].contextual_route_option is None
+    assert ui.views[1].contextual_route_option.action is OverworldAction.SKIP_REST
     assert ui.views[1].adventure_text == (
         "Goblin Warrior is defeated. Rewards: 60 EXP and 5 gold. "
         "The route continues toward Woodland Rest."

@@ -21,6 +21,14 @@ def create_view(screen=OverworldScreen.MAIN, character_type=Brawler, **kwargs):
     return OverworldPresenter().build(game, screen=screen, **kwargs)
 
 
+def create_rest_view():
+    game = GameState(PlayerState(Brawler()))
+    game.overworld_state.advance_to("surface_goblin_pair")
+    game.overworld_state.advance_to("surface_warrior_solo")
+    game.overworld_state.advance_to("surface_rest_after_warrior_solo")
+    return OverworldPresenter().build(game, screen=OverworldScreen.REST)
+
+
 def rendered(view, *, width=100, unicode_enabled=False, interactive=False):
     output = []
     TerminalOverworldUI(
@@ -197,6 +205,10 @@ def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
         ),
         (OverworldScreen.OPTIONS, ("OPTIONS", "Save", "Quit", "Load", "Back")),
         (OverworldScreen.QUIT_CONFIRMATION, ("QUIT", "Exit this session without saving?", "Confirm", "Cancel")),
+        (
+            OverworldScreen.REST,
+            ("REST", "Rest fully restores HP and Mana", "Save [Unavailable]", "Menu"),
+        ),
     ),
 )
 def test_each_overworld_screen_has_distinct_structured_regions(
@@ -232,6 +244,37 @@ def test_item_screen_uses_authored_labels_and_hides_internal_selection_keys():
     assert "ember_shard" not in item_text
     assert "run-item:" not in item_text
     assert "surface_" not in item_text
+
+
+def test_rest_screen_renders_and_translates_approved_controls():
+    view = create_rest_view()
+
+    for width in (24, 50, 80, 120):
+        for unicode_enabled in (False, True):
+            lines = rendered(
+                view,
+                width=width,
+                unicode_enabled=unicode_enabled,
+            )
+            text = "\n".join(lines)
+            assert all(len(line) <= width for line in lines)
+            assert "REST" in text
+            assert "Rest fully restores" in text
+            assert "HP" in text
+            assert "Mana" in text
+            assert "Save [Unavailable]" in text
+            assert "Continue" in text
+            assert "surface_" not in text
+
+    rest, output = read(view, ["s", "r"])
+    assert rest == ChooseOverworldAction(OverworldAction.REST)
+    assert output == ["Saving is not yet available."]
+
+    skip, _ = read(view, ["c"])
+    assert skip == ChooseOverworldAction(OverworldAction.SKIP_REST)
+
+    menu, _ = read(view, ["m"])
+    assert menu == ChooseOverworldAction(OverworldAction.MENU)
 
 
 def test_interactive_render_clears_before_the_complete_screen():
