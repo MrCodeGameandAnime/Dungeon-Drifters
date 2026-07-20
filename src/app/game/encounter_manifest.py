@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from app.enemies.factory import create_enemy_state
+from app.enemies.factory import create_enemy_definition, create_enemy_state
 from app.game.overworld_route import (
     RouteNodeKind,
     SURFACE_ROUTE_NODES,
@@ -63,12 +63,16 @@ class RouteManifestNode:
             raise TypeError("encounter must be an EncounterManifest or None")
 
 
-def _encounter(node_id, enemies, exp_reward, gold_reward, *, boss=False):
+def _encounter(node_id, enemies, *, boss=False):
+    definitions = tuple(
+        create_enemy_definition(archetype_id, tier=0)
+        for archetype_id in enemies
+    )
     return EncounterManifest(
         encounter_id=node_id,
         enemy_archetype_ids=enemies,
-        exp_reward=exp_reward,
-        gold_reward=gold_reward,
+        exp_reward=sum(definition.exp_reward for definition in definitions),
+        gold_reward=sum(definition.gold_reward for definition in definitions),
         boss=boss,
     )
 
@@ -76,15 +80,15 @@ def _encounter(node_id, enemies, exp_reward, gold_reward, *, boss=False):
 _MANIFEST_DETAILS = {
     "surface_goblin_solo": (
         "surface_goblin_pair",
-        _encounter("surface_goblin_solo", ("goblin",), 40, 3),
+        _encounter("surface_goblin_solo", ("goblin",)),
     ),
     "surface_goblin_pair": (
         "surface_warrior_solo",
-        _encounter("surface_goblin_pair", ("goblin", "goblin"), 80, 6),
+        _encounter("surface_goblin_pair", ("goblin", "goblin")),
     ),
     "surface_warrior_solo": (
         "surface_rest_after_warrior_solo",
-        _encounter("surface_warrior_solo", ("goblin_warrior",), 60, 5),
+        _encounter("surface_warrior_solo", ("goblin_warrior",)),
     ),
     "surface_rest_after_warrior_solo": (
         "surface_warrior_pair",
@@ -95,21 +99,17 @@ _MANIFEST_DETAILS = {
         _encounter(
             "surface_warrior_pair",
             ("goblin_warrior", "goblin_warrior"),
-            120,
-            10,
         ),
     ),
     "surface_shaman_solo": (
         "surface_shaman_pair",
-        _encounter("surface_shaman_solo", ("goblin_shaman",), 90, 7),
+        _encounter("surface_shaman_solo", ("goblin_shaman",)),
     ),
     "surface_shaman_pair": (
         "surface_rest_after_shaman_pair",
         _encounter(
             "surface_shaman_pair",
             ("goblin_shaman", "goblin_shaman"),
-            180,
-            14,
         ),
     ),
     "surface_rest_after_shaman_pair": (
@@ -121,8 +121,6 @@ _MANIFEST_DETAILS = {
         _encounter(
             "surface_elite_patrol",
             ("goblin_elite", "goblin"),
-            190,
-            12,
         ),
     ),
     "surface_rest_before_goblin_lord": (
@@ -134,8 +132,6 @@ _MANIFEST_DETAILS = {
         _encounter(
             "surface_goblin_lord",
             ("goblin_lord", "goblin", "goblin_warrior"),
-            300,
-            18,
             boss=True,
         ),
     ),

@@ -3,6 +3,7 @@ import pytest
 from app.enemies.factory import create_enemy_definition, create_enemy_state
 from app.enemies.state import EnemyState
 from app.enemies.registry import get_enemy_registration
+from app.game.encounter_manifest import SURFACE_ROUTE_MANIFEST
 
 
 EXPECTED_REWARDS = {
@@ -86,3 +87,21 @@ def test_factory_exposes_fresh_canonical_scaled_definitions(archetype_id):
     assert first is not second
     assert first.archetype_id == archetype_id
     assert (first.exp_reward, first.gold_reward) == EXPECTED_REWARDS[archetype_id]
+
+
+def test_surface_manifest_rewards_equal_the_sum_of_authored_composition_values():
+    for node in SURFACE_ROUTE_MANIFEST:
+        if node.encounter is None:
+            continue
+
+        expected_exp = sum(
+            EXPECTED_REWARDS[archetype_id][0]
+            for archetype_id in node.encounter.enemy_archetype_ids
+        )
+        expected_gold = sum(
+            EXPECTED_REWARDS[archetype_id][1]
+            for archetype_id in node.encounter.enemy_archetype_ids
+        )
+
+        assert node.encounter.exp_reward == expected_exp
+        assert node.encounter.gold_reward == expected_gold
