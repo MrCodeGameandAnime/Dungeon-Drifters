@@ -48,7 +48,11 @@ def test_default_player_snapshot_has_required_shape():
         "mana": {"current": 46, "maximum": 46},
         "super": {"current": 0, "maximum": 100},
     }
-    assert snapshot["progression"] == {"level": 1, "exp": 0}
+    assert snapshot["progression"] == {
+        "level": 1,
+        "exp": 0,
+        "growth_points": 0,
+    }
     assert "next_exp_threshold" not in snapshot["progression"]
     assert snapshot["gold"] == 0
     assert snapshot["inventory"] == []
@@ -112,7 +116,11 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
     assert snapshot["resources"]["health"] == {"current": 84, "maximum": 91}
     assert snapshot["resources"]["mana"] == {"current": 48, "maximum": 56}
     assert snapshot["resources"]["super"] == {"current": 70, "maximum": 100}
-    assert snapshot["progression"] == {"level": 3, "exp": 25}
+    assert snapshot["progression"] == {
+        "level": 3,
+        "exp": 25,
+        "growth_points": 0,
+    }
     assert snapshot["gold"] == 15
     assert snapshot["inventory"] == ["tonic", "tonic"]
     assert_strict_json(snapshot)

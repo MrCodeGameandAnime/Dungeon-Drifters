@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
 from app.player import resources
+from app.player import progression
 from app.snapshot import to_plain_value
 from app.player.character import Character
 from app.player.character_run_state import (
@@ -37,6 +38,7 @@ class PlayerState:
 
         self._character = character
         self._gold = self._validate_gold_amount(gold)
+        self._growth_points = 0
         self._inventory = Inventory()
         self._character_run_state = CharacterRunState(
             inventory=character.starting_run_inventory,
@@ -100,6 +102,10 @@ class PlayerState:
         return self.character.exp_state
 
     @property
+    def growth_points(self):
+        return self._growth_points
+
+    @property
     def stats(self):
         return self.character.stats
 
@@ -135,6 +141,38 @@ class PlayerState:
 
     def is_alive(self):
         return self.health.is_alive()
+
+    def gain_experience(self, amount):
+        amount = self.exp_state.validate_gain_amount(amount)
+        levels_gained = self.exp_state.gain(amount)
+        if levels_gained:
+            self._growth_points += (
+                levels_gained * progression.GROWTH_POINTS_PER_LEVEL
+            )
+            self.character.recalculate_resource_maximums(
+                increase_current=True,
+            )
+
+        return levels_gained
+
+    def increase_permanent_stat(self, stat_name):
+        current_value = self.character.permanent_stats.get_stat(stat_name)
+        if self._growth_points <= 0:
+            raise ValueError("no Growth Points available")
+        if current_value >= self.character.permanent_stats.MAXIMUM:
+            raise ValueError("stat is already at its maximum")
+
+        new_value = self.character.permanent_stats.increase_stat(
+            stat_name,
+            1,
+        )
+        self._growth_points -= 1
+        if stat_name in {"constitution", "spirit"}:
+            self.character.recalculate_resource_maximums(
+                increase_current=True,
+            )
+
+        return new_value
 
     def add_gold(self, amount):
         self._gold += self._validate_gold_amount(amount)
@@ -234,6 +272,7 @@ class PlayerState:
             "progression": {
                 "level": self.level_state.current,
                 "exp": self.exp_state.current,
+                "growth_points": self.growth_points,
             },
             "gold": self.gold,
             "inventory": [
