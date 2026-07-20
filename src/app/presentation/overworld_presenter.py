@@ -5,7 +5,12 @@ from itertools import groupby
 from app.enemies.registry import get_enemy_registration
 from app.game.encounter_manifest import inspectable_encounter_for_node
 from app.game.game_state import GameState
-from app.game.overworld_route import RouteNodeKind, SURFACE_ROUTE_NODES, route_node
+from app.game.overworld_route import (
+    FIRST_SURFACE_NODE_ID,
+    RouteNodeKind,
+    SURFACE_ROUTE_NODES,
+    route_node,
+)
 from app.game.overworld_state import ContextualRoutePhase
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
@@ -124,12 +129,20 @@ class OverworldPresenter:
 
     @staticmethod
     def _default_adventure_text(game_state):
+        current_label = route_node(
+            game_state.overworld_state.current_route_node_id
+        ).display_label
         phase = game_state.overworld_state.current_contextual_route_phase
         if phase is ContextualRoutePhase.RETRY:
-            return "The Goblin still blocks the road. Regroup and try again."
+            return f"{current_label} still blocks the route. Regroup and try again."
         if phase is ContextualRoutePhase.NONE:
-            return "The first Goblin has fallen. Two more wait farther along the road."
-        return "The road through Ketlyv begins at the edge of the Goblin horde."
+            return f"{current_label} is cleared. The route continues ahead."
+        if (
+            game_state.overworld_state.current_route_node_id
+            == FIRST_SURFACE_NODE_ID
+        ):
+            return "The road through Ketlyv begins at the edge of the Goblin horde."
+        return f"{current_label} awaits along the surface route."
 
     def _character_view(self, game_state):
         player = game_state.player_state

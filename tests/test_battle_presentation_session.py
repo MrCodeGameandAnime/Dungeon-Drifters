@@ -1,6 +1,10 @@
 import pytest
 
-from app.presentation.battle_models import BattleEventType, BattleLogEntry
+from app.presentation.battle_models import (
+    BattleEventType,
+    BattleLogEntry,
+    InputRejectionReason,
+)
 from app.presentation.battle_session import (
     DEFAULT_MAX_LOG_ENTRIES,
     BattlePresentationSession,
@@ -85,7 +89,43 @@ def test_session_accepts_only_semantic_entries():
         BattlePresentationSession(max_entries=0)
 
 
+def test_transient_rejection_replaces_itself_without_consuming_history():
+    session = BattlePresentationSession(max_entries=2)
+    history = (_entry(1), _entry(2))
+    for entry in history:
+        session.record(entry)
+    first = BattleLogEntry(
+        BattleEventType.INPUT_REJECTED,
+        rejection_reason=InputRejectionReason.TARGET_UNAVAILABLE,
+    )
+    second = BattleLogEntry(
+        BattleEventType.INPUT_REJECTED,
+        rejection_reason=InputRejectionReason.MOVE_UNAVAILABLE,
+    )
+
+    session.record_transient_rejection(first)
+    session.record_transient_rejection(second)
+
+    assert session.entries == (*history, second)
+
+    session.begin_player_turn()
+    assert session.entries == ()
+
+
+def test_transient_rejection_accepts_only_typed_input_rejections():
+    session = BattlePresentationSession()
+
+    with pytest.raises(TypeError):
+        session.record_transient_rejection("unavailable")
+    with pytest.raises(ValueError):
+        session.record_transient_rejection(_entry(1))
+
+
 def test_session_owns_no_combat_state():
     session = BattlePresentationSession()
 
-    assert set(vars(session)) == {"_max_entries", "_entries"}
+    assert set(vars(session)) == {
+        "_max_entries",
+        "_entries",
+        "_transient_rejection",
+    }

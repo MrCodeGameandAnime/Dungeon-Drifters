@@ -81,7 +81,8 @@ def test_attack_path_reaches_victory_ending():
     assert "Joruun Veyr" in text
     assert "HP 100/100" in text
     assert "OVERWORLD  |  Goblin Pair" in text
-    assert "The first Goblin falls" in text
+    assert "Goblin Ambush is defeated" in text
+    assert "The route continues toward Goblin Pair" in text
     assert "Exit this session without saving?" in text
 
 

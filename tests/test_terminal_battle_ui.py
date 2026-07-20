@@ -8,12 +8,14 @@ from app.presentation.battle_models import (
     BattleLogEntry,
     BattleView,
     CombatantView,
+    EnemyCombatantView,
     InteractionPhase,
     InventoryCommandOptionView,
     InventoryConfirmationView,
     InventoryAvailabilityReason,
     InventoryInspectionView,
     InventoryItemOptionView,
+    InputRejectionReason,
     MoveAvailabilityReason,
     MoveOptionView,
     SuperMeterView,
@@ -30,6 +32,7 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.terminal_battle_ui import TerminalBattleUI
+from app.presentation.battle_session import BattlePresentationSession
 
 
 class TerminalHarness:
@@ -60,7 +63,7 @@ def _view(
     log_entries=(),
 ):
     player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
-    enemy = CombatantView("Goblin", 60, 60)
+    enemy = EnemyCombatantView("enemy_1", "Goblin", 60, 60)
     actions = action_options or (
         ActionOptionView(ActionIntent.ATTACK, 1, "Attack", True),
         ActionOptionView(ActionIntent.DEFEND, 2, "Defend", True),
@@ -89,7 +92,7 @@ def _view(
     return BattleView(
         interaction_phase=phase,
         player=player,
-        enemy=enemy,
+        enemies=(enemy,),
         super_meter=SuperMeterView(
             current=100 if super_ready else 0,
             maximum=100,
@@ -413,7 +416,7 @@ def test_poison_outcomes_render_as_secondary_infused_barb_results():
     ui, _ = _ui(())
 
     assert ui._log_lines(entry) == (
-        "Zhaivra used Infused Barb. It dealt 12 damage.",
+        "Zhaivra used Infused Barb against Goblin. It dealt 12 damage.",
         "Zhaivra loosed the prepared Infused Barb.",
         "Goblin began suffering Poison.",
         "Zhaivra suffered 5 Poison damage.",
@@ -447,7 +450,7 @@ def test_infused_barb_primary_resource_consumption_and_burn_render_in_order():
     lines = ui._log_lines(entry)
 
     assert lines == (
-        "Zhaivra used Infused Barb. It dealt 12 damage.",
+        "Zhaivra used Infused Barb against Goblin. It dealt 12 damage.",
         "Resource spent: 5.",
         "Zhaivra loosed the prepared Infused Barb.",
         "Goblin began burning.",
@@ -473,7 +476,7 @@ def test_missed_infused_barb_renders_no_duplicate_damage_or_burn_outcome():
     ui, _ = _ui(())
 
     assert ui._log_lines(entry) == (
-        "Zhaivra used Infused Barb, but missed.",
+        "Zhaivra used Infused Barb against Goblin, but missed.",
         "Resource spent: 5.",
         "Zhaivra loosed the prepared Infused Barb.",
     )
@@ -554,8 +557,10 @@ def test_render_uses_injected_output_and_semantic_log_values():
     assert _contains(harness, "HP 60/60")
     assert _contains(
         harness,
-        "Ser Branoc used Ironwake Dismemberment. Critical hit! It dealt 21 damage.",
+        "Ser Branoc used Ironwake Dismemberment against",
     )
+    assert _contains(harness, "Critical hit! It")
+    assert _contains(harness, "dealt 21 damage.")
     assert _contains(harness, "Actions")
 
 
@@ -602,7 +607,10 @@ def test_complex_gravemantle_log_keeps_primary_result_and_ordered_outcomes():
     ui.render(_view(log_entries=(primary, enemy_response)))
     text = "\n".join(harness.lines)
 
-    assert "Azhvielle used Gravemantle Rupture. It dealt 20 damage." in text
+    assert (
+        "Azhvielle used Gravemantle Rupture against Goblin. "
+        "It dealt 20 damage."
+    ) in text
     assert "Resource spent: 12." in text
     assert "Azhvielle discharged Arcane Overcharge." in text
     assert "Goblin's Gravemantle Break cleared." in text
@@ -845,7 +853,18 @@ def test_persistent_hud_preserves_sections_and_width_at_supported_sizes():
             temporary_labels=("Defending", "Brace"),
             defending=True,
         ),
-        enemy=CombatantView("Goblin", 40, 60, 3, 5, 20, 100),
+        enemies=(
+            EnemyCombatantView(
+                "enemy_1",
+                "Goblin",
+                40,
+                60,
+                3,
+                5,
+                20,
+                100,
+            ),
+        ),
     )
 
     for width in (120, 80, 60):
@@ -904,6 +923,157 @@ def test_ascii_and_linear_fallback_preserve_meaning_without_ansi():
     assert "-" in text
     assert not any(character in text for character in "┌┐└┘├┤│─█░")
     assert "\033[" not in text
+
+
+def test_multi_enemy_layout_preserves_four_authored_labels_at_supported_widths():
+    enemies = tuple(
+        EnemyCombatantView(
+            f"enemy_{index}",
+            f"Goblin {index}",
+            0 if index == 1 else 60 - index,
+            60,
+            super_current=0,
+            super_maximum=100,
+            temporary_labels=("Defeated",) if index == 1 else (),
+            defeated=index == 1,
+        )
+        for index in range(1, 5)
+    )
+    view = replace(_view(), enemies=enemies)
+
+    for width in (50, 60, 80, 120):
+        harness = TerminalHarness()
+        ui = TerminalBattleUI(
+            input_func=harness.input,
+            output_func=harness.output,
+            width_provider=lambda width=width: width,
+            ansi_enabled=False,
+            interactive=False,
+        )
+
+        ui.render(view)
+        text = "\n".join(harness.lines)
+
+        assert all(len(line) <= width for line in harness.lines)
+        for label in ("Goblin 1", "Goblin 2", "Goblin 3", "Goblin 4"):
+            assert label in text
+        assert "HP 0/60" in text
+        assert "Defeated" in text
+        assert "VS" in text
+
+
+def test_four_enemy_turn_log_remains_visible_after_wrapping():
+    entries = [
+        BattleLogEntry(
+            BattleEventType.DAMAGE,
+            actor_name="Ser Branoc",
+            target_name="Goblin 2",
+            action_name="Ironwake Dismemberment",
+            accepted=True,
+            hit=True,
+            amount=21,
+        ),
+        BattleLogEntry(
+            BattleEventType.STATUS,
+            actor_name="Ser Branoc",
+            target_name="Goblin 2",
+            outcomes=(
+                CombatOutcome(CombatOutcomeType.BREAK_APPLIED),
+                CombatOutcome(CombatOutcomeType.OVERCHARGE_GAINED),
+                CombatOutcome(CombatOutcomeType.FROSTBITE_APPLIED),
+            ),
+        ),
+    ]
+    for index in range(1, 5):
+        entries.append(
+            BattleLogEntry(
+                BattleEventType.DAMAGE,
+                actor_name=f"Goblin {index}",
+                target_name="Ser Branoc",
+                action_name="Shieldbreaker Chop",
+                accepted=True,
+                hit=True,
+                amount=15,
+            )
+        )
+        entries.append(
+            BattleLogEntry(
+                BattleEventType.STATUS,
+                actor_name=f"Goblin {index}",
+                target_name="Ser Branoc",
+                outcomes=(
+                    CombatOutcome(
+                        CombatOutcomeType.BURN_TICK,
+                        amount=5,
+                        target=CombatOutcomeTarget.ACTOR,
+                    ),
+                    CombatOutcome(
+                        CombatOutcomeType.POISON_TICK,
+                        amount=5,
+                        target=CombatOutcomeTarget.ACTOR,
+                    ),
+                    CombatOutcome(
+                        CombatOutcomeType.FROSTBITE_TICK,
+                        amount=5,
+                        target=CombatOutcomeTarget.ACTOR,
+                    ),
+                ),
+            )
+        )
+    entries.append(
+        BattleLogEntry(
+            BattleEventType.VICTORY,
+            actor_name="Ser Branoc",
+            target_name="Goblin 1, Goblin 2, Goblin 3, Goblin 4",
+        )
+    )
+    session = BattlePresentationSession()
+    for entry in entries:
+        session.record(entry)
+    rejection = BattleLogEntry(
+        BattleEventType.INPUT_REJECTED,
+        rejection_reason=InputRejectionReason.TARGET_UNAVAILABLE,
+    )
+    session.record_transient_rejection(rejection)
+    assert session.entries[:-1] == tuple(entries)
+    assert session.entries[-1] is rejection
+    view = _view(log_entries=session.entries)
+
+    for width in (50, 60, 80, 120):
+        harness = TerminalHarness()
+        ui = TerminalBattleUI(
+            input_func=harness.input,
+            output_func=harness.output,
+            width_provider=lambda width=width: width,
+            ansi_enabled=False,
+            interactive=False,
+        )
+
+        rendered = ui._display_log_lines(view, width)
+
+        assert len(rendered) <= ui.VISIBLE_LOG_LINES
+        if width == 50:
+            assert len(rendered) == 28
+        assert any("Ser Branoc used Ironwake Dismemberment" in line for line in rendered)
+        for index in range(1, 5):
+            assert any(
+                f"Goblin {index} used Shieldbreaker Chop" in line
+                for line in rendered
+            )
+            assert any(
+                f"Goblin {index} suffered 5 Burn damage." in line
+                for line in rendered
+            )
+            assert any(
+                f"Goblin {index} suffered 5 Poison damage." in line
+                for line in rendered
+            )
+            assert any(
+                f"Goblin {index} suffered 5 Frostbite damage." in line
+                for line in rendered
+            )
+        assert any("Ser Branoc is victorious over" in line for line in rendered)
+        assert any("That target is not available." in line for line in rendered)
 
 
 def test_super_meter_is_persistent_and_ready_text_matches_availability():

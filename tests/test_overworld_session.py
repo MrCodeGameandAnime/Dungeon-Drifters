@@ -43,12 +43,16 @@ class BattleHarness:
         class FakeBattle:
             def __init__(self):
                 self.player_state = player_state
-                self.enemy = enemy
+                self.enemies = tuple(enemy)
+                self.enemy = self.enemies
                 self.ui = ui
 
             def run(self):
                 if index < len(harness.mutations):
                     harness.mutations[index](self.player_state)
+                if harness.winners[index] == "player":
+                    for enemy in self.enemies:
+                        enemy.alive = False
                 return harness.winners[index]
 
         battle = FakeBattle()
@@ -62,10 +66,18 @@ class EnemyFactory:
         self.enemies = []
 
     def __call__(self, archetype_id, *, tier):
-        enemy = object()
+        enemy = StubEnemy()
         self.calls.append((archetype_id, tier))
         self.enemies.append(enemy)
         return enemy
+
+
+class StubEnemy:
+    def __init__(self):
+        self.alive = True
+
+    def is_alive(self):
+        return self.alive
 
 
 class BattleUIFactory:
@@ -176,7 +188,7 @@ def test_item_selection_and_inspection_are_transient_and_non_consuming():
     assert game.snapshot() == before
 
 
-def test_victory_preserves_battle_mutations_and_advances_to_paused_pair_node():
+def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     player = PlayerState(RogueArcher())
     game = GameState(player)
     identities = (
@@ -213,7 +225,7 @@ def test_victory_preserves_battle_mutations_and_advances_to_paused_pair_node():
     assert result is OverworldSessionResult.QUIT
     assert battles.instances[0].player_state is player
     assert enemies.calls == [("goblin", 0)]
-    assert battles.instances[0].enemy is enemies.enemies[0]
+    assert battles.instances[0].enemy == (enemies.enemies[0],)
     assert battles.instances[0].ui is battle_uis.instances[0]
     assert player.health.current == player.health.maximum - 12
     assert player.mana_resource.current == player.mana_resource.maximum - 5
@@ -223,10 +235,13 @@ def test_victory_preserves_battle_mutations_and_advances_to_paused_pair_node():
     ) is True
     assert game.world_state.defeated_encounters == (FIRST_SURFACE_NODE_ID,)
     assert game.overworld_state.current_route_node_id == SECOND_SURFACE_NODE_ID
-    assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
+    assert (
+        game.overworld_state.current_contextual_route_phase
+        is ContextualRoutePhase.ENTER_ENCOUNTER
+    )
     post_victory = ui.views[1]
     assert post_victory.location_label == "Goblin Pair"
-    assert post_victory.contextual_route_option is None
+    assert post_victory.contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
     assert identities == (
         player,
         player.character,
@@ -347,7 +362,10 @@ def test_retry_creates_a_fresh_enemy_and_victory_cannot_replay_first_encounter()
     assert len(enemies.enemies) == 2
     assert enemies.enemies[0] is not enemies.enemies[1]
     assert game.world_state.defeated_encounters == (FIRST_SURFACE_NODE_ID,)
-    assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
+    assert (
+        game.overworld_state.current_contextual_route_phase
+        is ContextualRoutePhase.ENTER_ENCOUNTER
+    )
 
 
 def test_quit_confirmation_is_transient_cancelable_and_does_not_autosave():

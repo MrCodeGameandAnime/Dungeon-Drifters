@@ -13,9 +13,17 @@ class EnemyFactory:
         self.enemies = []
 
     def __call__(self, archetype_id, *, tier):
-        enemy = object()
+        enemy = StubEnemy()
         self.enemies.append(enemy)
         return enemy
+
+
+class StubEnemy:
+    def __init__(self):
+        self.alive = True
+
+    def is_alive(self):
+        return self.alive
 
 
 def terminal_ui(inputs, output):
@@ -92,9 +100,11 @@ def test_post_battle_overworld_render_clears_the_final_battle_frame():
     class WinningBattle:
         def __init__(self, acting_player, enemy, *, ui):
             assert acting_player is player
-            self.enemy = enemy
+            self.enemies = tuple(enemy)
 
         def run(self):
+            for enemy in self.enemies:
+                enemy.alive = False
             output.append("FINAL BATTLE FRAME")
             player.health.take_damage(7)
             return "player"

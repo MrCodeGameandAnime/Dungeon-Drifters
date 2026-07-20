@@ -43,3 +43,16 @@ class Combatant(Protocol):
 
     def is_alive(self):
         ...
+
+
+@runtime_checkable
+class EnemyCombatant(Combatant, Protocol):
+    """Combat-facing identity required for an enemy Battle participant."""
+
+    @property
+    def archetype_id(self):
+        ...
+
+    @property
+    def tier(self):
+        ...

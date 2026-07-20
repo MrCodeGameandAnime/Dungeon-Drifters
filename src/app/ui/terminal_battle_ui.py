@@ -19,13 +19,16 @@ from app.ui.battle_ui import (
     ChooseInventoryCompanion,
     ChooseInventoryItem,
     ChooseMove,
+    ChooseTarget,
     ConfirmInventoryUse,
     GoBack,
 )
 
 
 class TerminalBattleUI:
-    VISIBLE_LOG_LINES = 12
+    # The semantic session remains bounded at twelve entries. This rendered
+    # bound retains the wrapped lines from one complete four-enemy turn.
+    VISIBLE_LOG_LINES = 28
     _ACTION_KEYS = {
         ActionIntent.ATTACK: "A",
         ActionIntent.DEFEND: "D",
@@ -91,6 +94,8 @@ class TerminalBattleUI:
             self._output("That is not a valid move. Please try again.")
 
     def _translate_choice(self, view, choice):
+        if view.interaction_phase == InteractionPhase.COMPLETE:
+            return None
         if choice in ("s", "super"):
             if view.super_meter.activation_offered:
                 return ChooseAction(ActionIntent.SUPER)
@@ -102,6 +107,8 @@ class TerminalBattleUI:
 
         if choice in ("0", "back"):
             return GoBack()
+        if view.interaction_phase == InteractionPhase.TARGETS:
+            return self._translate_target(view, choice)
         if view.interaction_phase == InteractionPhase.INVENTORY:
             return self._translate_inventory_item(view, choice)
         if view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
@@ -141,6 +148,19 @@ class TerminalBattleUI:
             if move.enabled:
                 return ChooseMove(move.selection_key)
             self._output(f"{move.name} is not available.")
+            return None
+        return None
+
+    def _translate_target(self, view, choice):
+        for option in view.target_options:
+            if choice not in (
+                str(option.number),
+                option.display_label.lower(),
+            ):
+                continue
+            if option.enabled:
+                return ChooseTarget(option.target_id)
+            self._output(f"{option.display_label} is not available.")
             return None
         return None
 
@@ -189,13 +209,14 @@ class TerminalBattleUI:
     def _framed_lines(self, view, width):
         chars = self._frame_characters()
         lines = [chars["top_left"] + chars["horizontal"] * (width - 2) + chars["top_right"]]
-        sections = (
+        sections = [
             self._status_lines(view, width - 4),
             self._visual_lines(view, width - 4),
             self._display_log_lines(view, width - 4),
-            self._control_lines(view, width - 4),
-            (self._super_meter_line(view, width - 4),),
-        )
+        ]
+        if view.interaction_phase != InteractionPhase.COMPLETE:
+            sections.append(self._control_lines(view, width - 4))
+        sections.append((self._super_meter_line(view, width - 4),))
         for section_index, section in enumerate(sections):
             if section_index:
                 lines.append(
@@ -211,13 +232,15 @@ class TerminalBattleUI:
     def _linear_lines(self, view, width):
         lines = ["STATUS"]
         lines.extend(self._combatant_status(view.player, include_super=False))
-        lines.extend(self._combatant_status(view.enemy, include_super=True))
+        for enemy in view.enemies:
+            lines.extend(self._combatant_status(enemy, include_super=True))
         lines.append("VISUALS")
         lines.extend(self._visual_lines(view, width))
         lines.append("BATTLE LOG")
         lines.extend(self._display_log_lines(view, width))
-        lines.append("ACTIONS")
-        lines.extend(self._control_lines(view, width))
+        if view.interaction_phase != InteractionPhase.COMPLETE:
+            lines.append("ACTIONS")
+            lines.extend(self._control_lines(view, width))
         lines.append(self._super_meter_line(view, width))
         return tuple(
             wrapped
@@ -227,6 +250,13 @@ class TerminalBattleUI:
 
     def _status_lines(self, view, width):
         player_lines = self._combatant_status(view.player, include_super=False)
+        if len(view.enemies) > 1:
+            rows = list(player_lines)
+            rows.append("Enemies")
+            for enemy in view.enemies:
+                rows.extend(self._combatant_status(enemy, include_super=True))
+            return tuple(rows)
+
         enemy_lines = self._combatant_status(view.enemy, include_super=True)
         separator = " │ " if self._unicode_enabled else " | "
         left_width = (width - len(separator)) // 2
@@ -254,12 +284,28 @@ class TerminalBattleUI:
         return tuple(lines)
 
     def _visual_lines(self, view, width):
+        if len(view.enemies) > 1:
+            player = " ".join(view.visual.player_lines) or view.player.display_name
+            enemy_lines = view.visual.enemy_lines or tuple(
+                f"[ {current.display_label} ]" for current in view.enemies
+            )
+            lines = [self._fit(f"{player}   VS", width).center(width)]
+            lines.extend(
+                self._fit(f"  {enemy_line}", width).center(width)
+                for enemy_line in enemy_lines
+            )
+            return tuple(lines)
+
         if view.visual.player_lines or view.visual.enemy_lines:
             player = " ".join(view.visual.player_lines) or view.player.display_name
-            enemy = " ".join(view.visual.enemy_lines) or view.enemy.display_name
+            enemy = " ".join(view.visual.enemy_lines) or ", ".join(
+                current.display_label for current in view.enemies
+            )
         else:
             player = f"[ {view.player.display_name} ]"
-            enemy = f"[ {view.enemy.display_name} ]"
+            enemy = "  ".join(
+                f"[ {current.display_label} ]" for current in view.enemies
+            )
         return (self._fit(f"{player}   VS   {enemy}", width).center(width),)
 
     def _display_log_lines(self, view, width):
@@ -270,6 +316,8 @@ class TerminalBattleUI:
         return tuple(lines[-self.VISIBLE_LOG_LINES:] or ("Battle awaits.",))
 
     def _control_lines(self, view, width):
+        if view.interaction_phase == InteractionPhase.COMPLETE:
+            return ()
         if view.interaction_phase == InteractionPhase.ACTIONS:
             labels = tuple(
                 f"[{self._ACTION_KEYS[option.intent]}] {option.label}"
@@ -298,6 +346,37 @@ class TerminalBattleUI:
             InteractionPhase.INVENTORY_CONFIRMATION,
         }:
             return self._inventory_control_lines(view, width)
+
+        if view.interaction_phase == InteractionPhase.TARGETS:
+            lines = ["Choose a target:"]
+            for option in view.target_options:
+                states = (
+                    " | " + ", ".join(option.temporary_labels)
+                    if option.temporary_labels
+                    else ""
+                )
+                suffix = " [Unavailable]" if not option.enabled else ""
+                lines.extend(
+                    self._wrap(
+                        (
+                            f"{option.number}. {option.display_label} - "
+                            f"HP {option.hp_current}/{option.hp_maximum}"
+                            f"{states}{suffix}"
+                        ),
+                        width,
+                    )
+                )
+                preview = option.move_preview
+                tags = " | ".join(preview.tags)
+                lines.extend(
+                    "   " + preview_line
+                    for preview_line in self._wrap(
+                        f"{preview.name} [{tags}] - {preview.rules_summary}",
+                        max(20, width - 3),
+                    )
+                )
+            lines.append("0. Back")
+            return tuple(lines)
 
         lines = [self._phase_heading(view.interaction_phase)]
         for move in view.move_options:
@@ -447,11 +526,20 @@ class TerminalBattleUI:
             lines.append(f"{actor} will go first.")
         elif entry.event_type == BattleEventType.DAMAGE:
             critical = " Critical hit!" if entry.critical else ""
-            lines.append(f"{actor} used {action}.{critical} It dealt {entry.amount} damage.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}.{critical} "
+                f"It dealt {entry.amount} damage."
+            )
         elif entry.event_type == BattleEventType.MISS:
-            lines.append(f"{actor} used {action}, but missed.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(f"{actor} used {action}{target_context}, but missed.")
         elif entry.event_type == BattleEventType.HEALING:
-            lines.append(f"{actor} used {action}. It restored {entry.amount} health.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}. "
+                f"It restored {entry.amount} health."
+            )
         elif entry.event_type == BattleEventType.DEFEND:
             lines.append(f"{actor} used Defend.")
         elif entry.event_type == BattleEventType.UTILITY:
@@ -462,7 +550,11 @@ class TerminalBattleUI:
         elif entry.event_type == BattleEventType.STATUS:
             pass
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
-            lines.append(f"{actor} used {action}, but it failed: {entry.reason}.")
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}, "
+                f"but it failed: {entry.reason}."
+            )
         elif entry.event_type == BattleEventType.INPUT_REJECTED:
             lines.append(self._input_rejection_text(entry.rejection_reason))
         elif entry.event_type == BattleEventType.VICTORY:
@@ -478,6 +570,12 @@ class TerminalBattleUI:
             lines.append(f"Statuses applied: {', '.join(entry.statuses_applied)}.")
         lines.extend(self._outcome_lines(entry))
         return tuple(lines)
+
+    @staticmethod
+    def _target_context(actor, target):
+        if target is None or target == actor:
+            return ""
+        return f" against {target}"
 
     @staticmethod
     def _outcome_lines(entry):
@@ -593,6 +691,8 @@ class TerminalBattleUI:
             return "Super is not available."
         if reason == InputRejectionReason.MOVE_UNAVAILABLE:
             return "That move is not available."
+        if reason == InputRejectionReason.TARGET_UNAVAILABLE:
+            return "That target is not available."
         if reason == InputRejectionReason.BACK_UNAVAILABLE:
             return "Back is not available."
         return "That action is not available."

@@ -26,6 +26,8 @@ class InteractionPhase(StrEnum):
     INVENTORY_INSPECT = "inventory_inspect"
     INVENTORY_COMBINATION = "inventory_combination"
     INVENTORY_CONFIRMATION = "inventory_confirmation"
+    TARGETS = "targets"
+    COMPLETE = "complete"
 
 
 class InputRejectionReason(StrEnum):
@@ -37,6 +39,7 @@ class InputRejectionReason(StrEnum):
     INVENTORY_COMMAND_UNAVAILABLE = "inventory_command_unavailable"
     INVENTORY_COMPANION_UNAVAILABLE = "inventory_companion_unavailable"
     INVENTORY_CONFIRMATION_UNAVAILABLE = "inventory_confirmation_unavailable"
+    TARGET_UNAVAILABLE = "target_unavailable"
 
 
 class BattleEventType(StrEnum):
@@ -102,6 +105,45 @@ class CombatantView:
 
 
 @dataclass(frozen=True)
+class EnemyCombatantView:
+    target_id: str
+    display_label: str
+    hp_current: int
+    hp_maximum: int
+    mana_current: int | None = None
+    mana_maximum: int | None = None
+    super_current: int | None = None
+    super_maximum: int | None = None
+    defending: bool = False
+    temporary_labels: tuple[str, ...] = ()
+    defeated: bool = False
+
+    def __post_init__(self):
+        object.__setattr__(self, "target_id", _validate_nonempty_string("target_id", self.target_id))
+        object.__setattr__(
+            self,
+            "display_label",
+            _validate_nonempty_string("display_label", self.display_label),
+        )
+        _validate_resource_pair("hp", self.hp_current, self.hp_maximum, optional=False)
+        _validate_resource_pair("mana", self.mana_current, self.mana_maximum, optional=True)
+        _validate_resource_pair("super", self.super_current, self.super_maximum, optional=True)
+        object.__setattr__(self, "defending", _validate_bool("defending", self.defending))
+        object.__setattr__(
+            self,
+            "temporary_labels",
+            _validate_string_tuple("temporary_labels", self.temporary_labels),
+        )
+        object.__setattr__(self, "defeated", _validate_bool("defeated", self.defeated))
+        if self.defeated and self.hp_current != 0:
+            raise ValueError("defeated enemies must have zero current HP")
+
+    @property
+    def display_name(self):
+        return self.display_label
+
+
+@dataclass(frozen=True)
 class ActionOptionView:
     intent: ActionIntent
     number: int | None
@@ -164,6 +206,46 @@ class MoveOptionView:
                 "disabled_reason",
                 self.disabled_reason,
                 MoveAvailabilityReason,
+            ),
+        )
+        _validate_availability(self.enabled, self.disabled_reason)
+
+
+@dataclass(frozen=True)
+class TargetOptionView:
+    target_id: str
+    number: int
+    display_label: str
+    hp_current: int
+    hp_maximum: int
+    temporary_labels: tuple[str, ...]
+    move_preview: MoveOptionView
+    enabled: bool
+    disabled_reason: InputRejectionReason | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "target_id", _validate_nonempty_string("target_id", self.target_id))
+        object.__setattr__(self, "number", _validate_positive_integer("number", self.number))
+        object.__setattr__(
+            self,
+            "display_label",
+            _validate_nonempty_string("display_label", self.display_label),
+        )
+        _validate_resource_pair("hp", self.hp_current, self.hp_maximum, optional=False)
+        object.__setattr__(
+            self,
+            "temporary_labels",
+            _validate_string_tuple("temporary_labels", self.temporary_labels),
+        )
+        _validate_instance("move_preview", self.move_preview, MoveOptionView)
+        object.__setattr__(self, "enabled", _validate_bool("enabled", self.enabled))
+        object.__setattr__(
+            self,
+            "disabled_reason",
+            _validate_optional_enum(
+                "disabled_reason",
+                self.disabled_reason,
+                InputRejectionReason,
             ),
         )
         _validate_availability(self.enabled, self.disabled_reason)
@@ -363,10 +445,11 @@ class BattleVisualView:
 class BattleView:
     interaction_phase: InteractionPhase
     player: CombatantView
-    enemy: CombatantView
+    enemies: tuple[EnemyCombatantView, ...]
     super_meter: SuperMeterView
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
+    target_options: tuple[TargetOptionView, ...] = ()
     inventory_items: tuple[InventoryItemOptionView, ...] = ()
     selected_inventory_item: InventoryItemOptionView | None = None
     inventory_commands: tuple[InventoryCommandOptionView, ...] = ()
@@ -383,7 +466,17 @@ class BattleView:
             _validate_enum("interaction_phase", self.interaction_phase, InteractionPhase),
         )
         _validate_instance("player", self.player, CombatantView)
-        _validate_instance("enemy", self.enemy, CombatantView)
+        object.__setattr__(
+            self,
+            "enemies",
+            _validate_instance_tuple("enemies", self.enemies, EnemyCombatantView),
+        )
+        if not self.enemies:
+            raise ValueError("BattleView requires at least one enemy")
+        if len(self.enemies) > 4:
+            raise ValueError("BattleView supports at most four enemies")
+        if len({enemy.target_id for enemy in self.enemies}) != len(self.enemies):
+            raise ValueError("enemy target IDs must be unique")
         _validate_instance("super_meter", self.super_meter, SuperMeterView)
         object.__setattr__(
             self,
@@ -394,6 +487,11 @@ class BattleView:
             self,
             "move_options",
             _validate_instance_tuple("move_options", self.move_options, MoveOptionView),
+        )
+        object.__setattr__(
+            self,
+            "target_options",
+            _validate_instance_tuple("target_options", self.target_options, TargetOptionView),
         )
         object.__setattr__(
             self,
@@ -455,6 +553,12 @@ class BattleView:
             _validate_instance_tuple("log_entries", self.log_entries, BattleLogEntry),
         )
         _validate_instance("visual", self.visual, BattleVisualView)
+
+    @property
+    def enemy(self):
+        if len(self.enemies) != 1:
+            raise ValueError("BattleView.enemy is available only for single-enemy battles")
+        return self.enemies[0]
 
 
 def _validate_enum(name, value, enum_type):

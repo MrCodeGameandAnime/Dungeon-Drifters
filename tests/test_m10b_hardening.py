@@ -97,7 +97,7 @@ def test_every_composition_can_be_recreated_without_identity_leakage():
             assert first_enemy.super_resource is not second_enemy.super_resource
 
 
-def test_first_victory_remains_reward_free_and_pair_combat_stays_paused():
+def test_first_victory_remains_reward_free_and_pair_combat_is_next():
     player = PlayerState(Brawler(), gold=9)
     player.exp_state.gain(13)
     game = GameState(player)
@@ -108,14 +108,26 @@ def test_first_victory_remains_reward_free_and_pair_combat_stays_paused():
 
     def enemy_factory(archetype_id, *, tier):
         enemy_calls.append((archetype_id, tier))
-        return object()
+        return StubEnemy()
 
-    def battle_factory(acting_player, enemy, *, ui):
+    class StubEnemy:
+        def __init__(self):
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+    def battle_factory(acting_player, enemies, *, ui):
         assert acting_player is player
 
         class WinningBattle:
+            def __init__(self):
+                self.enemies = tuple(enemies)
+
             @staticmethod
             def run():
+                for enemy in enemies:
+                    enemy.alive = False
                 return "player"
 
         return WinningBattle()
@@ -148,9 +160,9 @@ def test_first_victory_remains_reward_free_and_pair_combat_stays_paused():
     assert game.overworld_state.resolved_rest_node_ids == ()
     assert (
         game.overworld_state.current_contextual_route_phase
-        is ContextualRoutePhase.NONE
+        is ContextualRoutePhase.ENTER_ENCOUNTER
     )
     pair_main = ui.views[1]
     assert pair_main.screen is OverworldScreen.MAIN
     assert pair_main.location_label == "Goblin Pair"
-    assert pair_main.contextual_route_option is None
+    assert pair_main.contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
