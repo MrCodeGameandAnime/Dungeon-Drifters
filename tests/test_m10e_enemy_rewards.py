@@ -3,7 +3,11 @@ import pytest
 from app.enemies.factory import create_enemy_definition, create_enemy_state
 from app.enemies.state import EnemyState
 from app.enemies.registry import get_enemy_registration
-from app.game.encounter_manifest import SURFACE_ROUTE_MANIFEST
+from app.game.encounter_manifest import (
+    SURFACE_ROUTE_MANIFEST,
+    create_route_encounter_enemies,
+    encounter_manifest,
+)
 
 
 EXPECTED_REWARDS = {
@@ -12,6 +16,17 @@ EXPECTED_REWARDS = {
     "goblin_shaman": (90, 7),
     "goblin_elite": (150, 9),
     "goblin_lord": (200, 10),
+}
+
+EXPECTED_ENCOUNTER_REWARDS = {
+    "surface_goblin_solo": (40, 3),
+    "surface_goblin_pair": (80, 6),
+    "surface_warrior_solo": (60, 5),
+    "surface_warrior_pair": (120, 10),
+    "surface_shaman_solo": (90, 7),
+    "surface_shaman_pair": (180, 14),
+    "surface_elite_patrol": (190, 12),
+    "surface_goblin_lord": (300, 18),
 }
 
 
@@ -105,3 +120,32 @@ def test_surface_manifest_rewards_equal_the_sum_of_authored_composition_values()
 
         assert node.encounter.exp_reward == expected_exp
         assert node.encounter.gold_reward == expected_gold
+
+
+def test_all_surface_encounter_totals_and_route_totals_are_exact():
+    actual = {
+        node.encounter.encounter_id: (
+            node.encounter.exp_reward,
+            node.encounter.gold_reward,
+        )
+        for node in SURFACE_ROUTE_MANIFEST
+        if node.encounter is not None
+    }
+
+    assert actual == EXPECTED_ENCOUNTER_REWARDS
+    assert sum(exp for exp, _ in actual.values()) == 1060
+    assert sum(gold for _, gold in actual.values()) == 75
+
+
+@pytest.mark.parametrize("encounter_id", EXPECTED_ENCOUNTER_REWARDS)
+def test_runtime_enemy_mutation_cannot_change_manifest_reward(encounter_id):
+    encounter = encounter_manifest(encounter_id)
+    enemies = create_route_encounter_enemies(encounter_id)
+
+    for enemy in enemies:
+        enemy.health.take_damage(enemy.health.current)
+        enemy.mana_resource.spend(enemy.mana_resource.current)
+
+    assert (encounter.exp_reward, encounter.gold_reward) == (
+        EXPECTED_ENCOUNTER_REWARDS[encounter_id]
+    )
