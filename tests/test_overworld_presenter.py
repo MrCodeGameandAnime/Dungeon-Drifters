@@ -327,6 +327,85 @@ def test_map_uses_overworld_state_as_the_rest_completion_owner():
     assert "surface_rest" not in " ".join(states)
 
 
+@pytest.mark.parametrize(
+    ("rest_node_id", "rest_label", "successor_id", "successor_label", "path"),
+    (
+        (
+            "surface_rest_after_warrior_solo",
+            "Woodland Rest",
+            "surface_warrior_pair",
+            "Warrior Patrol",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+            ),
+        ),
+        (
+            "surface_rest_after_shaman_pair",
+            "Ritual Clearing Rest",
+            "surface_elite_patrol",
+            "Elite Patrol",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+                "surface_warrior_pair",
+                "surface_shaman_solo",
+                "surface_shaman_pair",
+                "surface_rest_after_shaman_pair",
+            ),
+        ),
+        (
+            "surface_rest_before_goblin_lord",
+            "Final Approach Rest",
+            "surface_goblin_lord",
+            "Goblin Lord",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+                "surface_warrior_pair",
+                "surface_shaman_solo",
+                "surface_shaman_pair",
+                "surface_rest_after_shaman_pair",
+                "surface_elite_patrol",
+                "surface_rest_before_goblin_lord",
+            ),
+        ),
+    ),
+    ids=("woodland", "ritual_clearing", "final_approach"),
+)
+def test_map_marks_each_rest_completed_only_after_resolution(
+    rest_node_id,
+    rest_label,
+    successor_id,
+    successor_label,
+    path,
+):
+    game = create_game()
+    for node_id in path:
+        game.overworld_state.advance_to(node_id)
+
+    before = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+    before_states = {
+        node.display_label: node.state for node in before.route_map.nodes
+    }
+    assert before_states[rest_label] is MapNodeState.CURRENT
+
+    game.overworld_state.record_resolved_rest_node(rest_node_id)
+    game.overworld_state.advance_to(successor_id)
+    after = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+    after_states = {
+        node.display_label: node.state for node in after.route_map.nodes
+    }
+
+    assert after_states[rest_label] is MapNodeState.COMPLETED
+    assert after_states[successor_label] is MapNodeState.CURRENT
+    assert "surface_" not in repr(before)
+    assert "surface_" not in repr(after)
+
+
 def test_options_and_quit_confirmation_follow_the_approved_hierarchy():
     presenter = OverworldPresenter()
     game = create_game()

@@ -21,11 +21,37 @@ def create_view(screen=OverworldScreen.MAIN, character_type=Brawler, **kwargs):
     return OverworldPresenter().build(game, screen=screen, **kwargs)
 
 
-def create_rest_view():
+def create_rest_view(rest_node_id="surface_rest_after_warrior_solo"):
     game = GameState(PlayerState(Brawler()))
-    game.overworld_state.advance_to("surface_goblin_pair")
-    game.overworld_state.advance_to("surface_warrior_solo")
-    game.overworld_state.advance_to("surface_rest_after_warrior_solo")
+    paths = {
+        "surface_rest_after_warrior_solo": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+        ),
+        "surface_rest_after_shaman_pair": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+            "surface_warrior_pair",
+            "surface_shaman_solo",
+            "surface_shaman_pair",
+            "surface_rest_after_shaman_pair",
+        ),
+        "surface_rest_before_goblin_lord": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+            "surface_warrior_pair",
+            "surface_shaman_solo",
+            "surface_shaman_pair",
+            "surface_rest_after_shaman_pair",
+            "surface_elite_patrol",
+            "surface_rest_before_goblin_lord",
+        ),
+    }
+    for node_id in paths[rest_node_id]:
+        game.overworld_state.advance_to(node_id)
     return OverworldPresenter().build(game, screen=OverworldScreen.REST)
 
 
@@ -275,6 +301,41 @@ def test_rest_screen_renders_and_translates_approved_controls():
 
     menu, _ = read(view, ["m"])
     assert menu == ChooseOverworldAction(OverworldAction.MENU)
+
+
+@pytest.mark.parametrize(
+    ("rest_node_id", "rest_label"),
+    (
+        ("surface_rest_after_warrior_solo", "Woodland Rest"),
+        ("surface_rest_after_shaman_pair", "Ritual Clearing Rest"),
+        ("surface_rest_before_goblin_lord", "Final Approach Rest"),
+    ),
+)
+def test_all_authored_rest_nodes_render_width_safe_and_selectable(
+    rest_node_id,
+    rest_label,
+):
+    view = create_rest_view(rest_node_id)
+
+    for width in (24, 50, 80, 120):
+        for unicode_enabled in (False, True):
+            lines = rendered(
+                view,
+                width=width,
+                unicode_enabled=unicode_enabled,
+            )
+            text = "\n".join(lines)
+            assert all(len(line) <= width for line in lines)
+            assert rest_label in " ".join(text.split())
+            assert "REST" in text
+            assert "Save [Unavailable]" in text
+            assert "Continue" in text
+            assert "surface_" not in text
+
+    rest, _ = read(view, ["r"])
+    assert rest == ChooseOverworldAction(OverworldAction.REST)
+    skip, _ = read(view, ["c"])
+    assert skip == ChooseOverworldAction(OverworldAction.SKIP_REST)
 
 
 def test_interactive_render_clears_before_the_complete_screen():
