@@ -3,7 +3,7 @@ import pytest
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler, BlackMage
+from app.player.character import Brawler, BlackMage, Monk, RogueArcher
 from app.player.progression import MAXIMUM_LEVEL, xp_required_for_next_level
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction
@@ -282,3 +282,35 @@ def test_player_growth_reaches_cap_and_discards_excess_without_more_points():
     assert player.gain_experience(999999) == 0
     assert player.exp_state.current == 0
     assert player.growth_points == 3
+
+
+def test_level_one_to_cap_grants_exact_lifetime_growth_points():
+    player = PlayerState(Brawler())
+    total_exp = sum(
+        xp_required_for_next_level(level)
+        for level in range(1, MAXIMUM_LEVEL)
+    )
+
+    assert player.gain_experience(total_exp) == 249
+    assert player.level_state.current == MAXIMUM_LEVEL
+    assert player.exp_state.current == 0
+    assert player.growth_points == 747
+
+
+def test_growth_points_remain_isolated_across_four_drifter_sessions():
+    players = (
+        PlayerState(Brawler()),
+        PlayerState(BlackMage()),
+        PlayerState(RogueArcher()),
+        PlayerState(Monk()),
+    )
+
+    players[0].gain_experience(100)
+    players[0].increase_permanent_stat("strength")
+
+    assert players[0].growth_points == 2
+    assert tuple(player.growth_points for player in players[1:]) == (
+        0,
+        0,
+        0,
+    )
