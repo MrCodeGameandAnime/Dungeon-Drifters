@@ -98,7 +98,7 @@ def test_post_battle_overworld_render_clears_the_final_battle_frame():
     enemy_factory = EnemyFactory()
 
     class WinningBattle:
-        def __init__(self, acting_player, enemy, *, ui):
+        def __init__(self, acting_player, enemy, *, ui, encounter_label=None):
             assert acting_player is player
             self.enemies = tuple(enemy)
 

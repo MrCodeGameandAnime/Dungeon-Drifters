@@ -11,12 +11,14 @@ from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
 from app.presentation.overworld_models import (
     OverworldAction,
+    OverworldAvailabilityReason,
     OverworldScreen,
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
     OverworldUI,
 )
 
@@ -76,6 +78,9 @@ class OverworldSession:
             view = self._build_view()
             self._ui.render(view)
             overworld_input = self._ui.read_input(view)
+            if isinstance(overworld_input, ChoosePermanentStatIncrease):
+                self._increase_permanent_stat(view, overworld_input)
+                continue
             if isinstance(overworld_input, ChooseOverworldItem):
                 self._select_item(view, overworld_input)
                 continue
@@ -109,6 +114,47 @@ class OverworldSession:
             return
         self._selected_item_key = overworld_input.selection_key
         self._notice = None
+
+    def _increase_permanent_stat(self, view, overworld_input):
+        if view.screen is not OverworldScreen.SKILLS or view.skills is None:
+            self._notice = "That stat is not available."
+            return
+
+        row = next(
+            (
+                row
+                for row in view.skills.stats
+                if row.stat_name == overworld_input.stat_name
+            ),
+            None,
+        )
+        if row is None or not row.increase_enabled:
+            self._notice = self._stat_unavailable_message(
+                row.disabled_reason if row is not None else None
+            )
+            return
+
+        try:
+            new_value = self.game_state.player_state.increase_permanent_stat(
+                row.stat_name
+            )
+        except (TypeError, ValueError):
+            self._notice = "That stat is not available."
+            return
+
+        self._notice = (
+            f"{row.label} increased to {new_value}. "
+            f"Growth Points remaining: "
+            f"{self.game_state.player_state.growth_points}."
+        )
+
+    @staticmethod
+    def _stat_unavailable_message(reason):
+        if reason is OverworldAvailabilityReason.NO_GROWTH_POINTS:
+            return "Earn Growth Points by leveling up."
+        if reason is OverworldAvailabilityReason.STAT_AT_MAXIMUM:
+            return "That stat is already at its maximum."
+        return "That stat is not available."
 
     @staticmethod
     def _action_is_offered(view, action):
@@ -198,6 +244,7 @@ class OverworldSession:
             self.game_state.player_state,
             enemies,
             ui=self._battle_ui_factory(),
+            encounter_label=route_node(current_node_id).display_label,
         )
         winner = battle.run()
         if winner == "player":
@@ -205,9 +252,6 @@ class OverworldSession:
                 raise RuntimeError(
                     "Battle reported victory before every enemy was defeated"
                 )
-            self.game_state.world_state.mark_encounter_defeated(
-                manifest_node.encounter.encounter_id
-            )
             next_node_id = manifest_node.next_node_id
             if next_node_id is None:
                 raise RuntimeError(
@@ -215,10 +259,26 @@ class OverworldSession:
                 )
             next_node = route_node(next_node_id)
             next_phase = self._contextual_phase_for_node(next_node.kind)
+            encounter_id = manifest_node.encounter.encounter_id
+            if encounter_id in self.game_state.world_state.defeated_encounters:
+                raise RuntimeError("encounter has already been defeated")
+            player = self.game_state.player_state
+            growth_points_before = player.growth_points
+            levels_gained = player.apply_encounter_reward(
+                manifest_node.encounter.exp_reward,
+                manifest_node.encounter.gold_reward,
+            )
+            growth_points_gained = player.growth_points - growth_points_before
+            self.game_state.world_state.mark_encounter_defeated(encounter_id)
             overworld.advance_to(next_node_id, contextual_phase=next_phase)
             self._adventure_text = self._victory_adventure_text(
                 current_node_id,
                 next_node_id,
+                exp_reward=manifest_node.encounter.exp_reward,
+                gold_reward=manifest_node.encounter.gold_reward,
+                levels_gained=levels_gained,
+                growth_points_gained=growth_points_gained,
+                resulting_level=player.level_state.current,
             )
         else:
             self.game_state.player_state.restore_battle_checkpoint(checkpoint)
@@ -248,10 +308,45 @@ class OverworldSession:
         return ContextualRoutePhase.NONE
 
     @staticmethod
-    def _victory_adventure_text(completed_node_id, next_node_id):
+    def _victory_adventure_text(
+        completed_node_id,
+        next_node_id,
+        *,
+        exp_reward,
+        gold_reward,
+        levels_gained,
+        growth_points_gained,
+        resulting_level,
+    ):
         completed = route_node(completed_node_id).display_label
         next_node = route_node(next_node_id).display_label
-        return f"{completed} is defeated. The route continues toward {next_node}."
+        lines = [
+            f"{completed} is defeated.",
+            f"Rewards: {exp_reward} EXP and {gold_reward} gold.",
+        ]
+        if levels_gained == 1:
+            point_label = (
+                "Growth Point"
+                if growth_points_gained == 1
+                else "Growth Points"
+            )
+            lines.append(
+                f"Level up! Reached Level {resulting_level} and gained "
+                f"{growth_points_gained} {point_label}."
+            )
+        elif levels_gained > 1:
+            point_label = (
+                "Growth Point"
+                if growth_points_gained == 1
+                else "Growth Points"
+            )
+            lines.append(
+                f"Level up! Gained {levels_gained} levels, reached "
+                f"Level {resulting_level}, and gained "
+                f"{growth_points_gained} {point_label}."
+            )
+        lines.append(f"The route continues toward {next_node}.")
+        return " ".join(lines)
 
     @staticmethod
     def _unavailable_action_message(action):

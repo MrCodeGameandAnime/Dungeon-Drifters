@@ -39,6 +39,8 @@ class Enemy:
             dex,
             hp,
             mana,
+            exp_reward,
+            gold_reward,
             name,
             combat_moves,
             archetype_id,
@@ -56,6 +58,8 @@ class Enemy:
         self.intuition = intuition
         self.hp = hp
         self.mana = mana
+        self._exp_reward = _validate_nonnegative_integer("exp_reward", exp_reward)
+        self._gold_reward = _validate_nonnegative_integer("gold_reward", gold_reward)
         self.archetype_id = _validate_nonempty_string("archetype_id", archetype_id)
         self.name = name
         self.rank = _validate_enum_member("rank", rank, EnemyRank)
@@ -71,12 +75,29 @@ class Enemy:
             for index, move in enumerate(self.combat_moves, start=1)
         }
 
+    @property
+    def exp_reward(self):
+        return self._exp_reward
+
+    @property
+    def gold_reward(self):
+        return self._gold_reward
+
 
 def _validate_nonempty_string(name, value):
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string")
     if not value:
         raise ValueError(f"{name} must not be empty")
+
+    return value
+
+
+def _validate_nonnegative_integer(name, value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be a nonnegative integer")
+    if value < 0:
+        raise ValueError(f"{name} must be a nonnegative integer")
 
     return value
 

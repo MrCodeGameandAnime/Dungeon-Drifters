@@ -6,7 +6,8 @@ class GoblinLord(Enemy):
     def __init__(self):
         super().__init__(
             strn=11, con=10, intl=7, dex=6, spirit=7, intuition=9,
-            hp=220, mana=30, name="Goblin Lord", archetype_id="goblin_lord",
+            hp=220, mana=30, exp_reward=200, gold_reward=10,
+            name="Goblin Lord", archetype_id="goblin_lord",
             rank=EnemyRank.BOSS, role=EnemyRole.BOSS,
             behavior=EnemyBehavior.AGGRESSIVE,
             capabilities=(EnemyCapability.BASIC_ATTACKS, EnemyCapability.MAGIC),

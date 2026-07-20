@@ -23,7 +23,20 @@ class ChooseOverworldItem:
             raise ValueError("selection_key must be a nonempty string")
 
 
-OverworldInput: TypeAlias = ChooseOverworldAction | ChooseOverworldItem
+@dataclass(frozen=True)
+class ChoosePermanentStatIncrease:
+    stat_name: str
+
+    def __post_init__(self):
+        if not isinstance(self.stat_name, str) or not self.stat_name.strip():
+            raise ValueError("stat_name must be a nonempty string")
+
+
+OverworldInput: TypeAlias = (
+    ChooseOverworldAction
+    | ChooseOverworldItem
+    | ChoosePermanentStatIncrease
+)
 
 
 @runtime_checkable

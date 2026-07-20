@@ -5,9 +5,14 @@ from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
-from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
+from app.ui.overworld_ui import (
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
+)
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
 
@@ -94,6 +99,77 @@ def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
         )
 
 
+def test_character_screen_renders_normal_and_capped_exp_at_supported_widths():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.exp_state.current = 40
+    normal = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    )
+
+    game.player_state.level_state.current = MAXIMUM_LEVEL
+    game.player_state.exp_state.current = 0
+    capped = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    )
+
+    for width in (50, 100):
+        for unicode_enabled in (False, True):
+            normal_text = "\n".join(
+                rendered(
+                    normal,
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+            capped_text = "\n".join(
+                rendered(
+                    capped,
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+            assert "XP [" in normal_text
+            assert "40/100" in normal_text
+            assert "XP MAX LEVEL" in capped_text
+            assert "None" not in capped_text
+
+
+@pytest.mark.parametrize(
+    "adventure_text",
+    (
+        "Goblin Ambush is defeated. Rewards: 40 EXP and 3 gold. "
+        "The route continues toward Goblin Pair.",
+        "Goblin Pair is defeated. Rewards: 80 EXP and 6 gold. "
+        "Level up! Reached Level 2 and gained 3 Growth Points. "
+        "The route continues toward Goblin Warrior.",
+        "Shaman Pair is defeated. Rewards: 180 EXP and 14 gold. "
+        "Level up! Gained 2 levels, reached Level 6, and gained 6 Growth Points. "
+        "The route continues toward Elite Patrol.",
+    ),
+)
+def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
+    adventure_text,
+):
+    for width in (50, 80, 120):
+        for unicode_enabled in (False, True):
+            text = "\n".join(
+                rendered(
+                    create_view(adventure_text=adventure_text),
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+
+            assert "Rewards:" in text
+            assert "EXP" in text
+            assert "gold" in text
+            assert "continues" in text
+            if "Level up!" in adventure_text:
+                assert text.count("Level up!") == 1
+
+
 @pytest.mark.parametrize(
     ("screen", "required_text"),
     (
@@ -101,7 +177,16 @@ def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
             OverworldScreen.CHARACTER,
             ("CHARACTER", "STATS", "Level 1", "Super 0/100", "XP ["),
         ),
-        (OverworldScreen.SKILLS, ("SKILLS", "LEVEL UP", "[+ Unavailable]", "ATTACKS")),
+        (
+            OverworldScreen.SKILLS,
+            (
+                "SKILLS",
+                "LEVEL UP",
+                "Growth Points: 0",
+                "[No Growth Points]",
+                "ATTACKS",
+            ),
+        ),
         (OverworldScreen.WEAPON, ("WEAPON", "Sunder-Spire", "BONUSES", "DESCRIPTION")),
         (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
         (OverworldScreen.ITEMS, ("ITEMS", "Your persistent inventory is empty.", "Craft")),
@@ -297,6 +382,40 @@ def test_character_submenu_accepts_only_its_displayed_mnemonics():
 
     assert result == ChooseOverworldAction(OverworldAction.WEAPON)
     assert output == ["That option is not available."] * 2
+
+
+def test_skills_numeric_input_translates_to_canonical_stat_and_disables_without_points():
+    view = create_view(OverworldScreen.SKILLS)
+
+    result, output = read(view, ["1", "b"])
+
+    assert result == ChooseOverworldAction(OverworldAction.BACK)
+    assert output == ["Earn Growth Points by leveling up."]
+
+
+def test_skills_numeric_input_exposes_enabled_stat_increase():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.gain_experience(100)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    result, output = read(view, ["1"])
+
+    assert result == ChoosePermanentStatIncrease("strength")
+    assert output == []
+
+
+def test_skills_render_maximum_and_enabled_controls():
+    game = GameState(PlayerState(Brawler()))
+    game.player_state.gain_experience(100)
+    game.player_state.character.permanent_stats.set_stat("strength", 100)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    text = "\n".join(rendered(view))
+
+    assert "Growth Points: 3" in text
+    assert "1. Strength" in text
+    assert "[Maximum]" in text
+    assert "[+1]" in text
 
 
 def test_item_number_selects_the_item_without_exposing_its_key():

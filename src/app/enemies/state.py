@@ -42,6 +42,14 @@ class EnemyState:
         return self._definition.archetype_id
 
     @property
+    def exp_reward(self):
+        return self._definition.exp_reward
+
+    @property
+    def gold_reward(self):
+        return self._definition.gold_reward
+
+    @property
     def tier(self):
         return self._tier
 

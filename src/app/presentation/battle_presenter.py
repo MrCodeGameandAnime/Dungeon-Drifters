@@ -48,6 +48,7 @@ class BattlePresenter:
         combat_state,
         enemies=None,
         enemy=None,
+        encounter_label=None,
         enemy_target_ids=None,
         enemy_display_labels=None,
         log_entries=(),
@@ -71,6 +72,8 @@ class BattlePresenter:
             len(enemies),
             "enemy_display_labels",
         )
+        if encounter_label is None:
+            encounter_label = ", ".join(enemy_display_labels)
         living_enemies = tuple(current for current in enemies if current.is_alive())
         exact_move_target = living_enemies[0] if len(living_enemies) == 1 else None
         selected_item = self._selected_inventory_item(
@@ -106,6 +109,7 @@ class BattlePresenter:
                 player,
                 activation_allowed=phase != InteractionPhase.COMPLETE,
             ),
+            encounter_label=encounter_label,
             action_options=(
                 ()
                 if phase == InteractionPhase.COMPLETE

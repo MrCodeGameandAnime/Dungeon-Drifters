@@ -224,6 +224,8 @@ def test_enemy_metadata_rejects_invalid_non_enum_values():
             "dex": 1,
             "hp": 1,
             "mana": 0,
+            "exp_reward": 0,
+            "gold_reward": 0,
             "name": "Test",
             "archetype_id": "test",
             "rank": EnemyRank.COMMON,

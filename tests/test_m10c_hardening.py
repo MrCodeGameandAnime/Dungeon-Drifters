@@ -14,7 +14,10 @@ from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
-from app.presentation.battle_models import ActionIntent, InteractionPhase
+from app.presentation.battle_models import (
+    ActionIntent,
+    InteractionPhase,
+)
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
@@ -150,9 +153,6 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
         contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
     )
     player_identity = player
-    before_exp = player.exp_state.current
-    before_level = player.level_state.current
-    before_gold = player.gold
     overworld_output = []
     battle_output = []
     overworld_inputs = iter(("e", "o", "q", "y"))
@@ -197,7 +197,7 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
         enemy_count += 1
         return enemy
 
-    def battle_factory(acting_player, enemies, *, ui):
+    def battle_factory(acting_player, enemies, *, ui, encounter_label=None):
         rng = AlwaysOneRng()
         resolver = RecordingCombatResolver(rng=rng)
         resolver.player = acting_player
@@ -209,6 +209,7 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
             ui=ui,
             resolver=resolver,
             rng=rng,
+            encounter_label=encounter_label,
         )
         created["battle"] = battle
         created["resolver"] = resolver
@@ -307,9 +308,10 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
     assert "OVERWORLD  |  Goblin Warrior" in "\n".join(overworld_output)
     assert game.world_state.defeated_encounters == ("surface_goblin_pair",)
     assert game.overworld_state.current_route_node_id == "surface_warrior_solo"
-    assert player.exp_state.current == before_exp
-    assert player.level_state.current == before_level
-    assert player.gold == before_gold
+    assert player.level_state.current == 2
+    assert player.exp_state.current == 21
+    assert player.growth_points == 3
+    assert player.gold == 29
 
 
 def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
@@ -320,6 +322,7 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
         ui=ScriptedBattleUI(()),
         resolver=CombatResolver(rng=AlwaysOneRng()),
         rng=AlwaysOneRng(),
+        encounter_label="Goblin Lord",
     )
     view = battle._build_view()
     expected_labels = ("Goblin Lord", "Goblin", "Goblin Warrior")
@@ -333,15 +336,71 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
             ansi_enabled=False,
             interactive=False,
         ).render(view)
-        normalized_rows = [
-            line.strip().strip("|│").strip()
-            for line in output
-        ]
-        status_labels = [
-            row for row in normalized_rows if row in expected_labels
-        ]
-        assert status_labels == list(expected_labels)
+        if width >= 60:
+            status_lines = TerminalBattleUI(
+                output_func=output.append,
+                width_provider=lambda width=width: width,
+                unicode_enabled=False,
+                ansi_enabled=False,
+                interactive=False,
+            )._status_lines(view, width - 4)
+            right_rows = [line.split(" | ", 1)[1].rstrip() for line in status_lines]
+            right_width = width - 4 - len(" | ") - ((width - 4 - len(" | ")) // 2)
+            column_width = right_width // len(expected_labels)
+            if column_width >= max(map(len, expected_labels)):
+                cells = tuple(
+                    right_rows[0][index * column_width:(index + 1) * column_width].strip()
+                    for index in range(len(expected_labels))
+                )
+                assert cells == expected_labels
+            else:
+                assert tuple(row for row in right_rows if row in expected_labels) == expected_labels
+        else:
+            normalized_rows = [line.strip() for line in output]
+            assert [
+                row for row in normalized_rows if row in expected_labels
+            ] == list(expected_labels)
+        if width >= 60:
+            assert (
+                f"[ {view.player.display_name} ]   VS   [ Goblin Lord ]"
+                in "\n".join(output)
+            )
         assert all(len(line) <= width for line in output)
+
+
+def test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label():
+    battle = Battle(
+        PlayerState(Brawler()),
+        create_route_encounter_enemies("surface_goblin_pair"),
+        ui=ScriptedBattleUI(()),
+        resolver=CombatResolver(rng=AlwaysOneRng()),
+        rng=AlwaysOneRng(),
+        encounter_label="Goblin Pair",
+    )
+    view = battle._build_view()
+    output = []
+    TerminalBattleUI(
+        output_func=output.append,
+        width_provider=lambda: 80,
+        unicode_enabled=False,
+        ansi_enabled=False,
+        interactive=False,
+    ).render(view)
+
+    text = "\n".join(output)
+    assert "Enemies" not in text
+    assert f"[ {view.player.display_name} ]   VS   [ Goblin Pair ]" in text
+    status_lines = TerminalBattleUI(
+        output_func=output.append,
+        width_provider=lambda: 80,
+        unicode_enabled=False,
+        ansi_enabled=False,
+        interactive=False,
+    )._status_lines(view, 76)
+    assert all(" | " in line for line in status_lines)
+    right_rows = [line.split(" | ", 1)[1] for line in status_lines]
+    assert any(row.startswith("Goblin 1") for row in right_rows)
+    assert any("Goblin 2" in row for row in right_rows)
 
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():

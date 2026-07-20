@@ -5,6 +5,7 @@ from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
+from app.player.progression import MAXIMUM_LEVEL
 from app.player.run_items import owned_run_item_definitions
 from app.presentation.overworld_models import (
     MapNodeState,
@@ -97,9 +98,17 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     assert character.character.level == 1
     assert character.character.exp_current == 0
     assert character.character.exp_threshold == 100
-    assert skills.skills.growth_points_available is None
+    assert skills.skills.growth_points_available == 0
+    assert skills.skills.growth_message == "Earn Growth Points by leveling up."
+    assert tuple(row.stat_name for row in skills.skills.stats) == tuple(
+        name for name, _ in STAT_ORDER
+    )
     assert all(row.increase_visible for row in skills.skills.stats)
     assert all(not row.increase_enabled for row in skills.skills.stats)
+    assert all(
+        row.disabled_reason is OverworldAvailabilityReason.NO_GROWTH_POINTS
+        for row in skills.skills.stats
+    )
     assert tuple(
         (move.name, move.description) for move in skills.skills.moves
     ) == tuple(
@@ -139,6 +148,68 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     assert game.snapshot() == before
     with pytest.raises(AttributeError):
         character.character.super_current = 0
+
+
+def test_character_progression_presents_zero_and_partial_exp_without_mutation():
+    game = create_game()
+    presenter = OverworldPresenter()
+
+    zero = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+    game.player_state.exp_state.current = 40
+    partial = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+
+    assert zero.exp_current == 0
+    assert zero.exp_threshold == 100
+    assert zero.exp_fill_bps == 0
+    assert partial.exp_current == 40
+    assert partial.exp_threshold == 100
+    assert partial.exp_fill_bps == 4_000
+
+
+def test_character_progression_presents_level_cap_without_dividing_by_none():
+    game = create_game()
+    game.player_state.level_state.current = MAXIMUM_LEVEL
+    game.player_state.exp_state.current = 0
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    ).character
+
+    assert view.level == MAXIMUM_LEVEL
+    assert view.exp_current == 0
+    assert view.exp_threshold is None
+    assert view.exp_fill_bps == 10_000
+
+
+def test_skills_present_live_growth_points_and_stat_availability():
+    game = create_game()
+    player = game.player_state
+    player.gain_experience(100)
+    player.character.permanent_stats.set_stat("constitution", 100)
+    weapon_bonus = player.get_equipped("weapon").stat_bonuses.get("strength", 0)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.SKILLS,
+    ).skills
+
+    assert view.growth_points_available == 3
+    assert view.growth_message == (
+        "Spend 1 Growth Point to increase one permanent stat by 1."
+    )
+    assert all(
+        row.increase_enabled
+        for row in view.stats
+        if row.stat_name != "constitution"
+    )
+    constitution = next(row for row in view.stats if row.stat_name == "constitution")
+    strength = next(row for row in view.stats if row.stat_name == "strength")
+    assert constitution.disabled_reason is OverworldAvailabilityReason.STAT_AT_MAXIMUM
+    assert not constitution.increase_enabled
+    assert strength.value == player.character.permanent_stats.strength
+    assert strength.value != player.effective_stat("strength")
+    assert player.effective_stat("strength") == strength.value + weapon_bonus
 
 
 def test_equipment_view_does_not_reinterpret_internal_equipment_slots():

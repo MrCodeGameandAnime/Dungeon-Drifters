@@ -166,7 +166,7 @@ def test_exact_exp_threshold_levels_up():
     assert exp.gain(100) == 1
     assert level.current == 2
     assert exp.current == 0
-    assert level.next_threshold == 200
+    assert level.next_threshold == 106
 
 
 def test_excess_exp_carries_over_after_level_up():
@@ -182,13 +182,13 @@ def test_one_exp_gain_can_cause_multiple_level_ups():
     level = Level()
     exp = Exp(level)
 
-    assert exp.gain(350) == 2
-    assert level.current == 3
-    assert exp.current == 50
+    assert exp.gain(350) == 3
+    assert level.current == 4
+    assert exp.current == 31
     assert exp.exp_pool() == {
-        "current": 50,
-        "level": 3,
-        "next_threshold": 300,
+        "current": 31,
+        "level": 4,
+        "next_threshold": 120,
     }
 
 
