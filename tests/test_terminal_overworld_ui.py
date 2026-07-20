@@ -137,6 +137,40 @@ def test_character_screen_renders_normal_and_capped_exp_at_supported_widths():
 
 
 @pytest.mark.parametrize(
+    "adventure_text",
+    (
+        "Goblin Ambush is defeated. Rewards: 40 EXP and 3 gold. "
+        "The route continues toward Goblin Pair.",
+        "Goblin Pair is defeated. Rewards: 80 EXP and 6 gold. "
+        "Level up! Reached Level 2 and gained 3 Growth Points. "
+        "The route continues toward Goblin Warrior.",
+        "Shaman Pair is defeated. Rewards: 180 EXP and 14 gold. "
+        "Level up! Gained 2 levels, reached Level 6, and gained 6 Growth Points. "
+        "The route continues toward Elite Patrol.",
+    ),
+)
+def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
+    adventure_text,
+):
+    for width in (50, 80, 120):
+        for unicode_enabled in (False, True):
+            text = "\n".join(
+                rendered(
+                    create_view(adventure_text=adventure_text),
+                    width=width,
+                    unicode_enabled=unicode_enabled,
+                )
+            )
+
+            assert "Rewards:" in text
+            assert "EXP" in text
+            assert "gold" in text
+            assert "continues" in text
+            if "Level up!" in adventure_text:
+                assert text.count("Level up!") == 1
+
+
+@pytest.mark.parametrize(
     ("screen", "required_text"),
     (
         (

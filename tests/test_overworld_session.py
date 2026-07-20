@@ -376,6 +376,12 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     post_victory = ui.views[1]
     assert post_victory.location_label == "Goblin Pair"
     assert post_victory.contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
+    assert post_victory.adventure_text == (
+        "Goblin Ambush is defeated. Rewards: 40 EXP and 3 gold. "
+        "The route continues toward Goblin Pair."
+    )
+    assert player.exp_state.current == 40
+    assert player.gold == 3
     assert identities == (
         player,
         player.character,
@@ -477,9 +483,39 @@ def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
     assert game.world_state.defeated_encounters == ()
     assert game.overworld_state.current_route_node_id == FIRST_SURFACE_NODE_ID
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.RETRY
-    assert (
-        ui.views[1].contextual_route_option.action
-        is OverworldAction.RETRY
+    assert "Rewards:" not in ui.views[-1].adventure_text
+    assert ui.views[1].contextual_route_option.action is OverworldAction.RETRY
+
+
+def test_victory_adventure_text_uses_actual_level_and_growth_point_grammar():
+    one_level = OverworldSession._victory_adventure_text(
+        FIRST_SURFACE_NODE_ID,
+        SECOND_SURFACE_NODE_ID,
+        exp_reward=40,
+        gold_reward=3,
+        levels_gained=1,
+        growth_points_gained=3,
+        resulting_level=2,
+    )
+    multiple_levels = OverworldSession._victory_adventure_text(
+        "surface_shaman_pair",
+        "surface_elite_patrol",
+        exp_reward=180,
+        gold_reward=14,
+        levels_gained=2,
+        growth_points_gained=6,
+        resulting_level=6,
+    )
+
+    assert one_level == (
+        "Goblin Ambush is defeated. Rewards: 40 EXP and 3 gold. "
+        "Level up! Reached Level 2 and gained 3 Growth Points. "
+        "The route continues toward Goblin Pair."
+    )
+    assert multiple_levels == (
+        "Shaman Pair is defeated. Rewards: 180 EXP and 14 gold. "
+        "Level up! Gained 2 levels, reached Level 6, and gained 6 Growth Points. "
+        "The route continues toward Elite Patrol."
     )
 
 
