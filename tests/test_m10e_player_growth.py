@@ -129,3 +129,36 @@ def test_growth_points_are_present_in_defensive_snapshot():
 
     assert player.growth_points == 2
     assert player.snapshot()["progression"]["growth_points"] == 2
+
+
+@pytest.mark.parametrize(
+    "exp_reward, gold_reward",
+    ((-1, 4), (True, 4), (40, -1), (40, True)),
+)
+def test_encounter_reward_validates_all_values_before_mutation(
+    exp_reward,
+    gold_reward,
+):
+    player = PlayerState(Brawler(), gold=7)
+    before = player.snapshot()
+
+    with pytest.raises((TypeError, ValueError)):
+        player.apply_encounter_reward(exp_reward, gold_reward)
+
+    assert player.snapshot() == before
+
+
+def test_encounter_reward_applies_gold_and_growth_atomically():
+    player = PlayerState(Brawler(), gold=7)
+    player.health.take_damage(10)
+    player.mana_resource.spend(5)
+
+    assert player.apply_encounter_reward(100, 6) == 1
+    assert player.gold == 13
+    assert player.level_state.current == 2
+    assert player.exp_state.current == 0
+    assert player.growth_points == 3
+    assert player.health.maximum == 120
+    assert player.health.current == 110
+    assert player.mana_resource.maximum == 47
+    assert player.mana_resource.current == 42

@@ -97,13 +97,10 @@ def test_every_composition_can_be_recreated_without_identity_leakage():
             assert first_enemy.super_resource is not second_enemy.super_resource
 
 
-def test_first_victory_remains_reward_free_and_pair_combat_is_next():
+def test_first_victory_applies_rewards_and_pair_combat_is_next():
     player = PlayerState(Brawler(), gold=9)
     player.exp_state.gain(13)
     game = GameState(player)
-    before_exp = player.exp_state.current
-    before_level = player.level_state.current
-    before_gold = player.gold
     enemy_calls = []
 
     def enemy_factory(archetype_id, *, tier):
@@ -152,9 +149,10 @@ def test_first_victory_remains_reward_free_and_pair_combat_is_next():
 
     assert result is OverworldSessionResult.QUIT
     assert enemy_calls == [("goblin", 0)]
-    assert player.exp_state.current == before_exp
-    assert player.level_state.current == before_level
-    assert player.gold == before_gold
+    assert player.exp_state.current == 53
+    assert player.level_state.current == 1
+    assert player.growth_points == 0
+    assert player.gold == 12
     assert game.world_state.defeated_encounters == ("surface_goblin_solo",)
     assert game.overworld_state.current_route_node_id == "surface_goblin_pair"
     assert game.overworld_state.resolved_rest_node_ids == ()

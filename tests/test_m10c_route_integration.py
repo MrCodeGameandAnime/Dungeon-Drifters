@@ -1,4 +1,6 @@
 from app.game.game_state import GameState
+import pytest
+
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.character import Brawler
@@ -74,7 +76,7 @@ def _quit_inputs():
     )
 
 
-def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
+def test_pair_route_uses_authored_tuple_advances_once_and_applies_rewards():
     player = PlayerState(Brawler(), gold=17)
     player.exp_state.gain(23)
     game = GameState(player)
@@ -82,8 +84,6 @@ def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
         "surface_goblin_pair",
         contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
     )
-    before_exp = player.exp_state.current
-    before_gold = player.gold
     enemies = RouteEnemyFactory()
     battles = RouteBattleFactory()
     ui = ScriptedUI(
@@ -113,19 +113,45 @@ def test_pair_route_uses_authored_tuple_advances_once_and_defers_rewards():
         game.overworld_state.current_contextual_route_phase
         is ContextualRoutePhase.ENTER_ENCOUNTER
     )
-    assert player.exp_state.current == before_exp
-    assert player.gold == before_gold
+    assert player.level_state.current == 2
+    assert player.exp_state.current == 3
+    assert player.growth_points == 3
+    assert player.gold == 23
     assert "Goblin Pair is defeated" in ui.views[1].adventure_text
     assert "Goblin Warrior" in ui.views[1].adventure_text
+
+
+def test_duplicate_completion_raises_without_reward_or_route_mutation():
+    player = PlayerState(Brawler(), gold=11)
+    player.exp_state.gain(37)
+    game = GameState(player)
+    game.overworld_state.begin_surface_route()
+    game.world_state.mark_encounter_defeated("surface_goblin_solo")
+    before_player = player.snapshot()
+    before_overworld = game.overworld_state.snapshot()
+    before_world = game.world_state.snapshot()
+    enemies = RouteEnemyFactory()
+    battles = RouteBattleFactory()
+    ui = ScriptedUI((ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),))
+
+    with pytest.raises(RuntimeError, match="already been defeated"):
+        OverworldSession(
+            game,
+            ui=ui,
+            battle_factory=battles,
+            enemy_factory=enemies,
+            battle_ui_factory=object,
+        ).run()
+
+    assert player.snapshot() == before_player
+    assert game.overworld_state.snapshot() == before_overworld
+    assert game.world_state.snapshot() == before_world
 
 
 def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
     player = PlayerState(Brawler(), gold=31)
     player.exp_state.gain(19)
     game = GameState(player)
-    before_exp = player.exp_state.current
-    before_level = player.level_state.current
-    before_gold = player.gold
     game.overworld_state.advance_to("surface_goblin_pair")
     game.overworld_state.advance_to(
         "surface_warrior_solo",
@@ -154,9 +180,10 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
     assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.NONE
     assert game.overworld_state.resolved_rest_node_ids == ()
     assert ui.views[1].contextual_route_option is None
-    assert player.exp_state.current == before_exp
-    assert player.level_state.current == before_level
-    assert player.gold == before_gold
+    assert player.exp_state.current == 79
+    assert player.level_state.current == 1
+    assert player.growth_points == 0
+    assert player.gold == 36
 
 
 def test_reported_victory_with_living_enemy_fails_before_route_mutation():
@@ -184,16 +211,13 @@ def test_reported_victory_with_living_enemy_fails_before_route_mutation():
     assert game.overworld_state.current_route_node_id == "surface_goblin_solo"
 
 
-def test_goblin_lord_victory_reaches_dungeon_without_rewards_or_continuation():
+def test_goblin_lord_victory_reaches_dungeon_with_rewards_and_without_continuation():
     player = PlayerState(Brawler(), gold=47)
     player.exp_state.gain(61)
     player.health.take_damage(11)
     assert player.mana_resource.spend(3) is True
     player.super_resource.gain(14)
     equipped_weapon = player.get_equipped("weapon")
-    before_exp = player.exp_state.current
-    before_level = player.level_state.current
-    before_gold = player.gold
     before_health = player.health.current
     before_mana = player.mana_resource.current
     before_super = player.super_resource.current
@@ -245,10 +269,11 @@ def test_goblin_lord_victory_reaches_dungeon_without_rewards_or_continuation():
     assert game.overworld_state.resolved_rest_node_ids == ()
     assert ui.views[1].contextual_route_option is None
     assert "Dungeon Entrance" in ui.views[1].adventure_text
-    assert player.exp_state.current == before_exp
-    assert player.level_state.current == before_level
-    assert player.gold == before_gold
-    assert player.health.current == before_health
-    assert player.mana_resource.current == before_mana
+    assert player.exp_state.current == 42
+    assert player.level_state.current == 4
+    assert player.growth_points == 9
+    assert player.gold == 65
+    assert player.health.current == before_health + 12
+    assert player.mana_resource.current == before_mana + 3
     assert player.super_resource.current == before_super
     assert player.get_equipped("weapon") is equipped_weapon

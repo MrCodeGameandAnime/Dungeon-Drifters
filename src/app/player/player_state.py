@@ -155,6 +155,14 @@ class PlayerState:
 
         return levels_gained
 
+    def apply_encounter_reward(self, exp_reward, gold_reward):
+        exp_reward = self.exp_state.validate_gain_amount(exp_reward)
+        gold_reward = self._validate_gold_amount(gold_reward)
+
+        levels_gained = self.gain_experience(exp_reward)
+        self._gold += gold_reward
+        return levels_gained
+
     def increase_permanent_stat(self, stat_name):
         current_value = self.character.permanent_stats.get_stat(stat_name)
         if self._growth_points <= 0:

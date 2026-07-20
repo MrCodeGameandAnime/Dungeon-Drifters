@@ -153,9 +153,6 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
         contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
     )
     player_identity = player
-    before_exp = player.exp_state.current
-    before_level = player.level_state.current
-    before_gold = player.gold
     overworld_output = []
     battle_output = []
     overworld_inputs = iter(("e", "o", "q", "y"))
@@ -311,9 +308,10 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
     assert "OVERWORLD  |  Goblin Warrior" in "\n".join(overworld_output)
     assert game.world_state.defeated_encounters == ("surface_goblin_pair",)
     assert game.overworld_state.current_route_node_id == "surface_warrior_solo"
-    assert player.exp_state.current == before_exp
-    assert player.level_state.current == before_level
-    assert player.gold == before_gold
+    assert player.level_state.current == 2
+    assert player.exp_state.current == 21
+    assert player.growth_points == 3
+    assert player.gold == 29
 
 
 def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():

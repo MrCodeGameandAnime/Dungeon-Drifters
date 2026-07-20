@@ -206,9 +206,6 @@ class OverworldSession:
                 raise RuntimeError(
                     "Battle reported victory before every enemy was defeated"
                 )
-            self.game_state.world_state.mark_encounter_defeated(
-                manifest_node.encounter.encounter_id
-            )
             next_node_id = manifest_node.next_node_id
             if next_node_id is None:
                 raise RuntimeError(
@@ -216,6 +213,14 @@ class OverworldSession:
                 )
             next_node = route_node(next_node_id)
             next_phase = self._contextual_phase_for_node(next_node.kind)
+            encounter_id = manifest_node.encounter.encounter_id
+            if encounter_id in self.game_state.world_state.defeated_encounters:
+                raise RuntimeError("encounter has already been defeated")
+            self.game_state.player_state.apply_encounter_reward(
+                manifest_node.encounter.exp_reward,
+                manifest_node.encounter.gold_reward,
+            )
+            self.game_state.world_state.mark_encounter_defeated(encounter_id)
             overworld.advance_to(next_node_id, contextual_phase=next_phase)
             self._adventure_text = self._victory_adventure_text(
                 current_node_id,
