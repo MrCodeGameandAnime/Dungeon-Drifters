@@ -172,7 +172,7 @@ class Character:
 
     @level.setter
     def level(self, value):
-        self.level_state.current = max(1, int(value))
+        self.level_state.current = value
 
     @property
     def exp(self):
