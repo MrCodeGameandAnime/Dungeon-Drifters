@@ -1,4 +1,5 @@
 import copy
+from itertools import combinations
 import json
 
 import pytest
@@ -357,21 +358,35 @@ def test_schema7_snapshot_contains_persistent_state_and_no_runtime_objects(
         "equipment",
         "combat",
     }
-    assert snapshot["story"]["story_flags"] == ["surface_started"]
-    assert snapshot["world"]["defeated_encounters"] == [
-        "surface_goblin_solo",
-        "surface_goblin_pair",
-        "surface_warrior_solo",
-    ]
-    assert snapshot["overworld"]["current_route_node_id"] == (
-        "surface_warrior_pair"
-    )
-    assert snapshot["overworld"]["current_contextual_route_phase"] == (
-        "enter_encounter"
-    )
-    assert snapshot["overworld"]["resolved_rest_node_ids"] == [
-        "surface_rest_after_warrior_solo"
-    ]
+    assert snapshot["story"] == {
+        "current_chapter": "chapter_one",
+        "current_scene": None,
+        "current_location": None,
+        "story_flags": ["surface_started"],
+        "completed_events": [],
+        "player_decisions": {"route": "surface"},
+    }
+    assert snapshot["world"] == {
+        "discovered_locations": ["ketlyv_woods"],
+        "defeated_encounters": [
+            "surface_goblin_solo",
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+        ],
+        "opened_objects": [],
+        "consumed_objects": [],
+        "dungeon_changes": {},
+    }
+    assert snapshot["overworld"] == {
+        "current_route_node_id": "surface_warrior_pair",
+        "surface_route_begun": True,
+        "dungeon_entrance_reached": False,
+        "route_complete": False,
+        "resolved_rest_node_ids": [
+            "surface_rest_after_warrior_solo"
+        ],
+        "current_contextual_route_phase": "enter_encounter",
+    }
     assert snapshot["metadata"] == {
         "m11": {"profile": profile_choice, "checkpoint": 1}
     }
@@ -422,8 +437,14 @@ def test_four_independent_sessions_do_not_share_mutable_state():
 
     assert games[1].snapshot() == before[1]
     assert games[3].snapshot() == before[3]
+    assert games[0].snapshot() != before[0]
     assert games[2].snapshot() != before[2]
-    for left, right in zip(games, games[1:]):
+    for index, game in enumerate(games):
+        if index in {0, 2}:
+            continue
+        assert game.snapshot() == before[index]
+
+    for left, right in combinations(games, 2):
         assert left.player_state is not right.player_state
         assert left.player_state.character is not right.player_state.character
         assert left.player_state.inventory is not right.player_state.inventory
