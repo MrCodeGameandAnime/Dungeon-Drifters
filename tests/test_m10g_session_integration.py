@@ -11,6 +11,7 @@ from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
+from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.world.character_profiles.roster import get_profile_by_choice
 
 
@@ -234,3 +235,24 @@ def test_main_load_startup_bypasses_new_game_flow(tmp_path, monkeypatch):
     assert len(captured) == 1
     assert captured[0] is not saved
     assert captured[0].snapshot() == saved.snapshot()
+
+
+def test_real_terminal_traverses_options_load_confirmation_without_crashing(
+    tmp_path,
+):
+    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository.save(_saved_game())
+    output = []
+    inputs = iter(["o", "l", "n", "q", "y"])
+    ui = TerminalOverworldUI(
+        input_func=lambda _prompt: next(inputs),
+        output_func=output.append,
+        width_provider=lambda: 80,
+        interactive=False,
+    )
+    current = GameState(PlayerState(Brawler()))
+
+    assert _session(current, ui, repository).run() is OverworldSessionResult.QUIT
+    text = "\n".join(output)
+    assert "LOAD" in text
+    assert "Load the saved session and replace the current session?" in text

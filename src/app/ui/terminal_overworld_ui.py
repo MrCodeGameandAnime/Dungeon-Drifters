@@ -166,6 +166,7 @@ class TerminalOverworldUI:
             OverworldScreen.MAIN,
             OverworldScreen.OPTIONS,
             OverworldScreen.QUIT_CONFIRMATION,
+            OverworldScreen.LOAD_CONFIRMATION,
         }:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
@@ -178,6 +179,12 @@ class TerminalOverworldUI:
                 )
             if view.screen is OverworldScreen.QUIT_CONFIRMATION:
                 lines.extend(("", "Exit this session without saving?"))
+            elif view.screen is OverworldScreen.LOAD_CONFIRMATION:
+                load_prompt = (
+                    "Load the saved session and replace the current session?"
+                )
+                if view.adventure_text != load_prompt:
+                    lines.extend(("", load_prompt))
         elif view.screen is OverworldScreen.CHARACTER:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:

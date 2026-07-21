@@ -569,6 +569,34 @@ def test_quit_confirmation_uses_typed_confirm_and_cancel_inputs():
     assert cancel == ChooseOverworldAction(OverworldAction.CANCEL)
 
 
+def test_load_confirmation_renders_at_wide_and_narrow_widths():
+    view = create_view(
+        OverworldScreen.LOAD_CONFIRMATION,
+        adventure_text="Load the saved session and replace the current session?",
+    )
+
+    for width in (50, 80):
+        text = "\n".join(rendered(view, width=width))
+        normalized = " ".join(text.split())
+        assert "LOAD" in text
+        assert (
+            "Load the saved session and replace the current session?"
+            in normalized
+        )
+        assert "Confirm" in text
+        assert "Cancel" in text
+
+
+def test_load_confirmation_uses_typed_confirm_and_cancel_inputs():
+    view = create_view(OverworldScreen.LOAD_CONFIRMATION)
+
+    confirm, _ = read(view, ["y"])
+    cancel, _ = read(view, ["n"])
+
+    assert confirm == ChooseOverworldAction(OverworldAction.CONFIRM)
+    assert cancel == ChooseOverworldAction(OverworldAction.CANCEL)
+
+
 def test_terminal_ui_rejects_non_overworld_views():
     ui = TerminalOverworldUI(interactive=False)
 
