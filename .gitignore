@@ -46,6 +46,9 @@ update info/
 *.bak
 *.tmp
 
+# Local production save
+src/saves/dungeon_drifters.json
+
 # OS files
 .DS_Store
 Thumbs.db

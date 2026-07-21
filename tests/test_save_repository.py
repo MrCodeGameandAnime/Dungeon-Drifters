@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -37,6 +38,10 @@ def test_save_path_is_the_approved_src_saves_location():
     assert SAVE_PATH.parent.parent.name == "src"
 
 
+def test_production_save_file_is_gitignored():
+    assert "src/saves/dungeon_drifters.json" in Path(".gitignore").read_text()
+
+
 def test_save_creates_directory_and_writes_schema8_without_combat(tmp_path):
     repository = SaveRepository(tmp_path / "saves" / "dungeon_drifters.json")
 
@@ -47,7 +52,27 @@ def test_save_creates_directory_and_writes_schema8_without_combat(tmp_path):
     document = json.loads(saved_path.read_text(encoding="utf-8"))
     assert document["schema_version"] == 8
     assert "combat" not in document["player"]
+    assert saved_path.read_bytes().endswith(b"\n")
     assert list(saved_path.parent.glob("*.tmp")) == []
+
+
+def test_inspect_distinguishes_missing_valid_and_invalid_without_loading(tmp_path):
+    path = tmp_path / "dungeon_drifters.json"
+    repository = SaveRepository(path)
+
+    assert repository.inspect().status is SaveLoadStatus.MISSING
+
+    repository.save(_game_state())
+    before = path.read_bytes()
+    inspection = repository.inspect()
+
+    assert inspection.status is SaveLoadStatus.VALID
+    assert inspection.game_state is None
+    assert inspection.error is None
+    assert path.read_bytes() == before
+
+    path.write_text("invalid", encoding="utf-8")
+    assert repository.inspect().status is SaveLoadStatus.INVALID
 
 
 def test_missing_save_is_normal_new_game_signal(tmp_path):
@@ -67,6 +92,7 @@ def test_valid_save_loads_as_fresh_game_state(tmp_path):
     repository.save(game)
 
     result = repository.load()
+    second_result = repository.load()
 
     assert result.status is SaveLoadStatus.LOADED
     assert result.game_state is not game
@@ -76,6 +102,12 @@ def test_valid_save_loads_as_fresh_game_state(tmp_path):
         "run_id": "repository-test"
     }
     assert result.migrated_from_schema_7 is False
+    assert second_result.status is SaveLoadStatus.LOADED
+    assert second_result.game_state is not result.game_state
+    result.game_state.player_state.health.take_damage(3)
+    assert second_result.game_state.player_state.health.current != (
+        result.game_state.player_state.health.current
+    )
 
 
 def test_schema7_load_migrates_in_memory_without_rewriting_file(tmp_path):
@@ -89,6 +121,20 @@ def test_schema7_load_migrates_in_memory_without_rewriting_file(tmp_path):
     assert result.status is SaveLoadStatus.LOADED
     assert result.migrated_from_schema_7 is True
     assert path.read_bytes() == original_bytes
+
+
+def test_repeated_saves_produce_identical_utf8_bytes_with_terminal_newline(tmp_path):
+    path = tmp_path / "dungeon_drifters.json"
+    repository = SaveRepository(path)
+    game = _game_state()
+
+    repository.save(game)
+    first_bytes = path.read_bytes()
+    repository.save(game)
+    second_bytes = path.read_bytes()
+
+    assert first_bytes == second_bytes
+    assert first_bytes.endswith(b"\n")
 
 
 @pytest.mark.parametrize(

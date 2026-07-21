@@ -9,8 +9,10 @@ from pathlib import Path
 
 from app.game.game_state import GameState
 from app.game.save_state import (
+    DISK_SCHEMA_VERSION,
     build_save_document,
     reconstruct_game_state,
+    validate_save_document,
 )
 
 
@@ -20,6 +22,7 @@ SAVE_PATH = SAVE_DIRECTORY / "dungeon_drifters.json"
 
 class SaveLoadStatus(StrEnum):
     MISSING = "missing"
+    VALID = "valid"
     LOADED = "loaded"
     INVALID = "invalid"
 
@@ -71,6 +74,28 @@ class SaveRepository:
 
         return self._path
 
+    def inspect(self):
+        if not self._path.exists():
+            return SaveLoadResult(status=SaveLoadStatus.MISSING)
+
+        try:
+            with self._path.open("r", encoding="utf-8") as stream:
+                document = json.load(stream)
+            normalized = validate_save_document(document)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError, AttributeError):
+            return SaveLoadResult(
+                status=SaveLoadStatus.INVALID,
+                error="The save file is invalid and was not loaded.",
+            )
+
+        return SaveLoadResult(
+            status=SaveLoadStatus.VALID,
+            migrated_from_schema_7=(
+                normalized["schema_version"] == DISK_SCHEMA_VERSION
+                and document.get("schema_version") == 7
+            ),
+        )
+
     def load(self):
         if not self._path.exists():
             return SaveLoadResult(status=SaveLoadStatus.MISSING)
@@ -109,8 +134,10 @@ class SaveRepository:
                     temporary,
                     ensure_ascii=False,
                     allow_nan=False,
+                    sort_keys=True,
                     separators=(",", ":"),
                 )
+                temporary.write("\n")
                 temporary.flush()
                 os.fsync(temporary.fileno())
         except Exception:

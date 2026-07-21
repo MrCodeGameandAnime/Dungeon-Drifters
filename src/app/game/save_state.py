@@ -113,19 +113,7 @@ def migrate_schema_7(document):
 
 
 def reconstruct_game_state(document):
-    _validate_plain_document(document)
-    schema_version = document.get("schema_version")
-    if schema_version == STATE_SCHEMA_VERSION:
-        document = migrate_schema_7(document)
-    elif schema_version == DISK_SCHEMA_VERSION:
-        document = deepcopy(document)
-        if isinstance(document.get("player"), dict):
-            document["player"].pop("combat", None)
-        _validate_document(document, schema_version=DISK_SCHEMA_VERSION)
-    else:
-        raise SaveStateValidationError(
-            f"unsupported save schema: {schema_version!r}"
-        )
+    document = validate_save_document(document)
 
     try:
         profile = _canonical_profile(document["player"])
@@ -147,6 +135,23 @@ def reconstruct_game_state(document):
         raise SaveStateValidationError(
             f"save reconstruction failed: {error}"
         ) from error
+
+
+def validate_save_document(document):
+    """Validate and normalize a schema 7 or schema 8 document without loading it."""
+    _validate_plain_document(document)
+    schema_version = document.get("schema_version")
+    if schema_version == STATE_SCHEMA_VERSION:
+        return migrate_schema_7(document)
+    if schema_version == DISK_SCHEMA_VERSION:
+        normalized = deepcopy(document)
+        if isinstance(normalized.get("player"), dict):
+            normalized["player"].pop("combat", None)
+        _validate_document(normalized, schema_version=DISK_SCHEMA_VERSION)
+        return normalized
+    raise SaveStateValidationError(
+        f"unsupported save schema: {schema_version!r}"
+    )
 
 
 def _reconstruct_player(character, snapshot):
@@ -571,4 +576,5 @@ __all__ = [
     "build_save_document",
     "migrate_schema_7",
     "reconstruct_game_state",
+    "validate_save_document",
 ]
