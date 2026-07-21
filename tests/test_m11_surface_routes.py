@@ -3,6 +3,7 @@ import json
 import pytest
 
 from app.combat.battle import Battle
+from app.combat.brace import BRACE_RULES
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
 from app.enemies.factory import create_enemy_state
@@ -370,19 +371,37 @@ def test_four_drifters_complete_the_full_surface_route(
     assert serialized
 
 
-def test_real_battle_covers_branoc_mechanics_and_universal_defend():
+def test_real_battle_covers_branoc_brace_follow_up():
     player = PlayerState(Brawler())
+    enemy = create_enemy_state("goblin")
+    rng = SequenceRng(1, 100)
     battle = Battle(
         player,
-        create_enemy_state("goblin"),
-        ui=ScriptedBattleUI(ChooseAction(ActionIntent.DEFEND)),
-        resolver=CombatResolver(rng=SequenceRng(1)),
+        enemy,
+        ui=ScriptedBattleUI(
+            ChooseAction(ActionIntent.ATTACK),
+            ChooseMove("Brace"),
+            ChooseAction(ActionIntent.ATTACK),
+            ChooseMove("Ironwake Dismemberment"),
+        ),
+        resolver=CombatResolver(rng=rng),
         rng=SequenceRng(1),
     )
 
+    mana_before = player.mana_resource.current
     assert battle.player_action() is True
-    assert battle.combat_state.is_defending(player)
-    assert battle.combat_state.turn_count == 1
+    assert player.mana_resource.current == mana_before - 5
+    assert battle.combat_state.brace_incoming_protection_active(player)
+    assert battle.combat_state.brace_follow_up_damage_bonus_percent(
+        player,
+        "heavy_attack",
+    ) == BRACE_RULES.follow_up_damage_bonus_percent
+
+    assert battle.player_action() is True
+    assert battle.combat_state.brace_follow_up_damage_bonus_percent(
+        player,
+        "heavy_attack",
+    ) == 0
 
 
 def test_real_battle_covers_azhvielle_break_and_overcharge():
