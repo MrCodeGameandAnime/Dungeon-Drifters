@@ -433,14 +433,13 @@ def test_four_independent_sessions_do_not_share_mutable_state():
     first.overworld_state.record_resolved_rest_node(
         "surface_rest_after_warrior_solo"
     )
-    games[2].player_state.character_run_state.consume_infusion()
 
     assert games[1].snapshot() == before[1]
     assert games[3].snapshot() == before[3]
     assert games[0].snapshot() != before[0]
-    assert games[2].snapshot() != before[2]
+    assert games[2].snapshot() == before[2]
     for index, game in enumerate(games):
-        if index in {0, 2}:
+        if index == 0:
             continue
         assert game.snapshot() == before[index]
 
@@ -460,6 +459,17 @@ def test_four_independent_sessions_do_not_share_mutable_state():
         assert left.world_state is not right.world_state
         assert left.overworld_state is not right.overworld_state
         assert left.player_state.get_equipped("weapon") is not right.player_state.get_equipped("weapon")
+
+    payload_games = tuple(
+        _populated_game(choice) for choice in ("1", "2", "3", "4")
+    )
+    payload_before = tuple(game.snapshot() for game in payload_games)
+    payload_games[2].player_state.character_run_state.consume_infusion()
+
+    assert payload_games[0].snapshot() == payload_before[0]
+    assert payload_games[1].snapshot() == payload_before[1]
+    assert payload_games[3].snapshot() == payload_before[3]
+    assert payload_games[2].snapshot() != payload_before[2]
 
 
 @pytest.mark.parametrize("profile", get_character_profiles(), ids=lambda p: p.choice)
