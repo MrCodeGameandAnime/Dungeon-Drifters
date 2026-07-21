@@ -9,6 +9,11 @@ from app.game.encounter_manifest import (
 from app.game.game_state import GameState
 from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
+from app.game.save_repository import (
+    SaveLoadStatus,
+    SaveRepository,
+    SaveRepositoryError,
+)
 from app.presentation.overworld_models import (
     OverworldAction,
     OverworldAvailabilityReason,
@@ -41,6 +46,7 @@ class OverworldSession:
         enemy_factory,
         battle_ui_factory,
         presenter=None,
+        save_repository=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -57,6 +63,10 @@ class OverworldSession:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
             raise TypeError("presenter must be an OverworldPresenter")
+        if save_repository is None:
+            save_repository = SaveRepository()
+        if not isinstance(save_repository, SaveRepository):
+            raise TypeError("save_repository must be a SaveRepository")
 
         self._game_state = game_state
         self._ui = ui
@@ -64,6 +74,7 @@ class OverworldSession:
         self._enemy_factory = enemy_factory
         self._battle_ui_factory = battle_ui_factory
         self._presenter = presenter
+        self._save_repository = save_repository
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._adventure_text = None
@@ -101,6 +112,20 @@ class OverworldSession:
             selected_item_key=self._selected_item_key,
             adventure_text=self._adventure_text,
             notice=self._notice,
+            save_available=self._save_available(),
+            load_available=self._load_available(),
+        )
+
+    def _save_available(self):
+        return self._screen in {
+            OverworldScreen.OPTIONS,
+            OverworldScreen.REST,
+        }
+
+    def _load_available(self):
+        return (
+            self._screen is OverworldScreen.OPTIONS
+            and self._save_repository.inspect().status is SaveLoadStatus.VALID
         )
 
     def _select_item(self, view, overworld_input):
@@ -200,11 +225,28 @@ class OverworldSession:
             self._quit_return_screen = self._screen
             self._screen = OverworldScreen.QUIT_CONFIRMATION
             return None
+        if action is OverworldAction.SAVE:
+            self._save_current_session()
+            return None
+        if action is OverworldAction.LOAD:
+            self._screen = OverworldScreen.LOAD_CONFIRMATION
+            self._adventure_text = (
+                "Load the saved session and replace the current session?"
+            )
+            return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.LOAD_CONFIRMATION:
+                self._screen = OverworldScreen.OPTIONS
+                self._adventure_text = None
+                self._notice = None
+                return None
             self._screen = self._quit_return_screen or OverworldScreen.OPTIONS
             self._quit_return_screen = None
             return None
         if action is OverworldAction.CONFIRM:
+            if self._screen is OverworldScreen.LOAD_CONFIRMATION:
+                self._load_saved_session()
+                return None
             return OverworldSessionResult.QUIT
         if action is OverworldAction.REST:
             if self._screen is OverworldScreen.REST:
@@ -226,6 +268,28 @@ class OverworldSession:
             return None
         self._notice = self._unavailable_action_message(action)
         return None
+
+    def _save_current_session(self):
+        try:
+            self._save_repository.save(self.game_state)
+        except (SaveRepositoryError, TypeError, ValueError):
+            self._notice = "The game could not be saved."
+        else:
+            self._notice = "Game saved."
+
+    def _load_saved_session(self):
+        result = self._save_repository.load()
+        if result.status is not SaveLoadStatus.LOADED:
+            self._notice = result.error or "The saved game could not be loaded."
+            self._screen = OverworldScreen.OPTIONS
+            self._adventure_text = None
+            return
+        self._game_state = result.game_state
+        self._screen = OverworldScreen.MAIN
+        self._selected_item_key = None
+        self._quit_return_screen = None
+        self._notice = None
+        self._adventure_text = "Saved session loaded."
 
     def _navigate_back(self):
         if self._screen in {

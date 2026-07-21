@@ -56,6 +56,8 @@ class OverworldPresenter:
         selected_item_key=None,
         adventure_text=None,
         notice=None,
+        save_available=False,
+        load_available=False,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -67,7 +69,13 @@ class OverworldPresenter:
             (item for item in items if item.selection_key == selected_item_key),
             None,
         )
-        options = self._options(game_state, screen, selected_item)
+        options = self._options(
+            game_state,
+            screen,
+            selected_item,
+            save_available=save_available,
+            load_available=load_available,
+        )
         contextual_route_option = self._contextual_route_option(
             game_state,
             screen,
@@ -334,7 +342,15 @@ class OverworldPresenter:
             boss=encounter.boss,
         )
 
-    def _options(self, game_state, screen, selected_item):
+    def _options(
+        self,
+        game_state,
+        screen,
+        selected_item,
+        *,
+        save_available=False,
+        load_available=False,
+    ):
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
@@ -403,20 +419,31 @@ class OverworldPresenter:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.OPTIONS:
             return (
-                disabled(
-                    OverworldAction.SAVE,
-                    "Save",
-                    OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                (
+                    enabled(OverworldAction.SAVE, "Save")
+                    if save_available
+                    else disabled(
+                        OverworldAction.SAVE,
+                        "Save",
+                        OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                    )
                 ),
                 enabled(OverworldAction.QUIT, "Quit"),
-                disabled(
-                    OverworldAction.LOAD,
-                    "Load",
-                    OverworldAvailabilityReason.LOAD_UNAVAILABLE,
+                (
+                    enabled(OverworldAction.LOAD, "Load")
+                    if load_available
+                    else disabled(
+                        OverworldAction.LOAD,
+                        "Load",
+                        OverworldAvailabilityReason.LOAD_UNAVAILABLE,
+                    )
                 ),
                 enabled(OverworldAction.BACK, "Back"),
             )
-        if screen is OverworldScreen.QUIT_CONFIRMATION:
+        if screen in {
+            OverworldScreen.QUIT_CONFIRMATION,
+            OverworldScreen.LOAD_CONFIRMATION,
+        }:
             return (
                 enabled(OverworldAction.CONFIRM, "Confirm"),
                 enabled(OverworldAction.CANCEL, "Cancel"),
@@ -424,10 +451,14 @@ class OverworldPresenter:
         if screen is OverworldScreen.REST:
             return (
                 enabled(OverworldAction.REST, "Rest"),
-                disabled(
-                    OverworldAction.SAVE,
-                    "Save",
-                    OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                (
+                    enabled(OverworldAction.SAVE, "Save")
+                    if save_available
+                    else disabled(
+                        OverworldAction.SAVE,
+                        "Save",
+                        OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                    )
                 ),
                 enabled(OverworldAction.QUIT, "Quit"),
                 enabled(OverworldAction.MENU, "Menu"),

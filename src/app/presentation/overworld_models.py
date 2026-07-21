@@ -16,6 +16,7 @@ class OverworldScreen(StrEnum):
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
     QUIT_CONFIRMATION = "quit_confirmation"
+    LOAD_CONFIRMATION = "load_confirmation"
     REST = "rest"
 
 

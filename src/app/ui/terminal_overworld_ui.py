@@ -461,6 +461,7 @@ class TerminalOverworldUI:
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",
             OverworldScreen.QUIT_CONFIRMATION: "QUIT",
+            OverworldScreen.LOAD_CONFIRMATION: "LOAD",
             OverworldScreen.REST: "REST",
         }[screen]
 

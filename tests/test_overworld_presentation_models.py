@@ -106,6 +106,7 @@ def test_all_approved_screen_values_are_typed():
         "map_inspect",
         "options",
         "quit_confirmation",
+        "load_confirmation",
         "rest",
     )
 
