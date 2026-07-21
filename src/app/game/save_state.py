@@ -301,6 +301,11 @@ def _validate_player(player):
     _validate_stats(player["attributes"])
     progression = player["progression"]
     _require_mapping(progression, "player.progression")
+    _require_exact_keys(
+        progression,
+        {"level", "exp", "growth_points"},
+        "player.progression",
+    )
     _require_int_range(progression["level"], MINIMUM_LEVEL, MAXIMUM_LEVEL, "player.progression.level")
     threshold = xp_required_for_next_level(progression["level"])
     _require_int(progression["exp"], "player.progression.exp")
@@ -438,13 +443,15 @@ def _validate_overworld(overworld, world):
     if overworld["dungeon_entrance_reached"] != at_dungeon or overworld["route_complete"] != at_dungeon:
         raise SaveStateValidationError("overworld completion flags are inconsistent")
     rests = overworld["resolved_rest_node_ids"]
-    if not isinstance(rests, list) or rests != [rest for rest in SURFACE_REST_NODE_IDS if rest in rests]:
+    required_rests = [
+        route_node_id
+        for route_node_id in SURFACE_ROUTE_NODE_IDS[:index]
+        if route_node(route_node_id).kind is RouteNodeKind.REST
+    ]
+    if rests != required_rests:
         raise SaveStateValidationError("resolved Rest IDs must use authored order")
-    if any(rest not in SURFACE_REST_NODE_IDS for rest in rests):
+    if not isinstance(rests, list) or any(rest not in SURFACE_REST_NODE_IDS for rest in rests):
         raise SaveStateValidationError("overworld contains an unknown Rest ID")
-    for rest in rests:
-        if SURFACE_ROUTE_NODE_IDS.index(rest) >= index:
-            raise SaveStateValidationError("a Rest cannot be resolved before it is passed")
     phase = overworld["current_contextual_route_phase"]
     try:
         phase = ContextualRoutePhase(phase)
@@ -452,7 +459,27 @@ def _validate_overworld(overworld, world):
         raise SaveStateValidationError("overworld has an invalid contextual phase") from error
     if node.kind in {RouteNodeKind.REST, RouteNodeKind.DUNGEON_ENTRANCE} and phase is not ContextualRoutePhase.NONE:
         raise SaveStateValidationError("Rest and dungeon nodes cannot offer combat phases")
+    if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS} and phase not in {
+        ContextualRoutePhase.ENTER_ENCOUNTER,
+        ContextualRoutePhase.RETRY,
+    }:
+        raise SaveStateValidationError("combat nodes require an encounter phase")
     route_encounters = set(SURFACE_ROUTE_NODE_IDS)
+    required_encounters = {
+        route_node_id
+        for route_node_id in SURFACE_ROUTE_NODE_IDS[:index]
+        if route_node(route_node_id).kind in {
+            RouteNodeKind.COMBAT,
+            RouteNodeKind.BOSS,
+        }
+    }
+    route_defeated = {
+        encounter_id
+        for encounter_id in world["defeated_encounters"]
+        if encounter_id in route_encounters
+    }
+    if route_defeated != required_encounters:
+        raise SaveStateValidationError("route completion is not a valid authored prefix")
     for encounter_id in world["defeated_encounters"]:
         if encounter_id in route_encounters:
             route_index = SURFACE_ROUTE_NODE_IDS.index(encounter_id)

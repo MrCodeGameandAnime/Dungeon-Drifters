@@ -185,6 +185,34 @@ def test_invalid_reconstruction_does_not_mutate_an_existing_session():
     assert game.snapshot() == before
 
 
+@pytest.mark.parametrize(
+    "mutator",
+    (
+        lambda document: document["player"]["progression"].pop("exp"),
+        lambda document: document["player"]["progression"].update(extra=0),
+        lambda document: document["overworld"].update(
+            current_route_node_id="surface_elite_patrol",
+            surface_route_begun=True,
+            current_contextual_route_phase="enter_encounter",
+        ),
+        lambda document: document["overworld"].update(
+            current_route_node_id="surface_warrior_pair",
+            surface_route_begun=True,
+            current_contextual_route_phase="enter_encounter",
+        ),
+        lambda document: document["overworld"].update(
+            current_contextual_route_phase="none",
+        ),
+    ),
+)
+def test_impossible_route_or_nested_shapes_fail_as_save_validation_errors(mutator):
+    document = build_save_document(_create_populated_game("1"))
+    mutator(document)
+
+    with pytest.raises(SaveStateValidationError):
+        reconstruct_game_state(document)
+
+
 def test_snapshot_and_save_document_are_defensive():
     game = _create_populated_game("4")
     document = build_save_document(game)
