@@ -19,7 +19,10 @@ from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
-from app.world.character_profiles.roster import get_character_profiles
+from app.world.character_profiles.roster import (
+    get_character_profiles,
+    get_profile_by_choice,
+)
 
 
 class ScriptedUI:
@@ -32,6 +35,18 @@ class ScriptedUI:
 
     def read_input(self, _view):
         return self._inputs.pop(0)
+
+
+class DeterministicBattle:
+    def __init__(self, player_state, enemies, *, ui, encounter_label):
+        self.player_state = player_state
+        self.enemies = tuple(enemies)
+        self.encounter_label = encounter_label
+
+    def run(self):
+        for enemy in self.enemies:
+            enemy.health.take_damage(enemy.health.current)
+        return "player"
 
 
 def _phase_for(kind):
@@ -108,19 +123,70 @@ def test_all_drifters_round_trip_complete_persistent_session(profile, tmp_path):
     assert result.game_state.player_state is not game.player_state
     assert result.game_state.player_state.character is not game.player_state.character
     assert result.game_state.player_state.inventory is not game.player_state.inventory
+    assert result.game_state.player_state.health is not game.player_state.health
+    assert result.game_state.player_state.mana_resource is not game.player_state.mana_resource
+    assert result.game_state.player_state.super_resource is not game.player_state.super_resource
+    assert result.game_state.player_state.level_state is not game.player_state.level_state
+    assert result.game_state.player_state.exp_state is not game.player_state.exp_state
+    assert (
+        result.game_state.player_state.character.permanent_stats
+        is not game.player_state.character.permanent_stats
+    )
+    assert result.game_state.player_state._equipment is not game.player_state._equipment
     assert (
         result.game_state.player_state.character_run_state
         is not game.player_state.character_run_state
     )
-    assert result.game_state.overworld_state.current_route_node_id == (
+    assert result.game_state.player_state.get_equipped("weapon") is not (
+        game.player_state.get_equipped("weapon")
+    )
+    assert result.game_state.story_state is not game.story_state
+    assert result.game_state.world_state is not game.world_state
+    assert result.game_state.overworld_state is not game.overworld_state
+    assert result.game_state._metadata is not game._metadata
+
+    loaded_before_mutation = result.game_state.snapshot()
+    loaded_player = result.game_state.player_state
+    loaded_weapon = loaded_player.get_equipped("weapon")
+    assert type(loaded_weapon) is type(game.player_state.get_equipped("weapon"))
+    assert loaded_weapon.name == game.player_state.get_equipped("weapon").name
+    loaded_player.health.take_damage(1)
+    loaded_player.mana_resource.spend(1)
+    loaded_player.super_resource.gain(1)
+    loaded_player.gain_experience(1)
+    loaded_player.increase_permanent_stat("strength")
+    loaded_player.unequip("weapon")
+    result.game_state.story_state.add_story_flag("loaded-only")
+    result.game_state.world_state.discover_location("loaded-only")
+    result.game_state.overworld_state.advance_to(
+        "surface_shaman_solo",
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+    result.game_state.set_metadata("loaded-only", True)
+
+    assert game.snapshot() == before
+    assert loaded_before_mutation != result.game_state.snapshot()
+    assert loaded_before_mutation["overworld"]["current_route_node_id"] == (
         "surface_warrior_pair"
     )
-    assert not hasattr(result.game_state, "battle")
-    assert not hasattr(result.game_state, "combat_state")
-
-    repository.save(result.game_state)
-    assert repository.load().game_state.snapshot() == before
-
+    assert set(result.game_state.__dict__) == {
+        "_player_state",
+        "_story_state",
+        "_world_state",
+        "_overworld_state",
+        "_metadata",
+    }
+    assert all(
+        not hasattr(result.game_state, name)
+        for name in (
+            "battle",
+            "combat_state",
+            "combat_resolver",
+            "terminal_ui",
+            "rng",
+            "runtime_enemies",
+        )
+    )
 
 @pytest.mark.parametrize(
     "target_node_id",
@@ -209,6 +275,108 @@ def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path)
     assert repository.load().game_state.snapshot() == session.game_state.snapshot()
     assert session.game_state is not current
     assert ui.views[3].screen is OverworldScreen.MAIN
+
+
+def test_split_campaign_saves_quits_restarts_loads_and_finishes_route(tmp_path, monkeypatch):
+    repository = SaveRepository(tmp_path / "split-campaign.json")
+    first_session_game = GameState(
+        PlayerState(get_profile_by_choice("1").create_character())
+    )
+    first_session_ui = ScriptedUI(
+        (
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.OPTIONS),
+            ChooseOverworldAction(OverworldAction.SAVE),
+            ChooseOverworldAction(OverworldAction.QUIT),
+            ChooseOverworldAction(OverworldAction.CONFIRM),
+        )
+    )
+    first_session = OverworldSession(
+        first_session_game,
+        ui=first_session_ui,
+        battle_factory=DeterministicBattle,
+        enemy_factory=create_enemy_state,
+        battle_ui_factory=lambda: object(),
+        save_repository=repository,
+    )
+
+    assert first_session.run() is OverworldSessionResult.QUIT
+    assert repository.path.exists()
+    saved_result = repository.load()
+    assert saved_result.status is SaveLoadStatus.LOADED, saved_result.error
+    saved_mid_route = saved_result.game_state
+    assert saved_mid_route.overworld_state.current_route_node_id == (
+        "surface_warrior_pair"
+    )
+    assert saved_mid_route.overworld_state.resolved_rest_node_ids == (
+        "surface_rest_after_warrior_solo",
+    )
+    assert saved_mid_route.world_state.defeated_encounters == (
+        "surface_goblin_solo",
+        "surface_goblin_pair",
+        "surface_warrior_solo",
+    )
+
+    answers = iter(["l"])
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(answers))
+    restarted_game = _startup_game_state(repository)
+    assert restarted_game is not first_session_game
+    assert restarted_game is not saved_mid_route
+
+    second_session_ui = ScriptedUI(
+        (
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.REST),
+            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
+            ChooseOverworldAction(OverworldAction.OPTIONS),
+            ChooseOverworldAction(OverworldAction.SAVE),
+            ChooseOverworldAction(OverworldAction.QUIT),
+            ChooseOverworldAction(OverworldAction.CONFIRM),
+        )
+    )
+    second_session = OverworldSession(
+        restarted_game,
+        ui=second_session_ui,
+        battle_factory=DeterministicBattle,
+        enemy_factory=create_enemy_state,
+        battle_ui_factory=lambda: object(),
+        save_repository=repository,
+    )
+
+    assert second_session.run() is OverworldSessionResult.QUIT
+    assert second_session_ui.views[0].screen is OverworldScreen.MAIN
+    final_game = second_session.game_state
+    assert final_game.player_state.level_state.current == 9
+    assert final_game.player_state.exp_state.current == 68
+    assert final_game.player_state.growth_points == 24
+    assert final_game.player_state.gold == 75
+    assert final_game.world_state.defeated_encounters == (
+        "surface_goblin_solo",
+        "surface_goblin_pair",
+        "surface_warrior_solo",
+        "surface_warrior_pair",
+        "surface_shaman_solo",
+        "surface_shaman_pair",
+        "surface_elite_patrol",
+        "surface_goblin_lord",
+    )
+    assert final_game.overworld_state.resolved_rest_node_ids == (
+        "surface_rest_after_warrior_solo",
+        "surface_rest_after_shaman_pair",
+        "surface_rest_before_goblin_lord",
+    )
+    assert final_game.overworld_state.current_route_node_id == (
+        "surface_dungeon_entrance"
+    )
+    assert final_game.overworld_state.route_complete is True
+    assert repository.load().game_state.snapshot() == final_game.snapshot()
 
 
 @pytest.mark.parametrize("profile", get_character_profiles(), ids=lambda item: item.choice)

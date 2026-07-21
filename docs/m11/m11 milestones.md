@@ -247,6 +247,31 @@ fresh isolated GameState, reconstructs no Battle or runtime enemy, and permits
 continuation into the next encounter. Previous rewards must not be paid again;
 the loaded session must be able to save again.
 
+The central acceptance path must also be proven as one split campaign, not as
+separate startup and continuation tests:
+
+```text
+Session A:
+start a new surface route
+complete several encounters
+resolve at least one Rest
+save through Options
+quit
+
+Session B:
+restart startup
+choose Load
+confirm the first Overworld screen is Main
+continue every remaining encounter
+defeat Goblin Lord
+reach Dungeon Entrance
+save again
+```
+
+The resumed campaign must finish at Level 9, 68 EXP, 24 Growth Points, and
+75 gold, with exactly eight defeated encounters, three resolved Rest nodes,
+Dungeon Entrance current, and route completion true.
+
 Retain cumulative proofs for:
 
 - missing save -> normal new-game flow
