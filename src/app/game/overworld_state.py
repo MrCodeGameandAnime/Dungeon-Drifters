@@ -92,6 +92,21 @@ class OverworldState:
             raise ValueError(f"not an authored Rest node: {node_id!r}")
         self._resolved_rest_node_ids.add(node_id)
 
+    @classmethod
+    def from_snapshot(cls, snapshot):
+        state = cls()
+        state._current_route_node_id = snapshot["current_route_node_id"]
+        state._surface_route_begun = snapshot["surface_route_begun"]
+        state._dungeon_entrance_reached = snapshot["dungeon_entrance_reached"]
+        state._route_complete = snapshot["route_complete"]
+        state._resolved_rest_node_ids = set(
+            snapshot["resolved_rest_node_ids"]
+        )
+        state._current_contextual_route_phase = ContextualRoutePhase(
+            snapshot["current_contextual_route_phase"]
+        )
+        return state
+
     def snapshot(self):
         return to_plain_value(
             {

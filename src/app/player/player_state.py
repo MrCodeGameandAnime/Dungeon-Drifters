@@ -253,6 +253,31 @@ class PlayerState:
             checkpoint.character_run_state
         )
 
+    @classmethod
+    def from_persistent_snapshot(
+        cls,
+        character,
+        snapshot,
+        *,
+        inventory_items,
+        equipment_items,
+        run_checkpoint,
+    ):
+        player_state = cls(character, gold=snapshot["gold"])
+        for stat_name, value in snapshot["attributes"].items():
+            character.permanent_stats.set_stat(stat_name, value)
+        character.level = snapshot["progression"]["level"]
+        character.recalculate_resource_maximums()
+        character.exp_state.current = snapshot["progression"]["exp"]
+        player_state._growth_points = snapshot["progression"]["growth_points"]
+        character.health.current = snapshot["resources"]["health"]["current"]
+        character.mana_resource.current = snapshot["resources"]["mana"]["current"]
+        player_state.super_resource.current = snapshot["resources"]["super"]["current"]
+        player_state._inventory._items = list(inventory_items)
+        player_state._equipment = dict(equipment_items)
+        player_state.character_run_state.restore_checkpoint(run_checkpoint)
+        return player_state
+
     def snapshot(self):
         profile = self._snapshot_profile()
         snapshot = {
