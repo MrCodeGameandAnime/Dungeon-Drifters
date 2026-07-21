@@ -56,6 +56,8 @@ class OverworldPresenter:
         selected_item_key=None,
         adventure_text=None,
         notice=None,
+        save_available=False,
+        load_available=False,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -67,7 +69,13 @@ class OverworldPresenter:
             (item for item in items if item.selection_key == selected_item_key),
             None,
         )
-        options = self._options(game_state, screen, selected_item)
+        options = self._options(
+            game_state,
+            screen,
+            selected_item,
+            save_available=save_available,
+            load_available=load_available,
+        )
         contextual_route_option = self._contextual_route_option(
             game_state,
             screen,
@@ -334,7 +342,15 @@ class OverworldPresenter:
             boss=encounter.boss,
         )
 
-    def _options(self, game_state, screen, selected_item):
+    def _options(
+        self,
+        game_state,
+        screen,
+        selected_item,
+        *,
+        save_available=False,
+        load_available=False,
+    ):
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
@@ -403,27 +419,69 @@ class OverworldPresenter:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.OPTIONS:
             return (
-                disabled(
-                    OverworldAction.SAVE,
-                    "Save",
-                    OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                (
+                    enabled(OverworldAction.SAVE, "Save")
+                    if save_available
+                    else disabled(
+                        OverworldAction.SAVE,
+                        "Save",
+                        OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                    )
                 ),
                 enabled(OverworldAction.QUIT, "Quit"),
-                disabled(
-                    OverworldAction.LOAD,
-                    "Load",
-                    OverworldAvailabilityReason.LOAD_UNAVAILABLE,
+                (
+                    enabled(OverworldAction.LOAD, "Load")
+                    if load_available
+                    else disabled(
+                        OverworldAction.LOAD,
+                        "Load",
+                        OverworldAvailabilityReason.LOAD_UNAVAILABLE,
+                    )
                 ),
                 enabled(OverworldAction.BACK, "Back"),
             )
-        if screen is OverworldScreen.QUIT_CONFIRMATION:
+        if screen in {
+            OverworldScreen.QUIT_CONFIRMATION,
+            OverworldScreen.LOAD_CONFIRMATION,
+        }:
             return (
                 enabled(OverworldAction.CONFIRM, "Confirm"),
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
+        if screen is OverworldScreen.REST:
+            return (
+                enabled(OverworldAction.REST, "Rest"),
+                (
+                    enabled(OverworldAction.SAVE, "Save")
+                    if save_available
+                    else disabled(
+                        OverworldAction.SAVE,
+                        "Save",
+                        OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                    )
+                ),
+                enabled(OverworldAction.QUIT, "Quit"),
+                enabled(OverworldAction.MENU, "Menu"),
+            )
         raise ValueError(f"unsupported overworld screen: {screen!r}")
 
     def _contextual_route_option(self, game_state, screen):
+        current_node_id = game_state.overworld_state.current_route_node_id
+        current_node = route_node(current_node_id)
+        unresolved_rest = current_node_id not in set(
+            game_state.overworld_state.resolved_rest_node_ids
+        )
+        if screen is OverworldScreen.MAIN and (
+            current_node.kind is RouteNodeKind.REST and unresolved_rest
+        ):
+            return self._enabled_option(OverworldAction.REST, "Rest")
+        if screen is OverworldScreen.REST and (
+            current_node.kind is RouteNodeKind.REST and unresolved_rest
+        ):
+            return self._enabled_option(
+                OverworldAction.SKIP_REST,
+                "Continue Without Rest",
+            )
         if screen is not OverworldScreen.MAIN:
             return None
         phase = game_state.overworld_state.current_contextual_route_phase

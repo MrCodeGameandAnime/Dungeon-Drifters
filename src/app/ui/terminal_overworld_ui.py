@@ -40,6 +40,9 @@ class TerminalOverworldUI:
         OverworldAction.CANCEL: "N",
         OverworldAction.ENTER_ENCOUNTER: "E",
         OverworldAction.RETRY: "R",
+        OverworldAction.REST: "R",
+        OverworldAction.SKIP_REST: "C",
+        OverworldAction.MENU: "M",
     }
 
     def __init__(
@@ -163,13 +166,11 @@ class TerminalOverworldUI:
             OverworldScreen.MAIN,
             OverworldScreen.OPTIONS,
             OverworldScreen.QUIT_CONFIRMATION,
+            OverworldScreen.LOAD_CONFIRMATION,
         }:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
-            if (
-                view.screen is OverworldScreen.MAIN
-                and view.contextual_route_option is not None
-            ):
+            if view.contextual_route_option is not None:
                 lines.extend(
                     (
                         "",
@@ -178,6 +179,12 @@ class TerminalOverworldUI:
                 )
             if view.screen is OverworldScreen.QUIT_CONFIRMATION:
                 lines.extend(("", "Exit this session without saving?"))
+            elif view.screen is OverworldScreen.LOAD_CONFIRMATION:
+                load_prompt = (
+                    "Load the saved session and replace the current session?"
+                )
+                if view.adventure_text != load_prompt:
+                    lines.extend(("", load_prompt))
         elif view.screen is OverworldScreen.CHARACTER:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:
@@ -192,6 +199,15 @@ class TerminalOverworldUI:
             lines = list(self._map_lines(view, width))
         elif view.screen is OverworldScreen.MAP_INSPECT:
             lines = list(self._map_inspection_lines(view))
+        elif view.screen is OverworldScreen.REST:
+            lines = [
+                "REST",
+                "",
+                "Rest fully restores HP and Mana.",
+                "Super and all other persistent state are preserved.",
+            ]
+            if view.contextual_route_option is not None:
+                lines.extend(("", self._option_label(view.contextual_route_option)))
         else:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
@@ -452,6 +468,8 @@ class TerminalOverworldUI:
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",
             OverworldScreen.QUIT_CONFIRMATION: "QUIT",
+            OverworldScreen.LOAD_CONFIRMATION: "LOAD",
+            OverworldScreen.REST: "REST",
         }[screen]
 
     @staticmethod

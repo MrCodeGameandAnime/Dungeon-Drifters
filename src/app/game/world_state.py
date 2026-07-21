@@ -50,6 +50,16 @@ class WorldState:
     def set_dungeon_change(self, key, value):
         self._dungeon_changes[key] = value
 
+    @classmethod
+    def from_snapshot(cls, snapshot):
+        state = cls()
+        state._discovered_locations = list(snapshot["discovered_locations"])
+        state._defeated_encounters = list(snapshot["defeated_encounters"])
+        state._opened_objects = list(snapshot["opened_objects"])
+        state._consumed_objects = list(snapshot["consumed_objects"])
+        state._dungeon_changes = dict(snapshot["dungeon_changes"])
+        return state
+
     def snapshot(self):
         return to_plain_value(
             {

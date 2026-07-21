@@ -9,6 +9,11 @@ from app.game.encounter_manifest import (
 from app.game.game_state import GameState
 from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
+from app.game.save_repository import (
+    SaveLoadStatus,
+    SaveRepository,
+    SaveRepositoryError,
+)
 from app.presentation.overworld_models import (
     OverworldAction,
     OverworldAvailabilityReason,
@@ -41,6 +46,7 @@ class OverworldSession:
         enemy_factory,
         battle_ui_factory,
         presenter=None,
+        save_repository=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -57,6 +63,10 @@ class OverworldSession:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
             raise TypeError("presenter must be an OverworldPresenter")
+        if save_repository is None:
+            save_repository = SaveRepository()
+        if not isinstance(save_repository, SaveRepository):
+            raise TypeError("save_repository must be a SaveRepository")
 
         self._game_state = game_state
         self._ui = ui
@@ -64,10 +74,12 @@ class OverworldSession:
         self._enemy_factory = enemy_factory
         self._battle_ui_factory = battle_ui_factory
         self._presenter = presenter
+        self._save_repository = save_repository
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._adventure_text = None
         self._notice = None
+        self._quit_return_screen = None
 
     @property
     def game_state(self):
@@ -100,6 +112,20 @@ class OverworldSession:
             selected_item_key=self._selected_item_key,
             adventure_text=self._adventure_text,
             notice=self._notice,
+            save_available=self._save_available(),
+            load_available=self._load_available(),
+        )
+
+    def _save_available(self):
+        return self._screen in {
+            OverworldScreen.OPTIONS,
+            OverworldScreen.REST,
+        }
+
+    def _load_available(self):
+        return (
+            self._screen is OverworldScreen.OPTIONS
+            and self._save_repository.inspect().status is SaveLoadStatus.VALID
         )
 
     def _select_item(self, view, overworld_input):
@@ -196,18 +222,74 @@ class OverworldSession:
                 self._screen = OverworldScreen.MAP_INSPECT
             return None
         if action is OverworldAction.QUIT:
+            self._quit_return_screen = self._screen
             self._screen = OverworldScreen.QUIT_CONFIRMATION
             return None
+        if action is OverworldAction.SAVE:
+            self._save_current_session()
+            return None
+        if action is OverworldAction.LOAD:
+            self._screen = OverworldScreen.LOAD_CONFIRMATION
+            self._adventure_text = (
+                "Load the saved session and replace the current session?"
+            )
+            return None
         if action is OverworldAction.CANCEL:
-            self._screen = OverworldScreen.OPTIONS
+            if self._screen is OverworldScreen.LOAD_CONFIRMATION:
+                self._screen = OverworldScreen.OPTIONS
+                self._adventure_text = None
+                self._notice = None
+                return None
+            self._screen = self._quit_return_screen or OverworldScreen.OPTIONS
+            self._quit_return_screen = None
             return None
         if action is OverworldAction.CONFIRM:
+            if self._screen is OverworldScreen.LOAD_CONFIRMATION:
+                self._load_saved_session()
+                return None
             return OverworldSessionResult.QUIT
+        if action is OverworldAction.REST:
+            if self._screen is OverworldScreen.REST:
+                self._resolve_current_rest(recover=True)
+            else:
+                self._open_current_rest()
+            return None
+        if action is OverworldAction.SKIP_REST:
+            self._resolve_current_rest(recover=False)
+            return None
+        if action is OverworldAction.MENU:
+            if self._screen is OverworldScreen.REST:
+                self._screen = OverworldScreen.MAIN
+                return None
+            self._notice = "That option is not available."
+            return None
         if action in {OverworldAction.ENTER_ENCOUNTER, OverworldAction.RETRY}:
             self._run_current_encounter()
             return None
         self._notice = self._unavailable_action_message(action)
         return None
+
+    def _save_current_session(self):
+        try:
+            self._save_repository.save(self.game_state)
+        except (SaveRepositoryError, TypeError, ValueError):
+            self._notice = "The game could not be saved."
+        else:
+            self._notice = "Game saved."
+
+    def _load_saved_session(self):
+        result = self._save_repository.load()
+        if result.status is not SaveLoadStatus.LOADED:
+            self._notice = result.error or "The saved game could not be loaded."
+            self._screen = OverworldScreen.OPTIONS
+            self._adventure_text = None
+            return
+        self._game_state = result.game_state
+        self._screen = OverworldScreen.MAIN
+        self._selected_item_key = None
+        self._quit_return_screen = None
+        self._notice = None
+        self._adventure_text = "Saved session loaded."
 
     def _navigate_back(self):
         if self._screen in {
@@ -280,13 +362,72 @@ class OverworldSession:
                 growth_points_gained=growth_points_gained,
                 resulting_level=player.level_state.current,
             )
+            self._screen = (
+                OverworldScreen.REST
+                if next_node.kind is RouteNodeKind.REST
+                else OverworldScreen.MAIN
+            )
         else:
             self.game_state.player_state.restore_battle_checkpoint(checkpoint)
             overworld.set_contextual_route_phase(ContextualRoutePhase.RETRY)
             self._adventure_text = self.DEFEAT_ADVENTURE_TEXT
+        if winner != "player":
+            self._screen = OverworldScreen.MAIN
+        self._selected_item_key = None
+        self._notice = None
+
+    def _open_current_rest(self):
+        overworld = self.game_state.overworld_state
+        node_id = overworld.current_route_node_id
+        if (
+            route_node(node_id).kind is not RouteNodeKind.REST
+            or node_id in overworld.resolved_rest_node_ids
+        ):
+            self._notice = "That Rest is not available."
+            return
+        self._screen = OverworldScreen.REST
+
+    def _resolve_current_rest(self, *, recover):
+        overworld = self.game_state.overworld_state
+        current_node_id = overworld.current_route_node_id
+        current_node = route_node(current_node_id)
+        if (
+            current_node.kind is not RouteNodeKind.REST
+            or current_node_id in overworld.resolved_rest_node_ids
+        ):
+            self._notice = "That Rest is not available."
+            return
+
+        manifest_node = route_manifest_node(current_node_id)
+        next_node_id = manifest_node.next_node_id
+        if next_node_id is None:
+            self._notice = "That Rest has no available successor."
+            return
+        next_node = route_node(next_node_id)
+        next_phase = self._contextual_phase_for_node(next_node.kind)
+
+        if recover:
+            player = self.game_state.player_state
+            player.health.heal(player.health.maximum)
+            player.mana_resource.restore(player.mana_resource.maximum)
+
+        overworld.record_resolved_rest_node(current_node_id)
+        overworld.advance_to(next_node_id, contextual_phase=next_phase)
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._notice = None
+        if recover:
+            self._adventure_text = (
+                f"You rest at {current_node.display_label}. HP and Mana are "
+                f"fully restored. The route continues toward "
+                f"{next_node.display_label}."
+            )
+        else:
+            self._adventure_text = (
+                f"You continue from {current_node.display_label} without "
+                f"resting. The route continues toward "
+                f"{next_node.display_label}."
+            )
 
     @staticmethod
     def _battle_enemies_are_defeated(battle):

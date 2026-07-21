@@ -21,6 +21,40 @@ def create_view(screen=OverworldScreen.MAIN, character_type=Brawler, **kwargs):
     return OverworldPresenter().build(game, screen=screen, **kwargs)
 
 
+def create_rest_view(rest_node_id="surface_rest_after_warrior_solo"):
+    game = GameState(PlayerState(Brawler()))
+    paths = {
+        "surface_rest_after_warrior_solo": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+        ),
+        "surface_rest_after_shaman_pair": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+            "surface_warrior_pair",
+            "surface_shaman_solo",
+            "surface_shaman_pair",
+            "surface_rest_after_shaman_pair",
+        ),
+        "surface_rest_before_goblin_lord": (
+            "surface_goblin_pair",
+            "surface_warrior_solo",
+            "surface_rest_after_warrior_solo",
+            "surface_warrior_pair",
+            "surface_shaman_solo",
+            "surface_shaman_pair",
+            "surface_rest_after_shaman_pair",
+            "surface_elite_patrol",
+            "surface_rest_before_goblin_lord",
+        ),
+    }
+    for node_id in paths[rest_node_id]:
+        game.overworld_state.advance_to(node_id)
+    return OverworldPresenter().build(game, screen=OverworldScreen.REST)
+
+
 def rendered(view, *, width=100, unicode_enabled=False, interactive=False):
     output = []
     TerminalOverworldUI(
@@ -197,6 +231,10 @@ def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
         ),
         (OverworldScreen.OPTIONS, ("OPTIONS", "Save", "Quit", "Load", "Back")),
         (OverworldScreen.QUIT_CONFIRMATION, ("QUIT", "Exit this session without saving?", "Confirm", "Cancel")),
+        (
+            OverworldScreen.REST,
+            ("REST", "Rest fully restores HP and Mana", "Save [Unavailable]", "Menu"),
+        ),
     ),
 )
 def test_each_overworld_screen_has_distinct_structured_regions(
@@ -232,6 +270,72 @@ def test_item_screen_uses_authored_labels_and_hides_internal_selection_keys():
     assert "ember_shard" not in item_text
     assert "run-item:" not in item_text
     assert "surface_" not in item_text
+
+
+def test_rest_screen_renders_and_translates_approved_controls():
+    view = create_rest_view()
+
+    for width in (24, 50, 80, 120):
+        for unicode_enabled in (False, True):
+            lines = rendered(
+                view,
+                width=width,
+                unicode_enabled=unicode_enabled,
+            )
+            text = "\n".join(lines)
+            assert all(len(line) <= width for line in lines)
+            assert "REST" in text
+            assert "Rest fully restores" in text
+            assert "HP" in text
+            assert "Mana" in text
+            assert "Save [Unavailable]" in text
+            assert "Continue" in text
+            assert "surface_" not in text
+
+    rest, output = read(view, ["s", "r"])
+    assert rest == ChooseOverworldAction(OverworldAction.REST)
+    assert output == ["Saving is not yet available."]
+
+    skip, _ = read(view, ["c"])
+    assert skip == ChooseOverworldAction(OverworldAction.SKIP_REST)
+
+    menu, _ = read(view, ["m"])
+    assert menu == ChooseOverworldAction(OverworldAction.MENU)
+
+
+@pytest.mark.parametrize(
+    ("rest_node_id", "rest_label"),
+    (
+        ("surface_rest_after_warrior_solo", "Woodland Rest"),
+        ("surface_rest_after_shaman_pair", "Ritual Clearing Rest"),
+        ("surface_rest_before_goblin_lord", "Final Approach Rest"),
+    ),
+)
+def test_all_authored_rest_nodes_render_width_safe_and_selectable(
+    rest_node_id,
+    rest_label,
+):
+    view = create_rest_view(rest_node_id)
+
+    for width in (24, 50, 80, 120):
+        for unicode_enabled in (False, True):
+            lines = rendered(
+                view,
+                width=width,
+                unicode_enabled=unicode_enabled,
+            )
+            text = "\n".join(lines)
+            assert all(len(line) <= width for line in lines)
+            assert rest_label in " ".join(text.split())
+            assert "REST" in text
+            assert "Save [Unavailable]" in text
+            assert "Continue" in text
+            assert "surface_" not in text
+
+    rest, _ = read(view, ["r"])
+    assert rest == ChooseOverworldAction(OverworldAction.REST)
+    skip, _ = read(view, ["c"])
+    assert skip == ChooseOverworldAction(OverworldAction.SKIP_REST)
 
 
 def test_interactive_render_clears_before_the_complete_screen():
@@ -457,6 +561,34 @@ def test_invalid_input_changes_no_view_and_requires_another_choice():
 
 def test_quit_confirmation_uses_typed_confirm_and_cancel_inputs():
     view = create_view(OverworldScreen.QUIT_CONFIRMATION)
+
+    confirm, _ = read(view, ["y"])
+    cancel, _ = read(view, ["n"])
+
+    assert confirm == ChooseOverworldAction(OverworldAction.CONFIRM)
+    assert cancel == ChooseOverworldAction(OverworldAction.CANCEL)
+
+
+def test_load_confirmation_renders_at_wide_and_narrow_widths():
+    view = create_view(
+        OverworldScreen.LOAD_CONFIRMATION,
+        adventure_text="Load the saved session and replace the current session?",
+    )
+
+    for width in (50, 80):
+        text = "\n".join(rendered(view, width=width))
+        normalized = " ".join(text.split())
+        assert "LOAD" in text
+        assert (
+            "Load the saved session and replace the current session?"
+            in normalized
+        )
+        assert "Confirm" in text
+        assert "Cancel" in text
+
+
+def test_load_confirmation_uses_typed_confirm_and_cancel_inputs():
+    view = create_view(OverworldScreen.LOAD_CONFIRMATION)
 
     confirm, _ = read(view, ["y"])
     cancel, _ = read(view, ["n"])

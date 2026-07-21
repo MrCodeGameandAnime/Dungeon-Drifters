@@ -35,6 +35,18 @@ class StoryState:
     def record_decision(self, key, value):
         self._player_decisions[key] = value
 
+    @classmethod
+    def from_snapshot(cls, snapshot):
+        state = cls(
+            current_chapter=snapshot["current_chapter"],
+            current_scene=snapshot["current_scene"],
+            current_location=snapshot["current_location"],
+        )
+        state._story_flags = list(snapshot["story_flags"])
+        state._completed_events = list(snapshot["completed_events"])
+        state._player_decisions = dict(snapshot["player_decisions"])
+        return state
+
     def snapshot(self):
         return to_plain_value(
             {

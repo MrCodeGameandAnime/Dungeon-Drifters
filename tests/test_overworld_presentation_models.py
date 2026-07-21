@@ -106,6 +106,8 @@ def test_all_approved_screen_values_are_typed():
         "map_inspect",
         "options",
         "quit_confirmation",
+        "load_confirmation",
+        "rest",
     )
 
 
@@ -133,7 +135,29 @@ def test_contextual_route_actions_have_a_dedicated_main_screen_boundary():
             "The road begins here.",
             (contextual,),
         )
-    with pytest.raises(ValueError, match="only on the Main screen"):
+
+
+@pytest.mark.parametrize(
+    ("screen", "action"),
+    (
+        (OverworldScreen.MAIN, OverworldAction.SKIP_REST),
+        (OverworldScreen.REST, OverworldAction.ENTER_ENCOUNTER),
+        (OverworldScreen.REST, OverworldAction.RETRY),
+        (OverworldScreen.REST, OverworldAction.REST),
+    ),
+)
+def test_contextual_route_matrix_rejects_cross_screen_actions(screen, action):
+    contextual = OverworldOptionView(action, "Invalid", True)
+
+    with pytest.raises(ValueError, match="invalid contextual route action"):
+        OverworldView(
+            screen,
+            "Woodland Rest",
+            "The route continues.",
+            (),
+            contextual_route_option=contextual,
+        )
+    with pytest.raises(ValueError, match="only on the Main or Rest screen"):
         OverworldView(
             OverworldScreen.OPTIONS,
             "Goblin Ambush",

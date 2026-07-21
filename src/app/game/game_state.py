@@ -41,6 +41,22 @@ class GameState:
     def set_metadata(self, key, value):
         self._metadata[key] = value
 
+    @classmethod
+    def from_persistent_parts(
+        cls,
+        player_state,
+        story_state,
+        world_state,
+        overworld_state,
+        metadata,
+    ):
+        game_state = cls(player_state)
+        game_state._story_state = story_state
+        game_state._world_state = world_state
+        game_state._overworld_state = overworld_state
+        game_state._metadata = dict(metadata)
+        return game_state
+
     def snapshot(self):
         return to_plain_value(
             {

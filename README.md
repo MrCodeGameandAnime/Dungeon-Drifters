@@ -2,25 +2,25 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.9**. This is the completed
-structured Goblin Battle, stat-scaling, M8 hardening, and M9 UI/engine
-separation checkpoint between **v0.2** and the unfinished **v0.3** release.
-The playable baseline is still a small Goblin vertical slice, but it now runs
-through structured moves, the combat resolver, encounter-owned combat state,
-and a renderer-neutral presentation boundary. M9 character identity mechanics
-are live in the combat slice.
+The current repository checkpoint is **v0.2.10.5**. M10 is complete through
+the surface route, progression, resting, and save/load boundaries that lead to
+the dungeon entrance. The project now runs a persistent single-Drifter session
+through structured combat, multi-enemy encounters, rewards, menus, and a
+renderer-neutral presentation boundary.
 
 ## Current Playable State
 
-The playable flow is intentionally small:
+The current playable flow is:
 
 ```text
 title screen
   -> Drifter selection
   -> opening story
-  -> attack or flee
-  -> Goblin encounter or escape
-  -> victory or defeat ending
+  -> overworld route
+  -> authored encounter
+  -> rewards
+  -> rest, inspect, save, load, or continue
+  -> dungeon entrance
 ```
 
 Current Drifter selection uses canonical profile identity layered over the
@@ -31,8 +31,24 @@ existing mechanical archetypes:
 - Zhaivra Kelyth, the Uncontrolled Reagent - Rogue Archer
 - Joruun Veyr, the Bloody Storm Monk - Monk
 
-The Goblin encounter now uses the structured combat path. The main battle menu
-currently presents:
+The surface route contains eight authored encounters:
+
+```text
+Goblin
+-> 2 Goblins
+-> Goblin Warrior
+-> 2 Goblin Warriors
+-> Goblin Shaman
+-> 2 Goblin Shamans
+-> Goblin Elite + Goblin
+-> Goblin Lord + Goblin + Goblin Warrior
+```
+
+The route also contains three single-use Rest nodes. Rest fully restores HP
+and Mana without changing Super or other persistent state; continuing without
+resting advances the route without recovery.
+
+The battle menu presents:
 
 - Attack
 - Defend
@@ -51,6 +67,17 @@ Branoc's Brace, Azhvielle's Gravemantle and Frost routes, Zhaivra's Burn and
 Poison infusions, and Joruun's Water, Air, Lightning, and Stun mechanics are
 implemented through the resolver and encounter-local state boundaries.
 
+Multi-enemy battles preserve authored order, stable target identity, exact
+target selection, and defeated-enemy visibility. The overworld menu provides
+Character, Items, Map, Options, and contextual route actions. Character and
+Skills screens expose progression, permanent stats, Growth Points, and
+signature weapon data. Rewards are applied once after complete encounter
+victory.
+
+Manual save/load uses one file at `src/saves/dungeon_drifters.json`. Disk saves
+use schema 8; the in-memory inspection snapshot remains schema 7. Battle and
+other temporary runtime state are never written to disk.
+
 ## Play Instructions
 
 From the project root, run:
@@ -67,11 +94,14 @@ During play:
 2. Choose a Drifter.
 3. Confirm or return to selection.
 4. Read the opening story.
-5. Choose to attack or flee.
-6. If combat starts, choose Attack, Defend, Heal, Items, or Escape.
-7. Use Heal when damaged and ready; it becomes available again after three
+5. Enter the first encounter from the overworld menu.
+6. Choose Attack, Defend, Heal, Items, or Escape during combat.
+7. Select an exact enemy target when an encounter has multiple living enemies.
+8. Use Heal when damaged and ready; it becomes available again after three
    later accepted actions by that character.
-8. Use the persistent Super meter to open the Super submenu when ready.
+9. Use the persistent Super meter to open the Super submenu when ready.
+10. Use the overworld menu to inspect the route, spend Growth Points, rest,
+    save, load, or quit with confirmation.
 
 ## Balance Snapshot
 
@@ -132,8 +162,8 @@ The repository now includes these active foundations:
 - Core Defend contract integrated into Battle as a resolver-backed core action,
   not an authored `Move`.
 - Battle consumes `CombatResolver` and passes `CombatState` into resolver calls.
-- Battle reads player moves from `player_state.combat_moves` and enemy moves
-  from `foe.combat_moves`.
+- Battle reads player moves from `player_state.combat_moves` and authored enemy
+  moves from each independent `EnemyState`.
 - Accepted combat actions complete through
   `CombatState.complete_accepted_action(...)`.
 - `BattlePresenter` converts read-only domain state and semantic events into
@@ -156,9 +186,9 @@ The repository now includes these active foundations:
 - Defensive copies or immutable views for state collections where currently
   implemented.
 
-These systems form the current gameplay and architecture foundation. The
-Goblin encounter is fully on the structured combat path, while broader
-gameplay systems remain under development.
+These systems form the current M10 gameplay and architecture foundation. The
+session ends at the dungeon entrance; party expansion and dungeon gameplay are
+deferred to the next architectural phase.
 
 ## Resource Terminology
 
@@ -363,17 +393,34 @@ v0.2.9 completes the M9 UI/engine separation milestone:
 - added the deterministic M9 balance snapshot tool with fixed 25-seed Goblin,
   100-seed stress, eight-route, and natural Super-usage coverage
 
+### v0.2.10
+
+v0.2.10 completes the M10 surface-route session:
+
+- added the persistent overworld session and authored twelve-node route shell
+- added eight authored encounters and deterministic enemy compositions
+- added one-to-four enemy Battle orchestration with stable target identity,
+  ordered enemy phases, exact targeting, suppression, cleanup, and inactive
+  final views
+- added route-aware Map encounter inspection without creating runtime enemies
+- added signature-weapon inspection and narrow equipment presentation
+- added atomic encounter EXP and gold rewards, nonlinear progression to the
+  Level 250 cap, carryover EXP, and controlled permanent-stat growth
+- added three authored Rest nodes with full HP/Mana recovery or route skip
+- added schema-8 atomic disk save/load with schema-7 migration, validation,
+  invalid-save recovery, and startup Load/New Game selection
+- preserved schema-7 inspection snapshots and excluded Battle/UI runtime state
+  from disk persistence
+
 ## Known Limitations
 
 - In-battle Escape remains visible but is not yet wired.
 - Heal is a universal self-heal that restores 10-16 HP plus effective
   Constitution and becomes available again after three later accepted
   actions by that character.
-- Character balance remains provisional pending larger enemies, progression,
-  and future M10 content.
+- Character balance remains provisional pending broader balance review.
 - Exact combat formulas and balance are provisional.
-- XP, Growth Points, secured/unsecured extraction loops, and reward persistence
-  remain parked for a later progression milestone.
+- Secured and unsecured extraction loops remain deferred.
 - Momentum implementation is deferred.
 - The current inventory and infusion loop is limited to the authored M9
   compounds and payloads; broader loot and crafting systems remain future
@@ -381,10 +428,13 @@ v0.2.9 completes the M9 UI/engine separation milestone:
 - Status effects and elemental interactions are limited to the authored M9
   mechanics; no general effect scripting system exists.
 - Enemy AI is still simple random selection from authored structured moves.
-- Multi-enemy, party-targeting, and area-targeting encounters are not
-  implemented.
-- Equipment currently contributes through `effective_stat()` where applicable.
-- Broader encounters, progression gameplay, shops, extraction, and save/load
+- Party combat, ally targeting, and dungeon gameplay are not implemented.
+- Area-targeting moves, enemy healing, enemy Defend, enemy Super, summons,
+  phases, and tactical AI remain deferred.
+- Equipment remains intentionally narrow: the authored signature weapon is
+  inspectable, while accessory swapping and broader item systems remain
+  future work.
+- Crafting, shops, full loot tables, save slots, autosave, and cloud saves
   remain future work.
 
 ## Development Notes
