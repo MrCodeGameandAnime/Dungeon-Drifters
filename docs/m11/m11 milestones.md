@@ -314,5 +314,6 @@ diff-check. Review the cumulative M11 commit chain and confirm:
 9. Independent sessions share no mutable state.
 10. Presentation remains valid before, during, and after combat.
 
-M12 remains blocked until M11 is fully sealed. M11 stops at Dungeon Entrance;
-the first dungeon transition and manual release hardening belong to M12.
+M11 is complete and sealed. It stops at Dungeon Entrance after the Goblin Lord
+victory. M12 is documentation and release closure only; entering the dungeon,
+companion recruitment, and party state belong to post-v0.3 work.

@@ -2,11 +2,10 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.2.10.5**. M10 is complete through
-the surface route, progression, resting, and save/load boundaries that lead to
-the dungeon entrance. The project now runs a persistent single-Drifter session
-through structured combat, multi-enemy encounters, rewards, menus, and a
-renderer-neutral presentation boundary.
+The current repository checkpoint is **v0.3**. The release provides a complete
+single-Drifter surface campaign through the Goblin Lord, with persistent
+progression, Rest, save/load, multi-enemy combat, and renderer-neutral terminal
+presentation. M11 acceptance proves the complete session for all four Drifters.
 
 ## Current Playable State
 
@@ -20,7 +19,8 @@ title screen
   -> authored encounter
   -> rewards
   -> rest, inspect, save, load, or continue
-  -> dungeon entrance
+  -> Goblin Lord victory
+  -> dungeon entrance (v0.3 endpoint)
 ```
 
 Current Drifter selection uses canonical profile identity layered over the
@@ -186,9 +186,9 @@ The repository now includes these active foundations:
 - Defensive copies or immutable views for state collections where currently
   implemented.
 
-These systems form the current M10 gameplay and architecture foundation. The
-session ends at the dungeon entrance; party expansion and dungeon gameplay are
-deferred to the next architectural phase.
+These systems form the v0.3 gameplay and architecture foundation. The session
+ends at the dungeon entrance; entering the dungeon, companion recruitment,
+party state, and dungeon gameplay are deferred to a later release.
 
 ## Resource Terminology
 
@@ -411,6 +411,20 @@ v0.2.10 completes the M10 surface-route session:
   invalid-save recovery, and startup Load/New Game selection
 - preserved schema-7 inspection snapshots and excluded Battle/UI runtime state
   from disk persistence
+
+### v0.3
+
+v0.3 completes and hardens the single-Drifter surface campaign:
+
+- verified all four Drifters through the complete authored Goblin route
+- proved persistent ownership across combat, overworld menus, Rest, and retry
+- proved encounter-local cleanup and exact multi-enemy identity isolation
+- proved complete progression to Level 9, 68 EXP, 24 Growth Points, and 75 gold
+- proved save, exit, load, and continuation through the remaining route
+- preserved canonical equipment, inventory, run state, and prepared payloads
+- verified inactive final Battle views and truthful overworld presentation
+- ends after the Goblin Lord at the passive Dungeon Entrance endpoint
+- does not enter the dungeon or introduce companions or party state
 
 ## Known Limitations
 
