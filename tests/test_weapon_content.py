@@ -13,6 +13,7 @@ from app.content.catalog import (
 )
 from app.content.weapon_spec import WeaponSpec
 from app.items.weapon import Weapon
+from app.player.loadouts import azhvielle, branoc, joruun, zhaivra
 from tools.generate_content_catalog import discover_weapon_ids
 
 
@@ -113,11 +114,55 @@ def test_all_signature_weapon_specs_match_the_independent_authored_contract():
         assert sum(weapon.stat_bonuses.values()) == 4
 
 
-def test_specs_catalogs_and_runtime_instances_are_immutable_or_fresh():
+@pytest.mark.parametrize(
+    "expected",
+    EXPECTED_WEAPONS,
+    ids=lambda expected: expected["item_id"],
+)
+def test_every_catalog_factory_returns_fresh_canonical_weapons(expected):
+    spec = get_weapon_spec(expected["item_id"])
+    weapons = (
+        spec.create_weapon(),
+        spec.create_weapon(),
+        create_weapon(expected["item_id"]),
+        create_weapon(expected["item_id"]),
+        create_weapon_from_persistence_key(expected["persistence_key"]),
+        create_weapon_from_persistence_key(expected["persistence_key"]),
+    )
+
+    assert len({id(weapon) for weapon in weapons}) == len(weapons)
+    assert all(isinstance(weapon, Weapon) for weapon in weapons)
+    assert all(weapon.item_id == expected["item_id"] for weapon in weapons)
+    assert all(
+        weapon.persistence_key == expected["persistence_key"]
+        for weapon in weapons
+    )
+    assert all(weapon.stat_bonuses == expected["stat_bonuses"] for weapon in weapons)
+
+
+@pytest.mark.parametrize(
+    "loadout,item_id,persistence_key",
+    (
+        (branoc, "sunder_spire", "SunderSpire"),
+        (azhvielle, "needle_of_plain_iron", "NeedleOfPlainIron"),
+        (zhaivra, "sathren", "Sathren"),
+        (joruun, "sky_needle", "SkyNeedle"),
+    ),
+)
+def test_every_loadout_factory_returns_a_fresh_signature_weapon(
+        loadout,
+        item_id,
+        persistence_key):
+    first = loadout.create_starting_weapon()
+    second = loadout.create_starting_weapon()
+
+    assert first is not second
+    assert first.item_id == second.item_id == item_id
+    assert first.persistence_key == second.persistence_key == persistence_key
+
+
+def test_specs_and_catalogs_are_immutable():
     spec = get_weapon_spec("sunder_spire")
-    first = create_weapon("sunder_spire")
-    second = create_weapon("sunder_spire")
-    restored = create_weapon_from_persistence_key("SunderSpire")
 
     with pytest.raises(FrozenInstanceError):
         spec.name = "Changed"
@@ -125,14 +170,6 @@ def test_specs_catalogs_and_runtime_instances_are_immutable_or_fresh():
         spec.stat_bonuses["strength"] = 99
     with pytest.raises(TypeError):
         WEAPON_SPECS[0] = spec
-
-    assert all(isinstance(weapon, Weapon) for weapon in (first, second, restored))
-    assert first is not second and first is not restored and second is not restored
-    assert first.stat_bonuses == second.stat_bonuses == restored.stat_bonuses
-
-    exposed = first.stat_bonuses
-    exposed["strength"] = 99
-    assert second.stat_bonuses == {"strength": 3, "constitution": 1}
 
 
 def test_catalog_uses_both_stable_identities_and_rejects_duplicates():

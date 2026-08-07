@@ -2,6 +2,7 @@ import builtins
 
 import pytest
 
+from app.content.catalog import get_weapon_spec
 from app.enemies.factory import create_enemy_state
 from app.game.game_state import GameState
 from app.game.main_loop import _startup_game_state
@@ -148,8 +149,17 @@ def test_all_drifters_round_trip_complete_persistent_session(profile, tmp_path):
     loaded_before_mutation = result.game_state.snapshot()
     loaded_player = result.game_state.player_state
     loaded_weapon = loaded_player.get_equipped("weapon")
-    assert type(loaded_weapon) is type(game.player_state.get_equipped("weapon"))
-    assert loaded_weapon.name == game.player_state.get_equipped("weapon").name
+    original_weapon = game.player_state.get_equipped("weapon")
+    authored_weapon = get_weapon_spec(original_weapon.item_id)
+    assert loaded_weapon.item_id == original_weapon.item_id
+    assert loaded_weapon.persistence_key == original_weapon.persistence_key
+    assert loaded_weapon.persistence_key == authored_weapon.persistence_key
+    assert loaded_weapon.name == original_weapon.name == authored_weapon.name
+    assert loaded_weapon.weapon_type == authored_weapon.weapon_type
+    assert loaded_weapon.intended_wielder == authored_weapon.intended_wielder
+    assert loaded_weapon.stat_bonuses == dict(authored_weapon.stat_bonuses)
+    assert loaded_weapon.value == authored_weapon.value
+    assert loaded_weapon.description == authored_weapon.description
     loaded_player.health.take_damage(1)
     loaded_player.mana_resource.spend(1)
     loaded_player.super_resource.gain(1)
