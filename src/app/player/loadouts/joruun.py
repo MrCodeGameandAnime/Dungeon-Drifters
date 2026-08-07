@@ -4,7 +4,7 @@ from app.combat.storm import (
     LIGHTNING_PALM_MECHANIC,
     TEMPEST_SURGE_MECHANIC,
 )
-from app.items.weapon import SkyNeedle
+from app.content.catalog import create_weapon
 
 
 def create_starting_stats():
@@ -106,4 +106,4 @@ def create_class_mechanic():
 
 
 def create_starting_weapon():
-    return SkyNeedle()
+    return create_weapon("sky_needle")

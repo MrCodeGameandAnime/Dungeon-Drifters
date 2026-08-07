@@ -11,7 +11,7 @@ from app.game.save_state import (
     migrate_schema_7,
     reconstruct_game_state,
 )
-from app.items.weapon import SkyNeedle
+from app.content.catalog import create_weapon
 from app.player.character_run_state import (
     InfusionKind,
     PreparedPayloadId,
@@ -35,7 +35,7 @@ def _create_populated_game(choice):
     player.gain_experience(100)
     player.increase_permanent_stat("strength")
     player.inventory.add_item("tonic")
-    player.inventory.add_item(SkyNeedle())
+    player.inventory.add_item(create_weapon("sky_needle"))
     player.character_run_state._prepared_payloads[PreparedPayloadId.INFUSED_BARB] = (
         InfusionKind.POISON
     ) if choice == "3" else None

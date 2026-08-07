@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.items.weapon import NeedleOfPlainIron, Sathren, SkyNeedle, SunderSpire
+from app.content.catalog import create_weapon
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
@@ -166,7 +166,7 @@ def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
 
 def test_supported_weapon_equipment_uses_explicit_plain_mapping():
     player_state = PlayerState(Brawler())
-    staff = SkyNeedle()
+    staff = create_weapon("sky_needle")
     player_state.inventory.add_item(staff)
 
     player_state.equip("weapon", staff)
@@ -211,7 +211,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
     expected_payloads = (
         (
             Brawler,
-            SunderSpire,
+            "sunder_spire",
             {
                 "type": "SunderSpire",
                 "name": "Sunder-Spire",
@@ -224,7 +224,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
         ),
         (
             BlackMage,
-            NeedleOfPlainIron,
+            "needle_of_plain_iron",
             {
                 "type": "NeedleOfPlainIron",
                 "name": "Needle of Plain Iron",
@@ -237,7 +237,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
         ),
         (
             RogueArcher,
-            Sathren,
+            "sathren",
             {
                 "type": "Sathren",
                 "name": "Sathren",
@@ -250,7 +250,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
         ),
         (
             Monk,
-            SkyNeedle,
+            "sky_needle",
             {
                 "type": "SkyNeedle",
                 "name": "Sky-Needle",
@@ -263,10 +263,10 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
         ),
     )
 
-    for class_type, weapon_type, expected_payload in expected_payloads:
+    for class_type, item_id, expected_payload in expected_payloads:
         player_state = PlayerState(class_type())
 
-        assert isinstance(player_state.get_equipped("weapon"), weapon_type)
+        assert player_state.get_equipped("weapon").item_id == item_id
         assert player_state.snapshot()["equipment"]["weapon"] == expected_payload
 
 

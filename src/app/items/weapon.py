@@ -1,4 +1,6 @@
 from collections.abc import Mapping
+import keyword
+import re
 
 from app.player.stats import PermanentStats
 
@@ -6,12 +8,19 @@ from app.player.stats import PermanentStats
 class Weapon:
     def __init__(
             self,
+            item_id,
+            persistence_key,
             name,
             weapon_type,
             intended_wielder,
             stat_bonuses,
             value,
             description):
+        self._item_id = self._validate_item_id(item_id)
+        self._persistence_key = self._validate_nonempty_string(
+            "persistence_key",
+            persistence_key,
+        )
         self.name = self._validate_nonempty_string("name", name)
         self.weapon_type = self._validate_nonempty_string("weapon_type", weapon_type)
         self.intended_wielder = self._validate_nonempty_string(
@@ -23,22 +32,37 @@ class Weapon:
         self.description = self._validate_string("description", description)
 
     @property
+    def item_id(self):
+        return self._item_id
+
+    @property
+    def persistence_key(self):
+        return self._persistence_key
+
+    @property
     def stat_bonuses(self):
         return dict(self._stat_bonuses)
+
+    @classmethod
+    def _validate_item_id(cls, value):
+        value = cls._validate_nonempty_string("item_id", value)
+        if re.fullmatch(r"[a-z][a-z0-9_]*", value) is None or keyword.iskeyword(value):
+            raise ValueError(
+                "item_id must be a lowercase snake-case Python module name"
+            )
+        return value
 
     @classmethod
     def _validate_nonempty_string(cls, name, value):
         value = cls._validate_string(name, value)
         if not value:
             raise ValueError(f"{name} must not be empty")
-
         return value
 
     @staticmethod
     def _validate_string(name, value):
         if not isinstance(value, str):
             raise TypeError(f"{name} must be a string")
-
         return value
 
     @staticmethod
@@ -47,7 +71,6 @@ class Weapon:
             raise TypeError(f"{name} must be an integer")
         if value < 0:
             raise ValueError(f"{name} must not be negative")
-
         return value
 
     @classmethod
@@ -62,69 +85,7 @@ class Weapon:
                 f"stat_bonuses.{stat_name}",
                 bonus,
             )
-
         return bonuses
 
 
-class SunderSpire(Weapon):
-    def __init__(self):
-        super().__init__(
-            name="Sunder-Spire",
-            weapon_type="Great Flamberge",
-            intended_wielder="Branoc",
-            stat_bonuses={
-                "strength": 3,
-                "constitution": 1,
-            },
-            value=2,
-            description="A massive Deep-Iron flamberge forged from the broken weapons of Rhom-Ghal.",
-        )
-
-
-class SkyNeedle(Weapon):
-    def __init__(self):
-        super().__init__(
-            name="Sky-Needle",
-            weapon_type="Conductive Shakujō",
-            intended_wielder="Joruun",
-            stat_bonuses={
-                "spirit": 2,
-                "dexterity": 1,
-                "intuition": 1,
-            },
-            value=2,
-            description="An ash-wood shakujō fitted with copper collars and loose conductive rings.",
-        )
-
-
-class Sathren(Weapon):
-    def __init__(self):
-        super().__init__(
-            name="Sathren",
-            weapon_type="Alchemical Recurve Bow",
-            intended_wielder="Zhaivra",
-            stat_bonuses={
-                "dexterity": 3,
-                "intuition": 1,
-            },
-            value=2,
-            description=(
-                "A recurved bow grown from the bone-fiber of the Hollow Colossus "
-                "and fitted with six alchemical reservoirs."
-            ),
-        )
-
-
-class NeedleOfPlainIron(Weapon):
-    def __init__(self):
-        super().__init__(
-            name="Needle of Plain Iron",
-            weapon_type="Ritual Needle",
-            intended_wielder="Azhvielle",
-            stat_bonuses={
-                "intelligence": 3,
-                "spirit": 1,
-            },
-            value=2,
-            description="A long, unadorned iron needle used as both a weapon and a precise ritual focus.",
-        )
+__all__ = ["Weapon"]

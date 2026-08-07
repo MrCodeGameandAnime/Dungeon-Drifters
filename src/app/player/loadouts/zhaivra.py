@@ -1,6 +1,6 @@
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
-from app.items.weapon import Sathren
+from app.content.catalog import create_weapon
 
 
 def create_starting_stats():
@@ -115,4 +115,4 @@ def create_class_mechanic():
 
 
 def create_starting_weapon():
-    return Sathren()
+    return create_weapon("sathren")

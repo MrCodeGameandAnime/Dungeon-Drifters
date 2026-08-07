@@ -1,6 +1,6 @@
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.move_presentation import MovePresentation, MoveRole
-from app.items.weapon import SunderSpire
+from app.content.catalog import create_weapon
 
 
 def create_starting_stats():
@@ -112,4 +112,4 @@ def create_class_mechanic():
 
 
 def create_starting_weapon():
-    return SunderSpire()
+    return create_weapon("sunder_spire")

@@ -43,6 +43,16 @@ compositions, route rewards, combat behavior, and presentation must not change.
 Move signature weapons behind immutable content specifications while preserving
 schema-8 weapon identity, canonical reconstruction, bonuses, and inspection.
 
+Each signature weapon has one `WeaponSpec` package and a stable lowercase
+`item_id`. Runtime `Weapon` objects also retain the legacy class-name-shaped
+`persistence_key` used by existing schema-8 `type` payloads. The generated
+catalog owns both lookups, every construction path returns a fresh generic
+`Weapon`, and save reconstruction validates canonical authored data through the
+persistence-key lookup. The four data-only weapon subclasses are removed.
+
+FLAT-2 does not generalize run items, recipes, prepared payload mechanics, or
+accessory equipment.
+
 ### FLAT-3 - Unify Drifter Authoring
 
 Replace concrete Character subclasses and split profile wiring with one authored

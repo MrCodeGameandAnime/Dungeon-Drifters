@@ -5,6 +5,10 @@ from app.content.enemies.goblin_elite.enemy import ENEMY as goblin_elite_enemy
 from app.content.enemies.goblin_lord.enemy import ENEMY as goblin_lord_enemy
 from app.content.enemies.goblin_shaman.enemy import ENEMY as goblin_shaman_enemy
 from app.content.enemies.goblin_warrior.enemy import ENEMY as goblin_warrior_enemy
+from app.content.weapons.needle_of_plain_iron.weapon import WEAPON as needle_of_plain_iron_weapon
+from app.content.weapons.sathren.weapon import WEAPON as sathren_weapon
+from app.content.weapons.sky_needle.weapon import WEAPON as sky_needle_weapon
+from app.content.weapons.sunder_spire.weapon import WEAPON as sunder_spire_weapon
 
 
 GENERATED_ENEMY_SPECS = (
@@ -16,4 +20,12 @@ GENERATED_ENEMY_SPECS = (
 )
 
 
-__all__ = ["GENERATED_ENEMY_SPECS"]
+GENERATED_WEAPON_SPECS = (
+    ("needle_of_plain_iron", needle_of_plain_iron_weapon),
+    ("sathren", sathren_weapon),
+    ("sky_needle", sky_needle_weapon),
+    ("sunder_spire", sunder_spire_weapon),
+)
+
+
+__all__ = ["GENERATED_ENEMY_SPECS", "GENERATED_WEAPON_SPECS"]

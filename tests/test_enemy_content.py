@@ -20,7 +20,12 @@ from app.content.catalog import (
 )
 from app.content.enemy_spec import EnemySpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
-from tools.generate_content_catalog import OUTPUT_PATH, discover_enemy_ids, render_catalog
+from tools.generate_content_catalog import (
+    OUTPUT_PATH,
+    discover_enemy_ids,
+    discover_weapon_ids,
+    render_catalog,
+)
 
 
 EXPECTED_IDS = (
@@ -29,6 +34,12 @@ EXPECTED_IDS = (
     "goblin_lord",
     "goblin_shaman",
     "goblin_warrior",
+)
+EXPECTED_WEAPON_IDS = (
+    "needle_of_plain_iron",
+    "sathren",
+    "sky_needle",
+    "sunder_spire",
 )
 
 
@@ -70,7 +81,11 @@ def sample_spec(**overrides):
 def test_generated_enemy_catalog_is_deterministic_and_current():
     assert discover_enemy_ids() == EXPECTED_IDS
     assert tuple(spec.archetype_id for spec in ENEMY_SPECS) == EXPECTED_IDS
-    assert OUTPUT_PATH.read_text(encoding="utf-8") == render_catalog(EXPECTED_IDS)
+    assert OUTPUT_PATH.read_text(encoding="utf-8") == render_catalog(
+        EXPECTED_IDS,
+        EXPECTED_WEAPON_IDS,
+    )
+    assert discover_weapon_ids() == EXPECTED_WEAPON_IDS
 
 
 def test_generator_rejects_directory_and_authored_id_mismatch(tmp_path):

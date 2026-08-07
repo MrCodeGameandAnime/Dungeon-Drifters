@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 
+from app.content.catalog import create_weapon_from_persistence_key
 from app.game.game_state import GameState
 from app.game.overworld_route import (
     DUNGEON_ENTRANCE_NODE_ID,
@@ -14,12 +15,6 @@ from app.game.overworld_route import (
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
-from app.items.weapon import (
-    NeedleOfPlainIron,
-    Sathren,
-    SkyNeedle,
-    SunderSpire,
-)
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     InfusionKind,
@@ -43,12 +38,6 @@ DISK_SCHEMA_VERSION = 8
 
 class SaveStateValidationError(ValueError):
     """Raised when a disk save cannot be trusted or reconstructed."""
-
-
-_WEAPON_TYPES = {
-    cls.__name__: cls
-    for cls in (SunderSpire, SkyNeedle, Sathren, NeedleOfPlainIron)
-}
 
 
 def build_save_document(game_state):
@@ -244,10 +233,13 @@ def _reconstruct_weapon(payload, path):
     weapon_type = payload.get("type")
     if not isinstance(weapon_type, str):
         raise SaveStateValidationError(f"{path}.type must be a known weapon type")
-    weapon_class = _WEAPON_TYPES.get(weapon_type)
-    if weapon_class is None:
-        raise SaveStateValidationError(f"{path} contains an unknown weapon type")
-    weapon = weapon_class()
+    try:
+        weapon = create_weapon_from_persistence_key(weapon_type)
+    except ValueError as error:
+        raise SaveStateValidationError(
+            f"{path} contains an unknown weapon type"
+        ) from error
+
     if payload != _weapon_payload(weapon):
         raise SaveStateValidationError(f"{path} does not match authored weapon data")
     return weapon
@@ -255,7 +247,7 @@ def _reconstruct_weapon(payload, path):
 
 def _weapon_payload(weapon):
     return {
-        "type": weapon.__class__.__name__,
+        "type": weapon.persistence_key,
         "name": weapon.name,
         "weapon_type": weapon.weapon_type,
         "intended_wielder": weapon.intended_wielder,

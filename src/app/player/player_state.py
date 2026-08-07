@@ -382,7 +382,7 @@ class PlayerState:
         if self._is_supported_weapon_item(item):
             return to_plain_value(
                 {
-                    "type": item.__class__.__name__,
+                    "type": item.persistence_key,
                     "name": item.name,
                     "weapon_type": item.weapon_type,
                     "intended_wielder": item.intended_wielder,

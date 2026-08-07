@@ -1,6 +1,6 @@
 from app.combat.frost import FROST_ATTACK_MECHANIC
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
-from app.items.weapon import NeedleOfPlainIron
+from app.content.catalog import create_weapon
 
 
 def create_starting_stats():
@@ -105,4 +105,4 @@ def create_class_mechanic():
 
 
 def create_starting_weapon():
-    return NeedleOfPlainIron()
+    return create_weapon("needle_of_plain_iron")
