@@ -2,12 +2,27 @@
 
 import argparse
 import ast
+import keyword
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ENEMY_ROOT = ROOT / "src" / "app" / "content" / "enemies"
 OUTPUT_PATH = ROOT / "src" / "app" / "content" / "_generated_catalog.py"
+_CONTENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _validate_content_module_id(value):
+    if (
+        not isinstance(value, str)
+        or _CONTENT_ID_PATTERN.fullmatch(value) is None
+        or keyword.iskeyword(value)
+    ):
+        raise ValueError(
+            "content IDs must be lowercase snake-case Python module names"
+        )
+    return value
 
 
 def _authored_archetype_id(path):
@@ -42,8 +57,8 @@ def _authored_archetype_id(path):
 def discover_enemy_ids(enemy_root=ENEMY_ROOT):
     enemy_ids = []
     for path in sorted(enemy_root.glob("*/enemy.py"), key=lambda item: item.parent.name):
-        directory_id = path.parent.name
-        archetype_id = _authored_archetype_id(path)
+        directory_id = _validate_content_module_id(path.parent.name)
+        archetype_id = _validate_content_module_id(_authored_archetype_id(path))
         if directory_id != archetype_id:
             raise ValueError(
                 "enemy directory ID does not match authored archetype ID: "
@@ -54,6 +69,7 @@ def discover_enemy_ids(enemy_root=ENEMY_ROOT):
 
 
 def render_catalog(enemy_ids):
+    enemy_ids = tuple(_validate_content_module_id(value) for value in enemy_ids)
     imports = "\n".join(
         "from app.content.enemies."
         f"{enemy_id}.enemy import ENEMY as {enemy_id}_enemy"
@@ -63,7 +79,7 @@ def render_catalog(enemy_ids):
         f'    ("{enemy_id}", {enemy_id}_enemy),'
         for enemy_id in enemy_ids
     )
-    return (
+    source = (
         '"""Generated content imports. Do not edit by hand."""\n\n'
         f"{imports}\n\n\n"
         "GENERATED_ENEMY_SPECS = (\n"
@@ -71,6 +87,8 @@ def render_catalog(enemy_ids):
         ")\n\n\n"
         '__all__ = ["GENERATED_ENEMY_SPECS"]\n'
     )
+    ast.parse(source, filename=str(OUTPUT_PATH))
+    return source
 
 
 def main():

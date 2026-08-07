@@ -1,5 +1,6 @@
 """Immutable authored enemy specifications."""
 
+import keyword
 import re
 from dataclasses import dataclass
 
@@ -71,8 +72,13 @@ class EnemySpec:
 
     def __post_init__(self):
         archetype_id = _validate_nonempty_string("archetype_id", self.archetype_id)
-        if _ARCHETYPE_ID_PATTERN.fullmatch(archetype_id) is None:
-            raise ValueError("archetype_id must use lowercase snake case")
+        if (
+            _ARCHETYPE_ID_PATTERN.fullmatch(archetype_id) is None
+            or keyword.iskeyword(archetype_id)
+        ):
+            raise ValueError(
+                "archetype_id must be a lowercase snake-case Python module name"
+            )
         object.__setattr__(self, "archetype_id", archetype_id)
         object.__setattr__(self, "name", _validate_nonempty_string("name", self.name))
 

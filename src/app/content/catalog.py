@@ -39,8 +39,8 @@ def get_enemy_spec(archetype_id):
 
 
 def create_enemy_definition(archetype_id, tier=0):
-    tier = validate_enemy_tier(tier)
-    return get_enemy_spec(archetype_id).create_definition(tier=tier)
+    spec = get_enemy_spec(archetype_id)
+    return spec.create_definition(tier=tier)
 
 
 def create_enemy_state(archetype_id, tier=0):

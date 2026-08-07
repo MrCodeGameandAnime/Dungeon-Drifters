@@ -85,6 +85,21 @@ def test_generator_rejects_directory_and_authored_id_mismatch(tmp_path):
         discover_enemy_ids(tmp_path)
 
 
+@pytest.mark.parametrize("invalid_id", ("class", "bad-name"))
+def test_generator_rejects_non_importable_content_ids(tmp_path, invalid_id):
+    enemy_path = tmp_path / invalid_id / "enemy.py"
+    enemy_path.parent.mkdir()
+    enemy_path.write_text(
+        f'ENEMY = EnemySpec(archetype_id="{invalid_id}")\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Python module names"):
+        discover_enemy_ids(tmp_path)
+    with pytest.raises(ValueError, match="Python module names"):
+        render_catalog((invalid_id,))
+
+
 def test_enemy_specs_and_stat_blocks_are_immutable():
     spec = get_enemy_spec("goblin")
 
@@ -117,6 +132,7 @@ def test_specs_create_fresh_definitions_and_runtime_state(archetype_id):
     "field, value, error",
     (
         ("archetype_id", "Goblin Lord", ValueError),
+        ("archetype_id", "class", ValueError),
         ("archetype_id", "", ValueError),
         ("name", " ", ValueError),
         ("stats", object(), TypeError),
@@ -173,6 +189,14 @@ def test_unknown_enemy_and_unsupported_tier_fail_explicitly():
         get_enemy_spec("unknown")
     with pytest.raises(ValueError, match="does not support tier 1"):
         create_enemy_definition("goblin", tier=1)
+
+
+def test_definition_creation_preserves_unknown_id_precedence():
+    with pytest.raises(ValueError, match="unknown enemy archetype"):
+        create_enemy_definition("unknown", tier=True)
+
+    with pytest.raises(TypeError, match="enemy tier must be an integer"):
+        create_enemy_state("unknown", tier=True)
 
 
 def test_generated_catalog_contains_no_runtime_discovery_code():
