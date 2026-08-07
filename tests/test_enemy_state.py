@@ -1,5 +1,12 @@
 import pytest
 
+from app.combat.move import DamageType, Move
+from app.content.catalog import (
+    _build_enemy_catalog,
+    create_enemy_definition,
+    create_enemy_state,
+    get_enemy_spec,
+)
 from app.enemies.definition import (
     Enemy,
     EnemyBehavior,
@@ -7,15 +14,7 @@ from app.enemies.definition import (
     EnemyRank,
     EnemyRole,
 )
-from app.enemies.factory import (
-    create_enemy_state,
-)
-from app.enemies.goblin.definition import Goblin
-from app.enemies.registration import EnemyArchetypeRegistration
-from app.enemies.registry import build_enemy_registry, get_enemy_registration
 from app.enemies.state import EnemyState
-import app.enemies.factory as factory_module
-from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 
 EXPECTED_COMBAT_MOVES = [
     {
@@ -67,7 +66,7 @@ def move_to_dict(move):
 
 
 EXPECTED_ENEMIES = {
-    Goblin: {
+    "goblin": {
         "archetype_id": "goblin",
         "name": "Goblin",
         "rank": EnemyRank.COMMON,
@@ -91,8 +90,8 @@ EXPECTED_ENEMIES = {
 
 
 def test_enemy_definitions_preserve_authored_data():
-    for enemy_type, expected in EXPECTED_ENEMIES.items():
-        enemy = enemy_type()
+    for archetype_id, expected in EXPECTED_ENEMIES.items():
+        enemy = create_enemy_definition(archetype_id)
 
         assert enemy.archetype_id == expected["archetype_id"]
         assert enemy.name == expected["name"]
@@ -110,8 +109,8 @@ def test_enemy_definitions_preserve_authored_data():
 
 
 def test_enemy_state_copies_definition_into_runtime_state():
-    for enemy_type, expected in EXPECTED_ENEMIES.items():
-        definition = enemy_type()
+    for archetype_id, expected in EXPECTED_ENEMIES.items():
+        definition = create_enemy_definition(archetype_id)
         enemy_state = EnemyState(definition)
 
         assert enemy_state.definition is definition
@@ -144,7 +143,7 @@ def test_factory_creates_goblin_enemy_state():
     enemy_state = create_enemy_state("goblin", tier=0)
 
     assert isinstance(enemy_state, EnemyState)
-    assert isinstance(enemy_state.definition, Goblin)
+    assert type(enemy_state.definition) is Enemy
     assert enemy_state.archetype_id == "goblin"
     assert enemy_state.tier == 0
     assert enemy_state.rank == EnemyRank.COMMON
@@ -203,12 +202,12 @@ def test_direct_enemy_state_construction_uses_same_tier_validation():
 
     for value in invalid_type_values:
         with pytest.raises(TypeError, match="enemy tier must be an integer"):
-            EnemyState(Goblin(), tier=value)
+            EnemyState(create_enemy_definition("goblin"), tier=value)
 
     with pytest.raises(ValueError, match="zero or greater"):
-        EnemyState(Goblin(), tier=-1)
+        EnemyState(create_enemy_definition("goblin"), tier=-1)
 
-    enemy_state = EnemyState(Goblin(), tier=0)
+    enemy_state = EnemyState(create_enemy_definition("goblin"), tier=0)
 
     assert enemy_state.tier == 0
 
@@ -232,7 +231,7 @@ def test_enemy_metadata_rejects_invalid_non_enum_values():
             "role": EnemyRole.MELEE_SKIRMISHER,
             "behavior": EnemyBehavior.AGGRESSIVE,
             "capabilities": (EnemyCapability.BASIC_ATTACKS,),
-            "combat_moves": Goblin().combat_moves,
+            "combat_moves": create_enemy_definition("goblin").combat_moves,
         }
         values.update(overrides)
         return Enemy(**values)
@@ -252,8 +251,8 @@ def test_enemy_metadata_rejects_invalid_non_enum_values():
 
 
 def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
-    first = EnemyState(Goblin())
-    second = EnemyState(Goblin())
+    first = EnemyState(create_enemy_definition("goblin"))
+    second = EnemyState(create_enemy_definition("goblin"))
 
     first.health.take_damage(5)
     first.mana_resource.restore(3)
@@ -312,7 +311,7 @@ def test_factory_enemy_states_do_not_share_runtime_state():
 
 
 def test_runtime_mutation_does_not_mutate_enemy_definition():
-    definition = Goblin()
+    definition = create_enemy_definition("goblin")
     enemy_state = EnemyState(definition)
 
     enemy_state.health.take_damage(10)
@@ -334,7 +333,7 @@ def test_runtime_mutation_does_not_mutate_enemy_definition():
 
 
 def test_enemy_definition_moves_are_derived_and_cannot_diverge():
-    enemy = Goblin()
+    enemy = create_enemy_definition("goblin")
     legacy_moves = enemy.moves
     legacy_moves[1] = "corrupted"
 
@@ -344,7 +343,7 @@ def test_enemy_definition_moves_are_derived_and_cannot_diverge():
 
 
 def test_enemy_state_moves_are_derived_and_cannot_diverge():
-    enemy_state = EnemyState(Goblin())
+    enemy_state = EnemyState(create_enemy_definition("goblin"))
     legacy_moves = enemy_state.moves
     legacy_moves[1] = "corrupted"
 
@@ -357,7 +356,7 @@ def test_enemy_state_moves_are_derived_and_cannot_diverge():
 
 
 def test_enemy_state_alive_status_comes_from_health():
-    enemy_state = EnemyState(Goblin())
+    enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     assert enemy_state.is_alive()
     enemy_state.health.take_damage(enemy_state.health.maximum)
@@ -366,8 +365,8 @@ def test_enemy_state_alive_status_comes_from_health():
 
 
 def test_capability_collections_are_immutable_and_not_shared():
-    first = Goblin()
-    second = Goblin()
+    first = create_enemy_definition("goblin")
+    second = create_enemy_definition("goblin")
 
     assert isinstance(first.capabilities, frozenset)
     assert first.capabilities == frozenset({EnemyCapability.BASIC_ATTACKS})
@@ -376,14 +375,13 @@ def test_capability_collections_are_immutable_and_not_shared():
         first.capabilities.add(EnemyCapability.SUPER)
 
 
-def test_registry_returns_fresh_definitions_and_factory_uses_registered_scaling_policy():
-    registration = get_enemy_registration("goblin")
-    first = registration.definition_factory()
-    second = registration.definition_factory()
+def test_catalog_returns_fresh_definitions_and_runtime_states():
+    spec = get_enemy_spec("goblin")
+    first = spec.create_definition()
+    second = spec.create_definition()
 
     assert first is not second
     assert first.combat_moves is not second.combat_moves
-    assert registration.scaling_policy(first, 0) is first
 
     first_state = create_enemy_state("goblin", tier=0)
     second_state = create_enemy_state("goblin", tier=0)
@@ -392,37 +390,8 @@ def test_registry_returns_fresh_definitions_and_factory_uses_registered_scaling_
     assert first_state.definition is not second_state.definition
 
 
-def test_factory_uses_registered_scaling_policy(monkeypatch):
-    calls = []
+def test_duplicate_enemy_catalog_records_are_rejected():
+    spec = get_enemy_spec("goblin")
 
-    def definition_factory():
-        return Goblin()
-
-    def scaling_policy(definition, tier):
-        calls.append((definition.archetype_id, tier))
-        return definition
-
-    temporary_registration = EnemyArchetypeRegistration(
-        archetype_id="test_goblin",
-        definition_factory=definition_factory,
-        scaling_policy=scaling_policy,
-    )
-    temporary_registry = build_enemy_registry((temporary_registration,))
-
-    monkeypatch.setattr(
-        factory_module,
-        "get_enemy_registration",
-        lambda archetype_id: temporary_registry[archetype_id],
-    )
-
-    enemy_state = factory_module.create_enemy_state("test_goblin", tier=0)
-
-    assert enemy_state.archetype_id == "goblin"
-    assert calls == [("goblin", 0)]
-
-
-def test_duplicate_enemy_registrations_are_rejected():
-    registration = get_enemy_registration("goblin")
-
-    with pytest.raises(ValueError, match="duplicate enemy archetype registration: goblin"):
-        build_enemy_registry((registration, registration))
+    with pytest.raises(ValueError, match="duplicate enemy archetype: goblin"):
+        _build_enemy_catalog((("goblin", spec), ("goblin", spec)))

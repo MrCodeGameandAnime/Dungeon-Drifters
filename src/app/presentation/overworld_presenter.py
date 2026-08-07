@@ -2,7 +2,7 @@
 
 from itertools import groupby
 
-from app.enemies.registry import get_enemy_registration
+from app.content.catalog import get_enemy_spec
 from app.game.encounter_manifest import inspectable_encounter_for_node
 from app.game.game_state import GameState
 from app.game.overworld_route import (
@@ -329,11 +329,11 @@ class OverworldPresenter:
         composition = []
         for archetype_id, grouped_ids in groupby(encounter.enemy_archetype_ids):
             count = sum(1 for _ in grouped_ids)
-            definition = get_enemy_registration(archetype_id).definition_factory()
+            enemy_spec = get_enemy_spec(archetype_id)
             composition.append(
-                definition.name
+                enemy_spec.name
                 if count == 1
-                else f"{count} {definition.name}s"
+                else f"{count} {enemy_spec.name}s"
             )
 
         return MapEncounterInspectionView(

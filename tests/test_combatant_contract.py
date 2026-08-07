@@ -3,7 +3,7 @@ import pytest
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.combat.move import Move
 from app.player.character import Brawler
@@ -29,7 +29,7 @@ def inspect_combatant(combatant):
 
 def test_player_state_and_enemy_state_satisfy_combatant_contract():
     player_state = PlayerState(Brawler())
-    enemy_state = EnemyState(Goblin())
+    enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     assert isinstance(player_state, Combatant)
     assert isinstance(enemy_state, Combatant)
@@ -37,7 +37,7 @@ def test_player_state_and_enemy_state_satisfy_combatant_contract():
 
 def test_shared_inspection_works_without_type_branches():
     player_state = PlayerState(Brawler())
-    enemy_state = EnemyState(Goblin())
+    enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     player_info = inspect_combatant(player_state)
     enemy_info = inspect_combatant(enemy_state)
@@ -78,7 +78,7 @@ def test_shared_inspection_works_without_type_branches():
 def test_effective_stat_supports_all_six_canonical_stats():
     combatants = (
         PlayerState(Brawler()),
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
     )
 
     for combatant in combatants:
@@ -91,7 +91,7 @@ def test_effective_stat_supports_all_six_canonical_stats():
 def test_invalid_effective_stat_names_fail_consistently():
     combatants = (
         PlayerState(Brawler()),
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
     )
 
     for combatant in combatants:
@@ -101,7 +101,7 @@ def test_invalid_effective_stat_names_fail_consistently():
 
 def test_is_alive_delegates_to_health_state():
     player_state = PlayerState(Brawler())
-    enemy_state = EnemyState(Goblin())
+    enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     player_state.health.take_damage(player_state.health.maximum)
     enemy_state.health.take_damage(enemy_state.health.maximum)

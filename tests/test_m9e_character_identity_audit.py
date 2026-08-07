@@ -6,7 +6,7 @@ from app.combat.combat_state import CombatState
 from app.combat.move import ResourceType
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
@@ -31,7 +31,7 @@ def _player(character_type):
 
 
 def _enemy():
-    return EnemyState(Goblin())
+    return EnemyState(create_enemy_definition("goblin"))
 
 
 def test_branoc_complete_brace_loop_is_durable_and_single_use():

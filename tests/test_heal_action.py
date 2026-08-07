@@ -4,7 +4,7 @@ import app.combat.battle as battle_module
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
@@ -74,7 +74,7 @@ def _damaged_player(character_type=Brawler, amount=20):
 
 
 def _enemy():
-    return EnemyState(Goblin())
+    return EnemyState(create_enemy_definition("goblin"))
 
 
 def test_heal_uses_minimum_roll_plus_effective_constitution():

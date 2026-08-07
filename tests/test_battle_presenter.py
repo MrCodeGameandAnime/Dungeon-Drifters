@@ -8,7 +8,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
@@ -27,7 +27,7 @@ from app.presentation.battle_presenter import BattlePresenter
 
 def _battle_values(character=None):
     player = PlayerState(character or Brawler())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     return player, enemy, combat_state
 
@@ -231,7 +231,7 @@ def test_missing_companion_disables_use_but_keeps_owned_item_visible():
     character = RogueArcher()
     character.starting_run_inventory = {"ember_shard": 1}
     player = PlayerState(character)
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
 
     actions = BattlePresenter().build(
@@ -273,7 +273,7 @@ def test_universal_heal_is_not_an_authored_move_submenu():
 
     view = BattlePresenter().build(
         player=player,
-        enemy=EnemyState(Goblin()),
+        enemy=EnemyState(create_enemy_definition("goblin")),
         combat_state=combat_state,
     )
 

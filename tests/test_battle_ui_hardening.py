@@ -8,7 +8,7 @@ from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.move import TargetType
 from app.combat.resolver import CombatResolver
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
@@ -58,7 +58,7 @@ class AggressiveScriptedUI:
 @pytest.mark.parametrize("character_type", DRIFTER_TYPES)
 def test_every_drifter_move_is_presented_and_resolver_compatible(character_type):
     player = PlayerState(character_type())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     presenter = BattlePresenter()
 
@@ -83,7 +83,7 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
 
     for authored_move in player.combat_moves:
         actor = PlayerState(character_type())
-        target = EnemyState(Goblin())
+        target = EnemyState(create_enemy_definition("goblin"))
         actor.super_resource.gain(actor.super_resource.maximum)
         if authored_move.mechanic == "infused_barb":
             actor.character_run_state.prepare_payload(
@@ -116,7 +116,7 @@ def test_every_drifter_completes_deterministic_goblin_vertical_slice(
     ui = AggressiveScriptedUI()
     battle = Battle(
         PlayerState(character_type()),
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         resolver=CombatResolver(rng=AlwaysOneRng()),
     )
@@ -145,7 +145,7 @@ def test_battle_source_has_no_direct_terminal_io_or_adapter_dependency():
 
 def test_presenter_observation_does_not_change_combat_resources():
     player = PlayerState(Brawler())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     combat_state.activate_brace(player)
     presenter = BattlePresenter()

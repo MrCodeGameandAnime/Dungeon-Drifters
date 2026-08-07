@@ -1,7 +1,7 @@
 import pytest
 
 from app.combat.battle import Battle
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
@@ -55,8 +55,8 @@ def test_character_run_state_persists_when_player_enters_new_encounters():
     player = PlayerState(RogueArcher())
     run_state = player.character_run_state
 
-    first = Battle(player, EnemyState(Goblin()), ui=UnusedUI())
-    second = Battle(player, EnemyState(Goblin()), ui=UnusedUI())
+    first = Battle(player, EnemyState(create_enemy_definition("goblin")), ui=UnusedUI())
+    second = Battle(player, EnemyState(create_enemy_definition("goblin")), ui=UnusedUI())
 
     assert first.player_state.character_run_state is run_state
     assert second.player_state.character_run_state is run_state

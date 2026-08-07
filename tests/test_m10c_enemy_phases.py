@@ -3,7 +3,7 @@ import pytest
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.result import MoveResult
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler
 from app.player.player_state import PlayerState
@@ -77,7 +77,7 @@ class SentinelUI(RecordingUI):
 
 
 def _enemies(count):
-    return tuple(EnemyState(Goblin()) for _ in range(count))
+    return tuple(EnemyState(create_enemy_definition("goblin")) for _ in range(count))
 
 
 def _battle(count=4, *, resolver=None, rng=None, ui=None):
@@ -367,8 +367,8 @@ def test_defeated_combatant_cleanup_removes_owned_state_and_preserves_living_sta
     state = CombatState()
     defeated = PlayerState(BlackMage())
     living_owner = PlayerState(BlackMage())
-    linked_target = EnemyState(Goblin())
-    unrelated_target = EnemyState(Goblin())
+    linked_target = EnemyState(create_enemy_definition("goblin"))
+    unrelated_target = EnemyState(create_enemy_definition("goblin"))
 
     state.activate_defend(defeated)
     state.activate_brace(defeated)
@@ -412,7 +412,7 @@ def test_defeated_combatant_cleanup_removes_owned_state_and_preserves_living_sta
 def test_lethal_frostbite_lifecycle_clears_all_non_status_temporary_state():
     state = CombatState()
     actor = PlayerState(BlackMage())
-    source = EnemyState(Goblin())
+    source = EnemyState(create_enemy_definition("goblin"))
     actor.health.take_damage(actor.health.current - 5)
     state.activate_defend(actor)
     state.activate_brace(actor)

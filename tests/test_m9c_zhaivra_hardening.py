@@ -3,7 +3,7 @@ from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
@@ -124,7 +124,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     player = PlayerState(RogueArcher())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     ui = ZhaivraLoopUI()
     session = RecordingPresentationSession()
     battle = Battle(
@@ -191,7 +191,7 @@ def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     player = PlayerState(RogueArcher())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     ui = ZhaivraLoopUI(first_item="deep_coal", companion="night_berry")
     session = RecordingPresentationSession()
     battle = Battle(
@@ -245,7 +245,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
         run_state,
     )
     first_combat_state = CombatState()
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     mana_before = zhaivra.mana_resource.current
 
     rejected = CombatResolver(rng=ScriptedRng()).resolve_move(
@@ -280,7 +280,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     assert second_preparation.accepted is False
     assert second_preparation.reason == InventoryActionRejectionReason.MISSING_INGREDIENTS
 
-    next_encounter = Battle(zhaivra, EnemyState(Goblin()), ui=UnusedUI())
+    next_encounter = Battle(zhaivra, EnemyState(create_enemy_definition("goblin")), ui=UnusedUI())
     assert next_encounter.player_state.character_run_state is run_state
     assert next_encounter.combat_state.burn_active(target) is False
 
@@ -302,7 +302,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
 def test_standard_burn_refreshes_to_three_ticks_and_retains_stronger_source():
     weak_source = PlayerState(Brawler())
     strong_source = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
 
     combat_state.apply_burn(weak_source, target)
@@ -322,7 +322,7 @@ def test_standard_burn_refreshes_to_three_ticks_and_retains_stronger_source():
 
 
 def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
 
     branoc = PlayerState(Brawler())
     branoc_state = CombatState()
@@ -373,7 +373,7 @@ def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
     joruun_state = CombatState()
     ordinary = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
         joruun,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         "Bring the Horse to Water",
         combat_state=joruun_state,
     )
@@ -389,7 +389,7 @@ def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
     joruun.super_resource.gain(joruun.super_resource.maximum)
     super_result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
         joruun,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         "Coagulated Torrent",
         combat_state=joruun_state,
     )

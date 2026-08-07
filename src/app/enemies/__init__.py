@@ -5,7 +5,6 @@ from app.enemies.definition import (
     EnemyRank,
     EnemyRole,
 )
-from app.enemies.factory import create_enemy_definition, create_enemy_state
 from app.enemies.state import EnemyState
 
 __all__ = [
@@ -18,3 +17,11 @@ __all__ = [
     "create_enemy_definition",
     "create_enemy_state",
 ]
+
+
+def __getattr__(name):
+    if name in {"create_enemy_definition", "create_enemy_state"}:
+        from app.enemies import factory
+
+        return getattr(factory, name)
+    raise AttributeError(name)

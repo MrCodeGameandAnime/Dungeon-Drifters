@@ -4,7 +4,7 @@ from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.factory import create_enemy_state
 from app.enemies.state import EnemyState
 from app.game.encounter_manifest import create_route_encounter_enemies
@@ -99,7 +99,7 @@ def test_every_authored_composition_is_ready_for_real_battle(node_id, expected_i
 
 
 def test_real_two_goblin_target_flow_keeps_labels_and_requires_both_defeats():
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     first.health.take_damage(first.health.current - 1)
     second.health.take_damage(second.health.current - 1)
     ui = ScriptedBattleUI(
@@ -405,7 +405,7 @@ def test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label(
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():
     actor = PlayerState(Brawler())
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     resolver = CombatResolver(rng=AlwaysOneRng())
 
@@ -425,7 +425,7 @@ def test_branoc_follow_up_damage_targets_one_of_two_enemies():
 
 def test_azhvielle_overcharge_consumes_linked_break_without_leaking_to_other_enemy():
     actor = PlayerState(BlackMage())
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=first)
 
@@ -446,7 +446,7 @@ def test_azhvielle_overcharge_consumes_linked_break_without_leaking_to_other_ene
 
 def test_zhaivra_infusion_applies_burn_to_the_exact_selected_enemy():
     actor = PlayerState(RogueArcher())
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     preparation = InventoryActionResolver().resolve(
         "prepare_fire_infusion",
@@ -469,7 +469,7 @@ def test_zhaivra_infusion_applies_burn_to_the_exact_selected_enemy():
 
 def test_joruun_setup_remains_linked_when_lightning_palm_targets_another_enemy():
     actor = PlayerState(Monk())
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     resolver = CombatResolver(rng=AlwaysOneRng())
 

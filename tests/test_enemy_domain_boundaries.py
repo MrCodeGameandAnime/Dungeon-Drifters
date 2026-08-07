@@ -4,6 +4,9 @@ from types import MappingProxyType
 
 import pytest
 
+from app.content import EnemySpec, StatBlockSpec
+from app.content.catalog import ENEMY_SPECS, get_enemy_spec
+import app.content.catalog as catalog_module
 from app.enemies import (
     Enemy,
     EnemyBehavior,
@@ -14,17 +17,13 @@ from app.enemies import (
     create_enemy_state,
 )
 from app.enemies.factory import create_enemy_state as factory_create_enemy_state
-from app.enemies.goblin.definition import Goblin
-from app.enemies.goblin.registration import GOBLIN_REGISTRATION
-from app.enemies.registry import get_enemy_registration
-import app.enemies.registry as registry_module
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def imported_modules(path):
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     modules = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -36,6 +35,9 @@ def imported_modules(path):
 
 
 def test_enemy_domain_public_imports_are_available():
+    assert EnemySpec
+    assert StatBlockSpec
+    assert len(ENEMY_SPECS) == 5
     assert Enemy
     assert EnemyRank.COMMON
     assert EnemyRole.MELEE_SKIRMISHER
@@ -43,25 +45,43 @@ def test_enemy_domain_public_imports_are_available():
     assert EnemyCapability.BASIC_ATTACKS
     assert EnemyState
     assert create_enemy_state is factory_create_enemy_state
-    assert Goblin
-    assert GOBLIN_REGISTRATION.archetype_id == "goblin"
-    assert get_enemy_registration("goblin") is GOBLIN_REGISTRATION
+    assert get_enemy_spec("goblin").name == "Goblin"
 
 
-def test_builtin_enemy_registry_is_private_and_read_only():
-    assert not hasattr(registry_module, "ENEMY_REGISTRY")
-    assert isinstance(registry_module._ENEMY_REGISTRY, MappingProxyType)
+def test_builtin_enemy_catalog_is_private_and_read_only():
+    assert not hasattr(catalog_module, "ENEMY_CATALOG")
+    assert isinstance(catalog_module._ENEMY_CATALOG, MappingProxyType)
 
     with pytest.raises(TypeError):
-        registry_module._ENEMY_REGISTRY["replacement"] = get_enemy_registration("goblin")
+        catalog_module._ENEMY_CATALOG["replacement"] = get_enemy_spec("goblin")
 
 
 def test_enemy_factory_does_not_directly_import_goblin():
     modules = imported_modules(ROOT / "src" / "app" / "enemies" / "factory.py")
 
-    assert "app.enemies.goblin.definition" not in modules
-    assert "app.enemies.goblin.scaling" not in modules
-    assert all(not module.startswith("app.enemies.goblin") for module in modules)
+    assert all(not module.startswith("app.content.enemies") for module in modules)
+
+
+def test_runtime_catalog_does_not_scan_or_dynamically_import_content():
+    modules = imported_modules(ROOT / "src" / "app" / "content" / "catalog.py")
+
+    assert "pathlib" not in modules
+    assert "pkgutil" not in modules
+    assert "importlib" not in modules
+
+
+def test_only_generated_catalog_imports_concrete_enemy_content():
+    source_root = ROOT / "src" / "app"
+    allowed = source_root / "content" / "_generated_catalog.py"
+    content_root = source_root / "content" / "enemies"
+
+    for path in source_root.rglob("*.py"):
+        if path == allowed or content_root in path.parents:
+            continue
+        assert all(
+            not module.startswith("app.content.enemies")
+            for module in imported_modules(path)
+        ), path
 
 
 def test_combat_package_does_not_import_enemy_domain_or_concrete_archetypes():

@@ -6,9 +6,7 @@ import app.combat.battle as battle_module
 from app.combat.battle import Battle
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
-from app.enemies.goblin.definition import Goblin
-from app.enemies.goblin_shaman.definition import GoblinShaman
-from app.enemies.goblin_warrior.definition import GoblinWarrior
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
@@ -66,11 +64,11 @@ def _battle(enemies, **kwargs):
 
 
 def _goblins(count):
-    return tuple(EnemyState(Goblin()) for _ in range(count))
+    return tuple(EnemyState(create_enemy_definition("goblin")) for _ in range(count))
 
 
 def test_battle_normalizes_one_to_four_ordered_enemies():
-    single = EnemyState(Goblin())
+    single = EnemyState(create_enemy_definition("goblin"))
     assert _battle(single).enemies == (single,)
 
     for count in range(1, 5):
@@ -88,9 +86,9 @@ def test_battle_normalizes_one_to_four_ordered_enemies():
     [
         ([], ValueError),
         (_goblins(5), ValueError),
-        ({EnemyState(Goblin())}, TypeError),
+        ({EnemyState(create_enemy_definition("goblin"))}, TypeError),
         ((enemy for enemy in _goblins(2)), TypeError),
-        ([EnemyState(Goblin()), object()], TypeError),
+        ([EnemyState(create_enemy_definition("goblin")), object()], TypeError),
     ],
 )
 def test_battle_rejects_invalid_participant_collections(participants, error_type):
@@ -99,7 +97,7 @@ def test_battle_rejects_invalid_participant_collections(participants, error_type
 
 
 def test_battle_rejects_the_same_runtime_enemy_twice():
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
 
     with pytest.raises(ValueError, match="same EnemyState"):
         _battle((enemy, enemy))
@@ -107,10 +105,10 @@ def test_battle_rejects_the_same_runtime_enemy_twice():
 
 def test_target_ids_and_duplicate_labels_are_stable_from_authored_positions():
     enemies = (
-        EnemyState(Goblin()),
-        EnemyState(Goblin()),
-        EnemyState(GoblinWarrior()),
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
+        EnemyState(create_enemy_definition("goblin")),
+        EnemyState(create_enemy_definition("goblin_warrior")),
+        EnemyState(create_enemy_definition("goblin")),
     )
     battle = _battle(enemies)
 
@@ -151,7 +149,7 @@ def test_duplicate_archetypes_remain_independent_runtime_states():
 
 
 def test_single_enemy_compatibility_accessors_refuse_multi_enemy_fallback():
-    single = _battle(EnemyState(Goblin()))
+    single = _battle(EnemyState(create_enemy_definition("goblin")))
     single_view = single._build_view()
     assert single.foe is single.enemies[0]
     assert single_view.enemy is single_view.enemies[0]
@@ -164,8 +162,8 @@ def test_single_enemy_compatibility_accessors_refuse_multi_enemy_fallback():
 
 
 def test_multi_enemy_view_preserves_authored_identity_and_resources():
-    goblin = EnemyState(Goblin())
-    shaman = EnemyState(GoblinShaman())
+    goblin = EnemyState(create_enemy_definition("goblin"))
+    shaman = EnemyState(create_enemy_definition("goblin_shaman"))
     shaman.mana_resource.spend(5)
     battle = _battle((goblin, shaman))
 
@@ -184,7 +182,7 @@ def test_multi_enemy_view_preserves_authored_identity_and_resources():
 
 
 def test_enemy_presentation_contract_is_immutable():
-    view = _battle(EnemyState(Goblin()))._build_view().enemy
+    view = _battle(EnemyState(create_enemy_definition("goblin")))._build_view().enemy
 
     assert isinstance(view, EnemyCombatantView)
     with pytest.raises(FrozenInstanceError):
@@ -193,7 +191,7 @@ def test_enemy_presentation_contract_is_immutable():
 
 def test_battle_default_resolver_shares_the_explicit_rng():
     rng = RecordingRng()
-    battle = _battle(EnemyState(Goblin()), rng=rng)
+    battle = _battle(EnemyState(create_enemy_definition("goblin")), rng=rng)
 
     assert isinstance(battle.resolver, CombatResolver)
     assert battle.resolver.rng is rng
@@ -202,7 +200,7 @@ def test_battle_default_resolver_shares_the_explicit_rng():
 def test_injected_resolver_retains_its_own_behavior():
     rng = RecordingRng()
     resolver = AcceptingResolver()
-    battle = _battle(EnemyState(Goblin()), rng=rng, resolver=resolver)
+    battle = _battle(EnemyState(create_enemy_definition("goblin")), rng=rng, resolver=resolver)
 
     assert battle.resolver is resolver
 
@@ -210,7 +208,7 @@ def test_injected_resolver_retains_its_own_behavior():
 def test_enemy_selection_uses_the_battle_rng_without_mutating_selection_state():
     rng = RecordingRng()
     resolver = AcceptingResolver()
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     battle = _battle(enemy, rng=rng, resolver=resolver)
     hp_before = enemy.health.current
     mana_before = enemy.mana_resource.current
@@ -227,7 +225,7 @@ def test_run_uses_the_injected_battle_rng_for_the_first_initiative_roll(
     monkeypatch,
 ):
     rng = RecordingRng()
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     battle = _battle(enemy, rng=rng)
     opportunities = []
 
@@ -251,4 +249,4 @@ def test_run_uses_the_injected_battle_rng_for_the_first_initiative_roll(
 @pytest.mark.parametrize("rng", [object(), type("OnlyRandint", (), {"randint": lambda *_: 1})()])
 def test_battle_rejects_rngs_without_the_complete_boundary(rng):
     with pytest.raises(TypeError, match="rng must provide"):
-        _battle(EnemyState(Goblin()), rng=rng)
+        _battle(EnemyState(create_enemy_definition("goblin")), rng=rng)

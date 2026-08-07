@@ -2,7 +2,7 @@ from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.enemies.factory import create_enemy_state
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
@@ -168,7 +168,7 @@ def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():
     )
     persistent_before = player.snapshot()
 
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     first_battle = Battle(
         player,
         (first, second),
@@ -210,7 +210,7 @@ def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():
     assert state.arcane_overcharge_active(player)
     assert not state.gravemantle_break_active(first)
 
-    next_enemy = EnemyState(Goblin())
+    next_enemy = EnemyState(create_enemy_definition("goblin"))
     second_battle = Battle(
         player,
         (next_enemy,),
@@ -236,7 +236,7 @@ def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():
 
 def test_real_battle_run_cleans_defeated_state_and_finishes_inactive():
     player = PlayerState(Brawler())
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     first.health.take_damage(first.health.current - 1)
     second.health.take_damage(second.health.current - 1)
     rng = AlwaysOneRng()
@@ -377,7 +377,7 @@ def test_real_session_discards_completed_battle_and_next_battle_is_fresh(tmp_pat
 
     next_battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=NoInputBattleUI(),
         rng=AlwaysOneRng(),
     )
@@ -479,7 +479,7 @@ def test_real_solo_defeat_boundary_restores_before_retry_and_rewards_once(tmp_pa
 
 def test_different_target_overcharge_and_break_are_encounter_local():
     actor = PlayerState(BlackMage())
-    broken_target, other_target = EnemyState(Goblin()), EnemyState(Goblin())
+    broken_target, other_target = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=broken_target)
     assert state.gravemantle_break_active(broken_target)
@@ -511,7 +511,7 @@ def test_accepted_infusion_consumption_does_not_survive_into_next_battle():
 
     first_battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ScriptedBattleUI(
             ChooseAction(ActionIntent.ATTACK),
             ChooseMove("Infused Barb"),
@@ -523,7 +523,7 @@ def test_accepted_infusion_consumption_does_not_survive_into_next_battle():
 
     next_battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=NoInputBattleUI(),
         rng=AlwaysOneRng(),
     )

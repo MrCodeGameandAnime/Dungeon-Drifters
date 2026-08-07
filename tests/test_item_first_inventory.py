@@ -5,7 +5,7 @@ import pytest
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.result import MoveResult
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
@@ -157,7 +157,7 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
 
 def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_items():
     player = PlayerState(RogueArcher())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     presenter = BattlePresenter()
     combat_state = SimpleNamespace(
         is_defending=lambda _actor: False,
@@ -233,7 +233,7 @@ def test_repeated_item_inspection_is_deterministic_and_non_consuming(
     description,
 ):
     player = PlayerState(RogueArcher())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     before = player.character_run_state.snapshot()
     presenter = BattlePresenter()
@@ -278,7 +278,7 @@ def test_inspect_no_and_back_do_not_invoke_resolver_mutate_or_add_a_turn():
     )
     battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         resolver=AcceptedDefendResolver(),
         inventory_action_resolver=inventory_resolver,
@@ -314,7 +314,7 @@ def test_confirming_either_item_order_routes_one_internal_preparation(source_ite
     ui = ScriptedUI(*_preparation_inputs(source_item_id))
     battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         inventory_action_resolver=inventory_resolver,
     )
@@ -341,7 +341,7 @@ def test_confirming_night_berry_order_routes_poison_preparation():
     ui = ScriptedUI(*_preparation_inputs(RunItemId.NIGHT_BERRY.value))
     battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         inventory_action_resolver=inventory_resolver,
     )
@@ -370,7 +370,7 @@ def test_fabricated_item_and_companion_ids_are_rejected_before_resolution():
     )
     battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         inventory_action_resolver=inventory_resolver,
     )
@@ -397,7 +397,7 @@ def test_rejected_confirmation_preserves_inventory_and_does_not_complete_action(
     )
     battle = Battle(
         player,
-        EnemyState(Goblin()),
+        EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         resolver=AcceptedDefendResolver(),
         inventory_action_resolver=inventory_resolver,
@@ -413,7 +413,7 @@ def test_rejected_confirmation_preserves_inventory_and_does_not_complete_action(
 @pytest.mark.parametrize("width", (60, 80, 120))
 def test_every_item_first_terminal_phase_remains_within_supported_width(width):
     player = PlayerState(RogueArcher())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     presenter = BattlePresenter()
     phase_values = (

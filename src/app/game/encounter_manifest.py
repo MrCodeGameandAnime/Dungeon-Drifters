@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from app.enemies.factory import create_enemy_definition, create_enemy_state
+from app.content.catalog import get_enemy_spec
+from app.enemies.factory import create_enemy_state
 from app.game.overworld_route import (
     RouteNodeKind,
     SURFACE_ROUTE_NODES,
@@ -64,15 +65,15 @@ class RouteManifestNode:
 
 
 def _encounter(node_id, enemies, *, boss=False):
-    definitions = tuple(
-        create_enemy_definition(archetype_id, tier=0)
+    enemy_specs = tuple(
+        get_enemy_spec(archetype_id)
         for archetype_id in enemies
     )
     return EncounterManifest(
         encounter_id=node_id,
         enemy_archetype_ids=enemies,
-        exp_reward=sum(definition.exp_reward for definition in definitions),
-        gold_reward=sum(definition.gold_reward for definition in definitions),
+        exp_reward=sum(spec.exp_reward for spec in enemy_specs),
+        gold_reward=sum(spec.gold_reward for spec in enemy_specs),
         boss=boss,
     )
 

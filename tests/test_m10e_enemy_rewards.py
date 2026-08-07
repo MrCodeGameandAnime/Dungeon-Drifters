@@ -1,8 +1,8 @@
 import pytest
 
+from app.content.catalog import get_enemy_spec
 from app.enemies.factory import create_enemy_definition, create_enemy_state
 from app.enemies.state import EnemyState
-from app.enemies.registry import get_enemy_registration
 from app.game.encounter_manifest import (
     SURFACE_ROUTE_MANIFEST,
     create_route_encounter_enemies,
@@ -32,7 +32,7 @@ EXPECTED_ENCOUNTER_REWARDS = {
 
 @pytest.mark.parametrize("archetype_id, expected", EXPECTED_REWARDS.items())
 def test_authored_enemy_definitions_own_exact_rewards(archetype_id, expected):
-    definition = get_enemy_registration(archetype_id).definition_factory()
+    definition = get_enemy_spec(archetype_id).create_definition()
 
     assert (definition.exp_reward, definition.gold_reward) == expected
 
@@ -58,8 +58,6 @@ def test_enemy_reward_values_require_nonnegative_integers(field, value):
         EnemyRank,
         EnemyRole,
     )
-    from app.enemies.goblin.moves import create_goblin_moves
-
     values = {
         "strn": 1,
         "con": 1,
@@ -75,7 +73,7 @@ def test_enemy_reward_values_require_nonnegative_integers(field, value):
         "role": EnemyRole.MELEE_SKIRMISHER,
         "behavior": EnemyBehavior.AGGRESSIVE,
         "capabilities": (EnemyCapability.BASIC_ATTACKS,),
-        "combat_moves": create_goblin_moves(),
+        "combat_moves": get_enemy_spec("goblin").moves,
     }
     values[field] = value
 
@@ -85,7 +83,7 @@ def test_enemy_reward_values_require_nonnegative_integers(field, value):
 
 
 def test_authored_reward_properties_are_read_only():
-    definition = get_enemy_registration("goblin").definition_factory()
+    definition = get_enemy_spec("goblin").create_definition()
 
     with pytest.raises(AttributeError):
         definition.exp_reward = 0

@@ -1,8 +1,35 @@
-from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move import (
+    DamageType,
+    Move,
+    MoveKind,
+    ResourceType,
+    ScalingAttribute,
+    TargetType,
+)
+from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 
 
-def create_goblin_moves():
-    return (
+ENEMY = EnemySpec(
+    archetype_id="goblin",
+    name="Goblin",
+    stats=StatBlockSpec(
+        constitution=2,
+        spirit=1,
+        intelligence=1,
+        strength=3,
+        dexterity=1,
+        intuition=1,
+    ),
+    hp=60,
+    mana=0,
+    exp_reward=40,
+    gold_reward=3,
+    rank=EnemyRank.COMMON,
+    role=EnemyRole.MELEE_SKIRMISHER,
+    behavior=EnemyBehavior.AGGRESSIVE,
+    capabilities=frozenset({EnemyCapability.BASIC_ATTACKS}),
+    moves=(
         Move(
             name="slash",
             kind=MoveKind.DAMAGE,
@@ -29,4 +56,8 @@ def create_goblin_moves():
             mechanic="heavy_attack",
             description="A committed leaping slash.",
         ),
-    )
+    ),
+)
+
+
+__all__ = ["ENEMY"]

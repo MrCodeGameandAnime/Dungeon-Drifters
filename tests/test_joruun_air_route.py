@@ -2,7 +2,7 @@ from app.combat.combat_state import CombatState
 from app.combat.result import CombatOutcome, CombatOutcomeType
 from app.combat.resolver import CombatResolver, _mitigation, _scaled_damage_power
 from app.combat.storm import LIGHTNING_PALM_MECHANIC, TEMPEST_SURGE_MECHANIC
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import Monk
 from app.player.player_state import PlayerState
@@ -26,7 +26,7 @@ def _joruun():
 
 
 def _goblin():
-    return EnemyState(Goblin())
+    return EnemyState(create_enemy_definition("goblin"))
 
 
 def _move(actor, name):

@@ -13,7 +13,7 @@ from app.combat.move import (
 )
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
@@ -92,7 +92,7 @@ def test_authored_infused_barb_contract_preserves_existing_combat_values():
 
 def test_unprepared_infused_barb_is_rejected_before_mana_rng_or_state_mutation():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = actor.character_run_state
     mana_before = actor.mana_resource.current
@@ -119,7 +119,7 @@ def test_unprepared_infused_barb_is_rejected_before_mana_rng_or_state_mutation()
 
 def test_unaffordable_infused_barb_preserves_prepared_payload_and_uses_no_rng():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
     actor.mana_resource.spend(actor.mana_resource.current)
@@ -142,7 +142,7 @@ def test_unaffordable_infused_barb_preserves_prepared_payload_and_uses_no_rng():
 
 def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
@@ -177,8 +177,8 @@ def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
 
 def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
-    other_target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
+    other_target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
@@ -217,7 +217,7 @@ def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn
 
 def test_accepted_hit_routes_poison_infusion_to_standard_poison():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_poison_infusion(actor.character_run_state)
 
@@ -244,7 +244,7 @@ def test_accepted_hit_routes_poison_infusion_to_standard_poison():
 
 def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
     mana_before = actor.mana_resource.current
@@ -276,7 +276,7 @@ def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
 
 def test_direct_defeat_consumes_payload_without_creating_dead_target_burn():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     target.health.take_damage(target.health.current - 1)
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
@@ -300,7 +300,7 @@ def test_direct_defeat_consumes_payload_without_creating_dead_target_burn():
 
 def test_landed_hit_refreshes_existing_burn_after_payload_consumption():
     actor = PlayerState(RogueArcher())
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     combat_state.apply_burn(actor, target)
     combat_state.complete_accepted_action(target, (actor,))
@@ -338,7 +338,7 @@ def test_mechanic_marker_not_move_or_character_name_controls_integration():
         description="A test prepared shot.",
     )
     actor.character.combat_moves.append(move)
-    target = EnemyState(Goblin())
+    target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = CharacterRunState(
         prepared_payloads={PreparedPayloadId.INFUSED_BARB: InfusionKind.FIRE}

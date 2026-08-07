@@ -1,17 +1,12 @@
-from app.enemies.registry import get_enemy_registration
-from app.enemies.state import EnemyState
-from app.enemies.validation import validate_enemy_tier
+from app.content.catalog import (
+    create_enemy_definition as _create_enemy_definition,
+    create_enemy_state as _create_enemy_state,
+)
 
 
 def create_enemy_definition(archetype_id, tier=0):
-    registration = get_enemy_registration(archetype_id)
-    tier = validate_enemy_tier(tier)
-
-    definition = registration.definition_factory()
-    return registration.scaling_policy(definition, tier)
+    return _create_enemy_definition(archetype_id, tier=tier)
 
 
 def create_enemy_state(archetype_id, tier=0):
-    tier = validate_enemy_tier(tier)
-    definition = create_enemy_definition(archetype_id, tier=tier)
-    return EnemyState(definition, tier=tier)
+    return _create_enemy_state(archetype_id, tier=tier)

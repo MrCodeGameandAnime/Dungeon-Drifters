@@ -4,7 +4,7 @@ import pytest
 
 from app.combat.battle import Battle
 from app.combat.result import MoveResult
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId
@@ -86,7 +86,7 @@ def _accepted_result():
 
 def _battle(character=None, *, enemies=None, resolver=None, ui=None, rng=None):
     player = PlayerState(character or Brawler())
-    enemies = enemies or (EnemyState(Goblin()), EnemyState(Goblin()))
+    enemies = enemies or (EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin")))
     battle = Battle(
         player,
         enemies,
@@ -144,7 +144,7 @@ def test_multi_enemy_move_choice_waits_for_exact_target_without_clearing_log():
 
 
 def test_one_living_enemy_is_auto_targeted_and_defeated_enemy_is_not_offered():
-    first, second = EnemyState(Goblin()), EnemyState(Goblin())
+    first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     first.health.take_damage(first.health.maximum)
     resolver = RecordingResolver()
     ui = ScriptedUI(
@@ -225,7 +225,7 @@ def test_back_from_targets_returns_to_exact_move_phase_without_resolving(
 def test_stale_defeated_target_is_rejected_without_dispatch_or_resource_mutation():
     resolver = RecordingResolver()
     rng = RecordingRng()
-    second = EnemyState(Goblin())
+    second = EnemyState(create_enemy_definition("goblin"))
     killed = False
 
     def defeat_second_after_target_view(view):
@@ -243,7 +243,7 @@ def test_stale_defeated_target_is_rejected_without_dispatch_or_resource_mutation
     )
     battle, player, enemies = _battle(
         RogueArcher(),
-        enemies=(EnemyState(Goblin()), second),
+        enemies=(EnemyState(create_enemy_definition("goblin")), second),
         resolver=resolver,
         ui=ui,
         rng=rng,

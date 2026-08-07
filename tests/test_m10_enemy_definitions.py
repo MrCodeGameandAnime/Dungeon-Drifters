@@ -2,13 +2,9 @@ import pytest
 
 from app.combat.battle import select_enemy_move
 from app.combat.resolver import CombatResolver
+from app.content.catalog import create_enemy_definition
 from app.enemies import create_enemy_state
 from app.enemies.definition import EnemyCapability, EnemyRank, EnemyRole
-from app.enemies.goblin.definition import Goblin
-from app.enemies.goblin_elite.definition import GoblinElite
-from app.enemies.goblin_lord.definition import GoblinLord
-from app.enemies.goblin_shaman.definition import GoblinShaman
-from app.enemies.goblin_warrior.definition import GoblinWarrior
 from app.enemies.state import EnemyState
 from app.player.character import Brawler
 from app.player.player_state import PlayerState
@@ -16,7 +12,6 @@ from app.player.player_state import PlayerState
 
 EXPECTED = {
     "goblin_warrior": {
-        "definition": GoblinWarrior,
         "name": "Goblin Warrior",
         "hp": 85,
         "mana": 0,
@@ -30,7 +25,6 @@ EXPECTED = {
         ),
     },
     "goblin_shaman": {
-        "definition": GoblinShaman,
         "name": "Goblin Shaman",
         "hp": 65,
         "mana": 25,
@@ -45,7 +39,6 @@ EXPECTED = {
         ),
     },
     "goblin_elite": {
-        "definition": GoblinElite,
         "name": "Goblin Elite",
         "hp": 130,
         "mana": 0,
@@ -60,7 +53,6 @@ EXPECTED = {
         ),
     },
     "goblin_lord": {
-        "definition": GoblinLord,
         "name": "Goblin Lord",
         "hp": 220,
         "mana": 30,
@@ -83,7 +75,6 @@ def test_m10_enemy_definitions_match_authored_contract(archetype_id, expected):
     state = create_enemy_state(archetype_id)
     definition = state.definition
 
-    assert isinstance(definition, expected["definition"])
     assert definition.archetype_id == archetype_id
     assert definition.name == expected["name"]
     assert (definition.hp, definition.mana) == (expected["hp"], expected["mana"])
@@ -151,7 +142,7 @@ def test_m10_archetypes_support_only_tier_zero(archetype_id):
 
 
 def test_ordinary_goblin_values_remain_unchanged():
-    state = EnemyState(Goblin())
+    state = EnemyState(create_enemy_definition("goblin"))
     assert state.display_name == "Goblin"
     assert (state.health.maximum, state.mana_resource.maximum) == (60, 0)
     assert (

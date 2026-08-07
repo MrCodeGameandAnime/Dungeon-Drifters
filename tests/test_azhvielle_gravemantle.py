@@ -7,7 +7,7 @@ from app.combat.result import (
     CombatOutcomeTarget,
 )
 from app.combat.resolver import CombatResolver
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler
 from app.player.player_state import PlayerState
@@ -28,7 +28,7 @@ def _azhvielle():
 
 
 def _goblin():
-    return EnemyState(Goblin())
+    return EnemyState(create_enemy_definition("goblin"))
 
 
 def test_atomic_arcane_discharge_returns_facts_and_clears_live_state():

@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 from app.combat.battle import Battle
 from app.combat.battle import random as battle_random
 from app.combat.resolver import CombatResolver
-from app.enemies.goblin.definition import Goblin
+from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
@@ -200,7 +200,7 @@ def _encounter(route, seed, *, stress):
     random.seed(seed)
     battle_random.seed(seed)
     player = PlayerState(route.character_type())
-    enemy = EnemyState(Goblin())
+    enemy = EnemyState(create_enemy_definition("goblin"))
     if stress:
         enemy.health.set_maximum(STRESS_HP)
         enemy.health.current = STRESS_HP
