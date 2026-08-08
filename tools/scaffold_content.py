@@ -2,8 +2,6 @@
 
 import argparse
 import ast
-import re
-import sys
 from pathlib import Path
 from textwrap import dedent
 
@@ -314,18 +312,38 @@ def _test_template(content_type, content_id):
         "encounter": "get_encounter_spec, get_enemy_spec",
         "route": "get_route_node_spec, get_route_spec, get_route_successor_id",
     }[content_type]
-    assertions = [f"    assert {lookup} is {symbol}"]
+    assertions = [f"assert {lookup} is {symbol}"]
     if factory:
         assertions.extend(
-            [f"    first = {factory}", f"    second = {factory}", "    assert first is not second"]
+            [f"first = {factory}", f"second = {factory}", "assert first is not second"]
         )
+        if content_type == "enemy":
+            assertions.extend(
+                (
+                    "assert first.health is not second.health",
+                    "assert first.mana_resource is not second.mana_resource",
+                    "assert first.super_resource is not second.super_resource",
+                    "assert first.permanent_stats is not second.permanent_stats",
+                )
+            )
+        elif content_type == "weapon":
+            assertions.append("assert first.stat_bonuses is not second.stat_bonuses")
+        else:
+            assertions.extend(
+                (
+                    "assert first.health is not second.health",
+                    "assert first.mana_resource is not second.mana_resource",
+                    'assert first.starting_equipment["weapon"] is not second.starting_equipment["weapon"]',
+                    "assert first.starting_run_inventory is not second.starting_run_inventory",
+                )
+            )
     elif content_type == "encounter":
-        assertions.append("    assert all(get_enemy_spec(value) for value in ENCOUNTER.enemy_archetype_ids)")
+        assertions.append("assert all(get_enemy_spec(value) for value in ENCOUNTER.enemy_archetype_ids)")
     else:
         assertions.extend(
             [
-                "    assert all(get_route_node_spec(node.node_id) is node for node in ROUTE.nodes)",
-                "    assert get_route_successor_id(ROUTE.nodes[-1].node_id) is None",
+                "assert all(get_route_node_spec(node.node_id) is node for node in ROUTE.nodes)",
+                "assert tuple(get_route_successor_id(node.node_id) for node in ROUTE.nodes) == tuple(node.node_id for node in ROUTE.nodes[1:]) + (None,)",
             ]
         )
     body = "\n".join(f"    {line.strip()}" for line in assertions)
@@ -392,10 +410,8 @@ def scaffold_content(content_type, content_id, *, root=ROOT):
         source = _route_template(content_id)
 
     old_catalog = output_path.read_bytes() if output_path.exists() else None
-    created = []
     try:
         package.mkdir()
-        created.append(package)
         _write_text(
             package_init,
             f"from .{primary_name[:-3]} import {symbol}\n\n__all__ = [\"{symbol}\"]\n",

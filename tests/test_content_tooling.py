@@ -76,6 +76,8 @@ def test_every_content_type_scaffolds_conventional_importable_output(
     assert test_path == root / "tests" / f"test_content_{content_type}_{content_id}.py"
     assert TODO_MARKER in primary.read_text(encoding="utf-8")
     assert f'__all__ = ["{symbol}"]' in primary.read_text(encoding="utf-8")
+    assert b"\r\n" not in primary.read_bytes()
+    assert b"\r\n" not in test_path.read_bytes()
     ast.parse(primary.read_text(encoding="utf-8"))
     ast.parse(test_path.read_text(encoding="utf-8"))
     ast.parse(catalog_path.read_text(encoding="utf-8"))
@@ -85,13 +87,8 @@ def test_every_content_type_scaffolds_conventional_importable_output(
 
     environment = dict(os.environ)
     environment["PYTHONPATH"] = str(root / "src")
-    module_name = primary_name[:-3]
     result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            f"from app.content.{directory}.{content_id}.{module_name} import {symbol}",
-        ],
+        [sys.executable, "-m", "pytest", str(test_path), "-q"],
         cwd=root,
         env=environment,
         capture_output=True,
@@ -99,6 +96,7 @@ def test_every_content_type_scaffolds_conventional_importable_output(
         check=False,
     )
     assert result.returncode == 0, result.stderr
+    assert "1 passed" in result.stdout
 
 
 def test_scaffold_output_is_deterministic_across_independent_roots(tmp_path):
