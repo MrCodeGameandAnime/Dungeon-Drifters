@@ -19,6 +19,7 @@ from tools.generate_content_catalog import (
     OUTPUT_PATH,
     discover_drifter_ids,
     discover_enemy_ids,
+    discover_route_ids,
     discover_weapon_ids,
     render_catalog,
 )
@@ -52,6 +53,7 @@ def test_generated_catalog_is_current_for_all_flattened_content():
         discover_enemy_ids(),
         discover_weapon_ids(),
         discover_drifter_ids(),
+        discover_route_ids(),
     )
 
     assert OUTPUT_PATH.read_text(encoding="utf-8") == expected

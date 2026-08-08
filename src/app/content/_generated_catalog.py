@@ -13,6 +13,7 @@ from app.content.drifters.azhvielle.drifter import DRIFTER as azhvielle_drifter
 from app.content.drifters.branoc.drifter import DRIFTER as branoc_drifter
 from app.content.drifters.joruun.drifter import DRIFTER as joruun_drifter
 from app.content.drifters.zhaivra.drifter import DRIFTER as zhaivra_drifter
+from app.content.routes.surface.route import ROUTE as surface_route
 
 
 GENERATED_ENEMY_SPECS = (
@@ -40,8 +41,14 @@ GENERATED_DRIFTER_SPECS = (
 )
 
 
+GENERATED_ROUTE_SPECS = (
+    ("surface", surface_route),
+)
+
+
 __all__ = [
     "GENERATED_DRIFTER_SPECS",
     "GENERATED_ENEMY_SPECS",
+    "GENERATED_ROUTE_SPECS",
     "GENERATED_WEAPON_SPECS",
 ]

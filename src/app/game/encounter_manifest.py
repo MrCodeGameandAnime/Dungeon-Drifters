@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from app.content.catalog import get_enemy_spec
+from app.content.catalog import get_enemy_spec, get_route_spec
 from app.enemies.factory import create_enemy_state
 from app.game.overworld_route import (
     RouteNodeKind,
@@ -64,89 +64,33 @@ class RouteManifestNode:
             raise TypeError("encounter must be an EncounterManifest or None")
 
 
-def _encounter(node_id, enemies, *, boss=False):
+def _encounter(node):
+    enemies = node.encounter.enemy_archetype_ids
     enemy_specs = tuple(
         get_enemy_spec(archetype_id)
         for archetype_id in enemies
     )
     return EncounterManifest(
-        encounter_id=node_id,
+        encounter_id=node.node_id,
         enemy_archetype_ids=enemies,
         exp_reward=sum(spec.exp_reward for spec in enemy_specs),
         gold_reward=sum(spec.gold_reward for spec in enemy_specs),
-        boss=boss,
+        boss=node.kind is RouteNodeKind.BOSS,
     )
 
 
-_MANIFEST_DETAILS = {
-    "surface_goblin_solo": (
-        "surface_goblin_pair",
-        _encounter("surface_goblin_solo", ("goblin",)),
-    ),
-    "surface_goblin_pair": (
-        "surface_warrior_solo",
-        _encounter("surface_goblin_pair", ("goblin", "goblin")),
-    ),
-    "surface_warrior_solo": (
-        "surface_rest_after_warrior_solo",
-        _encounter("surface_warrior_solo", ("goblin_warrior",)),
-    ),
-    "surface_rest_after_warrior_solo": (
-        "surface_warrior_pair",
-        None,
-    ),
-    "surface_warrior_pair": (
-        "surface_shaman_solo",
-        _encounter(
-            "surface_warrior_pair",
-            ("goblin_warrior", "goblin_warrior"),
-        ),
-    ),
-    "surface_shaman_solo": (
-        "surface_shaman_pair",
-        _encounter("surface_shaman_solo", ("goblin_shaman",)),
-    ),
-    "surface_shaman_pair": (
-        "surface_rest_after_shaman_pair",
-        _encounter(
-            "surface_shaman_pair",
-            ("goblin_shaman", "goblin_shaman"),
-        ),
-    ),
-    "surface_rest_after_shaman_pair": (
-        "surface_elite_patrol",
-        None,
-    ),
-    "surface_elite_patrol": (
-        "surface_rest_before_goblin_lord",
-        _encounter(
-            "surface_elite_patrol",
-            ("goblin_elite", "goblin"),
-        ),
-    ),
-    "surface_rest_before_goblin_lord": (
-        "surface_goblin_lord",
-        None,
-    ),
-    "surface_goblin_lord": (
-        "surface_dungeon_entrance",
-        _encounter(
-            "surface_goblin_lord",
-            ("goblin_lord", "goblin", "goblin_warrior"),
-            boss=True,
-        ),
-    ),
-    "surface_dungeon_entrance": (None, None),
-}
-
-
+_SURFACE_ROUTE_SPEC = get_route_spec("surface")
 SURFACE_ROUTE_MANIFEST = tuple(
     RouteManifestNode(
         node_id=node.node_id,
-        next_node_id=_MANIFEST_DETAILS[node.node_id][0],
-        encounter=_MANIFEST_DETAILS[node.node_id][1],
+        next_node_id=(
+            _SURFACE_ROUTE_SPEC.nodes[index + 1].node_id
+            if index + 1 < len(_SURFACE_ROUTE_SPEC.nodes)
+            else None
+        ),
+        encounter=_encounter(node) if node.encounter is not None else None,
     )
-    for node in SURFACE_ROUTE_NODES
+    for index, node in enumerate(_SURFACE_ROUTE_SPEC.nodes)
 )
 
 _ROUTE_MANIFEST_BY_NODE_ID = MappingProxyType(
@@ -207,8 +151,6 @@ def create_route_encounter_enemies(
 
 
 def _validate_surface_route_manifest():
-    if set(_MANIFEST_DETAILS) != {node.node_id for node in SURFACE_ROUTE_NODES}:
-        raise ValueError("surface route manifest must cover every route node exactly")
     if len(_ROUTE_MANIFEST_BY_NODE_ID) != len(SURFACE_ROUTE_NODES):
         raise ValueError("surface route manifest node IDs must be unique")
     if len(_ENCOUNTER_MANIFEST_BY_ID) != 8:

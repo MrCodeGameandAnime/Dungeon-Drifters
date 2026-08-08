@@ -7,8 +7,13 @@ __all__ = [
     "ClassMechanicSpec",
     "DrifterSpec",
     "DrifterStatSpec",
+    "EncounterSpec",
     "EnemySpec",
     "StatBlockSpec",
+    "RouteNodeKind",
+    "RouteNodeSpec",
+    "RouteSpec",
+    "ROUTE_SPECS",
     "WEAPON_SPECS",
     "WeaponSpec",
     "create_enemy_definition",
@@ -19,6 +24,7 @@ __all__ = [
     "get_enemy_spec",
     "get_drifter_spec",
     "get_drifter_spec_by_choice",
+    "get_route_spec",
     "get_weapon_spec",
     "get_weapon_spec_by_persistence_key",
 ]
@@ -45,9 +51,24 @@ def __getattr__(name):
             "DrifterSpec": DrifterSpec,
             "DrifterStatSpec": DrifterStatSpec,
         }[name]
+    if name in {"EncounterSpec", "RouteNodeKind", "RouteNodeSpec", "RouteSpec"}:
+        from app.content.route_spec import (
+            EncounterSpec,
+            RouteNodeKind,
+            RouteNodeSpec,
+            RouteSpec,
+        )
+
+        return {
+            "EncounterSpec": EncounterSpec,
+            "RouteNodeKind": RouteNodeKind,
+            "RouteNodeSpec": RouteNodeSpec,
+            "RouteSpec": RouteSpec,
+        }[name]
     if name in {
         "ENEMY_SPECS",
         "DRIFTER_SPECS",
+        "ROUTE_SPECS",
         "WEAPON_SPECS",
         "create_enemy_definition",
         "create_drifter",
@@ -57,6 +78,7 @@ def __getattr__(name):
         "get_enemy_spec",
         "get_drifter_spec",
         "get_drifter_spec_by_choice",
+        "get_route_spec",
         "get_weapon_spec",
         "get_weapon_spec_by_persistence_key",
     }:

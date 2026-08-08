@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENEMY_ROOT = ROOT / "src" / "app" / "content" / "enemies"
 DRIFTER_ROOT = ROOT / "src" / "app" / "content" / "drifters"
+ROUTE_ROOT = ROOT / "src" / "app" / "content" / "routes"
 WEAPON_ROOT = ROOT / "src" / "app" / "content" / "weapons"
 OUTPUT_PATH = ROOT / "src" / "app" / "content" / "_generated_catalog.py"
 _CONTENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -122,10 +123,34 @@ def discover_drifter_ids(drifter_root=DRIFTER_ROOT):
     return tuple(drifter_ids)
 
 
-def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=()):
+def discover_route_ids(route_root=ROUTE_ROOT):
+    route_ids = []
+    for path in sorted(
+        route_root.glob("*/route.py"),
+        key=lambda item: item.parent.name,
+    ):
+        directory_id = _validate_content_module_id(path.parent.name)
+        authored_id = _validate_content_module_id(
+            _authored_content_id(
+                path,
+                assignment_name="ROUTE",
+                field_name="route_id",
+            )
+        )
+        if directory_id != authored_id:
+            raise ValueError(
+                "route directory ID does not match authored route ID: "
+                f"{directory_id} != {authored_id}"
+            )
+        route_ids.append(directory_id)
+    return tuple(route_ids)
+
+
+def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=(), route_ids=()):
     enemy_ids = tuple(_validate_content_module_id(value) for value in enemy_ids)
     weapon_ids = tuple(_validate_content_module_id(value) for value in weapon_ids)
     drifter_ids = tuple(_validate_content_module_id(value) for value in drifter_ids)
+    route_ids = tuple(_validate_content_module_id(value) for value in route_ids)
     enemy_imports = "\n".join(
         "from app.content.enemies."
         f"{enemy_id}.enemy import ENEMY as {enemy_id}_enemy"
@@ -153,9 +178,23 @@ def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=()):
         f'    ("{drifter_id}", {drifter_id}_drifter),'
         for drifter_id in drifter_ids
     )
+    route_imports = "\n".join(
+        "from app.content.routes."
+        f"{route_id}.route import ROUTE as {route_id}_route"
+        for route_id in route_ids
+    )
+    route_records = "\n".join(
+        f'    ("{route_id}", {route_id}_route),'
+        for route_id in route_ids
+    )
     imports = "\n".join(
         section
-        for section in (enemy_imports, weapon_imports, drifter_imports)
+        for section in (
+            enemy_imports,
+            weapon_imports,
+            drifter_imports,
+            route_imports,
+        )
         if section
     )
     source = (
@@ -170,9 +209,13 @@ def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=()):
         "GENERATED_DRIFTER_SPECS = (\n"
         f"{drifter_records}\n"
         ")\n\n\n"
+        "GENERATED_ROUTE_SPECS = (\n"
+        f"{route_records}\n"
+        ")\n\n\n"
         "__all__ = [\n"
         '    "GENERATED_DRIFTER_SPECS",\n'
         '    "GENERATED_ENEMY_SPECS",\n'
+        '    "GENERATED_ROUTE_SPECS",\n'
         '    "GENERATED_WEAPON_SPECS",\n'
         "]\n"
     )
@@ -192,6 +235,7 @@ def main():
         discover_enemy_ids(),
         discover_weapon_ids(),
         discover_drifter_ids(),
+        discover_route_ids(),
     )
 
     if args.check:

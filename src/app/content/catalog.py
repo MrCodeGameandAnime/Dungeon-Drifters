@@ -5,10 +5,12 @@ from types import MappingProxyType
 from app.content._generated_catalog import (
     GENERATED_DRIFTER_SPECS,
     GENERATED_ENEMY_SPECS,
+    GENERATED_ROUTE_SPECS,
     GENERATED_WEAPON_SPECS,
 )
 from app.content.drifter_spec import DrifterSpec
 from app.content.enemy_spec import EnemySpec
+from app.content.route_spec import RouteSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 from app.enemies.validation import validate_enemy_tier
@@ -100,6 +102,39 @@ DRIFTER_SPECS, _DRIFTER_CATALOG, _DRIFTER_CHOICE_CATALOG = (
 )
 
 
+def _build_route_catalog(records, *, enemy_catalog=None):
+    if enemy_catalog is None:
+        enemy_catalog = _ENEMY_CATALOG
+    by_id = {}
+    for directory_id, spec in records:
+        if not isinstance(directory_id, str):
+            raise TypeError("generated route directory IDs must be strings")
+        if not isinstance(spec, RouteSpec):
+            raise TypeError("generated route records must contain RouteSpec values")
+        if directory_id != spec.route_id:
+            raise ValueError(
+                "route directory ID does not match authored route ID: "
+                f"{directory_id} != {spec.route_id}"
+            )
+        if spec.route_id in by_id:
+            raise ValueError(f"duplicate route ID: {spec.route_id}")
+        for node in spec.nodes:
+            if node.encounter is None:
+                continue
+            for archetype_id in node.encounter.enemy_archetype_ids:
+                if archetype_id not in enemy_catalog:
+                    raise ValueError(
+                        f"route {spec.route_id!r} references unknown enemy "
+                        f"archetype: {archetype_id!r}"
+                    )
+        by_id[spec.route_id] = spec
+    ordered = tuple(sorted(by_id.values(), key=lambda spec: spec.route_id))
+    return ordered, MappingProxyType(by_id)
+
+
+ROUTE_SPECS, _ROUTE_CATALOG = _build_route_catalog(GENERATED_ROUTE_SPECS)
+
+
 def get_enemy_spec(archetype_id):
     try:
         return _ENEMY_CATALOG[archetype_id]
@@ -159,9 +194,17 @@ def create_drifter(drifter_id):
     return get_drifter_spec(drifter_id).create_unselected_character()
 
 
+def get_route_spec(route_id):
+    try:
+        return _ROUTE_CATALOG[route_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown route ID: {route_id}") from error
+
+
 __all__ = [
     "ENEMY_SPECS",
     "DRIFTER_SPECS",
+    "ROUTE_SPECS",
     "WEAPON_SPECS",
     "create_enemy_definition",
     "create_enemy_state",
@@ -171,6 +214,7 @@ __all__ = [
     "get_enemy_spec",
     "get_drifter_spec",
     "get_drifter_spec_by_choice",
+    "get_route_spec",
     "get_weapon_spec",
     "get_weapon_spec_by_persistence_key",
 ]

@@ -1,14 +1,10 @@
 """Immutable authored route shell used by overworld state and presentation."""
 
 from dataclasses import dataclass
-from enum import StrEnum
+from types import MappingProxyType
 
-
-class RouteNodeKind(StrEnum):
-    COMBAT = "combat"
-    REST = "rest"
-    BOSS = "boss"
-    DUNGEON_ENTRANCE = "dungeon_entrance"
+from app.content.catalog import get_route_spec
+from app.content.route_spec import RouteNodeKind
 
 
 @dataclass(frozen=True)
@@ -25,35 +21,10 @@ class RouteNodeShell:
         object.__setattr__(self, "kind", RouteNodeKind(self.kind))
 
 
-SURFACE_ROUTE_NODES = (
-    RouteNodeShell("surface_goblin_solo", "Goblin Ambush", RouteNodeKind.COMBAT),
-    RouteNodeShell("surface_goblin_pair", "Goblin Pair", RouteNodeKind.COMBAT),
-    RouteNodeShell("surface_warrior_solo", "Goblin Warrior", RouteNodeKind.COMBAT),
-    RouteNodeShell(
-        "surface_rest_after_warrior_solo",
-        "Woodland Rest",
-        RouteNodeKind.REST,
-    ),
-    RouteNodeShell("surface_warrior_pair", "Warrior Patrol", RouteNodeKind.COMBAT),
-    RouteNodeShell("surface_shaman_solo", "Goblin Shaman", RouteNodeKind.COMBAT),
-    RouteNodeShell("surface_shaman_pair", "Shaman Pair", RouteNodeKind.COMBAT),
-    RouteNodeShell(
-        "surface_rest_after_shaman_pair",
-        "Ritual Clearing Rest",
-        RouteNodeKind.REST,
-    ),
-    RouteNodeShell("surface_elite_patrol", "Elite Patrol", RouteNodeKind.COMBAT),
-    RouteNodeShell(
-        "surface_rest_before_goblin_lord",
-        "Final Approach Rest",
-        RouteNodeKind.REST,
-    ),
-    RouteNodeShell("surface_goblin_lord", "Goblin Lord", RouteNodeKind.BOSS),
-    RouteNodeShell(
-        "surface_dungeon_entrance",
-        "Dungeon Entrance",
-        RouteNodeKind.DUNGEON_ENTRANCE,
-    ),
+_SURFACE_ROUTE_SPEC = get_route_spec("surface")
+SURFACE_ROUTE_NODES = tuple(
+    RouteNodeShell(node.node_id, node.display_label, node.kind)
+    for node in _SURFACE_ROUTE_SPEC.nodes
 )
 
 SURFACE_ROUTE_NODE_IDS = tuple(node.node_id for node in SURFACE_ROUTE_NODES)
@@ -63,12 +34,28 @@ SURFACE_REST_NODE_IDS = tuple(
 FIRST_SURFACE_NODE_ID = SURFACE_ROUTE_NODE_IDS[0]
 SECOND_SURFACE_NODE_ID = SURFACE_ROUTE_NODE_IDS[1]
 DUNGEON_ENTRANCE_NODE_ID = SURFACE_ROUTE_NODE_IDS[-1]
+_SURFACE_ROUTE_BY_NODE_ID = MappingProxyType(
+    {node.node_id: node for node in SURFACE_ROUTE_NODES}
+)
 
 
 def route_node(node_id):
     if not isinstance(node_id, str):
         raise TypeError("node_id must be a string")
-    for node in SURFACE_ROUTE_NODES:
-        if node.node_id == node_id:
-            return node
-    raise ValueError(f"unknown surface route node: {node_id!r}")
+    try:
+        return _SURFACE_ROUTE_BY_NODE_ID[node_id]
+    except KeyError as error:
+        raise ValueError(f"unknown surface route node: {node_id!r}") from error
+
+
+__all__ = [
+    "DUNGEON_ENTRANCE_NODE_ID",
+    "FIRST_SURFACE_NODE_ID",
+    "RouteNodeKind",
+    "RouteNodeShell",
+    "SECOND_SURFACE_NODE_ID",
+    "SURFACE_REST_NODE_IDS",
+    "SURFACE_ROUTE_NODE_IDS",
+    "SURFACE_ROUTE_NODES",
+    "route_node",
+]

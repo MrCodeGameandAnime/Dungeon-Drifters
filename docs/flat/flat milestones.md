@@ -82,8 +82,27 @@ change persistence schema, or begin encounter and route migration.
 
 ### FLAT-4 - Unify Encounter and Route Authoring
 
-Move encounter compositions and route shells behind validated authored content
-without changing route order, rewards, Rest behavior, or completion ownership.
+Move the surface route behind one immutable `RouteSpec` package. Its ordered
+`RouteNodeSpec` values are the sole authored owner of stable node IDs,
+player-facing labels, node kinds, and optional ordered enemy compositions.
+
+Immediate successors, encounter IDs, Boss flags, and atomic EXP/gold totals are
+derived rather than authored a second time. Reward totals continue to come from
+the canonical enemy specifications. The generated catalog discovers route
+packages only during development, validates every referenced enemy ID, and gives
+runtime code deterministic lookup without filesystem scanning.
+
+`app.game.overworld_route` and `app.game.encounter_manifest` remain the stable
+engine-facing adapters. Their existing public objects, constants, lookups,
+inspection behavior, and enemy factory preserve v0.3 behavior while deriving
+all records from the cataloged route specification. `OverworldState` remains
+the route-position and Rest-completion owner, and `WorldState` remains the
+encounter-completion owner.
+
+FLAT-4 does not alter route order, labels, compositions, rewards, Rest, combat,
+Map presentation, progression, snapshots, schema 8, or the passive Dungeon
+Entrance endpoint. It does not add routes, encounters, procedural generation,
+fast travel, or post-v0.3 dungeon gameplay.
 
 ### FLAT-5 - Complete Content Tooling and Guides
 

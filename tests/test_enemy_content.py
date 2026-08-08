@@ -24,6 +24,7 @@ from tools.generate_content_catalog import (
     OUTPUT_PATH,
     discover_drifter_ids,
     discover_enemy_ids,
+    discover_route_ids,
     discover_weapon_ids,
     render_catalog,
 )
@@ -43,6 +44,7 @@ EXPECTED_WEAPON_IDS = (
     "sunder_spire",
 )
 EXPECTED_DRIFTER_IDS = ("azhvielle", "branoc", "joruun", "zhaivra")
+EXPECTED_ROUTE_IDS = ("surface",)
 
 
 def sample_move(name="Test Strike"):
@@ -87,9 +89,11 @@ def test_generated_enemy_catalog_is_deterministic_and_current():
         EXPECTED_IDS,
         EXPECTED_WEAPON_IDS,
         EXPECTED_DRIFTER_IDS,
+        EXPECTED_ROUTE_IDS,
     )
     assert discover_weapon_ids() == EXPECTED_WEAPON_IDS
     assert discover_drifter_ids() == EXPECTED_DRIFTER_IDS
+    assert discover_route_ids() == EXPECTED_ROUTE_IDS
 
 
 def test_generator_rejects_directory_and_authored_id_mismatch(tmp_path):
