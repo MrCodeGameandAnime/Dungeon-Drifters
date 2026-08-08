@@ -229,7 +229,6 @@ def test_all_four_playable_classes_initialize_correctly():
         assert player.mana == player.mana_resource.maximum
         assert player.level == 1
         assert player.exp == 0
-        assert player.moves
         assert player.combat_moves
         assert player.class_mechanic
 
@@ -288,7 +287,6 @@ def test_base_character_accepts_valid_progressed_stat_totals_above_sixty():
         dexterity=20,
         intuition=20,
         name="Progressed Test Character",
-        moves={1: "test strike"},
     )
 
     assert character.permanent_stats.total == 120

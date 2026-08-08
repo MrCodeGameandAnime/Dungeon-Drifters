@@ -14,7 +14,7 @@ from app.game.save_repository import (
 )
 from app.game.save_state import SaveStateValidationError
 from app.player.player_state import PlayerState
-from app.world.character_profiles.roster import get_profile_by_choice
+from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 
 
 def _game_state():

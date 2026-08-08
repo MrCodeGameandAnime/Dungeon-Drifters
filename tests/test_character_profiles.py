@@ -1,9 +1,21 @@
-from app.world.character_profiles.profile import render_compact_profile, render_full_profile
-from app.world.character_profiles.roster import (
-    get_character_profiles,
-    get_profile_by_choice,
-    render_character_roster,
+from app.content.catalog import DRIFTER_SPECS, get_drifter_spec_by_choice
+from app.presentation.character_profile_presenter import (
+    render_compact_profile,
+    render_full_profile,
+    render_roster,
 )
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
+
+
+def get_profile_by_choice(choice):
+    return get_drifter_spec_by_choice(choice)
+
+
+def render_character_roster():
+    return render_roster(DRIFTER_SPECS)
 
 
 def test_roster_choices_are_unique_and_ordered():

@@ -7,7 +7,7 @@ from app.combat.battle import Battle
 from app.combat.brace import BRACE_RULES
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.save_repository import SaveRepository

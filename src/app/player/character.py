@@ -14,7 +14,6 @@ class Character:
             dexterity,
             intuition,
             name,
-            moves,
             combat_moves=None,
             class_mechanic=None,
             starting_equipment=None,
@@ -30,7 +29,6 @@ class Character:
         )
 
         self.name = name
-        self.moves = dict(moves)
         self.combat_moves = list(combat_moves or [])
         self.class_mechanic = dict(class_mechanic or {})
         self.starting_equipment = dict(starting_equipment or {})

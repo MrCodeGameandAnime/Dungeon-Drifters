@@ -2,17 +2,18 @@ import builtins
 
 import pytest
 
-from app.content.catalog import create_drifter
-from app.content.catalog import get_weapon_spec
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import (
+    DRIFTER_SPECS,
+    create_drifter,
+    create_enemy_state,
+    get_drifter_spec_by_choice,
+    get_route_node_spec,
+    get_route_spec,
+    get_weapon_spec,
+)
 from app.game.game_state import GameState
 from app.game.main_loop import _startup_game_state
-from app.game.encounter_manifest import route_manifest_node
-from app.game.overworld_route import (
-    RouteNodeKind,
-    SURFACE_ROUTE_NODES,
-    route_node,
-)
+from app.content.route_spec import RouteNodeKind
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveLoadStatus, SaveRepository
@@ -20,10 +21,21 @@ from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
-from app.world.character_profiles.roster import (
-    get_character_profiles,
-    get_profile_by_choice,
-)
+
+
+SURFACE_ROUTE_NODES = get_route_spec("surface").nodes
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
+
+
+def get_profile_by_choice(choice):
+    return get_drifter_spec_by_choice(choice)
+
+
+def route_node(node_id):
+    return get_route_node_spec(node_id)
 
 
 class ScriptedUI:
@@ -95,7 +107,7 @@ def _state_at_node(profile_choice, target_node_id, *, begin_route=True):
     for node in SURFACE_ROUTE_NODES[:target_index]:
         if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
             game.world_state.mark_encounter_defeated(
-                route_manifest_node(node.node_id).encounter.encounter_id
+                node.encounter_id
             )
         if node.kind is RouteNodeKind.REST:
             game.overworld_state.record_resolved_rest_node(node.node_id)

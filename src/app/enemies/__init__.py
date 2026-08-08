@@ -14,14 +14,4 @@ __all__ = [
     "EnemyRank",
     "EnemyRole",
     "EnemyState",
-    "create_enemy_definition",
-    "create_enemy_state",
 ]
-
-
-def __getattr__(name):
-    if name in {"create_enemy_definition", "create_enemy_state"}:
-        from app.enemies import factory
-
-        return getattr(factory, name)
-    raise AttributeError(name)

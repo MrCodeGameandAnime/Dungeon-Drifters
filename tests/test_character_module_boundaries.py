@@ -75,8 +75,6 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         first = create_drifter(spec.drifter_id)
         second = create_drifter(spec.drifter_id)
 
-        assert first.moves == second.moves
-        assert first.moves is not second.moves
         assert first.combat_moves == second.combat_moves
         assert first.combat_moves is not second.combat_moves
         assert first.class_mechanic == second.class_mechanic

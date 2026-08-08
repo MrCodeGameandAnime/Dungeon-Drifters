@@ -423,7 +423,9 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
         assert player.mana_resource.maximum == expected["mana"]
         assert player.mana_resource.current == expected["mana"]
         assert player.name == expected["name"]
-        assert player.moves == expected["moves"]
+        assert [move.name for move in player.combat_moves] == list(
+            expected["moves"].values()
+        )
         assert [move.name for move in player.combat_moves] == [
             move["name"] for move in expected["combat_moves"]
         ]

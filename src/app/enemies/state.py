@@ -78,13 +78,6 @@ class EnemyState:
         return EnemyCapability.DEFEND in self.capabilities
 
     @property
-    def moves(self):
-        return {
-            index: move.name
-            for index, move in enumerate(self._combat_moves, start=1)
-        }
-
-    @property
     def combat_moves(self):
         return self._combat_moves
 

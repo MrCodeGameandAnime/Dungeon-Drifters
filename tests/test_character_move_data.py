@@ -11,11 +11,9 @@ def test_all_playable_classes_have_structured_moves():
         player = create_drifter(drifter_id)
 
         assert player.combat_moves
-        assert len(player.combat_moves) == len(player.moves)
 
         for move in player.combat_moves:
             assert isinstance(move, Move)
-            assert move.name in player.moves.values()
             assert move.kind in {MoveKind.DAMAGE, MoveKind.HEALING, MoveKind.UTILITY}
             assert move.resource_type in {
                 ResourceType.NONE,
@@ -280,10 +278,10 @@ def test_loadout_resource_types_follow_authored_class_resources():
     assert monk.combat_moves[-1].resource_cost == 100
 
 
-def test_battle_is_not_wired_to_structured_moves_yet():
+def test_joruun_combat_moves_preserve_authored_order_and_resources():
     monk = create_drifter("joruun")
 
-    assert list(monk.moves.values())[:2] == [
+    assert [move.name for move in monk.combat_moves[:2]] == [
         "Bring the Horse to Water",
         "Lightning Palm",
     ]

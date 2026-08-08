@@ -2,7 +2,7 @@ import builtins
 
 import app.game.main_loop as main_loop
 from app.content.catalog import create_drifter
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.main_loop import _startup_game_state
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
@@ -12,7 +12,7 @@ from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
-from app.world.character_profiles.roster import get_profile_by_choice
+from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 
 
 class ScriptedUI:

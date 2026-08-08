@@ -5,7 +5,7 @@ from types import MappingProxyType
 import pytest
 
 from app.content import EnemySpec, StatBlockSpec
-from app.content.catalog import ENEMY_SPECS, get_enemy_spec
+from app.content.catalog import ENEMY_SPECS, create_enemy_state, get_enemy_spec
 import app.content.catalog as catalog_module
 from app.enemies import (
     Enemy,
@@ -14,9 +14,7 @@ from app.enemies import (
     EnemyRank,
     EnemyRole,
     EnemyState,
-    create_enemy_state,
 )
-from app.enemies.factory import create_enemy_state as factory_create_enemy_state
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,7 +42,7 @@ def test_enemy_domain_public_imports_are_available():
     assert EnemyBehavior.AGGRESSIVE
     assert EnemyCapability.BASIC_ATTACKS
     assert EnemyState
-    assert create_enemy_state is factory_create_enemy_state
+    assert create_enemy_state("goblin").archetype_id == "goblin"
     assert get_enemy_spec("goblin").name == "Goblin"
 
 
@@ -54,12 +52,6 @@ def test_builtin_enemy_catalog_is_private_and_read_only():
 
     with pytest.raises(TypeError):
         catalog_module._ENEMY_CATALOG["replacement"] = get_enemy_spec("goblin")
-
-
-def test_enemy_factory_does_not_directly_import_goblin():
-    modules = imported_modules(ROOT / "src" / "app" / "enemies" / "factory.py")
-
-    assert all(not module.startswith("app.content.enemies") for module in modules)
 
 
 def test_runtime_catalog_does_not_scan_or_dynamically_import_content():

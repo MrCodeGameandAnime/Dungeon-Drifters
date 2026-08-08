@@ -42,7 +42,7 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.terminal_battle_ui import TerminalBattleUI
-from app.world.character_profiles.roster import get_profile_by_choice
+from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 
 
 @contextlib.contextmanager
@@ -432,7 +432,7 @@ def test_battle_accepts_player_state_and_uses_wrapped_character():
     assert battle.player is character
     assert battle.foe is enemy_state
     assert battle.player.name == character.name
-    assert battle.player.moves is character.moves
+    assert battle.player.combat_moves is character.combat_moves
     assert battle.player_state.effective_stat("strength") == character.strength + 3
     assert battle.player_state.effective_stat("constitution") == character.constitution + 1
     assert battle.combat_state.turn_count == 0
@@ -968,9 +968,8 @@ def test_defend_is_not_a_structured_combat_move():
     assert "Defend" not in [move.name for move in player_state.combat_moves]
 
 
-def test_player_menu_display_does_not_depend_on_legacy_character_moves():
+def test_player_menu_display_uses_canonical_combat_moves():
     player_state = PlayerState(create_drifter("branoc"))
-    player_state.character.moves = {1: "legacy only"}
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
 
@@ -978,7 +977,6 @@ def test_player_menu_display_does_not_depend_on_legacy_character_moves():
         battle.player_action()
 
     text = output.getvalue()
-    assert "legacy only" not in text
     assert player_state.combat_moves[0].name in text
 
 

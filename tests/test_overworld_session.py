@@ -4,7 +4,7 @@ import pytest
 
 from app.content.catalog import create_drifter
 from app.game.game_state import GameState
-from app.game.overworld_route import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
+from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveRepository
 from app.player.character_run_state import (

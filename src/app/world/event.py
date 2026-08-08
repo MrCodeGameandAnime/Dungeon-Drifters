@@ -1,8 +1,11 @@
 import random
 
+from app.content.catalog import DRIFTER_SPECS, get_drifter_spec_by_choice
 from app.game import console
-from app.world.character_profiles.profile import render_full_profile
-from app.world.character_profiles.roster import get_profile_by_choice, render_character_roster
+from app.presentation.character_profile_presenter import (
+    render_full_profile,
+    render_roster,
+)
 
 
 class Events:
@@ -18,9 +21,9 @@ class Events:
 
     def pick_character(self):
         while True:
-            print(f"\n{render_character_roster()}")
+            print(f"\n{render_roster(DRIFTER_SPECS)}")
             character_choice = input("Choose your Drifter: ").strip()
-            profile = get_profile_by_choice(character_choice)
+            profile = get_drifter_spec_by_choice(character_choice)
 
             if profile is None:
                 print("That is not a valid character choice. Please try again.")

@@ -2,12 +2,12 @@ import pytest
 
 from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
-from app.game.encounter_manifest import (
-    SURFACE_ROUTE_MANIFEST,
-    create_route_encounter_enemies,
-)
 from app.game.game_state import GameState
 from app.player.player_state import PlayerState
+from tests.content_test_support import (
+    SURFACE_ROUTE_NODES,
+    create_route_encounter_enemies,
+)
 
 
 EXPECTED_COMPOSITIONS = {
@@ -126,7 +126,7 @@ def test_repeated_creation_never_reuses_runtime_or_resource_objects():
 def test_non_encounter_creation_fails_before_factory_or_session_mutation(node_id):
     game = GameState(PlayerState(create_drifter("branoc")))
     before_snapshot = game.snapshot()
-    before_manifest = repr(SURFACE_ROUTE_MANIFEST)
+    before_manifest = repr(SURFACE_ROUTE_NODES)
     calls = []
 
     def factory(archetype_id, *, tier):
@@ -138,7 +138,7 @@ def test_non_encounter_creation_fails_before_factory_or_session_mutation(node_id
 
     assert calls == []
     assert game.snapshot() == before_snapshot
-    assert repr(SURFACE_ROUTE_MANIFEST) == before_manifest
+    assert repr(SURFACE_ROUTE_NODES) == before_manifest
 
 
 def test_creation_and_runtime_mutation_do_not_change_authored_definitions():

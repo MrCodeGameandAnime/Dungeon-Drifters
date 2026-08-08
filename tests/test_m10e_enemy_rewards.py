@@ -1,13 +1,15 @@
 import pytest
 
-from app.content.catalog import get_enemy_spec
-from app.enemies.factory import create_enemy_definition, create_enemy_state
-from app.enemies.state import EnemyState
-from app.game.encounter_manifest import (
-    SURFACE_ROUTE_MANIFEST,
-    create_route_encounter_enemies,
-    encounter_manifest,
+from app.content.catalog import (
+    create_enemy_definition,
+    create_enemy_state,
+    get_encounter_rewards,
+    get_encounter_spec,
+    get_enemy_spec,
+    get_route_spec,
 )
+from app.enemies.state import EnemyState
+from tests.content_test_support import create_route_encounter_enemies
 
 
 EXPECTED_REWARDS = {
@@ -103,31 +105,30 @@ def test_factory_exposes_fresh_canonical_scaled_definitions(archetype_id):
 
 
 def test_surface_manifest_rewards_equal_the_sum_of_authored_composition_values():
-    for node in SURFACE_ROUTE_MANIFEST:
-        if node.encounter is None:
+    for node in get_route_spec("surface").nodes:
+        if node.encounter_id is None:
             continue
+        encounter = get_encounter_spec(node.encounter_id)
 
         expected_exp = sum(
             EXPECTED_REWARDS[archetype_id][0]
-            for archetype_id in node.encounter.enemy_archetype_ids
+            for archetype_id in encounter.enemy_archetype_ids
         )
         expected_gold = sum(
             EXPECTED_REWARDS[archetype_id][1]
-            for archetype_id in node.encounter.enemy_archetype_ids
+            for archetype_id in encounter.enemy_archetype_ids
         )
 
-        assert node.encounter.exp_reward == expected_exp
-        assert node.encounter.gold_reward == expected_gold
+        assert get_encounter_rewards(encounter.encounter_id) == (
+            expected_exp,
+            expected_gold,
+        )
 
 
 def test_all_surface_encounter_totals_and_route_totals_are_exact():
     actual = {
-        node.encounter.encounter_id: (
-            node.encounter.exp_reward,
-            node.encounter.gold_reward,
-        )
-        for node in SURFACE_ROUTE_MANIFEST
-        if node.encounter is not None
+        encounter_id: get_encounter_rewards(encounter_id)
+        for encounter_id in EXPECTED_ENCOUNTER_REWARDS
     }
 
     assert actual == EXPECTED_ENCOUNTER_REWARDS
@@ -137,13 +138,11 @@ def test_all_surface_encounter_totals_and_route_totals_are_exact():
 
 @pytest.mark.parametrize("encounter_id", EXPECTED_ENCOUNTER_REWARDS)
 def test_runtime_enemy_mutation_cannot_change_manifest_reward(encounter_id):
-    encounter = encounter_manifest(encounter_id)
+    encounter = get_encounter_spec(encounter_id)
     enemies = create_route_encounter_enemies(encounter_id)
 
     for enemy in enemies:
         enemy.health.take_damage(enemy.health.current)
         enemy.mana_resource.spend(enemy.mana_resource.current)
 
-    assert (encounter.exp_reward, encounter.gold_reward) == (
-        EXPECTED_ENCOUNTER_REWARDS[encounter_id]
-    )
+    assert get_encounter_rewards(encounter.encounter_id) == EXPECTED_ENCOUNTER_REWARDS[encounter_id]

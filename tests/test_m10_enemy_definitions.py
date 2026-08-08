@@ -3,8 +3,7 @@ import pytest
 from app.content.catalog import create_drifter
 from app.combat.battle import select_enemy_move
 from app.combat.resolver import CombatResolver
-from app.content.catalog import create_enemy_definition
-from app.enemies import create_enemy_state
+from app.content.catalog import create_enemy_definition, create_enemy_state
 from app.enemies.definition import EnemyCapability, EnemyRank, EnemyRole
 from app.enemies.state import EnemyState
 from app.player.player_state import PlayerState

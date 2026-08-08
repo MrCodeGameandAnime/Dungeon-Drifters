@@ -69,13 +69,6 @@ class Enemy:
         self.combat_moves = tuple(combat_moves)
 
     @property
-    def moves(self):
-        return {
-            index: move.name
-            for index, move in enumerate(self.combat_moves, start=1)
-        }
-
-    @property
     def exp_reward(self):
         return self._exp_reward
 

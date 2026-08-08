@@ -95,11 +95,8 @@ development, validates every reference, and enforces globally unique route-node
 IDs so schema-8 route positions remain unambiguous.
 
 `OverworldState`, `OverworldSession`, Map presentation, and save validation read
-the catalog directly. `app.game.overworld_route` and
-`app.game.encounter_manifest` remain derived compatibility surfaces only and
-contain no authored route or encounter data. `OverworldState` remains the
-route-position and Rest-completion owner, and `WorldState` remains the
-encounter-completion owner.
+the catalog directly. `OverworldState` remains the route-position and
+Rest-completion owner, and `WorldState` remains the encounter-completion owner.
 
 FLAT-4 does not alter route order, labels, compositions, rewards, Rest, combat,
 Map presentation, progression, snapshots, schema 8, or the passive Dungeon
@@ -127,8 +124,22 @@ gameplay, schema fields, runtime filesystem scanning, or FLAT-6 cleanup.
 
 ### FLAT-6 - Remove Obsolete Paths and Harden Boundaries
 
-Remove superseded internal authoring paths after all built-in content uses the
-new facade. Lock platform-neutral boundaries without implementing Android.
+Remove superseded enemy factories, route and encounter adapters, profile roster
+modules, concrete content imports, and legacy move dictionaries after all
+built-in content uses the public catalog. No compatibility class or duplicate
+authored-value table remains behind those paths.
+
+Lock the platform-neutral dependency direction: authored content cannot import
+game sessions, presenters, terminal UI, save repositories, or runtime
+orchestration; engine and presentation modules cannot import concrete authored
+asset packages; runtime catalog loading cannot scan the filesystem. Exercise
+all five scaffolders in isolated projects and prove their completed output
+passes the canonical validator.
+
+FLAT-6 preserves terminal behavior, combat, progression, rewards, Rest,
+schema-8 Save/Load, and every v0.3 session contract. It does not reorganize the
+remaining packages, implement Android, add gameplay, alter persistence, or add
+another content type.
 
 ## Gate Protocol
 

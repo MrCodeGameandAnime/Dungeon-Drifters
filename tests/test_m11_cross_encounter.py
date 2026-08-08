@@ -2,7 +2,7 @@ from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import create_enemy_state
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.game.game_state import GameState

@@ -194,10 +194,6 @@ class DrifterSpec:
         character = Character(
             **self.stats.as_dict(),
             name=self.archetype_name,
-            moves={
-                index: move.name
-                for index, move in enumerate(self.combat_moves, start=1)
-            },
             combat_moves=tuple(move for move in self.combat_moves),
             class_mechanic=self.class_mechanic.as_dict(),
             starting_equipment={"weapon": create_weapon(self.starting_weapon_id)},

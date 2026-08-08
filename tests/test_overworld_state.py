@@ -1,9 +1,9 @@
 import pytest
 
-from app.game.overworld_route import (
+from app.content.route_spec import RouteNodeKind
+from tests.content_test_support import (
     DUNGEON_ENTRANCE_NODE_ID,
     FIRST_SURFACE_NODE_ID,
-    RouteNodeKind,
     SECOND_SURFACE_NODE_ID,
     SURFACE_REST_NODE_IDS,
     SURFACE_ROUTE_NODES,

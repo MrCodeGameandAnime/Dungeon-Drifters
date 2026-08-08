@@ -2,7 +2,7 @@ import pytest
 
 from app.content.catalog import create_drifter
 from app.game.game_state import GameState
-from app.game.overworld_route import SECOND_SURFACE_NODE_ID
+from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
@@ -14,7 +14,11 @@ from app.presentation.overworld_models import (
     OverworldScreen,
 )
 from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
-from app.world.character_profiles.roster import get_character_profiles
+from app.content.catalog import DRIFTER_SPECS
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
 
 
 def create_game(drifter_id="branoc"):

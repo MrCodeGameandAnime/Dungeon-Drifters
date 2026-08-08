@@ -7,7 +7,7 @@ from app.content.catalog import create_weapon
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
 from app.snapshot import validate_plain_value
-from app.world.character_profiles.roster import get_profile_by_choice
+from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 
 
 class FakeWeaponShapedObject:

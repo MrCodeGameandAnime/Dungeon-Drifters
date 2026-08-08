@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import DRIFTER_SPECS, create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.save_repository import SaveRepository
@@ -14,7 +14,10 @@ from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.snapshot import validate_plain_value
 from app.ui.overworld_ui import ChooseOverworldAction
-from app.world.character_profiles.roster import get_character_profiles
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
 
 
 class ScriptedUI:

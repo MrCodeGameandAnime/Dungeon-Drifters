@@ -6,9 +6,9 @@ from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
 from app.content.catalog import create_enemy_definition
-from app.enemies.factory import create_enemy_state
+from app.content.catalog import create_enemy_state
 from app.enemies.state import EnemyState
-from app.game.encounter_manifest import create_route_encounter_enemies
+from tests.content_test_support import create_route_encounter_enemies
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase

@@ -1,4 +1,4 @@
-"""Player-facing Drifter profile rendering helpers."""
+"""Player-facing rendering for immutable Drifter specifications."""
 
 from app.content.drifter_spec import DrifterSpec
 
@@ -35,12 +35,13 @@ def render_full_profile(profile: DrifterSpec) -> str:
     return "\n\n".join(section.rstrip("\n") for section in sections)
 
 
-def render_profile(profile: DrifterSpec) -> str:
-    return render_full_profile(profile)
-
-
 def render_roster(profiles: tuple[DrifterSpec, ...]) -> str:
-    return "\n\n".join(("Choose your Drifter:", *(render_compact_profile(profile) for profile in profiles)))
+    return "\n\n".join(
+        (
+            "Choose your Drifter:",
+            *(render_compact_profile(profile) for profile in profiles),
+        )
+    )
 
 
-__all__ = ["render_compact_profile", "render_full_profile", "render_profile", "render_roster"]
+__all__ = ["render_compact_profile", "render_full_profile", "render_roster"]

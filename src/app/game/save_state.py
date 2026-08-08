@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from app.content.catalog import (
     create_weapon_from_persistence_key,
+    get_drifter_spec_by_choice,
     get_route_node_spec,
     get_route_spec,
 )
@@ -27,7 +28,6 @@ from app.player.progression import (
 from app.player.resources import Super
 from app.player.stats import PermanentStats
 from app.snapshot import STATE_SCHEMA_VERSION, validate_plain_value
-from app.world.character_profiles.roster import get_profile_by_choice
 
 
 _SURFACE_ROUTE = get_route_spec("surface")
@@ -205,7 +205,7 @@ def _canonical_profile(player_snapshot):
     )
     if not isinstance(profile_data["choice"], str):
         raise SaveStateValidationError("profile choice must be a string")
-    profile = get_profile_by_choice(profile_data["choice"])
+    profile = get_drifter_spec_by_choice(profile_data["choice"])
     if profile is None:
         raise SaveStateValidationError(
             f"unknown character profile: {profile_data['choice']!r}"

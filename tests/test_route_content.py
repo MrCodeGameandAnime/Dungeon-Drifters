@@ -18,12 +18,10 @@ from app.content.catalog import (
 )
 from app.content.encounter_spec import EncounterSpec
 from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
-from app.game.encounter_manifest import SURFACE_ROUTE_MANIFEST
 from app.game.game_state import GameState
-from app.game.overworld_route import SURFACE_ROUTE_NODES
 from app.game.save_state import build_save_document, reconstruct_game_state
 from app.player.player_state import PlayerState
-from app.world.character_profiles.roster import get_profile_by_choice
+from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 from tools.generate_content_catalog import (
     discover_encounter_ids,
     discover_route_ids,
@@ -134,29 +132,26 @@ def test_eight_encounter_packages_match_the_independent_authored_contract():
     }
 
 
-def test_game_route_and_manifest_are_derived_without_behavioral_drift():
+def test_route_order_compositions_and_successors_are_derived_without_drift():
     route = get_route_spec("surface")
 
     assert tuple(
         (node.node_id, node.display_label, node.kind)
-        for node in SURFACE_ROUTE_NODES
-    ) == tuple(
-        (node.node_id, node.display_label, node.kind)
         for node in route.nodes
-    )
+    ) == tuple((node_id, label, RouteNodeKind(kind)) for node_id, label, kind, _ in EXPECTED_SURFACE_ROUTE)
     assert tuple(
-        node.encounter.enemy_archetype_ids if node.encounter else None
-        for node in SURFACE_ROUTE_MANIFEST
-    ) == tuple(
         (
             get_encounter_spec(node.encounter_id).enemy_archetype_ids
             if node.encounter_id
             else None
         )
         for node in route.nodes
+    ) == tuple(
+        dict(EXPECTED_ENCOUNTERS).get(encounter_id)
+        for _node_id, _label, _kind, encounter_id in EXPECTED_SURFACE_ROUTE
     )
     assert tuple(
-        node.next_node_id for node in SURFACE_ROUTE_MANIFEST
+        get_route_successor_id(node.node_id) for node in route.nodes
     ) == tuple(
         route.nodes[index + 1].node_id if index + 1 < len(route.nodes) else None
         for index in range(len(route.nodes))
@@ -346,21 +341,9 @@ def test_encounter_generator_rejects_directory_and_authored_id_mismatch(
         discover_encounter_ids(tmp_path)
 
 
-def test_game_adapters_contain_no_authored_route_or_composition_tables():
-    overworld_source = (ROOT / "src/app/game/overworld_route.py").read_text(
-        encoding="utf-8"
-    )
-    manifest_source = (ROOT / "src/app/game/encounter_manifest.py").read_text(
-        encoding="utf-8"
-    )
-
-    for node_id, display_label, _kind, _encounter_id in EXPECTED_SURFACE_ROUTE:
-        assert node_id not in overworld_source
-        assert display_label not in overworld_source
-        assert node_id not in manifest_source
-    for _encounter_id, composition in EXPECTED_ENCOUNTERS:
-        for archetype_id in composition:
-            assert f'"{archetype_id}"' not in manifest_source
+def test_obsolete_route_and_manifest_adapters_are_removed():
+    assert not (ROOT / "src/app/game/overworld_route.py").exists()
+    assert not (ROOT / "src/app/game/encounter_manifest.py").exists()
 
 
 def test_required_runtime_readers_query_the_content_catalog_directly():

@@ -4,7 +4,7 @@ import pytest
 
 from app.content.catalog import create_drifter
 from app.game.game_state import GameState
-from app.game.overworld_route import SURFACE_ROUTE_NODES
+from tests.content_test_support import SURFACE_ROUTE_NODES
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import (
     OverworldAction,
@@ -139,7 +139,7 @@ def test_inspection_never_creates_enemy_runtime_objects():
     game = game_at("surface_goblin_lord")
 
     with patch(
-        "app.enemies.factory.create_enemy_state",
+        "app.content.catalog.create_enemy_state",
         side_effect=AssertionError("runtime enemy creation is forbidden"),
     ):
         inspection = OverworldPresenter().build(

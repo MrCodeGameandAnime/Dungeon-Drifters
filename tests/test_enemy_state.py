@@ -101,7 +101,9 @@ def test_enemy_definitions_preserve_authored_data():
         assert enemy.capabilities == expected["capabilities"]
         assert enemy.hp == expected["hp"]
         assert enemy.mana == expected["mana"]
-        assert enemy.moves == expected["moves"]
+        assert [move.name for move in enemy.combat_moves] == list(
+            expected["moves"].values()
+        )
         assert [move_to_dict(move) for move in enemy.combat_moves] == expected["combat_moves"]
         assert all(isinstance(move, Move) for move in enemy.combat_moves)
         for stat_name, value in expected["stats"].items():
@@ -132,7 +134,9 @@ def test_enemy_state_copies_definition_into_runtime_state():
         assert enemy_state.health.maximum == expected["hp"]
         assert enemy_state.mana_resource.current == expected["mana"]
         assert enemy_state.mana_resource.maximum == expected["mana"]
-        assert enemy_state.moves == expected["moves"]
+        assert [move.name for move in enemy_state.combat_moves] == list(
+            expected["moves"].values()
+        )
         assert [move_to_dict(move) for move in enemy_state.combat_moves] == expected["combat_moves"]
         assert all(isinstance(move, Move) for move in enemy_state.combat_moves)
         for stat_name, value in expected["stats"].items():
@@ -158,7 +162,10 @@ def test_factory_creates_goblin_enemy_state():
     assert enemy_state.super_resource.maximum == 100
     assert not enemy_state.generates_super
     assert not enemy_state.can_defend
-    assert enemy_state.moves == {1: "slash", 2: "jumping slash"}
+    assert [move.name for move in enemy_state.combat_moves] == [
+        "slash",
+        "jumping slash",
+    ]
     assert [move_to_dict(move) for move in enemy_state.combat_moves] == EXPECTED_COMBAT_MOVES
 
 
@@ -250,7 +257,7 @@ def test_enemy_metadata_rejects_invalid_non_enum_values():
     assert valid_moves
 
 
-def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
+def test_enemy_states_do_not_share_runtime_resources_stats_or_move_tuples():
     first = EnemyState(create_enemy_definition("goblin"))
     second = EnemyState(create_enemy_definition("goblin"))
 
@@ -258,15 +265,13 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
     first.mana_resource.restore(3)
     first.super_resource.gain(10)
     first.permanent_stats.increase_stat("strength", 1)
-    first_moves = first.moves
-    first_moves[4] = "runtime only"
 
     assert first.health is not second.health
     assert first.mana_resource is not second.mana_resource
     assert first.super_resource is not second.super_resource
     assert first.permanent_stats is not second.permanent_stats
     assert first.stats is not second.stats
-    assert first.moves is not second.moves
+    assert first.combat_moves is not second.combat_moves
     assert first.health.current == 55
     assert second.health.current == 60
     assert first.mana_resource.current == 0
@@ -275,9 +280,7 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_moves():
     assert second.super_resource.current == 0
     assert first.effective_stat("strength") == 4
     assert second.effective_stat("strength") == 3
-    assert 4 in first_moves
-    assert 4 not in first.moves
-    assert 4 not in second.moves
+    assert first.combat_moves == second.combat_moves
 
 
 def test_factory_enemy_states_do_not_share_runtime_state():
@@ -288,8 +291,6 @@ def test_factory_enemy_states_do_not_share_runtime_state():
     first.mana_resource.restore(3)
     first.super_resource.gain(10)
     first.permanent_stats.increase_stat("strength", 1)
-    first_moves = first.moves
-    first_moves[4] = "runtime only"
 
     assert first.definition is not second.definition
     assert first.health is not second.health
@@ -305,9 +306,7 @@ def test_factory_enemy_states_do_not_share_runtime_state():
     assert second.super_resource.current == 0
     assert first.effective_stat("strength") == 4
     assert second.effective_stat("strength") == 3
-    assert 4 in first_moves
-    assert 4 not in first.moves
-    assert 4 not in second.moves
+    assert first.combat_moves == second.combat_moves
 
 
 def test_runtime_mutation_does_not_mutate_enemy_definition():
@@ -318,41 +317,35 @@ def test_runtime_mutation_does_not_mutate_enemy_definition():
     enemy_state.health.heal(3)
     enemy_state.mana_resource.restore(4)
     enemy_state.permanent_stats.increase_stat("constitution", 1)
-    mutated_definition_moves = definition.moves
-    mutated_state_moves = enemy_state.moves
-    mutated_definition_moves[1] = "changed slash"
-    mutated_state_moves[1] = "changed slash"
 
     assert definition.hp == 60
     assert definition.mana == 0
     assert definition.constitution == 2
-    assert definition.moves == {1: "slash", 2: "jumping slash"}
-    assert enemy_state.moves == {1: "slash", 2: "jumping slash"}
-    assert enemy_state.moves[1] == enemy_state.combat_moves[0].name
+    assert [move.name for move in definition.combat_moves] == ["slash", "jumping slash"]
+    assert enemy_state.combat_moves == definition.combat_moves
     assert EnemyState(definition).combat_moves == definition.combat_moves
 
 
-def test_enemy_definition_moves_are_derived_and_cannot_diverge():
+def test_enemy_definition_combat_moves_are_immutable():
     enemy = create_enemy_definition("goblin")
-    legacy_moves = enemy.moves
-    legacy_moves[1] = "corrupted"
 
-    assert enemy.moves == {1: "slash", 2: "jumping slash"}
-    assert enemy.moves[1] == enemy.combat_moves[0].name
+    with pytest.raises(TypeError):
+        enemy.combat_moves[0] = enemy.combat_moves[1]
+
+    assert [move.name for move in enemy.combat_moves] == ["slash", "jumping slash"]
     assert EnemyState(enemy).combat_moves == enemy.combat_moves
 
 
-def test_enemy_state_moves_are_derived_and_cannot_diverge():
+def test_enemy_state_combat_moves_are_immutable():
     enemy_state = EnemyState(create_enemy_definition("goblin"))
-    legacy_moves = enemy_state.moves
-    legacy_moves[1] = "corrupted"
 
-    assert enemy_state.moves == {1: "slash", 2: "jumping slash"}
-    assert enemy_state.moves[1] == enemy_state.combat_moves[0].name
-    assert all(
-        enemy_state.moves[index] == enemy_state.combat_moves[index - 1].name
-        for index in enemy_state.moves
-    )
+    with pytest.raises(TypeError):
+        enemy_state.combat_moves[0] = enemy_state.combat_moves[1]
+
+    assert [move.name for move in enemy_state.combat_moves] == [
+        "slash",
+        "jumping slash",
+    ]
 
 
 def test_enemy_state_alive_status_comes_from_health():

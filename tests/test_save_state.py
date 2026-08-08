@@ -18,7 +18,11 @@ from app.player.character_run_state import (
 )
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION
-from app.world.character_profiles.roster import get_character_profiles
+from app.content.catalog import DRIFTER_SPECS
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
 
 
 def _create_populated_game(choice):

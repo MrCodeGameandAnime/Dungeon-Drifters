@@ -1,13 +1,5 @@
 from app.content.catalog import create_drifter
-from app.game.encounter_manifest import (
-    SURFACE_ROUTE_MANIFEST,
-    create_route_encounter_enemies,
-)
 from app.game.game_state import GameState
-from app.game.overworld_route import (
-    SURFACE_REST_NODE_IDS,
-    SURFACE_ROUTE_NODES,
-)
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
@@ -18,6 +10,11 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import ChooseOverworldAction
+from tests.content_test_support import (
+    SURFACE_REST_NODE_IDS,
+    SURFACE_ROUTE_NODES,
+    create_route_encounter_enemies,
+)
 
 
 EXPECTED_ENCOUNTER_IDS = (
@@ -82,7 +79,7 @@ def test_map_completion_uses_world_for_combat_and_overworld_for_rest():
 
 def test_every_composition_can_be_recreated_without_identity_leakage():
     combat_nodes = tuple(
-        node.node_id for node in SURFACE_ROUTE_MANIFEST if node.encounter
+        node.node_id for node in SURFACE_ROUTE_NODES if node.encounter_id
     )
 
     for node_id in combat_nodes:

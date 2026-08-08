@@ -5,7 +5,11 @@ from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.player.player_state import PlayerState
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
-from app.world.character_profiles.roster import get_character_profiles
+from app.content.catalog import DRIFTER_SPECS
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
 
 
 class EnemyFactory:
