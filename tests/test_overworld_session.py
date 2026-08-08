@@ -2,11 +2,11 @@ import copy
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_route import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveRepository
-from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     FIRE_INFUSION_REQUIREMENTS,
@@ -223,7 +223,7 @@ def full_surface_route_inputs(rest_action):
 
 
 def test_rest_fully_recovers_without_changing_unrelated_player_state():
-    player = PlayerState(RogueArcher(), gold=17)
+    player = PlayerState(create_drifter("zhaivra"), gold=17)
     player.gain_experience(140)
     player.increase_permanent_stat("strength")
     player.health.take_damage(23)
@@ -291,7 +291,7 @@ def test_rest_fully_recovers_without_changing_unrelated_player_state():
 
 
 def test_skip_rest_consumes_node_without_recovery():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.health.take_damage(12)
     player.mana_resource.spend(4)
     game = GameState(player)
@@ -333,7 +333,7 @@ def test_each_authored_rest_recovers_only_hp_and_mana(
     path,
     prior_resolved,
 ):
-    player = PlayerState(RogueArcher(), gold=17)
+    player = PlayerState(create_drifter("zhaivra"), gold=17)
     player.gain_experience(140)
     player.increase_permanent_stat("strength")
     player.health.take_damage(23)
@@ -404,7 +404,7 @@ def test_each_authored_rest_can_be_skipped_without_other_state_changes(
     path,
     prior_resolved,
 ):
-    player = PlayerState(Brawler(), gold=17)
+    player = PlayerState(create_drifter("branoc"), gold=17)
     player.gain_experience(40)
     player.health.take_damage(12)
     player.mana_resource.spend(4)
@@ -439,7 +439,7 @@ def test_each_authored_rest_can_be_skipped_without_other_state_changes(
 
 
 def test_real_combat_to_rest_preserves_reward_and_does_not_repeat_payout():
-    player = PlayerState(Brawler(), gold=31)
+    player = PlayerState(create_drifter("branoc"), gold=31)
     player.exp_state.gain(19)
     player.health.take_damage(11)
     assert player.mana_resource.spend(3) is True
@@ -477,8 +477,8 @@ def test_real_combat_to_rest_preserves_reward_and_does_not_repeat_payout():
 
 
 def test_rest_resolution_isolated_between_independent_sessions():
-    first_player = PlayerState(Brawler())
-    second_player = PlayerState(Brawler())
+    first_player = PlayerState(create_drifter("branoc"))
+    second_player = PlayerState(create_drifter("branoc"))
     first_player.health.take_damage(9)
     first_player.mana_resource.spend(3)
     second_player.health.take_damage(14)
@@ -507,7 +507,7 @@ def test_rest_resolution_isolated_between_independent_sessions():
 
 
 def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.overworld_state.record_resolved_rest_node(
         "surface_rest_before_goblin_lord"
     )
@@ -536,7 +536,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 def test_complete_surface_route_resolves_all_rests_without_changing_rewards(
     rest_action,
 ):
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.health.take_damage(7)
     player.mana_resource.spend(3)
     game = GameState(player)
@@ -585,7 +585,7 @@ def test_complete_surface_route_resolves_all_rests_without_changing_rewards(
 
 
 def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node(tmp_path):
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     move_to_woodland_rest(game)
 
     result, ui, _, _, _ = run_session(
@@ -620,7 +620,7 @@ def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node(tmp_path):
 
 
 def test_rest_quit_confirmation_does_not_recover_or_consume_node():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.health.take_damage(12)
     player.mana_resource.spend(4)
     game = GameState(player)
@@ -651,7 +651,7 @@ def test_rest_quit_confirmation_does_not_recover_or_consume_node():
     (OverworldAction.REST, OverworldAction.SKIP_REST),
 )
 def test_stale_rest_actions_cannot_resolve_or_recover_again(stale_action):
-    player = PlayerState(Brawler(), gold=9)
+    player = PlayerState(create_drifter("branoc"), gold=9)
     player.health.take_damage(12)
     player.mana_resource.spend(4)
     player.super_resource.gain(19)
@@ -711,7 +711,7 @@ def test_stale_rest_actions_cannot_resolve_or_recover_again(stale_action):
 
 
 def test_rest_is_rejected_at_a_combat_node_without_mutation():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     before = game.snapshot()
 
     result, ui, battles, _, _ = run_session(
@@ -729,7 +729,7 @@ def test_rest_is_rejected_at_a_combat_node_without_mutation():
 
 
 def test_navigation_covers_every_shell_and_back_returns_one_level():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     inputs = [
         ChooseOverworldAction(OverworldAction.CHARACTER),
         ChooseOverworldAction(OverworldAction.SKILLS),
@@ -775,7 +775,7 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
 
 
 def test_item_selection_and_inspection_are_transient_and_non_consuming():
-    game = GameState(PlayerState(RogueArcher()))
+    game = GameState(PlayerState(create_drifter("zhaivra")))
     initial_view = OverworldPresenter().build(
         game,
         screen=OverworldScreen.ITEMS,
@@ -803,7 +803,7 @@ def test_item_selection_and_inspection_are_transient_and_non_consuming():
 
 
 def test_skills_stat_input_delegates_growth_and_stays_on_skills():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     game = GameState(player)
     strength_before = player.character.permanent_stats.strength
@@ -840,7 +840,7 @@ def test_skills_stat_input_delegates_growth_and_stays_on_skills():
 
 
 def test_disabled_or_offscreen_stat_input_changes_nothing():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     before = game.snapshot()
     inputs = [
@@ -856,7 +856,7 @@ def test_disabled_or_offscreen_stat_input_changes_nothing():
     assert game.snapshot() == before
     assert ui.views[1].notice == "That stat is not available."
 
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     before = game.snapshot()
     inputs = [
@@ -876,7 +876,7 @@ def test_disabled_or_offscreen_stat_input_changes_nothing():
 
 
 def test_stale_enabled_stat_input_is_rejected_after_points_are_spent():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     game = GameState(player)
     initial_strength = player.character.permanent_stats.strength
@@ -932,7 +932,7 @@ def test_stale_enabled_stat_input_is_rejected_after_points_are_spent():
 
 
 def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     game = GameState(player)
     identities = (
         player,
@@ -1004,7 +1004,7 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
 
 
 def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():
-    player = PlayerState(RogueArcher(), gold=11)
+    player = PlayerState(create_drifter("zhaivra"), gold=11)
     player.exp_state.gain(13)
     player.health.take_damage(9)
     assert player.mana_resource.spend(4) is True
@@ -1129,7 +1129,7 @@ def test_victory_adventure_text_uses_actual_level_and_growth_point_grammar():
 
 
 def test_retry_creates_a_fresh_enemy_and_victory_cannot_replay_first_encounter():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     inputs = [
         ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
         ChooseOverworldAction(OverworldAction.RETRY),
@@ -1153,7 +1153,7 @@ def test_retry_creates_a_fresh_enemy_and_victory_cannot_replay_first_encounter()
 
 
 def test_quit_confirmation_is_transient_cancelable_and_does_not_autosave():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     before = game.snapshot()
     inputs = [
         ChooseOverworldAction(OverworldAction.OPTIONS),

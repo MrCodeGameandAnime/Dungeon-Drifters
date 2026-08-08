@@ -1,19 +1,14 @@
+from app.content.catalog import create_drifter
 from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.move_presentation import MoveRole
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 
 
-PLAYABLE_CLASSES = [
-    Brawler,
-    BlackMage,
-    RogueArcher,
-    Monk,
-]
+DRIFTER_IDS = ("branoc", "azhvielle", "zhaivra", "joruun")
 
 
 def test_all_playable_classes_have_structured_moves():
-    for class_type in PLAYABLE_CLASSES:
-        player = class_type()
+    for drifter_id in DRIFTER_IDS:
+        player = create_drifter(drifter_id)
 
         assert player.combat_moves
         assert len(player.combat_moves) == len(player.moves)
@@ -45,7 +40,10 @@ def test_all_playable_classes_have_structured_moves():
 
 
 def test_each_playable_class_has_a_distinct_mechanic():
-    mechanics = {class_type().class_mechanic["name"] for class_type in PLAYABLE_CLASSES}
+    mechanics = {
+        create_drifter(drifter_id).class_mechanic["name"]
+        for drifter_id in DRIFTER_IDS
+    }
 
     assert mechanics == {
         "Heavy Vanguard",
@@ -83,8 +81,8 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
         "super",
     }
 
-    for class_type in PLAYABLE_CLASSES:
-        player = class_type()
+    for drifter_id in DRIFTER_IDS:
+        player = create_drifter(drifter_id)
         super_moves = [
             move
             for move in player.combat_moves
@@ -108,7 +106,7 @@ def test_all_playable_rosters_keep_current_super_and_mechanic_boundary():
 
 
 def test_black_mage_roster_is_four_standard_attacks_and_one_super():
-    black_mage = BlackMage()
+    black_mage = create_drifter("azhvielle")
 
     assert [move.name for move in black_mage.combat_moves] == [
         "Scepter Sweep",
@@ -153,7 +151,7 @@ def test_black_mage_roster_is_four_standard_attacks_and_one_super():
 
 
 def test_brawler_roster_is_four_standard_attacks_and_one_super():
-    brawler = Brawler()
+    brawler = create_drifter("branoc")
 
     assert [move.name for move in brawler.combat_moves] == [
         "Crestgrave Reaping",
@@ -207,7 +205,7 @@ def test_brawler_roster_is_four_standard_attacks_and_one_super():
 
 
 def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
-    rogue_archer = RogueArcher()
+    rogue_archer = create_drifter("zhaivra")
 
     assert [move.name for move in rogue_archer.combat_moves] == [
         "Mournpoint Verdict",
@@ -244,10 +242,10 @@ def test_rogue_archer_roster_is_four_standard_attacks_and_one_super():
 
 
 def test_loadout_resource_types_follow_authored_class_resources():
-    brawler = Brawler()
-    black_mage = BlackMage()
-    rogue_archer = RogueArcher()
-    monk = Monk()
+    brawler = create_drifter("branoc")
+    black_mage = create_drifter("azhvielle")
+    rogue_archer = create_drifter("zhaivra")
+    monk = create_drifter("joruun")
 
     assert [move.resource_type for move in brawler.combat_moves] == [
         ResourceType.NONE,
@@ -283,7 +281,7 @@ def test_loadout_resource_types_follow_authored_class_resources():
 
 
 def test_battle_is_not_wired_to_structured_moves_yet():
-    monk = Monk()
+    monk = create_drifter("joruun")
 
     assert list(monk.moves.values())[:2] == [
         "Bring the Horse to Water",

@@ -1,9 +1,8 @@
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
-from app.player.loadouts import azhvielle, branoc, joruun, zhaivra
+from app.content.catalog import create_drifter, get_drifter_spec
 
 
 EXPECTED_LOADOUTS = {
-    Brawler: {
+    "branoc": {
         "attributes": {
             "constitution": 14,
             "spirit": 6,
@@ -95,7 +94,7 @@ EXPECTED_LOADOUTS = {
         },
         "starting_weapon": "sunder_spire",
     },
-    BlackMage: {
+    "azhvielle": {
         "attributes": {
             "constitution": 7,
             "spirit": 13,
@@ -187,7 +186,7 @@ EXPECTED_LOADOUTS = {
         },
         "starting_weapon": "needle_of_plain_iron",
     },
-    RogueArcher: {
+    "zhaivra": {
         "attributes": {
             "constitution": 8,
             "spirit": 7,
@@ -279,7 +278,7 @@ EXPECTED_LOADOUTS = {
         },
         "starting_weapon": "sathren",
     },
-    Monk: {
+    "joruun": {
         "attributes": {
             "constitution": 10,
             "spirit": 10,
@@ -374,14 +373,6 @@ EXPECTED_LOADOUTS = {
 }
 
 
-LOADOUT_MODULES = {
-    branoc: EXPECTED_LOADOUTS[Brawler]["attributes"],
-    azhvielle: EXPECTED_LOADOUTS[BlackMage]["attributes"],
-    zhaivra: EXPECTED_LOADOUTS[RogueArcher]["attributes"],
-    joruun: EXPECTED_LOADOUTS[Monk]["attributes"],
-}
-
-
 def move_to_dict(move):
     return {
         "name": move.name,
@@ -401,27 +392,28 @@ def move_to_dict(move):
     }
 
 
-def test_authored_starting_stats_live_in_loadout_modules():
-    for loadout_module, expected_stats in LOADOUT_MODULES.items():
-        starting_stats = loadout_module.create_starting_stats()
+def test_authored_starting_stats_live_in_drifter_specs():
+    for drifter_id, expected in EXPECTED_LOADOUTS.items():
+        starting_stats = get_drifter_spec(drifter_id).stats.as_dict()
 
-        assert starting_stats == expected_stats
+        assert starting_stats == expected["attributes"]
         assert sum(starting_stats.values()) == 60
 
 
 def test_authored_starting_stats_are_returned_as_fresh_dictionaries():
-    for loadout_module, expected_stats in LOADOUT_MODULES.items():
-        first = loadout_module.create_starting_stats()
-        second = loadout_module.create_starting_stats()
+    for drifter_id, expected in EXPECTED_LOADOUTS.items():
+        spec = get_drifter_spec(drifter_id)
+        first = spec.stats.as_dict()
+        second = spec.stats.as_dict()
 
         first["constitution"] = 1
 
-        assert second == expected_stats
+        assert second == expected["attributes"]
 
 
 def test_all_archetype_authored_loadout_data_is_unchanged():
-    for class_type, expected in EXPECTED_LOADOUTS.items():
-        player = class_type()
+    for drifter_id, expected in EXPECTED_LOADOUTS.items():
+        player = create_drifter(drifter_id)
 
         assert player.permanent_stats.as_dict() == expected["attributes"]
         assert player.permanent_stats.total == 60
@@ -441,7 +433,7 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
 
 
 def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
-    player = Brawler()
+    player = create_drifter("branoc")
     (
         crestgrave_reaping,
         cinderlung_vesper,
@@ -466,8 +458,8 @@ def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():
 
 
 def test_zhaivra_and_joruun_do_not_declare_focus_or_ki_resources():
-    zhaivra = RogueArcher()
-    joruun = Monk()
+    zhaivra = create_drifter("zhaivra")
+    joruun = create_drifter("joruun")
 
     assert "resource" not in zhaivra.class_mechanic
     assert zhaivra.class_mechanic["name"] == "Precision"

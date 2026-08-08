@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.save_repository import (
     SAVE_DIRECTORY,
@@ -12,7 +13,6 @@ from app.game.save_repository import (
     SaveRepositoryError,
 )
 from app.game.save_state import SaveStateValidationError
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.world.character_profiles.roster import get_profile_by_choice
 
@@ -186,7 +186,7 @@ def test_save_validation_failure_does_not_replace_existing_save(tmp_path):
     repository = SaveRepository(path)
     repository.save(_game_state())
     before = path.read_bytes()
-    invalid_game = GameState(PlayerState(Brawler()))
+    invalid_game = GameState(PlayerState(create_drifter("branoc")))
 
     with pytest.raises(SaveStateValidationError):
         repository.save(invalid_game)

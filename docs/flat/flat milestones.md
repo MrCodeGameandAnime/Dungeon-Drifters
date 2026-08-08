@@ -55,9 +55,30 @@ accessory equipment.
 
 ### FLAT-3 - Unify Drifter Authoring
 
-Replace concrete Character subclasses and split profile wiring with one authored
-Drifter specification per character while preserving all mechanics, identity,
-resources, snapshots, and save reconstruction.
+Replace concrete Character subclasses and split profile wiring with one immutable
+`DrifterSpec` package per character. Each specification is the sole authored
+owner of its stable ID and selection choice, archetype name, six Level-1 stats,
+five moves, class-mechanic description, signature-weapon ID, current run-state
+defaults, and complete player-facing profile text.
+
+The generated catalog discovers Drifter packages only during development and
+records them deterministically by directory ID. Runtime selection uses catalog
+lookup by the stable choice string, while runtime construction produces a fresh
+generic `Character` and fresh mutable resources, equipment, and run-state
+containers. Immutable authored `Move` values may be shared, but each Character
+receives a distinct runtime move collection. Profile-driven character selection
+attaches the canonical `DrifterSpec`; direct catalog construction preserves the
+legacy unselected-character identity used by engine tests and tooling.
+
+Schema-8 identity payloads and reconstruction continue through the existing
+selection-choice seam. Character mechanics, effective stats, resources,
+snapshots, signature weapons, profile rendering, and balance-probe behavior do
+not change. The four concrete Character subclasses, four loadout modules, and
+four split profile-definition modules are removed after all production and test
+callers migrate to `app.content`.
+
+FLAT-3 does not generalize run items or payload recipes, alter combat mechanics,
+change persistence schema, or begin encounter and route migration.
 
 ### FLAT-4 - Unify Encounter and Route Authoring
 

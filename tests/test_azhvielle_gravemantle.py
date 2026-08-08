@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.move import DamageType
 from app.combat.result import (
@@ -9,7 +10,6 @@ from app.combat.result import (
 from app.combat.resolver import CombatResolver
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler
 from app.player.player_state import PlayerState
 
 
@@ -24,7 +24,7 @@ class ScriptedRng:
 
 
 def _azhvielle():
-    return PlayerState(BlackMage())
+    return PlayerState(create_drifter("azhvielle"))
 
 
 def _goblin():
@@ -236,7 +236,7 @@ def test_recast_uses_old_snapshot_and_not_fresh_break():
 
 def test_instability_affects_physical_damage_but_not_magical_or_hybrid():
     def resolve_against(target, move_name, *, unstable):
-        attacker = PlayerState(Brawler())
+        attacker = PlayerState(create_drifter("branoc"))
         state = CombatState()
         if unstable:
             state.activate_arcane_overcharge(target)

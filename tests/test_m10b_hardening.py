@@ -1,3 +1,4 @@
+from app.content.catalog import create_drifter
 from app.game.encounter_manifest import (
     SURFACE_ROUTE_MANIFEST,
     create_route_encounter_enemies,
@@ -9,7 +10,6 @@ from app.game.overworld_route import (
 )
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import (
     MapNodeState,
@@ -45,7 +45,7 @@ class ScriptedUI:
 
 
 def test_all_encounter_completion_ids_remain_world_owned_and_schema_seven():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
 
     for encounter_id in EXPECTED_ENCOUNTER_IDS:
         game.world_state.mark_encounter_defeated(encounter_id)
@@ -61,7 +61,7 @@ def test_all_encounter_completion_ids_remain_world_owned_and_schema_seven():
 
 
 def test_map_completion_uses_world_for_combat_and_overworld_for_rest():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     for encounter_id in EXPECTED_ENCOUNTER_IDS:
         game.world_state.mark_encounter_defeated(encounter_id)
     for rest_node_id in SURFACE_REST_NODE_IDS:
@@ -98,7 +98,7 @@ def test_every_composition_can_be_recreated_without_identity_leakage():
 
 
 def test_first_victory_applies_rewards_and_pair_combat_is_next():
-    player = PlayerState(Brawler(), gold=9)
+    player = PlayerState(create_drifter("branoc"), gold=9)
     player.exp_state.gain(13)
     game = GameState(player)
     enemy_calls = []

@@ -1,14 +1,105 @@
-"""Joruun Veyr character profile."""
+"""Monk authored Drifter content."""
 
-from app.player.character import Monk
-from app.world.character_profiles.profile import CharacterProfile
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.storm import (
+    HYDRO_WHIP_MECHANIC,
+    LIGHTNING_PALM_MECHANIC,
+    TEMPEST_SURGE_MECHANIC,
+)
+from app.content.drifter_spec import (
+    ClassMechanicSpec,
+    DrifterSpec,
+    DrifterStatSpec,
+)
 
 
-PROFILE = CharacterProfile(
+_STATS = DrifterStatSpec(10, 10, 13, 7, 12, 8)
+
+
+_COMBAT_MOVES = (
+        Move(
+            name='Bring the Horse to Water',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
+            power=12,
+            scales_with=(ScalingAttribute.DEXTERITY,),
+            accuracy=90,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.PHYSICAL,
+            mechanic=None,
+            # Deferred mechanic: staff control
+            description='A grounded staff technique that redirects force through precise positioning.'),
+        Move(
+            name='Lightning Palm',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=7,
+            power=24,
+            scales_with=(
+                ScalingAttribute.DEXTERITY,
+                ScalingAttribute.INTELLIGENCE,
+                ScalingAttribute.INTUITION,
+            ),
+            accuracy=70,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.HYBRID,
+            mechanic=LIGHTNING_PALM_MECHANIC,
+            description='A risky palm strike that carries lightning through the point of impact.'),
+        Move(
+            name='Tempest Surge',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=6,
+            power=20,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.INTUITION),
+            accuracy=82,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=TEMPEST_SURGE_MECHANIC,
+            description='A controlled burst of storm force shaped through Sky-Needle.'),
+        Move(
+            name='Hydro Whip',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=4,
+            power=16,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.INTUITION),
+            accuracy=88,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=HYDRO_WHIP_MECHANIC,
+            description='A snapping water current used to lash and reposition an enemy.'),
+        Move(
+            name='Coagulated Torrent',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.SUPER,
+            resource_cost=100,
+            power=32,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.INTUITION),
+            accuracy=100,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            description='A decisive torrent that compresses gathered force into a finishing surge.'),
+)
+
+
+DRIFTER = DrifterSpec(
+    drifter_id="joruun",
+    archetype_name='Monk',
+    stats=_STATS,
+    combat_moves=_COMBAT_MOVES,
+    class_mechanic=ClassMechanicSpec(
+        name='Ki Forms',
+        description='Monk techniques combine positioning, balance, and Ki setup effects.',
+    ),
+    starting_weapon_id="sky_needle",
+    starting_run_inventory=(),
+    starting_prepared_payloads=(),
     choice="4",
     short_name="Joruun Veyr",
     display_name="Joruun Veyr, the Bloody Storm Monk",
-    character_factory=Monk,
     ascii_art=r"""
                                      ^                                     
                         ############/|\############                        
@@ -63,3 +154,6 @@ and becomes increasingly dangerous when the environment supplies additional elem
     quote="“The heavens provide the rain, the earth provides the grain, and the brewery provides salvation. Amen.”",
     selection_summary="mobile, adaptable, physically costly",
 )
+
+
+__all__ = ["DRIFTER"]

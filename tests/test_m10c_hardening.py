@@ -1,5 +1,6 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
@@ -11,7 +12,6 @@ from app.game.encounter_manifest import create_route_encounter_enemies
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
@@ -86,7 +86,7 @@ ENCOUNTER_COMPOSITIONS = {
 def test_every_authored_composition_is_ready_for_real_battle(node_id, expected_ids):
     enemies = create_route_encounter_enemies(node_id)
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         enemies,
         ui=ScriptedBattleUI(()),
         resolver=CombatResolver(rng=AlwaysOneRng()),
@@ -112,7 +112,7 @@ def test_real_two_goblin_target_flow_keeps_labels_and_requires_both_defeats():
         )
     )
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         (first, second),
         ui=ui,
         resolver=CombatResolver(rng=AlwaysOneRng()),
@@ -145,7 +145,7 @@ def test_real_two_goblin_target_flow_keeps_labels_and_requires_both_defeats():
 
 
 def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_target():
-    player = PlayerState(Brawler(), gold=23)
+    player = PlayerState(create_drifter("branoc"), gold=23)
     player.exp_state.gain(41)
     game = GameState(player)
     game.overworld_state.advance_to(
@@ -317,7 +317,7 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
 def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
     enemies = create_route_encounter_enemies("surface_goblin_lord")
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         enemies,
         ui=ScriptedBattleUI(()),
         resolver=CombatResolver(rng=AlwaysOneRng()),
@@ -370,7 +370,7 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
 
 def test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label():
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         create_route_encounter_enemies("surface_goblin_pair"),
         ui=ScriptedBattleUI(()),
         resolver=CombatResolver(rng=AlwaysOneRng()),
@@ -404,7 +404,7 @@ def test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label(
 
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():
-    actor = PlayerState(Brawler())
+    actor = PlayerState(create_drifter("branoc"))
     first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     resolver = CombatResolver(rng=AlwaysOneRng())
@@ -424,7 +424,7 @@ def test_branoc_follow_up_damage_targets_one_of_two_enemies():
 
 
 def test_azhvielle_overcharge_consumes_linked_break_without_leaking_to_other_enemy():
-    actor = PlayerState(BlackMage())
+    actor = PlayerState(create_drifter("azhvielle"))
     first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=first)
@@ -445,7 +445,7 @@ def test_azhvielle_overcharge_consumes_linked_break_without_leaking_to_other_ene
 
 
 def test_zhaivra_infusion_applies_burn_to_the_exact_selected_enemy():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     preparation = InventoryActionResolver().resolve(
@@ -468,7 +468,7 @@ def test_zhaivra_infusion_applies_burn_to_the_exact_selected_enemy():
 
 
 def test_joruun_setup_remains_linked_when_lightning_palm_targets_another_enemy():
-    actor = PlayerState(Monk())
+    actor = PlayerState(create_drifter("joruun"))
     first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     resolver = CombatResolver(rng=AlwaysOneRng())

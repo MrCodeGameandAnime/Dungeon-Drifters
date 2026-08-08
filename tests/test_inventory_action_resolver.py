@@ -2,8 +2,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
-from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
     CharacterRunState,
     InfusionKind,
@@ -20,7 +20,7 @@ from app.player.player_state import PlayerState
 
 
 def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload():
-    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state = PlayerState(create_drifter("zhaivra")).character_run_state
 
     result = InventoryActionResolver().resolve(
         InventoryActionId.PREPARE_FIRE_INFUSION,
@@ -44,7 +44,7 @@ def test_preparation_atomically_consumes_both_compounds_and_creates_one_payload(
 
 
 def test_poison_preparation_consumes_deep_coal_and_night_berry_only():
-    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state = PlayerState(create_drifter("zhaivra")).character_run_state
 
     result = InventoryActionResolver().resolve(
         InventoryActionId.PREPARE_POISON_INFUSION,
@@ -63,7 +63,7 @@ def test_poison_preparation_consumes_deep_coal_and_night_berry_only():
 
 
 def test_poison_preparation_is_rejected_when_fire_payload_is_already_prepared():
-    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state = PlayerState(create_drifter("zhaivra")).character_run_state
     fire = InventoryActionResolver().resolve(
         InventoryActionId.PREPARE_FIRE_INFUSION,
         run_state,
@@ -109,7 +109,7 @@ def test_missing_ingredient_rejects_without_partial_consumption(inventory):
 
 
 def test_character_without_authored_payload_cannot_prepare_zhaivra_resource():
-    run_state = PlayerState(Brawler()).character_run_state
+    run_state = PlayerState(create_drifter("branoc")).character_run_state
     before = run_state.snapshot()
 
     result = InventoryActionResolver().resolve(
@@ -123,7 +123,7 @@ def test_character_without_authored_payload_cannot_prepare_zhaivra_resource():
 
 
 def test_repeated_preparation_is_rejected_without_stacking_or_mutation():
-    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state = PlayerState(create_drifter("zhaivra")).character_run_state
     resolver = InventoryActionResolver()
     first = resolver.resolve(InventoryActionId.PREPARE_FIRE_INFUSION, run_state)
     after_first = run_state.snapshot()

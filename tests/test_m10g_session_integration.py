@@ -1,13 +1,13 @@
 import builtins
 
 import app.game.main_loop as main_loop
+from app.content.catalog import create_drifter
 from app.enemies.factory import create_enemy_state
 from app.game.game_state import GameState
 from app.game.main_loop import _startup_game_state
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveLoadStatus, SaveRepository
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
@@ -85,7 +85,7 @@ def test_confirmed_load_replaces_session_and_returns_to_main(tmp_path):
     saved = _saved_game()
     repository = SaveRepository(tmp_path / "dungeon_drifters.json")
     repository.save(saved)
-    current = GameState(PlayerState(Brawler()))
+    current = GameState(PlayerState(create_drifter("branoc")))
     ui = ScriptedUI(
         [
             ChooseOverworldAction(OverworldAction.OPTIONS),
@@ -113,7 +113,7 @@ def test_confirmed_load_replaces_session_and_returns_to_main(tmp_path):
 
 
 def test_invalid_load_does_not_mutate_current_session(tmp_path):
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     repository = SaveRepository(tmp_path / "dungeon_drifters.json")
     repository.save(_saved_game())
     before = game.snapshot()
@@ -161,7 +161,7 @@ def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
     saved = _saved_game()
     repository = SaveRepository(tmp_path / "dungeon_drifters.json")
     repository.save(saved)
-    current = GameState(PlayerState(Brawler()))
+    current = GameState(PlayerState(create_drifter("branoc")))
 
     class ContinuingBattle:
         def __init__(self, player_state, enemies, *, ui, encounter_label):
@@ -250,7 +250,7 @@ def test_real_terminal_traverses_options_load_confirmation_without_crashing(
         width_provider=lambda: 80,
         interactive=False,
     )
-    current = GameState(PlayerState(Brawler()))
+    current = GameState(PlayerState(create_drifter("branoc")))
 
     assert _session(current, ui, repository).run() is OverworldSessionResult.QUIT
     text = "\n".join(output)

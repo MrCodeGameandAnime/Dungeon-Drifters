@@ -2,9 +2,9 @@ from unittest.mock import patch
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_route import SURFACE_ROUTE_NODES
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import (
     OverworldAction,
@@ -43,7 +43,7 @@ EXPECTED_INSPECTIONS = (
 
 
 def game_at(node_id):
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     if node_id == SURFACE_ROUTE_NODES[0].node_id:
         return game
     for node in SURFACE_ROUTE_NODES[1:]:

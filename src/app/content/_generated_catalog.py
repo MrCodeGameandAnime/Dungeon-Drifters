@@ -9,6 +9,10 @@ from app.content.weapons.needle_of_plain_iron.weapon import WEAPON as needle_of_
 from app.content.weapons.sathren.weapon import WEAPON as sathren_weapon
 from app.content.weapons.sky_needle.weapon import WEAPON as sky_needle_weapon
 from app.content.weapons.sunder_spire.weapon import WEAPON as sunder_spire_weapon
+from app.content.drifters.azhvielle.drifter import DRIFTER as azhvielle_drifter
+from app.content.drifters.branoc.drifter import DRIFTER as branoc_drifter
+from app.content.drifters.joruun.drifter import DRIFTER as joruun_drifter
+from app.content.drifters.zhaivra.drifter import DRIFTER as zhaivra_drifter
 
 
 GENERATED_ENEMY_SPECS = (
@@ -28,4 +32,16 @@ GENERATED_WEAPON_SPECS = (
 )
 
 
-__all__ = ["GENERATED_ENEMY_SPECS", "GENERATED_WEAPON_SPECS"]
+GENERATED_DRIFTER_SPECS = (
+    ("azhvielle", azhvielle_drifter),
+    ("branoc", branoc_drifter),
+    ("joruun", joruun_drifter),
+    ("zhaivra", zhaivra_drifter),
+)
+
+
+__all__ = [
+    "GENERATED_DRIFTER_SPECS",
+    "GENERATED_ENEMY_SPECS",
+    "GENERATED_WEAPON_SPECS",
+]

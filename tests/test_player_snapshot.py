@@ -2,8 +2,8 @@ import json
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.content.catalog import create_weapon
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
 from app.snapshot import validate_plain_value
@@ -24,7 +24,7 @@ def assert_strict_json(snapshot):
 
 
 def test_default_player_snapshot_has_required_shape():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     snapshot = player_state.snapshot()
 
@@ -102,7 +102,7 @@ def test_profile_created_character_snapshot_uses_attached_profile_identity():
 
 
 def test_mutated_resources_progression_gold_and_inventory_are_reflected():
-    player_state = PlayerState(BlackMage(), gold=15)
+    player_state = PlayerState(create_drifter("azhvielle"), gold=15)
     player_state.health.take_damage(7)
     player_state.mana_resource.spend(8)
     player_state.super_resource.gain(70)
@@ -127,7 +127,7 @@ def test_mutated_resources_progression_gold_and_inventory_are_reflected():
 
 
 def test_zhaivra_snapshot_includes_character_owned_run_state():
-    snapshot = PlayerState(RogueArcher()).snapshot()
+    snapshot = PlayerState(create_drifter("zhaivra")).snapshot()
 
     assert snapshot["run_state"] == {
         "inventory": {
@@ -143,7 +143,7 @@ def test_zhaivra_snapshot_includes_character_owned_run_state():
 
 
 def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     InventoryActionResolver().resolve(
         "prepare_fire_infusion",
         player_state.character_run_state,
@@ -165,7 +165,7 @@ def test_zhaivra_snapshot_reflects_prepared_payload_across_encounter_state():
 
 
 def test_supported_weapon_equipment_uses_explicit_plain_mapping():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     staff = create_weapon("sky_needle")
     player_state.inventory.add_item(staff)
 
@@ -210,7 +210,7 @@ def test_supported_weapon_equipment_uses_explicit_plain_mapping():
 def test_all_named_starting_weapons_serialize_with_new_payload():
     expected_payloads = (
         (
-            Brawler,
+            "branoc",
             "sunder_spire",
             {
                 "type": "SunderSpire",
@@ -223,7 +223,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
             },
         ),
         (
-            BlackMage,
+            "azhvielle",
             "needle_of_plain_iron",
             {
                 "type": "NeedleOfPlainIron",
@@ -236,7 +236,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
             },
         ),
         (
-            RogueArcher,
+            "zhaivra",
             "sathren",
             {
                 "type": "Sathren",
@@ -249,7 +249,7 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
             },
         ),
         (
-            Monk,
+            "joruun",
             "sky_needle",
             {
                 "type": "SkyNeedle",
@@ -263,15 +263,15 @@ def test_all_named_starting_weapons_serialize_with_new_payload():
         ),
     )
 
-    for class_type, item_id, expected_payload in expected_payloads:
-        player_state = PlayerState(class_type())
+    for drifter_id, item_id, expected_payload in expected_payloads:
+        player_state = PlayerState(create_drifter(drifter_id))
 
         assert player_state.get_equipped("weapon").item_id == item_id
         assert player_state.snapshot()["equipment"]["weapon"] == expected_payload
 
 
 def test_structured_moves_and_class_mechanic_are_plain_values():
-    player_state = PlayerState(BlackMage())
+    player_state = PlayerState(create_drifter("azhvielle"))
 
     snapshot = player_state.snapshot()
     first_move = snapshot["combat"]["moves"][0]
@@ -297,14 +297,10 @@ def test_structured_moves_and_class_mechanic_are_plain_values():
 
 
 def test_affected_class_mechanics_do_not_declare_deferred_resources():
-    affected_classes = (
-        Brawler,
-        BlackMage,
-        RogueArcher,
-    )
+    affected_drifters = ("branoc", "azhvielle", "zhaivra")
 
-    for class_type in affected_classes:
-        snapshot = PlayerState(class_type()).snapshot()
+    for drifter_id in affected_drifters:
+        snapshot = PlayerState(create_drifter(drifter_id)).snapshot()
         class_mechanic = snapshot["combat"]["class_mechanic"]
 
         assert "resource" not in class_mechanic
@@ -315,14 +311,14 @@ def test_affected_class_mechanics_do_not_declare_deferred_resources():
         }
         assert class_mechanic.get("resource") not in forbidden_resources
 
-    monk_snapshot = PlayerState(Monk()).snapshot()
+    monk_snapshot = PlayerState(create_drifter("joruun")).snapshot()
     monk_mechanic = monk_snapshot["combat"]["class_mechanic"]
     assert monk_mechanic["name"] == "Ki Forms"
     assert "resource" not in monk_mechanic
 
 
 def test_snapshot_is_isolated_and_non_mutating():
-    player_state = PlayerState(Brawler(), gold=10)
+    player_state = PlayerState(create_drifter("branoc"), gold=10)
     player_state.inventory.add_item("tonic")
     health_before = player_state.health.current
     mana_before = player_state.mana_resource.current
@@ -352,14 +348,14 @@ def test_snapshot_is_isolated_and_non_mutating():
 
 
 def test_unsupported_inventory_and_equipment_values_fail_clearly():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.inventory.add_item(object())
 
     with pytest.raises(TypeError) as inventory_error:
         player_state.snapshot()
     assert "player.inventory[0]" in str(inventory_error.value)
 
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = object()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
@@ -370,14 +366,14 @@ def test_unsupported_inventory_and_equipment_values_fail_clearly():
 
 
 def test_fake_weapon_shaped_object_is_not_serialized_as_weapon():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.inventory.add_item(FakeWeaponShapedObject())
 
     with pytest.raises(TypeError) as inventory_error:
         player_state.snapshot()
     assert "player.inventory[0]" in str(inventory_error.value)
 
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = FakeWeaponShapedObject()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)

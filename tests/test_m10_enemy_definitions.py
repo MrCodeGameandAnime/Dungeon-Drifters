@@ -1,12 +1,12 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import select_enemy_move
 from app.combat.resolver import CombatResolver
 from app.content.catalog import create_enemy_definition
 from app.enemies import create_enemy_state
 from app.enemies.definition import EnemyCapability, EnemyRank, EnemyRole
 from app.enemies.state import EnemyState
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 
 
@@ -208,7 +208,7 @@ def test_empty_legal_move_collection_fails_explicitly():
 
 def test_accepted_shaman_mana_move_spends_authored_cost():
     enemy = create_enemy_state("goblin_shaman")
-    target = PlayerState(Brawler())
+    target = PlayerState(create_drifter("branoc"))
     result = CombatResolver().resolve_move(enemy, target, "Cinder Hex")
 
     assert result.accepted is True
@@ -218,7 +218,7 @@ def test_accepted_shaman_mana_move_spends_authored_cost():
 
 def test_accepted_crooked_staff_spends_no_mana():
     enemy = create_enemy_state("goblin_shaman")
-    target = PlayerState(Brawler())
+    target = PlayerState(create_drifter("branoc"))
     result = CombatResolver().resolve_move(enemy, target, "Crooked Staff")
 
     assert result.accepted is True

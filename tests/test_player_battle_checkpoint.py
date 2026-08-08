@@ -1,6 +1,6 @@
 import pytest
 
-from app.player.character import RogueArcher
+from app.content.catalog import create_drifter
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     FIRE_INFUSION_REQUIREMENTS,
@@ -12,7 +12,7 @@ from app.player.player_state import PlayerBattleCheckpoint, PlayerState
 
 
 def test_checkpoint_is_immutable_and_rejects_wrong_restore_type():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     checkpoint = player.create_battle_checkpoint()
 
     with pytest.raises(AttributeError):
@@ -23,7 +23,7 @@ def test_checkpoint_is_immutable_and_rejects_wrong_restore_type():
 
 
 def test_checkpoint_restores_nondefault_values_and_preserves_owner_identities():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     character = player.character
     health = player.health
     mana = player.mana_resource
@@ -86,7 +86,7 @@ def test_checkpoint_restores_nondefault_values_and_preserves_owner_identities():
 
 
 def test_checkpoint_restore_preserves_the_complete_live_owner_graph():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     character = player.character
     health = player.health
     mana = player.mana_resource
@@ -111,7 +111,7 @@ def test_checkpoint_restore_preserves_the_complete_live_owner_graph():
 
 
 def test_checkpoint_and_restore_are_absent_from_player_snapshot():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     before = player.snapshot()
 
     player.create_battle_checkpoint()

@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError, dataclass, field
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
 from app.combat.status_state import (
@@ -14,7 +15,6 @@ from app.combat.status_state import (
     burn_damage_per_tick,
     poison_damage_per_tick,
 )
-from app.player.character import RogueArcher
 from app.player.player_state import PlayerState
 from app.player.resources import Health
 
@@ -43,7 +43,7 @@ class FakeCombatant:
 
 
 def test_standard_burn_identity_and_zhaivra_potency_are_locked():
-    zhaivra = PlayerState(RogueArcher())
+    zhaivra = PlayerState(create_drifter("zhaivra"))
 
     assert StatusKind.BURN.value == "burn"
     assert zhaivra.effective_stat("intelligence") == 10
@@ -52,7 +52,7 @@ def test_standard_burn_identity_and_zhaivra_potency_are_locked():
 
 
 def test_standard_poison_identity_and_zhaivra_potency_are_locked():
-    zhaivra = PlayerState(RogueArcher())
+    zhaivra = PlayerState(create_drifter("zhaivra"))
 
     assert StatusKind.POISON.value == "poison"
     assert zhaivra.effective_stat("dexterity") == 18
@@ -235,7 +235,7 @@ def test_burn_bypasses_defend_and_brace_without_consuming_combat_resources():
 
 
 def test_burn_tick_spends_no_mana_and_grants_no_super():
-    target = PlayerState(RogueArcher())
+    target = PlayerState(create_drifter("zhaivra"))
     state = CombatState()
     state.apply_burn(target, target)
     mana_before = target.mana_resource.current

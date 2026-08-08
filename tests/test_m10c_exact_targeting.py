@@ -2,11 +2,11 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
@@ -85,7 +85,7 @@ def _accepted_result():
 
 
 def _battle(character=None, *, enemies=None, resolver=None, ui=None, rng=None):
-    player = PlayerState(character or Brawler())
+    player = PlayerState(character or create_drifter("branoc"))
     enemies = enemies or (EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin")))
     battle = Battle(
         player,
@@ -242,7 +242,7 @@ def test_stale_defeated_target_is_rejected_without_dispatch_or_resource_mutation
         before_input=defeat_second_after_target_view,
     )
     battle, player, enemies = _battle(
-        RogueArcher(),
+        create_drifter("zhaivra"),
         enemies=(EnemyState(create_enemy_definition("goblin")), second),
         resolver=resolver,
         ui=ui,
@@ -362,7 +362,7 @@ def test_resolver_rejection_keeps_exact_target_selection_pending():
 
 
 def test_target_sensitive_lightning_preview_is_exact_for_each_enemy():
-    battle, player, enemies = _battle(Monk())
+    battle, player, enemies = _battle(create_drifter("joruun"))
     battle.combat_state.apply_conductive(player, enemies[0])
     battle.combat_state.apply_turbulence(player, enemies[0])
     battle.interaction_phase = InteractionPhase.REGULAR_MOVES
@@ -452,7 +452,7 @@ def test_repeated_unavailable_targets_preserve_full_bounded_turn_history():
         ChooseTarget("unknown_3"),
     )
     battle, player, enemies = _battle(
-        RogueArcher(),
+        create_drifter("zhaivra"),
         resolver=resolver,
         ui=ui,
         rng=rng,

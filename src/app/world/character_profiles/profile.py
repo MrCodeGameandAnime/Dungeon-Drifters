@@ -1,34 +1,9 @@
-"""Structured character profile data and rendering helpers."""
+"""Player-facing Drifter profile rendering helpers."""
 
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class CharacterProfile:
-    choice: str
-    short_name: str
-    display_name: str
-    character_factory: type
-    ascii_art: str
-    origin_title: str
-    biography: str
-    dungeon_motive: str
-    combat_role: str
-    combat_summary: str
-    strengths: str
-    weaknesses: str
-    weapon: str
-    discipline: str
-    quote: str
-    selection_summary: str
-
-    def create_character(self):
-        character = self.character_factory()
-        character.profile = self
-        return character
+from app.content.drifter_spec import DrifterSpec
 
 
-def render_compact_profile(profile: CharacterProfile) -> str:
+def render_compact_profile(profile: DrifterSpec) -> str:
     return "\n".join(
         (
             f"{profile.choice}. {profile.display_name}",
@@ -37,7 +12,7 @@ def render_compact_profile(profile: CharacterProfile) -> str:
     )
 
 
-def render_full_profile(profile: CharacterProfile) -> str:
+def render_full_profile(profile: DrifterSpec) -> str:
     profile_details = "\n".join(
         (
             f"Strengths: {profile.strengths}",
@@ -60,9 +35,12 @@ def render_full_profile(profile: CharacterProfile) -> str:
     return "\n\n".join(section.rstrip("\n") for section in sections)
 
 
-def render_profile(profile: CharacterProfile) -> str:
+def render_profile(profile: DrifterSpec) -> str:
     return render_full_profile(profile)
 
 
-def render_roster(profiles: tuple[CharacterProfile, ...]) -> str:
+def render_roster(profiles: tuple[DrifterSpec, ...]) -> str:
     return "\n\n".join(("Choose your Drifter:", *(render_compact_profile(profile) for profile in profiles)))
+
+
+__all__ = ["render_compact_profile", "render_full_profile", "render_profile", "render_roster"]

@@ -19,9 +19,8 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 from app.combat.battle import Battle
 from app.combat.battle import random as battle_random
 from app.combat.resolver import CombatResolver
-from app.content.catalog import create_enemy_definition
+from app.content.catalog import create_drifter, create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType, InteractionPhase
 from app.presentation.battle_session import BattlePresentationSession
@@ -50,7 +49,7 @@ OUTPUT_ROOT = REPOSITORY_ROOT / "tools" / "balance_probe_outputs"
 @dataclass(frozen=True)
 class Route:
     label: str
-    character_type: type
+    drifter_id: str
     signature: str
     infusion_item: str | None = None
     infusion_companion: str | None = None
@@ -58,19 +57,19 @@ class Route:
 
 
 ROUTES = (
-    Route("Branoc Brace", Brawler, "branoc"),
-    Route("Azhvielle Gravemantle", BlackMage, "azhvielle"),
+    Route("Branoc Brace", "branoc", "branoc"),
+    Route("Azhvielle Gravemantle", "azhvielle", "azhvielle"),
     Route(
         "Azhvielle Frost",
-        BlackMage,
+        "azhvielle",
         "azhvielle_frost",
         description="Mournglass Bloom while affordable, then Scepter Sweep.",
     ),
-    Route("Zhaivra Fire", RogueArcher, "zhaivra", "ember_shard", "deep_coal"),
-    Route("Zhaivra Poison", RogueArcher, "zhaivra", "deep_coal", "night_berry"),
-    Route("Joruun Water", Monk, "water"),
-    Route("Joruun Air", Monk, "air"),
-    Route("Joruun Storm", Monk, "storm"),
+    Route("Zhaivra Fire", "zhaivra", "zhaivra", "ember_shard", "deep_coal"),
+    Route("Zhaivra Poison", "zhaivra", "zhaivra", "deep_coal", "night_berry"),
+    Route("Joruun Water", "joruun", "water"),
+    Route("Joruun Air", "joruun", "air"),
+    Route("Joruun Storm", "joruun", "storm"),
 )
 
 SUPER_USAGE_POLICY = (
@@ -199,7 +198,7 @@ class ProbeUI:
 def _encounter(route, seed, *, stress):
     random.seed(seed)
     battle_random.seed(seed)
-    player = PlayerState(route.character_type())
+    player = PlayerState(create_drifter(route.drifter_id))
     enemy = EnemyState(create_enemy_definition("goblin"))
     if stress:
         enemy.health.set_maximum(STRESS_HP)

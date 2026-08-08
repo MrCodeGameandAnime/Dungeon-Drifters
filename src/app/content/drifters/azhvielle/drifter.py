@@ -1,14 +1,104 @@
-"""Azhvielle character profile."""
+"""Black Mage authored Drifter content."""
 
-from app.player.character import BlackMage
-from app.world.character_profiles.profile import CharacterProfile
+from app.combat.frost import FROST_ATTACK_MECHANIC
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.content.drifter_spec import (
+    ClassMechanicSpec,
+    DrifterSpec,
+    DrifterStatSpec,
+)
 
 
-PROFILE = CharacterProfile(
+_STATS = DrifterStatSpec(7, 13, 15, 5, 8, 12)
+
+
+_COMBAT_MOVES = (
+        Move(
+            name='Scepter Sweep',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
+            power=7,
+            scales_with=(ScalingAttribute.DEXTERITY,),
+            accuracy=92,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.PHYSICAL,
+            mechanic='basic_attack',
+            is_spell=False,
+            description='A direct scepter strike aimed at the target.'),
+        Move(
+            name='Gloamweight Sepulcher',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=8,
+            power=15,
+            scales_with=(ScalingAttribute.INTELLIGENCE,),
+            accuracy=86,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            is_spell=True,
+            description='Dark gravity folds inward, crushing the target beneath impossible weight.'),
+        Move(
+            name='Mournglass Bloom',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=6,
+            power=12,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.SPIRIT),
+            accuracy=90,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=FROST_ATTACK_MECHANIC,
+            is_spell=True,
+            frost_backlash=True,
+            description='Black frost erupts outward, encasing nearby enemies in splintering ice.'),
+        Move(
+            name='Gravemantle Rupture',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=12,
+            power=17,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.SPIRIT),
+            accuracy=80,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.HYBRID,
+            mechanic='gravemantle_rupture',
+            is_spell=True,
+            # Deferred mechanic: balance and armor break
+            description='The ground ruptures beneath the target, shattering balance and armor.'),
+        Move(
+            name='Causality Nullwake',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.SUPER,
+            resource_cost=100,
+            power=30,
+            scales_with=(ScalingAttribute.INTELLIGENCE, ScalingAttribute.INTUITION),
+            accuracy=100,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            is_spell=True,
+            # Deferred mechanic: causality control
+            description='Causality collapses around the target, erasing motion before it can occur.'),
+)
+
+
+DRIFTER = DrifterSpec(
+    drifter_id="azhvielle",
+    archetype_name='Black Mage',
+    stats=_STATS,
+    combat_moves=_COMBAT_MOVES,
+    class_mechanic=ClassMechanicSpec(
+        name='Arcane Focus',
+        description='Spells spend mana and scale primarily from intelligence.',
+    ),
+    starting_weapon_id="needle_of_plain_iron",
+    starting_run_inventory=(),
+    starting_prepared_payloads=(),
     choice="2",
     short_name="Azhvielle",
     display_name="Azhvielle, the Unconfessed",
-    character_factory=BlackMage,
     ascii_art=r"""
                                      o                                     
                                     (o)                                    
@@ -71,3 +161,6 @@ below. She refuses to explain what it contains or why it bears her name.""",
     quote="“Yes, I can solve this with magic. That does not make it sensible.”",
     selection_summary="versatile, dangerous, unpredictable",
 )
+
+
+__all__ = ["DRIFTER"]

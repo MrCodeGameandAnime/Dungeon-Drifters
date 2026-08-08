@@ -1,3 +1,4 @@
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
@@ -8,7 +9,6 @@ from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveRepository
-from app.player.character import BlackMage, Brawler, RogueArcher
 from app.player.inventory_action import InventoryActionResolver
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
@@ -158,7 +158,7 @@ def _advance_to_goblin_lord(game):
 
 
 def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     player.health.take_damage(9)
     player.mana_resource.spend(6)
     player.super_resource.gain(21)
@@ -235,7 +235,7 @@ def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():
 
 
 def test_real_battle_run_cleans_defeated_state_and_finishes_inactive():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     first, second = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     first.health.take_damage(first.health.current - 1)
     second.health.take_damage(second.health.current - 1)
@@ -320,7 +320,7 @@ def test_real_battle_run_cleans_defeated_state_and_finishes_inactive():
 
 
 def test_real_session_discards_completed_battle_and_next_battle_is_fresh(tmp_path):
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
 
     class RealBattleFactory:
@@ -387,7 +387,7 @@ def test_real_session_discards_completed_battle_and_next_battle_is_fresh(tmp_pat
 
 
 def test_real_solo_defeat_boundary_restores_before_retry_and_rewards_once(tmp_path):
-    player = PlayerState(Brawler(), gold=9)
+    player = PlayerState(create_drifter("branoc"), gold=9)
     player.health.take_damage(player.health.current - 1)
     before = player.snapshot()
     game = GameState(player)
@@ -478,7 +478,7 @@ def test_real_solo_defeat_boundary_restores_before_retry_and_rewards_once(tmp_pa
 
 
 def test_different_target_overcharge_and_break_are_encounter_local():
-    actor = PlayerState(BlackMage())
+    actor = PlayerState(create_drifter("azhvielle"))
     broken_target, other_target = EnemyState(create_enemy_definition("goblin")), EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=broken_target)
@@ -501,7 +501,7 @@ def test_different_target_overcharge_and_break_are_encounter_local():
 
 
 def test_accepted_infusion_consumption_does_not_survive_into_next_battle():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     preparation = InventoryActionResolver().resolve(
         "prepare_fire_infusion",
         player.character_run_state,
@@ -532,7 +532,7 @@ def test_accepted_infusion_consumption_does_not_survive_into_next_battle():
 
 
 def test_pair_defeat_retry_restores_player_and_pays_reward_once(tmp_path):
-    player = PlayerState(Brawler(), gold=11)
+    player = PlayerState(create_drifter("branoc"), gold=11)
     player.health.take_damage(9)
     player.mana_resource.spend(4)
     player.super_resource.gain(17)
@@ -592,7 +592,7 @@ def test_pair_defeat_retry_restores_player_and_pays_reward_once(tmp_path):
 
 
 def test_goblin_lord_defeat_retry_reaches_dungeon_and_pays_once(tmp_path):
-    player = PlayerState(Brawler(), gold=7)
+    player = PlayerState(create_drifter("branoc"), gold=7)
     player.health.take_damage(6)
     player.mana_resource.spend(3)
     player.super_resource.gain(12)

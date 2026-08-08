@@ -1,11 +1,11 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import BattleEventType, InteractionPhase
 from app.ui.terminal_battle_ui import TerminalBattleUI
@@ -82,7 +82,7 @@ def _enemies(count):
 
 def _battle(count=4, *, resolver=None, rng=None, ui=None):
     return Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         _enemies(count),
         ui=ui or RecordingUI(),
         resolver=resolver or RecordingResolver(),
@@ -365,8 +365,8 @@ def test_final_view_is_complete_inactive_and_requires_no_input():
 
 def test_defeated_combatant_cleanup_removes_owned_state_and_preserves_living_state():
     state = CombatState()
-    defeated = PlayerState(BlackMage())
-    living_owner = PlayerState(BlackMage())
+    defeated = PlayerState(create_drifter("azhvielle"))
+    living_owner = PlayerState(create_drifter("azhvielle"))
     linked_target = EnemyState(create_enemy_definition("goblin"))
     unrelated_target = EnemyState(create_enemy_definition("goblin"))
 
@@ -411,7 +411,7 @@ def test_defeated_combatant_cleanup_removes_owned_state_and_preserves_living_sta
 
 def test_lethal_frostbite_lifecycle_clears_all_non_status_temporary_state():
     state = CombatState()
-    actor = PlayerState(BlackMage())
+    actor = PlayerState(create_drifter("azhvielle"))
     source = EnemyState(create_enemy_definition("goblin"))
     actor.health.take_damage(actor.health.current - 5)
     state.activate_defend(actor)

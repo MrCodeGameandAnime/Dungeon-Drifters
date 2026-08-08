@@ -1,11 +1,11 @@
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
 from app.player.inventory_action import (
     InventoryActionRejectionReason,
@@ -123,7 +123,7 @@ def _outcomes(entries):
 def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     ui = ZhaivraLoopUI()
     session = RecordingPresentationSession()
@@ -190,7 +190,7 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
 def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     ui = ZhaivraLoopUI(first_item="deep_coal", companion="night_berry")
     session = RecordingPresentationSession()
@@ -238,7 +238,7 @@ def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
 
 
 def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
-    zhaivra = PlayerState(RogueArcher())
+    zhaivra = PlayerState(create_drifter("zhaivra"))
     run_state = zhaivra.character_run_state
     preparation = InventoryActionResolver().resolve(
         "prepare_fire_infusion",
@@ -284,7 +284,7 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     assert next_encounter.player_state.character_run_state is run_state
     assert next_encounter.combat_state.burn_active(target) is False
 
-    branoc = PlayerState(Brawler())
+    branoc = PlayerState(create_drifter("branoc"))
     foreign_preparation = InventoryActionResolver().resolve(
         "prepare_fire_infusion",
         branoc.character_run_state,
@@ -294,14 +294,14 @@ def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():
     assert branoc.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert branoc.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
 
-    fresh_run = PlayerState(RogueArcher()).character_run_state
+    fresh_run = PlayerState(create_drifter("zhaivra")).character_run_state
     assert fresh_run.item_quantity(RunItemId.EMBER_SHARD) == 1
     assert fresh_run.item_quantity(RunItemId.DEEP_COAL) == 1
 
 
 def test_standard_burn_refreshes_to_three_ticks_and_retains_stronger_source():
-    weak_source = PlayerState(Brawler())
-    strong_source = PlayerState(RogueArcher())
+    weak_source = PlayerState(create_drifter("branoc"))
+    strong_source = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
 
@@ -324,7 +324,7 @@ def test_standard_burn_refreshes_to_three_ticks_and_retains_stronger_source():
 def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
     target = EnemyState(create_enemy_definition("goblin"))
 
-    branoc = PlayerState(Brawler())
+    branoc = PlayerState(create_drifter("branoc"))
     branoc_state = CombatState()
     brace = CombatResolver(rng=ScriptedRng()).resolve_move(
         branoc,
@@ -346,7 +346,7 @@ def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
         "heavy_attack",
     ) == 0
 
-    azhvielle = PlayerState(BlackMage())
+    azhvielle = PlayerState(create_drifter("azhvielle"))
     azhvielle_state = CombatState()
     gravemantle = CombatResolver(rng=ScriptedRng(1, 100, 100)).resolve_move(
         azhvielle,
@@ -369,7 +369,7 @@ def test_branoc_azhvielle_joruun_and_universal_core_paths_remain_compatible():
         CombatOutcomeType.BREAK_CLEARED,
     )
 
-    joruun = PlayerState(Monk())
+    joruun = PlayerState(create_drifter("joruun"))
     joruun_state = CombatState()
     ordinary = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
         joruun,

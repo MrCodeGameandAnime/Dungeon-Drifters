@@ -1,1 +1,0 @@
-"""Playable archetype loadout definitions."""

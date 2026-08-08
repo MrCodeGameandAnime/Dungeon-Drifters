@@ -1,14 +1,106 @@
-"""Zhaivra Kelyth character profile."""
+"""Rogue Archer authored Drifter content."""
 
-from app.player.character import RogueArcher
-from app.world.character_profiles.profile import CharacterProfile
+from app.combat.infused_barb import INFUSED_BARB_MECHANIC
+from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.content.drifter_spec import (
+    ClassMechanicSpec,
+    DrifterSpec,
+    DrifterStatSpec,
+)
 
 
-PROFILE = CharacterProfile(
+_STATS = DrifterStatSpec(8, 7, 10, 6, 15, 14)
+
+
+_COMBAT_MOVES = (
+        Move(
+            name='Mournpoint Verdict',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.NONE,
+            resource_cost=0,
+            power=10,
+            scales_with=(ScalingAttribute.DEXTERITY,),
+            accuracy=96,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.PHYSICAL,
+            mechanic='basic_attack',
+            # Deferred mechanic: weak-point critical bonus
+            description='Zhaivra drives a single arrow through the target’s weakest point.'),
+        Move(
+            name='Hollowstring Trine',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=4,
+            power=16,
+            scales_with=(ScalingAttribute.DEXTERITY,),
+            accuracy=86,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.PHYSICAL,
+            mechanic=None,
+            # Deferred mechanic: three-hit sequence
+            description='Three arrows split from one release, striking in a merciless sequence.'),
+        Move(
+            name='Nightskein Deluge',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=6,
+            power=15,
+            scales_with=(ScalingAttribute.DEXTERITY, ScalingAttribute.INTUITION),
+            accuracy=82,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=None,
+            # Deferred mechanic: multi-target shadow volley
+            description='A woven storm of shadow-arrows descends across the battlefield.'),
+        Move(
+            name='Infused Barb',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.MANA,
+            resource_cost=5,
+            power=14,
+            scales_with=(ScalingAttribute.INTUITION, ScalingAttribute.INTELLIGENCE),
+            accuracy=88,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.MAGICAL,
+            mechanic=INFUSED_BARB_MECHANIC,
+            description='A prepared alchemical arrow carries fire or poison into the target.'),
+        Move(
+            name='Starless Meridian Obsequy',
+            kind=MoveKind.DAMAGE,
+            resource_type=ResourceType.SUPER,
+            resource_cost=100,
+            power=28,
+            scales_with=(ScalingAttribute.DEXTERITY, ScalingAttribute.INTUITION),
+            accuracy=100,
+            target=TargetType.ENEMY,
+            damage_type=DamageType.HYBRID,
+            mechanic=None,
+            # Deferred mechanic: piercing multiple targets
+            description='Zhaivra looses an impossible shot that tears a silent path through everything before it.'),
+)
+
+
+DRIFTER = DrifterSpec(
+    drifter_id="zhaivra",
+    archetype_name='Rogue Archer',
+    stats=_STATS,
+    combat_moves=_COMBAT_MOVES,
+    class_mechanic=ClassMechanicSpec(
+        name='Precision',
+        description='High dexterity supports accuracy, critical hits, and multi-hit attacks.',
+    ),
+    starting_weapon_id="sathren",
+    starting_run_inventory=(
+        ('ember_shard', 1),
+        ('deep_coal', 1),
+        ('night_berry', 1),
+    ),
+    starting_prepared_payloads=(
+        ('infused_barb', None),
+    ),
     choice="3",
     short_name="Zhaivra Kelyth",
     display_name="Zhaivra Kelyth, the Uncontrolled Reagent",
-    character_factory=RogueArcher,
     ascii_art=r"""
 +-------------------------------------------------------------------------+
 |                                    /\                                   |
@@ -66,3 +158,6 @@ achieve the same result.""",
     quote="“An arrow can strike exactly where you intended and still become the worst mistake of your life.”",
     selection_summary="precise, prepared, resource-limited",
 )
+
+
+__all__ = ["DRIFTER"]

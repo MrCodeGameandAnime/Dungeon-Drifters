@@ -1,9 +1,9 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -16,13 +16,13 @@ from app.ui.overworld_ui import (
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
 
-def create_view(screen=OverworldScreen.MAIN, character_type=Brawler, **kwargs):
-    game = GameState(PlayerState(character_type()))
+def create_view(screen=OverworldScreen.MAIN, drifter_id="branoc", **kwargs):
+    game = GameState(PlayerState(create_drifter(drifter_id)))
     return OverworldPresenter().build(game, screen=screen, **kwargs)
 
 
 def create_rest_view(rest_node_id="surface_rest_after_warrior_solo"):
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     paths = {
         "surface_rest_after_warrior_solo": (
             "surface_goblin_pair",
@@ -103,7 +103,7 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
 
 
 def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     presenter = OverworldPresenter()
     initial = presenter.build(game)
     game.overworld_state.set_contextual_route_phase(ContextualRoutePhase.RETRY)
@@ -134,7 +134,7 @@ def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():
 
 
 def test_character_screen_renders_normal_and_capped_exp_at_supported_widths():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.player_state.exp_state.current = 40
     normal = OverworldPresenter().build(
         game,
@@ -248,16 +248,16 @@ def test_each_overworld_screen_has_distinct_structured_regions(
 
 
 def test_item_screen_uses_authored_labels_and_hides_internal_selection_keys():
-    view = create_view(OverworldScreen.ITEMS, RogueArcher)
+    view = create_view(OverworldScreen.ITEMS, "zhaivra")
     selected_key = view.inventory.items[0].selection_key
     selected = create_view(
         OverworldScreen.ITEMS,
-        RogueArcher,
+        "zhaivra",
         selected_item_key=selected_key,
     )
     inspection = create_view(
         OverworldScreen.ITEM_INSPECT,
-        RogueArcher,
+        "zhaivra",
         selected_item_key=selected_key,
     )
 
@@ -386,7 +386,7 @@ def test_every_screen_respects_a_terminal_width_below_thirty(screen):
 
 
 def test_character_screen_renders_exact_nondefault_hp_mana_and_super_resources():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.player_state.health.take_damage(9)
     assert game.player_state.mana_resource.spend(4) is True
     game.player_state.super_resource.gain(41)
@@ -403,7 +403,7 @@ def test_character_screen_renders_exact_nondefault_hp_mana_and_super_resources()
 
 
 def test_map_renders_current_completed_and_remaining_markers_exactly():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.world_state.mark_encounter_defeated("surface_goblin_solo")
     game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
     view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
@@ -434,7 +434,7 @@ def test_main_accepts_only_each_displayed_mnemonic(key, action):
 
 
 def test_retry_mnemonic_is_available_only_when_retry_is_offered():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.overworld_state.set_contextual_route_phase(ContextualRoutePhase.RETRY)
     retry = OverworldPresenter().build(game)
 
@@ -448,7 +448,7 @@ def test_retry_mnemonic_is_available_only_when_retry_is_offered():
 
 
 def test_encounter_mnemonic_is_rejected_when_no_contextual_action_is_offered():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
     paused = OverworldPresenter().build(game)
 
@@ -498,7 +498,7 @@ def test_skills_numeric_input_translates_to_canonical_stat_and_disables_without_
 
 
 def test_skills_numeric_input_exposes_enabled_stat_increase():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.player_state.gain_experience(100)
     view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
 
@@ -509,7 +509,7 @@ def test_skills_numeric_input_exposes_enabled_stat_increase():
 
 
 def test_skills_render_maximum_and_enabled_controls():
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     game.player_state.gain_experience(100)
     game.player_state.character.permanent_stats.set_stat("strength", 100)
     view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
@@ -523,7 +523,7 @@ def test_skills_render_maximum_and_enabled_controls():
 
 
 def test_item_number_selects_the_item_without_exposing_its_key():
-    view = create_view(OverworldScreen.ITEMS, RogueArcher)
+    view = create_view(OverworldScreen.ITEMS, "zhaivra")
 
     result, output = read(view, ["1"])
 
@@ -533,7 +533,7 @@ def test_item_number_selects_the_item_without_exposing_its_key():
 
 
 def test_item_display_name_is_not_a_hidden_selection_alias():
-    view = create_view(OverworldScreen.ITEMS, RogueArcher)
+    view = create_view(OverworldScreen.ITEMS, "zhaivra")
 
     result, output = read(view, ["Ember Shard", "1"])
 

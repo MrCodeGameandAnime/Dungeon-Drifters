@@ -2,8 +2,8 @@ import json
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value, validate_plain_value
 
@@ -14,7 +14,7 @@ def assert_strict_json(snapshot):
 
 
 def create_populated_game_state():
-    player_state = PlayerState(Brawler(), gold=12)
+    player_state = PlayerState(create_drifter("branoc"), gold=12)
     game_state = GameState(player_state)
 
     game_state.set_metadata("run_id", "test-run")

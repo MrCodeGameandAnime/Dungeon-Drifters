@@ -1,12 +1,12 @@
 from dataclasses import replace
 
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.frost import FROST_ATTACK_MECHANIC
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
 from app.combat.resolver import CombatResolver
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage
 from app.player.player_state import PlayerState
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_models import InteractionPhase
@@ -23,7 +23,7 @@ class ScriptedRng:
 
 
 def _combatants(target_hp=200):
-    actor = PlayerState(BlackMage())
+    actor = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     target.health.set_maximum(target_hp)
     target.health.current = target_hp

@@ -1,6 +1,7 @@
 import inspect
 
 import app.combat.resolver as resolver_module
+from app.content.catalog import create_drifter
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.combat_state import CombatState
 from app.combat.move import (
@@ -15,7 +16,6 @@ from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeTarget, CombatOutcomeType
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
     CharacterRunState,
@@ -72,7 +72,7 @@ def _prepare_poison_infusion(run_state):
 def test_authored_infused_barb_contract_preserves_existing_combat_values():
     move = next(
         move
-        for move in PlayerState(RogueArcher()).combat_moves
+        for move in PlayerState(create_drifter("zhaivra")).combat_moves
         if move.mechanic == INFUSED_BARB_MECHANIC
     )
 
@@ -91,7 +91,7 @@ def test_authored_infused_barb_contract_preserves_existing_combat_values():
 
 
 def test_unprepared_infused_barb_is_rejected_before_mana_rng_or_state_mutation():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = actor.character_run_state
@@ -118,7 +118,7 @@ def test_unprepared_infused_barb_is_rejected_before_mana_rng_or_state_mutation()
 
 
 def test_unaffordable_infused_barb_preserves_prepared_payload_and_uses_no_rng():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
@@ -141,7 +141,7 @@ def test_unaffordable_infused_barb_preserves_prepared_payload_and_uses_no_rng():
 
 
 def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
@@ -176,7 +176,7 @@ def test_invalid_target_state_and_run_state_preserve_payload_and_mana():
 
 
 def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     other_target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
@@ -216,7 +216,7 @@ def test_accepted_hit_spends_mana_consumes_payload_and_applies_exact_target_burn
 
 
 def test_accepted_hit_routes_poison_infusion_to_standard_poison():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_poison_infusion(actor.character_run_state)
@@ -243,7 +243,7 @@ def test_accepted_hit_routes_poison_infusion_to_standard_poison():
 
 
 def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     run_state = _prepare_fire_infusion(actor.character_run_state)
@@ -275,7 +275,7 @@ def test_accepted_miss_spends_mana_and_payload_without_applying_burn():
 
 
 def test_direct_defeat_consumes_payload_without_creating_dead_target_burn():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     target.health.take_damage(target.health.current - 1)
     combat_state = CombatState()
@@ -299,7 +299,7 @@ def test_direct_defeat_consumes_payload_without_creating_dead_target_burn():
 
 
 def test_landed_hit_refreshes_existing_burn_after_payload_consumption():
-    actor = PlayerState(RogueArcher())
+    actor = PlayerState(create_drifter("zhaivra"))
     target = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     combat_state.apply_burn(actor, target)
@@ -323,7 +323,7 @@ def test_landed_hit_refreshes_existing_burn_after_payload_consumption():
 
 
 def test_mechanic_marker_not_move_or_character_name_controls_integration():
-    actor = PlayerState(Brawler())
+    actor = PlayerState(create_drifter("branoc"))
     move = Move(
         name="Prepared Shot",
         kind=MoveKind.DAMAGE,
@@ -358,7 +358,7 @@ def test_mechanic_marker_not_move_or_character_name_controls_integration():
 
 
 def test_infused_barb_marker_is_rejected_on_non_damage_moves_without_consumption():
-    actor = PlayerState(Brawler())
+    actor = PlayerState(create_drifter("branoc"))
     move = Move(
         name="Prepared Recovery",
         kind=MoveKind.HEALING,

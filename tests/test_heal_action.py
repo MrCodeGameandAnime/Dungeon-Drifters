@@ -1,12 +1,12 @@
 import pytest
 
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
@@ -67,8 +67,8 @@ class HealingGoblinUI:
         return ChooseMove(move.selection_key)
 
 
-def _damaged_player(character_type=Brawler, amount=20):
-    player = PlayerState(character_type())
+def _damaged_player(drifter_id="branoc", amount=20):
+    player = PlayerState(create_drifter(drifter_id))
     player.health.take_damage(amount)
     return player
 
@@ -134,7 +134,7 @@ def test_heal_starts_three_action_cooldown_without_reducing_itself():
 
 
 def test_full_health_and_cooldown_heals_are_rejected_without_mutation():
-    full_actor = PlayerState(Brawler())
+    full_actor = PlayerState(create_drifter("branoc"))
     full_state = CombatState()
     full_rng = FixedRng()
 
@@ -346,9 +346,9 @@ def test_terminal_renders_heal_availability_and_actual_recovery_event():
     assert "Brawler used Heal. It restored 5 health." in rendered
 
 
-@pytest.mark.parametrize("character_type", (Brawler, BlackMage, RogueArcher, Monk))
-def test_all_drifters_can_use_universal_heal(character_type):
-    player = _damaged_player(character_type)
+@pytest.mark.parametrize("drifter_id", ("branoc", "azhvielle", "zhaivra", "joruun"))
+def test_all_drifters_can_use_universal_heal(drifter_id):
+    player = _damaged_player(drifter_id)
     battle = Battle(
         player,
         _enemy(),
@@ -362,11 +362,11 @@ def test_all_drifters_can_use_universal_heal(character_type):
     assert battle.combat_state.heal_cooldown_remaining(player) == 3
 
 
-@pytest.mark.parametrize("character_type", (Brawler, BlackMage, RogueArcher, Monk))
-def test_all_drifters_can_complete_goblin_battle_with_heal(monkeypatch, character_type):
+@pytest.mark.parametrize("drifter_id", ("branoc", "azhvielle", "zhaivra", "joruun"))
+def test_all_drifters_can_complete_goblin_battle_with_heal(monkeypatch, drifter_id):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(character_type())
+    player = PlayerState(create_drifter(drifter_id))
     battle = Battle(
         player,
         _enemy(),

@@ -8,12 +8,12 @@ from app.content.catalog import (
     _build_weapon_catalog,
     create_weapon,
     create_weapon_from_persistence_key,
+    get_drifter_spec,
     get_weapon_spec,
     get_weapon_spec_by_persistence_key,
 )
 from app.content.weapon_spec import WeaponSpec
 from app.items.weapon import Weapon
-from app.player.loadouts import azhvielle, branoc, joruun, zhaivra
 from tools.generate_content_catalog import discover_weapon_ids
 
 
@@ -141,20 +141,20 @@ def test_every_catalog_factory_returns_fresh_canonical_weapons(expected):
 
 
 @pytest.mark.parametrize(
-    "loadout,item_id,persistence_key",
+    "drifter_id,item_id,persistence_key",
     (
-        (branoc, "sunder_spire", "SunderSpire"),
-        (azhvielle, "needle_of_plain_iron", "NeedleOfPlainIron"),
-        (zhaivra, "sathren", "Sathren"),
-        (joruun, "sky_needle", "SkyNeedle"),
+        ("branoc", "sunder_spire", "SunderSpire"),
+        ("azhvielle", "needle_of_plain_iron", "NeedleOfPlainIron"),
+        ("zhaivra", "sathren", "Sathren"),
+        ("joruun", "sky_needle", "SkyNeedle"),
     ),
 )
-def test_every_loadout_factory_returns_a_fresh_signature_weapon(
-        loadout,
+def test_every_drifter_factory_returns_a_fresh_signature_weapon(
+        drifter_id,
         item_id,
         persistence_key):
-    first = loadout.create_starting_weapon()
-    second = loadout.create_starting_weapon()
+    first = get_drifter_spec(drifter_id).create_character().starting_equipment["weapon"]
+    second = get_drifter_spec(drifter_id).create_character().starting_equipment["weapon"]
 
     assert first is not second
     assert first.item_id == second.item_id == item_id

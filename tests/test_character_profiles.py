@@ -1,4 +1,3 @@
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.world.character_profiles.profile import render_compact_profile, render_full_profile
 from app.world.character_profiles.roster import (
     get_character_profiles,
@@ -25,13 +24,11 @@ def test_choice_lookup_returns_canonical_profile_objects():
     assert get_profile_by_choice("5") is None
 
 
-def test_each_profile_creates_expected_character_class():
-    expected_classes = (Brawler, BlackMage, RogueArcher, Monk)
-
-    for profile, expected_class in zip(get_character_profiles(), expected_classes):
+def test_each_profile_creates_a_canonical_generic_character():
+    for profile in get_character_profiles():
         character = profile.create_character()
 
-        assert isinstance(character, expected_class)
+        assert type(character) is Character
         assert character.profile is profile
         assert character.name == character.archetype_name
         assert character.display_name == profile.short_name
@@ -146,3 +143,4 @@ def test_full_profile_includes_representative_profile_anchors():
         assert anchor in rendered_profiles
 
     assert "**" not in rendered_profiles
+from app.player.character import Character

@@ -4,13 +4,13 @@ import inspect
 import pytest
 
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.move import TargetType
 from app.combat.resolver import CombatResolver
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
     PreparedPayloadId,
@@ -25,7 +25,7 @@ from app.presentation.battle_presenter import BattlePresenter
 from app.ui.battle_ui import ChooseAction, ChooseMove
 
 
-DRIFTER_TYPES = (Brawler, BlackMage, RogueArcher, Monk)
+DRIFTER_IDS = ("branoc", "azhvielle", "zhaivra", "joruun")
 
 
 class AlwaysOneRng:
@@ -55,9 +55,9 @@ class AggressiveScriptedUI:
         return ChooseMove(enabled_moves[-1].selection_key)
 
 
-@pytest.mark.parametrize("character_type", DRIFTER_TYPES)
-def test_every_drifter_move_is_presented_and_resolver_compatible(character_type):
-    player = PlayerState(character_type())
+@pytest.mark.parametrize("drifter_id", DRIFTER_IDS)
+def test_every_drifter_move_is_presented_and_resolver_compatible(drifter_id):
+    player = PlayerState(create_drifter(drifter_id))
     enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     presenter = BattlePresenter()
@@ -82,7 +82,7 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
     assert presented_names == {move.name for move in player.combat_moves}
 
     for authored_move in player.combat_moves:
-        actor = PlayerState(character_type())
+        actor = PlayerState(create_drifter(drifter_id))
         target = EnemyState(create_enemy_definition("goblin"))
         actor.super_resource.gain(actor.super_resource.maximum)
         if authored_move.mechanic == "infused_barb":
@@ -100,22 +100,22 @@ def test_every_drifter_move_is_presented_and_resolver_compatible(character_type)
         )
 
         assert result.accepted is True, (
-            character_type.__name__,
+            drifter_id,
             authored_move.name,
             result.reason,
         )
 
 
-@pytest.mark.parametrize("character_type", DRIFTER_TYPES)
+@pytest.mark.parametrize("drifter_id", DRIFTER_IDS)
 def test_every_drifter_completes_deterministic_goblin_vertical_slice(
-    character_type,
+    drifter_id,
     monkeypatch,
 ):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     ui = AggressiveScriptedUI()
     battle = Battle(
-        PlayerState(character_type()),
+        PlayerState(create_drifter(drifter_id)),
         EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         resolver=CombatResolver(rng=AlwaysOneRng()),
@@ -144,7 +144,7 @@ def test_battle_source_has_no_direct_terminal_io_or_adapter_dependency():
 
 
 def test_presenter_observation_does_not_change_combat_resources():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     combat_state.activate_brace(player)

@@ -6,9 +6,8 @@ from app.combat.combat_state import CombatState
 from app.combat.move import ResourceType
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
-from app.content.catalog import create_enemy_definition
+from app.content.catalog import create_drifter, create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 
 
@@ -26,8 +25,8 @@ def _outcome_types(result):
     return tuple(outcome.outcome_type for outcome in result.outcomes)
 
 
-def _player(character_type):
-    return PlayerState(character_type())
+def _player(drifter_id):
+    return PlayerState(create_drifter(drifter_id))
 
 
 def _enemy():
@@ -35,7 +34,7 @@ def _enemy():
 
 
 def test_branoc_complete_brace_loop_is_durable_and_single_use():
-    actor = _player(Brawler)
+    actor = _player("branoc")
     target = _enemy()
     state = CombatState()
     resolver = CombatResolver(rng=ScriptedRng(1, 100, 1, 100))
@@ -47,7 +46,7 @@ def test_branoc_complete_brace_loop_is_durable_and_single_use():
     assert state.brace_follow_up_damage_bonus_percent(actor, "heavy_attack") == 30
 
     incoming = resolver.resolve_move(
-        _player(Brawler),
+        _player("branoc"),
         actor,
         "Crestgrave Reaping",
         combat_state=state,
@@ -74,7 +73,7 @@ def test_branoc_complete_brace_loop_is_durable_and_single_use():
     ),
 )
 def test_azhvielle_gravemantle_clean_and_miss_paths(rolls, expected_break):
-    actor = _player(BlackMage)
+    actor = _player("azhvielle")
     target = _enemy()
     state = CombatState()
 
@@ -104,7 +103,7 @@ def test_azhvielle_gravemantle_clean_and_miss_paths(rolls, expected_break):
 
 
 def test_azhvielle_backlash_is_real_risk_and_surviving_charge_is_unstable():
-    actor = _player(BlackMage)
+    actor = _player("azhvielle")
     target = _enemy()
     state = CombatState()
 
@@ -124,7 +123,7 @@ def test_azhvielle_backlash_is_real_risk_and_surviving_charge_is_unstable():
 
 
 def test_azhvielle_accepted_discharge_miss_consumes_all_held_state():
-    actor = _player(BlackMage)
+    actor = _player("azhvielle")
     target = _enemy()
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=target)
@@ -150,9 +149,9 @@ def test_azhvielle_accepted_discharge_miss_consumes_all_held_state():
 
 
 def test_azhvielle_instability_only_changes_physical_incoming_damage():
-    attacker = _player(Brawler)
-    unstable = _player(BlackMage)
-    baseline = _player(BlackMage)
+    attacker = _player("branoc")
+    unstable = _player("azhvielle")
+    baseline = _player("azhvielle")
     unstable_state = CombatState()
     unstable_state.activate_arcane_overcharge(unstable)
     unstable_state.activate_arcane_instability(unstable)
@@ -164,7 +163,7 @@ def test_azhvielle_instability_only_changes_physical_incoming_damage():
         combat_state=unstable_state,
     )
     physical_baseline = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
-        _player(Brawler),
+        _player("branoc"),
         baseline,
         "Crestgrave Reaping",
         combat_state=CombatState(),
@@ -175,19 +174,19 @@ def test_azhvielle_instability_only_changes_physical_incoming_damage():
 
 
 @pytest.mark.parametrize(
-    ("character_type", "required_moves"),
+    ("drifter_id", "required_moves"),
     (
-        (Brawler, {"Brace", "Ironwake Dismemberment"}),
-        (BlackMage, {"Gravemantle Rupture", "Scepter Sweep"}),
-        (RogueArcher, {"Infused Barb"}),
-        (Monk, {"Hydro Whip", "Tempest Surge", "Lightning Palm"}),
+        ("branoc", {"Brace", "Ironwake Dismemberment"}),
+        ("azhvielle", {"Gravemantle Rupture", "Scepter Sweep"}),
+        ("zhaivra", {"Infused Barb"}),
+        ("joruun", {"Hydro Whip", "Tempest Surge", "Lightning Palm"}),
     ),
 )
 def test_m9e_authored_identity_moves_remain_in_the_live_roster(
-    character_type,
+    drifter_id,
     required_moves,
 ):
-    player = _player(character_type)
+    player = _player(drifter_id)
     authored_names = {move.name for move in player.combat_moves}
 
     assert required_moves <= authored_names

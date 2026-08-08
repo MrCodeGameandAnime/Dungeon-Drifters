@@ -1,12 +1,12 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.game.encounter_manifest import (
     SURFACE_ROUTE_MANIFEST,
     create_route_encounter_enemies,
 )
 from app.game.game_state import GameState
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 
 
@@ -91,7 +91,7 @@ def test_duplicate_enemies_own_independent_runtime_resources(node_id):
 
 
 def test_duplicate_enemies_remain_identity_distinct_in_combat_state():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     first, second = create_route_encounter_enemies("surface_goblin_pair")
     combat_state = CombatState()
 
@@ -124,7 +124,7 @@ def test_repeated_creation_never_reuses_runtime_or_resource_objects():
     ),
 )
 def test_non_encounter_creation_fails_before_factory_or_session_mutation(node_id):
-    game = GameState(PlayerState(Brawler()))
+    game = GameState(PlayerState(create_drifter("branoc")))
     before_snapshot = game.snapshot()
     before_manifest = repr(SURFACE_ROUTE_MANIFEST)
     calls = []

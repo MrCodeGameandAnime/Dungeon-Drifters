@@ -1,9 +1,9 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler, BlackMage, Monk, RogueArcher
 from app.player.progression import MAXIMUM_LEVEL, xp_required_for_next_level
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction
@@ -71,7 +71,7 @@ def run_rewarded_encounter(game):
 
 
 def test_player_growth_starts_at_zero_and_level_gain_grants_points_and_resources():
-    player = PlayerState(BlackMage())
+    player = PlayerState(create_drifter("azhvielle"))
     player.health.take_damage(7)
     player.mana_resource.spend(8)
 
@@ -86,7 +86,7 @@ def test_player_growth_starts_at_zero_and_level_gain_grants_points_and_resources
 
 
 def test_multiple_level_gain_grants_three_points_per_level():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
 
     assert player.gain_experience(350) == 3
     assert player.level_state.current == 4
@@ -101,7 +101,7 @@ def test_multiple_level_gain_grants_three_points_per_level():
     ("constitution", "spirit", "intelligence", "strength", "dexterity", "intuition"),
 )
 def test_one_growth_point_increases_each_permanent_stat(stat_name):
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     before = player.character.permanent_stats.get_stat(stat_name)
 
@@ -111,7 +111,7 @@ def test_one_growth_point_increases_each_permanent_stat(stat_name):
 
 
 def test_constitution_and_spirit_growth_updates_resources_without_full_refill():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     player.health.take_damage(10)
     player.mana_resource.spend(5)
@@ -129,7 +129,7 @@ def test_constitution_and_spirit_growth_updates_resources_without_full_refill():
 
 
 def test_non_resource_stat_growth_does_not_change_hp_or_mana():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     before = (
         player.health.current,
@@ -149,7 +149,7 @@ def test_non_resource_stat_growth_does_not_change_hp_or_mana():
 
 
 def test_growth_uses_permanent_stat_not_equipped_weapon_bonus():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
 
     assert player.effective_stat("strength") == 18
@@ -160,7 +160,7 @@ def test_growth_uses_permanent_stat_not_equipped_weapon_bonus():
 
 @pytest.mark.parametrize("stat_name", ("invalid", "", None))
 def test_invalid_growth_name_changes_nothing(stat_name):
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     before = player.snapshot()
 
     with pytest.raises((TypeError, ValueError)):
@@ -170,7 +170,7 @@ def test_invalid_growth_name_changes_nothing(stat_name):
 
 
 def test_growth_without_points_and_at_stat_cap_changes_nothing():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     before = player.snapshot()
 
     with pytest.raises(ValueError, match="no Growth Points"):
@@ -186,7 +186,7 @@ def test_growth_without_points_and_at_stat_cap_changes_nothing():
 
 
 def test_growth_points_are_present_in_defensive_snapshot():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.gain_experience(100)
     player.increase_permanent_stat("constitution")
 
@@ -205,7 +205,7 @@ def test_encounter_reward_validates_all_values_before_mutation(
     exp_reward,
     gold_reward,
 ):
-    player = PlayerState(Brawler(), gold=7)
+    player = PlayerState(create_drifter("branoc"), gold=7)
     before = player.snapshot()
 
     with pytest.raises((TypeError, ValueError)):
@@ -215,7 +215,7 @@ def test_encounter_reward_validates_all_values_before_mutation(
 
 
 def test_encounter_reward_applies_gold_and_growth_atomically():
-    player = PlayerState(Brawler(), gold=7)
+    player = PlayerState(create_drifter("branoc"), gold=7)
     player.health.take_damage(10)
     player.mana_resource.spend(5)
 
@@ -231,7 +231,7 @@ def test_encounter_reward_applies_gold_and_growth_atomically():
 
 
 def test_surface_route_rewards_match_the_locked_cumulative_progression():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     expected = (
         ("surface_goblin_solo", 1, 40, 116, 46, 0, 3),
@@ -270,7 +270,7 @@ def test_surface_route_rewards_match_the_locked_cumulative_progression():
 
 
 def test_player_growth_reaches_cap_and_discards_excess_without_more_points():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.level_state.current = MAXIMUM_LEVEL - 1
     amount = xp_required_for_next_level(MAXIMUM_LEVEL - 1) + 999
 
@@ -285,7 +285,7 @@ def test_player_growth_reaches_cap_and_discards_excess_without_more_points():
 
 
 def test_level_one_to_cap_grants_exact_lifetime_growth_points():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     total_exp = sum(
         xp_required_for_next_level(level)
         for level in range(1, MAXIMUM_LEVEL)
@@ -299,10 +299,10 @@ def test_level_one_to_cap_grants_exact_lifetime_growth_points():
 
 def test_growth_points_remain_isolated_across_four_drifter_sessions():
     players = (
-        PlayerState(Brawler()),
-        PlayerState(BlackMage()),
-        PlayerState(RogueArcher()),
-        PlayerState(Monk()),
+        PlayerState(create_drifter("branoc")),
+        PlayerState(create_drifter("azhvielle")),
+        PlayerState(create_drifter("zhaivra")),
+        PlayerState(create_drifter("joruun")),
     )
 
     players[0].gain_experience(100)

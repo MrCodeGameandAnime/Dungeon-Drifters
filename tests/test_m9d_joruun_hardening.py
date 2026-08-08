@@ -1,6 +1,7 @@
 import pytest
 
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.result import CombatOutcomeType
@@ -8,7 +9,6 @@ from app.combat.resolver import CombatResolver
 from app.combat.status_state import StatusKind
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Monk
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, InteractionPhase
 from app.presentation.battle_session import BattlePresentationSession
@@ -116,7 +116,7 @@ def _outcome_types(entries):
 def test_deterministic_joruun_goblin_routes(monkeypatch, route, expected, forbidden):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(Monk())
+    player = PlayerState(create_drifter("joruun"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     ui = JoruunRouteUI(route)
     session = RecordingPresentationSession()
@@ -143,7 +143,7 @@ def test_deterministic_joruun_goblin_routes(monkeypatch, route, expected, forbid
 def test_lightning_storm_is_recorded_as_primary_action_not_a_new_move_slot(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(Monk())
+    player = PlayerState(create_drifter("joruun"))
     session = RecordingPresentationSession()
     battle = Battle(
         player,
@@ -161,7 +161,7 @@ def test_lightning_storm_is_recorded_as_primary_action_not_a_new_move_slot(monke
 
 
 def test_storm_statuses_coexist_with_burn_and_poison_without_changing_ticks():
-    source = PlayerState(Monk())
+    source = PlayerState(create_drifter("joruun"))
     target = EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.apply_burn(source, target)
@@ -186,7 +186,7 @@ def test_storm_statuses_coexist_with_burn_and_poison_without_changing_ticks():
 
 
 def test_defeated_source_clears_linked_storm_statuses_without_expiration_noise():
-    source = PlayerState(Monk())
+    source = PlayerState(create_drifter("joruun"))
     target = EnemyState(create_enemy_definition("goblin"))
     state = CombatState()
     state.apply_conductive(source, target)
@@ -201,7 +201,7 @@ def test_defeated_source_clears_linked_storm_statuses_without_expiration_noise()
 
 
 def test_new_encounter_has_no_storm_status_leakage():
-    source = PlayerState(Monk())
+    source = PlayerState(create_drifter("joruun"))
     first_target = EnemyState(create_enemy_definition("goblin"))
     first = CombatState()
     first.apply_conductive(source, first_target)
@@ -240,7 +240,7 @@ def test_terminal_adapter_goblin_routes(monkeypatch, setup_inputs, expected_text
         interactive=False,
     )
     battle = Battle(
-        PlayerState(Monk()),
+        PlayerState(create_drifter("joruun")),
         EnemyState(create_enemy_definition("goblin")),
         ui=ui,
         resolver=CombatResolver(rng=AlwaysOneRng()),

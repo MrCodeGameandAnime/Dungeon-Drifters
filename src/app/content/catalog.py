@@ -2,7 +2,12 @@
 
 from types import MappingProxyType
 
-from app.content._generated_catalog import GENERATED_ENEMY_SPECS, GENERATED_WEAPON_SPECS
+from app.content._generated_catalog import (
+    GENERATED_DRIFTER_SPECS,
+    GENERATED_ENEMY_SPECS,
+    GENERATED_WEAPON_SPECS,
+)
+from app.content.drifter_spec import DrifterSpec
 from app.content.enemy_spec import EnemySpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
@@ -67,6 +72,34 @@ WEAPON_SPECS, _WEAPON_CATALOG, _WEAPON_PERSISTENCE_CATALOG = (
 )
 
 
+def _build_drifter_catalog(records):
+    by_id = {}
+    by_choice = {}
+    for directory_id, spec in records:
+        if not isinstance(directory_id, str):
+            raise TypeError("generated Drifter directory IDs must be strings")
+        if not isinstance(spec, DrifterSpec):
+            raise TypeError("generated Drifter records must contain DrifterSpec values")
+        if directory_id != spec.drifter_id:
+            raise ValueError(
+                "Drifter directory ID does not match authored Drifter ID: "
+                f"{directory_id} != {spec.drifter_id}"
+            )
+        if spec.drifter_id in by_id:
+            raise ValueError(f"duplicate Drifter ID: {spec.drifter_id}")
+        if spec.choice in by_choice:
+            raise ValueError(f"duplicate Drifter choice: {spec.choice}")
+        by_id[spec.drifter_id] = spec
+        by_choice[spec.choice] = spec
+    ordered = tuple(sorted(by_id.values(), key=lambda spec: int(spec.choice)))
+    return ordered, MappingProxyType(by_id), MappingProxyType(by_choice)
+
+
+DRIFTER_SPECS, _DRIFTER_CATALOG, _DRIFTER_CHOICE_CATALOG = (
+    _build_drifter_catalog(GENERATED_DRIFTER_SPECS)
+)
+
+
 def get_enemy_spec(archetype_id):
     try:
         return _ENEMY_CATALOG[archetype_id]
@@ -108,14 +141,36 @@ def create_weapon_from_persistence_key(persistence_key):
     return get_weapon_spec_by_persistence_key(persistence_key).create_weapon()
 
 
+def get_drifter_spec(drifter_id):
+    try:
+        return _DRIFTER_CATALOG[drifter_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown Drifter ID: {drifter_id}") from error
+
+
+def get_drifter_spec_by_choice(choice):
+    try:
+        return _DRIFTER_CHOICE_CATALOG[choice]
+    except (KeyError, TypeError):
+        return None
+
+
+def create_drifter(drifter_id):
+    return get_drifter_spec(drifter_id).create_unselected_character()
+
+
 __all__ = [
     "ENEMY_SPECS",
+    "DRIFTER_SPECS",
     "WEAPON_SPECS",
     "create_enemy_definition",
     "create_enemy_state",
+    "create_drifter",
     "create_weapon",
     "create_weapon_from_persistence_key",
     "get_enemy_spec",
+    "get_drifter_spec",
+    "get_drifter_spec_by_choice",
     "get_weapon_spec",
     "get_weapon_spec_by_persistence_key",
 ]

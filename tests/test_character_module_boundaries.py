@@ -2,20 +2,13 @@ from pathlib import Path
 
 import app.player.character as character_module
 from app.combat.move import Move
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
+from app.content.catalog import DRIFTER_SPECS, create_drifter
 from app.player.progression import Exp, Level
 from app.player.resources import Health, Mana, Super
 from app.player.stats import PermanentStats, Stats
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-PLAYABLE_CLASSES = [
-    Brawler,
-    BlackMage,
-    RogueArcher,
-    Monk,
-]
 
 EXTRACTED_NAMES = {
     "Move",
@@ -49,8 +42,8 @@ def test_character_module_does_not_reexport_extracted_support_classes():
 
 
 def test_archetypes_use_canonical_support_objects():
-    for class_type in PLAYABLE_CLASSES:
-        player = class_type()
+    for spec in DRIFTER_SPECS:
+        player = create_drifter(spec.drifter_id)
 
         assert isinstance(player.stats, Stats)
         assert isinstance(player.permanent_stats, PermanentStats)
@@ -68,12 +61,9 @@ def test_support_modules_do_not_import_character_runtime():
     assert "app.player.character" not in read_source("app/player/stats.py")
 
 
-def test_loadouts_do_not_import_character_or_profile_modules():
-    for path in [
-            "app/player/loadouts/branoc.py",
-            "app/player/loadouts/azhvielle.py",
-            "app/player/loadouts/zhaivra.py",
-            "app/player/loadouts/joruun.py"]:
+def test_authored_drifter_modules_do_not_import_runtime_or_profile_modules():
+    for spec in DRIFTER_SPECS:
+        path = f"app/content/drifters/{spec.drifter_id}/drifter.py"
         source = read_source(path)
 
         assert "app.player.character" not in source
@@ -81,9 +71,9 @@ def test_loadouts_do_not_import_character_or_profile_modules():
 
 
 def test_archetype_instances_do_not_share_mutable_runtime_containers():
-    for class_type in PLAYABLE_CLASSES:
-        first = class_type()
-        second = class_type()
+    for spec in DRIFTER_SPECS:
+        first = create_drifter(spec.drifter_id)
+        second = create_drifter(spec.drifter_id)
 
         assert first.moves == second.moves
         assert first.moves is not second.moves

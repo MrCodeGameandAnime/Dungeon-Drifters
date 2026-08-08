@@ -1,30 +1,20 @@
 """Canonical playable character profile roster."""
 
-from app.world.character_profiles.azhvielle import PROFILE as AZHVIELLE_PROFILE
-from app.world.character_profiles.branoc import PROFILE as BRANOC_PROFILE
-from app.world.character_profiles.joruun import PROFILE as JORUUN_PROFILE
-from app.world.character_profiles.profile import CharacterProfile, render_roster
-from app.world.character_profiles.zhaivra import PROFILE as ZHAIVRA_PROFILE
+from app.content.catalog import DRIFTER_SPECS, get_drifter_spec_by_choice
+from app.content.drifter_spec import DrifterSpec
+from app.world.character_profiles.profile import render_roster
 
 
-CHARACTER_PROFILES: tuple[CharacterProfile, ...] = (
-    BRANOC_PROFILE,
-    AZHVIELLE_PROFILE,
-    ZHAIVRA_PROFILE,
-    JORUUN_PROFILE,
-)
-
-_PROFILES_BY_CHOICE = {profile.choice: profile for profile in CHARACTER_PROFILES}
+CHARACTER_PROFILES: tuple[DrifterSpec, ...] = DRIFTER_SPECS
 
 
-def get_character_profiles() -> tuple[CharacterProfile, ...]:
+def get_character_profiles() -> tuple[DrifterSpec, ...]:
     return CHARACTER_PROFILES
 
 
-def get_profile_by_choice(choice: str) -> CharacterProfile | None:
-    return _PROFILES_BY_CHOICE.get(choice)
+def get_profile_by_choice(choice: str) -> DrifterSpec | None:
+    return get_drifter_spec_by_choice(choice)
 
 
 def render_character_roster() -> str:
     return render_roster(CHARACTER_PROFILES)
-

@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.brace import BRACE_RULES
 from app.combat.resolver import CombatResolver
@@ -10,7 +11,6 @@ from app.enemies.factory import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.save_repository import SaveRepository
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
@@ -201,20 +201,20 @@ class DeterministicBattleFactory:
 
 
 @pytest.mark.parametrize(
-    ("character_type", "rest_actions"),
+    ("drifter_id", "rest_actions"),
     (
-        (Brawler, (OverworldAction.REST,) * 3),
-        (BlackMage, (OverworldAction.SKIP_REST,) * 3),
-        (RogueArcher, (OverworldAction.REST, OverworldAction.SKIP_REST, OverworldAction.REST)),
-        (Monk, (OverworldAction.SKIP_REST, OverworldAction.REST, OverworldAction.SKIP_REST)),
+        ("branoc", (OverworldAction.REST,) * 3),
+        ("azhvielle", (OverworldAction.SKIP_REST,) * 3),
+        ("zhaivra", (OverworldAction.REST, OverworldAction.SKIP_REST, OverworldAction.REST)),
+        ("joruun", (OverworldAction.SKIP_REST, OverworldAction.REST, OverworldAction.SKIP_REST)),
     ),
 )
 def test_four_drifters_complete_the_full_surface_route(
-    character_type,
+    drifter_id,
     rest_actions,
     tmp_path,
 ):
-    player = PlayerState(character_type())
+    player = PlayerState(create_drifter(drifter_id))
     character = player.character
     health = player.health
     mana = player.mana_resource
@@ -372,7 +372,7 @@ def test_four_drifters_complete_the_full_surface_route(
 
 
 def test_real_battle_covers_branoc_brace_follow_up():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     enemy = create_enemy_state("goblin")
     rng = SequenceRng(1, 100)
     battle = Battle(
@@ -405,7 +405,7 @@ def test_real_battle_covers_branoc_brace_follow_up():
 
 
 def test_real_battle_covers_azhvielle_break_and_overcharge():
-    player = PlayerState(BlackMage())
+    player = PlayerState(create_drifter("azhvielle"))
     enemy = create_enemy_state("goblin")
     rng = SequenceRng(1, 100)
     battle = Battle(
@@ -425,7 +425,7 @@ def test_real_battle_covers_azhvielle_break_and_overcharge():
 
 
 def test_real_battle_covers_zhaivra_consumed_infusion_and_burn():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     preparation = InventoryActionResolver().resolve(
         "prepare_fire_infusion",
         player.character_run_state,
@@ -450,7 +450,7 @@ def test_real_battle_covers_zhaivra_consumed_infusion_and_burn():
 
 
 def test_real_battle_covers_joruun_target_specific_lightning_storm():
-    player = PlayerState(Monk())
+    player = PlayerState(create_drifter("joruun"))
     first, second = create_enemy_state("goblin"), create_enemy_state("goblin")
     rng = SequenceRng(1, 100, 1, 100, 1, 100)
 
@@ -490,9 +490,9 @@ def test_real_battle_covers_joruun_target_specific_lightning_storm():
     )
 
 
-@pytest.mark.parametrize("character_type", (Brawler, BlackMage, RogueArcher, Monk))
-def test_real_battle_universal_heal_is_available_to_every_drifter(character_type):
-    player = PlayerState(character_type())
+@pytest.mark.parametrize("drifter_id", ("branoc", "azhvielle", "zhaivra", "joruun"))
+def test_real_battle_universal_heal_is_available_to_every_drifter(drifter_id):
+    player = PlayerState(create_drifter(drifter_id))
     player.health.take_damage(10)
     battle = Battle(
         player,
@@ -509,7 +509,7 @@ def test_real_battle_universal_heal_is_available_to_every_drifter(character_type
 
 
 def test_real_battle_universal_rejection_matrix_preserves_turns_and_logs():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     player.mana_resource.spend(player.mana_resource.current)
     battle = Battle(
         player,
@@ -549,7 +549,7 @@ def test_real_battle_universal_rejection_matrix_preserves_turns_and_logs():
         for entry in battle.presentation_session.entries
     )
 
-    insufficient_mana = PlayerState(BlackMage())
+    insufficient_mana = PlayerState(create_drifter("azhvielle"))
     insufficient_mana.mana_resource.spend(insufficient_mana.mana_resource.current)
     mana_battle = Battle(
         insufficient_mana,
@@ -567,7 +567,7 @@ def test_real_battle_universal_rejection_matrix_preserves_turns_and_logs():
     assert insufficient_mana.mana_resource.current == 0
     assert mana_battle.combat_state.turn_count == 1
 
-    super_player = PlayerState(Brawler())
+    super_player = PlayerState(create_drifter("branoc"))
     super_before = super_player.super_resource.current
     super_battle = Battle(
         super_player,
@@ -585,7 +585,7 @@ def test_real_battle_universal_rejection_matrix_preserves_turns_and_logs():
 
 
 def test_real_enemy_phase_skips_dead_enemy_and_simultaneous_death_is_defeat():
-    player = PlayerState(Brawler())
+    player = PlayerState(create_drifter("branoc"))
     first, second = create_enemy_state("goblin"), create_enemy_state("goblin")
     first.health.take_damage(first.health.current)
     rng = SequenceRng(1)
@@ -618,7 +618,7 @@ def test_real_enemy_phase_skips_dead_enemy_and_simultaneous_death_is_defeat():
                 reason=None,
             )
 
-    simultaneous_player = PlayerState(Brawler())
+    simultaneous_player = PlayerState(create_drifter("branoc"))
     simultaneous_enemy = create_enemy_state("goblin")
     simultaneous_battle = Battle(
         simultaneous_player,
@@ -642,7 +642,7 @@ def test_terminal_battle_renders_ordinary_pair_and_boss_without_raw_ids():
     )
     for encounter_label, archetype_ids in cases:
         battle = Battle(
-            PlayerState(Brawler()),
+            PlayerState(create_drifter("branoc")),
             tuple(create_enemy_state(archetype_id) for archetype_id in archetype_ids),
             ui=ScriptedBattleUI(),
             resolver=CombatResolver(rng=SequenceRng(1)),

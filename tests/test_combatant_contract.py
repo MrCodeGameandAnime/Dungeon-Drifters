@@ -1,12 +1,12 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.combatant import Combatant
 from app.combat.move import DamageType
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
 from app.combat.move import Move
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.player.stats import PermanentStats
 
@@ -28,7 +28,7 @@ def inspect_combatant(combatant):
 
 
 def test_player_state_and_enemy_state_satisfy_combatant_contract():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     assert isinstance(player_state, Combatant)
@@ -36,7 +36,7 @@ def test_player_state_and_enemy_state_satisfy_combatant_contract():
 
 
 def test_shared_inspection_works_without_type_branches():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     player_info = inspect_combatant(player_state)
@@ -77,7 +77,7 @@ def test_shared_inspection_works_without_type_branches():
 
 def test_effective_stat_supports_all_six_canonical_stats():
     combatants = (
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
     )
 
@@ -90,7 +90,7 @@ def test_effective_stat_supports_all_six_canonical_stats():
 
 def test_invalid_effective_stat_names_fail_consistently():
     combatants = (
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
     )
 
@@ -100,7 +100,7 @@ def test_invalid_effective_stat_names_fail_consistently():
 
 
 def test_is_alive_delegates_to_health_state():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
 
     player_state.health.take_damage(player_state.health.maximum)

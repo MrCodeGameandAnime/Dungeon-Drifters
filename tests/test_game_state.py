@@ -1,16 +1,16 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_state import OverworldState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 
 
 
 def test_valid_player_state_constructs_game_state():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     game_state = GameState(player_state)
 
     assert game_state.player_state is player_state
@@ -22,13 +22,13 @@ def test_valid_player_state_constructs_game_state():
 
 def test_invalid_player_state_is_rejected():
     with pytest.raises(TypeError):
-        GameState(Brawler())
+        GameState(create_drifter("branoc"))
     with pytest.raises(TypeError):
         GameState(None)
 
 
 def test_ownership_properties_cannot_be_replaced():
-    game_state = GameState(PlayerState(Brawler()))
+    game_state = GameState(PlayerState(create_drifter("branoc")))
 
     with pytest.raises(AttributeError):
         setattr(game_state, "player_state", None)
@@ -43,7 +43,7 @@ def test_ownership_properties_cannot_be_replaced():
 
 
 def test_metadata_snapshot_cannot_mutate_internal_metadata():
-    game_state = GameState(PlayerState(Brawler()))
+    game_state = GameState(PlayerState(create_drifter("branoc")))
     game_state.set_metadata("run_mode", "test")
 
     metadata = game_state.metadata
@@ -54,8 +54,8 @@ def test_metadata_snapshot_cannot_mutate_internal_metadata():
 
 
 def test_game_state_instances_do_not_share_state_containers():
-    first = GameState(PlayerState(Brawler()))
-    second = GameState(PlayerState(Brawler()))
+    first = GameState(PlayerState(create_drifter("branoc")))
+    second = GameState(PlayerState(create_drifter("branoc")))
 
     first.set_metadata("session", "first")
     first.story_state.add_story_flag("met_goblin")

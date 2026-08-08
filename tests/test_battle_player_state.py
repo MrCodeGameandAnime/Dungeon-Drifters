@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle as DomainBattle
 from app.combat.brace import BRACE_RULES
 from app.combat.move import (
@@ -20,7 +21,6 @@ from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType, MoveResult
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, Monk, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
@@ -198,7 +198,7 @@ class ManaBearingEnemyState(EnemyState):
 
 
 def test_inventory_navigation_does_not_mutate_or_advance():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     before = player_state.character_run_state.snapshot()
     ui = ScriptedBattleUI(
         ChooseAction(ActionIntent.ITEMS),
@@ -224,7 +224,7 @@ def test_inventory_navigation_does_not_mutate_or_advance():
 
 
 def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     mana_before = player_state.mana_resource.current
     super_before = player_state.super_resource.current
     ui = ScriptedBattleUI(
@@ -251,7 +251,7 @@ def test_accepted_preparation_consumes_compounds_and_completes_exactly_once():
 
 
 def test_prepared_payload_persists_through_actions_enemy_response_and_encounters():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     resolver = RecordingResolver(
         accepted_result(),
         defend_results=(accepted_result(),),
@@ -306,7 +306,7 @@ class LethalEnemyResolver(RecordingResolver):
 
 
 def test_accepted_preparation_allows_exactly_one_enemy_response():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     resolver = LethalEnemyResolver()
     battle = Battle(
         player_state,
@@ -326,7 +326,7 @@ def test_accepted_preparation_allows_exactly_one_enemy_response():
 
 
 def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     resolver = RecordingResolver()
     battle = Battle(
         player_state,
@@ -358,7 +358,7 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
 
 
 def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     enemy_state.health.take_damage(enemy_state.health.current - 1)
     ui = ScriptedBattleUI()
@@ -388,7 +388,7 @@ def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
 
 
 def test_burn_does_not_tick_during_navigation_or_rejected_action():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     resolver = RecordingResolver(
         accepted_result(),
         defend_results=(rejected_result(),),
@@ -423,7 +423,7 @@ def test_burn_does_not_tick_during_navigation_or_rejected_action():
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
-    character = Brawler()
+    character = create_drifter("branoc")
     player_state = PlayerState(character)
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
@@ -441,7 +441,7 @@ def test_battle_accepts_player_state_and_uses_wrapped_character():
 
 
 def test_battle_creates_combat_resolver_by_default():
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
 
     assert isinstance(battle.resolver, CombatResolver)
     assert isinstance(battle.inventory_action_resolver, InventoryActionResolver)
@@ -449,7 +449,7 @@ def test_battle_creates_combat_resolver_by_default():
 
 def test_battle_accepts_injected_resolver():
     resolver = object()
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")), resolver=resolver)
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")), resolver=resolver)
 
     assert battle.resolver is resolver
 
@@ -461,7 +461,7 @@ def test_battle_accepts_injected_semantic_ui():
     )
     resolver = RecordingResolver(accepted_result())
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -484,7 +484,7 @@ def test_accepted_player_action_replaces_previous_displayed_turn():
     )
     resolver = RecordingResolver(accepted_result())
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -513,7 +513,7 @@ def test_navigation_and_rejected_action_preserve_displayed_turn():
     )
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -547,7 +547,7 @@ def test_accepted_miss_starts_a_new_displayed_turn():
     )
     resolver = RecordingResolver(result_with(hit=False))
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -574,7 +574,7 @@ def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
     )
     resolver = RecordingResolver(defend_results=(accepted_result(),))
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -595,7 +595,7 @@ def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():
     )
     resolver = RecordingResolver(defend_results=(accepted_result(),))
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -613,7 +613,7 @@ def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():
 
 
 def test_super_opens_from_regular_move_phase_without_advancing():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.super_resource.gain(100)
     super_move = player_state.combat_moves[-1]
     ui = ScriptedBattleUI(
@@ -648,7 +648,7 @@ def test_resolver_rejection_retains_move_phase_until_accepted():
     )
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
         resolver=resolver,
         ui=ui,
@@ -666,7 +666,7 @@ def test_resolver_rejection_retains_move_phase_until_accepted():
 
 
 def test_structured_move_helpers_read_player_and_enemy_combat_moves():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
 
@@ -675,7 +675,7 @@ def test_structured_move_helpers_read_player_and_enemy_combat_moves():
 
 
 def test_complete_accepted_action_advances_when_result_is_accepted():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
     battle.combat_state.activate_defend(enemy_state)
@@ -692,7 +692,7 @@ def test_complete_accepted_action_advances_when_result_is_accepted():
 
 
 def test_complete_accepted_action_does_nothing_when_result_is_rejected():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
     battle.combat_state.activate_defend(enemy_state)
@@ -709,7 +709,7 @@ def test_complete_accepted_action_does_nothing_when_result_is_rejected():
 
 
 def test_move_results_become_structured_semantic_events():
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
 
     battle._record_move_result(
         result_with(move_name="Cut", damage=7),
@@ -769,7 +769,7 @@ def test_move_results_become_structured_semantic_events():
 
 
 def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_labels():
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
 
     with patched_battle(inputs=["defend", "attack", "1"]), contextlib.redirect_stdout(output):
@@ -791,7 +791,7 @@ def test_player_main_menu_shows_structured_actions_without_legacy_recover_or_lab
 
 
 def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_descriptions():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
 
@@ -832,7 +832,7 @@ def test_attack_submenu_displays_non_super_structured_moves_with_resources_and_d
 
 
 def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.super_resource.gain(100)
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")), resolver=resolver)
@@ -865,7 +865,7 @@ def test_super_submenu_displays_super_move_separately_and_routes_to_resolver():
 
 
 def test_empty_items_opens_and_returns_without_advancing_until_accepted_action():
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
 
     with patched_battle(inputs=["items", "0", "attack", "1"]), contextlib.redirect_stdout(output):
@@ -879,7 +879,7 @@ def test_empty_items_opens_and_returns_without_advancing_until_accepted_action()
 
 
 def test_player_defend_routes_through_resolver_and_completes_accepted_action():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(defend_results=(accepted_result(),))
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -896,7 +896,7 @@ def test_player_defend_routes_through_resolver_and_completes_accepted_action():
 
 
 def test_player_defend_activates_actor_and_clears_opposing_defend_with_real_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
     battle.combat_state.activate_defend(enemy_state)
@@ -911,7 +911,7 @@ def test_player_defend_activates_actor_and_clears_opposing_defend_with_real_reso
 
 
 def test_rejected_player_defend_reprompts_without_completion_or_turn_advance():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(accepted_result(), defend_results=(rejected_result(),))
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -934,7 +934,7 @@ def test_rejected_player_defend_reprompts_without_completion_or_turn_advance():
 
 
 def test_rejected_player_move_preserves_lifecycle_through_back_navigation():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(rejected_result())
     inputs = [
@@ -963,13 +963,13 @@ def test_rejected_player_move_preserves_lifecycle_through_back_navigation():
 
 
 def test_defend_is_not_a_structured_combat_move():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     assert "Defend" not in [move.name for move in player_state.combat_moves]
 
 
 def test_player_menu_display_does_not_depend_on_legacy_character_moves():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.character.moves = {1: "legacy only"}
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
@@ -983,7 +983,7 @@ def test_player_menu_display_does_not_depend_on_legacy_character_moves():
 
 
 def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.super_resource.gain(100)
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     output = io.StringIO()
@@ -999,7 +999,7 @@ def test_attack_and_super_submenus_support_back_and_reprompt_invalid_input():
 
 
 def test_player_target_helper_uses_move_target_type_and_rejects_unknown_targets():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
 
@@ -1014,7 +1014,7 @@ def test_player_target_helper_uses_move_target_type_and_rejects_unknown_targets(
 
 
 def test_enemy_target_helper_uses_move_target_type_and_rejects_unknown_targets():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
 
@@ -1029,7 +1029,7 @@ def test_enemy_target_helper_uses_move_target_type_and_rejects_unknown_targets()
 
 
 def test_structured_attack_menu_routes_selected_move_through_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -1047,7 +1047,7 @@ def test_structured_attack_menu_routes_selected_move_through_resolver():
 
 
 def test_infused_barb_battle_passes_exact_run_state_without_mutating_payload():
-    player_state = PlayerState(RogueArcher())
+    player_state = PlayerState(create_drifter("zhaivra"))
     InventoryActionResolver().resolve(
         "prepare_fire_infusion",
         player_state.character_run_state,
@@ -1078,7 +1078,7 @@ def test_legacy_battle_combat_helpers_are_removed():
 
 
 def test_self_targeting_player_move_routes_player_state_to_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     self_move = Move(
         name="test self move",
         kind=MoveKind.UTILITY,
@@ -1109,7 +1109,7 @@ def test_self_targeting_player_move_routes_player_state_to_resolver():
 
 
 def test_rejected_player_resolver_result_reprompts_without_completion_until_accepted_action():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(rejected_result(), accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -1132,8 +1132,8 @@ def test_rejected_player_resolver_result_reprompts_without_completion_until_acce
 
 
 def test_battles_do_not_share_combat_state():
-    first_battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
-    second_battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    first_battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
+    second_battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
 
     first_battle.combat_state.advance_turn()
     first_battle.combat_state.apply_burn(
@@ -1149,7 +1149,7 @@ def test_battles_do_not_share_combat_state():
 
 
 def test_battle_view_contains_resources_and_temporary_state_when_relevant():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = ManaBearingEnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
     player_state.mana_resource.spend(2)
@@ -1170,7 +1170,7 @@ def test_battle_view_contains_resources_and_temporary_state_when_relevant():
 
 
 def test_battle_view_omits_enemy_mana_and_super_when_not_relevant():
-    battle = Battle(PlayerState(Brawler()), EnemyState(create_enemy_definition("goblin")))
+    battle = Battle(PlayerState(create_drifter("branoc")), EnemyState(create_enemy_definition("goblin")))
     view = battle._build_view()
 
     assert (view.enemy.hp_current, view.enemy.hp_maximum) == (60, 60)
@@ -1179,7 +1179,7 @@ def test_battle_view_omits_enemy_mana_and_super_when_not_relevant():
 
 
 def test_enemy_action_routes_authored_combat_move_through_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -1196,7 +1196,7 @@ def test_enemy_action_routes_authored_combat_move_through_resolver():
 
 
 def test_enemy_action_uses_combat_moves_not_legacy_moves():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = LegacyMovesFailingEnemyState(create_enemy_definition("goblin"))
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, enemy_state, resolver=resolver)
@@ -1208,7 +1208,7 @@ def test_enemy_action_uses_combat_moves_not_legacy_moves():
 
 
 def test_enemy_action_does_not_use_legacy_misses_damage_or_direct_health_mutation():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")), resolver=resolver)
 
@@ -1220,7 +1220,7 @@ def test_enemy_action_does_not_use_legacy_misses_damage_or_direct_health_mutatio
 
 
 def test_enemy_action_completes_accepted_actions_in_phase_5():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     resolver = RecordingResolver(accepted_result())
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")), resolver=resolver)
     completion_calls = []
@@ -1246,7 +1246,7 @@ def test_enemy_action_completes_accepted_actions_in_phase_5():
 
 
 def test_rejected_enemy_action_does_not_clear_defend_or_advance():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     resolver = RecordingResolver(rejected_result())
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")), resolver=resolver)
     battle.combat_state.activate_defend(player_state)
@@ -1260,7 +1260,7 @@ def test_rejected_enemy_action_does_not_clear_defend_or_advance():
 
 
 def test_run_does_not_advance_turn_outside_accepted_action_completion():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
     battle.foe.health.take_damage(battle.foe.health.maximum - 1)
@@ -1283,7 +1283,7 @@ def test_run_does_not_advance_turn_outside_accepted_action_completion():
 
 
 def test_player_damage_mutates_enemy_state_health_through_resolver():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player_state, enemy_state)
 
@@ -1299,7 +1299,7 @@ def test_player_damage_mutates_enemy_state_health_through_resolver():
 
 
 def test_low_health_enemy_does_not_use_universal_recovery_branch():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     enemy_state = EnemyState(create_enemy_definition("goblin"))
     enemy_state.health.take_damage(45)
     resolver = RecordingResolver(accepted_result())
@@ -1329,7 +1329,7 @@ def test_battle_presentation_uses_canonical_short_identity_when_profile_attached
 
 
 def test_battle_starts_from_existing_persistent_health():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.health.take_damage(10)
     Battle(player_state, EnemyState(create_enemy_definition("goblin")))
 
@@ -1337,7 +1337,7 @@ def test_battle_starts_from_existing_persistent_health():
 
 
 def test_victory_returns_player():
-    player_state = PlayerState(Monk())
+    player_state = PlayerState(create_drifter("joruun"))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     initiative_rolls = 0
 
@@ -1358,7 +1358,7 @@ def test_victory_returns_player():
 
 
 def test_defeat_returns_enemy_and_persists_player_health():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.health.take_damage(player_state.health.maximum - 3)
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
 
@@ -1379,7 +1379,7 @@ def test_defeat_returns_enemy_and_persists_player_health():
 
 
 def test_invalid_player_input_does_not_advance_turn_count_until_accepted_action():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
 
     with patched_battle(inputs=["bad choice", "attack", "1"]), contextlib.redirect_stdout(io.StringIO()):
@@ -1389,7 +1389,7 @@ def test_invalid_player_input_does_not_advance_turn_count_until_accepted_action(
 
 
 def test_completed_actions_advance_turn_count():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     initiative_rolls = 0
 

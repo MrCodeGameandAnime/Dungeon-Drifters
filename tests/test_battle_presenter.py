@@ -1,3 +1,4 @@
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.move import (
@@ -10,7 +11,6 @@ from app.combat.move import (
 )
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.inventory_action import InventoryActionResolver
 from app.player.run_items import InventoryCommand
@@ -26,7 +26,7 @@ from app.presentation.battle_presenter import BattlePresenter
 
 
 def _battle_values(character=None):
-    player = PlayerState(character or Brawler())
+    player = PlayerState(character or create_drifter("branoc"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     return player, enemy, combat_state
@@ -102,7 +102,7 @@ def test_presenter_builds_five_ordinary_action_options():
 
 
 def test_items_action_is_enabled_for_every_empty_personal_inventory():
-    for character in (Brawler(), BlackMage(), Monk()):
+    for character in (create_drifter("branoc"), create_drifter("azhvielle"), create_drifter("joruun")):
         player, enemy, combat_state = _battle_values(character)
         view = BattlePresenter().build(
             player=player,
@@ -115,7 +115,7 @@ def test_items_action_is_enabled_for_every_empty_personal_inventory():
 
 
 def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
-    player, enemy, combat_state = _battle_values(RogueArcher())
+    player, enemy, combat_state = _battle_values(create_drifter("zhaivra"))
     before = player.character_run_state.snapshot()
     presenter = BattlePresenter()
 
@@ -157,7 +157,7 @@ def test_zhaivra_items_open_personal_inventory_without_mutating_run_state():
 
 
 def test_consumed_compounds_leave_unrelated_items_available_without_presenter_mutation():
-    player, enemy, combat_state = _battle_values(RogueArcher())
+    player, enemy, combat_state = _battle_values(create_drifter("zhaivra"))
     InventoryActionResolver().resolve("prepare_fire_infusion", player.character_run_state)
     before = player.character_run_state.snapshot()
 
@@ -179,7 +179,7 @@ def test_consumed_compounds_leave_unrelated_items_available_without_presenter_mu
 
 
 def test_infused_barb_move_readiness_is_dynamic_typed_and_non_consuming():
-    player, enemy, combat_state = _battle_values(RogueArcher())
+    player, enemy, combat_state = _battle_values(create_drifter("zhaivra"))
     presenter = BattlePresenter()
 
     unprepared = presenter.build(
@@ -228,7 +228,7 @@ def test_infused_barb_move_readiness_is_dynamic_typed_and_non_consuming():
 
 
 def test_missing_companion_disables_use_but_keeps_owned_item_visible():
-    character = RogueArcher()
+    character = create_drifter("zhaivra")
     character.starting_run_inventory = {"ember_shard": 1}
     player = PlayerState(character)
     enemy = EnemyState(create_enemy_definition("goblin"))
@@ -317,7 +317,7 @@ def test_presenter_composes_authored_tags_summary_and_resource_labels():
 
 
 def test_generic_move_metadata_has_deterministic_fallback():
-    view, _, _, _ = _build(BlackMage(), InteractionPhase.REGULAR_MOVES)
+    view, _, _, _ = _build(create_drifter("azhvielle"), InteractionPhase.REGULAR_MOVES)
 
     scepter = _move(view, "Scepter Sweep")
     gloamweight = _move(view, "Gloamweight Sepulcher")
@@ -492,7 +492,7 @@ def test_presenter_build_does_not_mutate_domain_state():
 
 
 def test_presenter_observes_burn_without_advancing_or_consuming_it():
-    player, enemy, combat_state = _battle_values(RogueArcher())
+    player, enemy, combat_state = _battle_values(create_drifter("zhaivra"))
     combat_state.apply_burn(player, enemy)
     before_hp = enemy.health.current
     before_status = combat_state.burn_status(enemy)

@@ -2,6 +2,7 @@ import builtins
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.content.catalog import get_weapon_spec
 from app.enemies.factory import create_enemy_state
 from app.game.game_state import GameState
@@ -15,7 +16,6 @@ from app.game.overworld_route import (
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import SaveLoadStatus, SaveRepository
-from app.player.character import Brawler
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -235,7 +235,7 @@ def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path)
     saved = _state_at_node("1", "surface_goblin_pair")
     repository = SaveRepository(tmp_path / "continue.json")
     repository.save(saved)
-    current = GameState(PlayerState(Brawler()))
+    current = GameState(PlayerState(create_drifter("branoc")))
     captured = {}
 
     class ContinuingBattle:

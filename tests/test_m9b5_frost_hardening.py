@@ -1,13 +1,13 @@
 import random
 
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
 from app.combat.result import CombatOutcomeType
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType, InteractionPhase
 from app.presentation.battle_session import BattlePresentationSession
@@ -50,7 +50,7 @@ class AzhvielleFrostUI:
 
 
 def _actors(target_hp=None):
-    actor = PlayerState(BlackMage())
+    actor = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     if target_hp is not None:
         target.health.set_maximum(target_hp)
@@ -64,8 +64,8 @@ def _outcome_types(outcomes):
 
 def test_frozen_refresh_keeps_exactly_one_pending_skip():
     state = CombatState()
-    source = PlayerState(BlackMage())
-    refreshed_source = PlayerState(Brawler())
+    source = PlayerState(create_drifter("azhvielle"))
+    refreshed_source = PlayerState(create_drifter("branoc"))
     target = EnemyState(create_enemy_definition("goblin"))
 
     assert state.apply_frozen(source, target).outcome_type == CombatOutcomeType.FROZEN_APPLIED
@@ -78,7 +78,7 @@ def test_frozen_refresh_keeps_exactly_one_pending_skip():
 
 
 def test_player_frozen_skips_input_resolver_lifecycle_and_turn_advance():
-    player = PlayerState(BlackMage())
+    player = PlayerState(create_drifter("azhvielle"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player, enemy, ui=NoInputUI(), resolver=CombatResolver(rng=FixedRng()))
     battle.combat_state.apply_frozen(enemy, player)
@@ -99,7 +99,7 @@ def test_player_frozen_skips_input_resolver_lifecycle_and_turn_advance():
 
 
 def test_enemy_frozen_skips_resolver_lifecycle_and_turn_advance():
-    player = PlayerState(BlackMage())
+    player = PlayerState(create_drifter("azhvielle"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     battle = Battle(player, enemy, ui=NoInputUI(), resolver=CombatResolver(rng=FixedRng()))
     battle.combat_state.apply_frozen(player, enemy)
@@ -117,7 +117,7 @@ def test_enemy_frozen_skips_resolver_lifecycle_and_turn_advance():
 
 def test_frozen_precedes_stun_then_stun_is_consumed_on_next_opportunity():
     state = CombatState()
-    source = PlayerState(BlackMage())
+    source = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     state.apply_stun(source, target)
     state.apply_frozen(source, target)
@@ -138,7 +138,7 @@ def test_frozen_precedes_stun_then_stun_is_consumed_on_next_opportunity():
 
 def test_frostbite_rebuilds_during_active_frostbite_without_extra_stack():
     state = CombatState()
-    source = PlayerState(BlackMage())
+    source = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     state.apply_frostbite(source, target, damage_per_tick=5, ticks=3)
     state.apply_frost_charge(source, target)
@@ -159,7 +159,7 @@ def test_frostbite_rebuilds_during_active_frostbite_without_extra_stack():
 
 def test_burn_poison_frostbite_tick_order_and_lethal_burn_cleanup():
     state = CombatState()
-    source = PlayerState(BlackMage())
+    source = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     target.health.current = 1
     state.apply_burn(source, target)
@@ -182,7 +182,7 @@ def test_burn_poison_frostbite_tick_order_and_lethal_burn_cleanup():
 
 def test_poison_then_frostbite_order_and_later_tick_cleanup():
     state = CombatState()
-    source = PlayerState(BlackMage())
+    source = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     target.health.current = 8
     state.apply_burn(source, target)
@@ -205,7 +205,7 @@ def test_poison_then_frostbite_order_and_later_tick_cleanup():
 
 def test_lethal_frostbite_clears_all_statuses_without_natural_expiration():
     state = CombatState()
-    source = PlayerState(BlackMage())
+    source = PlayerState(create_drifter("azhvielle"))
     target = EnemyState(create_enemy_definition("goblin"))
     target.health.current = 16
     state.apply_burn(source, target)
@@ -240,8 +240,8 @@ def test_lethal_frostbite_clears_all_statuses_without_natural_expiration():
 
 def test_frost_source_defeat_clears_all_its_frost_effects_only():
     state = CombatState()
-    source_a = PlayerState(BlackMage())
-    source_b = PlayerState(Brawler())
+    source_a = PlayerState(create_drifter("azhvielle"))
+    source_b = PlayerState(create_drifter("branoc"))
     target = EnemyState(create_enemy_definition("goblin"))
     other_target = EnemyState(create_enemy_definition("goblin"))
     state.apply_frost_charge(source_a, target)
@@ -299,7 +299,7 @@ def test_azhvielle_mournglass_goblin_route_remains_playable(monkeypatch):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     battle = Battle(
-        PlayerState(BlackMage()),
+        PlayerState(create_drifter("azhvielle")),
         EnemyState(create_enemy_definition("goblin")),
         ui=AzhvielleFrostUI(),
         resolver=CombatResolver(rng=FixedRng()),

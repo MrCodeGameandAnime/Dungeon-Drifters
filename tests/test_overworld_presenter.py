@@ -1,9 +1,9 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.game.overworld_route import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler, RogueArcher
 from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
 from app.player.run_items import owned_run_item_definitions
@@ -17,8 +17,8 @@ from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
 from app.world.character_profiles.roster import get_character_profiles
 
 
-def create_game(character_type=Brawler):
-    return GameState(PlayerState(character_type()))
+def create_game(drifter_id="branoc"):
+    return GameState(PlayerState(create_drifter(drifter_id)))
 
 
 def option(view, action):
@@ -244,7 +244,7 @@ def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
 
 
 def test_zh_aivra_items_are_selected_and_inspected_without_mutation():
-    game = create_game(RogueArcher)
+    game = create_game("zhaivra")
     presenter = OverworldPresenter()
     before = game.snapshot()
 
@@ -432,7 +432,7 @@ def test_options_and_quit_confirmation_follow_the_approved_hierarchy():
 
 
 def test_presenter_rebuilds_are_pure_and_return_independent_immutable_views():
-    game = create_game(RogueArcher)
+    game = create_game("zhaivra")
     presenter = OverworldPresenter()
     before = game.snapshot()
 
@@ -467,7 +467,7 @@ def test_each_screen_exposes_only_its_approved_screen_specific_model(
     screen,
     populated_field,
 ):
-    game = create_game(RogueArcher)
+    game = create_game("zhaivra")
     selected_key = None
     if screen is OverworldScreen.ITEM_INSPECT:
         items_view = OverworldPresenter().build(
@@ -498,7 +498,7 @@ def test_each_screen_exposes_only_its_approved_screen_specific_model(
 
 def test_all_deferred_and_illegal_presentation_controls_remain_disabled():
     presenter = OverworldPresenter()
-    game = create_game(RogueArcher)
+    game = create_game("zhaivra")
     skills = presenter.build(game, screen=OverworldScreen.SKILLS)
     items = presenter.build(game, screen=OverworldScreen.ITEMS)
     selected = presenter.build(

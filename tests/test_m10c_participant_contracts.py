@@ -3,12 +3,12 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 import app.combat.battle as battle_module
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.resolver import CombatResolver
 from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import EnemyCombatantView
 
@@ -56,7 +56,7 @@ class NoInputUI:
 
 def _battle(enemies, **kwargs):
     return Battle(
-        PlayerState(Brawler()),
+        PlayerState(create_drifter("branoc")),
         enemies,
         ui=NoInputUI(),
         **kwargs,

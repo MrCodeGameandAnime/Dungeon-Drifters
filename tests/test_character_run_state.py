@@ -1,9 +1,9 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
     CharacterRunState,
@@ -23,7 +23,7 @@ class UnusedUI:
 
 
 def test_zhaivra_starts_with_personal_compounds_and_unprepared_payload():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     run_state = player.character_run_state
 
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
@@ -33,9 +33,9 @@ def test_zhaivra_starts_with_personal_compounds_and_unprepared_payload():
     assert run_state.payload_prepared(PreparedPayloadId.INFUSED_BARB) is False
 
 
-@pytest.mark.parametrize("character_type", (Brawler, BlackMage, Monk))
-def test_other_drifters_do_not_receive_zhaivra_run_resources(character_type):
-    run_state = PlayerState(character_type()).character_run_state
+@pytest.mark.parametrize("drifter_id", ("branoc", "azhvielle", "joruun"))
+def test_other_drifters_do_not_receive_zhaivra_run_resources(drifter_id):
+    run_state = PlayerState(create_drifter(drifter_id)).character_run_state
 
     assert run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
     assert run_state.item_quantity(RunItemId.DEEP_COAL) == 0
@@ -44,15 +44,15 @@ def test_other_drifters_do_not_receive_zhaivra_run_resources(character_type):
 
 
 def test_character_run_state_is_not_shared_between_players():
-    first = PlayerState(RogueArcher())
-    second = PlayerState(RogueArcher())
+    first = PlayerState(create_drifter("zhaivra"))
+    second = PlayerState(create_drifter("zhaivra"))
 
     assert first.character_run_state is not second.character_run_state
     assert first.character_run_state.snapshot() == second.character_run_state.snapshot()
 
 
 def test_character_run_state_persists_when_player_enters_new_encounters():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     run_state = player.character_run_state
 
     first = Battle(player, EnemyState(create_enemy_definition("goblin")), ui=UnusedUI())
@@ -63,7 +63,7 @@ def test_character_run_state_persists_when_player_enters_new_encounters():
 
 
 def test_run_state_snapshot_is_deterministic_and_separate_from_equipment_inventory():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
 
     assert player.inventory.items == ()
     assert player.character_run_state.snapshot() == {
@@ -93,7 +93,7 @@ def test_character_run_state_rejects_invalid_authored_values():
 
 
 def test_prepared_payload_consumption_is_atomic_and_requires_active_state():
-    run_state = PlayerState(RogueArcher()).character_run_state
+    run_state = PlayerState(create_drifter("zhaivra")).character_run_state
     run_state.prepare_payload(
         PreparedPayloadId.INFUSED_BARB,
         FIRE_INFUSION_REQUIREMENTS,
@@ -106,7 +106,7 @@ def test_prepared_payload_consumption_is_atomic_and_requires_active_state():
     with pytest.raises(ValueError):
         run_state.consume_payload(PreparedPayloadId.INFUSED_BARB)
     with pytest.raises(ValueError):
-        PlayerState(Brawler()).character_run_state.consume_payload(
+        PlayerState(create_drifter("branoc")).character_run_state.consume_payload(
             PreparedPayloadId.INFUSED_BARB
         )
 

@@ -1,23 +1,13 @@
 import pytest
 
-from app.player.character import (
-    BlackMage,
-    Brawler,
-    Character,
-    Monk,
-    RogueArcher,
-)
+from app.content.catalog import create_drifter
+from app.player.character import Character
 from app.player.progression import Exp, Level
 from app.player.resources import Health, Mana, Super
 from app.player.stats import PermanentStats
 
 
-PLAYABLE_CLASSES = [
-    Brawler,
-    BlackMage,
-    RogueArcher,
-    Monk,
-]
+DRIFTER_IDS = ("branoc", "azhvielle", "zhaivra", "joruun")
 
 
 
@@ -193,8 +183,8 @@ def test_one_exp_gain_can_cause_multiple_level_ups():
 
 
 def test_derived_stats_return_nonnegative_values():
-    for class_type in PLAYABLE_CLASSES:
-        player = class_type()
+    for drifter_id in DRIFTER_IDS:
+        player = create_drifter(drifter_id)
 
         assert player.stats.constitution == player.constitution
         assert player.stats.spirit == player.spirit
@@ -208,7 +198,7 @@ def test_derived_stats_return_nonnegative_values():
 
 
 def test_legacy_character_attributes_remain_available_and_authoritative():
-    player = BlackMage()
+    player = create_drifter("azhvielle")
 
     assert player.hp == player.health.current
     assert player.mana == player.mana_resource.current
@@ -227,8 +217,8 @@ def test_legacy_character_attributes_remain_available_and_authoritative():
 
 
 def test_all_four_playable_classes_initialize_correctly():
-    for class_type in PLAYABLE_CLASSES:
-        player = class_type()
+    for drifter_id in DRIFTER_IDS:
+        player = create_drifter(drifter_id)
 
         assert player.name
         assert player.profile is None
@@ -246,7 +236,7 @@ def test_all_four_playable_classes_initialize_correctly():
 
 def test_all_four_playable_classes_have_approved_six_stat_totals():
     expected = {
-        Brawler: {
+        "branoc": {
             "constitution": 14,
             "spirit": 6,
             "intelligence": 5,
@@ -254,7 +244,7 @@ def test_all_four_playable_classes_have_approved_six_stat_totals():
             "dexterity": 10,
             "intuition": 10,
         },
-        BlackMage: {
+        "azhvielle": {
             "constitution": 7,
             "spirit": 13,
             "intelligence": 15,
@@ -262,7 +252,7 @@ def test_all_four_playable_classes_have_approved_six_stat_totals():
             "dexterity": 8,
             "intuition": 12,
         },
-        RogueArcher: {
+        "zhaivra": {
             "constitution": 8,
             "spirit": 7,
             "intelligence": 10,
@@ -270,7 +260,7 @@ def test_all_four_playable_classes_have_approved_six_stat_totals():
             "dexterity": 15,
             "intuition": 14,
         },
-        Monk: {
+        "joruun": {
             "constitution": 10,
             "spirit": 10,
             "intelligence": 13,
@@ -280,8 +270,8 @@ def test_all_four_playable_classes_have_approved_six_stat_totals():
         },
     }
 
-    for class_type, stats in expected.items():
-        player = class_type()
+    for drifter_id, stats in expected.items():
+        player = create_drifter(drifter_id)
 
         assert player.permanent_stats.as_dict() == stats
         assert player.stats.as_dict() == stats
@@ -311,14 +301,14 @@ def test_base_character_accepts_valid_progressed_stat_totals_above_sixty():
 
 def test_character_resources_derive_from_starting_constitution_spirit_and_level():
     expected = {
-        Brawler: (116, 46),
-        BlackMage: (91, 56),
-        RogueArcher: (94, 47),
-        Monk: (100, 50),
+        "branoc": (116, 46),
+        "azhvielle": (91, 56),
+        "zhaivra": (94, 47),
+        "joruun": (100, 50),
     }
 
-    for class_type, (expected_hp, expected_mana) in expected.items():
-        character = class_type()
+    for drifter_id, (expected_hp, expected_mana) in expected.items():
+        character = create_drifter(drifter_id)
 
         assert character.health.maximum == expected_hp
         assert character.health.current == expected_hp
@@ -327,7 +317,7 @@ def test_character_resources_derive_from_starting_constitution_spirit_and_level(
 
 
 def test_direct_level_mutation_does_not_recalculate_resource_maximums():
-    character = BlackMage()
+    character = create_drifter("azhvielle")
 
     character.level = 3
 
@@ -337,7 +327,7 @@ def test_direct_level_mutation_does_not_recalculate_resource_maximums():
 
 
 def test_explicit_resource_recalculation_updates_maximums_without_refill():
-    character = BlackMage()
+    character = create_drifter("azhvielle")
     character.health.take_damage(7)
     character.mana_resource.spend(8)
     character.level = 3
@@ -351,7 +341,7 @@ def test_explicit_resource_recalculation_updates_maximums_without_refill():
 
 
 def test_explicit_resource_recalculation_can_increase_current_by_positive_delta():
-    character = BlackMage()
+    character = create_drifter("azhvielle")
     character.health.take_damage(7)
     character.mana_resource.spend(8)
     character.level = 3
@@ -365,7 +355,7 @@ def test_explicit_resource_recalculation_can_increase_current_by_positive_delta(
 
 
 def test_stat_mutation_does_not_recalculate_until_explicitly_requested():
-    character = BlackMage()
+    character = create_drifter("azhvielle")
     character.mana_resource.spend(10)
 
     character.constitution = 10

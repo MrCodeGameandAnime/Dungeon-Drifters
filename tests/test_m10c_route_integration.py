@@ -1,9 +1,9 @@
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 import pytest
 
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.player.character import Brawler
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction
 from app.ui.overworld_ui import ChooseOverworldAction
@@ -77,7 +77,7 @@ def _quit_inputs():
 
 
 def test_pair_route_uses_authored_tuple_advances_once_and_applies_rewards():
-    player = PlayerState(Brawler(), gold=17)
+    player = PlayerState(create_drifter("branoc"), gold=17)
     player.exp_state.gain(23)
     game = GameState(player)
     game.overworld_state.advance_to(
@@ -125,7 +125,7 @@ def test_pair_route_uses_authored_tuple_advances_once_and_applies_rewards():
 
 
 def test_duplicate_completion_raises_without_reward_or_route_mutation():
-    player = PlayerState(Brawler(), gold=11)
+    player = PlayerState(create_drifter("branoc"), gold=11)
     player.exp_state.gain(37)
     game = GameState(player)
     game.overworld_state.begin_surface_route()
@@ -152,7 +152,7 @@ def test_duplicate_completion_raises_without_reward_or_route_mutation():
 
 
 def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
-    player = PlayerState(Brawler(), gold=31)
+    player = PlayerState(create_drifter("branoc"), gold=31)
     player.exp_state.gain(19)
     game = GameState(player)
     game.overworld_state.advance_to("surface_goblin_pair")
@@ -194,7 +194,7 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
 
 
 def test_reported_victory_with_living_enemy_fails_before_route_mutation():
-    player = PlayerState(Brawler(), gold=11)
+    player = PlayerState(create_drifter("branoc"), gold=11)
     player.exp_state.gain(13)
     before_player = player.snapshot()
     game = GameState(player)
@@ -223,7 +223,7 @@ def test_reported_victory_with_living_enemy_fails_before_route_mutation():
 
 
 def test_goblin_lord_victory_reaches_dungeon_with_rewards_and_without_continuation():
-    player = PlayerState(Brawler(), gold=47)
+    player = PlayerState(create_drifter("branoc"), gold=47)
     player.exp_state.gain(61)
     player.health.take_damage(11)
     assert player.mana_resource.spend(3) is True

@@ -2,10 +2,6 @@ from app.player import progression
 from app.player import resources
 from app.player import scaling
 from app.player import stats
-from app.player.loadouts import azhvielle
-from app.player.loadouts import branoc
-from app.player.loadouts import joruun
-from app.player.loadouts import zhaivra
 
 
 class Character:
@@ -183,67 +179,4 @@ class Character:
         self.exp_state.current = max(0, int(value))
 
 
-def _validate_level_one_stat_total(stat_values):
-    total = sum(stat_values.values())
-    if total != 60:
-        raise ValueError("Level 1 archetype stat total must be 60")
-
-    return stat_values
-
-
-class Brawler(Character):
-    def __init__(self):
-        stat_values = _validate_level_one_stat_total(
-            branoc.create_starting_stats()
-        )
-        super().__init__(
-            **stat_values,
-            name="Brawler",
-            moves=branoc.create_legacy_moves(),
-            combat_moves=branoc.create_combat_moves(),
-            class_mechanic=branoc.create_class_mechanic(),
-            starting_equipment={"weapon": branoc.create_starting_weapon()})
-
-
-class BlackMage(Character):
-    def __init__(self):
-        stat_values = _validate_level_one_stat_total(
-            azhvielle.create_starting_stats()
-        )
-        super().__init__(
-            **stat_values,
-            name="Black Mage",
-            moves=azhvielle.create_legacy_moves(),
-            combat_moves=azhvielle.create_combat_moves(),
-            class_mechanic=azhvielle.create_class_mechanic(),
-            starting_equipment={"weapon": azhvielle.create_starting_weapon()})
-
-
-class RogueArcher(Character):
-    def __init__(self):
-        stat_values = _validate_level_one_stat_total(
-            zhaivra.create_starting_stats()
-        )
-        super().__init__(
-            **stat_values,
-            name="Rogue Archer",
-            moves=zhaivra.create_legacy_moves(),
-            combat_moves=zhaivra.create_combat_moves(),
-            class_mechanic=zhaivra.create_class_mechanic(),
-            starting_run_inventory=zhaivra.create_starting_run_inventory(),
-            starting_prepared_payloads=zhaivra.create_starting_prepared_payloads(),
-            starting_equipment={"weapon": zhaivra.create_starting_weapon()})
-
-
-class Monk(Character):
-    def __init__(self):
-        stat_values = _validate_level_one_stat_total(
-            joruun.create_starting_stats()
-        )
-        super().__init__(
-            **stat_values,
-            name="Monk",
-            moves=joruun.create_legacy_moves(),
-            combat_moves=joruun.create_combat_moves(),
-            class_mechanic=joruun.create_class_mechanic(),
-            starting_equipment={"weapon": joruun.create_starting_weapon()})
+__all__ = ["Character"]

@@ -1,54 +1,49 @@
 import pytest
 
+from app.content.catalog import create_drifter
 from app.content.catalog import create_weapon
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
-from app.player.character import BlackMage, Brawler, Monk, RogueArcher
 from app.player.inventory import Inventory
 from app.player.player_state import PlayerState
 
 
-PLAYABLE_CLASSES = [
-    Brawler,
-    BlackMage,
-    RogueArcher,
-    Monk,
-]
+DRIFTER_IDS = ("branoc", "azhvielle", "zhaivra", "joruun")
 
 
 def test_player_state_wraps_all_playable_classes():
-    for class_type in PLAYABLE_CLASSES:
-        character = class_type()
+    for drifter_id in DRIFTER_IDS:
+        character = create_drifter(drifter_id)
         player_state = PlayerState(character)
 
         assert player_state.character is character
 
 
 def test_character_and_inventory_are_read_only_properties():
-    character = Brawler()
+    character = create_drifter("branoc")
     player_state = PlayerState(character)
 
     assert player_state.character is character
     assert isinstance(player_state.inventory, Inventory)
     with pytest.raises(AttributeError):
-        setattr(player_state, "character", BlackMage())
+        setattr(player_state, "character", create_drifter("azhvielle"))
     with pytest.raises(AttributeError):
         setattr(player_state, "inventory", Inventory())
 
 
 def test_default_and_explicit_gold_values():
-    assert PlayerState(Brawler()).gold == 0
-    assert PlayerState(Brawler(), gold=25).gold == 25
+    assert PlayerState(create_drifter("branoc")).gold == 0
+    assert PlayerState(create_drifter("branoc"), gold=25).gold == 25
 
 
 def test_default_inventory_is_empty():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     assert player_state.inventory.items == ()
 
 
 def test_equipment_slots_exist_and_start_empty():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     assert tuple(player_state.equipment.keys()) == PlayerState.EQUIPMENT_SLOTS
     assert player_state.get_equipped("weapon").item_id == "sunder_spire"
@@ -60,8 +55,8 @@ def test_equipment_slots_exist_and_start_empty():
 
 
 def test_player_states_do_not_share_inventory_or_equipment():
-    first_player = PlayerState(Brawler())
-    second_player = PlayerState(Brawler())
+    first_player = PlayerState(create_drifter("branoc"))
+    second_player = PlayerState(create_drifter("branoc"))
     item = object()
 
     first_player.inventory.add_item(item)
@@ -84,7 +79,7 @@ def test_invalid_character_raises_type_error():
 
 
 def test_character_state_delegation_returns_authoritative_objects():
-    character = Monk()
+    character = create_drifter("joruun")
     player_state = PlayerState(character)
 
     assert player_state.health is character.health
@@ -97,7 +92,7 @@ def test_character_state_delegation_returns_authoritative_objects():
 
 
 def test_super_resource_is_owned_by_player_state_not_character():
-    character = Monk()
+    character = create_drifter("joruun")
     player_state = PlayerState(character)
 
     assert player_state.super_resource.current == 0
@@ -106,7 +101,7 @@ def test_super_resource_is_owned_by_player_state_not_character():
 
 
 def test_player_state_can_defend_with_effective_stat_scaled_reductions():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     assert player_state.can_defend is True
     assert player_state.defend_reduction_percent(DamageType.PHYSICAL) == 48
@@ -114,15 +109,15 @@ def test_player_state_can_defend_with_effective_stat_scaled_reductions():
     assert player_state.defend_reduction_percent(DamageType.HYBRID) == 20
     assert player_state.defend_reduction_percent(DamageType.HEALING) == 0
 
-    player_state = PlayerState(BlackMage())
+    player_state = PlayerState(create_drifter("azhvielle"))
     assert player_state.defend_reduction_percent(DamageType.PHYSICAL) <= 70
     assert player_state.defend_reduction_percent(DamageType.MAGICAL) <= 60
     assert player_state.defend_reduction_percent(DamageType.HYBRID) <= 50
 
 
 def test_player_states_do_not_share_super_resources():
-    first_player = PlayerState(Monk())
-    second_player = PlayerState(Monk())
+    first_player = PlayerState(create_drifter("joruun"))
+    second_player = PlayerState(create_drifter("joruun"))
 
     first_player.super_resource.gain(100)
 
@@ -131,7 +126,7 @@ def test_player_states_do_not_share_super_resources():
 
 
 def test_mutating_delegated_health_updates_wrapped_character():
-    character = Brawler()
+    character = create_drifter("branoc")
     player_state = PlayerState(character)
 
     player_state.health.take_damage(5)
@@ -141,7 +136,7 @@ def test_mutating_delegated_health_updates_wrapped_character():
 
 
 def test_gold_can_be_added_and_returns_new_total():
-    player_state = PlayerState(Brawler(), gold=10)
+    player_state = PlayerState(create_drifter("branoc"), gold=10)
 
     assert player_state.add_gold(5) == 15
     assert player_state.gold == 15
@@ -149,7 +144,7 @@ def test_gold_can_be_added_and_returns_new_total():
 
 
 def test_gold_spending_and_affordability():
-    player_state = PlayerState(Brawler(), gold=10)
+    player_state = PlayerState(create_drifter("branoc"), gold=10)
 
     assert player_state.can_afford(10)
     assert player_state.spend_gold(0)
@@ -167,34 +162,34 @@ def test_gold_rejects_invalid_values():
     invalid_type_values = (True, False, 1.5, "10", None)
 
     with pytest.raises(ValueError):
-        PlayerState(Brawler(), gold=-1)
+        PlayerState(create_drifter("branoc"), gold=-1)
     for value in invalid_type_values:
         with pytest.raises(TypeError):
-            PlayerState(Brawler(), gold=value)
+            PlayerState(create_drifter("branoc"), gold=value)
         with pytest.raises(TypeError):
-            PlayerState(Brawler()).add_gold(value)
+            PlayerState(create_drifter("branoc")).add_gold(value)
         with pytest.raises(TypeError):
-            PlayerState(Brawler()).can_afford(value)
+            PlayerState(create_drifter("branoc")).can_afford(value)
         with pytest.raises(TypeError):
-            PlayerState(Brawler()).spend_gold(value)
+            PlayerState(create_drifter("branoc")).spend_gold(value)
 
     with pytest.raises(ValueError):
-        PlayerState(Brawler()).add_gold(-1)
+        PlayerState(create_drifter("branoc")).add_gold(-1)
     with pytest.raises(ValueError):
-        PlayerState(Brawler()).can_afford(-1)
+        PlayerState(create_drifter("branoc")).can_afford(-1)
     with pytest.raises(ValueError):
-        PlayerState(Brawler()).spend_gold(-1)
+        PlayerState(create_drifter("branoc")).spend_gold(-1)
 
 
 def test_gold_has_no_public_setter():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     with pytest.raises(AttributeError):
         setattr(player_state, "gold", -1)
 
 
 def test_owned_item_can_be_equipped():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = object()
     starting_weapon = player_state.get_equipped("weapon")
     player_state.inventory.add_item(item)
@@ -206,7 +201,7 @@ def test_owned_item_can_be_equipped():
 
 
 def test_replacing_equipment_preserves_items():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     first_item = object()
     second_item = object()
     player_state.inventory.add_item(first_item)
@@ -219,7 +214,7 @@ def test_replacing_equipment_preserves_items():
 
 
 def test_unequipping_returns_item_to_inventory():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = object()
     player_state.inventory.add_item(item)
     player_state.equip("weapon", item)
@@ -231,13 +226,13 @@ def test_unequipping_returns_item_to_inventory():
 
 
 def test_get_equipped_returns_empty_slot():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     assert player_state.get_equipped("head") is None
 
 
 def test_equipping_unowned_item_raises_and_preserves_state():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     equipped_item = object()
     missing_item = object()
     player_state.inventory.add_item(equipped_item)
@@ -252,14 +247,14 @@ def test_equipping_unowned_item_raises_and_preserves_state():
 
 
 def test_equipping_none_raises_value_error():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
 
     with pytest.raises(ValueError):
         player_state.equip("weapon", None)
 
 
 def test_invalid_slots_are_rejected():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = object()
     player_state.inventory.add_item(item)
 
@@ -274,7 +269,7 @@ def test_invalid_slots_are_rejected():
 
 
 def test_equipment_snapshot_cannot_mutate_internal_equipment():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     item = object()
 
     equipment = player_state.equipment
@@ -286,7 +281,7 @@ def test_equipment_snapshot_cannot_mutate_internal_equipment():
 
 
 def test_item_conservation_across_equip_replace_and_unequip():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     first_item = object()
     second_item = object()
     player_state.inventory.add_item(first_item)
@@ -306,14 +301,14 @@ def test_item_conservation_across_equip_replace_and_unequip():
 
 def test_playable_classes_start_with_named_weapons():
     expected_weapons = {
-        Brawler: "sunder_spire",
-        BlackMage: "needle_of_plain_iron",
-        RogueArcher: "sathren",
-        Monk: "sky_needle",
+        "branoc": "sunder_spire",
+        "azhvielle": "needle_of_plain_iron",
+        "zhaivra": "sathren",
+        "joruun": "sky_needle",
     }
 
-    for class_type, item_id in expected_weapons.items():
-        player_state = PlayerState(class_type())
+    for drifter_id, item_id in expected_weapons.items():
+        player_state = PlayerState(create_drifter(drifter_id))
 
         weapon = player_state.get_equipped("weapon")
         assert isinstance(weapon, Weapon)
@@ -321,7 +316,7 @@ def test_playable_classes_start_with_named_weapons():
 
 
 def test_equipped_weapon_contributes_to_effective_stats_without_mutating_permanent_stats():
-    character = Brawler()
+    character = create_drifter("branoc")
     player_state = PlayerState(character)
 
     assert character.permanent_stats.as_dict()["strength"] == 15
@@ -333,7 +328,7 @@ def test_equipped_weapon_contributes_to_effective_stats_without_mutating_permane
 
 
 def test_inventory_only_weapons_do_not_contribute_to_effective_stats():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     player_state.unequip("weapon")
     player_state.inventory.add_item(create_weapon("sky_needle"))
 
@@ -342,7 +337,7 @@ def test_inventory_only_weapons_do_not_contribute_to_effective_stats():
 
 
 def test_replacing_and_unequipping_weapon_updates_effective_stats_once():
-    player_state = PlayerState(Brawler())
+    player_state = PlayerState(create_drifter("branoc"))
     sky_needle = create_weapon("sky_needle")
 
     assert player_state.effective_stat("strength") == 18

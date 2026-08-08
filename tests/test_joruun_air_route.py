@@ -1,10 +1,10 @@
+from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.result import CombatOutcome, CombatOutcomeType
 from app.combat.resolver import CombatResolver, _mitigation, _scaled_damage_power
 from app.combat.storm import LIGHTNING_PALM_MECHANIC, TEMPEST_SURGE_MECHANIC
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Monk
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import BattleEventType, BattleLogEntry, InteractionPhase
 from app.presentation.battle_presenter import BattlePresenter
@@ -22,7 +22,7 @@ class ScriptedRng:
 
 
 def _joruun():
-    return PlayerState(Monk())
+    return PlayerState(create_drifter("joruun"))
 
 
 def _goblin():

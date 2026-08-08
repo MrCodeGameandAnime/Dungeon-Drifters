@@ -2,12 +2,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
 from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_definition
 from app.enemies.state import EnemyState
-from app.player.character import Brawler, RogueArcher
 from app.player.character_run_state import PreparedPayloadId, RunItemId
 from app.player.inventory_action import (
     InventoryActionRejectionReason,
@@ -156,7 +156,7 @@ def test_item_authorship_and_recipe_pairing_are_deterministic_and_order_independ
 
 
 def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_items():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     presenter = BattlePresenter()
     combat_state = SimpleNamespace(
@@ -206,7 +206,7 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_it
         interaction_phase=InteractionPhase.INVENTORY,
     ).inventory_items) == ("night_berry",)
 
-    branoc = PlayerState(Brawler())
+    branoc = PlayerState(create_drifter("branoc"))
     branoc_actions = presenter.build(
         player=branoc,
         enemy=enemy,
@@ -232,7 +232,7 @@ def test_repeated_item_inspection_is_deterministic_and_non_consuming(
     item_id,
     description,
 ):
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     before = player.character_run_state.snapshot()
@@ -259,7 +259,7 @@ def test_repeated_item_inspection_is_deterministic_and_non_consuming(
 
 
 def test_inspect_no_and_back_do_not_invoke_resolver_mutate_or_add_a_turn():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     before = player.character_run_state.snapshot()
     inventory_resolver = RecordingInventoryActionResolver()
     session = BattlePresentationSession()
@@ -309,7 +309,7 @@ def test_inspect_no_and_back_do_not_invoke_resolver_mutate_or_add_a_turn():
 
 @pytest.mark.parametrize("source_item_id", ("ember_shard", "deep_coal"))
 def test_confirming_either_item_order_routes_one_internal_preparation(source_item_id):
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     inventory_resolver = RecordingInventoryActionResolver()
     ui = ScriptedUI(*_preparation_inputs(source_item_id))
     battle = Battle(
@@ -336,7 +336,7 @@ def test_confirming_either_item_order_routes_one_internal_preparation(source_ite
 
 
 def test_confirming_night_berry_order_routes_poison_preparation():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     inventory_resolver = RecordingInventoryActionResolver()
     ui = ScriptedUI(*_preparation_inputs(RunItemId.NIGHT_BERRY.value))
     battle = Battle(
@@ -357,7 +357,7 @@ def test_confirming_night_berry_order_routes_poison_preparation():
 
 
 def test_fabricated_item_and_companion_ids_are_rejected_before_resolution():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     inventory_resolver = RecordingInventoryActionResolver()
     ui = ScriptedUI(
         ChooseAction(ActionIntent.ITEMS),
@@ -385,7 +385,7 @@ def test_fabricated_item_and_companion_ids_are_rejected_before_resolution():
 
 
 def test_rejected_confirmation_preserves_inventory_and_does_not_complete_action():
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     before = player.character_run_state.snapshot()
     inventory_resolver = RejectingInventoryActionResolver()
     ui = ScriptedUI(
@@ -412,7 +412,7 @@ def test_rejected_confirmation_preserves_inventory_and_does_not_complete_action(
 
 @pytest.mark.parametrize("width", (60, 80, 120))
 def test_every_item_first_terminal_phase_remains_within_supported_width(width):
-    player = PlayerState(RogueArcher())
+    player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
     combat_state = CombatState()
     presenter = BattlePresenter()
