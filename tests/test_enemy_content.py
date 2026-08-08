@@ -23,6 +23,7 @@ from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, En
 from tools.generate_content_catalog import (
     OUTPUT_PATH,
     discover_drifter_ids,
+    discover_encounter_ids,
     discover_enemy_ids,
     discover_route_ids,
     discover_weapon_ids,
@@ -44,6 +45,16 @@ EXPECTED_WEAPON_IDS = (
     "sunder_spire",
 )
 EXPECTED_DRIFTER_IDS = ("azhvielle", "branoc", "joruun", "zhaivra")
+EXPECTED_ENCOUNTER_IDS = (
+    "surface_elite_patrol",
+    "surface_goblin_lord",
+    "surface_goblin_pair",
+    "surface_goblin_solo",
+    "surface_shaman_pair",
+    "surface_shaman_solo",
+    "surface_warrior_pair",
+    "surface_warrior_solo",
+)
 EXPECTED_ROUTE_IDS = ("surface",)
 
 
@@ -89,10 +100,12 @@ def test_generated_enemy_catalog_is_deterministic_and_current():
         EXPECTED_IDS,
         EXPECTED_WEAPON_IDS,
         EXPECTED_DRIFTER_IDS,
+        EXPECTED_ENCOUNTER_IDS,
         EXPECTED_ROUTE_IDS,
     )
     assert discover_weapon_ids() == EXPECTED_WEAPON_IDS
     assert discover_drifter_ids() == EXPECTED_DRIFTER_IDS
+    assert discover_encounter_ids() == EXPECTED_ENCOUNTER_IDS
     assert discover_route_ids() == EXPECTED_ROUTE_IDS
 
 

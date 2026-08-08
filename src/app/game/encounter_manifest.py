@@ -3,12 +3,16 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from app.content.catalog import get_enemy_spec, get_route_spec
-from app.enemies.factory import create_enemy_state
-from app.game.overworld_route import (
-    RouteNodeKind,
-    SURFACE_ROUTE_NODES,
+from app.content.catalog import (
+    get_encounter_spec,
+    get_encounter_rewards,
+    get_inspectable_encounter_spec,
+    get_route_spec,
+    get_route_successor_id,
 )
+from app.content.route_spec import RouteNodeKind
+from app.enemies.factory import create_enemy_state
+from app.game.overworld_route import SURFACE_ROUTE_NODES
 
 
 def _validate_text(name, value):
@@ -65,16 +69,14 @@ class RouteManifestNode:
 
 
 def _encounter(node):
-    enemies = node.encounter.enemy_archetype_ids
-    enemy_specs = tuple(
-        get_enemy_spec(archetype_id)
-        for archetype_id in enemies
-    )
+    authored = get_encounter_spec(node.encounter_id)
+    enemies = authored.enemy_archetype_ids
+    exp_reward, gold_reward = get_encounter_rewards(authored.encounter_id)
     return EncounterManifest(
-        encounter_id=node.node_id,
+        encounter_id=authored.encounter_id,
         enemy_archetype_ids=enemies,
-        exp_reward=sum(spec.exp_reward for spec in enemy_specs),
-        gold_reward=sum(spec.gold_reward for spec in enemy_specs),
+        exp_reward=exp_reward,
+        gold_reward=gold_reward,
         boss=node.kind is RouteNodeKind.BOSS,
     )
 
@@ -83,14 +85,10 @@ _SURFACE_ROUTE_SPEC = get_route_spec("surface")
 SURFACE_ROUTE_MANIFEST = tuple(
     RouteManifestNode(
         node_id=node.node_id,
-        next_node_id=(
-            _SURFACE_ROUTE_SPEC.nodes[index + 1].node_id
-            if index + 1 < len(_SURFACE_ROUTE_SPEC.nodes)
-            else None
-        ),
-        encounter=_encounter(node) if node.encounter is not None else None,
+        next_node_id=get_route_successor_id(node.node_id),
+        encounter=_encounter(node) if node.encounter_id is not None else None,
     )
-    for index, node in enumerate(_SURFACE_ROUTE_SPEC.nodes)
+    for node in _SURFACE_ROUTE_SPEC.nodes
 )
 
 _ROUTE_MANIFEST_BY_NODE_ID = MappingProxyType(
@@ -124,14 +122,10 @@ def encounter_manifest(encounter_id):
 
 
 def inspectable_encounter_for_node(node_id):
-    node = route_manifest_node(node_id)
-    while node is not None:
-        if node.encounter is not None:
-            return node.encounter
-        if node.next_node_id is None:
-            return None
-        node = route_manifest_node(node.next_node_id)
-    return None
+    encounter = get_inspectable_encounter_spec(node_id)
+    if encounter is None:
+        return None
+    return encounter_manifest(encounter.encounter_id)
 
 
 def create_route_encounter_enemies(

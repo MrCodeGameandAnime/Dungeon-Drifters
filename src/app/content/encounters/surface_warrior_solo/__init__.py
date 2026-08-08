@@ -1,0 +1,1 @@
+"""Goblin Warrior encounter content."""

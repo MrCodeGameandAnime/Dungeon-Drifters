@@ -1,0 +1,1 @@
+"""Goblin Shaman encounter content."""

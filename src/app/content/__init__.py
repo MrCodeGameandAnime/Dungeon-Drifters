@@ -3,6 +3,7 @@
 
 __all__ = [
     "ENEMY_SPECS",
+    "ENCOUNTER_SPECS",
     "DRIFTER_SPECS",
     "ClassMechanicSpec",
     "DrifterSpec",
@@ -22,9 +23,15 @@ __all__ = [
     "create_weapon",
     "create_weapon_from_persistence_key",
     "get_enemy_spec",
+    "get_encounter_spec",
+    "get_encounter_rewards",
+    "get_inspectable_encounter_spec",
+    "get_inspectable_route_node_spec",
     "get_drifter_spec",
     "get_drifter_spec_by_choice",
     "get_route_spec",
+    "get_route_node_spec",
+    "get_route_successor_id",
     "get_weapon_spec",
     "get_weapon_spec_by_persistence_key",
 ]
@@ -51,22 +58,21 @@ def __getattr__(name):
             "DrifterSpec": DrifterSpec,
             "DrifterStatSpec": DrifterStatSpec,
         }[name]
-    if name in {"EncounterSpec", "RouteNodeKind", "RouteNodeSpec", "RouteSpec"}:
-        from app.content.route_spec import (
-            EncounterSpec,
-            RouteNodeKind,
-            RouteNodeSpec,
-            RouteSpec,
-        )
+    if name == "EncounterSpec":
+        from app.content.encounter_spec import EncounterSpec
+
+        return EncounterSpec
+    if name in {"RouteNodeKind", "RouteNodeSpec", "RouteSpec"}:
+        from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
 
         return {
-            "EncounterSpec": EncounterSpec,
             "RouteNodeKind": RouteNodeKind,
             "RouteNodeSpec": RouteNodeSpec,
             "RouteSpec": RouteSpec,
         }[name]
     if name in {
         "ENEMY_SPECS",
+        "ENCOUNTER_SPECS",
         "DRIFTER_SPECS",
         "ROUTE_SPECS",
         "WEAPON_SPECS",
@@ -76,9 +82,15 @@ def __getattr__(name):
         "create_weapon",
         "create_weapon_from_persistence_key",
         "get_enemy_spec",
+        "get_encounter_spec",
+        "get_encounter_rewards",
+        "get_inspectable_encounter_spec",
+        "get_inspectable_route_node_spec",
         "get_drifter_spec",
         "get_drifter_spec_by_choice",
         "get_route_spec",
+        "get_route_node_spec",
+        "get_route_successor_id",
         "get_weapon_spec",
         "get_weapon_spec_by_persistence_key",
     }:

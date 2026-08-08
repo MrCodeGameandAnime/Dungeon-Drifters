@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENEMY_ROOT = ROOT / "src" / "app" / "content" / "enemies"
 DRIFTER_ROOT = ROOT / "src" / "app" / "content" / "drifters"
+ENCOUNTER_ROOT = ROOT / "src" / "app" / "content" / "encounters"
 ROUTE_ROOT = ROOT / "src" / "app" / "content" / "routes"
 WEAPON_ROOT = ROOT / "src" / "app" / "content" / "weapons"
 OUTPUT_PATH = ROOT / "src" / "app" / "content" / "_generated_catalog.py"
@@ -123,6 +124,29 @@ def discover_drifter_ids(drifter_root=DRIFTER_ROOT):
     return tuple(drifter_ids)
 
 
+def discover_encounter_ids(encounter_root=ENCOUNTER_ROOT):
+    encounter_ids = []
+    for path in sorted(
+        encounter_root.glob("*/encounter.py"),
+        key=lambda item: item.parent.name,
+    ):
+        directory_id = _validate_content_module_id(path.parent.name)
+        authored_id = _validate_content_module_id(
+            _authored_content_id(
+                path,
+                assignment_name="ENCOUNTER",
+                field_name="encounter_id",
+            )
+        )
+        if directory_id != authored_id:
+            raise ValueError(
+                "encounter directory ID does not match authored encounter ID: "
+                f"{directory_id} != {authored_id}"
+            )
+        encounter_ids.append(directory_id)
+    return tuple(encounter_ids)
+
+
 def discover_route_ids(route_root=ROUTE_ROOT):
     route_ids = []
     for path in sorted(
@@ -146,10 +170,19 @@ def discover_route_ids(route_root=ROUTE_ROOT):
     return tuple(route_ids)
 
 
-def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=(), route_ids=()):
+def render_catalog(
+    enemy_ids,
+    weapon_ids=(),
+    drifter_ids=(),
+    encounter_ids=(),
+    route_ids=(),
+):
     enemy_ids = tuple(_validate_content_module_id(value) for value in enemy_ids)
     weapon_ids = tuple(_validate_content_module_id(value) for value in weapon_ids)
     drifter_ids = tuple(_validate_content_module_id(value) for value in drifter_ids)
+    encounter_ids = tuple(
+        _validate_content_module_id(value) for value in encounter_ids
+    )
     route_ids = tuple(_validate_content_module_id(value) for value in route_ids)
     enemy_imports = "\n".join(
         "from app.content.enemies."
@@ -178,6 +211,15 @@ def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=(), route_ids=()):
         f'    ("{drifter_id}", {drifter_id}_drifter),'
         for drifter_id in drifter_ids
     )
+    encounter_imports = "\n".join(
+        "from app.content.encounters."
+        f"{encounter_id}.encounter import ENCOUNTER as {encounter_id}_encounter"
+        for encounter_id in encounter_ids
+    )
+    encounter_records = "\n".join(
+        f'    ("{encounter_id}", {encounter_id}_encounter),'
+        for encounter_id in encounter_ids
+    )
     route_imports = "\n".join(
         "from app.content.routes."
         f"{route_id}.route import ROUTE as {route_id}_route"
@@ -193,6 +235,7 @@ def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=(), route_ids=()):
             enemy_imports,
             weapon_imports,
             drifter_imports,
+            encounter_imports,
             route_imports,
         )
         if section
@@ -209,11 +252,15 @@ def render_catalog(enemy_ids, weapon_ids=(), drifter_ids=(), route_ids=()):
         "GENERATED_DRIFTER_SPECS = (\n"
         f"{drifter_records}\n"
         ")\n\n\n"
+        "GENERATED_ENCOUNTER_SPECS = (\n"
+        f"{encounter_records}\n"
+        ")\n\n\n"
         "GENERATED_ROUTE_SPECS = (\n"
         f"{route_records}\n"
         ")\n\n\n"
         "__all__ = [\n"
         '    "GENERATED_DRIFTER_SPECS",\n'
+        '    "GENERATED_ENCOUNTER_SPECS",\n'
         '    "GENERATED_ENEMY_SPECS",\n'
         '    "GENERATED_ROUTE_SPECS",\n'
         '    "GENERATED_WEAPON_SPECS",\n'
@@ -235,6 +282,7 @@ def main():
         discover_enemy_ids(),
         discover_weapon_ids(),
         discover_drifter_ids(),
+        discover_encounter_ids(),
         discover_route_ids(),
     )
 

@@ -9,7 +9,7 @@ from enum import StrEnum
 _CONTENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
-def _content_id(name, value):
+def validate_content_id(name, value):
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string")
     if _CONTENT_ID_PATTERN.fullmatch(value) is None or keyword.iskeyword(value):
@@ -33,35 +33,18 @@ class RouteNodeKind(StrEnum):
 
 
 @dataclass(frozen=True)
-class EncounterSpec:
-    enemy_archetype_ids: tuple[str, ...]
-
-    def __post_init__(self):
-        if not isinstance(self.enemy_archetype_ids, tuple):
-            raise TypeError("enemy_archetype_ids must be a tuple")
-        if not self.enemy_archetype_ids:
-            raise ValueError("enemy_archetype_ids must not be empty")
-        if len(self.enemy_archetype_ids) > 4:
-            raise ValueError("encounters support at most four enemies")
-        object.__setattr__(
-            self,
-            "enemy_archetype_ids",
-            tuple(
-                _content_id("enemy archetype ID", archetype_id)
-                for archetype_id in self.enemy_archetype_ids
-            ),
-        )
-
-
-@dataclass(frozen=True)
 class RouteNodeSpec:
     node_id: str
     display_label: str
     kind: RouteNodeKind
-    encounter: EncounterSpec | None = None
+    encounter_id: str | None = None
 
     def __post_init__(self):
-        object.__setattr__(self, "node_id", _content_id("node_id", self.node_id))
+        object.__setattr__(
+            self,
+            "node_id",
+            validate_content_id("node_id", self.node_id),
+        )
         object.__setattr__(
             self,
             "display_label",
@@ -69,15 +52,16 @@ class RouteNodeSpec:
         )
         if not isinstance(self.kind, RouteNodeKind):
             raise TypeError("kind must be a RouteNodeKind")
-        if self.encounter is not None and not isinstance(
-            self.encounter,
-            EncounterSpec,
-        ):
-            raise TypeError("encounter must be an EncounterSpec or None")
+        if self.encounter_id is not None:
+            object.__setattr__(
+                self,
+                "encounter_id",
+                validate_content_id("encounter_id", self.encounter_id),
+            )
 
         requires_encounter = self.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}
-        if requires_encounter != (self.encounter is not None):
-            raise ValueError("only combat and Boss route nodes define encounters")
+        if requires_encounter != (self.encounter_id is not None):
+            raise ValueError("only combat and Boss route nodes reference encounters")
 
 
 @dataclass(frozen=True)
@@ -86,7 +70,11 @@ class RouteSpec:
     nodes: tuple[RouteNodeSpec, ...]
 
     def __post_init__(self):
-        object.__setattr__(self, "route_id", _content_id("route_id", self.route_id))
+        object.__setattr__(
+            self,
+            "route_id",
+            validate_content_id("route_id", self.route_id),
+        )
         if not isinstance(self.nodes, tuple):
             raise TypeError("nodes must be a tuple")
         if not self.nodes:
@@ -105,4 +93,9 @@ class RouteSpec:
             raise ValueError("a dungeon entrance must be unique and final")
 
 
-__all__ = ["EncounterSpec", "RouteNodeKind", "RouteNodeSpec", "RouteSpec"]
+__all__ = [
+    "RouteNodeKind",
+    "RouteNodeSpec",
+    "RouteSpec",
+    "validate_content_id",
+]

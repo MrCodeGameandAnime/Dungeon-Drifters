@@ -2,16 +2,13 @@
 
 from copy import deepcopy
 
-from app.content.catalog import create_weapon_from_persistence_key
-from app.game.game_state import GameState
-from app.game.overworld_route import (
-    DUNGEON_ENTRANCE_NODE_ID,
-    FIRST_SURFACE_NODE_ID,
-    RouteNodeKind,
-    SURFACE_REST_NODE_IDS,
-    SURFACE_ROUTE_NODE_IDS,
-    route_node,
+from app.content.catalog import (
+    create_weapon_from_persistence_key,
+    get_route_node_spec,
+    get_route_spec,
 )
+from app.content.route_spec import RouteNodeKind
+from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
@@ -31,6 +28,22 @@ from app.player.resources import Super
 from app.player.stats import PermanentStats
 from app.snapshot import STATE_SCHEMA_VERSION, validate_plain_value
 from app.world.character_profiles.roster import get_profile_by_choice
+
+
+_SURFACE_ROUTE = get_route_spec("surface")
+_SURFACE_ROUTE_NODE_IDS = tuple(node.node_id for node in _SURFACE_ROUTE.nodes)
+_SURFACE_REST_NODE_IDS = tuple(
+    node.node_id
+    for node in _SURFACE_ROUTE.nodes
+    if node.kind is RouteNodeKind.REST
+)
+_SURFACE_ENCOUNTER_NODES = {
+    node.encounter_id: node
+    for node in _SURFACE_ROUTE.nodes
+    if node.encounter_id is not None
+}
+_FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[0]
+_DUNGEON_ENTRANCE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[-1]
 
 
 DISK_SCHEMA_VERSION = 8
@@ -95,7 +108,7 @@ def migrate_schema_7(document):
         migrated["world"]["defeated_encounters"] = [
             encounter_id
             for encounter_id in defeated
-            if encounter_id not in SURFACE_ROUTE_NODE_IDS
+            if encounter_id not in _SURFACE_ENCOUNTER_NODES
         ]
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
@@ -427,27 +440,29 @@ def _validate_overworld(overworld, world):
     _require_exact_keys(overworld, {"current_route_node_id", "surface_route_begun", "dungeon_entrance_reached", "route_complete", "resolved_rest_node_ids", "current_contextual_route_phase"}, "overworld")
     node_id = overworld["current_route_node_id"]
     try:
-        node = route_node(node_id)
+        node = get_route_node_spec(node_id)
     except (TypeError, ValueError) as error:
         raise SaveStateValidationError("overworld has an unknown route node") from error
     for name in ("surface_route_begun", "dungeon_entrance_reached", "route_complete"):
         if not isinstance(overworld[name], bool):
             raise SaveStateValidationError(f"overworld.{name} must be a boolean")
-    index = SURFACE_ROUTE_NODE_IDS.index(node_id)
+    index = _SURFACE_ROUTE_NODE_IDS.index(node_id)
     if index > 0 and not overworld["surface_route_begun"]:
         raise SaveStateValidationError("advanced route must have begun")
-    at_dungeon = node_id == DUNGEON_ENTRANCE_NODE_ID
+    at_dungeon = node_id == _DUNGEON_ENTRANCE_NODE_ID
     if overworld["dungeon_entrance_reached"] != at_dungeon or overworld["route_complete"] != at_dungeon:
         raise SaveStateValidationError("overworld completion flags are inconsistent")
     rests = overworld["resolved_rest_node_ids"]
     required_rests = [
         route_node_id
-        for route_node_id in SURFACE_ROUTE_NODE_IDS[:index]
-        if route_node(route_node_id).kind is RouteNodeKind.REST
+        for route_node_id in _SURFACE_ROUTE_NODE_IDS[:index]
+        if get_route_node_spec(route_node_id).kind is RouteNodeKind.REST
     ]
     if rests != required_rests:
         raise SaveStateValidationError("resolved Rest IDs must use authored order")
-    if not isinstance(rests, list) or any(rest not in SURFACE_REST_NODE_IDS for rest in rests):
+    if not isinstance(rests, list) or any(
+        rest not in _SURFACE_REST_NODE_IDS for rest in rests
+    ):
         raise SaveStateValidationError("overworld contains an unknown Rest ID")
     phase = overworld["current_contextual_route_phase"]
     try:
@@ -461,14 +476,11 @@ def _validate_overworld(overworld, world):
         ContextualRoutePhase.RETRY,
     }:
         raise SaveStateValidationError("combat nodes require an encounter phase")
-    route_encounters = set(SURFACE_ROUTE_NODE_IDS)
+    route_encounters = set(_SURFACE_ENCOUNTER_NODES)
     required_encounters = {
-        route_node_id
-        for route_node_id in SURFACE_ROUTE_NODE_IDS[:index]
-        if route_node(route_node_id).kind in {
-            RouteNodeKind.COMBAT,
-            RouteNodeKind.BOSS,
-        }
+        node.encounter_id
+        for node in _SURFACE_ROUTE.nodes[:index]
+        if node.encounter_id is not None
     }
     route_defeated = {
         encounter_id
@@ -479,8 +491,12 @@ def _validate_overworld(overworld, world):
         raise SaveStateValidationError("route completion is not a valid authored prefix")
     for encounter_id in world["defeated_encounters"]:
         if encounter_id in route_encounters:
-            route_index = SURFACE_ROUTE_NODE_IDS.index(encounter_id)
-            if route_node(encounter_id).kind is not RouteNodeKind.COMBAT and route_node(encounter_id).kind is not RouteNodeKind.BOSS:
+            encounter_node = _SURFACE_ENCOUNTER_NODES[encounter_id]
+            route_index = _SURFACE_ROUTE_NODE_IDS.index(encounter_node.node_id)
+            if encounter_node.kind not in {
+                RouteNodeKind.COMBAT,
+                RouteNodeKind.BOSS,
+            }:
                 raise SaveStateValidationError("non-combat route node is not an encounter")
             if route_index >= index:
                 raise SaveStateValidationError("a future route encounter is already defeated")
@@ -488,7 +504,7 @@ def _validate_overworld(overworld, world):
 
 def _opening_overworld_snapshot():
     return {
-        "current_route_node_id": FIRST_SURFACE_NODE_ID,
+        "current_route_node_id": _FIRST_SURFACE_NODE_ID,
         "surface_route_begun": False,
         "dungeon_entrance_reached": False,
         "route_complete": False,

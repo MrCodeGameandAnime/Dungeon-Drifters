@@ -2,14 +2,20 @@
 
 from enum import StrEnum
 
-from app.game.overworld_route import (
-    DUNGEON_ENTRANCE_NODE_ID,
-    FIRST_SURFACE_NODE_ID,
-    SURFACE_REST_NODE_IDS,
-    SURFACE_ROUTE_NODE_IDS,
-    route_node,
-)
+from app.content.catalog import get_route_node_spec, get_route_spec
+from app.content.route_spec import RouteNodeKind
 from app.snapshot import to_plain_value
+
+
+_SURFACE_ROUTE = get_route_spec("surface")
+_SURFACE_ROUTE_NODE_IDS = tuple(node.node_id for node in _SURFACE_ROUTE.nodes)
+_SURFACE_REST_NODE_IDS = tuple(
+    node.node_id
+    for node in _SURFACE_ROUTE.nodes
+    if node.kind is RouteNodeKind.REST
+)
+_FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[0]
+_DUNGEON_ENTRANCE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[-1]
 
 
 class ContextualRoutePhase(StrEnum):
@@ -20,7 +26,7 @@ class ContextualRoutePhase(StrEnum):
 
 class OverworldState:
     def __init__(self):
-        self._current_route_node_id = FIRST_SURFACE_NODE_ID
+        self._current_route_node_id = _FIRST_SURFACE_NODE_ID
         self._surface_route_begun = False
         self._dungeon_entrance_reached = False
         self._route_complete = False
@@ -49,7 +55,7 @@ class OverworldState:
     def resolved_rest_node_ids(self):
         return tuple(
             node_id
-            for node_id in SURFACE_REST_NODE_IDS
+            for node_id in _SURFACE_REST_NODE_IDS
             if node_id in self._resolved_rest_node_ids
         )
 
@@ -64,18 +70,23 @@ class OverworldState:
         self._current_contextual_route_phase = ContextualRoutePhase(phase)
 
     def advance_to(self, node_id, *, contextual_phase=ContextualRoutePhase.NONE):
-        node = route_node(node_id)
+        try:
+            node = get_route_node_spec(node_id)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"unknown surface route node: {node_id!r}"
+            ) from error
         phase = ContextualRoutePhase(contextual_phase)
         if self.route_complete:
             raise ValueError("the surface route is already complete")
 
-        current_index = SURFACE_ROUTE_NODE_IDS.index(
+        current_index = _SURFACE_ROUTE_NODE_IDS.index(
             self.current_route_node_id
         )
         next_index = current_index + 1
         if (
-            next_index >= len(SURFACE_ROUTE_NODE_IDS)
-            or node.node_id != SURFACE_ROUTE_NODE_IDS[next_index]
+            next_index >= len(_SURFACE_ROUTE_NODE_IDS)
+            or node.node_id != _SURFACE_ROUTE_NODE_IDS[next_index]
         ):
             raise ValueError(
                 "route advancement must use the immediate authored successor"
@@ -83,12 +94,12 @@ class OverworldState:
 
         self._current_route_node_id = node.node_id
         self._current_contextual_route_phase = phase
-        if node.node_id == DUNGEON_ENTRANCE_NODE_ID:
+        if node.node_id == _DUNGEON_ENTRANCE_NODE_ID:
             self._dungeon_entrance_reached = True
             self._route_complete = True
 
     def record_resolved_rest_node(self, node_id):
-        if node_id not in SURFACE_REST_NODE_IDS:
+        if node_id not in _SURFACE_REST_NODE_IDS:
             raise ValueError(f"not an authored Rest node: {node_id!r}")
         self._resolved_rest_node_ids.add(node_id)
 

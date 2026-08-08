@@ -2,12 +2,14 @@
 
 from enum import StrEnum
 
-from app.game.encounter_manifest import (
-    create_route_encounter_enemies,
-    route_manifest_node,
+from app.content.catalog import (
+    get_encounter_spec,
+    get_encounter_rewards,
+    get_route_node_spec,
+    get_route_successor_id,
 )
+from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
-from app.game.overworld_route import RouteNodeKind, route_node
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.save_repository import (
     SaveLoadStatus,
@@ -311,22 +313,24 @@ class OverworldSession:
     def _run_current_encounter(self):
         overworld = self.game_state.overworld_state
         current_node_id = overworld.current_route_node_id
-        manifest_node = route_manifest_node(current_node_id)
-        if manifest_node.encounter is None:
+        current_node = get_route_node_spec(current_node_id)
+        if current_node.encounter_id is None:
             self._notice = "No encounter is available here."
             return
+        encounter = get_encounter_spec(current_node.encounter_id)
+        exp_reward, gold_reward = get_encounter_rewards(encounter.encounter_id)
 
         checkpoint = self.game_state.player_state.create_battle_checkpoint()
         overworld.begin_surface_route()
-        enemies = create_route_encounter_enemies(
-            current_node_id,
-            enemy_factory=self._enemy_factory,
+        enemies = tuple(
+            self._enemy_factory(archetype_id, tier=0)
+            for archetype_id in encounter.enemy_archetype_ids
         )
         battle = self._battle_factory(
             self.game_state.player_state,
             enemies,
             ui=self._battle_ui_factory(),
-            encounter_label=route_node(current_node_id).display_label,
+            encounter_label=current_node.display_label,
         )
         winner = battle.run()
         if winner == "player":
@@ -334,21 +338,21 @@ class OverworldSession:
                 raise RuntimeError(
                     "Battle reported victory before every enemy was defeated"
                 )
-            next_node_id = manifest_node.next_node_id
+            next_node_id = get_route_successor_id(current_node_id)
             if next_node_id is None:
                 raise RuntimeError(
                     "a completed encounter must have an authored successor"
                 )
-            next_node = route_node(next_node_id)
+            next_node = get_route_node_spec(next_node_id)
             next_phase = self._contextual_phase_for_node(next_node.kind)
-            encounter_id = manifest_node.encounter.encounter_id
+            encounter_id = encounter.encounter_id
             if encounter_id in self.game_state.world_state.defeated_encounters:
                 raise RuntimeError("encounter has already been defeated")
             player = self.game_state.player_state
             growth_points_before = player.growth_points
             levels_gained = player.apply_encounter_reward(
-                manifest_node.encounter.exp_reward,
-                manifest_node.encounter.gold_reward,
+                exp_reward,
+                gold_reward,
             )
             growth_points_gained = player.growth_points - growth_points_before
             self.game_state.world_state.mark_encounter_defeated(encounter_id)
@@ -356,8 +360,8 @@ class OverworldSession:
             self._adventure_text = self._victory_adventure_text(
                 current_node_id,
                 next_node_id,
-                exp_reward=manifest_node.encounter.exp_reward,
-                gold_reward=manifest_node.encounter.gold_reward,
+                exp_reward=exp_reward,
+                gold_reward=gold_reward,
                 levels_gained=levels_gained,
                 growth_points_gained=growth_points_gained,
                 resulting_level=player.level_state.current,
@@ -380,7 +384,7 @@ class OverworldSession:
         overworld = self.game_state.overworld_state
         node_id = overworld.current_route_node_id
         if (
-            route_node(node_id).kind is not RouteNodeKind.REST
+            get_route_node_spec(node_id).kind is not RouteNodeKind.REST
             or node_id in overworld.resolved_rest_node_ids
         ):
             self._notice = "That Rest is not available."
@@ -390,7 +394,7 @@ class OverworldSession:
     def _resolve_current_rest(self, *, recover):
         overworld = self.game_state.overworld_state
         current_node_id = overworld.current_route_node_id
-        current_node = route_node(current_node_id)
+        current_node = get_route_node_spec(current_node_id)
         if (
             current_node.kind is not RouteNodeKind.REST
             or current_node_id in overworld.resolved_rest_node_ids
@@ -398,12 +402,11 @@ class OverworldSession:
             self._notice = "That Rest is not available."
             return
 
-        manifest_node = route_manifest_node(current_node_id)
-        next_node_id = manifest_node.next_node_id
+        next_node_id = get_route_successor_id(current_node_id)
         if next_node_id is None:
             self._notice = "That Rest has no available successor."
             return
-        next_node = route_node(next_node_id)
+        next_node = get_route_node_spec(next_node_id)
         next_phase = self._contextual_phase_for_node(next_node.kind)
 
         if recover:
@@ -459,8 +462,8 @@ class OverworldSession:
         growth_points_gained,
         resulting_level,
     ):
-        completed = route_node(completed_node_id).display_label
-        next_node = route_node(next_node_id).display_label
+        completed = get_route_node_spec(completed_node_id).display_label
+        next_node = get_route_node_spec(next_node_id).display_label
         lines = [
             f"{completed} is defeated.",
             f"Rewards: {exp_reward} EXP and {gold_reward} gold.",

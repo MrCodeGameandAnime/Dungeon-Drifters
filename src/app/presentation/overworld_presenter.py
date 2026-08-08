@@ -2,15 +2,15 @@
 
 from itertools import groupby
 
-from app.content.catalog import get_enemy_spec
-from app.game.encounter_manifest import inspectable_encounter_for_node
-from app.game.game_state import GameState
-from app.game.overworld_route import (
-    FIRST_SURFACE_NODE_ID,
-    RouteNodeKind,
-    SURFACE_ROUTE_NODES,
-    route_node,
+from app.content.catalog import (
+    get_encounter_spec,
+    get_enemy_spec,
+    get_inspectable_route_node_spec,
+    get_route_node_spec,
+    get_route_spec,
 )
+from app.content.route_spec import RouteNodeKind
+from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
@@ -46,6 +46,9 @@ STAT_ORDER = (
     ("intuition", "Intuition"),
 )
 
+_SURFACE_ROUTE = get_route_spec("surface")
+_FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
+
 
 class OverworldPresenter:
     def build(
@@ -62,7 +65,7 @@ class OverworldPresenter:
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
         screen = OverworldScreen(screen)
-        node = route_node(game_state.overworld_state.current_route_node_id)
+        node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
         adventure_text = adventure_text or self._default_adventure_text(game_state)
         items = self._inventory_items(game_state)
         selected_item = next(
@@ -137,7 +140,7 @@ class OverworldPresenter:
 
     @staticmethod
     def _default_adventure_text(game_state):
-        current_label = route_node(
+        current_label = get_route_node_spec(
             game_state.overworld_state.current_route_node_id
         ).display_label
         phase = game_state.overworld_state.current_contextual_route_phase
@@ -147,7 +150,7 @@ class OverworldPresenter:
             return f"{current_label} is cleared. The route continues ahead."
         if (
             game_state.overworld_state.current_route_node_id
-            == FIRST_SURFACE_NODE_ID
+            == _FIRST_SURFACE_NODE_ID
         ):
             return "The road through Ketlyv begins at the edge of the Goblin horde."
         return f"{current_label} awaits along the surface route."
@@ -289,7 +292,7 @@ class OverworldPresenter:
 
         def is_completed(node):
             if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
-                return node.node_id in defeated_encounters
+                return node.encounter_id in defeated_encounters
             if node.kind is RouteNodeKind.REST:
                 return node.node_id in resolved_rest_nodes
             return False
@@ -314,17 +317,18 @@ class OverworldPresenter:
                         )
                     ),
                 )
-                for node in SURFACE_ROUTE_NODES
+                for node in _SURFACE_ROUTE.nodes
             )
         )
 
     @staticmethod
     def _map_encounter_inspection_view(game_state):
-        encounter = inspectable_encounter_for_node(
+        inspection_node = get_inspectable_route_node_spec(
             game_state.overworld_state.current_route_node_id
         )
-        if encounter is None:
+        if inspection_node is None:
             return None
+        encounter = get_encounter_spec(inspection_node.encounter_id)
 
         composition = []
         for archetype_id, grouped_ids in groupby(encounter.enemy_archetype_ids):
@@ -337,9 +341,9 @@ class OverworldPresenter:
             )
 
         return MapEncounterInspectionView(
-            encounter_label=route_node(encounter.encounter_id).display_label,
+            encounter_label=inspection_node.display_label,
             composition=tuple(composition),
-            boss=encounter.boss,
+            boss=inspection_node.kind is RouteNodeKind.BOSS,
         )
 
     def _options(
@@ -402,7 +406,7 @@ class OverworldPresenter:
                 enabled(OverworldAction.BACK, "Back"),
             )
         if screen is OverworldScreen.MAP:
-            inspectable = inspectable_encounter_for_node(
+            inspectable = get_inspectable_route_node_spec(
                 game_state.overworld_state.current_route_node_id
             )
             inspect_option = (
@@ -467,7 +471,7 @@ class OverworldPresenter:
 
     def _contextual_route_option(self, game_state, screen):
         current_node_id = game_state.overworld_state.current_route_node_id
-        current_node = route_node(current_node_id)
+        current_node = get_route_node_spec(current_node_id)
         unresolved_rest = current_node_id not in set(
             game_state.overworld_state.resolved_rest_node_ids
         )

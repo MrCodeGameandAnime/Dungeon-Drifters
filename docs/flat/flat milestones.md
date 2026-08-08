@@ -82,21 +82,23 @@ change persistence schema, or begin encounter and route migration.
 
 ### FLAT-4 - Unify Encounter and Route Authoring
 
-Move the surface route behind one immutable `RouteSpec` package. Its ordered
-`RouteNodeSpec` values are the sole authored owner of stable node IDs,
-player-facing labels, node kinds, and optional ordered enemy compositions.
+Move each of the eight surface encounters behind its own immutable
+`EncounterSpec` package. Move the surface route behind one ordered immutable
+`RouteSpec` package. Route nodes own stable IDs, player-facing labels, kinds,
+and canonical encounter references; encounter packages own ordered enemy
+compositions.
 
-Immediate successors, encounter IDs, Boss flags, and atomic EXP/gold totals are
-derived rather than authored a second time. Reward totals continue to come from
-the canonical enemy specifications. The generated catalog discovers route
-packages only during development, validates every referenced enemy ID, and gives
-runtime code deterministic lookup without filesystem scanning.
+Immediate successors derive from authored route order, Boss state derives from
+route-node kind, and atomic EXP/gold totals derive from canonical enemy values.
+The generated catalog discovers encounter and route packages only during
+development, validates every reference, and enforces globally unique route-node
+IDs so schema-8 route positions remain unambiguous.
 
-`app.game.overworld_route` and `app.game.encounter_manifest` remain the stable
-engine-facing adapters. Their existing public objects, constants, lookups,
-inspection behavior, and enemy factory preserve v0.3 behavior while deriving
-all records from the cataloged route specification. `OverworldState` remains
-the route-position and Rest-completion owner, and `WorldState` remains the
+`OverworldState`, `OverworldSession`, Map presentation, and save validation read
+the catalog directly. `app.game.overworld_route` and
+`app.game.encounter_manifest` remain derived compatibility surfaces only and
+contain no authored route or encounter data. `OverworldState` remains the
+route-position and Rest-completion owner, and `WorldState` remains the
 encounter-completion owner.
 
 FLAT-4 does not alter route order, labels, compositions, rewards, Rest, combat,

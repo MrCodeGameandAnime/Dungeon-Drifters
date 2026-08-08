@@ -1,11 +1,6 @@
 """Authored v0.3 surface route."""
 
-from app.content.route_spec import (
-    EncounterSpec,
-    RouteNodeKind,
-    RouteNodeSpec,
-    RouteSpec,
-)
+from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
 
 
 ROUTE = RouteSpec(
@@ -15,19 +10,19 @@ ROUTE = RouteSpec(
             "surface_goblin_solo",
             "Goblin Ambush",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin",)),
+            "surface_goblin_solo",
         ),
         RouteNodeSpec(
             "surface_goblin_pair",
             "Goblin Pair",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin", "goblin")),
+            "surface_goblin_pair",
         ),
         RouteNodeSpec(
             "surface_warrior_solo",
             "Goblin Warrior",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin_warrior",)),
+            "surface_warrior_solo",
         ),
         RouteNodeSpec(
             "surface_rest_after_warrior_solo",
@@ -38,19 +33,19 @@ ROUTE = RouteSpec(
             "surface_warrior_pair",
             "Warrior Patrol",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin_warrior", "goblin_warrior")),
+            "surface_warrior_pair",
         ),
         RouteNodeSpec(
             "surface_shaman_solo",
             "Goblin Shaman",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin_shaman",)),
+            "surface_shaman_solo",
         ),
         RouteNodeSpec(
             "surface_shaman_pair",
             "Shaman Pair",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin_shaman", "goblin_shaman")),
+            "surface_shaman_pair",
         ),
         RouteNodeSpec(
             "surface_rest_after_shaman_pair",
@@ -61,7 +56,7 @@ ROUTE = RouteSpec(
             "surface_elite_patrol",
             "Elite Patrol",
             RouteNodeKind.COMBAT,
-            EncounterSpec(("goblin_elite", "goblin")),
+            "surface_elite_patrol",
         ),
         RouteNodeSpec(
             "surface_rest_before_goblin_lord",
@@ -72,7 +67,7 @@ ROUTE = RouteSpec(
             "surface_goblin_lord",
             "Goblin Lord",
             RouteNodeKind.BOSS,
-            EncounterSpec(("goblin_lord", "goblin", "goblin_warrior")),
+            "surface_goblin_lord",
         ),
         RouteNodeSpec(
             "surface_dungeon_entrance",
