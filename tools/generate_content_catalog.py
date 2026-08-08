@@ -270,6 +270,30 @@ def render_catalog(
     return source
 
 
+def render_discovered_catalog(
+    *,
+    enemy_root=ENEMY_ROOT,
+    weapon_root=WEAPON_ROOT,
+    drifter_root=DRIFTER_ROOT,
+    encounter_root=ENCOUNTER_ROOT,
+    route_root=ROUTE_ROOT,
+):
+    """Return the deterministic catalog for the supplied content roots."""
+    return render_catalog(
+        discover_enemy_ids(enemy_root),
+        discover_weapon_ids(weapon_root),
+        discover_drifter_ids(drifter_root),
+        discover_encounter_ids(encounter_root),
+        discover_route_ids(route_root),
+    )
+
+
+def write_catalog(source, output_path=OUTPUT_PATH):
+    """Write an already-rendered catalog with stable newline behavior."""
+    with output_path.open("w", encoding="utf-8", newline="\n") as output:
+        output.write(source)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -278,13 +302,7 @@ def main():
         help="fail when the committed catalog is stale",
     )
     args = parser.parse_args()
-    expected = render_catalog(
-        discover_enemy_ids(),
-        discover_weapon_ids(),
-        discover_drifter_ids(),
-        discover_encounter_ids(),
-        discover_route_ids(),
-    )
+    expected = render_discovered_catalog()
 
     if args.check:
         actual = OUTPUT_PATH.read_text(encoding="utf-8")
@@ -292,8 +310,7 @@ def main():
             raise SystemExit("generated content catalog is stale")
         return
 
-    with OUTPUT_PATH.open("w", encoding="utf-8", newline="\n") as output:
-        output.write(expected)
+    write_catalog(expected)
 
 
 if __name__ == "__main__":

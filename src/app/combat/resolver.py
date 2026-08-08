@@ -46,6 +46,33 @@ HEALING_ROLL_MIN = 10
 HEALING_ROLL_MAX = 16
 
 
+def authored_move_rejection_reason(move):
+    """Return the resolver rejection for an authored move shape, if any."""
+    if move.kind == MoveKind.UTILITY:
+        if move.mechanic != "brace":
+            return (
+                "unsupported_move_kind"
+                if move.mechanic is None
+                else "unsupported_mechanic"
+            )
+    elif not _is_supported_move_kind(move):
+        return "unsupported_move_kind"
+
+    if move.kind != MoveKind.UTILITY and move.mechanic not in SUPPORTED_MECHANICS:
+        return "unsupported_mechanic"
+    if move.mechanic == "gravemantle_rupture" and not move.is_spell:
+        return "unsupported_mechanic"
+    if move.mechanic == INFUSED_BARB_MECHANIC and move.kind != MoveKind.DAMAGE:
+        return "unsupported_mechanic"
+    if (
+        move.mechanic
+        in (HYDRO_WHIP_MECHANIC, LIGHTNING_PALM_MECHANIC, TEMPEST_SURGE_MECHANIC)
+        and move.kind != MoveKind.DAMAGE
+    ):
+        return "unsupported_mechanic"
+    return None
+
+
 class CombatResolver:
     def __init__(self, rng=random):
         self.rng = rng
@@ -78,31 +105,9 @@ class CombatResolver:
         if reason is not None:
             return _rejected(result_move_name, reason)
 
-        if move.kind == MoveKind.UTILITY:
-            if move.mechanic != "brace":
-                reason = "unsupported_move_kind" if move.mechanic is None else "unsupported_mechanic"
-                return _rejected(move.name, reason)
-        elif not _is_supported_move_kind(move):
-            return _rejected(move.name, "unsupported_move_kind")
-
-        if move.kind != MoveKind.UTILITY and move.mechanic not in SUPPORTED_MECHANICS:
-            return _rejected(move.name, "unsupported_mechanic")
-
-        if move.mechanic == "gravemantle_rupture" and not move.is_spell:
-            return _rejected(move.name, "unsupported_mechanic")
-
-        if move.mechanic == INFUSED_BARB_MECHANIC and move.kind != MoveKind.DAMAGE:
-            return _rejected(move.name, "unsupported_mechanic")
-
-        if (
-            move.mechanic in (
-                HYDRO_WHIP_MECHANIC,
-                LIGHTNING_PALM_MECHANIC,
-                TEMPEST_SURGE_MECHANIC,
-            )
-            and move.kind != MoveKind.DAMAGE
-        ):
-            return _rejected(move.name, "unsupported_mechanic")
+        authored_rejection = authored_move_rejection_reason(move)
+        if authored_rejection is not None:
+            return _rejected(move.name, authored_rejection)
 
         if move.is_spell and not isinstance(combat_state, CombatState):
             return _rejected(move.name, "invalid_combat_state")

@@ -108,8 +108,22 @@ fast travel, or post-v0.3 dungeon gameplay.
 
 ### FLAT-5 - Complete Content Tooling and Guides
 
-Extend deterministic catalog generation, add validation and scaffolding commands,
-and document one obvious workflow for each supported content type.
+Add one transactional scaffolding command for enemies, weapons, Drifters,
+encounters, and routes. Every scaffold creates the conventional package,
+primary definition, focused test, and deterministic catalog record without
+overwriting existing work. New templates remain explicitly unfinished through
+`TODO(FLAT-CONTENT)` markers until the author replaces every placeholder.
+
+Add one strictly read-only validation command that independently discovers the
+five supported content types, verifies catalog freshness and immutable exports,
+checks IDs and cross-content references, delegates authored move compatibility
+to the resolver's pure rule boundary, and proves schema-8 reconstruction for
+every built-in Drifter. CI runs this command before pytest and compiles tooling
+alongside source and tests.
+
+Document the complete workflow in `docs/flat/content authoring.md`. Preserve the
+catalog APIs established by FLAT-1 through FLAT-4; FLAT-5 adds no aliases,
+gameplay, schema fields, runtime filesystem scanning, or FLAT-6 cleanup.
 
 ### FLAT-6 - Remove Obsolete Paths and Harden Boundaries
 
