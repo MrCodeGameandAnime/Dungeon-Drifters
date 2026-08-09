@@ -8,13 +8,13 @@ language do not override these files.
 
 | Milestone | Authoritative contract files |
 |---|---|
-| M10A | `docs/m10/m10 overworld session contract.md` |
-| M10B | `docs/m10/m10 encounter route manifest.md`; `docs/m10/m10 enemy definitions.md` |
-| M10C | `docs/m10/m10 multi enemy battle contract.md` |
-| M10D | `docs/m10/m10 equipment.md` |
-| M10E | `docs/m10/m10 leveling.md`; `docs/m10/m10 gold.md`; `docs/m10/m10 encounter route manifest.md` |
-| M10F | `docs/m10/m10 rest contract.md` |
-| M10G | `docs/m10/m10 save load.md` |
+| M10A | `docs/old/m10/m10 overworld session contract.md` |
+| M10B | `docs/old/m10/m10 encounter route manifest.md`; `docs/old/m10/m10 enemy definitions.md` |
+| M10C | `docs/old/m10/m10 multi enemy battle contract.md` |
+| M10D | `docs/old/m10/m10 equipment.md` |
+| M10E | `docs/old/m10/m10 leveling.md`; `docs/old/m10/m10 gold.md`; `docs/old/m10/m10 encounter route manifest.md` |
+| M10F | `docs/old/m10/m10 rest contract.md` |
+| M10G | `docs/old/m10/m10 save load.md` |
 
 ---
 
@@ -25,7 +25,7 @@ language do not override these files.
 Replace the current one-battle ending with a persistent non-combat session loop that can return from Battle, preserve the selected Drifter, and continue toward the next authored encounter.
 
 The complete Session and Overworld contract is recorded in
-`docs/m10/m10 overworld session contract.md`.
+`docs/old/m10/m10 overworld session contract.md`.
 
 ## Repository seams
 
@@ -84,7 +84,7 @@ The same selected Drifter and persistent resources must carry into the next enco
 
 Menu wording, semantic navigation, victory and defeat return behavior, state
 ownership, disabled and hidden controls, and exit behavior are locked by
-`docs/m10/m10 overworld session contract.md`.
+`docs/old/m10/m10 overworld session contract.md`.
 
 ## Completion gate
 
@@ -111,13 +111,13 @@ Current implementation already provides:
 - one registered ordinary Goblin
 
 The complete M10 enemy-definition lock is recorded in
-`docs/m10/m10 enemy definitions.md`. It covers the four new archetypes,
+`docs/old/m10/m10 enemy definitions.md`. It covers the four new archetypes,
 their authored moves and metadata, tier 0 support, the shared affordable-move
 policy, and the final Goblin Lord composition.
 
 The complete route order, stable node IDs, encounter compositions, rewards,
 Rest-node placement, boss designation, completion behavior, and next
-destinations are recorded in `docs/m10/m10 encounter route manifest.md`.
+destinations are recorded in `docs/old/m10/m10 encounter route manifest.md`.
 
 The roadmap requires encounters to define composition, identifier, reward values, rest boundary, next destination, boss status, and completion state.
 
@@ -159,9 +159,9 @@ The ordinary Goblin retains its current production balance unless a separate app
 ## Decision Authority
 
 Route identifiers, rewards, Rest boundaries, boss flags, and completion
-semantics come from `docs/m10/m10 encounter route manifest.md`. Duplicate-enemy
+semantics come from `docs/old/m10/m10 encounter route manifest.md`. Duplicate-enemy
 labels and runtime target identity come from
-`docs/m10/m10 multi enemy battle contract.md`.
+`docs/old/m10/m10 multi enemy battle contract.md`.
 
 ## Completion gate
 
@@ -176,7 +176,7 @@ Every required enemy archetype exists through the current registry/factory patte
 Expand the current one-player-versus-one-enemy Battle to support one player against multiple independent enemies without rewriting the established combat, presentation, or UI ownership boundaries.
 
 The complete Multi-Enemy Battle contract is recorded in
-`docs/m10/m10 multi enemy battle contract.md`.
+`docs/old/m10/m10 multi enemy battle contract.md`.
 
 ## Repository seams
 
@@ -265,7 +265,7 @@ Connect the existing signature-weapon equipment system to effective combat
 values and make the current weapon inspectable from the overworld.
 
 The complete M10 equipment boundary is recorded in
-`docs/m10/m10 equipment.md`.
+`docs/old/m10/m10 equipment.md`.
 
 ## Repository seams
 
@@ -312,7 +312,7 @@ Equipment persists into later encounters and appears in persistent state.
 ## Decision Authority
 
 Supported signature weapons, stable identifiers, effective bonuses, and the
-read-only Weapon tab come from `docs/m10/m10 equipment.md`.
+read-only Weapon tab come from `docs/old/m10/m10 equipment.md`.
 
 ## Completion gate
 
@@ -329,9 +329,9 @@ encounters without mutating permanent attributes or losing equipment state.
 Connect encounter victory to persistent EXP, level state, gold or other already-supported persistent rewards, and controlled permanent growth.
 
 The M10 progression curve and level cap are recorded in
-`docs/m10/m10 leveling.md`. Exact encounter EXP and gold rewards, atomic reward
+`docs/old/m10/m10 leveling.md`. Exact encounter EXP and gold rewards, atomic reward
 rules, and the expected dungeon-entrance totals are recorded in
-`docs/m10/m10 gold.md` and `docs/m10/m10 encounter route manifest.md`.
+`docs/old/m10/m10 gold.md` and `docs/old/m10/m10 encounter route manifest.md`.
 
 ## Repository seams
 
@@ -394,7 +394,7 @@ A full encounter victory applies one approved persistent reward, progression sur
 Provide the simple deterministic between-encounter recovery action required by a route with persistent HP and Mana.
 
 The complete Rest contract is recorded in
-`docs/m10/m10 rest contract.md`.
+`docs/old/m10/m10 rest contract.md`.
 
 ## Repository seams
 
@@ -461,7 +461,7 @@ At an approved post-encounter boundary, the player can rest, receive exactly the
 Persist the meaningful M10 session state outside active combat and restore it into a playable session.
 
 The complete M10 Save/Load contract is recorded in
-`docs/m10/m10 save load.md`.
+`docs/old/m10/m10 save load.md`.
 
 ## Repository seams
 
@@ -513,7 +513,7 @@ No active combat, open menu, presenter model, RNG object, enemy runtime object, 
 ## Decision Authority
 
 Save boundaries, schema behavior, missing and invalid save behavior, and
-persistence ownership come from `docs/m10/m10 save load.md`. Canonical item
+persistence ownership come from `docs/old/m10/m10 save load.md`. Canonical item
 identifiers come from their approved item contracts and authored registries.
 
 ## Completion gate

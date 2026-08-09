@@ -13,7 +13,7 @@ master: d74f19da38c0fddbe26a721cd519cd260e4f44eb
 Branch divergence: 0 commits ahead, 0 commits behind
 ```
 
-The M11 roadmap authority is the M11 section of `docs/v0.3 milestones.md`.
+The M11 roadmap authority is the M11 section of `docs/old/v0.3 milestones.md`.
 M9 and M10 behavior remains governed by their accepted contracts. M11 must
 not silently redefine those contracts.
 
