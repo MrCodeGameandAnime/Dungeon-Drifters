@@ -218,7 +218,7 @@ def test_todo_marker_is_actionable_and_removed_content_is_clear(tmp_path):
     primary, _, _ = scaffolder.scaffold_content("enemy", "ashen_guard", root=root)
     unfinished = _run_fixture_validator(root)
     assert unfinished.returncode == 1
-    assert "unfinished TODO(FLAT-CONTENT) marker" in unfinished.stderr
+    assert "unfinished TODO(CONTENT-AUTHORING) marker" in unfinished.stderr
     assert "ashen_guard/enemy.py" in unfinished.stderr.replace("\\", "/")
     assert "Traceback" not in unfinished.stderr
 

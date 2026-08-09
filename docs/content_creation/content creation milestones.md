@@ -1,13 +1,13 @@
-# Architecture Streamlining and Portable Content Foundation
+# Content Creation Architecture and Portable Authoring Foundation
 
 ## Authority
 
-This document controls the `flat` architecture stream beginning from the v0.3
-release at `e7a89c2cc83b961430a1d84a6738e1b3da3ba540`.
+This document controls the content-creation architecture stream beginning from
+the v0.3 release at `e7a89c2cc83b961430a1d84a6738e1b3da3ba540`.
 
-The objective is to flatten the developer experience without flattening the
-runtime architecture. Domain state, game orchestration, presentation, terminal
-UI, persistence, and content remain separate responsibilities.
+The objective is to make the developer experience cohesive without collapsing
+the runtime architecture. Domain state, game orchestration, presentation,
+terminal UI, persistence, and content remain separate responsibilities.
 
 Normal content additions must have one primary authored definition, no private
 state manipulation, no duplicated authored values, no platform-specific rules,
@@ -28,7 +28,7 @@ and one deterministic validation path.
 
 ## Gates
 
-### FLAT-1 - Unify Enemy Authoring
+### CONTENT-1 - Unify Enemy Authoring
 
 Replace the five-file enemy packages with one immutable `EnemySpec` module per
 enemy. Generate the deterministic runtime catalog, retain generic `Enemy` and
@@ -38,7 +38,7 @@ concrete enemy class paths. Tier 0 remains the only supported enemy tier.
 Enemy stats, resources, rewards, metadata, moves, descriptions, encounter
 compositions, route rewards, combat behavior, and presentation must not change.
 
-### FLAT-2 - Unify Signature Weapon Authoring
+### CONTENT-2 - Unify Signature Weapon Authoring
 
 Move signature weapons behind immutable content specifications while preserving
 schema-8 weapon identity, canonical reconstruction, bonuses, and inspection.
@@ -50,10 +50,10 @@ catalog owns both lookups, every construction path returns a fresh generic
 `Weapon`, and save reconstruction validates canonical authored data through the
 persistence-key lookup. The four data-only weapon subclasses are removed.
 
-FLAT-2 does not generalize run items, recipes, prepared payload mechanics, or
+CONTENT-2 does not generalize run items, recipes, prepared payload mechanics, or
 accessory equipment.
 
-### FLAT-3 - Unify Drifter Authoring
+### CONTENT-3 - Unify Drifter Authoring
 
 Replace concrete Character subclasses and split profile wiring with one immutable
 `DrifterSpec` package per character. Each specification is the sole authored
@@ -77,10 +77,10 @@ not change. The four concrete Character subclasses, four loadout modules, and
 four split profile-definition modules are removed after all production and test
 callers migrate to `app.content`.
 
-FLAT-3 does not generalize run items or payload recipes, alter combat mechanics,
+CONTENT-3 does not generalize run items or payload recipes, alter combat mechanics,
 change persistence schema, or begin encounter and route migration.
 
-### FLAT-4 - Unify Encounter and Route Authoring
+### CONTENT-4 - Unify Encounter and Route Authoring
 
 Move each of the eight surface encounters behind its own immutable
 `EncounterSpec` package. Move the surface route behind one ordered immutable
@@ -98,18 +98,18 @@ IDs so schema-8 route positions remain unambiguous.
 the catalog directly. `OverworldState` remains the route-position and
 Rest-completion owner, and `WorldState` remains the encounter-completion owner.
 
-FLAT-4 does not alter route order, labels, compositions, rewards, Rest, combat,
+CONTENT-4 does not alter route order, labels, compositions, rewards, Rest, combat,
 Map presentation, progression, snapshots, schema 8, or the passive Dungeon
 Entrance endpoint. It does not add routes, encounters, procedural generation,
 fast travel, or post-v0.3 dungeon gameplay.
 
-### FLAT-5 - Complete Content Tooling and Guides
+### CONTENT-5 - Complete Content Tooling and Guides
 
 Add one transactional scaffolding command for enemies, weapons, Drifters,
 encounters, and routes. Every scaffold creates the conventional package,
 primary definition, focused test, and deterministic catalog record without
 overwriting existing work. New templates remain explicitly unfinished through
-`TODO(FLAT-CONTENT)` markers until the author replaces every placeholder.
+`TODO(CONTENT-AUTHORING)` markers until the author replaces every placeholder.
 
 Add one strictly read-only validation command that independently discovers the
 five supported content types, verifies catalog freshness and immutable exports,
@@ -118,11 +118,11 @@ to the resolver's pure rule boundary, and proves schema-8 reconstruction for
 every built-in Drifter. CI runs this command before pytest and compiles tooling
 alongside source and tests.
 
-Document the complete workflow in `docs/flat/content authoring.md`. Preserve the
-catalog APIs established by FLAT-1 through FLAT-4; FLAT-5 adds no aliases,
-gameplay, schema fields, runtime filesystem scanning, or FLAT-6 cleanup.
+Document the complete workflow in `docs/content_creation/content authoring.md`.
+Preserve the catalog APIs established by CONTENT-1 through CONTENT-4; CONTENT-5 adds no aliases,
+gameplay, schema fields, runtime filesystem scanning, or CONTENT-6 cleanup.
 
-### FLAT-6 - Remove Obsolete Paths and Harden Boundaries
+### CONTENT-6 - Remove Obsolete Paths and Harden Boundaries
 
 Remove superseded enemy factories, route and encounter adapters, profile roster
 modules, concrete content imports, and legacy move dictionaries after all
@@ -136,7 +136,7 @@ asset packages; runtime catalog loading cannot scan the filesystem. Exercise
 all five scaffolders in isolated projects and prove their completed output
 passes the canonical validator.
 
-FLAT-6 preserves terminal behavior, combat, progression, rewards, Rest,
+CONTENT-6 preserves terminal behavior, combat, progression, rewards, Rest,
 schema-8 Save/Load, and every v0.3 session contract. It does not reorganize the
 remaining packages, implement Android, add gameplay, alter persistence, or add
 another content type.

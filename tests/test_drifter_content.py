@@ -49,7 +49,7 @@ def test_drifter_catalog_matches_the_independent_identity_contract():
     assert get_drifter_spec_by_choice("5") is None
 
 
-def test_generated_catalog_is_current_for_all_flattened_content():
+def test_generated_catalog_is_current_for_all_authored_content():
     expected = render_catalog(
         discover_enemy_ids(),
         discover_weapon_ids(),

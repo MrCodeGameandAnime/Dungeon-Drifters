@@ -28,7 +28,7 @@ and one focused test:
 
 Scaffolding refuses collisions and never overwrites files. Its conservative
 placeholder definitions import successfully, but validation intentionally fails
-until every `TODO(FLAT-CONTENT)` marker has been replaced with authored values.
+until every `TODO(CONTENT-AUTHORING)` marker has been replaced with authored values.
 
 ## Identity And References
 

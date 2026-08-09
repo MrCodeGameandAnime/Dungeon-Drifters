@@ -136,11 +136,11 @@ def test_runtime_content_catalog_performs_no_filesystem_discovery():
 @pytest.mark.parametrize(
     ("content_type", "content_id"),
     (
-        ("enemy", "flat6_enemy"),
-        ("weapon", "flat6_weapon"),
-        ("drifter", "flat6_drifter"),
-        ("encounter", "flat6_encounter"),
-        ("route", "flat6_route"),
+        ("enemy", "content_enemy"),
+        ("weapon", "content_weapon"),
+        ("drifter", "content_drifter"),
+        ("encounter", "content_encounter"),
+        ("route", "content_route"),
     ),
 )
 def test_every_scaffolder_produces_content_accepted_after_authoring(

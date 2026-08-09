@@ -126,7 +126,7 @@ class EnemySpec:
         ):
             raise TypeError("supported_tiers must contain only integers")
         if self.supported_tiers != (0,):
-            raise ValueError("FLAT-1 enemy specifications support only tier 0")
+            raise ValueError("content enemy specifications support only tier 0")
 
     def create_definition(self, tier=0):
         tier = validate_enemy_tier(tier)

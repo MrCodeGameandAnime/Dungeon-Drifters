@@ -33,7 +33,7 @@ from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 
 
-TODO_MARKER = "TODO(FLAT-CONTENT)"
+TODO_MARKER = "TODO(CONTENT-AUTHORING)"
 CONTENT_TYPES = {
     "enemy": ("enemies", "enemy", "ENEMY", EnemySpec, discover_enemy_ids),
     "weapon": ("weapons", "weapon", "WEAPON", WeaponSpec, discover_weapon_ids),

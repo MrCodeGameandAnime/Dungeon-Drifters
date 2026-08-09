@@ -21,7 +21,7 @@ CONTENT_LAYOUTS = {
     "encounter": ("encounters", "encounter.py", "ENCOUNTER"),
     "route": ("routes", "route.py", "ROUTE"),
 }
-TODO_MARKER = "TODO(FLAT-CONTENT)"
+TODO_MARKER = "TODO(CONTENT-AUTHORING)"
 
 
 def _write_text(path, source):

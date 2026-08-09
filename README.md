@@ -458,6 +458,6 @@ v0.3 completes and hardens the single-Drifter surface campaign:
 - Use the project virtual environment at `.venv`.
 - Use `.\.venv\Scripts\python.exe` for commands.
 - Pytest is the canonical test runner.
-- Use the [content authoring guide](docs/flat/content%20authoring.md) to add
+- Use the [content authoring guide](docs/content_creation/content%20authoring.md) to add
   enemies, weapons, Drifters, encounters, or routes through the supported
   scaffold and validation commands.
