@@ -2,10 +2,11 @@
 
 Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
 
-The current repository checkpoint is **v0.3**. The release provides a complete
-single-Drifter surface campaign through the Goblin Lord, with persistent
-progression, Rest, save/load, multi-enemy combat, and renderer-neutral terminal
-presentation. M11 acceptance proves the complete session for all four Drifters.
+The current repository checkpoint is **v0.4**. It preserves the complete v0.3
+single-Drifter surface campaign through the Goblin Lord and adds the portable
+content-authoring foundation, unified project layout, deterministic catalogs,
+scaffolding, and validation tooling. M11 acceptance proves the complete session
+for all four Drifters.
 
 ## Current Playable State
 
@@ -20,7 +21,7 @@ title screen
   -> rewards
   -> rest, inspect, save, load, or continue
   -> Goblin Lord victory
-  -> dungeon entrance (v0.3 endpoint)
+  -> dungeon entrance (current release endpoint)
 ```
 
 Current Drifter selection uses canonical profile identity layered over the
@@ -188,9 +189,11 @@ The repository now includes these active foundations:
 - Defensive copies or immutable views for state collections where currently
   implemented.
 
-These systems form the v0.3 gameplay and architecture foundation. The session
-ends at the dungeon entrance; entering the dungeon, companion recruitment,
-party state, and dungeon gameplay are deferred to a later release.
+These systems preserve the v0.3 gameplay foundation. v0.4 adds the portable
+content-authoring and project-structure foundation described in the change log.
+The session ends at the dungeon entrance; entering the dungeon, companion
+recruitment, party state, and dungeon gameplay remain deferred to a later
+release.
 
 ## Resource Terminology
 

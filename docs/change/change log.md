@@ -1,5 +1,35 @@
 # Dungeon Drifters Change Log
 
+## v0.4
+
+v0.4 establishes the portable content-authoring and repository foundation while
+preserving the v0.3 gameplay boundary:
+
+- unified enemy, weapon, Drifter, encounter, and route authoring behind the
+  `app.content` facade
+- added deterministic generated catalogs with read-only content validation
+- added persistent content scaffolding for all five supported content types
+- preserved schema-8 persistence identities and reconstruction behavior
+- derived encounter rewards, Boss state, route successors, and map content from
+  canonical authored specifications
+- moved the Python project under `root/src`, `root/tests`, and `root/tools`
+- reorganized active design, historical milestone, and content-authoring docs
+- moved the README version history into this change log
+- stopped tracking local-only map and menu reference assets
+- added catalog validation and the complete regression suite to CI
+- made no new gameplay, dungeon, party, or progression-system scope changes
+
+The playable endpoint remains the v0.3 surface route:
+
+```text
+Goblin Lord defeated
+-> final rewards applied
+-> Dungeon Entrance displayed
+-> surface route complete
+-> no dungeon action available
+-> end of v0.4
+```
+
 ## v0.3
 
 v0.3 completes and hardens the single-Drifter surface campaign:
