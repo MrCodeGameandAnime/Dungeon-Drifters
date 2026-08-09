@@ -1,0 +1,1 @@
+"""Authored signature-weapon packages."""

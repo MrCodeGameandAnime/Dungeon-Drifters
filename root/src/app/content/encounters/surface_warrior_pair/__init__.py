@@ -1,0 +1,1 @@
+"""Warrior Patrol encounter content."""

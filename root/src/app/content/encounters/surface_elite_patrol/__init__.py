@@ -1,0 +1,1 @@
+"""Elite Patrol encounter content."""

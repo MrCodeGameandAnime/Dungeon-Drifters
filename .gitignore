@@ -40,6 +40,8 @@ qodana.sarif.json
 backup/
 update info/
 .codex-remote-attachments/
+res/maps/
+res/menu/
 *.zip
 *.tar
 *.tar.gz
@@ -47,11 +49,11 @@ update info/
 *.tmp
 
 # Local production save
-src/saves/dungeon_drifters.json
+root/src/saves/dungeon_drifters.json
 
 # OS files
 .DS_Store
 Thumbs.db
 # Generated balance probe runs; keep the usage README tracked.
-tools/balance_probe_outputs/*
-!tools/balance_probe_outputs/README.md
+root/tools/balance_probe_outputs/*
+!root/tools/balance_probe_outputs/README.md

@@ -1,0 +1,521 @@
+import pytest
+
+from app.content.catalog import create_drifter
+from app.game.game_state import GameState
+from tests.content_test_support import SECOND_SURFACE_NODE_ID
+from app.game.overworld_state import ContextualRoutePhase
+from app.player.player_state import PlayerState
+from app.player.progression import MAXIMUM_LEVEL
+from app.player.run_items import owned_run_item_definitions
+from app.presentation.overworld_models import (
+    MapNodeState,
+    OverworldAction,
+    OverworldAvailabilityReason,
+    OverworldScreen,
+)
+from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
+from app.content.catalog import DRIFTER_SPECS
+
+
+def get_character_profiles():
+    return DRIFTER_SPECS
+
+
+def create_game(drifter_id="branoc"):
+    return GameState(PlayerState(create_drifter(drifter_id)))
+
+
+def option(view, action):
+    return next(value for value in view.options if value.action is action)
+
+
+def test_main_view_uses_authored_labels_and_only_the_valid_contextual_action():
+    game = create_game()
+    presenter = OverworldPresenter()
+
+    initial = presenter.build(game)
+    game.overworld_state.set_contextual_route_phase(ContextualRoutePhase.RETRY)
+    retry = presenter.build(game)
+    game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
+    paused = presenter.build(game)
+    game.overworld_state.advance_to(
+        "surface_warrior_solo",
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+    game.overworld_state.advance_to("surface_rest_after_warrior_solo")
+    rest_main = presenter.build(game)
+    rest_screen = presenter.build(game, screen=OverworldScreen.REST)
+
+    assert initial.location_label == "Goblin Ambush"
+    assert [value.label for value in initial.options] == [
+        "Character",
+        "Items",
+        "Map",
+        "Options",
+    ]
+    assert (
+        initial.contextual_route_option.action
+        is OverworldAction.ENTER_ENCOUNTER
+    )
+    assert retry.options == initial.options
+    assert paused.options == initial.options
+    assert retry.contextual_route_option.action is OverworldAction.RETRY
+    assert paused.contextual_route_option is None
+    assert paused.location_label == "Goblin Pair"
+    assert rest_main.contextual_route_option.action is OverworldAction.REST
+    assert rest_screen.contextual_route_option.action is OverworldAction.SKIP_REST
+    assert [option.label for option in rest_screen.options] == [
+        "Rest",
+        "Save",
+        "Quit",
+        "Menu",
+    ]
+    assert rest_screen.options[1].enabled is False
+    assert "surface_" not in repr(initial)
+    assert "surface_" not in repr(paused)
+
+
+@pytest.mark.parametrize("profile", get_character_profiles())
+def test_all_drifter_views_expose_complete_authored_data_without_mutation(
+    profile,
+):
+    player = PlayerState(profile.create_character())
+    player.health.take_damage(7)
+    assert player.mana_resource.spend(3) is True
+    player.super_resource.gain(29)
+    signature_weapon = player.get_equipped("weapon")
+    player.inventory.add_item(signature_weapon)
+    game = GameState(player)
+    presenter = OverworldPresenter()
+    before = game.snapshot()
+
+    character = presenter.build(game, screen=OverworldScreen.CHARACTER)
+    skills = presenter.build(game, screen=OverworldScreen.SKILLS)
+    weapon = presenter.build(game, screen=OverworldScreen.WEAPON)
+    inventory = presenter.build(game, screen=OverworldScreen.ITEMS)
+
+    assert tuple(row.label for row in character.character.stats) == (
+        "Strength",
+        "Constitution",
+        "Intelligence",
+        "Spirit",
+        "Dexterity",
+        "Intuition",
+    )
+    permanent_stats = player.character.permanent_stats.as_dict()
+    assert tuple(row.value for row in character.character.stats) == tuple(
+        permanent_stats[name] for name, _ in STAT_ORDER
+    )
+    assert character.character.display_name == player.character.full_display_name
+    assert character.character.archetype_label == player.character.archetype_name
+    assert character.character.hp_current == player.health.current
+    assert character.character.hp_maximum == player.health.maximum
+    assert character.character.mana_current == player.mana_resource.current
+    assert character.character.mana_maximum == player.mana_resource.maximum
+    assert character.character.super_current == player.super_resource.current
+    assert character.character.super_maximum == player.super_resource.maximum
+
+    assert character.character.level == 1
+    assert character.character.exp_current == 0
+    assert character.character.exp_threshold == 100
+    assert skills.skills.growth_points_available == 0
+    assert skills.skills.growth_message == "Earn Growth Points by leveling up."
+    assert tuple(row.stat_name for row in skills.skills.stats) == tuple(
+        name for name, _ in STAT_ORDER
+    )
+    assert all(row.increase_visible for row in skills.skills.stats)
+    assert all(not row.increase_enabled for row in skills.skills.stats)
+    assert all(
+        row.disabled_reason is OverworldAvailabilityReason.NO_GROWTH_POINTS
+        for row in skills.skills.stats
+    )
+    assert tuple(
+        (move.name, move.description) for move in skills.skills.moves
+    ) == tuple(
+        (move.name, move.description) for move in player.combat_moves
+    )
+
+    assert weapon.weapon.name == signature_weapon.name
+    assert weapon.weapon.weapon_type == signature_weapon.weapon_type
+    assert weapon.weapon.intended_wielder == signature_weapon.intended_wielder
+    assert tuple(
+        (bonus.label, bonus.amount) for bonus in weapon.weapon.bonuses
+    ) == tuple(
+        (label, signature_weapon.stat_bonuses[name])
+        for name, label in STAT_ORDER
+        if name in signature_weapon.stat_bonuses
+    )
+    assert weapon.weapon.description == signature_weapon.description
+
+    expected_items = [
+        (signature_weapon.name, 1, signature_weapon.description),
+    ]
+    expected_items.extend(
+        (
+            definition.display_name,
+            player.character_run_state.item_quantity(definition.item_id),
+            definition.description,
+        )
+        for definition in owned_run_item_definitions(
+            player.character_run_state
+        )
+    )
+    assert tuple(
+        (item.display_name, item.quantity, item.description)
+        for item in inventory.inventory.items
+    ) == tuple(expected_items)
+
+    assert game.snapshot() == before
+    with pytest.raises(AttributeError):
+        character.character.super_current = 0
+
+
+def test_character_progression_presents_zero_and_partial_exp_without_mutation():
+    game = create_game()
+    presenter = OverworldPresenter()
+
+    zero = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+    game.player_state.exp_state.current = 40
+    partial = presenter.build(game, screen=OverworldScreen.CHARACTER).character
+
+    assert zero.exp_current == 0
+    assert zero.exp_threshold == 100
+    assert zero.exp_fill_bps == 0
+    assert partial.exp_current == 40
+    assert partial.exp_threshold == 100
+    assert partial.exp_fill_bps == 4_000
+
+
+def test_character_progression_presents_level_cap_without_dividing_by_none():
+    game = create_game()
+    game.player_state.level_state.current = MAXIMUM_LEVEL
+    game.player_state.exp_state.current = 0
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+    ).character
+
+    assert view.level == MAXIMUM_LEVEL
+    assert view.exp_current == 0
+    assert view.exp_threshold is None
+    assert view.exp_fill_bps == 10_000
+
+
+def test_skills_present_live_growth_points_and_stat_availability():
+    game = create_game()
+    player = game.player_state
+    player.gain_experience(100)
+    player.character.permanent_stats.set_stat("constitution", 100)
+    weapon_bonus = player.get_equipped("weapon").stat_bonuses.get("strength", 0)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.SKILLS,
+    ).skills
+
+    assert view.growth_points_available == 3
+    assert view.growth_message == (
+        "Spend 1 Growth Point to increase one permanent stat by 1."
+    )
+    assert all(
+        row.increase_enabled
+        for row in view.stats
+        if row.stat_name != "constitution"
+    )
+    constitution = next(row for row in view.stats if row.stat_name == "constitution")
+    strength = next(row for row in view.stats if row.stat_name == "strength")
+    assert constitution.disabled_reason is OverworldAvailabilityReason.STAT_AT_MAXIMUM
+    assert not constitution.increase_enabled
+    assert strength.value == player.character.permanent_stats.strength
+    assert strength.value != player.effective_stat("strength")
+    assert player.effective_stat("strength") == strength.value + weapon_bonus
+
+
+def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
+    view = OverworldPresenter().build(
+        create_game(),
+        screen=OverworldScreen.EQUIPMENT,
+    )
+
+    assert view.equipment.necklace.label == "Necklace"
+    assert view.equipment.necklace.item_name == "Empty"
+    assert view.equipment.ring.label == "Ring"
+    assert view.equipment.ring.item_name == "Empty"
+    assert view.equipment.benefits == ("None",)
+    assert "Off Hand" not in repr(view)
+    assert "Body" not in repr(view)
+
+
+def test_zh_aivra_items_are_selected_and_inspected_without_mutation():
+    game = create_game("zhaivra")
+    presenter = OverworldPresenter()
+    before = game.snapshot()
+
+    inventory = presenter.build(game, screen=OverworldScreen.ITEMS)
+    ember = next(item for item in inventory.inventory.items if item.display_name == "Ember Shard")
+    selected = presenter.build(
+        game,
+        screen=OverworldScreen.ITEMS,
+        selected_item_key=ember.selection_key,
+    )
+    inspected = presenter.build(
+        game,
+        screen=OverworldScreen.ITEM_INSPECT,
+        selected_item_key=ember.selection_key,
+    )
+
+    assert [item.display_name for item in inventory.inventory.items] == [
+        "Ember Shard",
+        "Deep Coal",
+        "Night Berry",
+    ]
+    assert option(inventory, OverworldAction.INSPECT).enabled is False
+    assert option(selected, OverworldAction.INSPECT).enabled is True
+    assert option(selected, OverworldAction.USE).enabled is False
+    assert (
+        option(selected, OverworldAction.USE).disabled_reason
+        is OverworldAvailabilityReason.NO_OVERWORLD_USE
+    )
+    assert inspected.inventory.inspected_item.description.startswith("A heat-bearing")
+    assert game.snapshot() == before
+
+
+def test_empty_inventory_and_disabled_item_actions_are_explicit():
+    view = OverworldPresenter().build(
+        create_game(),
+        screen=OverworldScreen.ITEMS,
+    )
+
+    assert view.inventory.items == ()
+    assert option(view, OverworldAction.CRAFT).enabled is False
+    assert option(view, OverworldAction.INSPECT).enabled is False
+    assert option(view, OverworldAction.USE).enabled is False
+    assert option(view, OverworldAction.BACK).enabled is True
+
+
+def test_map_is_complete_read_only_and_marks_exact_current_and_completed_nodes():
+    game = create_game()
+    game.world_state.mark_encounter_defeated("surface_goblin_solo")
+    game.overworld_state.advance_to(SECOND_SURFACE_NODE_ID)
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+
+    assert len(view.route_map.nodes) == 12
+    assert view.route_map.nodes[0].state is MapNodeState.COMPLETED
+    assert view.route_map.nodes[1].state is MapNodeState.CURRENT
+    assert sum(node.kind_label == "Rest" for node in view.route_map.nodes) == 3
+    assert view.route_map.nodes[-2].kind_label == "Boss"
+    assert view.route_map.nodes[-1].kind_label == "Dungeon"
+    assert option(view, OverworldAction.INSPECT).enabled is True
+    assert "surface_" not in repr(view)
+
+
+def test_map_uses_overworld_state_as_the_rest_completion_owner():
+    game = create_game()
+    game.overworld_state.record_resolved_rest_node(
+        "surface_rest_after_warrior_solo"
+    )
+    game.world_state.mark_encounter_defeated(
+        "surface_rest_after_shaman_pair"
+    )
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+    states = {
+        node.display_label: node.state for node in view.route_map.nodes
+    }
+
+    assert states["Woodland Rest"] is MapNodeState.COMPLETED
+    assert states["Ritual Clearing Rest"] is MapNodeState.REMAINING
+    assert states["Final Approach Rest"] is MapNodeState.REMAINING
+    assert "surface_rest" not in " ".join(states)
+
+
+@pytest.mark.parametrize(
+    ("rest_node_id", "rest_label", "successor_id", "successor_label", "path"),
+    (
+        (
+            "surface_rest_after_warrior_solo",
+            "Woodland Rest",
+            "surface_warrior_pair",
+            "Warrior Patrol",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+            ),
+        ),
+        (
+            "surface_rest_after_shaman_pair",
+            "Ritual Clearing Rest",
+            "surface_elite_patrol",
+            "Elite Patrol",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+                "surface_warrior_pair",
+                "surface_shaman_solo",
+                "surface_shaman_pair",
+                "surface_rest_after_shaman_pair",
+            ),
+        ),
+        (
+            "surface_rest_before_goblin_lord",
+            "Final Approach Rest",
+            "surface_goblin_lord",
+            "Goblin Lord",
+            (
+                "surface_goblin_pair",
+                "surface_warrior_solo",
+                "surface_rest_after_warrior_solo",
+                "surface_warrior_pair",
+                "surface_shaman_solo",
+                "surface_shaman_pair",
+                "surface_rest_after_shaman_pair",
+                "surface_elite_patrol",
+                "surface_rest_before_goblin_lord",
+            ),
+        ),
+    ),
+    ids=("woodland", "ritual_clearing", "final_approach"),
+)
+def test_map_marks_each_rest_completed_only_after_resolution(
+    rest_node_id,
+    rest_label,
+    successor_id,
+    successor_label,
+    path,
+):
+    game = create_game()
+    for node_id in path:
+        game.overworld_state.advance_to(node_id)
+
+    before = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+    before_states = {
+        node.display_label: node.state for node in before.route_map.nodes
+    }
+    assert before_states[rest_label] is MapNodeState.CURRENT
+
+    game.overworld_state.record_resolved_rest_node(rest_node_id)
+    game.overworld_state.advance_to(successor_id)
+    after = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+    after_states = {
+        node.display_label: node.state for node in after.route_map.nodes
+    }
+
+    assert after_states[rest_label] is MapNodeState.COMPLETED
+    assert after_states[successor_label] is MapNodeState.CURRENT
+    assert "surface_" not in repr(before)
+    assert "surface_" not in repr(after)
+
+
+def test_options_and_quit_confirmation_follow_the_approved_hierarchy():
+    presenter = OverworldPresenter()
+    game = create_game()
+
+    options = presenter.build(game, screen=OverworldScreen.OPTIONS)
+    confirmation = presenter.build(
+        game,
+        screen=OverworldScreen.QUIT_CONFIRMATION,
+    )
+
+    assert [value.label for value in options.options] == [
+        "Save",
+        "Quit",
+        "Load",
+        "Back",
+    ]
+    assert option(options, OverworldAction.SAVE).enabled is False
+    assert option(options, OverworldAction.LOAD).enabled is False
+    assert option(options, OverworldAction.QUIT).enabled is True
+    assert [value.action for value in confirmation.options] == [
+        OverworldAction.CONFIRM,
+        OverworldAction.CANCEL,
+    ]
+
+
+def test_presenter_rebuilds_are_pure_and_return_independent_immutable_views():
+    game = create_game("zhaivra")
+    presenter = OverworldPresenter()
+    before = game.snapshot()
+
+    first = presenter.build(game, screen=OverworldScreen.ITEMS)
+    second = presenter.build(game, screen=OverworldScreen.ITEMS)
+
+    assert first == second
+    assert first is not second
+    assert first.inventory is not second.inventory
+    assert game.snapshot() == before
+    with pytest.raises(AttributeError):
+        first.location_label = "Changed"
+
+
+@pytest.mark.parametrize(
+    ("screen", "populated_field"),
+    (
+        (OverworldScreen.MAIN, None),
+        (OverworldScreen.CHARACTER, "character"),
+        (OverworldScreen.SKILLS, "skills"),
+        (OverworldScreen.WEAPON, "weapon"),
+        (OverworldScreen.EQUIPMENT, "equipment"),
+        (OverworldScreen.ITEMS, "inventory"),
+        (OverworldScreen.ITEM_INSPECT, "inventory"),
+        (OverworldScreen.MAP, "route_map"),
+        (OverworldScreen.MAP_INSPECT, "encounter_inspection"),
+        (OverworldScreen.OPTIONS, None),
+        (OverworldScreen.QUIT_CONFIRMATION, None),
+    ),
+)
+def test_each_screen_exposes_only_its_approved_screen_specific_model(
+    screen,
+    populated_field,
+):
+    game = create_game("zhaivra")
+    selected_key = None
+    if screen is OverworldScreen.ITEM_INSPECT:
+        items_view = OverworldPresenter().build(
+            game,
+            screen=OverworldScreen.ITEMS,
+        )
+        selected_key = items_view.inventory.items[0].selection_key
+
+    view = OverworldPresenter().build(
+        game,
+        screen=screen,
+        selected_item_key=selected_key,
+    )
+    fields = (
+        "character",
+        "skills",
+        "weapon",
+        "equipment",
+        "inventory",
+        "route_map",
+        "encounter_inspection",
+    )
+
+    assert tuple(
+        field for field in fields if getattr(view, field) is not None
+    ) == (() if populated_field is None else (populated_field,))
+
+
+def test_all_deferred_and_illegal_presentation_controls_remain_disabled():
+    presenter = OverworldPresenter()
+    game = create_game("zhaivra")
+    skills = presenter.build(game, screen=OverworldScreen.SKILLS)
+    items = presenter.build(game, screen=OverworldScreen.ITEMS)
+    selected = presenter.build(
+        game,
+        screen=OverworldScreen.ITEMS,
+        selected_item_key=items.inventory.items[0].selection_key,
+    )
+    route_map = presenter.build(game, screen=OverworldScreen.MAP)
+    options = presenter.build(game, screen=OverworldScreen.OPTIONS)
+
+    assert all(not row.increase_enabled for row in skills.skills.stats)
+    assert option(items, OverworldAction.CRAFT).enabled is False
+    assert option(selected, OverworldAction.USE).enabled is False
+    assert option(route_map, OverworldAction.INSPECT).enabled is True
+    assert option(options, OverworldAction.SAVE).enabled is False
+    assert option(options, OverworldAction.LOAD).enabled is False

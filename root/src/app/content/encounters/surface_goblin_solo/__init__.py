@@ -1,0 +1,1 @@
+"""Goblin Ambush encounter content."""
