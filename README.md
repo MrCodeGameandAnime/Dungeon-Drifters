@@ -74,19 +74,19 @@ Skills screens expose progression, permanent stats, Growth Points, and
 signature weapon data. Rewards are applied once after complete encounter
 victory.
 
-Manual save/load uses one file at `src/saves/dungeon_drifters.json`. Disk saves
+Manual save/load uses one file at `root/src/saves/dungeon_drifters.json`. Disk saves
 use schema 8; the in-memory inspection snapshot remains schema 7. Battle and
 other temporary runtime state are never written to disk.
 
 ## Play Instructions
 
-From the project root, run:
+From the `root/` project directory, run:
 
 ```powershell
-.\.venv\Scripts\python.exe src\run_game.py
+..\.venv\Scripts\python.exe src\run_game.py
 ```
 
-You can also run `src/run_game.py` directly from PyCharm.
+You can also run `root/src/run_game.py` directly from PyCharm.
 
 During play:
 
@@ -109,11 +109,11 @@ The permanent M9 balance probe captures the pre-progression roster with fixed
 seed banks and real combat routes:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\balance_probe.py
+..\.venv\Scripts\python.exe tools\balance_probe.py
 ```
 
 Each run records Markdown, raw JSON, and metadata under
-`tools/balance_probe_outputs/<run_id>/`. The canonical M9 snapshot uses eight
+`root/tools/balance_probe_outputs/<run_id>/`. The canonical M9 snapshot uses eight
 route policies, 25 Goblin seeds, 100 stress seeds, and 1,000 total encounters.
 It also records natural Super usage and the exact commit, seed corpus, and
 route policy versions used for the run. Generated runs are ignored so they can
@@ -211,22 +211,25 @@ they are not shared party resources.
 
 ## Test Instructions
 
+Code commands below run from the `root/` project directory. From the repository
+root, enter it first with `Set-Location root`.
+
 Install development dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+..\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
 Run the full pytest suite:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+..\.venv\Scripts\python.exe -m pytest
 ```
 
 Run a compile check:
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall src tests tools
+..\.venv\Scripts\python.exe -m compileall src tests tools
 ```
 
 ## Project Structure
@@ -236,28 +239,23 @@ Dungeon-Drifters/
 +-- .github/
 |   +-- workflows/
 |       +-- tests.yml
-+-- src/
-|   +-- app/
-|   |   +-- combat/
-|   |   +-- enemies/
-|   |   +-- game/
-|   |   +-- items/
-|   |   +-- player/
-|   |   +-- presentation/
-|   |   +-- ui/
-|   |   +-- world/
-|   +-- run_game.py
-+-- tests/
++-- root/
+|   +-- src/
+|   |   +-- app/
+|   |   +-- run_game.py
+|   +-- tests/
+|   +-- tools/
+|   +-- pytest.ini
+|   +-- requirements-dev.txt
 +-- docs/
++-- res/
 +-- README.md
 +-- .gitignore
-+-- pytest.ini
-+-- requirements-dev.txt
 ```
 
-The complete runnable game is contained under `src/`. Tests, documentation,
-GitHub Actions, and development configuration remain outside the distributable
-game directory.
+The complete runnable game is contained under `root/src/`. Tests, tools, and
+Python project configuration live under `root/`; documentation, resources, and
+repository metadata remain at the repository level.
 
 ## Change Summary
 

@@ -288,7 +288,7 @@ At every gate:
 
 1. Run focused M11 tests.
 2. Run the complete pytest suite.
-3. Run `python -m compileall src tests`.
+3. From `root/`, run `python -m compileall src tests tools`.
 4. Run `git diff --check`.
 5. Review the exact diff for weakened tests, duplicate state, and M12 leakage.
 6. Commit with the exact gate name.

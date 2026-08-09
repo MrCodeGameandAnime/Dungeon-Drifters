@@ -1,18 +1,19 @@
 # Content Authoring
 
 Dungeon Drifters has one supported workflow for each portable content type.
-Run commands from the repository root with the project virtual environment.
+Run commands from the `root/` project directory. The virtual environment lives
+one level above it at the repository root.
 
 ## Scaffold Content
 
 Use an already-normalized lowercase snake-case ID:
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.scaffold_content enemy new_enemy
-.\.venv\Scripts\python.exe -m tools.scaffold_content weapon new_weapon
-.\.venv\Scripts\python.exe -m tools.scaffold_content drifter new_drifter
-.\.venv\Scripts\python.exe -m tools.scaffold_content encounter new_encounter
-.\.venv\Scripts\python.exe -m tools.scaffold_content route new_route
+..\.venv\Scripts\python.exe -m tools.scaffold_content enemy new_enemy
+..\.venv\Scripts\python.exe -m tools.scaffold_content weapon new_weapon
+..\.venv\Scripts\python.exe -m tools.scaffold_content drifter new_drifter
+..\.venv\Scripts\python.exe -m tools.scaffold_content encounter new_encounter
+..\.venv\Scripts\python.exe -m tools.scaffold_content route new_route
 ```
 
 Each command creates one package, one primary module, one conventional export,
@@ -47,16 +48,16 @@ data in another table.
 Never edit `src/app/content/_generated_catalog.py` manually. Regenerate it with:
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.generate_content_catalog
+..\.venv\Scripts\python.exe -m tools.generate_content_catalog
 ```
 
 Run the read-only validator before tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.validate_content
-.\.venv\Scripts\python.exe -m pytest tests\test_content_tooling.py
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m compileall src tests tools
+..\.venv\Scripts\python.exe -m tools.validate_content
+..\.venv\Scripts\python.exe -m pytest tests\test_content_tooling.py
+..\.venv\Scripts\python.exe -m pytest
+..\.venv\Scripts\python.exe -m compileall src tests tools
 git diff --check
 ```
 

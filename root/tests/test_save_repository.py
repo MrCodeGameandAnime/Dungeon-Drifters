@@ -39,7 +39,10 @@ def test_save_path_is_the_approved_src_saves_location():
 
 
 def test_production_save_file_is_gitignored():
-    assert "src/saves/dungeon_drifters.json" in Path(".gitignore").read_text()
+    repository_root = Path(__file__).resolve().parents[2]
+    assert "root/src/saves/dungeon_drifters.json" in (
+        repository_root / ".gitignore"
+    ).read_text()
 
 
 def test_save_creates_directory_and_writes_schema8_without_combat(tmp_path):

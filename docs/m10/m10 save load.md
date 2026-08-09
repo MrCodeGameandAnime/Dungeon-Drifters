@@ -5,10 +5,10 @@
 M10 uses one manual save file:
 
 ```text
-src/saves/dungeon_drifters.json
+root/src/saves/dungeon_drifters.json
 ```
 
-The `saves` directory is next to `src/run_game.py`. The directory is created
+The `saves` directory is next to `root/src/run_game.py`. The directory is created
 when the first save is requested. M10 does not provide save slots, cloud
 saves, autosave, or configurable save locations.
 
