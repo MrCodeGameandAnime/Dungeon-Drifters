@@ -141,10 +141,10 @@ The repository now includes these active foundations:
 
 - `GameState` as the session root for one active run.
 - `PlayerState`, `StoryState`, and `WorldState` ownership boundaries.
-- Separated character runtime state, loadout definitions, and profile identity.
-- Canonical character profiles for the four current Drifters.
-- Per-character loadout modules for identity metadata, starting stats, legacy
-  move names, and structured combat moves.
+- `app.content` as the authoring facade for immutable enemy, weapon, Drifter,
+  encounter, and route specifications, plus its committed generated catalog.
+- Generic `Character` and `PlayerState` runtime state with canonical Drifter
+  identity attached from the content catalog.
 - Health, mana, level, EXP, permanent stats, and effective stat access.
 - Central player stat-scaling helpers for HP, Mana, output scaling, physical
   negation, accuracy, dodge, Super gain, and crit chance.
@@ -157,8 +157,10 @@ The repository now includes these active foundations:
   enemy moves.
 - Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
 - `app.combat` contains reusable combat rules and contracts, while
-  `app.enemies` contains enemy definitions, runtime state, registration,
-  scaling, factory, and authored enemy content.
+  `app.enemies` contains generic enemy definition and runtime contracts.
+- `tools` provides development-time content discovery, scaffolding, catalog
+  generation, and read-only validation; runtime loading uses only the tracked
+  deterministic catalog and never scans the filesystem.
 - Core Defend contract integrated into Battle as a resolver-backed core action,
   not an authored `Move`.
 - Battle consumes `CombatResolver` and passes `CombatState` into resolver calls.
@@ -224,7 +226,7 @@ Run the full pytest suite:
 Run a compile check:
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall src tests
+.\.venv\Scripts\python.exe -m compileall src tests tools
 ```
 
 ## Project Structure
