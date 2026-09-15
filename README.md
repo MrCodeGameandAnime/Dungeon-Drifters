@@ -1,83 +1,62 @@
 # Dungeon Drifters
 
-Dungeon Drifters is a text-based Python RPG prototype set in the land of Ketlyv.
+Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
-The current repository checkpoint is **v0.4**. It preserves the complete v0.3
-single-Drifter surface campaign through the Goblin Lord and adds the portable
-content-authoring foundation, unified project layout, deterministic catalogs,
-scaffolding, and validation tooling. M11 acceptance proves the complete session
-for all four Drifters.
+Choose one of four distinct Drifters, master their unique combat style, grow
+stronger through battle, evolve their signature weapon, and push deeper into
+a dangerous world shaped by each character's identity and abilities.
 
-## Current Playable State
+The game is currently in active development. The playable build covers the
+opening journey through the surface route, ending at the entrance to the
+dungeon.
 
-The current playable flow is:
+## The Drifters
 
-```text
-title screen
-  -> Drifter selection
-  -> opening story
-  -> overworld route
-  -> authored encounter
-  -> rewards
-  -> rest, inspect, save, load, or continue
-  -> Goblin Lord victory
-  -> dungeon entrance (current release endpoint)
-```
+### Ser Branoc, the Unbroken Crest
 
-Current Drifter selection uses canonical profile identity layered over the
-existing mechanical archetypes:
+A relentless close-range fighter built around endurance, retaliation, and
+overwhelming physical force.
 
-- Ser Branoc, the Unbroken Crest - Brawler
-- Azhvielle, the Unconfessed - Black Mage
-- Zhaivra Kelyth, the Uncontrolled Reagent - Rogue Archer
-- Joruun Veyr, the Bloody Storm Monk - Monk
+Branoc plants himself in the fight, survives what should break him, and answers
+with brutal counterpressure. His signature weapon, Sunder-Spire, and techniques
+such as Brace and Ironwake Dismemberment reinforce his identity:
 
-The surface route contains eight authored encounters:
+**plant → endure → answer**
 
-```text
-Goblin
--> 2 Goblins
--> Goblin Warrior
--> 2 Goblin Warriors
--> Goblin Shaman
--> 2 Goblin Shamans
--> Goblin Elite + Goblin
--> Goblin Lord + Goblin + Goblin Warrior
-```
+### Azhvielle, the Unconfessed
 
-The route also contains three single-use Rest nodes. Rest fully restores HP
-and Mana without changing Super or other persistent state; continuing without
-resting advances the route without recovery.
+A dangerous Black Mage whose combat style revolves around powerful magic,
+Frost, Gravemantle, and calculated resource use.
 
-The battle menu presents:
+Azhvielle can shape the pace of a fight through elemental pressure and
+high-impact spell routes rather than meeting enemies head-on.
 
-- Attack
-- Defend
-- Heal
-- Items
-- Escape
+### Zhaivra Kelyth, the Uncontrolled Reagent
 
-Attack and Super open structured move submenus when eligible moves are
-available. Heal is a universal self-heal action with a three-action cooldown.
-Defend is a core combat action. Items opens each character's personal run
-inventory; Zhaivra can prepare Fire or Poison Infused Barb payloads. Escape
-remains visible but disabled. Super is persistently visible through the meter
-and opens its submenu when ready.
+A Rogue Archer built around preparation, precision, and alchemical aggression.
 
-Branoc's Brace, Azhvielle's Gravemantle and Frost routes, Zhaivra's Burn and
-Poison infusions, and Joruun's Water, Air, Lightning, and Stun mechanics are
-implemented through the resolver and encounter-local state boundaries.
+Zhaivra can prepare specialized payloads, including Fire and Poison Infused
+Barbs, turning inventory preparation and status pressure into part of her
+combat identity.
 
-Multi-enemy battles preserve authored order, stable target identity, exact
-target selection, and defeated-enemy visibility. The overworld menu provides
-Character, Items, Map, Options, and contextual route actions. Character and
-Skills screens expose progression, permanent stats, Growth Points, and
-signature weapon data. Rewards are applied once after complete encounter
-victory.
+### Joruun Veyr, the Bloody Storm Monk
 
-Manual save/load uses one file at `root/src/saves/dungeon_drifters.json`. Disk saves
-use schema 8; the in-memory inspection snapshot remains schema 7. Battle and
-other temporary runtime state are never written to disk.
+A fast, aggressive Monk whose techniques draw on Water, Air, and Lightning.
+
+Joruun chains martial pressure with elemental techniques, Stun, and rapid
+combat flow to overwhelm enemies before they can settle into the fight.
+
+## Current Playable Build
+
+The current build contains the complete opening sequence for all four Drifters:
+
+- Play through eight authored surface encounters that escalate from lone Goblins to the Goblin Lord.
+- Fight single and multi-enemy battles using attacks, Defend, healing, items, Supers, targeting, and each Drifter's unique mechanics.
+- Earn EXP, gold, Growth Points, and rewards while developing permanent stats and combat progression.
+- Inspect your Drifter's character sheet, skills, inventory, map, progression, and signature weapon.
+- Use three single-use Rest points to restore HP and Mana while deciding when to press forward.
+- Save, quit, load, and continue the same run with persistent progression between sessions.
+- Defeat the Goblin Lord and reach the dungeon entrance, the current endpoint of the playable build.
 
 ## Play Instructions
 
@@ -88,37 +67,6 @@ From the `root/` project directory, run:
 ```
 
 You can also run `root/src/run_game.py` directly from PyCharm.
-
-During play:
-
-1. Press Enter past the title screen.
-2. Choose a Drifter.
-3. Confirm or return to selection.
-4. Read the opening story.
-5. Enter the first encounter from the overworld menu.
-6. Choose Attack, Defend, Heal, Items, or Escape during combat.
-7. Select an exact enemy target when an encounter has multiple living enemies.
-8. Use Heal when damaged and ready; it becomes available again after three
-   later accepted actions by that character.
-9. Use the persistent Super meter to open the Super submenu when ready.
-10. Use the overworld menu to inspect the route, spend Growth Points, rest,
-    save, load, or quit with confirmation.
-
-## Balance Snapshot
-
-The permanent M9 balance probe captures the pre-progression roster with fixed
-seed banks and real combat routes:
-
-```powershell
-..\.venv\Scripts\python.exe tools\balance_probe.py
-```
-
-Each run records Markdown, raw JSON, and metadata under
-`root/tools/balance_probe_outputs/<run_id>/`. The canonical M9 snapshot uses eight
-route policies, 25 Goblin seeds, 100 stress seeds, and 1,000 total encounters.
-It also records natural Super usage and the exact commit, seed corpus, and
-route policy versions used for the run. Generated runs are ignored so they can
-be retained locally and zipped for later balance review.
 
 ## Screenshots
 
@@ -135,6 +83,7 @@ The current terminal presentation is shown below:
 ![Brace payoff resolved through Ironwake Dismemberment](res/screenshots/DD_003.jpeg)
 
 *Battle log after Brace and an empowered Ironwake Dismemberment action.*
+
 
 ## Architecture
 
@@ -154,88 +103,47 @@ Key foundations include:
 See the project documentation and change log for detailed implementation history
 and architecture.
 
-## Resource Terminology
+## Testing
 
-The active `Move` resource categories are:
-
-- `None`
-- `Mana`
-- `Super`
-
-Momentum is deferred shared encounter state. It is not an active move resource.
-
-Ki may appear as Joruun identity or technique flavor. It is not an active
-resource state.
-
-Momentum and Ki meters remain deferred. Character-specific compounds and
-prepared infusions are active through each character's personal run state;
-they are not shared party resources.
-
-## Test Instructions
-
-Code commands below run from the `root/` project directory. From the repository
-root, enter it first with `Set-Location root`.
-
-Install development dependencies:
+From the `root/` project directory:
 
 ```powershell
-..\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-```
-
-Run the full pytest suite:
-
-```powershell
-..\.venv\Scripts\python.exe -m pytest
-```
-
-Run a compile check:
-
-```powershell
-..\.venv\Scripts\python.exe -m compileall src tests tools
+python -m pip install -r requirements-dev.txt
+python -m pytest
+python -m compileall src tests tools
 ```
 
 ## Project Structure
 
 ```text
 Dungeon-Drifters/
-+-- .github/
-|   +-- workflows/
-|       +-- tests.yml
-+-- root/
-|   +-- src/
-|   |   +-- app/
-|   |   +-- run_game.py
-|   +-- tests/
-|   +-- tools/
-|   +-- pytest.ini
-|   +-- requirements-dev.txt
-+-- docs/
-+-- res/
-+-- README.md
-+-- .gitignore
+├── root/
+│   ├── src/        # Game source
+│   ├── tests/      # Test suite
+│   └── tools/      # Development and validation tools
+├── docs/           # Project documentation
+├── res/            # Screenshots and other resources
+└── .github/        # CI workflows
 ```
 
-The complete runnable game is contained under `root/src/`. Tests, tools, and
-Python project configuration live under `root/`; documentation, resources, and
-repository metadata remain at the repository level.
+The runnable Python project lives under `root/`; documentation, resources, and
+repository-level configuration remain at the repository root.
 
 ## Change Log
 
 The complete version history is maintained in the [change log](docs/change/change%20log.md).
 
-Contact
--------
+## Contact
 
 For questions or support, please get in touch with the maintainer:
 
--   Email: mrcodegameandanime@gmail.com
--   GitHub: [MrCodeGameAndAnime](https://github.com/MrCodeGameandAnime)
+- Email: [mrcodegameandanime@gmail.com](mailto:mrcodegameandanime@gmail.com)
+- GitHub: [MrCodeGameAndAnime](https://github.com/MrCodeGameAndAnime)
 
-## Development Notes
+## Development
 
-- Use the project virtual environment at `.venv`.
-- Use `.\.venv\Scripts\python.exe` for commands.
-- Pytest is the canonical test runner.
-- Use the [content authoring guide](docs/content%20creation/content%20authoring.md) to add
-  enemies, weapons, Drifters, encounters, or routes through the supported
-  scaffold and validation commands.
+- Use the [content authoring guide](docs/content%20creation/content%20authoring.md)
+  to add Drifters, enemies, weapons, encounters, or routes through the supported
+  scaffolding and validation workflow.
+- `tools/balance_probe.py` provides deterministic combat simulations and
+  reproducible balance artifacts.
