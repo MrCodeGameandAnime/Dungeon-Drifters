@@ -1,4 +1,18 @@
-"""Opt-in seeded balance probe with persistent Markdown and JSON artifacts."""
+"""
+Deterministic balance probe for the current Dungeon Drifters combat roster.
+
+Runs fixed seed banks across real route policies and records Markdown, JSON,
+and metadata under tools/balance_probe_outputs/<run_id>/.
+
+The canonical M9 snapshot covers:
+- 8 route policies
+- 25 Goblin seeds
+- 100 stress seeds
+- 1,000 total encounters
+
+Each run records the source commit, seed corpus, route-policy versions, and
+observed Super usage so results can be reproduced and compared later.
+"""
 
 from __future__ import annotations
 

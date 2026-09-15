@@ -136,64 +136,23 @@ The current terminal presentation is shown below:
 
 *Battle log after Brace and an empowered Ironwake Dismemberment action.*
 
-## Implemented Architecture
+## Architecture
 
-The repository now includes these active foundations:
+Dungeon Drifters is built around a modular, testable architecture that separates
+game state, combat rules, authored content, presentation, and persistence.
 
-- `GameState` as the session root for one active run.
-- `PlayerState`, `StoryState`, and `WorldState` ownership boundaries.
-- `app.content` as the authoring facade for immutable enemy, weapon, Drifter,
-  encounter, and route specifications, plus its committed generated catalog.
-- Generic `Character` and `PlayerState` runtime state with canonical Drifter
-  identity attached from the content catalog.
-- Health, mana, level, EXP, permanent stats, and effective stat access.
-- Central player stat-scaling helpers for HP, Mana, output scaling, physical
-  negation, accuracy, dodge, Super gain, and crit chance.
-- Inventory, gold, and equipment slot state on `PlayerState`.
-- Immutable validated `Move` definitions.
-- Immutable validated `MoveResult` as the structured combat result contract.
-- Inert authored move-presentation metadata for roles, affinities, and summaries.
-- Shared `Combatant` protocol for player and enemy runtime state.
-- Runtime `EnemyState` with independent health, mana, stats, and structured
-  enemy moves.
-- Enemy archetype metadata for rank, role, behavior, capabilities, and tier.
-- `app.combat` contains reusable combat rules and contracts, while
-  `app.enemies` contains generic enemy definition and runtime contracts.
-- `tools` provides development-time content discovery, scaffolding, catalog
-  generation, and read-only validation; runtime loading uses only the tracked
-  deterministic catalog and never scans the filesystem.
-- Core Defend contract integrated into Battle as a resolver-backed core action,
-  not an authored `Move`.
-- Battle consumes `CombatResolver` and passes `CombatState` into resolver calls.
-- Battle reads player moves from `player_state.combat_moves` and authored enemy
-  moves from each independent `EnemyState`.
-- Accepted combat actions complete through
-  `CombatState.complete_accepted_action(...)`.
-- `BattlePresenter` converts read-only domain state and semantic events into
-  immutable `BattleView` models.
-- `BattlePresentationSession` owns bounded encounter-local structured log
-  history.
-- `TerminalBattleUI` owns terminal layout, wrapping, ANSI/Unicode fallback,
-  input translation, and rendering, but no combat state or history.
-- Battle accepts typed semantic input, validates it against the offered view,
-  and contains no direct terminal `input()` or `print()` calls.
-- The resolver owns validation, resource spending, accuracy, damage, healing,
-  Super behavior, and result creation.
-- Player starting HP and Mana now derive from Constitution, Spirit, and level
-  through the stat-scaling contract instead of hardcoded archetype resource
-  constants.
-- Combat damage output now uses basis-point primary stat scaling instead of raw
-  additive stat damage, and ordinary physical negation, accuracy, dodge, Super
-  gain, and crit chance are wired through the shared scaling helpers.
-- Serializable `PlayerState` and `GameState` snapshots.
-- Defensive copies or immutable views for state collections where currently
-  implemented.
+Key foundations include:
 
-These systems preserve the v0.3 gameplay foundation. v0.4 adds the portable
-content-authoring and project-structure foundation described in the change log.
-The session ends at the dungeon entrance; entering the dungeon, companion
-recruitment, party state, and dungeon gameplay remain deferred to a later
-release.
+- Structured `GameState` and player/world state ownership.
+- A deterministic content-authoring system for Drifters, enemies, weapons,
+  encounters, and routes.
+- Resolver-driven turn-based combat with structured moves and results.
+- Separate domain, presentation, and terminal UI layers.
+- Versioned persistent game state with save/load support.
+- Development tooling for content scaffolding, validation, and balance testing.
+
+See the project documentation and change log for detailed implementation history
+and architecture.
 
 ## Resource Terminology
 
@@ -264,30 +223,13 @@ repository metadata remain at the repository level.
 
 The complete version history is maintained in the [change log](docs/change/change%20log.md).
 
-## Known Limitations
+Contact
+-------
 
-- In-battle Escape remains visible but is not yet wired.
-- Heal is a universal self-heal that restores 10-16 HP plus effective
-  Constitution and becomes available again after three later accepted
-  actions by that character.
-- Character balance remains provisional pending broader balance review.
-- Exact combat formulas and balance are provisional.
-- Secured and unsecured extraction loops remain deferred.
-- Momentum implementation is deferred.
-- The current inventory and infusion loop is limited to the authored M9
-  compounds and payloads; broader loot and crafting systems remain future
-  work.
-- Status effects and elemental interactions are limited to the authored M9
-  mechanics; no general effect scripting system exists.
-- Enemy AI is still simple random selection from authored structured moves.
-- Party combat, ally targeting, and dungeon gameplay are not implemented.
-- Area-targeting moves, enemy healing, enemy Defend, enemy Super, summons,
-  phases, and tactical AI remain deferred.
-- Equipment remains intentionally narrow: the authored signature weapon is
-  inspectable, while accessory swapping and broader item systems remain
-  future work.
-- Crafting, shops, full loot tables, save slots, autosave, and cloud saves
-  remain future work.
+For questions or support, please get in touch with the maintainer:
+
+-   Email: mrcodegameandanime@gmail.com
+-   GitHub: [MrCodeGameAndAnime](https://github.com/MrCodeGameandAnime)
 
 ## Development Notes
 
