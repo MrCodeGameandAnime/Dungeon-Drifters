@@ -1,5 +1,5 @@
-![](<res/Dungeon Drifters Heros.png>)
-
+![](<../res/Dungeon Drifters Heros.png>)
+---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
 Choose one of four distinct Drifters, master their unique combat style, grow
