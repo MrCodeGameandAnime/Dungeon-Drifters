@@ -72,15 +72,15 @@ You can also run `root/src/run_game.py` directly from PyCharm.
 
 The current terminal presentation is shown below:
 
-![Structured move menu with Brace and empowered Ironwake](res/screenshots/DD_001.jpeg)
+![Structured move menu with Brace and empowered Ironwake](../res/screenshots/DD_001.jpeg)
 
 *Structured move menu showing authored roles, resource costs, Brace rules, and the dynamic Ironwake payoff label.*
 
-![Battle HUD with five ordinary actions and persistent Super meter](res/screenshots/DD_002.jpeg)
+![Battle HUD with five ordinary actions and persistent Super meter](../res/screenshots/DD_002.jpeg)
 
 *Battle HUD showing the five ordinary actions, unavailable-state labels, bounded battle log, and persistent Super meter.*
 
-![Brace payoff resolved through Ironwake Dismemberment](res/screenshots/DD_003.jpeg)
+![Brace payoff resolved through Ironwake Dismemberment](../res/screenshots/DD_003.jpeg)
 
 *Battle log after Brace and an empowered Ironwake Dismemberment action.*
 
@@ -131,7 +131,7 @@ repository-level configuration remain at the repository root.
 
 ## Change Log
 
-The complete version history is maintained in the [change log](docs/change/change%20log.md).
+The complete version history is maintained in the [change log](change/change%20log.md).
 
 ## Contact
 
@@ -142,7 +142,7 @@ For questions or support, please get in touch with the maintainer:
 
 ## Development
 
-- Use the [content authoring guide](docs/content%20creation/content%20authoring.md)
+- Use the [content authoring guide](content%20creation/content%20authoring.md)
   to add Drifters, enemies, weapons, encounters, or routes through the supported
   scaffolding and validation workflow.
 - `tools/balance_probe.py` provides deterministic combat simulations and

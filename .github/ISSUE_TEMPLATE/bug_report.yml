@@ -1,0 +1,60 @@
+name: Bug report
+description: Report incorrect or broken behavior in Dungeon Drifters.
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.4 or commit SHA
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the smallest sequence of actions that reproduces the issue.
+      placeholder: |
+        1. Start a new session with...
+        2. Open...
+        3. Select...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or terminal output
+      description: Include relevant output, tracebacks, or screenshots when available.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This appears to be a regression.
+        - label: I searched existing issues and did not find a duplicate.
+          required: true

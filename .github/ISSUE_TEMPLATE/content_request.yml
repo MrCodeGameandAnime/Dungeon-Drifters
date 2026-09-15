@@ -1,0 +1,67 @@
+name: Content request
+description: Propose an enemy, weapon, Drifter, encounter, or route addition.
+title: "[Content]: "
+body:
+  - type: dropdown
+    id: content_type
+    attributes:
+      label: Content type
+      options:
+        - Enemy
+        - Weapon
+        - Drifter
+        - Encounter
+        - Route
+    validations:
+      required: true
+
+  - type: input
+    id: content_id
+    attributes:
+      label: Proposed stable ID
+      description: Use lowercase snake case. Do not include spaces or punctuation.
+      placeholder: example_content_id
+    validations:
+      required: true
+
+  - type: input
+    id: display_name
+    attributes:
+      label: Player-facing name
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Content description
+      description: Describe the intended identity, role, or purpose of the content.
+    validations:
+      required: true
+
+  - type: textarea
+    id: authored_data
+    attributes:
+      label: Required authored data
+      description: List known stats, moves, rewards, references, labels, or route placement.
+
+  - type: dropdown
+    id: engine_change
+    attributes:
+      label: New engine mechanics required?
+      options:
+        - No, existing mechanics are sufficient
+        - Yes, new engine work is required
+        - Unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reviewed the content authoring guide.
+          required: true
+        - label: I searched existing issues and did not find a duplicate.
+          required: true

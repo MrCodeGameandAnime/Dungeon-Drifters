@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a player-facing feature or engine capability.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or player need
+      description: What problem would this solve, or what experience is missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe what the feature should do from the player's perspective.
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected_systems
+    attributes:
+      label: Affected systems
+      description: Note any likely impact on combat, progression, content, UI, persistence, or tooling.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope boundary
+      description: State what this request should not change or include.
+
+  - type: textarea
+    id: contract_impact
+    attributes:
+      label: Contract or documentation impact
+      description: Identify any roadmap, milestone, content, or release documentation that would need updating.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
