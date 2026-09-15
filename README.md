@@ -1,4 +1,4 @@
-# Dungeon Drifters
+![](<res/Dungeon Drifters Heros.png>)
 
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
@@ -12,7 +12,7 @@ dungeon.
 
 ## The Drifters
 
-### Ser Branoc, the Unbroken Crest
+### <img src="res/Ser%20Branoc%20Sprite.png" width="32" height="32"> Ser Branoc, the Unbroken Crest 
 
 A relentless close-range fighter built around endurance, retaliation, and
 overwhelming physical force.
