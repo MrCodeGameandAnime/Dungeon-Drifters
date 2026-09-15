@@ -211,8 +211,10 @@ figcaption { padding: 9px 13px; color: var(--ink-faded); font-size: .76rem; lett
 
 @media (max-width: 620px) {
   .site-header-inner, .section, .page-hero, .character-hero, .character-details, .atlas-page, .gameplay-page, .contact-page, .site-footer { width: min(100% - 34px, 1220px); }
-  .hero-copy { left: 17px; width: calc(100% - 34px); padding: 32px 0 35px; }
-  .hero-copy::before { left: -17px; right: -17px; }
+  .hero { display: block; min-height: 0; }
+  .hero-art { width: 100%; height: auto; min-height: 0; object-fit: contain; object-position: center top; }
+  .hero-copy { position: relative; left: auto; bottom: auto; width: 100%; padding: 32px 17px 35px; background: rgba(25, 30, 34, .96); text-shadow: 0 2px 12px rgba(0, 0, 0, .35); }
+  .hero-copy::before { inset: 0; z-index: -1; }
   .hero-lede { font-size: 1.12rem; }
   h1 { font-size: 3.35rem; }
   h2 { font-size: 2.55rem; }
