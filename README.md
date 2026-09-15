@@ -12,7 +12,7 @@ dungeon.
 
 ## The Drifters
 
-### <img src="res/Ser%20Branoc%20Sprite.png" width="32" height="32"> Ser Branoc, the Unbroken Crest 
+### <img src="res/Ser%20Branoc%20Sprite.png" width="48" height="48"> Ser Branoc, the Unbroken Crest 
 
 A relentless close-range fighter built around endurance, retaliation, and
 overwhelming physical force.
@@ -23,7 +23,7 @@ such as Brace and Ironwake Dismemberment reinforce his identity:
 
 **plant → endure → answer**
 
-### Azhvielle, the Unconfessed
+### <img src="res/Azhvielle%20Sprite.png" width="48" height="48"> Azhvielle, the Unconfessed
 
 A dangerous Black Mage whose combat style revolves around powerful magic,
 Frost, Gravemantle, and calculated resource use.
@@ -31,7 +31,7 @@ Frost, Gravemantle, and calculated resource use.
 Azhvielle can shape the pace of a fight through elemental pressure and
 high-impact spell routes rather than meeting enemies head-on.
 
-### Zhaivra Kelyth, the Uncontrolled Reagent
+### <img src="res/Zhaivra%20Kelyth%20Sprite.png" width="48" height="48"> Zhaivra Kelyth, the Uncontrolled Reagent
 
 A Rogue Archer built around preparation, precision, and alchemical aggression.
 
@@ -39,7 +39,7 @@ Zhaivra can prepare specialized payloads, including Fire and Poison Infused
 Barbs, turning inventory preparation and status pressure into part of her
 combat identity.
 
-### Joruun Veyr, the Bloody Storm Monk
+### <img src="res/Joruun%20Veyr%20Sprite.png" width="48" height="48"> Joruun Veyr, the Bloody Storm Monk
 
 A fast, aggressive Monk whose techniques draw on Water, Air, and Lightning.
 
