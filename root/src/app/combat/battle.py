@@ -10,6 +10,7 @@ from app.presentation.battle_models import (
     ActionIntent,
     BattleEventType,
     BattleLogEntry,
+    BattleView,
     InputRejectionReason,
     InteractionPhase,
 )
@@ -18,6 +19,7 @@ from app.presentation.battle_session import BattlePresentationSession
 from app.player.inventory_action import InventoryActionResolver
 from app.player.run_items import InventoryCommand
 from app.ui.battle_ui import (
+    BattleInput,
     ChooseAction,
     ChooseInventoryCommand,
     ChooseInventoryCompanion,
@@ -27,6 +29,9 @@ from app.ui.battle_ui import (
     ConfirmInventoryUse,
     GoBack,
 )
+
+
+_MISSING_UI = object()
 
 
 def select_enemy_move(enemy, rng=random):
@@ -50,7 +55,7 @@ class Battle:
         self,
         player_state,
         enemies,
-        ui,
+        ui=_MISSING_UI,
         resolver=None,
         rng=random,
         encounter_label=None,
@@ -75,7 +80,8 @@ class Battle:
         self.rng = rng
         self.combat_state = CombatState()
         self.resolver = resolver or CombatResolver(rng=self.rng)
-        self.ui = ui
+        self._step_driven = ui is None
+        self.ui = None if ui is _MISSING_UI else ui
         self.presenter = presenter or BattlePresenter()
         self.presentation_session = presentation_session or BattlePresentationSession()
         self.inventory_action_resolver = (
@@ -86,6 +92,12 @@ class Battle:
         self._selected_inventory_companion_id = None
         self._selected_move_key = None
         self._originating_move_phase = None
+        self._started = False
+        self._player_side_turn = None
+        self._winner_result = None
+        self._final_view = None
+        if self._step_driven:
+            self._ensure_started()
 
     @staticmethod
     def _normalize_enemies(enemies):
@@ -142,6 +154,99 @@ class Battle:
     @property
     def enemy_display_labels(self):
         return self._enemy_display_labels
+
+    @property
+    def is_complete(self):
+        return self._winner_result is not None
+
+    @property
+    def winner(self):
+        return self._winner_result
+
+    def current_view(self) -> BattleView:
+        self._ensure_started()
+        if self._final_view is not None:
+            return self._final_view
+        return self._build_view()
+
+    def submit(self, battle_input: BattleInput) -> BattleView:
+        self._ensure_started()
+        if self.is_complete:
+            return self._final_view
+
+        view = self._build_view()
+        rejection_reason = self._input_rejection_reason(view, battle_input)
+        if rejection_reason is not None:
+            self._record_input_rejection(rejection_reason)
+            return self._build_view()
+
+        accepted_action = self._process_player_input(view, battle_input)
+        if accepted_action:
+            winner = self._winner()
+            if winner is not None:
+                return self._finish(winner)
+            self._player_side_turn = False
+            self._advance_automatic_state()
+
+        if self._final_view is not None:
+            return self._final_view
+        return self._build_view()
+
+    def _ensure_started(self):
+        if self._started:
+            return
+        self._started = True
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.ENCOUNTER_START,
+                target_name=self._enemy_group_label(),
+            )
+        )
+
+        self._player_side_turn = self.rng.randint(1, 2) == 1
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.INITIATIVE,
+                actor_name="Player side" if self._player_side_turn else "Enemy side",
+            )
+        )
+        self._advance_automatic_state()
+
+    def _advance_automatic_state(self):
+        while not self.is_complete:
+            if self._player_side_turn:
+                if self._skip_action_opportunity_suppression(self.player_state):
+                    self._player_side_turn = False
+                    continue
+                return
+
+            self.enemy_phase()
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
+                return
+            self._player_side_turn = True
+
+    def _finish(self, winner):
+        if self.is_complete:
+            return self._final_view
+        self._winner_result = winner
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=(
+                    BattleEventType.VICTORY
+                    if winner == "player"
+                    else BattleEventType.DEFEAT
+                ),
+                actor_name=self.player_state.display_name,
+                target_name=self._enemy_group_label(),
+            )
+        )
+        self.interaction_phase = InteractionPhase.COMPLETE
+        self._clear_inventory_navigation()
+        self._clear_move_target_navigation()
+        self._final_view = self._build_view()
+        return self._final_view
 
     def _player_moves(self):
         return self.player_state.combat_moves
@@ -305,63 +410,48 @@ class Battle:
         )
 
     def _render_current_view(self):
+        if self.ui is None:
+            raise RuntimeError("Battle UI is required by compatibility drivers")
         view = self._build_view()
         self.ui.render(view)
         return view
 
     def run(self):
-        self.presentation_session.record(
-            BattleLogEntry(
-                event_type=BattleEventType.ENCOUNTER_START,
-                target_name=self._enemy_group_label(),
-            )
-        )
+        if self.ui is None:
+            raise RuntimeError("Battle UI is required by Battle.run()")
+        if "player_action" in self.__dict__ or "enemy_action" in self.__dict__:
+            return self._run_with_compatibility_overrides()
+        view = self.current_view()
+        while True:
+            self.ui.render(view)
+            if self.is_complete:
+                return self.winner
+            view = self.submit(self.ui.read_input(view))
 
-        player_side_turn = self.rng.randint(1, 2) == 1
-        self.presentation_session.record(
-            BattleLogEntry(
-                event_type=BattleEventType.INITIATIVE,
-                actor_name="Player side" if player_side_turn else "Enemy side",
-            )
-        )
-
-        winner = self._winner()
-        while winner is None:
-            if player_side_turn and self._skip_action_opportunity_suppression(
-                self.player_state
-            ):
-                player_side_turn = False
-                continue
-
-            if player_side_turn:
+    def _run_with_compatibility_overrides(self):
+        self._ensure_started()
+        while not self.is_complete:
+            if self._player_side_turn:
+                if self._skip_action_opportunity_suppression(self.player_state):
+                    self._player_side_turn = False
+                    continue
                 self.player_action()
                 winner = self._winner()
                 if winner is not None:
+                    self._finish(winner)
                     break
-            else:
-                self.enemy_phase()
-                winner = self._winner()
-                if winner is not None:
-                    break
+                self._player_side_turn = False
+                continue
 
-            player_side_turn = not player_side_turn
+            self.enemy_phase()
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
+                break
+            self._player_side_turn = True
 
-        self.presentation_session.record(
-            BattleLogEntry(
-                event_type=(
-                    BattleEventType.VICTORY
-                    if winner == "player"
-                    else BattleEventType.DEFEAT
-                ),
-                actor_name=self.player_state.display_name,
-                target_name=self._enemy_group_label(),
-            )
-        )
-        self.interaction_phase = InteractionPhase.COMPLETE
-        self._clear_inventory_navigation()
-        self._clear_move_target_navigation()
-        self._render_current_view()
-        return winner
+        self.ui.render(self._final_view)
+        return self.winner
 
     def _enemy_group_label(self):
         return ", ".join(self.enemy_display_labels)
@@ -398,6 +488,8 @@ class Battle:
         return True
 
     def player_action(self):
+        if self.ui is None:
+            raise RuntimeError("Battle UI is required by Battle.player_action()")
         self.interaction_phase = InteractionPhase.ACTIONS
         self._clear_inventory_navigation()
         self._clear_move_target_navigation()
@@ -409,101 +501,59 @@ class Battle:
                 self._record_input_rejection(rejection_reason)
                 continue
 
-            if isinstance(battle_input, ChooseAction):
-                if battle_input.intent == ActionIntent.ATTACK:
-                    self._clear_inventory_navigation()
-                    self._clear_move_target_navigation()
-                    self.interaction_phase = InteractionPhase.REGULAR_MOVES
-                    continue
-                if battle_input.intent == ActionIntent.HEAL:
-                    result = self.resolver.resolve_heal(
-                        self.player_state,
-                        combat_state=self.combat_state,
-                    )
-                    if result.accepted:
-                        self.presentation_session.begin_player_turn()
-                    self._record_move_result(result, actor=self.player_state)
-                    if result.accepted:
-                        self._complete_accepted_action(
-                            self.player_state,
-                            self.enemies,
-                            result,
-                            reduce_heal_cooldown=False,
-                        )
-                        self.interaction_phase = InteractionPhase.ACTIONS
-                        return True
-                    continue
-                if battle_input.intent == ActionIntent.SUPER:
-                    self._clear_inventory_navigation()
-                    self._clear_move_target_navigation()
-                    self.interaction_phase = InteractionPhase.SUPER_MOVES
-                    continue
-                if battle_input.intent == ActionIntent.ITEMS:
-                    self._clear_inventory_navigation()
-                    self.interaction_phase = InteractionPhase.INVENTORY
-                    continue
-                if battle_input.intent == ActionIntent.DEFEND:
-                    result = self.resolver.resolve_defend(
-                        self.player_state,
-                        self.combat_state,
-                    )
-                    if result.accepted:
-                        self.presentation_session.begin_player_turn()
-                    self._record_move_result(
-                        result,
-                        actor=self.player_state,
-                        event_type=(
-                            BattleEventType.DEFEND
-                            if result.accepted
-                            else BattleEventType.ACTION_REJECTED
-                        ),
-                    )
-                    if result.accepted:
-                        self._complete_accepted_action(
-                            self.player_state,
-                            self.enemies,
-                            result,
-                        )
-                        self.interaction_phase = InteractionPhase.ACTIONS
-                        return True
-                    continue
+            if self._process_player_input(view, battle_input):
+                return True
 
-            if isinstance(battle_input, GoBack):
-                self._navigate_back()
-                continue
-
-            if isinstance(battle_input, ChooseInventoryItem):
-                self._selected_inventory_item_id = battle_input.item_id
-                self._selected_inventory_companion_id = None
-                self.interaction_phase = InteractionPhase.INVENTORY_ITEM
-                continue
-
-            if isinstance(battle_input, ChooseInventoryCommand):
-                self._selected_inventory_companion_id = None
-                if battle_input.command == InventoryCommand.INSPECT:
-                    self.interaction_phase = InteractionPhase.INVENTORY_INSPECT
-                else:
-                    self.interaction_phase = InteractionPhase.INVENTORY_COMBINATION
-                continue
-
-            if isinstance(battle_input, ChooseInventoryCompanion):
-                self._selected_inventory_companion_id = battle_input.item_id
-                self.interaction_phase = InteractionPhase.INVENTORY_CONFIRMATION
-                continue
-
-            if isinstance(battle_input, ConfirmInventoryUse):
-                if not battle_input.confirmed:
-                    self._selected_inventory_companion_id = None
-                    self.interaction_phase = InteractionPhase.INVENTORY_ITEM
-                    continue
-                confirmation = view.inventory_confirmation
-                result = self.inventory_action_resolver.resolve(
-                    confirmation.action_id,
-                    self.player_state.character_run_state,
+    def _process_player_input(self, view, battle_input):
+        if isinstance(battle_input, ChooseAction):
+            if battle_input.intent == ActionIntent.ATTACK:
+                self._clear_inventory_navigation()
+                self._clear_move_target_navigation()
+                self.interaction_phase = InteractionPhase.REGULAR_MOVES
+                return False
+            if battle_input.intent == ActionIntent.HEAL:
+                result = self.resolver.resolve_heal(
+                    self.player_state,
+                    combat_state=self.combat_state,
                 )
                 if result.accepted:
                     self.presentation_session.begin_player_turn()
-                self._record_inventory_action_result(result)
+                self._record_move_result(result, actor=self.player_state)
+                if result.accepted:
+                    self._complete_accepted_action(
+                        self.player_state,
+                        self.enemies,
+                        result,
+                        reduce_heal_cooldown=False,
+                    )
+                    self.interaction_phase = InteractionPhase.ACTIONS
+                    return True
+                return False
+            if battle_input.intent == ActionIntent.SUPER:
+                self._clear_inventory_navigation()
+                self._clear_move_target_navigation()
+                self.interaction_phase = InteractionPhase.SUPER_MOVES
+                return False
+            if battle_input.intent == ActionIntent.ITEMS:
+                self._clear_inventory_navigation()
+                self.interaction_phase = InteractionPhase.INVENTORY
+                return False
+            if battle_input.intent == ActionIntent.DEFEND:
+                result = self.resolver.resolve_defend(
+                    self.player_state,
+                    self.combat_state,
+                )
+                if result.accepted:
+                    self.presentation_session.begin_player_turn()
+                self._record_move_result(
+                    result,
+                    actor=self.player_state,
+                    event_type=(
+                        BattleEventType.DEFEND
+                        if result.accepted
+                        else BattleEventType.ACTION_REJECTED
+                    ),
+                )
                 if result.accepted:
                     self._complete_accepted_action(
                         self.player_state,
@@ -511,49 +561,101 @@ class Battle:
                         result,
                     )
                     self.interaction_phase = InteractionPhase.ACTIONS
-                    self._clear_inventory_navigation()
                     return True
-                continue
+                return False
 
-            if isinstance(battle_input, ChooseMove):
-                move = self._move_for_key(view, battle_input.move_key)
-                if move.target == TargetType.ENEMY and len(self._living_enemies()) > 1:
-                    self._selected_move_key = move.name
-                    self._originating_move_phase = self.interaction_phase
-                    self.interaction_phase = InteractionPhase.TARGETS
-                    continue
+        if isinstance(battle_input, GoBack):
+            self._navigate_back()
+            return False
 
-                target = self._player_target_for_move(move)
-                result = self._resolve_player_move(move, target)
-                if result.accepted:
-                    self._complete_accepted_action(
-                        self.player_state,
-                        self.enemies,
-                        result,
-                        presentation_target=(
-                            target if move.target == TargetType.ENEMY else None
-                        ),
-                    )
-                    self.interaction_phase = InteractionPhase.ACTIONS
-                    self._clear_inventory_navigation()
-                    self._clear_move_target_navigation()
-                    return True
+        if isinstance(battle_input, ChooseInventoryItem):
+            self._selected_inventory_item_id = battle_input.item_id
+            self._selected_inventory_companion_id = None
+            self.interaction_phase = InteractionPhase.INVENTORY_ITEM
+            return False
 
-            if isinstance(battle_input, ChooseTarget):
-                move = self._pending_move()
-                target = self._enemy_for_target_id(battle_input.target_id)
-                result = self._resolve_player_move(move, target)
-                if result.accepted:
-                    self._complete_accepted_action(
-                        self.player_state,
-                        self.enemies,
-                        result,
-                        presentation_target=target,
-                    )
-                    self.interaction_phase = InteractionPhase.ACTIONS
-                    self._clear_inventory_navigation()
-                    self._clear_move_target_navigation()
-                    return True
+        if isinstance(battle_input, ChooseInventoryCommand):
+            self._selected_inventory_companion_id = None
+            if battle_input.command == InventoryCommand.INSPECT:
+                self.interaction_phase = InteractionPhase.INVENTORY_INSPECT
+            else:
+                self.interaction_phase = InteractionPhase.INVENTORY_COMBINATION
+            return False
+
+        if isinstance(battle_input, ChooseInventoryCompanion):
+            self._selected_inventory_companion_id = battle_input.item_id
+            self.interaction_phase = InteractionPhase.INVENTORY_CONFIRMATION
+            return False
+
+        if isinstance(battle_input, ConfirmInventoryUse):
+            if not battle_input.confirmed:
+                self._selected_inventory_companion_id = None
+                self.interaction_phase = InteractionPhase.INVENTORY_ITEM
+                return False
+            confirmation = view.inventory_confirmation
+            result = self.inventory_action_resolver.resolve(
+                confirmation.action_id,
+                self.player_state.character_run_state,
+            )
+            if result.accepted:
+                self.presentation_session.begin_player_turn()
+            self._record_inventory_action_result(result)
+            if result.accepted:
+                self._complete_accepted_action(
+                    self.player_state,
+                    self.enemies,
+                    result,
+                )
+                self.interaction_phase = InteractionPhase.ACTIONS
+                self._clear_inventory_navigation()
+                return True
+            return False
+
+        if isinstance(battle_input, ChooseMove):
+            move = self._move_for_key(view, battle_input.move_key)
+            if move.target == TargetType.ENEMY and len(self._living_enemies()) > 1:
+                self._selected_move_key = move.name
+                self._originating_move_phase = self.interaction_phase
+                self.interaction_phase = InteractionPhase.TARGETS
+                return False
+
+            target = self._player_target_for_move(move)
+            result = self._resolve_player_move(move, target)
+            if result.accepted:
+                self._complete_accepted_action(
+                    self.player_state,
+                    self.enemies,
+                    result,
+                    presentation_target=(
+                        target if move.target == TargetType.ENEMY else None
+                    ),
+                )
+                self.interaction_phase = InteractionPhase.ACTIONS
+                self._clear_inventory_navigation()
+                self._clear_move_target_navigation()
+                return True
+
+            return False
+
+        if isinstance(battle_input, ChooseTarget):
+            move = self._pending_move()
+            target = self._enemy_for_target_id(battle_input.target_id)
+            result = self._resolve_player_move(move, target)
+            if result.accepted:
+                self._complete_accepted_action(
+                    self.player_state,
+                    self.enemies,
+                    result,
+                    presentation_target=target,
+                )
+                self.interaction_phase = InteractionPhase.ACTIONS
+                self._clear_inventory_navigation()
+                self._clear_move_target_navigation()
+                return True
+
+            return False
+
+        return False
 
     def _navigate_back(self):
         if self.interaction_phase == InteractionPhase.TARGETS:
