@@ -6,8 +6,19 @@ from app.content.catalog import create_drifter, create_enemy_definition
 from app.enemies.state import EnemyState
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
+from app.player.character_run_state import PreparedPayloadId, RunItemId
+from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import ActionIntent, InteractionPhase
-from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget, GoBack
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ChooseTarget,
+    ConfirmInventoryUse,
+    GoBack,
+)
 
 
 class DeterministicRng:
@@ -219,6 +230,32 @@ def test_step_driven_battle_can_navigate_live_inventory():
 
     view = battle.submit(GoBack())
     assert view.interaction_phase is InteractionPhase.ACTIONS
+
+
+def test_step_driven_battle_accepts_a_live_inventory_action():
+    player = PlayerState(create_drifter("zhaivra"))
+    battle = Battle(
+        player,
+        EnemyState(create_enemy_definition("goblin")),
+        ui=None,
+        resolver=PassiveResolver(),
+        rng=DeterministicRng(),
+    )
+
+    view = battle.submit(ChooseAction(ActionIntent.ITEMS))
+    view = battle.submit(ChooseInventoryItem("ember_shard"))
+    assert view.interaction_phase is InteractionPhase.INVENTORY_ITEM
+    view = battle.submit(ChooseInventoryCommand(InventoryCommand.USE))
+    view = battle.submit(ChooseInventoryCompanion("deep_coal"))
+    assert view.interaction_phase is InteractionPhase.INVENTORY_CONFIRMATION
+    view = battle.submit(ConfirmInventoryUse(True))
+
+    assert view.interaction_phase is InteractionPhase.ACTIONS
+    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
+    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
+    assert player.character_run_state.payload_prepared(
+        PreparedPayloadId.INFUSED_BARB
+    ) is True
 
 
 def test_enemy_first_step_driven_battle_can_complete_defeat_without_input():

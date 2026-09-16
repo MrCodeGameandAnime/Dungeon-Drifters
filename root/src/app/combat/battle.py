@@ -220,7 +220,7 @@ class Battle:
                     continue
                 return
 
-            self.enemy_phase()
+            self._advance_enemy_phase()
             winner = self._winner()
             if winner is not None:
                 self._finish(winner)
@@ -443,7 +443,7 @@ class Battle:
                 self._player_side_turn = False
                 continue
 
-            self.enemy_phase()
+            self._advance_enemy_phase()
             winner = self._winner()
             if winner is not None:
                 self._finish(winner)
@@ -845,7 +845,7 @@ class Battle:
             return
         self.presentation_session.record(entry)
 
-    def enemy_phase(self):
+    def _advance_enemy_phase(self):
         for enemy in self.enemies:
             if self._winner() is not None:
                 return
@@ -853,11 +853,14 @@ class Battle:
                 continue
             if self._skip_action_opportunity_suppression(enemy):
                 continue
-            self.enemy_action(enemy)
+            self._process_enemy_action(enemy)
             if self._winner() is not None:
                 return
 
-    def enemy_action(self, enemy=None):
+    def enemy_phase(self):
+        return self._advance_enemy_phase()
+
+    def _process_enemy_action(self, enemy):
         enemy = self.foe if enemy is None else enemy
         if not any(current is enemy for current in self.enemies):
             raise ValueError("enemy does not belong to this Battle")
@@ -876,3 +879,7 @@ class Battle:
             presentation_target=self.player_state,
         )
         return True
+
+    def enemy_action(self, enemy=None):
+        enemy = self.foe if enemy is None else enemy
+        return self._process_enemy_action(enemy)
