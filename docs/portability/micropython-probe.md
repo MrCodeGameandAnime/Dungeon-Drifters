@@ -230,12 +230,203 @@ Runtime: MicroPython 1.29.0
 Platform: win32
 ```
 
+## MYP2 Evidence
+
+MYP2 qualifies the dataclass behavior that Dungeon Drifters actually uses. It does not install a compatibility implementation, change production imports, or advance the raw MicroPython probe. The unchanged probe remains expected to stop at the first missing `dataclasses` import.
+
+### Production audit
+
+The production audit covers every Python file under `root/src/app`:
+
+```text
+Production files using dataclasses: 23
+Production dataclass declarations: 74
+Frozen declarations: 71
+Mutable declarations: 3
+__post_init__ methods: 58
+field() calls: 1
+default_factory calls: 1
+Dataclass inheritance: none
+Dataclass ordering: none
+unsafe_hash: none
+slots: none
+InitVar: none
+field metadata: none
+General dataclass reflection helpers: none
+Observed __dataclass_fields__ users: 2
+```
+
+The complete declaration ledger is grouped below by production file. Every declaration uses either bare `@dataclass` or `@dataclass(frozen=True)`; no other decorator options are present.
+
+| Production file | Dataclass declarations | Variant and role |
+| --- | --- | --- |
+| `combat/arcane.py` | `GravemantleRules`, `ArcaneDischarge` | frozen; authored rules and mechanical result |
+| `combat/brace.py` | `BraceRules` | frozen; authored mechanic rules with defaults |
+| `combat/combat_state.py` | `_BraceState`, `_HealCooldown`, `_ArcaneChargeState` | mutable; private encounter-local runtime records |
+| `combat/frost.py` | `FrostRules` | frozen; authored mechanic rules with defaults |
+| `combat/move_presentation.py` | `MovePresentation` | frozen; authored presentation metadata |
+| `combat/move.py` | `Move` | frozen; authored move value object with defaults and post-init validation |
+| `combat/result.py` | `CombatOutcome`, `MoveResult` | frozen; internal immutable combat results with defaults and post-init validation |
+| `combat/status_state.py` | `BurnStatus`, `PoisonStatus`, `ConductiveStatus`, `TurbulenceStatus`, `StunStatus`, `FrostCharge`, `FrozenStatus`, `FrostbiteStatus` | frozen; encounter-local status values, including post-init validation where required |
+| `combat/storm.py` | `StormRules` | frozen; authored mechanic rules |
+| `content/drifter_spec.py` | `DrifterStatSpec`, `ClassMechanicSpec`, `DrifterSpec` | frozen; authored Drifter specifications, defaults, validation, and name-only metadata iteration |
+| `content/encounter_spec.py` | `EncounterSpec` | frozen; authored encounter specification |
+| `content/enemy_spec.py` | `StatBlockSpec`, `EnemySpec` | frozen; authored enemy specifications, defaults, validation, and name-only metadata iteration |
+| `content/route_spec.py` | `RouteNodeSpec`, `RouteSpec` | frozen; authored route specifications with post-init validation |
+| `content/weapon_spec.py` | `WeaponSpec` | frozen; authored weapon specification with post-init validation |
+| `game/save_repository.py` | `SaveLoadResult` | frozen; immutable persistence operation result |
+| `player/character_run_state.py` | `CharacterRunCheckpoint` | frozen; immutable run-state checkpoint |
+| `player/inventory_action.py` | `InventoryActionResult` | frozen; immutable inventory result with defaults and post-init validation |
+| `player/player_state.py` | `PlayerBattleCheckpoint` | frozen; immutable battle checkpoint |
+| `player/run_items.py` | `RunItemDefinition`, `InventoryRecipeDefinition` | frozen; authored run-item and recipe definitions with post-init validation |
+| `presentation/battle_models.py` | `CombatantView`, `EnemyCombatantView`, `ActionOptionView`, `MoveOptionView`, `TargetOptionView`, `InventoryItemOptionView`, `InventoryCommandOptionView`, `InventoryInspectionView`, `InventoryConfirmationView`, `SuperMeterView`, `BattleLogEntry`, `BattleVisualView`, `BattleView` | frozen; immutable frontend-facing views; `BattleView.visual` uses the only default factory |
+| `presentation/overworld_models.py` | `OverworldOptionView`, `StatRowView`, `CharacterOverviewView`, `SkillMoveView`, `SkillsView`, `StatBonusView`, `WeaponView`, `AccessorySlotView`, `EquipmentView`, `OverworldItemView`, `InventoryView`, `MapNodeView`, `MapView`, `MapEncounterInspectionView`, `OverworldView` | frozen; immutable frontend-facing views |
+| `ui/battle_ui.py` | `ChooseAction`, `ChooseMove`, `ChooseTarget`, `ChooseInventoryItem`, `ChooseInventoryCommand`, `ChooseInventoryCompanion`, `ConfirmInventoryUse`, `GoBack` | frozen; semantic battle inputs |
+| `ui/overworld_ui.py` | `ChooseOverworldAction`, `ChooseOverworldItem`, `ChoosePermanentStatIncrease` | frozen; semantic overworld inputs |
+
+`DrifterStatSpec.__post_init__` and `DrifterStatSpec.as_dict()` iterate `self.__dataclass_fields__` as an ordered collection of field names. `StatBlockSpec.__post_init__` uses the same name-only pattern. Neither class reads `Field` attributes, metadata, defaults, or dataclass parameters.
+
+### Feature ledger
+
+The required portable contract is:
+
+```text
+Required:
+- generated __init__
+- positional and keyword field ordering
+- ordinary field defaults
+- field(default_factory=...)
+- per-instance default-factory isolation
+- attribute storage
+- structural equality
+- frozen attribute-assignment rejection
+- __post_init__ invocation
+- object.__setattr__ during frozen post-init normalization
+- __dataclass_fields__ behavior exactly sufficient for the observed
+  DrifterStatSpec and StatBlockSpec access pattern:
+  iterable declaration-ordered field names only
+- tuple, mapping, enum, optional, and nested-record values
+```
+
+The following are explicitly not required by current DD production behavior:
+
+```text
+- ordering
+- unsafe_hash
+- dataclass hashing
+- slots
+- kw_only
+- InitVar
+- field metadata
+- asdict
+- astuple
+- fields()
+- replace()
+- is_dataclass()
+- make_dataclass()
+- MISSING
+- KW_ONLY
+- dataclass inheritance
+- live reflection beyond the observed field-name iteration
+- exact generated repr compatibility
+```
+
+Hashability, ordering, repr, and other incidental CPython behavior are not asserted as absent. They are documented as unnecessary only when static production inspection proves DD does not depend on them.
+
+The 58 post-init methods are behaviorally important because they perform enum normalization, validation, derived checks, and frozen writes through `object.__setattr__`. Mutable nested values remain owned by the existing runtime classes; frozen dataclasses provide shallow attribute protection, not deep immutability.
+
+### Persistence and annotations
+
+Save schema 8 does not depend on dataclass metadata. `save_state.py` validates explicit dictionary shapes, builds explicit payloads, and reconstructs objects through canonical constructors. It does not call `asdict()`, `fields()`, `replace()`, or inspect dataclass parameters. Dataclass equality is not a gameplay dispatch authority; persistence and route logic compare explicit identifiers and values.
+
+Annotations are needed by the native decorator to discover fields, but DD does not inspect `__annotations__` or evaluate type hints at runtime. PEP 604 annotations appear in production and remain a separate future MicroPython syntax/annotation concern. MYP2 does not migrate them.
+
+### Strategy decision
+
+The qualified result is:
+
+```text
+D2 - Moderate compatibility subset
+Risk: MODERATE
+```
+
+| Strategy | Assessment |
+| --- | --- |
+| Import overlay | Recommended. Keeps the 23 production imports unchanged and lets CPython, Pyodide, and Chaquopy retain native dataclasses. MicroPython-specific bootstrap must inject the overlay path explicitly. |
+| DD compatibility import | Viable but would touch the broad production import surface and permanently make every model aware of an internal compatibility boundary. |
+| Build/source transform | Avoids runtime imports but adds a second source representation and debugging/build complexity. |
+| Manual records | Unjustified for the qualified subset; would rewrite 74 models and risk behavior drift. |
+| Third-party implementation | Not selected during MYP2 because no dependency is pinned or required by the audit. |
+
+An eventual overlay must live outside the normal `root/src` import path and be selected only by a MicroPython-specific launcher or bootstrap. A local `dataclasses.py` must never shadow the CPython standard library during tests, packaging, Pyodide, or Chaquopy execution.
+
+The estimated later implementation is one portable compatibility module plus one MicroPython-only path/bootstrap integration, with zero expected engine production-file changes. The semantic runtime API, save schema, gameplay ownership, and one authoritative implementation can remain unchanged.
+
+### MYP2 conformance result
+
+The implementation-neutral conformance suite is `root/tests/test_dataclass_contract.py`. It locks construction, defaults, default-factory isolation, equality, frozen assignment rejection, post-init normalization, validation, nested values, and the exact ordered-name metadata seam. It does not assert that incidental CPython methods are absent.
+
+The raw probe remains unchanged. Under the pinned runtime it is expected to report:
+
+```text
+MYP|CATALOG_IMPORT|BEGIN
+MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
+```
+
+MYP2 therefore qualifies the next implementation boundary without implementing it. The next gate may proceed only with the strict contract above; it must not broaden into annotation, enum, typing, persistence, or gameplay migration.
+
+## DD PORTABLE DATACLASS VERDICT
+
+Production files using dataclasses: 23
+
+Production dataclass declarations: 74
+
+Required features: generated initialization, defaults, one default factory, structural equality, frozen assignment rejection, post-init normalization, and ordered-name `__dataclass_fields__` access
+
+Features not required: ordering, hashing, slots, keyword-only fields, InitVar, metadata, general reflection helpers, inheritance, live reflection, and exact repr compatibility
+
+Frozen semantics required: YES
+
+Structural equality required: YES
+
+default_factory required: YES
+
+__post_init__ required: YES
+
+Dataclass inheritance complexity: NONE
+
+Runtime reflection required: LIMITED
+
+Persistence depends on dataclass metadata: NO
+
+Annotations materially affect implementation: LIMITED
+
+Recommended portability strategy: IMPORT OVERLAY
+
+Estimated production blast radius: 0-2 non-engine integration files; no gameplay-model rewrites
+
+Estimated implementation complexity: MODERATE
+
+Normal CPython can retain native dataclasses: YES
+
+Pyodide can retain native dataclasses: YES
+
+Chaquopy can retain native dataclasses: YES
+
+Semantic runtime API can remain unchanged: YES
+
+Gameplay architecture changes required: NO
+
+One authoritative gameplay implementation remains practical: YES WITH STRICT COMPATIBILITY BOUNDARY
+
+Recommendation: PROCEED WITH STRICT BOUNDARY
+
 ## Future Gates
 
 ```text
 MYP0  Raw probe; find the first real incompatibility.
 MYP1  First evidence-backed compatibility primitive.
-MYP2  Core combat qualification.
+MYP2  Qualify the portable dataclass contract.
 MYP3  Session qualification.
 MYP4  Eight encounters, three Rests, Dungeon Entrance.
 MYP5  Constrained-target memory and runtime pressure.
