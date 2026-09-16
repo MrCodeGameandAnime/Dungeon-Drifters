@@ -167,6 +167,69 @@ untouched DD source
 
 Do not add a compatibility package, alter annotations, replace dataclasses, add enum shims, or change persistence in this gate. A future compatibility experiment must be disposable and derived from the exact failure recorded here.
 
+## MYP1 Evidence
+
+MYP0's first failure was the direct `types.MappingProxyType` import in:
+
+```text
+root/src/app/content/catalog.py
+```
+
+The complete production audit found the same dependency in `root/src/app/content/weapon_spec.py`. DD uses these mappings for catalog lookup and immutable authored weapon bonuses. The observed read contract is lookup, membership, iteration, length, `keys()`, and `items()`; DD does not mutate a backing dictionary after wrapping, and does not require live reflection, proxy identity, hashing, or pickling.
+
+MYP1 replaces those direct construction sites with:
+
+```text
+app.readonly_mapping.readonly_mapping(source)
+```
+
+CPython continues to use native `types.MappingProxyType`. When that module is unavailable, the helper uses a private `_ReadonlyMapping` around a copied dictionary. The fallback exposes only the required read operations and has no inherited dictionary mutation API.
+
+The unchanged probe under the pinned MicroPython runtime produced this MYP1 result:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|1015472|ALLOC|9040
+MYP|SOURCE_PATH|BEGIN
+MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1015424|ALLOC|9088
+MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1015408|ALLOC|9104
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1015408|ALLOC|9104
+MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|1004688|ALLOC|19824
+```
+
+The original traceback is:
+
+```text
+root/tools/micropython_probe.py, line 262, in <module>
+root/tools/micropython_probe.py, line 244, in main
+root/tools/micropython_probe.py, line 25, in _run_stage
+root/tools/micropython_probe.py, line 59, in _import_catalog
+root/src/app/content/catalog.py, line 3, in <module>
+root/src/app/content/_generated_catalog.py, line 3, in <module>
+root/src/app/content/enemies/goblin/__init__.py, line 1, in <module>
+root/src/app/content/enemies/goblin/enemy.py, line 1, in <module>
+root/src/app/combat/move.py, line 3, in <module>
+ImportError: no module named 'dataclasses'
+```
+
+MYP1 therefore crossed the observed `types` incompatibility and stopped at the next real incompatibility. `CATALOG_IMPORT` remains incomplete because the next failure occurs during its transitive imports. Dataclasses are intentionally deferred to the next evidence-driven gate.
+
+MicroPython runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+MicroPython source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Runtime: MicroPython 1.29.0
+Platform: win32
+```
+
 ## Future Gates
 
 ```text

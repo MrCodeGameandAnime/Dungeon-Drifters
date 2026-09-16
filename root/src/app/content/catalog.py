@@ -1,7 +1,5 @@
 """Deterministic runtime access to authored content."""
 
-from types import MappingProxyType
-
 from app.content._generated_catalog import (
     GENERATED_DRIFTER_SPECS,
     GENERATED_ENCOUNTER_SPECS,
@@ -16,6 +14,7 @@ from app.content.route_spec import RouteSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 from app.enemies.validation import validate_enemy_tier
+from app.readonly_mapping import readonly_mapping
 
 
 def _build_enemy_catalog(records):
@@ -35,7 +34,7 @@ def _build_enemy_catalog(records):
             raise ValueError(f"duplicate enemy archetype: {spec.archetype_id}")
         catalog[spec.archetype_id] = spec
         ordered_specs.append(spec)
-    return tuple(ordered_specs), MappingProxyType(catalog)
+    return tuple(ordered_specs), readonly_mapping(catalog)
 
 
 ENEMY_SPECS, _ENEMY_CATALOG = _build_enemy_catalog(GENERATED_ENEMY_SPECS)
@@ -66,8 +65,8 @@ def _build_weapon_catalog(records):
         ordered_specs.append(spec)
     return (
         tuple(ordered_specs),
-        MappingProxyType(by_item_id),
-        MappingProxyType(by_persistence_key),
+        readonly_mapping(by_item_id),
+        readonly_mapping(by_persistence_key),
     )
 
 
@@ -96,7 +95,7 @@ def _build_drifter_catalog(records):
         by_id[spec.drifter_id] = spec
         by_choice[spec.choice] = spec
     ordered = tuple(sorted(by_id.values(), key=lambda spec: int(spec.choice)))
-    return ordered, MappingProxyType(by_id), MappingProxyType(by_choice)
+    return ordered, readonly_mapping(by_id), readonly_mapping(by_choice)
 
 
 DRIFTER_SPECS, _DRIFTER_CATALOG, _DRIFTER_CHOICE_CATALOG = (
@@ -130,7 +129,7 @@ def _build_encounter_catalog(records, *, enemy_catalog=None):
                 )
         by_id[spec.encounter_id] = spec
     ordered = tuple(sorted(by_id.values(), key=lambda spec: spec.encounter_id))
-    return ordered, MappingProxyType(by_id)
+    return ordered, readonly_mapping(by_id)
 
 
 ENCOUNTER_SPECS, _ENCOUNTER_CATALOG = _build_encounter_catalog(
@@ -177,9 +176,9 @@ def _build_route_catalog(records, *, encounter_catalog=None):
     ordered = tuple(sorted(by_id.values(), key=lambda spec: spec.route_id))
     return (
         ordered,
-        MappingProxyType(by_id),
-        MappingProxyType(nodes_by_id),
-        MappingProxyType(successors_by_node_id),
+        readonly_mapping(by_id),
+        readonly_mapping(nodes_by_id),
+        readonly_mapping(successors_by_node_id),
     )
 
 
