@@ -105,13 +105,28 @@ def test_post_battle_overworld_render_clears_the_final_battle_frame():
         def __init__(self, acting_player, enemy, *, ui, encounter_label=None):
             assert acting_player is player
             self.enemies = tuple(enemy)
+            self._complete = False
 
-        def run(self):
+        @property
+        def is_complete(self):
+            return self._complete
+
+        @property
+        def winner(self):
+            return "player"
+
+        def current_view(self):
+            if self._complete:
+                return None
             for enemy in self.enemies:
                 enemy.alive = False
             output.append("FINAL BATTLE FRAME")
             player.health.take_damage(7)
-            return "player"
+            self._complete = True
+            return None
+
+        def submit(self, _battle_input):
+            return self.current_view()
 
     session = OverworldSession(
         game,

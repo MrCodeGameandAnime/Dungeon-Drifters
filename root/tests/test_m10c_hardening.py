@@ -170,6 +170,7 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
     )
     created = {}
     enemy_count = 0
+    battle_ui_instances = []
 
     class RecordingTerminalBattleUI(TerminalBattleUI):
         def __init__(self):
@@ -225,7 +226,9 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
     )
 
     def battle_ui_factory():
-        return RecordingTerminalBattleUI()
+        ui = RecordingTerminalBattleUI()
+        battle_ui_instances.append(ui)
+        return ui
 
     result = OverworldSession(
         game,
@@ -237,7 +240,7 @@ def test_real_terminal_pair_route_completes_with_ordered_enemy_phase_and_auto_ta
 
     battle = created["battle"]
     resolver = created["resolver"]
-    battle_ui = battle.ui
+    battle_ui = battle_ui_instances[0]
     first, second = battle.enemies
     assert result is OverworldSessionResult.QUIT
     assert player_identity is battle.player_state is player

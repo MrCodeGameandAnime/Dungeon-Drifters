@@ -55,11 +55,26 @@ class DeterministicBattle:
         self.player_state = player_state
         self.enemies = tuple(enemies)
         self.encounter_label = encounter_label
+        self._complete = False
 
-    def run(self):
+    @property
+    def is_complete(self):
+        return self._complete
+
+    @property
+    def winner(self):
+        return "player"
+
+    def current_view(self):
+        if self._complete:
+            return None
         for enemy in self.enemies:
             enemy.health.take_damage(enemy.health.current)
-        return "player"
+        self._complete = True
+        return None
+
+    def submit(self, _battle_input):
+        return self.current_view()
 
 
 def _phase_for(kind):
@@ -255,11 +270,26 @@ def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path)
             captured["player"] = player_state
             captured["label"] = encounter_label
             self.enemies = tuple(enemies)
+            self._complete = False
 
-        def run(self):
+        @property
+        def is_complete(self):
+            return self._complete
+
+        @property
+        def winner(self):
+            return "player"
+
+        def current_view(self):
+            if self._complete:
+                return None
             for enemy in self.enemies:
                 enemy.health.take_damage(enemy.health.current)
-            return "player"
+            self._complete = True
+            return None
+
+        def submit(self, _battle_input):
+            return self.current_view()
 
     ui = ScriptedUI(
         (

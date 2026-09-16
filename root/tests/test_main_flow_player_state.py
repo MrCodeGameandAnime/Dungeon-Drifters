@@ -24,9 +24,9 @@ class FakeGameState:
 class FakeEvents:
     selected_character = SelectedCharacter()
 
-    def pick_character(self):
-        CALLS.append("pick_character")
-        return self.selected_character
+    def pick_character_id(self):
+        CALLS.append("pick_character_id")
+        return "branoc"
 
 
 class FakeStoryElements:
@@ -77,14 +77,13 @@ CALLS = []
 
 def test_main_builds_one_persistent_session_from_the_selected_character():
     originals = {
-        "PlayerState": main_loop.PlayerState,
-        "GameState": main_loop.GameState,
         "Events": main_loop.Events,
         "StoryElements": main_loop.StoryElements,
         "OverworldSession": main_loop.OverworldSession,
         "TerminalOverworldUI": main_loop.TerminalOverworldUI,
         "TerminalBattleUI": main_loop.TerminalBattleUI,
         "console": main_loop.console,
+        "create_new_game": main_loop.create_new_game,
     }
     CALLS.clear()
     FakePlayerState.instances = []
@@ -94,14 +93,18 @@ def test_main_builds_one_persistent_session_from_the_selected_character():
     FakeOverworldSession.instances = []
     selected_character = FakeEvents.selected_character
 
-    main_loop.PlayerState = FakePlayerState
-    main_loop.GameState = FakeGameState
     main_loop.Events = FakeEvents
     main_loop.StoryElements = FakeStoryElements
     main_loop.OverworldSession = FakeOverworldSession
     main_loop.TerminalOverworldUI = FakeOverworldUI
     main_loop.TerminalBattleUI = FakeBattleUI
     main_loop.console = FakeConsole
+
+    def fake_create_new_game(drifter_id):
+        CALLS.append(f"create_new_game:{drifter_id}")
+        return FakeGameState(FakePlayerState(selected_character))
+
+    main_loop.create_new_game = fake_create_new_game
 
     try:
         main_loop.main()
@@ -127,6 +130,7 @@ def test_main_builds_one_persistent_session_from_the_selected_character():
         "opening_screen",
         "wait_for_continue",
         "clear_console",
-        "pick_character",
+        "pick_character_id",
         "clear_console",
+        "create_new_game:branoc",
     ]

@@ -76,14 +76,29 @@ def test_selected_drifter_owner_graph_survives_battle_and_return(
             self.player_state = player_state
             self.enemies = tuple(enemies)
             self.ui = ui
+            self._complete = False
 
-        def run(self):
+        @property
+        def is_complete(self):
+            return self._complete
+
+        @property
+        def winner(self):
+            return "player"
+
+        def current_view(self):
+            if self._complete:
+                return None
             self.player_state.health.take_damage(1)
             self.player_state.mana_resource.spend(1)
             self.player_state.super_resource.gain(1)
             for enemy in self.enemies:
                 enemy.health.take_damage(enemy.health.current)
-            return "player"
+            self._complete = True
+            return None
+
+        def submit(self, _battle_input):
+            return self.current_view()
 
     ui = ScriptedUI(
         (

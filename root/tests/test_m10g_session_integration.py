@@ -167,11 +167,26 @@ def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
         def __init__(self, player_state, enemies, *, ui, encounter_label):
             self.player_state = player_state
             self.enemies = tuple(enemies)
+            self._complete = False
 
-        def run(self):
+        @property
+        def is_complete(self):
+            return self._complete
+
+        @property
+        def winner(self):
+            return "player"
+
+        def current_view(self):
+            if self._complete:
+                return None
             for enemy in self.enemies:
                 enemy.health.take_damage(enemy.health.current)
-            return "player"
+            self._complete = True
+            return None
+
+        def submit(self, _battle_input):
+            return self.current_view()
 
     ui = ScriptedUI(
         [

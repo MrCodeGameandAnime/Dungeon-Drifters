@@ -20,6 +20,18 @@ class Events:
         return False
 
     def pick_character(self):
+        profile = self._pick_character_profile()
+        player = profile.create_character()
+        print(f"You have chosen {player.full_display_name}!")
+        return player
+
+    def pick_character_id(self):
+        """Return the confirmed canonical Drifter ID after terminal selection."""
+        profile = self._pick_character_profile()
+        print(f"You have chosen {profile.display_name}!")
+        return profile.drifter_id
+
+    def _pick_character_profile(self):
         while True:
             print(f"\n{render_roster(DRIFTER_SPECS)}")
             character_choice = input("Choose your Drifter: ").strip()
@@ -36,9 +48,7 @@ class Events:
                 confirmation = input(f"Continue with {profile.short_name}? [Y/N]: ").strip().lower()
 
                 if confirmation in ("y", "yes"):
-                    player = profile.create_character()
-                    print(f"You have chosen {player.full_display_name}!")
-                    return player
+                    return profile
 
                 if confirmation in ("n", "no"):
                     console.clear_console()

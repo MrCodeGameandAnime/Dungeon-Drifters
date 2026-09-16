@@ -56,14 +56,29 @@ class BattleHarness:
                 self.enemy = self.enemies
                 self.ui = ui
                 self.encounter_label = encounter_label
+                self._complete = False
 
-            def run(self):
+            @property
+            def is_complete(self):
+                return self._complete
+
+            @property
+            def winner(self):
+                return harness.winners[index]
+
+            def current_view(self):
+                if self._complete:
+                    return None
                 if index < len(harness.mutations):
                     harness.mutations[index](self.player_state)
                 if harness.winners[index] == "player":
                     for enemy in self.enemies:
                         enemy.alive = False
-                return harness.winners[index]
+                self._complete = True
+                return None
+
+            def submit(self, _battle_input):
+                return self.current_view()
 
         battle = FakeBattle()
         self.instances.append(battle)
@@ -969,7 +984,8 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     assert battles.instances[0].player_state is player
     assert enemies.calls == [("goblin", 0)]
     assert battles.instances[0].enemy == (enemies.enemies[0],)
-    assert battles.instances[0].ui is battle_uis.instances[0]
+    assert battles.instances[0].ui is None
+    assert battle_uis.instances == []
     assert player.health.current == player.health.maximum - 12
     assert player.mana_resource.current == player.mana_resource.maximum - 5
     assert player.super_resource.current == 20

@@ -23,7 +23,7 @@ from app.presentation.overworld_models import (
     OverworldScreen,
     OverworldView,
 )
-from app.presentation.battle_models import BattleView
+from app.presentation.battle_models import BattleView, InteractionPhase
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseOverworldAction,
@@ -116,6 +116,7 @@ class OverworldSession:
         self._quit_return_screen = None
         self._active_battle = None
         self._active_battle_context = None
+        self._last_presented_view = None
 
     @property
     def game_state(self):
@@ -153,6 +154,8 @@ class OverworldSession:
             return view
         if isinstance(session_input, ChoosePermanentStatIncrease):
             self._increase_permanent_stat(view, session_input)
+            if self._stale_enabled_stat_input(view, session_input):
+                self._notice = "That stat is not available."
             return self._build_view()
         if isinstance(session_input, ChooseOverworldItem):
             self._select_item(view, session_input)
@@ -160,8 +163,21 @@ class OverworldSession:
         if not isinstance(session_input, ChooseOverworldAction):
             self._notice = "That option is not available."
             return self._build_view()
-        if not self._action_is_offered(view, session_input.action):
-            self._notice = "That option is not available."
+        if not self._action_is_offered(
+            view,
+            session_input.action,
+        ) and not self._stale_load_was_offered(session_input.action):
+            self._notice = (
+                "That Rest is not available."
+                if session_input.action
+                in {OverworldAction.REST, OverworldAction.SKIP_REST}
+                and (
+                    view.screen is OverworldScreen.REST
+                    or getattr(self._last_presented_view, "screen", None)
+                    is OverworldScreen.REST
+                )
+                else "That option is not available."
+            )
             return self._build_view()
         if session_input.action in {
             OverworldAction.ENTER_ENCOUNTER,
@@ -184,24 +200,75 @@ class OverworldSession:
             raise RuntimeError("run() requires an overworld UI")
         if self._battle_ui_factory is None:
             raise RuntimeError("run() requires a battle UI factory")
+
+        view = self.current_view()
+        battle_ui = None
         while True:
-            view = self._build_view()
+            if isinstance(view, BattleView):
+                if battle_ui is None:
+                    battle_ui = self._battle_ui_factory()
+                battle_ui.render(view)
+                if view.interaction_phase is InteractionPhase.COMPLETE:
+                    view = self.current_view()
+                    battle_ui = None
+                    continue
+                battle_input = battle_ui.read_input(view)
+                view = self.submit(battle_input)
+                continue
+
+            battle_ui = None
+            self._last_presented_view = view
             self._ui.render(view)
             overworld_input = self._ui.read_input(view)
-            if isinstance(overworld_input, ChoosePermanentStatIncrease):
-                self._increase_permanent_stat(view, overworld_input)
-                continue
-            if isinstance(overworld_input, ChooseOverworldItem):
-                self._select_item(view, overworld_input)
-                continue
-            if not isinstance(overworld_input, ChooseOverworldAction):
-                self._notice = "That option is not available."
-                continue
-            if not self._action_is_offered(view, overworld_input.action):
-                self._notice = "That option is not available."
-                continue
-            if self._dispatch(overworld_input.action) is OverworldSessionResult.QUIT:
+            result = self.submit(overworld_input)
+            if result is OverworldSessionResult.QUIT:
                 return OverworldSessionResult.QUIT
+            if isinstance(result, (OverworldView, BattleView)):
+                view = result
+            else:
+                view = self.current_view()
+
+    def _stale_enabled_stat_input(self, current_view, session_input):
+        previous_view = self._last_presented_view
+        if (
+            previous_view is None
+            or previous_view.screen is not OverworldScreen.SKILLS
+            or previous_view.skills is None
+            or current_view.skills is None
+        ):
+            return False
+        previous_row = next(
+            (
+                row
+                for row in previous_view.skills.stats
+                if row.stat_name == session_input.stat_name
+            ),
+            None,
+        )
+        current_row = next(
+            (
+                row
+                for row in current_view.skills.stats
+                if row.stat_name == session_input.stat_name
+            ),
+            None,
+        )
+        return bool(
+            previous_row
+            and previous_row.increase_enabled
+            and current_row
+            and not current_row.increase_enabled
+        )
+
+    def _stale_load_was_offered(self, action):
+        if action is not OverworldAction.LOAD:
+            return False
+        previous_view = self._last_presented_view
+        return bool(
+            previous_view
+            and previous_view.screen is OverworldScreen.OPTIONS
+            and self._action_is_offered(previous_view, action)
+        )
 
     def _build_view(self):
         return self._presenter.build(
@@ -407,11 +474,17 @@ class OverworldSession:
         self._selected_item_key = None
 
     def _run_current_encounter(self):
-        battle = self._create_active_battle(ui=self._battle_ui_factory())
+        battle = self._create_active_battle(ui=None)
         if battle is None:
             return
-        winner = battle.run()
-        self._finalize_active_battle(winner=winner)
+        battle_ui = self._battle_ui_factory()
+        view = battle.current_view()
+        while True:
+            battle_ui.render(view)
+            if battle.is_complete:
+                self._finalize_active_battle()
+                return
+            view = battle.submit(battle_ui.read_input(view))
 
     def _create_active_battle(self, *, ui):
         if self._active_battle is not None:

@@ -98,16 +98,30 @@ class SequenceBattleFactory:
                 self.ui = ui
                 self.encounter_label = encounter_label
                 self.state_during_run = None
+                self._complete = False
 
-            def run(self):
+            @property
+            def is_complete(self):
+                return self._complete
+
+            @property
+            def winner(self):
+                return factory.winners[index]
+
+            def current_view(self):
+                if self._complete:
+                    return None
                 if index < len(factory.mutations):
                     factory.mutations[index](self.player_state)
                 self.state_during_run = self.player_state.snapshot()
-                winner = factory.winners[index]
-                if winner == "player":
+                if factory.winners[index] == "player":
                     for enemy in self.enemies:
                         enemy.health.take_damage(enemy.health.current)
-                return winner
+                self._complete = True
+                return None
+
+            def submit(self, _battle_input):
+                return self.current_view()
 
         battle = SequenceBattle()
         self.instances.append(battle)

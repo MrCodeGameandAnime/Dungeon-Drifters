@@ -1,10 +1,9 @@
 from app.combat.battle import Battle
 from app.content.catalog import create_enemy_state
 from app.game import console
-from app.game.game_state import GameState
+from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.game.save_repository import SaveLoadStatus, SaveRepository
-from app.player.player_state import PlayerState
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.world.event import Events
@@ -18,10 +17,9 @@ def _new_game_state():
     story.opening_screen()
     console.wait_for_continue()
     console.clear_console()
-    character = events.pick_character()
+    drifter_id = events.pick_character_id()
     console.clear_console()
-    player_state = PlayerState(character)
-    return GameState(player_state)
+    return create_new_game(drifter_id)
 
 
 def _startup_game_state(save_repository):

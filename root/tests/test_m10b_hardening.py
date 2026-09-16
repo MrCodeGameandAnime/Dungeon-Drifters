@@ -117,12 +117,26 @@ def test_first_victory_applies_rewards_and_pair_combat_is_next():
         class WinningBattle:
             def __init__(self):
                 self.enemies = tuple(enemies)
+                self._complete = False
 
-            @staticmethod
-            def run():
+            @property
+            def is_complete(self):
+                return self._complete
+
+            @property
+            def winner(self):
+                return "player"
+
+            def current_view(self):
+                if self._complete:
+                    return None
                 for enemy in enemies:
                     enemy.alive = False
-                return "player"
+                self._complete = True
+                return None
+
+            def submit(self, _battle_input):
+                return self.current_view()
 
         return WinningBattle()
 

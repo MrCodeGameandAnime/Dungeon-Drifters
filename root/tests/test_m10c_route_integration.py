@@ -44,12 +44,27 @@ class RouteBattleFactory:
                 self.enemies = tuple(enemies)
                 self.ui = ui
                 self.encounter_label = encounter_label
+                self._complete = False
 
-            def run(self):
+            @property
+            def is_complete(self):
+                return self._complete
+
+            @property
+            def winner(self):
+                return factory.winner
+
+            def current_view(self):
+                if self._complete:
+                    return None
                 if factory.winner == "player" and factory.defeat_enemies:
                     for enemy in self.enemies:
                         enemy.alive = False
-                return factory.winner
+                self._complete = True
+                return None
+
+            def submit(self, _battle_input):
+                return self.current_view()
 
         battle = FakeBattle()
         self.calls.append(battle)

@@ -184,7 +184,6 @@ class RouteUI:
 class DeterministicBattleFactory:
     def __init__(self):
         self.battles = []
-        self.uis = []
 
     def __call__(self, player_state, enemies, *, ui, encounter_label):
         battle = Battle(
@@ -196,7 +195,6 @@ class DeterministicBattleFactory:
             encounter_label=encounter_label,
         )
         self.battles.append(battle)
-        self.uis.append(ui)
         return battle
 
 
@@ -224,7 +222,13 @@ def test_four_drifters_complete_the_full_surface_route(
     equipped_weapon = player.get_equipped("weapon")
     game = GameState(player)
     battle_factory = DeterministicBattleFactory()
-    battle_ui_factory = AutomaticBattleUI
+    battle_ui_instances = []
+
+    def battle_ui_factory():
+        ui = AutomaticBattleUI()
+        battle_ui_instances.append(ui)
+        return ui
+
     route_ui = RouteUI(rest_actions)
 
     session = OverworldSession(
@@ -274,11 +278,15 @@ def test_four_drifters_complete_the_full_surface_route(
     assert all(battle.player_state is player for battle in battle_factory.battles)
     assert all(
         battle.interaction_phase.value == "complete"
-        and battle.ui.views[-1].interaction_phase.value == "complete"
-        and battle.ui.views[-1].action_options == ()
-        and battle.ui.views[-1].move_options == ()
-        and battle.ui.views[-1].target_options == ()
-        for battle in battle_factory.battles
+        and battle_ui.views[-1].interaction_phase.value == "complete"
+        and battle_ui.views[-1].action_options == ()
+        and battle_ui.views[-1].move_options == ()
+        and battle_ui.views[-1].target_options == ()
+        for battle, battle_ui in zip(
+            battle_factory.battles,
+            battle_ui_instances,
+            strict=True,
+        )
     )
 
     assert game.world_state.defeated_encounters == EXPECTED_ENCOUNTER_IDS
