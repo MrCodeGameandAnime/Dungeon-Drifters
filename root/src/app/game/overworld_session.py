@@ -1,6 +1,7 @@
 """Overworld session orchestration around the existing Battle boundary."""
 
 from enum import StrEnum
+from typing import TypeAlias
 
 from app.content.catalog import (
     get_encounter_spec,
@@ -20,18 +21,48 @@ from app.presentation.overworld_models import (
     OverworldAction,
     OverworldAvailabilityReason,
     OverworldScreen,
+    OverworldView,
 )
+from app.presentation.battle_models import BattleView
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    OverworldInput,
     OverworldUI,
+)
+from app.ui.battle_ui import (
+    BattleInput,
+    ChooseAction,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ChooseInventoryItem,
+    ChooseMove,
+    ChooseTarget,
+    ConfirmInventoryUse,
+    GoBack,
 )
 
 
 class OverworldSessionResult(StrEnum):
     QUIT = "quit"
+
+
+SessionView: TypeAlias = OverworldView | BattleView
+SessionInput: TypeAlias = OverworldInput | BattleInput
+
+
+_BATTLE_INPUT_TYPES = (
+    ChooseAction,
+    ChooseMove,
+    ChooseTarget,
+    ChooseInventoryItem,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ConfirmInventoryUse,
+    GoBack,
+)
 
 
 class OverworldSession:
@@ -43,24 +74,25 @@ class OverworldSession:
         self,
         game_state,
         *,
-        ui,
         battle_factory,
         enemy_factory,
-        battle_ui_factory,
+        ui=None,
+        battle_ui_factory=None,
         presenter=None,
         save_repository=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
-        if not isinstance(ui, OverworldUI):
+        if ui is not None and not isinstance(ui, OverworldUI):
             raise TypeError("ui must satisfy OverworldUI")
         for name, value in (
             ("battle_factory", battle_factory),
             ("enemy_factory", enemy_factory),
-            ("battle_ui_factory", battle_ui_factory),
         ):
             if not callable(value):
                 raise TypeError(f"{name} must be callable")
+        if battle_ui_factory is not None and not callable(battle_ui_factory):
+            raise TypeError("battle_ui_factory must be callable")
         if presenter is None:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
@@ -82,12 +114,76 @@ class OverworldSession:
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
+        self._active_battle = None
+        self._active_battle_context = None
 
     @property
     def game_state(self):
         return self._game_state
 
+    @property
+    def active_battle(self):
+        return self._active_battle
+
+    def current_view(self) -> SessionView:
+        if self._active_battle is not None:
+            battle = self._active_battle
+            view = battle.current_view()
+            if battle.is_complete:
+                self._finalize_active_battle()
+            return view
+        return self._build_view()
+
+    def submit(self, session_input: SessionInput):
+        if self._active_battle is not None:
+            battle = self._active_battle
+            current_view = battle.current_view()
+            if battle.is_complete:
+                self._finalize_active_battle()
+                return current_view
+            if not isinstance(session_input, _BATTLE_INPUT_TYPES):
+                return current_view
+            view = battle.submit(session_input)
+            if battle.is_complete:
+                self._finalize_active_battle()
+            return view
+
+        view = self._build_view()
+        if isinstance(session_input, _BATTLE_INPUT_TYPES):
+            return view
+        if isinstance(session_input, ChoosePermanentStatIncrease):
+            self._increase_permanent_stat(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseOverworldItem):
+            self._select_item(view, session_input)
+            return self._build_view()
+        if not isinstance(session_input, ChooseOverworldAction):
+            self._notice = "That option is not available."
+            return self._build_view()
+        if not self._action_is_offered(view, session_input.action):
+            self._notice = "That option is not available."
+            return self._build_view()
+        if session_input.action in {
+            OverworldAction.ENTER_ENCOUNTER,
+            OverworldAction.RETRY,
+        }:
+            battle = self._create_active_battle(ui=None)
+            if battle is None:
+                return self._build_view()
+            battle_view = battle.current_view()
+            if battle.is_complete:
+                self._finalize_active_battle()
+            return battle_view
+        result = self._dispatch(session_input.action)
+        if result is OverworldSessionResult.QUIT:
+            return result
+        return self._build_view()
+
     def run(self):
+        if self._ui is None:
+            raise RuntimeError("run() requires an overworld UI")
+        if self._battle_ui_factory is None:
+            raise RuntimeError("run() requires a battle UI factory")
         while True:
             view = self._build_view()
             self._ui.render(view)
@@ -311,12 +407,21 @@ class OverworldSession:
         self._selected_item_key = None
 
     def _run_current_encounter(self):
+        battle = self._create_active_battle(ui=self._battle_ui_factory())
+        if battle is None:
+            return
+        winner = battle.run()
+        self._finalize_active_battle(winner=winner)
+
+    def _create_active_battle(self, *, ui):
+        if self._active_battle is not None:
+            raise RuntimeError("an encounter is already active")
         overworld = self.game_state.overworld_state
         current_node_id = overworld.current_route_node_id
         current_node = get_route_node_spec(current_node_id)
         if current_node.encounter_id is None:
             self._notice = "No encounter is available here."
-            return
+            return None
         encounter = get_encounter_spec(current_node.encounter_id)
         exp_reward, gold_reward = get_encounter_rewards(encounter.encounter_id)
 
@@ -326,13 +431,40 @@ class OverworldSession:
             self._enemy_factory(archetype_id, tier=0)
             for archetype_id in encounter.enemy_archetype_ids
         )
-        battle = self._battle_factory(
-            self.game_state.player_state,
-            enemies,
-            ui=self._battle_ui_factory(),
-            encounter_label=current_node.display_label,
+        self._active_battle_context = (
+            current_node_id,
+            encounter.encounter_id,
+            exp_reward,
+            gold_reward,
+            checkpoint,
         )
-        winner = battle.run()
+        try:
+            self._active_battle = self._battle_factory(
+                self.game_state.player_state,
+                enemies,
+                ui=ui,
+                encounter_label=current_node.display_label,
+            )
+        except Exception:
+            self._active_battle_context = None
+            raise
+        return self._active_battle
+
+    def _finalize_active_battle(self, *, winner=None):
+        battle = self._active_battle
+        context = self._active_battle_context
+        if battle is None or context is None:
+            raise RuntimeError("there is no active encounter to finalize")
+        (
+            current_node_id,
+            encounter_id,
+            exp_reward,
+            gold_reward,
+            checkpoint,
+        ) = context
+        overworld = self.game_state.overworld_state
+        if winner is None:
+            winner = battle.winner
         if winner == "player":
             if not self._battle_enemies_are_defeated(battle):
                 raise RuntimeError(
@@ -345,7 +477,6 @@ class OverworldSession:
                 )
             next_node = get_route_node_spec(next_node_id)
             next_phase = self._contextual_phase_for_node(next_node.kind)
-            encounter_id = encounter.encounter_id
             if encounter_id in self.game_state.world_state.defeated_encounters:
                 raise RuntimeError("encounter has already been defeated")
             player = self.game_state.player_state
@@ -379,6 +510,8 @@ class OverworldSession:
             self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._notice = None
+        self._active_battle = None
+        self._active_battle_context = None
 
     def _open_current_rest(self):
         overworld = self.game_state.overworld_state
