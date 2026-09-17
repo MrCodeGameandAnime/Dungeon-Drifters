@@ -375,6 +375,154 @@ MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
 
 MYP2 therefore qualifies the next implementation boundary without implementing it. The next gate may proceed only with the strict contract above; it must not broaden into annotation, enum, typing, persistence, or gameplay migration.
 
+## MYP3 - Portable dataclass field discovery and overlay
+
+MYP3 continued after the stock annotation discovery failure instead of treating it as evidence that portable dataclass behavior was impossible. The pinned runtime preserves class identity but does not preserve class annotations:
+
+```text
+MicroPython: 1.29.0
+Platform: win32
+
+class Example:
+    required: int
+    optional: str = "default"
+
+Example.__dict__:
+    optional is present
+    required is absent
+
+Example.__annotations__:
+    AttributeError / unavailable
+```
+
+The runtime does preserve the identity required for generated metadata:
+
+```text
+__module__: preserved
+__name__: preserved
+__qualname__: preserved for DD's top-level dataclasses
+```
+
+### Field-discovery decision
+
+The discovery ladder was evaluated in this order:
+
+```text
+1. annotation-retaining MicroPython configuration or build option
+2. minimal MicroPython compiler/runtime patch
+3. generated field metadata
+4. explicit production field metadata
+```
+
+The pinned source exposes no existing annotation-preservation option. A broad interpreter fork or production rewrite was not justified. MYP3 therefore selected generated metadata while preserving every DD production dataclass unchanged.
+
+The generator is `root/tools/generate_dataclass_manifest.py`. It imports the authoritative production modules under normal CPython and reads native `__dataclass_fields__` metadata. It fails closed for duplicate identities and terminal-input imports; current dataclass-bearing imports require no application startup, terminal interaction, persistence activity, or filesystem mutation. AST extraction remains the documented fallback if a future production addition makes native imports unsuitable.
+
+The generated artifact is `root/portability/micropython/_dataclass_fields.py`. Its canonical identity is:
+
+```text
+(module, qualified class name)
+```
+
+The generated set is checked dynamically at generation time:
+
+```text
+discovered production dataclasses == generated manifest entries
+0 missing
+0 unexpected
+0 duplicates
+exact native field-order match
+```
+
+The MYP2 count of 74 is historical evidence, not a permanent limit. Every portable dataclass must resolve exactly one manifest key. There is no bare-name fallback, ambiguous matching, or silent missing metadata.
+
+The manifest contains only ordered field names. Ordinary defaults remain on the class, and `field(default_factory=...)` remains represented by the overlay field marker. It is compatibility metadata, not a second gameplay representation.
+
+### Portable overlay
+
+The MicroPython-only implementation is `root/portability/micropython/dataclasses.py`. It implements only the MYP2-qualified subset:
+
+```text
+generated positional and keyword initialization
+ordinary defaults
+field(default_factory=...)
+per-instance factory isolation
+structural equality
+frozen assignment rejection
+__post_init__ invocation
+object.__setattr__ normalization
+ordered iterable __dataclass_fields__ names
+```
+
+It does not implement ordering, hashing compatibility, slots, keyword-only fields, `InitVar`, field metadata, general reflection, inheritance, or exact generated repr behavior.
+
+`root/tools/micropython_probe_bootstrap.py` selects the overlay by prepending `root/portability/micropython` only for the isolated probe process. The normal CPython path, Pyodide, Chaquopy, pytest, and packaging continue to use native standard-library `dataclasses`. The unchanged raw probe remains the stage authority.
+
+### MYP3 evidence
+
+Portable conformance under CPython:
+
+```text
+13 passed
+```
+
+Direct overlay smoke test under MicroPython:
+
+```text
+MYP|OVERLAY|FIELDS|('value', 'items')
+MYP|OVERLAY|FACTORY_ISOLATED|True
+MYP|OVERLAY|POST_SETATTR|5
+MYP|OVERLAY|FROZEN|TypeError
+MYP|OVERLAY|PASS
+```
+
+Native CPython raw probe:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+Forced-overlay CPython raw probe:
+
+```text
+MYP|CATALOG_IMPORT|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+Pinned MicroPython raw probe:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|CATALOG_IMPORT|BEGIN
+MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'enum'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|978336|ALLOC|46176
+```
+
+The previous `ImportError: no module named 'dataclasses'` failure was crossed. The next compatibility frontier is the unrelated `enum` import in `root/src/app/combat/move.py`. MYP3 stops there; it does not repair enum, typing, collections, pathlib, persistence, annotations, or gameplay.
+
+MYP3 production impact:
+
+```text
+production dataclass imports changed: 0
+gameplay changes: 0
+content changes: 0
+persistence changes: 0
+semantic API changes: 0
+```
+
+The external MicroPython evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+```
+
+MYP3 establishes that the dataclass contract is portable when field identity is supplied separately. It does not claim that the full DD runtime is yet MicroPython-compatible.
+
 ## DD PORTABLE DATACLASS VERDICT
 
 Production files using dataclasses: 23
@@ -427,10 +575,12 @@ Recommendation: PROCEED WITH STRICT BOUNDARY
 MYP0  Raw probe; find the first real incompatibility.
 MYP1  First evidence-backed compatibility primitive.
 MYP2  Qualify the portable dataclass contract.
-MYP3  Session qualification.
-MYP4  Eight encounters, three Rests, Dungeon Entrance.
-MYP5  Constrained-target memory and runtime pressure.
-MYP6  Cross-runtime regression qualification.
+MYP3  Portable dataclass field discovery and overlay; stop at enum.
+MYP4  Qualify the core runtime after the next compatibility wall.
+MYP5  Session qualification.
+MYP6  Eight encounters, three Rests, Dungeon Entrance.
+MYP7  Constrained-target memory and runtime pressure.
+MYP8  Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
