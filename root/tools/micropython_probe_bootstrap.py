@@ -55,6 +55,17 @@ def _prepare_cpython_overlay():
     sys.modules.pop("enum", None)
 
 
+def _install_micropython_regex_proxy():
+    implementation = getattr(getattr(sys, "implementation", None), "name", None)
+    if implementation != "micropython":
+        return
+
+    native_re = __import__("re")
+    from re_compat import install
+
+    sys.modules["re"] = install(native_re)
+
+
 def main():
     if len(sys.argv) != 2:
         print("MYP|USAGE|FAIL|expected exactly one DD source directory")
@@ -68,6 +79,7 @@ def main():
 
     _prepare_cpython_overlay()
     sys.path.insert(0, overlay_root)
+    _install_micropython_regex_proxy()
     sys.argv[:] = [probe_path, sys.argv[1]]
     namespace = {"__name__": "__main__", "__file__": probe_path}
     try:

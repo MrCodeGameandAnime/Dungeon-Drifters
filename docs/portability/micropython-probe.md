@@ -1017,6 +1017,163 @@ Source checkout: clean
 Reported platform: win32
 ```
 
+## MYP7 - Portable Regex Fullmatch Boundary
+
+MYP7 advances the pinned MicroPython qualification past the missing
+`re.fullmatch` behavior recorded by MYP6. The compatibility boundary remains
+outside `root/src`; the raw probe, gameplay, content, persistence, semantic
+APIs, and schema remain unchanged.
+
+MYP6 was sealed at:
+
+```text
+a97def8f26d811b08fe650157296a8da57bcb6a8
+MYP6 - Repair Portable StrEnum Construction
+```
+
+### Production regex audit
+
+The production regex surface was discovered dynamically from
+`root/src/app/**/*.py`. The current runtime call shapes are:
+
+```text
+re.compile(pattern)
+compiled_pattern.fullmatch(value)
+re.fullmatch(pattern, value)
+```
+
+The current compiled patterns validate enemy, Drifter, and route content IDs.
+`Weapon._validate_item_id()` uses the module-level unanchored pattern. The
+audit excludes `root/tools`, tests, and documentation, and rejects future
+production use of unsupported regex operations, match-position APIs, match
+metadata, bytes patterns, scanners, or reflection.
+
+DD does not require module-level or compiled `match`, `search`, `sub`, `subn`,
+`split`, `findall`, `finditer`, or `escape` behavior. It does not inspect
+`start()`, `end()`, `span()`, groups, or other match-object metadata.
+
+### Pinned MicroPython evidence
+
+The native MicroPython `re` module provides `compile`, `match`, and `search`,
+but not `fullmatch`. Compiled patterns also provide `match` and `search`, but
+not `fullmatch`. Match objects expose only `group` for the relevant operation;
+`start`, `end`, and `span` are unavailable. `group(0)` returns the consumed
+text:
+
+```text
+pattern.match("goblin").group(0)       -> "goblin"
+pattern.match("goblin!").group(0)     -> "goblin"
+pattern.match("goblin extra").group(0) -> "goblin"
+```
+
+The native module accepts a path-inserted portability directory but remains a
+frozen module with no file origin. A `root/portability/micropython/re.py`
+module would therefore not override it. The native module object also rejects
+adding attributes directly.
+
+### Selected compatibility boundary
+
+MYP7 uses:
+
+```text
+root/portability/micropython/re_compat.py
+```
+
+The existing bootstrap imports native `re` first, calls `install(native_re)`
+only when the interpreter identifies itself as MicroPython, and then stores the
+returned proxy in `sys.modules["re"]` before DD imports execute:
+
+```text
+native frozen re
+    -> install(native_re)
+    -> proxy privately retains native_re
+    -> sys.modules["re"] = proxy
+    -> DD imports re normally
+```
+
+The proxy delegates unknown module and compiled-pattern operations to the
+native engine. It adds only module-level `fullmatch` and compiled-pattern
+`fullmatch`. It does not implement a regex engine, parser, translator, or
+second match-object representation.
+
+Full-match behavior is:
+
+```python
+match = native_pattern.match(string)
+if match is None or match.group(0) != string:
+    return None
+return match
+```
+
+Successful calls return the original native match object. DD does not pass
+regex flags, so the proxy calls native `compile(pattern)` with one argument;
+nonzero flags fail explicitly rather than becoming an unqualified compatibility
+promise. Installation is idempotent, and patterns compiled before installation
+remain native and are not retroactively wrapped.
+
+Normal CPython, Pyodide, Chaquopy, pytest, and packaging continue using the
+standard-library `re`. Forced CPython qualification imports native `re`, calls
+the adapter explicitly in an isolated subprocess, and verifies the proxy
+marker and retained native module. It does not fake a MicroPython
+`sys.implementation` value or change normal bootstrap behavior.
+
+### MYP7 qualification evidence
+
+The direct qualification under pinned MicroPython `v1.29.0` reported:
+
+```text
+MYP7|NATIVE|COMPILE| True
+MYP7|NATIVE|FULLMATCH| False
+MYP7|NATIVE|PATTERN_FULLMATCH| False
+MYP7|PROXY|ACTIVE| True
+MYP7|PROXY|DELEGATED_SEARCH| True
+MYP7|PROXY|COMPILED| True
+MYP7|PROXY|COMPILED_FULLMATCH| True True
+MYP7|PROXY|MODULE_FULLMATCH| True True
+```
+
+The forced compatibility CPython raw probe completed every unchanged stage:
+
+```text
+MYP|CATALOG_IMPORT|PASS
+MYP|DRIFTER_SPEC|PASS
+MYP|NEW_GAME|PASS
+MYP|FIRST_ENCOUNTER|PASS
+MYP|ENEMY_STATE|PASS
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|PASS
+MYP|BATTLE_INPUT|PASS
+MYP|BATTLE_COMPLETE|PASS
+MYP|SESSION_IMPORT|PASS
+MYP|SESSION_CONSTRUCTION|PASS
+MYP|SESSION_VIEW|PASS
+MYP|SESSION_ENCOUNTER_ENTRY|PASS
+MYP|SESSION_ENCOUNTER_COMPLETE|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The pinned MicroPython raw probe crossed the `re.fullmatch` frontier and
+stopped at the next unrelated compatibility wall:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|1001952|ALLOC|22560
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1001872|ALLOC|22640
+MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'collections.abc'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|934288|ALLOC|90224
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|4
+MYP|DATACLASS|CONSTRUCTED|3
+```
+
+The next gate must be derived from the observed `collections.abc` import
+failure. No speculative repair is documented here.
+
 ## Future Gates
 
 ```text
@@ -1027,11 +1184,13 @@ MYP3  Portable dataclass field discovery and overlay; stop at enum.
 MYP4  Portable StrEnum overlay; stop at keyword.
 MYP5  Portable keyword boundary; stop at the next unrelated wall.
 MYP6  Qualify the next evidence-derived compatibility frontier.
-MYP7  Core runtime qualification.
-MYP8  Session qualification.
-MYP9  Eight encounters, three Rests, Dungeon Entrance.
-MYP10 Constrained-target memory and runtime pressure.
-MYP11 Cross-runtime regression qualification.
+MYP7  Portable regex fullmatch boundary; stop at collections.abc.
+MYP8  Next evidence-derived compatibility frontier.
+MYP9  Core runtime qualification.
+MYP10 Session qualification.
+MYP11 Eight encounters, three Rests, Dungeon Entrance.
+MYP12 Constrained-target memory and runtime pressure.
+MYP13 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
