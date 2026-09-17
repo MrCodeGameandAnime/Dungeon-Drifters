@@ -17,6 +17,7 @@ from app.game.save_contract import (
     SaveRepositoryError,
     is_save_repository,
 )
+from app.iteration import first_or_none
 from app.presentation.overworld_models import (
     OverworldAction,
     OverworldAvailabilityReason,
@@ -235,21 +236,15 @@ class OverworldSession:
             or current_view.skills is None
         ):
             return False
-        previous_row = next(
-            (
-                row
-                for row in previous_view.skills.stats
-                if row.stat_name == session_input.stat_name
-            ),
-            None,
+        previous_row = first_or_none(
+            row
+            for row in previous_view.skills.stats
+            if row.stat_name == session_input.stat_name
         )
-        current_row = next(
-            (
-                row
-                for row in current_view.skills.stats
-                if row.stat_name == session_input.stat_name
-            ),
-            None,
+        current_row = first_or_none(
+            row
+            for row in current_view.skills.stats
+            if row.stat_name == session_input.stat_name
         )
         return bool(
             previous_row
@@ -317,13 +312,10 @@ class OverworldSession:
             self._notice = "That stat is not available."
             return
 
-        row = next(
-            (
-                row
-                for row in view.skills.stats
-                if row.stat_name == overworld_input.stat_name
-            ),
-            None,
+        row = first_or_none(
+            row
+            for row in view.skills.stats
+            if row.stat_name == overworld_input.stat_name
         )
         if row is None or not row.increase_enabled:
             self._notice = self._stat_unavailable_message(

@@ -10,6 +10,7 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
+from app.iteration import first_or_none
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
 from app.presentation.overworld_models import (
@@ -77,9 +78,10 @@ class OverworldPresenter:
         node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
         adventure_text = adventure_text or self._default_adventure_text(game_state)
         items = self._inventory_items(game_state)
-        selected_item = next(
-            (item for item in items if item.selection_key == selected_item_key),
-            None,
+        selected_item = first_or_none(
+            item
+            for item in items
+            if item.selection_key == selected_item_key
         )
         options = self._options(
             game_state,

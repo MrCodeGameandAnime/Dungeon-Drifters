@@ -2639,6 +2639,183 @@ MYP15 adds no authored encounter composition changes and no gameplay or
 session-state changes. Historical `docs/mpy/` files remain untracked,
 untouched, and uncommitted.
 
+## MYP16 - Repair Portable Next Default Boundary
+
+MYP15 was sealed at:
+
+```text
+133846f6b15b0ea3ed2153af69b104a0945b3fcf
+```
+
+Its unchanged pinned MicroPython probe had reached:
+
+```text
+SESSION_IMPORT: PASS
+SESSION_CONSTRUCTION: PASS
+SESSION_VIEW: FAIL
+TypeError: function takes 1 positional arguments but 2 were given
+```
+
+The traceback terminated at `OverworldPresenter.build()` while evaluating
+the selected-inventory-item lookup with `next(..., None)`. The pinned
+MicroPython Windows runtime exposes the one-argument `next()` implementation;
+the two-argument form is available only when `MICROPY_PY_BUILTINS_NEXT2` is
+enabled. MYP16 did not enable that feature or rebuild the interpreter.
+
+### Root-cause evidence
+
+The direct pinned preflight produced:
+
+```text
+iterator = iter(("value",))
+next(iterator)
+-> value
+
+iterator = iter(("value",))
+next(iterator, None)
+-> TypeError: function takes 1 positional arguments but 2 were given
+
+next(iter(()), None)
+-> TypeError: function takes 1 positional arguments but 2 were given
+```
+
+This confirms that the failure is the built-in default-value arity surface,
+not generator behavior, presenter state, dataclasses, or session state.
+
+### Production audit and correction
+
+The pre-edit AST census was dynamically restricted to `root/src/app/**/*.py`.
+It found exactly eight direct `next()` calls with two positional arguments,
+all using `None` as the default, across five existing production files:
+
+```text
+root/src/app/presentation/overworld_presenter.py: selected inventory item
+root/src/app/presentation/battle_presenter.py: selected move
+root/src/app/player/run_items.py: run-item definition and recipe pair
+root/src/app/player/inventory_action.py: recipe for action
+root/src/app/game/overworld_session.py: previous, current, and selected stat rows
+```
+
+The permanent AST contract excludes test and tooling code and enforces the
+runtime invariant that direct production `next()` calls with two or more
+positional arguments remain absent.
+
+MYP16 added `root/src/app/iteration.py` with the deliberately narrow
+`first_or_none(values)` primitive. It returns the first yielded value or
+`None` when the iterable is exhausted, without materializing the iterable or
+consuming a second value. All eight callers now use this primitive while
+preserving authored order, first-match selection, falsey values, short
+circuiting, and non-`StopIteration` exception propagation.
+
+The post-edit census is:
+
+```text
+direct production next() calls with >= 2 positional arguments: 0
+two-argument calls: 8 -> 0
+```
+
+### Semantic and regression evidence
+
+The contract suite compares `first_or_none()` against native CPython
+`next(iter(values), None)` for empty, `None`, zero, false, empty-string,
+single-value, and multi-value inputs. It also proves first-value laziness and
+propagation of non-`StopIteration` exceptions. Existing presenter, inventory,
+and session tests remain authoritative for all eight consumers and remain
+green.
+
+### Direct pinned qualification
+
+The direct pinned MicroPython qualification produced:
+
+```text
+None
+0
+a
+```
+
+The direct two-argument preflight still fails after MYP16:
+
+```text
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+TypeError: function takes 1 positional arguments but 2 were given
+```
+
+This is intentional evidence that DD changed its own required runtime
+surface instead of patching `builtins.next` or changing MicroPython.
+
+### Raw probe result
+
+Native CPython and the forced-overlay CPython bootstrap both still report:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The unchanged pinned MicroPython bootstrap probe now reports:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|PASS
+MYP|BATTLE_INPUT|PASS
+MYP|BATTLE_COMPLETE|PASS
+MYP|SESSION_IMPORT|PASS
+MYP|SESSION_CONSTRUCTION|PASS
+MYP|SESSION_VIEW|PASS
+MYP|SESSION_ENCOUNTER_ENTRY|FAIL|TypeError|rng must provide randint
+MYP|MEMORY|SESSION_ENCOUNTER_ENTRY|FAIL|FREE|671840|ALLOC|352672
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|73
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+The last passing stage is `SESSION_VIEW`. The next unrelated frontier is
+`SESSION_ENCOUNTER_ENTRY`, where the existing deterministic route driver
+reaches a battle construction path requiring an RNG with `randint`. MYP16
+does not investigate or repair that frontier; it is the MYP17 starting point.
+
+The original traceback is preserved:
+
+```text
+Traceback (most recent call last):
+  File "root\\tools\\micropython_probe_bootstrap.py", line 116, in <module>
+  File "root\\tools\\micropython_probe_bootstrap.py", line 109, in main
+  File "<string>", line 262, in <module>
+  File "<string>", line 256, in main
+  File "<string>", line 25, in _run_stage
+  File "<string>", line 197, in _enter_first_session_encounter
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/game/overworld_session.py", line 185, in submit
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/game/overworld_session.py", line 517, in _create_active_battle
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/combat/battle.py", line 76, in __init__
+TypeError: rng must provide randint
+```
+
+### Scope and release result
+
+```text
+new portable production helper: 1
+existing production consumer files changed: 5
+production next() calls with two arguments: 8 -> 0
+builtins patching: 0
+MicroPython source changes: 0
+interpreter feature changes: 0
+bootstrap changes: 0
+raw probe changes: 0
+gameplay or session-state changes: 0
+content or route changes: 0
+persistence or save-schema changes: 0
+historical docs/mpy changes: 0
+```
+
+MYP16 does not enable `MICROPY_PY_BUILTINS_NEXT2`, patch `builtins.next`,
+add interpreter detection, alter first-match semantics, or change gameplay or
+session state. Historical `docs/mpy/` files remain untracked, untouched, and
+uncommitted.
+
 ## Future Gates
 
 ```text
