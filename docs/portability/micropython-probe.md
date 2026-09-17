@@ -719,6 +719,148 @@ semantic API changes: 0
 
 The overlay is a MicroPython-only portability boundary. Native CPython, Pyodide, Chaquopy, pytest, and packaging continue using the standard-library `enum`. MYP4 establishes that DD's qualified StrEnum behavior is portable through the observed enum wall without claiming that the full DD runtime is yet MicroPython-compatible.
 
+## MYP5 - Portable keyword boundary
+
+MYP5 advances the raw MicroPython qualification past the observed `keyword` import failure while preserving DD production source, gameplay, content, persistence, semantic APIs, and the unchanged raw probe.
+
+MYP4 was sealed at:
+
+```text
+0a9677d58f80e90f80d50e6ac885a43c4279878e
+MYP4 - Add Portable StrEnum Overlay
+```
+
+The starting MYP4 evidence was:
+
+```text
+CATALOG_IMPORT
+ImportError: no module named 'keyword'
+root/src/app/content/enemy_spec.py
+FREE 967856
+ALLOC 56656
+DATACLASS EXPECTED 74
+DATACLASS DECORATED 2
+DATACLASS CONSTRUCTED 0
+```
+
+### Production keyword audit
+
+The runtime dependency was discovered dynamically under `root/src/app`. Current production callers are:
+
+```text
+app.content.enemy_spec
+app.content.drifter_spec
+app.content.route_spec
+app.items.weapon
+```
+
+Every runtime call is exactly:
+
+```python
+keyword.iskeyword(value)
+```
+
+The audit does not include `root/tools`; tooling has its own source-analysis variables named `keyword` but does not expand the runtime module contract. DD production does not require `kwlist`, `softkwlist`, `issoftkeyword`, keyword-module reflection, or mutation.
+
+The semantic authority is native CPython behavior for string inputs. The portable boundary recognizes hard Python keywords and deliberately excludes soft keywords. On the current CPython host, the hard-keyword set is the 35 values in `keyword.kwlist`; the soft-keyword set is `_, case, match, type`. The overlay contains the deterministic hard-keyword tuple and does not derive it from MicroPython.
+
+### Portable overlay
+
+The MicroPython-only module is:
+
+```text
+root/portability/micropython/keyword.py
+```
+
+It exports only `iskeyword` and performs immutable tuple membership. It contains no filesystem access, dynamic discovery, parser internals, runtime generation, or DD content knowledge. Existing validators remain authoritative for lowercase snake-case syntax, punctuation, whitespace, and casing.
+
+Native CPython, Pyodide, Chaquopy, pytest, packaging, and development tooling continue to use the standard-library `keyword`. Forced-overlay tests run in subprocesses, remove a preloaded native `keyword`, and assert that the resolved module origin is the portability file. This prevents a cached native module or path ordering accident from producing a false green.
+
+The real DD validation paths are exercised under the forced stack for enemy archetype IDs, Drifter IDs, starting weapon IDs, route/content IDs, and weapon item IDs. Valid authored identifiers are accepted, Python hard keywords are rejected by the existing validators, and punctuation, whitespace, and casing remain rejected by those production validators. Portable dataclasses and StrEnum behavior remain active through the same forced environment.
+
+### MYP5 evidence
+
+Native CPython raw probe:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+Forced-overlay CPython raw probe:
+
+```text
+MYP|CATALOG_IMPORT|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|74
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+Pinned MicroPython runtime:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MYP|SOURCE_PATH|BEGIN
+MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
+MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
+Warning: exception chaining not supported
+MYP|CATALOG_IMPORT|FAIL|ValueError|invalid kind: 'damage'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|945088|ALLOC|79424
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|4
+MYP|DATACLASS|CONSTRUCTED|1
+```
+
+The previous `ImportError: no module named 'keyword'` wall is crossed. The first unrelated post-keyword failure is:
+
+```text
+stage: CATALOG_IMPORT
+exception: ValueError
+message: invalid kind: 'damage'
+origin: root/src/app/combat/move.py, Move.__post_init__
+traceback path: Move.__post_init__ -> _validate_enum
+```
+
+The original MicroPython traceback ends at:
+
+```text
+root/src/app/combat/move.py, line 63, in __post_init__
+root/src/app/combat/move.py, line 118, in _validate_enum
+ValueError: invalid kind: 'damage'
+```
+
+MYP5 does not repair this enum-conversion frontier. It belongs to the next evidence-derived gate. The dataclass census remains diagnostic and dynamic; the new frontier was reached after four classes were decorated and one was successfully constructed.
+
+External runtime evidence:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
+MYP5 impact remains:
+
+```text
+root/src production files changed: 0
+gameplay changes: 0
+content changes: 0
+persistence changes: 0
+semantic API changes: 0
+raw probe changes: 0
+```
+
+MYP5 closes only the observed keyword boundary. No speculative enum, typing, collections, pathlib, persistence, annotation, or gameplay compatibility work is included.
+
+
 
 ## Future Gates
 
@@ -728,12 +870,13 @@ MYP1  First evidence-backed compatibility primitive.
 MYP2  Qualify the portable dataclass contract.
 MYP3  Portable dataclass field discovery and overlay; stop at enum.
 MYP4  Portable StrEnum overlay; stop at keyword.
-MYP5  Qualify and cross the next evidence-derived compatibility wall.
-MYP6  Core runtime qualification.
-MYP7  Session qualification.
-MYP8  Eight encounters, three Rests, Dungeon Entrance.
-MYP9  Constrained-target memory and runtime pressure.
-MYP10 Cross-runtime regression qualification.
+MYP5  Portable keyword boundary; stop at the next unrelated wall.
+MYP6  Qualify the next evidence-derived compatibility frontier.
+MYP7  Core runtime qualification.
+MYP8  Session qualification.
+MYP9  Eight encounters, three Rests, Dungeon Entrance.
+MYP10 Constrained-target memory and runtime pressure.
+MYP11 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
