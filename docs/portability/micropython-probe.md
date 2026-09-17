@@ -2278,6 +2278,191 @@ historical docs/mpy changed: 0
 
 MYP14 is derived only from the new `SESSION_IMPORT` failure at `tempfile`.
 
+## MYP14 - Decouple Session Persistence Import Boundary
+
+MYP13 was sealed at:
+
+```text
+cc66563cd94c442ca4b1a95afbe09d1dca3a4828
+```
+
+The unchanged pinned MicroPython probe had reached:
+
+```text
+BATTLE_CONSTRUCTION: PASS
+BATTLE_VIEW: PASS
+BATTLE_INPUT: PASS
+BATTLE_COMPLETE: PASS
+SESSION_IMPORT: FAIL
+ImportError: no module named 'tempfile'
+```
+
+The failure was caused by `OverworldSession` eagerly importing and
+constructing the concrete disk `SaveRepository`. That adapter imports
+`tempfile`, `pathlib`, JSON, and filesystem persistence machinery. The
+session itself only needs the status/error types and the injected repository
+method contract during ordinary headless gameplay.
+
+### Persistence boundary correction
+
+MYP14 added the lightweight `app.game.save_contract` module containing:
+
+```text
+SaveLoadStatus
+SaveRepositoryError
+is_save_repository(value)
+```
+
+`is_save_repository()` uses the existing structural contract helper and
+requires callable `save`, `inspect`, and `load` members. The concrete
+`SaveRepository` remains the host disk adapter. `save_repository.py` imports
+and re-exports the moved status and error types through its existing
+`__all__`, so legacy imports remain identical.
+
+`OverworldSession` now imports only the lightweight contract at module scope.
+When `save_repository` is `None`, the value remains unresolved until an
+actual persistence boundary calls `_save_repository_instance()`. The local
+import constructs the same default `SaveRepository` exactly once. MAIN views,
+encounter creation, battle finalization, rests, and ordinary session
+construction do not resolve it. Explicit structural repository injection
+continues to bypass the default adapter.
+
+This is not SAVE-ARCH. MYP14 adds no backend, save schema, payload shape,
+filesystem overlay, `tempfile` shim, `pathlib` shim, or MicroPython-specific
+gameplay branch. Save/load, atomic replacement, schema-7 migration reporting,
+and schema-8 behavior remain owned by the existing concrete repository.
+
+### Contract and regression evidence
+
+The new boundary tests prove:
+
+```text
+None is not a repository
+callable save/inspect/load members are accepted
+missing or non-callable members are rejected
+save_repository.py re-exports the exact contract types
+default construction is lazy through initial current_view()
+Options load availability constructs the default once and reuses it
+injected repositories bypass the default constructor
+overworld_session has no module-level save_repository import
+```
+
+The existing save repository, overworld session, runtime overworld, desktop
+composition, save/load, quit/restart/load, atomic-write, and migration tests
+remain part of the verification set.
+
+### Runtime evidence
+
+The independent pinned MicroPython preflight still reports:
+
+```text
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ImportError: no module named 'tempfile'
+```
+
+This confirms MYP14 crossed an import boundary rather than repairing or
+masking the unavailable filesystem module. The lightweight contract import
+passes:
+
+```text
+SAVE_CONTRACT|PASS
+```
+
+With the existing regex and `collections.abc` setup applied, a direct
+`OverworldSession` import now reaches the next unrelated dependency:
+
+```text
+ImportError: no module named 'itertools'
+```
+
+The traceback identifies the first post-MYP14 frontier as:
+
+```text
+app.game.overworld_session
+  -> app.presentation.overworld_presenter
+  -> from itertools import groupby
+```
+
+No `itertools` repair is included in MYP14. Because session import stops at
+this unrelated wall, direct session construction and initial view are not
+claimed beyond the point proven by the unchanged raw probe.
+
+The unchanged pinned MicroPython raw probe reports:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|SESSION_IMPORT|BEGIN
+MYP|SESSION_IMPORT|FAIL|ImportError|no module named 'itertools'
+MYP|MEMORY|SESSION_IMPORT|FAIL|FREE|689632|ALLOC|334880
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|70
+MYP|DATACLASS|CONSTRUCTED|28
+```
+
+The last passing stage is `BATTLE_COMPLETE`. `SESSION_IMPORT` itself begins
+and then fails at the next unrelated `itertools` dependency. The original
+traceback was:
+
+```text
+Traceback (most recent call last):
+  File "root/tools/micropython_probe_bootstrap.py", line 116, in <module>
+  File "root/tools/micropython_probe_bootstrap.py", line 109, in main
+  File "<string>", line 262, in <module>
+  File "<string>", line 253, in main
+  File "<string>", line 25, in _run_stage
+  File "<string>", line 166, in _import_overworld_session
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/game/overworld_session.py", line 27, in <module>
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/presentation/overworld_presenter.py", line 3, in <module>
+ImportError: no module named 'itertools'
+```
+
+For comparison, native CPython and the forced-overlay CPython bootstrap both
+still complete every unchanged raw-probe stage. The forced-overlay bootstrap
+also emitted its normal dynamic census after completion:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|73
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+The final CPython verification totals are:
+
+```text
+Full DD suite: 1,404 passed
+Cumulative MYP13 plus MYP14 suite: 233 passed
+```
+
+### Scope and release result
+
+```text
+root/src production files changed: 3
+  root/src/app/game/save_contract.py
+  root/src/app/game/save_repository.py
+  root/src/app/game/overworld_session.py
+new focused test files: 2
+  root/tests/test_save_contract.py
+  root/tests/test_session_persistence_boundary.py
+gameplay behavior changed: 0
+content changed: 0
+persistence semantics changed: 0
+save schema changed: 0
+save payload changed: 0
+semantic API changed: 0
+bootstrap changed: 0
+raw probe changed: 0
+filesystem compatibility layers added: 0
+historical docs/mpy changes: 0
+```
+
+MYP15 is derived only from the new `itertools` frontier. Historical
+`docs/mpy/` files remain untracked, untouched, and uncommitted.
+
 ## Future Gates
 
 ```text
