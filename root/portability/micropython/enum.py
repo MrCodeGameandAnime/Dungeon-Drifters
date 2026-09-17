@@ -12,6 +12,9 @@ _state = getattr(builtins, _STATE_NAME, None)
 
 
 def _lookup_member(cls, value):
+    if isinstance(value, cls):
+        return value
+
     try:
         return cls.__members__[value]
     except (KeyError, TypeError):

@@ -76,6 +76,7 @@ assert Path(enum.__file__).resolve().parent == overlay.resolve()
 from app.combat.move import Move, MoveKind, ResourceType, ScalingAttribute, TargetType, DamageType
 
 assert MoveKind("damage") is MoveKind.DAMAGE
+assert MoveKind(MoveKind.DAMAGE) is MoveKind.DAMAGE
 assert MoveKind.DAMAGE.value == "damage"
 assert MoveKind.DAMAGE.name == "DAMAGE"
 assert MoveKind.DAMAGE == "damage"
@@ -98,6 +99,40 @@ move = Move(
 )
 assert move.kind is MoveKind.DAMAGE
 assert move.resource_type is ResourceType.NONE
+
+class MicroPythonMembers:
+    def __init__(self, enum_type, members):
+        self._enum_type = enum_type
+        self._members = members
+
+    def __getitem__(self, key):
+        if isinstance(key, self._enum_type):
+            raise KeyError(key)
+        return self._members[key]
+
+for enum_type in (MoveKind, ResourceType, ScalingAttribute, TargetType, DamageType):
+    enum_type.__members__ = MicroPythonMembers(enum_type, enum_type.__members__)
+
+assert MoveKind(MoveKind.DAMAGE) is MoveKind.DAMAGE
+
+authored_move = Move(
+    name="Authored Portable Slash",
+    kind=MoveKind.DAMAGE,
+    resource_type=ResourceType.NONE,
+    resource_cost=0,
+    power=1,
+    scales_with=(ScalingAttribute.STRENGTH,),
+    accuracy=100,
+    target=TargetType.ENEMY,
+    damage_type=DamageType.PHYSICAL,
+    mechanic="basic_attack",
+    description="An authored portable test move.",
+)
+assert authored_move.kind is MoveKind.DAMAGE
+assert authored_move.resource_type is ResourceType.NONE
+assert authored_move.scales_with == (ScalingAttribute.STRENGTH,)
+assert authored_move.target is TargetType.ENEMY
+assert authored_move.damage_type is DamageType.PHYSICAL
 """
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -115,6 +150,7 @@ for module_name, class_name, members in records:
     for member_name, value in members:
         member = getattr(enum_type, member_name)
         assert enum_type(value) is member
+        assert enum_type(member) is member
         assert member.name == member_name
         assert member.value == value
         assert isinstance(member, enum_type)

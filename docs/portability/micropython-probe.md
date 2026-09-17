@@ -862,6 +862,161 @@ MYP5 closes only the observed keyword boundary. No speculative enum, typing, col
 
 
 
+## MYP6 - Portable StrEnum member normalization
+
+MYP6 advances the pinned MicroPython qualification past the existing-member
+lookup failure recorded by MYP5. The compatibility boundary remains outside
+`root/src`; DD production source, gameplay, content, persistence, semantic
+APIs, and the unchanged raw probe remain untouched.
+
+### MYP6 diagnosis
+
+The MYP5 failure occurred while `Move.__post_init__` normalized authored enum
+members through `EnumType(value)`:
+
+```text
+Move.__post_init__
+-> _validate_enum("kind", MoveKind.DAMAGE, MoveKind)
+-> MoveKind(MoveKind.DAMAGE)
+-> portable registry lookup
+-> ValueError: 'damage' is not a valid MoveKind
+```
+
+The pinned runtime already supported raw-string construction. The precise
+qualification result was:
+
+```text
+Sample("first")              PASS
+Sample(Sample.FIRST)         FAIL
+MoveKind("damage")           PASS
+MoveKind(MoveKind.DAMAGE)    FAIL
+```
+
+This was not a failure of the `__build_class__` hook, canonical member
+creation, string subclassing, or ordinary value lookup. MicroPython's mapping
+behavior does not reliably resolve an existing portable string-subclass member
+as a string registry key.
+
+### MYP6 correction
+
+`root/portability/micropython/enum.py` now performs the smallest possible
+normalization before registry lookup:
+
+```python
+if isinstance(value, cls):
+    return value
+```
+
+An existing member therefore returns unchanged, preserving canonical identity.
+Raw strings continue through the existing value registry. Unknown values,
+duplicate values, malformed members, string equality, hashing, and `isinstance`
+behavior remain unchanged.
+
+The forced-overlay regression covers both forms for every dynamically
+discovered DD enum member:
+
+```text
+EnumType(raw_value)   is MEMBER
+EnumType(MEMBER)      is MEMBER
+```
+
+It also constructs a real `Move` twice: once with authored enum members and
+once with raw string values. The test subprocess uses a member-sensitive
+registry to reproduce the lookup behavior observed on MicroPython while
+remaining runnable in the CPython CI environment.
+
+### MYP6 qualification evidence
+
+The direct qualification under the pinned MicroPython `v1.29.0` runtime
+reported:
+
+```text
+MYP6|OVERLAY| enum
+MYP6|SAMPLE|RAW| True
+MYP6|SAMPLE|MEMBER| True
+MYP6|SAMPLE|INVALID|PASS
+MYP6|MOVEKIND|RAW| True
+MYP6|MOVEKIND|MEMBER| True
+MYP6|MOVE|MEMBERS|PASS| True True
+MYP6|MOVE|STRINGS|PASS| True True
+MYP6|RESULT|PASS
+```
+
+Native CPython and the forced overlay both completed the unchanged raw probe.
+The forced overlay retained the dynamic dataclass census:
+
+```text
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|74
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+The unchanged raw probe under pinned MicroPython crossed the enum frontier and
+stopped at the next unrelated compatibility wall:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MYP|SOURCE_PATH|BEGIN
+MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
+MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
+MYP|CATALOG_IMPORT|FAIL|AttributeError|'re' object has no attribute 'fullmatch'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|945040|ALLOC|79472
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|4
+MYP|DATACLASS|CONSTRUCTED|2
+```
+
+The original traceback was preserved and re-raised:
+
+```text
+Warning: exception chaining not supported
+Traceback (most recent call last):
+  File "root\\tools\\micropython_probe_bootstrap.py", line 83, in <module>
+  File "root\\tools\\micropython_probe_bootstrap.py", line 76, in main
+  File "<string>", line 262, in <module>
+  File "<string>", line 244, in main
+  File "<string>", line 25, in _run_stage
+  File "<string>", line 59, in _import_catalog
+  File "root\\src/app/content/catalog.py", line 3, in <module>
+  File "root\\src/app/content/_generated_catalog.py", line 3, in <module>
+  File "root\\src/app/content/enemies/goblin/__init__.py", line 1, in <module>
+  File "root\\src/app/content/enemies/goblin/enemy.py", line 57, in <module>
+  File "C:/Users/User/Documents/Dev/Python/Dungeon Drifters/root/portability/micropython/dataclasses.py", line 90, in __init__
+  File "root\\src/app/content/enemy_spec.py", line 76, in __post_init__
+AttributeError: 're' object has no attribute 'fullmatch'
+```
+
+The next gate must be derived from this observed `re.fullmatch` failure.
+MYP6 does not repair `re`, typing, collections, pathlib, persistence,
+annotation syntax, or gameplay.
+
+MYP6 impact remains:
+
+```text
+root/src production files changed: 0
+gameplay changes: 0
+content changes: 0
+persistence changes: 0
+semantic API changes: 0
+raw probe changes: 0
+```
+
+External runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
 ## Future Gates
 
 ```text
