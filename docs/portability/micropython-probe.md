@@ -569,6 +569,157 @@ One authoritative gameplay implementation remains practical: YES WITH STRICT COM
 
 Recommendation: PROCEED WITH STRICT BOUNDARY
 
+## MYP4 - Portable StrEnum overlay
+
+MYP4 advances the raw MicroPython qualification past the `enum` import wall. It preserves the authoritative DD source and adds no production changes under `root/src`.
+
+### Enum audit
+
+The production enum surface was discovered dynamically from `root/src/app`, rather than from a fixed count. The historical MYP4 baseline is 14 importing files and 34 direct `StrEnum` declarations. Every declaration derives directly from `StrEnum` and uses uppercase names assigned literal string values.
+
+The current declaration surface is:
+
+| Production module | Direct `StrEnum` declarations |
+| --- | --- |
+| `app.combat.move` | `MoveKind`, `ResourceType`, `ScalingAttribute`, `TargetType`, `DamageType` |
+| `app.combat.move_presentation` | `MoveRole` |
+| `app.combat.result` | `CombatOutcomeType`, `CombatOutcomeTarget` |
+| `app.combat.status_state` | `StatusKind` |
+| `app.enemies.definition` | `EnemyRank`, `EnemyRole`, `EnemyBehavior`, `EnemyCapability` |
+| `app.presentation.battle_models` | `ActionIntent`, `InteractionPhase`, `InputRejectionReason`, `BattleEventType`, `ActionAvailabilityReason`, `MoveAvailabilityReason`, `InventoryAvailabilityReason` |
+| `app.presentation.overworld_models` | `OverworldScreen`, `OverworldAction`, `OverworldAvailabilityReason`, `MapNodeState` |
+| `app.player.character_run_state` | `RunItemId`, `PreparedPayloadId`, `InfusionKind`, `InventoryActionId` |
+| `app.player.run_items` | `InventoryCommand` |
+| `app.player.inventory_action` | `InventoryActionRejectionReason` |
+| `app.content.route_spec` | `RouteNodeKind` |
+| `app.game.overworld_state` | `ContextualRoutePhase` |
+| `app.game.overworld_session` | `OverworldSessionResult` |
+| `app.game.save_repository` | `SaveLoadStatus` |
+
+The audit verifies dynamically that:
+
+```text
+all production enum bases are direct StrEnum bases
+all candidate member names are uppercase public names
+all candidate member values are literal strings
+there are no aliases
+there is no enum inheritance
+there are no custom enum methods
+there are no unsupported enum operations in production
+```
+
+DD requires direct member access, `EnumType(value)` lookup, canonical singleton identity, `.name`, `.value`, `isinstance(member, EnumType)`, identity/equality comparisons, string compatibility, and hashing for dictionary and set use. In particular, `RunItemId` is used as a dictionary key and `EnemyCapability` is used in a `frozenset`.
+
+DD does not require enum iteration, `len(EnumType)`, `EnumType["NAME"]`, pickling, enum reflection, ordering, or CPython-specific repr behavior. Hash behavior may exist because string-backed members are hashable; the portable requirement is that DD's dictionary and set operations continue to work, not that incidental CPython enum internals be reproduced.
+
+### MicroPython evidence and mechanism
+
+The pinned MicroPython `v1.29.0` runtime preserves `__module__`, `__name__`, and `__qualname__` for the top-level DD enum classes. It does not provide a useful `__init_subclass__` interception point. A class statement with `metaclass=` is rejected, and `str.__new__` is unavailable as a directly callable construction primitive. `builtins.__build_class__` is available and can be wrapped.
+
+The selected implementation is the narrow `root/portability/micropython/enum.py` overlay. It exports only `StrEnum` and captures the original `builtins.__build_class__` once. The wrapper is installed when the overlay imports, before DD enum declarations execute. It transforms only classes whose sole base is the overlay's `StrEnum`; every unrelated class delegates to the original builder unchanged.
+
+Member creation and later lookup are deliberately separate:
+
+```text
+class X(StrEnum):
+    VALUE = "value"
+
+original __build_class__ creates the ordinary subclass
+hook recognizes the direct StrEnum subclass
+raw supported string-subclass construction creates canonical members
+member names and values are exposed
+lookup registry is installed
+
+later X("value")
+    -> existing X.VALUE singleton
+```
+
+The raw construction path uses the demonstrated MicroPython string-subclass behavior and does not assume a usable `str.__new__`. Unknown values raise `ValueError`; duplicate values and malformed uppercase candidate members fail loudly. Dunder names, helper methods, and arbitrary non-member attributes are ignored unless they are qualified as candidate members.
+
+The overlay preserves string equality, `str(member)`, hash behavior, dictionary/set use, `.name`, `.value`, canonical identity, and `isinstance`. It is not a general metaclass system, enum inheritance framework, source transformer, or replacement for Python's complete enum module.
+
+Hook safety is locked by subprocess-based forced-overlay tests. The original builder is captured exactly once, forced qualification proves the overlay module is active instead of using cached CPython `enum`, and unrelated classes and native dataclasses remain unaffected. Test-local hooks are isolated and restored in `finally` where installed. The CPython bootstrap preloads host standard-library modules that depend on native enum behavior before replacing the cached `enum` module; this is qualification harness setup and is not a normal CPython runtime change.
+
+### Dataclass census
+
+The MYP3 overlay now records unique identities rather than construction totals:
+
+```text
+EXPECTED    = set(FIELD_MANIFEST)
+DECORATED   = set()
+CONSTRUCTED = set()
+```
+
+`DECORATED` receives a class identity only after decoration completes successfully. `CONSTRUCTED` receives it only after field assignment and `__post_init__` complete successfully. Counts are emitted from those sets, so repeated instances of one class cannot masquerade as coverage of multiple classes. `EXPECTED` is derived dynamically from the generated manifest; the historical count of 74 is not a permanent requirement.
+
+The bootstrap emits census diagnostics from a `finally` path without changing the raw probe or masking its original exception. If census access is unavailable it emits an explicit diagnostic-unavailable line.
+
+### MYP4 evidence
+
+Native CPython raw probe:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+Forced-overlay CPython raw probe:
+
+```text
+MYP|CATALOG_IMPORT|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|74
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+Direct portable enum smoke test under the pinned runtime:
+
+```text
+MYP|ENUM|MICROPYTHON|PASS
+```
+
+Pinned MicroPython `v1.29.0` raw probe after the enum wall was crossed:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MYP|SOURCE_PATH|BEGIN
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'keyword'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|967856|ALLOC|56656
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|2
+MYP|DATACLASS|CONSTRUCTED|0
+```
+
+The original `ImportError: no module named 'dataclasses'` wall was crossed by MYP3, and the `ImportError: no module named 'enum'` wall was crossed by MYP4. The next observed incompatibility is the unrelated `keyword` import from `root/src/app/content/enemy_spec.py`. MYP4 stops there. It does not repair `keyword`, typing, collections, pathlib, persistence, annotations, or gameplay.
+
+The external runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
+MYP4 production impact is:
+
+```text
+root/src production files changed: 0
+gameplay changes: 0
+content changes: 0
+persistence changes: 0
+semantic API changes: 0
+```
+
+The overlay is a MicroPython-only portability boundary. Native CPython, Pyodide, Chaquopy, pytest, and packaging continue using the standard-library `enum`. MYP4 establishes that DD's qualified StrEnum behavior is portable through the observed enum wall without claiming that the full DD runtime is yet MicroPython-compatible.
+
+
 ## Future Gates
 
 ```text
@@ -576,11 +727,13 @@ MYP0  Raw probe; find the first real incompatibility.
 MYP1  First evidence-backed compatibility primitive.
 MYP2  Qualify the portable dataclass contract.
 MYP3  Portable dataclass field discovery and overlay; stop at enum.
-MYP4  Qualify the core runtime after the next compatibility wall.
-MYP5  Session qualification.
-MYP6  Eight encounters, three Rests, Dungeon Entrance.
-MYP7  Constrained-target memory and runtime pressure.
-MYP8  Cross-runtime regression qualification.
+MYP4  Portable StrEnum overlay; stop at keyword.
+MYP5  Qualify and cross the next evidence-derived compatibility wall.
+MYP6  Core runtime qualification.
+MYP7  Session qualification.
+MYP8  Eight encounters, three Rests, Dungeon Entrance.
+MYP9  Constrained-target memory and runtime pressure.
+MYP10 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.

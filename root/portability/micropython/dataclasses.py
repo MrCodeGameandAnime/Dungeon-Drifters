@@ -4,6 +4,9 @@ from _dataclass_fields import FIELD_MANIFEST
 
 
 _MISSING = object()
+EXPECTED = set(FIELD_MANIFEST)
+DECORATED = set()
+CONSTRUCTED = set()
 
 
 class _FieldSpec:
@@ -55,7 +58,7 @@ def _field_specs(cls, field_names):
     return tuple(specs)
 
 
-def _make_init(cls, field_names, specs):
+def _make_init(cls, field_names, specs, key):
     def __init__(self, *args, **kwargs):
         if len(args) > len(field_names):
             raise TypeError("too many positional arguments")
@@ -85,6 +88,7 @@ def _make_init(cls, field_names, specs):
         post_init = getattr(self, "__post_init__", None)
         if post_init is not None:
             post_init()
+        CONSTRUCTED.add(key)
 
     return __init__
 
@@ -114,12 +118,17 @@ def _decorate(cls, frozen):
     specs = _field_specs(cls, field_names)
 
     setattr(cls, "__dataclass_fields__", field_names)
-    setattr(cls, "__init__", _make_init(cls, field_names, specs))
+    setattr(cls, "__init__", _make_init(cls, field_names, specs, key))
     setattr(cls, "__eq__", _make_eq(cls, field_names))
     if frozen:
         setattr(cls, "__setattr__", _frozen_setattr)
         setattr(cls, "__delattr__", _frozen_delattr)
+    DECORATED.add(key)
     return cls
+
+
+def _dataclass_census():
+    return len(EXPECTED), len(DECORATED), len(CONSTRUCTED)
 
 
 def dataclass(cls=None, frozen=False, **kwargs):
