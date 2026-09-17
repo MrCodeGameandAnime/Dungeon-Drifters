@@ -1330,6 +1330,183 @@ MYP8 changed zero `root/src` production files, gameplay behavior, content,
 persistence, semantic APIs, and raw-probe code. Dataclass, enum, keyword, and
 regex boundaries remain unchanged.
 
+## MYP9 - Portable ASCII String Validation
+
+MYP9 advances the pinned MicroPython qualification past the missing
+`str.isascii()` and `str.isdecimal()` methods without adding a compatibility
+module or changing the raw probe. MYP8 was sealed at:
+
+```text
+bb99b7e1e9360078b157a85400e3c9dea73a386f
+MYP8 - Add Portable Collections ABC Boundary
+```
+
+### Historical failure and runtime evidence
+
+The MYP8 probe stopped during `CATALOG_IMPORT` while the generated catalog
+constructed a `DrifterSpec`. Its `__post_init__` used two methods that the
+pinned runtime does not provide:
+
+```text
+AttributeError: 'str' object has no attribute 'isascii'
+```
+
+Direct qualification under MicroPython `v1.29.0` recorded:
+
+```text
+str.isascii: false
+str.isdecimal: false
+str.isdigit: true
+setattr(str, "isascii", ...): AttributeError: 'type' object has no attribute 'isascii'
+builtins.str replacement: literal strings remain builtin str
+```
+
+Replacing `builtins.str` therefore cannot repair literal-string behavior, and
+the built-in string type cannot be extended. MYP9 uses the already qualified
+regex boundary instead of global string patching or a string wrapper.
+
+### Production audit and equivalent expression
+
+The dynamic audit scans only `root/src/app/**/*.py`. After the correction it
+discovers no production calls to `isascii` or `isdecimal`, and no unsupported
+string methods in the qualified audit surface. The remaining
+`isdecimal()` call in `root/tools/scaffold_content.py` is tooling and is
+intentionally outside the runtime audit.
+
+The former validation contract was:
+
+```python
+isinstance(value, str)
+and bool(value)
+and value.isascii()
+and value.isdecimal()
+and int(value) >= 1
+```
+
+The production implementation now uses:
+
+```python
+_ASCII_DECIMAL_PATTERN = re.compile(r"^[0-9]+$")
+choice = _nonempty_string("choice", self.choice)
+if _ASCII_DECIMAL_PATTERN.fullmatch(choice) is None or int(choice) < 1:
+    raise ValueError("choice must be a positive ASCII integer string")
+```
+
+The regex plus positive integer check agrees with the native CPython
+reference across the accepted and rejected corpus, including leading zeroes,
+signs, whitespace, punctuation, letters, Unicode decimal characters,
+superscript digits, fractions, Roman numerals, and mixed strings. Empty and
+non-string values continue to use the existing `_nonempty_string()` type and
+empty-value errors.
+
+No validation rule is duplicated in a portability module. The pattern is
+ASCII-specific by design: `isdigit()` was not substituted because it would
+accept values that the combined `isascii()` and `isdecimal()` contract
+rejects.
+
+### Qualification results
+
+The real catalog and Drifter path now construct successfully under the full
+existing compatibility stack:
+
+```text
+MYP9|STR|ISASCII|False
+MYP9|STR|ISDECIMAL|False
+MYP9|STR|ISDIGIT|True
+MYP9|STR|SETATTR|AttributeError|'type' object has no attribute 'isascii'
+MYP9|DRIFTER_SPEC|PASS|branoc|1
+MYP9|CATALOG|IMPORT|PASS
+```
+
+The unchanged raw probe completes every stage under native CPython `3.14.6`,
+and the forced CPython regex-proxy subprocess also completes every stage.
+Those runs qualify harness reachability only; they are not MicroPython
+compatibility evidence.
+
+The unchanged raw probe through the pinned MicroPython bootstrap now reports:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MYP|SOURCE_PATH|BEGIN
+MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
+MYP|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MYP|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
+MYP|CATALOG_IMPORT|PASS
+MYP|DRIFTER_SPEC|BEGIN
+MYP|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
+MYP|MEMORY|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
+MYP|DRIFTER_SPEC|PASS
+MYP|NEW_GAME|BEGIN
+MYP|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
+MYP|MEMORY|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
+MYP|NEW_GAME|PASS
+MYP|FIRST_ENCOUNTER|BEGIN
+MYP|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
+MYP|MEMORY|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
+MYP|FIRST_ENCOUNTER|PASS
+MYP|ENEMY_STATE|BEGIN
+MYP|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
+MYP|MEMORY|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
+MYP|ENEMY_STATE|PASS
+MYP|BATTLE_CONSTRUCTION|BEGIN
+MYP|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
+MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|can't import name Counter
+MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|822256|ALLOC|202256
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|15
+MYP|DATACLASS|CONSTRUCTED|13
+```
+
+The original traceback is preserved by the probe:
+
+```text
+ImportError: can't import name Counter
+```
+
+The first post-MYP9 frontier is therefore the unrelated `Counter` import in
+`root/src/app/combat/battle.py`. MYP9 does not repair or speculate about it.
+The dataclass census remains dynamic and diagnostic: `EXPECTED` is the
+generated manifest set, while the decorated and constructed values are unique
+identity counts emitted by the bootstrap's `finally` path.
+
+Pinned external runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
+### Scope and release result
+
+MYP9 changed exactly one production file:
+`root/src/app/content/drifter_spec.py`. It added no overlay, bootstrap, raw
+probe, tooling, generated-catalog, save-schema, gameplay, content, or
+semantic-API changes. The production impact is:
+
+```text
+root/src production files changed: 1
+semantic behavior changed: 0
+gameplay changed: 0
+content changed: 0
+persistence changed: 0
+semantic API changed: 0
+raw probe changed: 0
+compatibility framework changes: 0
+bootstrap changes: 0
+```
+
+The next gate must be derived from the observed `Counter` failure. No
+speculative repair is documented here.
+
 ## Future Gates
 
 ```text
@@ -1342,12 +1519,13 @@ MYP5  Portable keyword boundary; stop at the next unrelated wall.
 MYP6  Qualify the next evidence-derived compatibility frontier.
 MYP7  Portable regex fullmatch boundary; stop at collections.abc.
 MYP8  Portable collections.abc boundary; stop at str.isascii.
-MYP9  Next evidence-derived compatibility frontier.
-MYP10 Core runtime qualification.
-MYP11 Session qualification.
-MYP12 Eight encounters, three Rests, Dungeon Entrance.
-MYP13 Constrained-target memory and runtime pressure.
-MYP14 Cross-runtime regression qualification.
+MYP9  Portable ASCII string validation; stop at the next unrelated wall.
+MYP10 Next evidence-derived compatibility frontier.
+MYP11 Core runtime qualification.
+MYP12 Session qualification.
+MYP13 Eight encounters, three Rests, Dungeon Entrance.
+MYP14 Constrained-target memory and runtime pressure.
+MYP15 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
