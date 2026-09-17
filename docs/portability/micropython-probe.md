@@ -1174,6 +1174,162 @@ MYP|DATACLASS|CONSTRUCTED|3
 The next gate must be derived from the observed `collections.abc` import
 failure. No speculative repair is documented here.
 
+## MYP8 - Portable `collections.abc` Boundary
+
+MYP8 advances the pinned MicroPython qualification past the missing
+`collections.abc` module without changing `root/src`, gameplay, content,
+persistence, semantic APIs, or the raw probe. MYP7 was sealed at:
+
+```text
+6b4883a833d53ce6bf412ed7957a7b72a5a51736
+MYP7 - Add Portable Regex Fullmatch Boundary
+```
+
+### Production audit
+
+The production audit scans only `root/src/app/**/*.py` and discovers the
+following runtime dependencies:
+
+```text
+from collections.abc import Mapping
+    app.items.weapon: isinstance(stat_bonuses, Mapping)
+    app.content.weapon_spec: Mapping[str, int] annotation
+
+from collections.abc import Sequence
+    app.combat.battle: isinstance(enemies, Sequence)
+
+from collections import Counter
+    app.combat.battle: Counter(iterable), mapping lookup, += 1
+```
+
+The `Sequence` imported by `app.combat.combatant` comes from `typing` and is
+not a `collections.abc` runtime dependency. The audit dynamically classifies
+imports, `isinstance` checks, generic subscriptions, Counter construction,
+mapping lookup, and increment operations. It excludes `root/tools`, tests,
+and documentation and uses no permanent file or call counts.
+
+### Native MicroPython evidence
+
+MicroPython `v1.29.0` reports:
+
+```text
+collections.Mapping: False
+collections.Sequence: False
+collections.Counter: False
+collections.deque: True
+collections.namedtuple: True
+collections.OrderedDict: True
+```
+
+The native `collections` module has no usable `__file__` or `__path__`, does
+not accept an `abc` attribute, and native `import collections.abc` fails:
+
+```text
+ImportError: no module named 'collections.abc'
+AttributeError: 'module' object has no attribute 'abc'
+```
+
+A path-inserted child or parent package cannot outrank the frozen native
+module. Directly placing a module-like child in
+`sys.modules["collections.abc"]` does support the exact current import form:
+`from collections.abc import Mapping, Sequence`.
+
+MicroPython ignores class annotation evaluation for the tested form
+`Mapping[str, int]`; the resulting class has no `__annotations__`. Generic
+subscription is therefore not a runtime requirement for this gate and no
+typing system is added.
+
+### Selected boundary
+
+MYP8 adds:
+
+```text
+root/portability/micropython/collections_abc_compat.py
+```
+
+The MicroPython-only bootstrap retains native `collections` and installs only
+the `collections.abc` child through `sys.modules` before DD imports execute.
+It obtains the existing `_ReadonlyMapping` class through a temporary source
+path insertion so the exported runtime contract is:
+
+```python
+Mapping = (dict, _ReadonlyMapping)
+Sequence = (list, tuple)
+```
+
+This preserves dictionary and MYP1 read-only mapping recognition, ordered
+list/tuple enemy groups, and DD's explicit exclusion of strings, bytes, and
+bytearrays at the Battle call site. No global `isinstance` replacement,
+parent-module proxy, general ABC framework, or `Counter` implementation is
+introduced. Installation is idempotent and native top-level `collections`
+attributes remain owned by the native module.
+
+Under forced CPython qualification, the compatibility child exposes native
+`collections.abc.Mapping` and `Sequence`, keeping real DD annotations such
+as `Mapping[str, int]` valid while still proving that the compatibility module
+was explicitly installed in an isolated subprocess. Normal CPython imports
+remain standard-library imports.
+
+### MYP8 qualification evidence
+
+The direct qualification under the pinned MicroPython runtime passed the
+qualified imports, mapping/sequence checks, annotation probe, and real
+Weapon/WeaponSpec construction:
+
+```text
+MYP8|NATIVE|ABC_IMPORT|FAIL|ImportError|no module named 'collections.abc'
+MYP8|IMPORT|MAPPING_SEQUENCE|PASS
+MYP8|ANNOTATION|EVALUATED| False
+MYP8|WEAPON|REAL_PATH|PASS
+MYP8|COUNTER|NATIVE_AVAILABLE| False
+```
+
+The forced CPython subprocess tests passed native-module retention,
+idempotent installation, Mapping/Sequence behavior, DD validator behavior,
+real Weapon/WeaponSpec paths, and Battle's list/tuple normalization boundary.
+The native and forced compatibility contract tests passed `7` tests.
+
+The unchanged raw probe crossed `collections.abc` and stopped at the next
+unrelated runtime incompatibility:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MYP|CATALOG_IMPORT|FAIL|AttributeError|'str' object has no attribute 'isascii'
+MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|906848|ALLOC|117664
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|10
+MYP|DATACLASS|CONSTRUCTED|7
+```
+
+The original traceback identifies `DrifterSpec.__post_init__` at
+`root/src/app/content/drifter_spec.py:126`, where `choice.isascii()` is
+called while the generated catalog constructs Azhvielle's specification:
+
+```text
+AttributeError: 'str' object has no attribute 'isascii'
+```
+
+That `str.isascii` frontier is the next evidence-derived gate. MYP8 does not
+repair or speculate about it. The pinned external runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
+MYP8 changed zero `root/src` production files, gameplay behavior, content,
+persistence, semantic APIs, and raw-probe code. Dataclass, enum, keyword, and
+regex boundaries remain unchanged.
+
 ## Future Gates
 
 ```text
@@ -1185,12 +1341,13 @@ MYP4  Portable StrEnum overlay; stop at keyword.
 MYP5  Portable keyword boundary; stop at the next unrelated wall.
 MYP6  Qualify the next evidence-derived compatibility frontier.
 MYP7  Portable regex fullmatch boundary; stop at collections.abc.
-MYP8  Next evidence-derived compatibility frontier.
-MYP9  Core runtime qualification.
-MYP10 Session qualification.
-MYP11 Eight encounters, three Rests, Dungeon Entrance.
-MYP12 Constrained-target memory and runtime pressure.
-MYP13 Cross-runtime regression qualification.
+MYP8  Portable collections.abc boundary; stop at str.isascii.
+MYP9  Next evidence-derived compatibility frontier.
+MYP10 Core runtime qualification.
+MYP11 Session qualification.
+MYP12 Eight encounters, three Rests, Dungeon Entrance.
+MYP13 Constrained-target memory and runtime pressure.
+MYP14 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.

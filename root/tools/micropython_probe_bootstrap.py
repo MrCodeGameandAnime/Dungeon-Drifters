@@ -66,6 +66,26 @@ def _install_micropython_regex_proxy():
     sys.modules["re"] = install(native_re)
 
 
+def _install_micropython_collections_abc(source_path):
+    implementation = getattr(getattr(sys, "implementation", None), "name", None)
+    if implementation != "micropython":
+        return
+
+    native_collections = __import__("collections")
+    absolute_source_path = _absolute_path(source_path)
+    inserted = absolute_source_path not in sys.path
+    if inserted:
+        sys.path.insert(1, absolute_source_path)
+    try:
+        from app.readonly_mapping import _ReadonlyMapping
+        from collections_abc_compat import install
+
+        install(native_collections, _ReadonlyMapping)
+    finally:
+        if inserted:
+            sys.path.remove(absolute_source_path)
+
+
 def main():
     if len(sys.argv) != 2:
         print("MYP|USAGE|FAIL|expected exactly one DD source directory")
@@ -80,6 +100,7 @@ def main():
     _prepare_cpython_overlay()
     sys.path.insert(0, overlay_root)
     _install_micropython_regex_proxy()
+    _install_micropython_collections_abc(sys.argv[1])
     sys.argv[:] = [probe_path, sys.argv[1]]
     namespace = {"__name__": "__main__", "__file__": probe_path}
     try:
