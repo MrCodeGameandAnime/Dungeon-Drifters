@@ -1,3 +1,4 @@
+from itertools import groupby
 from unittest.mock import patch
 
 import pytest
@@ -11,7 +12,10 @@ from app.presentation.overworld_models import (
     OverworldAvailabilityReason,
     OverworldScreen,
 )
-from app.presentation.overworld_presenter import OverworldPresenter
+from app.presentation.overworld_presenter import (
+    OverworldPresenter,
+    _adjacent_run_counts,
+)
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
 
@@ -40,6 +44,31 @@ EXPECTED_INSPECTIONS = (
         True,
     ),
 )
+
+
+def groupby_reference(values):
+    return tuple(
+        (value, sum(1 for _ in members))
+        for value, members in groupby(values)
+    )
+
+
+@pytest.mark.parametrize(
+    "values",
+    (
+        (),
+        ("a",),
+        ("a", "a"),
+        ("a", "b"),
+        ("a", "a", "b"),
+        ("a", "a", "b", "b"),
+        ("a", "a", "b", "a"),
+        ("a", "b", "a", "b"),
+        ("a", "a", "a", "b", "b", "c", "a"),
+    ),
+)
+def test_adjacent_run_counts_matches_groupby_reference(values):
+    assert _adjacent_run_counts(values) == groupby_reference(values)
 
 
 def game_at(node_id):

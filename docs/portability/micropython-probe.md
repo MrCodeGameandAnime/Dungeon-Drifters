@@ -2463,6 +2463,182 @@ historical docs/mpy changes: 0
 MYP15 is derived only from the new `itertools` frontier. Historical
 `docs/mpy/` files remain untracked, untouched, and uncommitted.
 
+## MYP15 - Remove Itertools Groupby Runtime Dependency
+
+MYP14 was sealed at:
+
+```text
+3af2e4d2da435f29b6559f087aeb0a705cbe0fd0
+```
+
+Its unchanged pinned MicroPython probe reached:
+
+```text
+BATTLE_COMPLETE: PASS
+SESSION_IMPORT: FAIL
+ImportError: no module named 'itertools'
+```
+
+The failure came from the eager import chain:
+
+```text
+app.game.overworld_session
+  -> app.presentation.overworld_presenter
+  -> from itertools import groupby
+```
+
+### Production audit
+
+The pre-edit AST census was dynamically restricted to `root/src/app/**/*.py`
+and found:
+
+```text
+production itertools imports: 1
+imported member: groupby
+groupby calls: 1
+production files: 1
+```
+
+The single site was:
+
+```text
+root/src/app/presentation/overworld_presenter.py
+OverworldPresenter._map_encounter_inspection_view
+```
+
+The test and tooling trees were excluded from this runtime census. The
+operation was adjacent-run grouping, not global counting. For example:
+
+```text
+("goblin", "goblin", "warrior", "goblin")
+-> (("goblin", 2), ("warrior", 1), ("goblin", 1))
+```
+
+### Source correction
+
+MYP15 removed the production `itertools` import and added the private
+`_adjacent_run_counts(values)` helper in the same presenter module. It uses
+ordinary tuple/list operations to preserve contiguous run boundaries and
+authored order. It does not implement or add an `itertools` compatibility
+module.
+
+The production census after the correction is:
+
+```text
+production itertools imports: 0
+production groupby calls: 0
+```
+
+The permanent `test_itertools_contract.py` audit enforces zero production
+imports dynamically and separately verifies that unrelated imports and
+test-only CPython `itertools` usage remain outside the boundary.
+
+### Semantic evidence
+
+The test-only CPython `groupby` oracle agrees with `_adjacent_run_counts()` for
+empty input, singleton input, adjacent duplicates, separated duplicates,
+alternating values, and multiple duplicate groups. Existing authored map
+inspection tests remain green for all surface encounters, including Goblin
+Pair, Warrior Patrol, Elite Patrol, Goblin Lord, rest-node lookahead, boss
+state, immutable output, non-mutating inspection, and no runtime enemy
+construction.
+
+The helper qualification under pinned MicroPython produced:
+
+```text
+()
+(('a', 1),)
+(('a', 2), ('b', 1), ('a', 1))
+```
+
+### Pinned runtime evidence
+
+The independent preflights confirm that the runtime lacks the module itself:
+
+```text
+import itertools
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ImportError: no module named 'itertools'
+
+from itertools import groupby
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ImportError: no module named 'itertools'
+```
+
+The unchanged pinned MicroPython bootstrap probe reports:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|SESSION_IMPORT|PASS
+MYP|SESSION_CONSTRUCTION|PASS
+MYP|SESSION_VIEW|FAIL|TypeError|function takes 1 positional arguments but 2 were given
+MYP|MEMORY|SESSION_VIEW|FAIL|FREE|672400|ALLOC|352112
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|73
+MYP|DATACLASS|CONSTRUCTED|28
+```
+
+The last passing stage is `SESSION_CONSTRUCTION`. The next frontier is a new,
+unrelated `SESSION_VIEW` failure. The original traceback is preserved:
+
+```text
+Traceback (most recent call last):
+  File "root\\tools\\micropython_probe_bootstrap.py", line 116, in <module>
+  File "root\\tools\\micropython_probe_bootstrap.py", line 109, in main
+  File "<string>", line 262, in <module>
+  File "<string>", line 255, in main
+  File "<string>", line 25, in _run_stage
+  File "<string>", line 183, in _obtain_session_view
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/game/overworld_session.py", line 134, in current_view
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/game/overworld_session.py", line 279, in _build_view
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root/src/app/presentation/overworld_presenter.py", line 81, in build
+TypeError: function takes 1 positional arguments but 2 were given
+```
+
+MYP15 does not investigate or repair this `SESSION_VIEW` frontier. It is the
+MYP16 starting point.
+
+Native CPython and the forced-overlay CPython bootstrap both report:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The verification totals are:
+
+```text
+Full DD suite: 1,415 passed
+MYP15 cumulative portability suite: 259 passed
+MYP15 helper/audit focus: 26 passed
+```
+
+### Scope and release result
+
+```text
+root/src production files changed: 1
+  root/src/app/presentation/overworld_presenter.py
+production itertools imports: 1 -> 0
+production groupby calls: 1 -> 0
+gameplay behavior changed: 0
+content or encounter definitions changed: 0
+route or session state changed: 0
+persistence or save schema changed: 0
+semantic APIs changed: 0
+bootstrap changed: 0
+raw probe changed: 0
+itertools compatibility overlay added: 0
+historical docs/mpy changes: 0
+```
+
+MYP15 adds no authored encounter composition changes and no gameplay or
+session-state changes. Historical `docs/mpy/` files remain untracked,
+untouched, and uncommitted.
+
 ## Future Gates
 
 ```text
@@ -2480,9 +2656,9 @@ MYP10 Next evidence-derived compatibility frontier.
 MYP11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
 MYP12 Portable starred tuple expressions; stop at BattleView construction.
 MYP13 Portable strict zip boundary; stop at the tempfile persistence edge.
-MYP14 Next evidence-derived compatibility frontier.
-MYP15 Core runtime qualification.
-MYP16 Session qualification.
+MYP14 Session persistence import boundary; stop at itertools.
+MYP15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
+MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
 MYP17 Eight encounters, three Rests, Dungeon Entrance.
 MYP18 Constrained-target memory and runtime pressure.
 MYP19 Cross-runtime regression qualification.
