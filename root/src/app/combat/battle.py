@@ -1,5 +1,4 @@
 import random
-from collections import Counter
 from collections.abc import Sequence
 
 from app.combat.combat_state import CombatState
@@ -125,16 +124,21 @@ class Battle:
 
     @staticmethod
     def _build_enemy_display_labels(enemies):
-        counts = Counter(enemy.display_name for enemy in enemies)
-        positions = Counter()
+        counts = {}
+        for enemy in enemies:
+            name = enemy.display_name
+            counts[name] = counts.get(name, 0) + 1
+
+        positions = {}
         labels = []
         for enemy in enemies:
             name = enemy.display_name
             if counts[name] == 1:
                 labels.append(name)
                 continue
-            positions[name] += 1
-            labels.append(f"{name} {positions[name]}")
+            position = positions.get(name, 0) + 1
+            positions[name] = position
+            labels.append(f"{name} {position}")
         return tuple(labels)
 
     @property

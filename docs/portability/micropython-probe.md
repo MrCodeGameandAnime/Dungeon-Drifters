@@ -1507,6 +1507,193 @@ bootstrap changes: 0
 The next gate must be derived from the observed `Counter` failure. No
 speculative repair is documented here.
 
+## MYP10 - Remove Counter Runtime Dependency
+
+MYP10 advances the pinned MicroPython qualification past the `Counter` import
+failure without adding a Counter compatibility layer. MYP9 was sealed at:
+
+```text
+d78c07293219116f04f9c203b6654bf8b9728e35
+MYP9 - Repair Portable ASCII String Validation
+```
+
+### Historical failure and production audit
+
+The MYP9 raw probe stopped at `BATTLE_CONSTRUCTION` because
+`root/src/app/combat/battle.py` imported `Counter` from `collections`. The
+audited production use was limited to enemy display-label bookkeeping:
+
+```python
+counts = Counter(enemy.display_name for enemy in enemies)
+positions = Counter()
+positions[name] += 1
+counts[name]
+```
+
+The dynamic audit scans only `root/src/app/**/*.py`. After MYP10 it discovers:
+
+```text
+production Counter imports: none
+production Counter calls: none
+production Counter-dependent operations: none
+```
+
+The audit continues to discover the existing `Mapping` and `Sequence`
+contracts. Tooling, tests, and documentation are excluded from the runtime
+dependency census. The test-only native `Counter` reference is an oracle for
+equivalence and is not a production dependency.
+
+### Selected source-portable replacement
+
+DD only needs to count string keys, default missing values to zero, increment
+them, and read them. `_build_enemy_display_labels()` now uses ordinary
+dictionaries:
+
+```python
+counts = {}
+for enemy in enemies:
+    name = enemy.display_name
+    counts[name] = counts.get(name, 0) + 1
+
+positions = {}
+```
+
+This preserves the exact label contract:
+
+```text
+Goblin                         -> Goblin
+Goblin, Goblin                 -> Goblin 1, Goblin 2
+Goblin, Shaman, Goblin         -> Goblin 1, Shaman, Goblin 2
+Goblin, Shaman, Goblin, Shaman -> Goblin 1, Shaman 1, Goblin 2, Shaman 2
+```
+
+Labels remain based on authored enemy order. Distinct runtime enemy instances
+with the same display name are accepted and numbered independently. The
+existing rejection of the same `EnemyState` instance supplied twice remains
+unchanged. Enemy identity, target IDs, Battle views, combat ordering, and
+resolution are unaffected.
+
+Counter emulation was rejected because it would add unrelated semantics such
+as `most_common()`, `elements()`, arithmetic, subtraction, update behavior,
+and missing-key conventions that DD does not require. Ordinary portable Python
+expresses the complete production contract directly.
+
+### Qualification results
+
+The focused semantic tests compare the dictionary implementation with a
+test-only native CPython `Counter` reference over generated name sequences and
+real catalog-backed enemies. The result was:
+
+```text
+MYP10 focused collections and Battle-label tests: 13 passed
+```
+
+Native CPython `3.14.6` and a forced regex-compatibility CPython subprocess
+both complete the unchanged raw probe through `SESSION_ENCOUNTER_COMPLETE`.
+This confirms no regression in the ordinary runtime or previously qualified
+compatibility boundaries.
+
+The direct pinned MicroPython qualification recorded the native capability and
+the next import wall:
+
+```text
+MYP10|COUNTER|AVAILABLE|False
+ImportError: no module named 'typing'
+```
+
+`Counter` was therefore crossed naturally. The direct Battle attempt imported
+the updated module and then stopped at the next unrelated `typing` dependency
+from `root/src/app/combat/combatant.py`. No later direct label step was
+attempted after that frontier.
+
+The unchanged raw probe through the pinned MicroPython bootstrap reports:
+
+```text
+MYP|BOOT|PASS
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MYP|SOURCE_PATH|BEGIN
+MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
+MYP|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
+MYP|SOURCE_PATH|PASS
+MYP|CATALOG_IMPORT|BEGIN
+MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MYP|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
+MYP|CATALOG_IMPORT|PASS
+MYP|DRIFTER_SPEC|BEGIN
+MYP|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
+MYP|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
+MYP|DRIFTER_SPEC|PASS
+MYP|NEW_GAME|BEGIN
+MYP|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
+MYP|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
+MYP|NEW_GAME|PASS
+MYP|FIRST_ENCOUNTER|BEGIN
+MYP|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
+MYP|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
+MYP|FIRST_ENCOUNTER|PASS
+MYP|ENEMY_STATE|BEGIN
+MYP|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
+MYP|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
+MYP|ENEMY_STATE|PASS
+MYP|BATTLE_CONSTRUCTION|BEGIN
+MYP|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
+MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
+MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|783840|ALLOC|240672
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|31
+MYP|DATACLASS|CONSTRUCTED|15
+```
+
+The original traceback is preserved:
+
+```text
+ImportError: no module named 'typing'
+```
+
+The next gate must be derived from this observed `typing` failure. MYP10 does
+not repair or speculate about it. The dataclass census remains dynamic and
+diagnostic, with unique identity sets rather than construction totals.
+
+Pinned external runtime evidence remains:
+
+```text
+MicroPython tag: v1.29.0
+Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Source checkout: clean
+Reported platform: win32
+```
+
+### Scope and release result
+
+MYP10 changed exactly one production file:
+`root/src/app/combat/battle.py`. It changed no compatibility overlay,
+bootstrap, raw probe, save schema, content, or semantic API. The production
+impact is:
+
+```text
+root/src production files changed: 1
+semantic behavior changed: 0
+gameplay behavior changed: 0
+content changed: 0
+persistence changed: 0
+semantic API changed: 0
+raw probe changed: 0
+compatibility framework changed: 0
+bootstrap changed: 0
+dataclass overlay changed: 0
+enum overlay changed: 0
+keyword overlay changed: 0
+regex overlay changed: 0
+collections.abc changed: 0
+string-validation changed: 0
+portable Counter implementation: 0
+schema changed: 0
+generated catalog changed: 0
+```
+
 ## Future Gates
 
 ```text

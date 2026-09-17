@@ -7,8 +7,8 @@ APP_ROOT = ROOT / "src" / "app"
 
 SUPPORTED_ABC_NAMES = {"Mapping", "Sequence"}
 SUPPORTED_ABC_CONTEXTS = {"type_check", "generic_subscript"}
-SUPPORTED_COLLECTION_NAMES = {"Counter"}
-SUPPORTED_COUNTER_OPERATIONS = {"construct", "subscription", "increment"}
+SUPPORTED_COLLECTION_NAMES = set()
+SUPPORTED_COUNTER_OPERATIONS = set()
 
 
 def _name(node):
@@ -166,17 +166,13 @@ def test_current_runtime_contract_is_classified_without_scanning_non_runtime_pat
         "Mapping",
         "Sequence",
     }
-    assert {name for _, _, name, _ in audit["collection_imports"]} == {"Counter"}
+    assert not audit["collection_imports"]
     assert {name for _, _, name, context in audit["abc_uses"] if context == "type_check"} == {
         "Mapping",
         "Sequence",
     }
     assert {name for _, _, name in audit["generic_subscripts"]} == {"Mapping"}
-    assert {operation for _, _, operation in audit["counter_operations"]} == {
-        "construct",
-        "subscription",
-        "increment",
-    }
+    assert not audit["counter_operations"]
 
     tooling_source = (ROOT / "tools" / "generate_content_catalog.py").read_text(
         encoding="utf-8"
