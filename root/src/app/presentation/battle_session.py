@@ -27,7 +27,7 @@ class BattlePresentationSession:
         entries = tuple(self._entries)
         if self._transient_rejection is None:
             return entries
-        return (*entries, self._transient_rejection)
+        return entries + (self._transient_rejection,)
 
     def begin_player_turn(self):
         """Replace the displayed history when an accepted player action starts."""

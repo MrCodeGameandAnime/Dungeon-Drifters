@@ -78,7 +78,7 @@ class TerminalOverworldUI:
             else self._linear_lines(view, width)
         )
         if self._interactive and self._ansi_enabled:
-            lines = ("\033[2J\033[H" + lines[0], *lines[1:])
+            lines = ("\033[2J\033[H" + lines[0],) + tuple(lines[1:])
         for line in lines:
             self._output(line)
 
@@ -301,8 +301,7 @@ class TerminalOverworldUI:
             f"[ Ring     ]  {equipment.ring.item_name}",
             "",
             "BENEFITS",
-            *equipment.benefits,
-        )
+        ) + tuple(equipment.benefits)
 
     def _inventory_lines(self, view, width):
         inventory = view.inventory
@@ -362,7 +361,7 @@ class TerminalOverworldUI:
     def _input_options(view):
         if view.contextual_route_option is None:
             return view.options
-        return (*view.options, view.contextual_route_option)
+        return tuple(view.options) + (view.contextual_route_option,)
 
     def _option_label(self, option):
         key = self._ACTION_KEYS[option.action]

@@ -1894,6 +1894,174 @@ emulation, global type patching, source transformation, or a bootstrap
 redesign. The next gate must be derived from the observed
 `battle_session.py` syntax failure.
 
+## MYP12 - Portable Starred Tuple Expressions
+
+MYP12 advances the pinned MicroPython qualification past the parser failure
+recorded at MYP11. The baseline was:
+
+```text
+MYP11 sealed SHA: bd7726bb7d73cb7d2c3967071828de05ebdc72a9
+MicroPython: v1.29.0
+Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Platform: win32
+```
+
+The previous raw-probe frontier was:
+
+```text
+MYP|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
+```
+
+The pinned parser rejects a load-context starred tuple display such as:
+
+```python
+return (*entries, self._transient_rejection)
+```
+
+This is a presentation-only tuple assembly convenience. It is not a general
+restriction on every use of `*`.
+
+### Complete production audit
+
+The pre-change AST census scanned only `root/src/app/**/*.py` and found nine
+load-context starred tuple displays across four files:
+
+```text
+app.presentation.battle_session: 1
+app.presentation.character_profile_presenter: 1
+app.ui.terminal_battle_ui: 4
+app.ui.terminal_overworld_ui: 3
+```
+
+The audit classifies every `ast.Starred` occurrence by context. It separately
+recognizes tuple-display loads, function-call arguments, assignment targets,
+comprehension or `for` targets, list displays, set displays, and other
+contexts. The permanent invariant is only:
+
+```text
+unsupported production load-context starred tuple displays: 0
+```
+
+Other forms are classified but are not declared MicroPython-compatible by
+this gate and are not mechanically rewritten.
+
+### Source correction
+
+All nine tuple-display occurrences now use ordinary tuple construction. The
+replacement pattern is:
+
+```python
+(*values, final_value)
+    -> tuple(values) + (final_value,)
+
+("prefix", *values)
+    -> ("prefix",) + tuple(values)
+
+("prefix", *values_a, *values_b)
+    -> ("prefix",) + tuple(values_a) + tuple(values_b)
+```
+
+The corrections preserve tuple result types, evaluation order, multiplicity,
+presentation ordering, conditional behavior, and snapshot isolation. No
+unpacking compatibility layer, runtime source transformation, tuple wrapper,
+bootstrap change, or raw-probe change was added.
+
+### Qualification evidence
+
+The direct pinned-runtime syntax qualification recorded:
+
+```text
+entries = (1, 2)
+value = 3
+result = (*entries, value)
+    -> SyntaxError: *x must be assignment target
+
+result = entries + (value,)
+    -> (1, 2, 3)
+entries
+    -> (1, 2)
+type(result) is tuple
+    -> True
+```
+
+The semantic regression suite covers empty history, retained history order,
+transient rejection placement and replacement, bounded-history behavior,
+snapshot isolation, tuple results, and unchanged list-backed internal state.
+The four changed presentation surfaces are protected by their existing
+character-profile and terminal UI tests:
+
+```text
+MYP12 presentation and syntax-focused tests: 109 passed
+MYP12 cumulative portability and presentation suite: 222 passed
+Full DD suite: 1,383 passed
+```
+
+Native CPython and the isolated forced-overlay CPython raw probes both reach
+`MYP|RESULT|RAW_PROBE_STAGES_COMPLETE`.
+
+The direct pinned-MicroPython qualification imported
+`battle_session` and `character_profile_presenter` successfully, then
+reached the next unrelated dependency while importing `terminal_battle_ui`:
+
+```text
+ImportError: no module named 'shutil'
+```
+
+This stopped that direct terminal-module qualification without stubbing or
+repairing the unrelated standard-library boundary. `terminal_overworld_ui`
+was not forced past that same frontier.
+
+The unchanged raw probe through the complete MYP compatibility bootstrap
+crosses all nine starred tuple displays. Its first unrelated frontier is now
+in Battle view construction:
+
+```text
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
+MYP|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|55
+MYP|DATACLASS|CONSTRUCTED|18
+```
+
+The original traceback is preserved:
+
+```text
+Traceback (most recent call last):
+File "root/tools/micropython_probe_bootstrap.py", line 116, in <module>
+File "root/tools/micropython_probe_bootstrap.py", line 109, in main
+File "<string>", line 262, in <module>
+File "<string>", line 250, in main
+File "<string>", line 25, in _run_stage
+File "<string>", line 112, in _obtain_first_battle_view
+File "root/src/app/combat/battle.py", line 174, in current_view
+File "root/src/app/combat/battle.py", line 413, in _build_view
+File "root/src/app/presentation/battle_presenter.py", line 92, in build
+TypeError: function doesn't take keyword arguments
+```
+
+All prior raw stages through `BATTLE_CONSTRUCTION` pass. MYP12 does not
+repair this next keyword-argument limitation or speculate about MYP13.
+
+### Scope and release result
+
+```text
+root/src production files changed: 4
+starred tuple-display corrections: 9
+semantic behavior changed: 0
+gameplay behavior changed: 0
+presentation contract changed: 0
+content changed: 0
+persistence or save schema changed: 0
+semantic API changed: 0
+raw probe changed: 0
+bootstrap changed: 0
+compatibility overlays changed: 0
+historical docs/mpy changed: 0
+```
+
+The next gate is derived from the observed `BattleView` construction failure.
+
 ## Future Gates
 
 ```text
@@ -1909,12 +2077,13 @@ MYP8  Portable collections.abc boundary; stop at str.isascii.
 MYP9  Portable ASCII string validation; stop at the next unrelated wall.
 MYP10 Next evidence-derived compatibility frontier.
 MYP11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
-MYP12 Next evidence-derived compatibility frontier.
-MYP13 Core runtime qualification.
-MYP14 Session qualification.
-MYP15 Eight encounters, three Rests, Dungeon Entrance.
-MYP16 Constrained-target memory and runtime pressure.
-MYP17 Cross-runtime regression qualification.
+MYP12 Portable starred tuple expressions; stop at BattleView construction.
+MYP13 Next evidence-derived compatibility frontier.
+MYP14 Core runtime qualification.
+MYP15 Session qualification.
+MYP16 Eight encounters, three Rests, Dungeon Entrance.
+MYP17 Constrained-target memory and runtime pressure.
+MYP18 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.

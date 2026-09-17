@@ -72,7 +72,7 @@ class TerminalBattleUI:
             else self._linear_lines(view, width)
         )
         if self._interactive and self._ansi_enabled:
-            lines = ("\033[2J\033[H" + lines[0], *lines[1:])
+            lines = ("\033[2J\033[H" + lines[0],) + tuple(lines[1:])
         for line in lines:
             self._output(line)
 
@@ -336,16 +336,13 @@ class TerminalBattleUI:
             )
             labels += ("[S] Super",)
             if width < 72:
-                return (
-                    "Actions",
-                    *(line for label in labels for line in self._wrap(label, width)),
+                return ("Actions",) + tuple(
+                    line for label in labels for line in self._wrap(label, width)
                 )
             first_row = "   ".join(labels[:3])
             second_row = "   ".join(labels[3:])
-            return (
-                "Actions",
-                *self._wrap(first_row, width),
-                *self._wrap(second_row, width),
+            return ("Actions",) + tuple(self._wrap(first_row, width)) + tuple(
+                self._wrap(second_row, width)
             )
 
         if view.interaction_phase in {
