@@ -1,3 +1,5 @@
+import pytest
+
 from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
 from app.combat.resolver import CombatResolver
@@ -50,6 +52,38 @@ def _option(view, intent):
 
 def _move(view, name):
     return next(move for move in view.move_options if move.name == name)
+
+
+def test_presenter_rejects_mismatched_enemy_target_ids_before_zipping():
+    player, enemy, combat_state = _battle_values()
+    second_enemy = EnemyState(create_enemy_definition("goblin_warrior"))
+
+    with pytest.raises(
+        ValueError,
+        match="enemy_target_ids must align with enemies",
+    ):
+        BattlePresenter().build(
+            player=player,
+            enemies=(enemy, second_enemy),
+            enemy_target_ids=("enemy_1",),
+            combat_state=combat_state,
+        )
+
+
+def test_presenter_rejects_mismatched_enemy_display_labels_before_zipping():
+    player, enemy, combat_state = _battle_values()
+    second_enemy = EnemyState(create_enemy_definition("goblin_warrior"))
+
+    with pytest.raises(
+        ValueError,
+        match="enemy_display_labels must align with enemies",
+    ):
+        BattlePresenter().build(
+            player=player,
+            enemies=(enemy, second_enemy),
+            enemy_display_labels=("Goblin",),
+            combat_state=combat_state,
+        )
 
 
 class FixedRng:

@@ -2062,6 +2062,222 @@ historical docs/mpy changed: 0
 
 The next gate is derived from the observed `BattleView` construction failure.
 
+## MYP13 - Repair Portable Strict Zip Boundary
+
+MYP13 advances the pinned MicroPython qualification past the `BattleView`
+failure recorded at the sealed MYP12 baseline:
+
+```text
+MYP12 sealed SHA: d421a5b7bbfb5f39006983d01b66818de6aea7c0
+MicroPython: v1.29.0
+Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Platform: win32
+```
+
+The previous raw-probe frontier was:
+
+```text
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
+MYP|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|55
+MYP|DATACLASS|CONSTRUCTED|18
+```
+
+### Strict-zip capability evidence
+
+The pinned MicroPython runtime directly produced:
+
+```text
+tuple(zip((1, 2), (3, 4), strict=True))
+    -> TypeError: function doesn't take keyword arguments
+
+tuple(zip((1, 2), (3, 4), strict=False))
+    -> TypeError: function doesn't take keyword arguments
+
+tuple(zip((1, 2), (3, 4)))
+    -> ((1, 3), (2, 4))
+```
+
+Native CPython provided the semantic reference:
+
+```text
+tuple(zip((1, 2), (3,), strict=True))
+    -> ValueError: zip() argument 2 is shorter than argument 1
+
+tuple(zip((1, 2), (3,)))
+    -> ((1, 3),)
+```
+
+Native strict zip prevents silent truncation for mismatched inputs. The audit
+therefore checked every production strict-zip invariant before permitting the
+keyword to be removed.
+
+### Complete production audit
+
+The dynamic AST census scanned only `root/src/app/**/*.py` and found:
+
+```text
+total production zip calls:           5
+zip calls with strict keyword:        5
+zip(..., strict=True):                5
+zip(..., strict=False):               0
+zip(..., strict=<expression>):        0
+ordinary production zip calls:        0
+other calls with strict keyword:      0
+```
+
+The five calls are:
+
+```text
+app.combat.battle:307
+    Battle._display_name_for
+app.combat.battle:697
+    Battle._enemy_for_target_id
+app.presentation.battle_presenter:92
+    BattlePresenter.build
+app.presentation.battle_presenter:547
+    BattlePresenter._target_options
+app.ui.terminal_battle_ui:286
+    TerminalBattleUI._enemy_side_lines
+```
+
+All five direct `zip` names resolve to builtin `zip`. The production AST has
+no local binding, definition, parameter, import, alias, assignment,
+`builtins.zip` replacement, or module-state monkey patch for `zip`.
+
+### Invariant classifications
+
+```text
+Battle._display_name_for
+    REDUNDANT_BY_CONSTRUCTION
+    _enemies and _enemy_display_labels are fixed tuples created from the
+    same normalized enemy tuple during Battle.__init__.
+
+Battle._enemy_for_target_id
+    REDUNDANT_BY_CONSTRUCTION
+    enemy_target_ids is generated with one entry for every enemy and both
+    tuples have no supported mutation surface.
+
+BattlePresenter.build
+    REDUNDANT_BY_EXPLICIT_VALIDATION
+    _metadata_values() validates supplied metadata tuple lengths before the
+    three-way zip; defaults are generated from len(enemies).
+
+BattlePresenter._target_options
+    REDUNDANT_BY_CONSTRUCTION
+    enemy_views is produced immediately beforehand with one view per
+    validated enemy.
+
+TerminalBattleUI._enemy_side_lines
+    REDUNDANT_BY_CONSTRUCTION
+    enemy_blocks and widths are both derived from participant_count, and
+    width distribution changes values without changing list length.
+
+ACTIVE_VALIDATION: 0
+UNCERTAIN: 0
+```
+
+The presenter’s existing validation remains authoritative:
+
+```text
+enemy_target_ids length mismatch
+    -> ValueError: enemy_target_ids must align with enemies
+
+enemy_display_labels length mismatch
+    -> ValueError: enemy_display_labels must align with enemies
+```
+
+### Source correction and regression evidence
+
+The five unsupported keywords were removed from the three audited production
+modules. No portable zip helper, iterator emulation, builtin replacement,
+bootstrap change, or source transformation was added:
+
+```text
+strict-keyword production zip calls: 5 -> 0
+```
+
+The permanent AST contract targets only direct builtin-name `zip(...)` calls
+and rejects a `strict` keyword of any value. It does not reject ordinary zip,
+unrelated keyword calls, attribute calls such as `obj.zip(...)`, tooling, or
+tests. Presenter regression tests prove both existing metadata mismatch
+messages remain unchanged.
+
+Existing behavioral tests continue to protect target-ID stability,
+duplicate-name numbering, identity-preserving multi-enemy views,
+target-option association, four-enemy terminal layout, and the Counter-based
+label equivalence oracle.
+
+### Qualification results
+
+The native CPython raw probe and forced-overlay CPython raw probe both reach:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The focused MYP13 contract and presenter regression tests pass:
+
+```text
+MYP13 focused tests: 23 passed
+Cumulative portability suite: 194 passed
+Full DD suite: 1,387 passed
+```
+
+The unchanged pinned MicroPython probe now reports:
+
+```text
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|PASS
+MYP|BATTLE_INPUT|PASS
+MYP|BATTLE_COMPLETE|PASS
+MYP|SESSION_IMPORT|FAIL|ImportError|no module named 'tempfile'
+MYP|MEMORY|SESSION_IMPORT|FAIL|FREE|708720|ALLOC|315792
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|55
+MYP|DATACLASS|CONSTRUCTED|28
+```
+
+The last passing stage is `BATTLE_COMPLETE`. The next unrelated frontier is
+the concrete persistence import closure used by `OverworldSession`:
+
+```text
+Traceback (most recent call last):
+  File "root\\tools\\micropython_probe_bootstrap.py", line 116, in <module>
+  File "root\\tools\\micropython_probe_bootstrap.py", line 109, in main
+  File "<string>", line 262, in <module>
+  File "<string>", line 253, in main
+  File "<string>", line 25, in _run_stage
+  File "<string>", line 166, in _import_overworld_session
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root\\src/app/game/overworld_session.py", line 15, in <module>
+  File "C:\\Users\\User\\Documents\\Dev\\Python\\Dungeon Drifters/root\\src/app/game/save_repository.py", line 5, in <module>
+ImportError: no module named 'tempfile'
+```
+
+MYP13 does not repair `tempfile`, persistence, or the separately deferred
+terminal `shutil` boundary.
+
+### Scope and release result
+
+```text
+root/src production files changed: 3
+strict zip keyword removals: 5
+semantic behavior changed: 0
+gameplay behavior changed: 0
+content changed: 0
+persistence changed: 0
+save schema changed: 0
+semantic API changed: 0
+raw probe changed: 0
+bootstrap changed: 0
+compatibility overlays changed: 0
+historical docs/mpy changed: 0
+```
+
+MYP14 is derived only from the new `SESSION_IMPORT` failure at `tempfile`.
+
 ## Future Gates
 
 ```text
@@ -2078,38 +2294,35 @@ MYP9  Portable ASCII string validation; stop at the next unrelated wall.
 MYP10 Next evidence-derived compatibility frontier.
 MYP11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
 MYP12 Portable starred tuple expressions; stop at BattleView construction.
-MYP13 Next evidence-derived compatibility frontier.
-MYP14 Core runtime qualification.
-MYP15 Session qualification.
-MYP16 Eight encounters, three Rests, Dungeon Entrance.
-MYP17 Constrained-target memory and runtime pressure.
-MYP18 Cross-runtime regression qualification.
+MYP13 Portable strict zip boundary; stop at the tempfile persistence edge.
+MYP14 Next evidence-derived compatibility frontier.
+MYP15 Core runtime qualification.
+MYP16 Session qualification.
+MYP17 Eight encounters, three Rests, Dungeon Entrance.
+MYP18 Constrained-target memory and runtime pressure.
+MYP19 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
 
 ## Repository Verification
 
-Before committing the probe and guide:
+MYP13 verification was run from the nested `root/` project directory and
+included the full suite, cumulative portability suite, compileall,
+dataclass-manifest freshness, and `git diff --check`. Runtime verification
+also included native CPython, forced-overlay CPython, the pinned strict-zip
+preflights, and the unchanged pinned MicroPython bootstrap probe.
 
-```powershell
-.\.venv\Scripts\python.exe -m compileall root/src root/tests root/tools
-git diff --check
-```
-
-Review that only these files changed:
+The expected tracked MYP13 changes are limited to:
 
 ```text
-root/tools/micropython_probe.py
+root/src/app/combat/battle.py
+root/src/app/presentation/battle_presenter.py
+root/src/app/ui/terminal_battle_ui.py
+root/tests/test_battle_presenter.py
+root/tests/test_strict_zip_contract.py
 docs/portability/micropython-probe.md
 ```
 
-The MYP0 commit must not contain DD production changes, compatibility scaffolding, save behavior, gameplay changes, downloaded MicroPython sources, binaries, object files, or build output.
-
-Commit exactly:
-
-```text
-MYP0 - Add Raw MicroPython Runtime Probe
-```
-
-Push `myp`, verify the local and remote commit match, run the existing DD CI suite, and stop with the exact external runtime evidence and first-failure output.
+No compatibility overlay, bootstrap, raw probe, generated metadata, save
+schema, gameplay, content, or historical `docs/mpy/` file changed.

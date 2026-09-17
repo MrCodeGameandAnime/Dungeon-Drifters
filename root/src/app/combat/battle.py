@@ -307,7 +307,6 @@ class Battle:
         for enemy, label in zip(
             self.enemies,
             self.enemy_display_labels,
-            strict=True,
         ):
             if combatant is enemy:
                 return label
@@ -697,7 +696,6 @@ class Battle:
         for current_id, enemy in zip(
             self.enemy_target_ids,
             self.enemies,
-            strict=True,
         ):
             if current_id == target_id:
                 return enemy

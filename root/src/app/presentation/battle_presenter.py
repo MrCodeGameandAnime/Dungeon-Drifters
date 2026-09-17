@@ -93,7 +93,6 @@ class BattlePresenter:
                 enemies,
                 enemy_target_ids,
                 enemy_display_labels,
-                strict=True,
             )
         )
         return BattleView(
@@ -544,7 +543,7 @@ class BattlePresenter:
         move_number, move = selected
 
         options = []
-        for enemy, enemy_view in zip(enemies, enemy_views, strict=True):
+        for enemy, enemy_view in zip(enemies, enemy_views):
             if not enemy.is_alive():
                 continue
             preview = self._move_option(

@@ -283,7 +283,7 @@ class TerminalBattleUI:
                 max(len(block) for block in enemy_blocks)
             ):
                 row = []
-                for block, block_width in zip(enemy_blocks, widths, strict=True):
+                for block, block_width in zip(enemy_blocks, widths):
                     value = block[line_index] if line_index < len(block) else ""
                     row.append(cls._fit(value, block_width).ljust(block_width))
                 rows.append("".join(row).rstrip())
