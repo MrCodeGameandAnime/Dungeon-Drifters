@@ -15,7 +15,6 @@ def _run_forced_compatibility(source):
         "import enum\n"
         "import keyword\n"
         "import re\n"
-        "import dataclasses\n"
         "import collections as native_collections\n"
         "import collections.abc as native_abc\n"
         f"sys.path.insert(0, {str(OVERLAY_ROOT)!r})\n"

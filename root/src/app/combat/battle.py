@@ -2,7 +2,7 @@ import random
 from collections.abc import Sequence
 
 from app.combat.combat_state import CombatState
-from app.combat.combatant import EnemyCombatant
+from app.combat.combatant import is_enemy_combatant
 from app.combat.move import ResourceType, TargetType
 from app.combat.resolver import CombatResolver
 from app.presentation.battle_models import (
@@ -100,7 +100,7 @@ class Battle:
 
     @staticmethod
     def _normalize_enemies(enemies):
-        if isinstance(enemies, EnemyCombatant):
+        if is_enemy_combatant(enemies):
             normalized = (enemies,)
         elif isinstance(enemies, Sequence) and not isinstance(
             enemies,
@@ -116,7 +116,7 @@ class Battle:
             raise ValueError("Battle requires at least one enemy")
         if len(normalized) > 4:
             raise ValueError("Battle supports at most four enemies")
-        if not all(isinstance(enemy, EnemyCombatant) for enemy in normalized):
+        if not all(is_enemy_combatant(enemy) for enemy in normalized):
             raise TypeError("all Battle enemies must be enemy combatants")
         if len({id(enemy) for enemy in normalized}) != len(normalized):
             raise ValueError("the same EnemyState cannot appear more than once")

@@ -1694,6 +1694,206 @@ schema changed: 0
 generated catalog changed: 0
 ```
 
+## MYP11 - Portable Typing and Protocol Boundary
+
+MYP11 advances the raw MicroPython qualification past the `typing` import
+failure recorded at MYP10. The baseline was:
+
+```text
+MYP10 sealed SHA: 00b7733c02a8b78ebfb856ccbe5fc9ea119f6fe9
+MicroPython: v1.29.0
+Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
+Platform: win32
+```
+
+The original MYP10 frontier was:
+
+```text
+MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
+```
+
+MYP11 keeps native `typing` for CPython and static tooling. Its only
+MicroPython compatibility module is the import-only subset at
+`root/portability/micropython/typing.py`. No file under `root/src` imports the
+overlay directly.
+
+### Dynamic typing audit
+
+The audit scans only `root/src/app/**/*.py`, so tests, tools, documentation,
+and portability modules cannot become accidental runtime dependencies. The
+current production typing surface is discovered rather than guarded by fixed
+file or use counts. It contains imports of:
+
+```text
+Protocol
+runtime_checkable
+TypeAlias
+Sequence
+Union
+```
+
+The four runtime aliases are:
+
+```text
+app.ui.battle_ui.BattleInput
+app.ui.overworld_ui.OverworldInput
+app.game.overworld_session.SessionView
+app.game.overworld_session.SessionInput
+```
+
+They are now constructed with native `typing.Union[...]` under CPython and
+the portable `Union[...]` marker under MicroPython. The audit classifies all
+PEP 604 `A | B` expressions by context. Annotation-only unions, such as
+`ArcaneDischarge.broken_target: object | None`, remain unchanged because the
+pinned runtime accepts them as class annotations. Only runtime-evaluated
+alias assignments required correction.
+
+The audit also proves that no alias is passed to `isinstance` or `issubclass`
+and that aliases are not used as dispatch authority, persistence values, or
+reflection targets. Unsupported future typing imports, attribute uses, alias
+operands, or runtime union expressions fail the audit visibly.
+
+### Protocol contracts
+
+The authoritative Protocol declarations remain in the existing production
+modules:
+
+```text
+Combatant
+    data: display_name, health, mana_resource, super_resource,
+          generates_super, can_defend, combat_moves
+    methods: effective_stat, defend_reduction_percent, is_alive
+
+EnemyCombatant
+    Combatant requirements plus data: archetype_id, tier
+
+BattleUI
+    methods: render, read_input
+
+OverworldUI
+    methods: render, read_input
+```
+
+The dynamic AST audit derives those groups, including inherited Combatant
+members for EnemyCombatant, and compares them exactly with the module-local
+requirement tuples consumed by `is_combatant`, `is_enemy_combatant`,
+`is_battle_ui`, and `is_overworld_ui`. This Protocol/predicate parity
+invariant fails if a declaration gains, loses, or reclassifies a member
+without the corresponding portable contract changing.
+
+The shared `app.runtime_contracts.has_required_members()` primitive requires
+data members to be accessible and declared method members to be callable. It
+does not inspect signatures, emulate Protocol metaclasses, or patch global
+`isinstance`. Native CPython Protocol behavior remains available for its
+existing callers; the portable predicates preserve the DD contract where
+runtime Protocol checks were previously used:
+
+```text
+Battle._normalize_enemies
+resolver._is_valid_combatant
+OverworldSession.__init__
+```
+
+The resolver's existing explicit property and callability checks remain in
+place, including their rejection reasons. BattleUI remains a public Protocol
+contract and gains no new production runtime check.
+
+### MicroPython typing evidence
+
+The pinned runtime preflight established the relevant boundary:
+
+```text
+typing import: unavailable on stock MicroPython v1.29.0
+metaclass= on the relevant portable class boundary: unusable
+custom __instancecheck__: unusable for this purpose
+object subscription UnionMarker()[A, B]: PASS
+class subscription Marker[A, B]: FAIL
+```
+
+The selected overlay therefore exports only `Protocol`,
+`runtime_checkable`, `TypeAlias`, `Sequence`, and `Union`. `Protocol` is a
+basic subclassable class, `runtime_checkable` is an identity decorator,
+`TypeAlias` is an inert marker, `Sequence` is a subscriptable annotation
+marker, and `Union[...]` returns an inert tuple-like representation. It does
+not implement generic runtime checking, type reflection, or a general
+typing system. The overlay is selected solely by MicroPython's existing
+path/bootstrap arrangement; native CPython, Pyodide, Chaquopy, pytest, and
+packaging continue to use the standard-library module.
+
+### Qualification results
+
+The focused MYP11 contract and forced-overlay tests pass. The forced tests
+run in subprocesses and verify the overlay's module origin, all four aliases,
+real combatants, structural UI values, callability rejection, and process
+isolation. Native tests continue to exercise CPython Protocol acceptance and
+the existing dataclass, enum, keyword, regex, collections, string, Counter,
+Battle, M10, and M11 contracts.
+
+The native CPython raw probe reaches every current stage:
+
+```text
+MYP|CATALOG_IMPORT|PASS
+MYP|DRIFTER_SPEC|PASS
+MYP|NEW_GAME|PASS
+MYP|FIRST_ENCOUNTER|PASS
+MYP|ENEMY_STATE|PASS
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|PASS
+MYP|BATTLE_INPUT|PASS
+MYP|BATTLE_COMPLETE|PASS
+MYP|SESSION_IMPORT|PASS
+MYP|SESSION_CONSTRUCTION|PASS
+MYP|SESSION_VIEW|PASS
+MYP|SESSION_ENCOUNTER_ENTRY|PASS
+MYP|SESSION_ENCOUNTER_COMPLETE|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The unchanged raw probe through the complete pinned MicroPython bootstrap
+crosses the former typing wall. Its first unrelated frontier is:
+
+```text
+MYP|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
+MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|733248|ALLOC|291264
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|46
+MYP|DATACLASS|CONSTRUCTED|17
+```
+
+The original traceback is preserved and identifies the next wall:
+
+```text
+File "root/src/app/presentation/battle_session.py", line 30, in entries
+SyntaxError: *x must be assignment target
+```
+
+The preceding MicroPython stages all pass through `ENEMY_STATE`. The typing
+failure is therefore crossed; MYP11 does not repair this unrelated syntax
+limitation, nor does it speculate about the next gate.
+
+### Scope and boundary
+
+```text
+root/src production files changed: 6
+root/src/app/runtime_contracts.py: added
+runtime Protocol checks replaced: 3
+runtime TypeAlias unions rewritten: 4
+gameplay behavior changed: 0
+content changed: 0
+persistence or save schema changed: 0
+semantic API changed: 0
+presenter behavior changed: 0
+raw probe changed: 0
+browser, Android, C++, or platform architecture changed: 0
+```
+
+MYP11 preserves one authoritative gameplay implementation. The new portable
+boundary is limited to import markers and the three runtime structural checks;
+it does not introduce nominal combatant fallbacks, Protocol metaclass
+emulation, global type patching, source transformation, or a bootstrap
+redesign. The next gate must be derived from the observed
+`battle_session.py` syntax failure.
+
 ## Future Gates
 
 ```text
@@ -1708,11 +1908,13 @@ MYP7  Portable regex fullmatch boundary; stop at collections.abc.
 MYP8  Portable collections.abc boundary; stop at str.isascii.
 MYP9  Portable ASCII string validation; stop at the next unrelated wall.
 MYP10 Next evidence-derived compatibility frontier.
-MYP11 Core runtime qualification.
-MYP12 Session qualification.
-MYP13 Eight encounters, three Rests, Dungeon Entrance.
-MYP14 Constrained-target memory and runtime pressure.
-MYP15 Cross-runtime regression qualification.
+MYP11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
+MYP12 Next evidence-derived compatibility frontier.
+MYP13 Core runtime qualification.
+MYP14 Session qualification.
+MYP15 Eight encounters, three Rests, Dungeon Entrance.
+MYP16 Constrained-target memory and runtime pressure.
+MYP17 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.

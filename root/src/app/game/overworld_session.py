@@ -1,7 +1,7 @@
 """Overworld session orchestration around the existing Battle boundary."""
 
 from enum import StrEnum
-from typing import TypeAlias
+from typing import TypeAlias, Union
 
 from app.content.catalog import (
     get_encounter_spec,
@@ -30,7 +30,7 @@ from app.ui.overworld_ui import (
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     OverworldInput,
-    OverworldUI,
+    is_overworld_ui,
 )
 from app.ui.battle_ui import (
     BattleInput,
@@ -49,8 +49,8 @@ class OverworldSessionResult(StrEnum):
     QUIT = "quit"
 
 
-SessionView: TypeAlias = OverworldView | BattleView
-SessionInput: TypeAlias = OverworldInput | BattleInput
+SessionView: TypeAlias = Union[OverworldView, BattleView]
+SessionInput: TypeAlias = Union[OverworldInput, BattleInput]
 
 
 _BATTLE_INPUT_TYPES = (
@@ -83,7 +83,7 @@ class OverworldSession:
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
-        if ui is not None and not isinstance(ui, OverworldUI):
+        if ui is not None and not is_overworld_ui(ui):
             raise TypeError("ui must satisfy OverworldUI")
         for name, value in (
             ("battle_factory", battle_factory),

@@ -1,10 +1,11 @@
 """Semantic battle input values and the battle UI port."""
 
 from dataclasses import dataclass
-from typing import Protocol, TypeAlias, runtime_checkable
+from typing import Protocol, TypeAlias, Union, runtime_checkable
 
 from app.player.run_items import InventoryCommand
 from app.presentation.battle_models import ActionIntent, BattleView
+from app.runtime_contracts import has_required_members
 
 
 @dataclass(frozen=True)
@@ -80,16 +81,16 @@ class GoBack:
     pass
 
 
-BattleInput: TypeAlias = (
-    ChooseAction
-    | ChooseMove
-    | ChooseTarget
-    | ChooseInventoryItem
-    | ChooseInventoryCommand
-    | ChooseInventoryCompanion
-    | ConfirmInventoryUse
-    | GoBack
-)
+BattleInput: TypeAlias = Union[
+    ChooseAction,
+    ChooseMove,
+    ChooseTarget,
+    ChooseInventoryItem,
+    ChooseInventoryCommand,
+    ChooseInventoryCompanion,
+    ConfirmInventoryUse,
+    GoBack,
+]
 
 
 @runtime_checkable
@@ -99,6 +100,13 @@ class BattleUI(Protocol):
 
     def read_input(self, view: BattleView) -> BattleInput:
         ...
+
+
+_BATTLE_UI_CALLABLE_MEMBERS = ("render", "read_input")
+
+
+def is_battle_ui(value):
+    return has_required_members(value, _BATTLE_UI_CALLABLE_MEMBERS, _BATTLE_UI_CALLABLE_MEMBERS)
 
 
 def _validate_nonempty_string(name, value):
