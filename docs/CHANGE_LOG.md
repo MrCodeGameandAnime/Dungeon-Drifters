@@ -1,5 +1,36 @@
 # Dungeon Drifters Change Log
 
+## v0.5
+
+v0.5 establishes Dungeon Drifters as a headless-capable runtime and prepares
+the project for future multiplatform builds:
+
+- created GitHub Pages site in the repository root with a static home page,
+  character pages, Ketlyv world material, gameplay documentation, and contact
+  surface
+- separated gameplay orchestration from terminal presentation and input
+  through semantic session and Battle boundaries
+- added renderer-neutral presentation models and step-driven session APIs so
+  the runtime can be constructed, inspected, and advanced without a terminal
+  renderer
+- separated new-game construction from terminal input and preserved injected
+  Battle, resolver, RNG, UI, and persistence boundaries for alternate hosts
+- completed the MYP0-MYP20 MicroPython campaign with portable source repairs,
+  narrow compatibility overlays, and no second gameplay implementation
+- qualified the same headless runtime under native CPython, forced-overlay
+  CPython, and pinned MicroPython v1.29.0
+- qualified the complete authored surface route: eight encounters, three
+  Rests, the Goblin Lord, Dungeon Entrance, fourteen fresh enemy instances,
+  and final progression to Level 9, 68 EXP, 24 Growth Points, and 75 gold
+- sealed the constrained-runtime observation at 448K passing three of three
+  runs and 416K reaching MemoryError three of three runs
+- decoupled the headless session import boundary from desktop disk persistence
+  while preserving the existing save repository and schema behavior
+
+The v0.5 runtime is headless-ready but does not yet claim a playable Pyodide
+browser build. The static site is the public project surface; browser execution
+is the next host integration built on the qualified runtime boundary.
+
 ## v0.4
 
 v0.4 establishes the portable content-authoring and repository foundation while

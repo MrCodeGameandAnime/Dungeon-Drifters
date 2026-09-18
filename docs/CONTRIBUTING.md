@@ -42,10 +42,10 @@ After authoring content:
 - Replace every `TODO(CONTENT-AUTHORING)` marker.
 - Edit the primary authored module, not generated files.
 - Regenerate the catalog.
-- Run `python -m tools.validate_content`.
+- Run `..\.venv\Scripts\python.exe -m tools.validate_content`.
 - Never edit `_generated_catalog.py` manually.
 
-Read the [content authoring guide](content%20creation/content%20authoring.md)
+Read the [content authoring guide](CONTENT_AUTHORING.md)
 for the complete workflow.
 
 ## Engine Changes
