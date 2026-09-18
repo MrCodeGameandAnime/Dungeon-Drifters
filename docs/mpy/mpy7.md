@@ -1,11 +1,11 @@
-# MYP7 - Add Portable Regex Fullmatch Boundary
+# MPY7 - Add Portable Regex Fullmatch Boundary
 
 **Goal:** Advance MicroPython `v1.29.0` past the missing `re.fullmatch` behavior while preserving DD production source and native regex semantics.
 
 **Baseline:**
 
 ```text
-Branch: myp
+Branch: mpy
 HEAD: a97def8f26d811b08fe650157296a8da57bcb6a8
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
@@ -206,7 +206,7 @@ for
 return
 ```
 
-These must continue to be rejected through the existing regex plus MYP5 keyword boundary. No validation rules may be duplicated inside `re_compat`.
+These must continue to be rejected through the existing regex plus MPY5 keyword boundary. No validation rules may be duplicated inside `re_compat`.
 
 Re-run existing portable dataclass, StrEnum, and keyword tests.
 
@@ -256,7 +256,7 @@ docs/portability/micropython-probe.md
 
 Record:
 
-- MYP6 sealed SHA;
+- MPY6 sealed SHA;
 - original `re.fullmatch` failure;
 - dynamic production regex audit;
 - native MicroPython capabilities;
@@ -276,7 +276,7 @@ Record:
 - zero `root/src` changes;
 - zero gameplay, content, persistence, semantic API, and raw-probe changes.
 
-Do not document speculative MYP8 repairs.
+Do not document speculative MPY8 repairs.
 
 ## Verification And Release
 
@@ -326,9 +326,9 @@ historical docs/mpy changes: 0
 Commit exactly:
 
 ```text
-MYP7 - Add Portable Regex Fullmatch Boundary
+MPY7 - Add Portable Regex Fullmatch Boundary
 ```
 
-Push `myp`, verify local HEAD equals `origin/myp`, require exact-SHA green CI, and stop at the next unrelated MicroPython incompatibility.
+Push `mpy`, verify local HEAD equals `origin/mpy`, require exact-SHA green CI, and stop at the next unrelated MicroPython incompatibility.
 
-MYP7 is blocked if full-match semantics cannot be reproduced from native MicroPython regex behavior, the proxy requires production rewrites, authored-pattern changes, a general regex implementation, or a significant MicroPython fork.
+MPY7 is blocked if full-match semantics cannot be reproduced from native MicroPython regex behavior, the proxy requires production rewrites, authored-pattern changes, a general regex implementation, or a significant MicroPython fork.

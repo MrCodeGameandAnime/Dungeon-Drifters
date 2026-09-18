@@ -2,9 +2,9 @@
 
 Qualification date: 2026-09-18
 
-Final branch: `myp`
+Final branch: `mpy`
 
-Final MYP20 SHA: this release commit; exact SHA is reported by Git at release
+Final MPY20 SHA: this release commit; exact SHA is reported by Git at release
 
 Pinned runtime:
 
@@ -69,7 +69,7 @@ surface_dungeon_entrance
 
 The semantic signature was the ordered stage PASS sequence, ordered route
 PASS sequence, and the single completion marker
-`MYP|RESULT|RAW_PROBE_STAGES_COMPLETE`. Memory telemetry, traceback text,
+`MPY|RESULT|RAW_PROBE_STAGES_COMPLETE`. Memory telemetry, traceback text,
 runtime identity, and dataclass census values were excluded from parity.
 
 Runtime identity evidence:
@@ -87,14 +87,14 @@ points, 75 gold, `route_complete = True`,
 `dungeon_entrance_reached = True`, `active_battle = None`, and no persistence
 materialization.
 
-## MYP19 Pressure Reconfirmation
+## MPY19 Pressure Reconfirmation
 
-MYP20 did not search for a new heap floor. It reran only the sealed pressure
+MPY20 did not search for a new heap floor. It reran only the sealed pressure
 points:
 
 ```text
-MYP20|HEAP|448K|STABLE_PASS|3/3
-MYP20|HEAP|416K|MEMORY_LIMIT_CONFIRMED|3/3
+MPY20|HEAP|448K|STABLE_PASS|3/3
+MPY20|HEAP|416K|MEMORY_LIMIT_CONFIRMED|3/3
 ```
 
 The 448K runs reached `ROUTE_FINAL_STATE`, `ROUTE_EVIDENCE_RELEASE`,
@@ -125,7 +125,7 @@ git diff --check:          passed
 
 The focused closure suite covered the matrix contract, sealed route-probe
 contract, and sealed heap-sweep contract. The cumulative suite retained the
-entire MYP19 list and added the matrix contract.
+entire MPY19 list and added the matrix contract.
 
 ## Non-Claims
 
@@ -135,11 +135,11 @@ executed under MicroPython, that 448K is a recommended production heap or
 PS5 RAM requirement, that the Windows port models PS5 hardware, or that
 console graphics, audio, input, lifecycle, SDK, storage, packaging,
 certification, or shipping are complete. SAVE-ARCH remains deferred;
-MYP14 only decoupled the session persistence import boundary.
+MPY14 only decoupled the session persistence import boundary.
 
 ## Requalification Triggers
 
-The nominal MYP sequence is closed. A new portability campaign is justified
+The nominal MPY sequence is closed. A new portability campaign is justified
 only after a material change such as a MicroPython version change, a new
 headless runtime dependency or language feature, newly exercised gameplay
 content, core session/combat architecture changes, dataclass-contract or
@@ -151,7 +151,7 @@ MicroPython treated as a regression target rather than a gate-number-driven
 design process.
 
 ```text
-Dungeon Drifters MicroPython portability campaign MYP0-MYP20: CLOSED.
+Dungeon Drifters MicroPython portability campaign MPY0-MPY20: CLOSED.
 
 The current authoritative headless gameplay runtime and authored surface-route
 contract are qualified on pinned MicroPython v1.29.0 without a second

@@ -1,8 +1,8 @@
-# MYP3 - Establish Portable Dataclass Field Discovery
+# MPY3 - Establish Portable Dataclass Field Discovery
 
 ## Summary
 
-Continue MYP3 after the stock MicroPython annotation failure. Dataclass behavior remains viable; only runtime field discovery is blocked.
+Continue MPY3 after the stock MicroPython annotation failure. Dataclass behavior remains viable; only runtime field discovery is blocked.
 
 Preserve:
 
@@ -13,7 +13,7 @@ zero gameplay changes
 zero second gameplay representation
 ```
 
-Baseline remains MYP2 commit `34f697d419a1e67103bb3e18a23c8fc762b60991`.
+Baseline remains MPY2 commit `34f697d419a1e67103bb3e18a23c8fc762b60991`.
 
 ## Discovery Ladder
 
@@ -81,7 +81,7 @@ generated manifest entries
 exact field-order match
 ```
 
-The MYP2 count of 74 remains historical evidence, not a permanent limit.
+The MPY2 count of 74 remains historical evidence, not a permanent limit.
 
 Each MicroPython dataclass must resolve to exactly one manifest key:
 
@@ -106,7 +106,7 @@ After field discovery is qualified, add the MicroPython-only overlay outside `ro
 root/portability/micropython/dataclasses.py
 ```
 
-Implement only the MYP2 contract:
+Implement only the MPY2 contract:
 
 - positional and keyword initialization;
 - declaration-order fields;
@@ -150,7 +150,7 @@ MicroPython v1.29.0:
 previous dataclasses failure crossed
 ```
 
-Stop at the first unrelated MicroPython incompatibility. Do not repair unrelated enum, typing, collections, pathlib, persistence, annotation syntax, or gameplay failures in MYP3.
+Stop at the first unrelated MicroPython incompatibility. Do not repair unrelated enum, typing, collections, pathlib, persistence, annotation syntax, or gameplay failures in MPY3.
 
 ## Documentation And Release
 
@@ -173,9 +173,9 @@ Leave historical untracked paths untouched.
 Commit the completed implementation as:
 
 ```text
-MYP3 - Add Portable Dataclass Overlay
+MPY3 - Add Portable Dataclass Overlay
 ```
 
-Push `myp`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.
 
-MYP3 is blocked only if all discovery mechanisms require architectural contamination, broad source rewriting, a significant MicroPython fork, or a second gameplay representation.
+MPY3 is blocked only if all discovery mechanisms require architectural contamination, broad source rewriting, a significant MicroPython fork, or a second gameplay representation.

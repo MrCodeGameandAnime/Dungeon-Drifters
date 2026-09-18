@@ -1,25 +1,25 @@
-# MYP20 - Seal Cross-Runtime Qualification
+# MPY20 - Seal Cross-Runtime Qualification
 
-**Goal:** Close the Dungeon Drifters MicroPython portability campaign by proving that the same sealed headless gameplay qualification contract produces the same semantic result under native CPython, forced portability overlays on CPython, and pinned MicroPython `v1.29.0`, while preserving the sealed MYP19 `448K / 416K` pressure boundary.
+**Goal:** Close the Dungeon Drifters MicroPython portability campaign by proving that the same sealed headless gameplay qualification contract produces the same semantic result under native CPython, forced portability overlays on CPython, and pinned MicroPython `v1.29.0`, while preserving the sealed MPY19 `448K / 416K` pressure boundary.
 
 **Baseline:**
 
 ```text
-branch: myp
+branch: mpy
 SHA: 896b1b39f24c0a35768f69d2394b124160c55c15
 
-MYP19 - Qualify Constrained Heap Pressure
+MPY19 - Qualify Constrained Heap Pressure
 
 MicroPython: v1.29.0
 source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 platform: win32
 ```
 
-Sealed MYP19:
+Sealed MPY19:
 
 ```text
 Full suite:       1453 passed
-Focused MYP19:      13 passed
+Focused MPY19:      13 passed
 Cumulative:        563 passed
 
 Stable heap:
@@ -31,7 +31,7 @@ Lower boundary:
 Production source changes: 0
 ```
 
-MYP20 is a **closure/qualification gate**.
+MPY20 is a **closure/qualification gate**.
 
 Expected production changes:
 
@@ -108,7 +108,7 @@ active_battle = None
 persistence not materialized
 ```
 
-MYP20 must not weaken or rewrite this contract.
+MPY20 must not weaken or rewrite this contract.
 
 ---
 
@@ -135,7 +135,7 @@ MICROPYTHON_448K
 
 The first three form the cross-runtime semantic parity matrix.
 
-The constrained MicroPython run requalifies the sealed MYP19 stable floor.
+The constrained MicroPython run requalifies the sealed MPY19 stable floor.
 
 A fixed `416K` pressure confirmation is handled separately because its expected result is `MemoryError`, not semantic parity.
 
@@ -244,7 +244,7 @@ Paths containing spaces must remain individual argument elements.
 
 # Semantic Signature
 
-MYP20 must compare **semantic evidence**, not raw stdout.
+MPY20 must compare **semantic evidence**, not raw stdout.
 
 Do not compare:
 
@@ -269,7 +269,7 @@ Extract a deterministic semantic signature containing:
 )
 ```
 
-The expected stage sequence is the complete sealed MYP19 sequence through:
+The expected stage sequence is the complete sealed MPY19 sequence through:
 
 ```text
 ROUTE_SESSION_TEARDOWN
@@ -280,7 +280,7 @@ The expected route sequence is the exact twelve-node oracle.
 The completion marker is exactly:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Require it exactly once.
@@ -312,9 +312,9 @@ Each runtime must independently match the **sealed expected contract**, and then
 Parse and record:
 
 ```text
-MYP|IMPLEMENTATION|...
-MYP|VERSION|...
-MYP|PLATFORM|...
+MPY|IMPLEMENTATION|...
+MPY|VERSION|...
+MPY|PLATFORM|...
 ```
 
 Require:
@@ -368,13 +368,13 @@ expected_signature
 Emit:
 
 ```text
-MYP20|SEMANTIC_PARITY|PASS
+MPY20|SEMANTIC_PARITY|PASS
 ```
 
 If any signature differs:
 
 ```text
-MYP20|SEMANTIC_PARITY|FAIL
+MPY20|SEMANTIC_PARITY|FAIL
 ```
 
 and report the first differing stage or route node.
@@ -419,13 +419,13 @@ three gameplay implementations
 
 ---
 
-# Final MYP19 Heap Regression
+# Final MPY19 Heap Regression
 
-MYP20 must **not perform another heap search**.
+MPY20 must **not perform another heap search**.
 
 The heap floor is already sealed.
 
-Instead, requalify only the two fixed MYP19 boundary points on the final campaign SHA.
+Instead, requalify only the two fixed MPY19 boundary points on the final campaign SHA.
 
 ## 448K stable boundary
 
@@ -457,7 +457,7 @@ RAW_PROBE_STAGES_COMPLETE
 Emit:
 
 ```text
-MYP20|HEAP|448K|STABLE_PASS|3/3
+MPY20|HEAP|448K|STABLE_PASS|3/3
 ```
 
 ## 416K lower boundary
@@ -495,7 +495,7 @@ UNEXPECTED_FAILURE
 Emit:
 
 ```text
-MYP20|HEAP|416K|MEMORY_LIMIT|3/3
+MPY20|HEAP|416K|MEMORY_LIMIT|3/3
 ```
 
 Record each actual failure frontier.
@@ -510,7 +510,7 @@ Likewise, if `448K` fails even once, stop.
 
 # Do Not Re-Hunt The Floor
 
-MYP20 must not test:
+MPY20 must not test:
 
 ```text
 432K
@@ -524,11 +524,11 @@ There is no value in squeezing another number out of the final gate.
 The sealed claim remains:
 
 ```text
-448K = smallest observed stable passing heap from MYP19
-416K = clean observed lower MemoryError boundary from MYP19
+448K = smallest observed stable passing heap from MPY19
+416K = clean observed lower MemoryError boundary from MPY19
 ```
 
-MYP20 only confirms those exact observations still hold on the closure commit.
+MPY20 only confirms those exact observations still hold on the closure commit.
 
 ---
 
@@ -539,15 +539,15 @@ The host matrix should emit compact machine-readable evidence.
 Example shape:
 
 ```text
-MYP20|RUNTIME|CPYTHON_NATIVE|PASS|IMPLEMENTATION|cpython|VERSION|...
-MYP20|RUNTIME|CPYTHON_FORCED_OVERLAY|PASS|IMPLEMENTATION|cpython|VERSION|...
-MYP20|RUNTIME|MICROPYTHON_DEFAULT|PASS|IMPLEMENTATION|micropython|VERSION|1.29.0
-MYP20|SEMANTIC_PARITY|PASS
+MPY20|RUNTIME|CPYTHON_NATIVE|PASS|IMPLEMENTATION|cpython|VERSION|...
+MPY20|RUNTIME|CPYTHON_FORCED_OVERLAY|PASS|IMPLEMENTATION|cpython|VERSION|...
+MPY20|RUNTIME|MICROPYTHON_DEFAULT|PASS|IMPLEMENTATION|micropython|VERSION|1.29.0
+MPY20|SEMANTIC_PARITY|PASS
 
-MYP20|HEAP|448K|STABLE_PASS|3/3
-MYP20|HEAP|416K|MEMORY_LIMIT|3/3
+MPY20|HEAP|448K|STABLE_PASS|3/3
+MPY20|HEAP|416K|MEMORY_LIMIT|3/3
 
-MYP20|RESULT|CLOSURE_COMPLETE
+MPY20|RESULT|CLOSURE_COMPLETE
 ```
 
 Do not emit:
@@ -754,7 +754,7 @@ CLOSURE_COMPLETE
 
 ---
 
-# Keep Existing MYP19 Tooling Sealed
+# Keep Existing MPY19 Tooling Sealed
 
 Do not modify:
 
@@ -764,9 +764,9 @@ root/tools/micropython_heap_sweep.py
 
 unless a genuinely unavoidable defect is discovered.
 
-MYP19 already sealed that tool with 13 focused tests and the real heap sweep.
+MPY19 already sealed that tool with 13 focused tests and the real heap sweep.
 
-MYP20 may import its stable host-side helpers, particularly command construction/output classification, rather than forking them.
+MPY20 may import its stable host-side helpers, particularly command construction/output classification, rather than forking them.
 
 Likewise do not modify:
 
@@ -777,13 +777,13 @@ root/tools/micropython_probe_bootstrap.py
 
 unless the matrix reveals a genuine closure-blocking defect.
 
-The desired MYP20 diff contains **no qualification-probe changes**.
+The desired MPY20 diff contains **no qualification-probe changes**.
 
 That gives us a very clean final statement:
 
 ```text
-MYP20 did not move the goalposts.
-It reran the sealed MYP19 contract.
+MPY20 did not move the goalposts.
+It reran the sealed MPY19 contract.
 ```
 
 ---
@@ -805,7 +805,7 @@ Include:
 ```text
 qualification date
 final branch
-final MYP20 SHA after release
+final MPY20 SHA after release
 pinned MicroPython version/SHA/platform
 
 architecture statement
@@ -917,14 +917,14 @@ evidence reclamation
 session teardown
 ```
 
-It may also state the MYP19 observation:
+It may also state the MPY19 observation:
 
 ```text
 448K completed the full qualification 3/3
 416K reached MemoryError 3/3
 ```
 
-once MYP20 re-confirms those results on the final campaign SHA.
+once MPY20 re-confirms those results on the final campaign SHA.
 
 ---
 
@@ -971,9 +971,9 @@ Carry forward the existing deferred concern:
 SAVE-ARCH
 ```
 
-MYP14 only decoupled the session persistence import boundary.
+MPY14 only decoupled the session persistence import boundary.
 
-MYP20 must not accidentally declare persistence architecture finished.
+MPY20 must not accidentally declare persistence architecture finished.
 
 Also distinguish future native-host concerns:
 
@@ -995,12 +995,12 @@ These are host/platform work, not MicroPython gameplay-portability failures.
 
 # Requalification Triggers
 
-After MYP20, the campaign is closed.
+After MPY20, the campaign is closed.
 
 Do not create:
 
 ```text
-MYP21
+MPY21
 ```
 
 merely because the number comes next. 😂
@@ -1041,10 +1041,10 @@ Modify:
 docs/portability/micropython-probe.md
 ```
 
-Add MYP20 results and change the final future-gates section from:
+Add MPY20 results and change the final future-gates section from:
 
 ```text
-MYP20 Cross-runtime regression qualification and campaign closure.
+MPY20 Cross-runtime regression qualification and campaign closure.
 ```
 
 to a completed campaign statement.
@@ -1052,14 +1052,14 @@ to a completed campaign statement.
 Example:
 
 ```text
-MYP20 Cross-runtime regression qualification and campaign closure.
+MPY20 Cross-runtime regression qualification and campaign closure.
 
-No further nominal MYP gates are scheduled.
+No further nominal MPY gates are scheduled.
 Future qualification is evidence-driven and triggered by material
 runtime or architecture changes.
 ```
 
-Do not delete the historical MYP0–19 evidence.
+Do not delete the historical MPY0–19 evidence.
 
 ---
 
@@ -1094,7 +1094,7 @@ Pop-Location
 
 Report the actual total.
 
-Then run the exact sealed MYP19 cumulative suite plus the new matrix contract:
+Then run the exact sealed MPY19 cumulative suite plus the new matrix contract:
 
 ```powershell
 Push-Location root
@@ -1202,7 +1202,7 @@ Then require fixed pressure confirmation:
 Finally:
 
 ```text
-MYP20|RESULT|CLOSURE_COMPLETE
+MPY20|RESULT|CLOSURE_COMPLETE
 ```
 
 No closure result if any component fails.
@@ -1219,13 +1219,13 @@ Expected manifest:
 74
 ```
 
-Do not predict `DECORATED` or `CONSTRUCTED` merely because MYP19 produced:
+Do not predict `DECORATED` or `CONSTRUCTED` merely because MPY19 produced:
 
 ```text
 74 / 73 / 35
 ```
 
-Require the actual MYP20 result to be recorded.
+Require the actual MPY20 result to be recorded.
 
 If it differs, investigate before sealing.
 
@@ -1300,7 +1300,7 @@ historical docs/mpy changes:           0
 
 # Stop Conditions
 
-Stop and request a revised MYP20 plan if any of the following occurs:
+Stop and request a revised MPY20 plan if any of the following occurs:
 
 ```text
 native CPython no longer completes the sealed probe
@@ -1317,15 +1317,15 @@ semantic signatures differ across the three primary runtimes
 
 416K fails for a semantic/non-MemoryError reason
 
-MYP20 requires changing production source
+MPY20 requires changing production source
 
-MYP20 requires changing compatibility overlays
+MPY20 requires changing compatibility overlays
 
-MYP20 requires changing the raw probe
+MPY20 requires changing the raw probe
 
-MYP20 requires changing the bootstrap
+MPY20 requires changing the bootstrap
 
-MYP20 requires changing MicroPython source/configuration
+MPY20 requires changing MicroPython source/configuration
 
 final dataclass contract differs unexpectedly
 ```
@@ -1338,7 +1338,7 @@ Any such evidence means the campaign is **not actually ready to close**.
 
 # Success Criteria
 
-MYP20 succeeds only when the final exact source tree demonstrates:
+MPY20 succeeds only when the final exact source tree demonstrates:
 
 ```text
 native CPython
@@ -1390,25 +1390,25 @@ At that point the MicroPython campaign is complete.
 Commit exactly:
 
 ```text
-MYP20 - Seal Cross-Runtime Qualification
+MPY20 - Seal Cross-Runtime Qualification
 ```
 
 Push:
 
 ```text
-myp
+mpy
 ```
 
 Then verify:
 
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 tracked worktree clean
 exact-SHA CI completed successfully
 18 historical docs/mpy files untouched and uncommitted
 ```
 
-The final MYP20 report must include:
+The final MPY20 report must include:
 
 ```text
 commit SHA/message
@@ -1446,7 +1446,7 @@ historical docs/mpy preservation
 And the final documentation should end with something equivalent to:
 
 ```text
-Dungeon Drifters MicroPython portability campaign MYP0-MYP20: CLOSED.
+Dungeon Drifters MicroPython portability campaign MPY0-MPY20: CLOSED.
 
 The current authoritative headless gameplay runtime and authored surface-route
 contract are qualified on pinned MicroPython v1.29.0 without a second gameplay

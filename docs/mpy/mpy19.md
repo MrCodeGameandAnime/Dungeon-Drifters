@@ -1,11 +1,11 @@
-# MYP19 - Qualify Constrained Heap Pressure
+# MPY19 - Qualify Constrained Heap Pressure
 
 **Goal:** Characterize Dungeon Drifters' MicroPython memory behavior after full-route qualification by separating probe-retained evidence from live runtime state, verifying that route memory is reclaimable, and repeatedly running the unchanged full-route qualification under progressively smaller GC heaps.
 
 **Baseline:**
 
 ```text
-branch: myp
+branch: mpy
 SHA: 6eaafc416240b5344570e7dd7e349767f84538a5
 
 MicroPython: v1.29.0
@@ -13,7 +13,7 @@ source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 platform: win32
 ```
 
-Sealed MYP18:
+Sealed MPY18:
 
 ```text
 Full suite:       1,443 passed
@@ -35,7 +35,7 @@ Gold:  75
 RAW_PROBE_STAGES_COMPLETE
 ```
 
-MYP18 pinned MicroPython route memory:
+MPY18 pinned MicroPython route memory:
 
 ```text
 lowest FREE:  620416
@@ -49,22 +49,22 @@ dataclasses:
 74 / 73 / 35
 ```
 
-The default Windows qualification heap observed by MYP18 is approximately:
+The default Windows qualification heap observed by MPY18 is approximately:
 
 ```text
 FREE + ALLOC ≈ 1,024,512 bytes
 ```
 
-MYP19 must not interpret that ~1 MB heap as a PS5 memory budget. It is deliberately a constrained MicroPython qualification environment.
+MPY19 must not interpret that ~1 MB heap as a PS5 memory budget. It is deliberately a constrained MicroPython qualification environment.
 
 ---
 
 ## Controlling Principle
 
-MYP19 answers three separate questions:
+MPY19 answers three separate questions:
 
 ```text
-1. How much of MYP18's final allocation is retained only because
+1. How much of MPY18's final allocation is retained only because
    the probe deliberately keeps old Battles/enemies for evidence?
 
 2. Once that evidence is released, how much memory remains tied
@@ -122,15 +122,15 @@ Require both values to be available and their sum to be consistent with a constr
 
 Do not require byte-for-byte equality with `524288`, because GC metadata/alignment reduces the Python-visible total slightly.
 
-If `-X heapsize=` is unavailable on the actual pinned executable, stop and revise MYP19.
+If `-X heapsize=` is unavailable on the actual pinned executable, stop and revise MPY19.
 
 Do not rebuild MicroPython to gain heap control.
 
 ---
 
-# MYP18 Probe Preservation
+# MPY18 Probe Preservation
 
-The complete MYP18 functional qualification must remain intact through:
+The complete MPY18 functional qualification must remain intact through:
 
 ```text
 SOURCE_PATH
@@ -154,13 +154,13 @@ SURFACE_ROUTE_COMPLETE
 ROUTE_FINAL_STATE
 ```
 
-All twelve route nodes must still pass before any MYP19 cleanup occurs.
+All twelve route nodes must still pass before any MPY19 cleanup occurs.
 
-MYP19 must **not reduce the memory pressure required to reach `ROUTE_FINAL_STATE`**.
+MPY19 must **not reduce the memory pressure required to reach `ROUTE_FINAL_STATE`**.
 
-That matters because the constrained-heap sweep should remain conservative: a successful heap size must still support the full MYP18 evidence-retaining qualification.
+That matters because the constrained-heap sweep should remain conservative: a successful heap size must still support the full MPY18 evidence-retaining qualification.
 
-Only after `ROUTE_FINAL_STATE` is sealed may MYP19 release diagnostic references.
+Only after `ROUTE_FINAL_STATE` is sealed may MPY19 release diagnostic references.
 
 ---
 
@@ -225,7 +225,7 @@ Dungeon Entrance
 persistence unmaterialized
 ```
 
-so clearing the evidence afterward does not weaken MYP18 qualification.
+so clearing the evidence afterward does not weaken MPY18 qualification.
 
 ---
 
@@ -304,7 +304,7 @@ ROUTE_SESSION_TEARDOWN
 
 after evidence release.
 
-Remove the MYP18 route qualification references from `STATE`:
+Remove the MPY18 route qualification references from `STATE`:
 
 ```text
 route_game
@@ -313,9 +313,9 @@ route_battle_factory
 route_enemy_factory
 ```
 
-plus any remaining MYP18-only route view reference.
+plus any remaining MPY18-only route view reference.
 
-Do not remove the sealed earlier MYP0-MYP17 state from `STATE`.
+Do not remove the sealed earlier MPY0-MPY17 state from `STATE`.
 
 That is intentional.
 
@@ -347,7 +347,7 @@ Do **not** label a nonzero residual a memory leak automatically.
 
 One-time module imports, qstr interning, and runtime caches can legitimately survive route teardown.
 
-MYP19 is collecting evidence, not declaring every persistent byte erroneous.
+MPY19 is collecting evidence, not declaring every persistent byte erroneous.
 
 ---
 
@@ -362,19 +362,19 @@ ROUTE_SESSION_TEARDOWN PASS
 the probe may emit:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
-The MYP19 meaning of that marker becomes:
+The MPY19 meaning of that marker becomes:
 
 ```text
-sealed MYP17 runtime stages
+sealed MPY17 runtime stages
 +
-full MYP18 surface route
+full MPY18 surface route
 +
-MYP19 evidence release
+MPY19 evidence release
 +
-MYP19 route-session teardown
+MPY19 route-session teardown
 ```
 
 Update the permanent probe contract accordingly.
@@ -389,7 +389,7 @@ Modify:
 root/tests/test_micropython_route_probe_contract.py
 ```
 
-Preserve the existing MYP18 route requirements.
+Preserve the existing MPY18 route requirements.
 
 Extend the expected post-route sequence to:
 
@@ -404,7 +404,7 @@ ROUTE_SESSION_TEARDOWN
 
 Add AST/source assertions that the evidence cleanup occurs **after** `ROUTE_FINAL_STATE`, never before it.
 
-Require that the probe still contains the MYP18 constants:
+Require that the probe still contains the MPY18 constants:
 
 ```text
 12 route nodes
@@ -510,16 +510,16 @@ Require:
 return code == 0
 
 all 12:
-MYP|ROUTE|<node>|PASS
+MPY|ROUTE|<node>|PASS
 
-MYP|ROUTE_FINAL_STATE|PASS
-MYP|ROUTE_EVIDENCE_RELEASE|PASS
-MYP|ROUTE_SESSION_TEARDOWN|PASS
+MPY|ROUTE_FINAL_STATE|PASS
+MPY|ROUTE_EVIDENCE_RELEASE|PASS
+MPY|ROUTE_SESSION_TEARDOWN|PASS
 
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
-This proves MYP19 instrumentation did not regress the sealed default qualification.
+This proves MPY19 instrumentation did not regress the sealed default qualification.
 
 Extract:
 
@@ -647,7 +647,7 @@ missing route marker
 process crash without MemoryError evidence
 ```
 
-An unexpected failure stops MYP19.
+An unexpected failure stops MPY19.
 
 Do not reinterpret semantic corruption as a memory-limit success.
 
@@ -755,7 +755,7 @@ Near-OOM stochastic variation is pressure evidence, not permission to alter game
 
 # No Arbitrary Product Threshold
 
-MYP19 must **not** say:
+MPY19 must **not** say:
 
 ```text
 DD must run in 512K
@@ -771,7 +771,7 @@ unless that becomes a separate future product requirement.
 
 The sweep is diagnostic.
 
-MYP19 succeeds by accurately characterizing:
+MPY19 succeeds by accurately characterizing:
 
 ```text
 default behavior
@@ -795,12 +795,12 @@ The sweep tool should parse the existing line protocol rather than scrape arbitr
 Recognize:
 
 ```text
-MYP|MEMORY|<label>|FREE|<n>|ALLOC|<n>
-MYP|<stage>|PASS
-MYP|<stage>|FAIL|<type>|<message>
-MYP|ROUTE|<node>|PASS
-MYP|ROUTE|<node>|FAIL|<type>|<message>
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|MEMORY|<label>|FREE|<n>|ALLOC|<n>
+MPY|<stage>|PASS
+MPY|<stage>|FAIL|<type>|<message>
+MPY|ROUTE|<node>|PASS
+MPY|ROUTE|<node>|FAIL|<type>|<message>
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Return a structured result containing at minimum:
@@ -885,7 +885,7 @@ and exact memory extraction.
 Fixture:
 
 ```text
-MYP|ROUTE|surface_elite_patrol|FAIL|MemoryError|...
+MPY|ROUTE|surface_elite_patrol|FAIL|MemoryError|...
 ```
 
 Require:
@@ -973,15 +973,15 @@ No live subprocess is needed for these unit tests.
 The sweep tool should print a compact machine-readable summary such as:
 
 ```text
-MYP19|HEAP|DEFAULT|PASS|...
-MYP19|HEAP|1024K|PASS|...
-MYP19|HEAP|896K|PASS|...
-MYP19|HEAP|768K|PASS|...
-MYP19|HEAP|640K|PASS|...
-MYP19|HEAP|512K|MEMORY_LIMIT|...
+MPY19|HEAP|DEFAULT|PASS|...
+MPY19|HEAP|1024K|PASS|...
+MPY19|HEAP|896K|PASS|...
+MPY19|HEAP|768K|PASS|...
+MPY19|HEAP|640K|PASS|...
+MPY19|HEAP|512K|MEMORY_LIMIT|...
 ...
-MYP19|STABLE_PASS|640K|3/3
-MYP19|BOUNDARY|LOWER|608K|MEMORY_LIMIT|3/3
+MPY19|STABLE_PASS|640K|3/3
+MPY19|BOUNDARY|LOWER|608K|MEMORY_LIMIT|3/3
 ```
 
 Use whatever exact field order is cleanest, but cover it with parser/formatting tests and document it.
@@ -992,7 +992,7 @@ Human-readable explanation may accompany it, but do not make documentation depen
 
 # Interpretation Rules
 
-MYP19 documentation must distinguish the following.
+MPY19 documentation must distinguish the following.
 
 ### Qualification peak
 
@@ -1063,7 +1063,7 @@ This is an observed qualification floor for this Windows MicroPython harness, no
 Document explicitly:
 
 ```text
-The MYP19 heap sweep is a runtime-health stress test.
+The MPY19 heap sweep is a runtime-health stress test.
 
 It is not a PS5 RAM budget.
 It does not model PS5 unified-memory allocation.
@@ -1074,7 +1074,7 @@ passing heap observed here.
 
 The future native console host is free to assign the embedded VM a much larger and more comfortable heap.
 
-MYP19 exists to expose pathological retention, fragmentation sensitivity, or unexpectedly large Python-object pressure before that host exists.
+MPY19 exists to expose pathological retention, fragmentation sensitivity, or unexpectedly large Python-object pressure before that host exists.
 
 ---
 
@@ -1085,7 +1085,7 @@ Run in this exact order:
 ```text
 1. Full CPython suite
 
-2. MYP19 focused unit/contract suite
+2. MPY19 focused unit/contract suite
 
 3. Exact cumulative portability suite
 
@@ -1133,7 +1133,7 @@ Do not require CPython to emulate MicroPython heap telemetry.
 
 # Pinned Default Qualification
 
-Before the constrained sweep, the default pinned MicroPython run must still reproduce the MYP18 functional result:
+Before the constrained sweep, the default pinned MicroPython run must still reproduce the MPY18 functional result:
 
 ```text
 12 route nodes
@@ -1154,7 +1154,7 @@ persistence not materialized
 
 The new cleanup stages must then pass.
 
-If default MYP19 qualification fails, do not continue into smaller heaps.
+If default MPY19 qualification fails, do not continue into smaller heaps.
 
 ---
 
@@ -1162,7 +1162,7 @@ If default MYP19 qualification fails, do not continue into smaller heaps.
 
 Run the full suite from `root`.
 
-Run the MYP19 focused tests:
+Run the MPY19 focused tests:
 
 ```powershell
 Push-Location root
@@ -1176,7 +1176,7 @@ Pop-Location
 
 Report the actual focused count.
 
-Then run the exact sealed MYP18 cumulative suite that produced `553 passed`, plus the new heap-sweep contract:
+Then run the exact sealed MPY18 cumulative suite that produced `553 passed`, plus the new heap-sweep contract:
 
 ```powershell
 Push-Location root
@@ -1327,21 +1327,21 @@ Update:
 docs/portability/micropython-probe.md
 ```
 
-Record sealed MYP18:
+Record sealed MPY18:
 
 ```text
 6eaafc416240b5344570e7dd7e349767f84538a5
-MYP18 - Qualify Full Surface Route
+MPY18 - Qualify Full Surface Route
 ```
 
 Preserve its exact route evidence.
 
-Add MYP19 sections covering:
+Add MPY19 sections covering:
 
 ```text
 upstream -X heapsize capability
 default heap observation
-MYP18 evidence-retention explanation
+MPY18 evidence-retention explanation
 
 ROUTE_FINAL_STATE allocation
 ROUTE_EVIDENCE_RELEASE allocation
@@ -1380,7 +1380,7 @@ A low-heap MemoryError is not itself a gameplay defect.
 
 No production optimization was performed to lower the observed floor.
 
-The observed floor includes the conservative MYP18 qualification workload,
+The observed floor includes the conservative MPY18 qualification workload,
 including retained Battle/enemy evidence through ROUTE_FINAL_STATE.
 
 The result is not a PS5 RAM requirement.
@@ -1390,12 +1390,12 @@ The result is not a PS5 RAM requirement.
 
 # Stop Conditions
 
-Stop and request a revised MYP19 plan if:
+Stop and request a revised MPY19 plan if:
 
 ```text
 the pinned executable does not support -X heapsize
 
-the default MYP19 full route no longer passes
+the default MPY19 full route no longer passes
 
 ROUTE_EVIDENCE_RELEASE changes authoritative game/session state
 
@@ -1416,13 +1416,13 @@ the host sweep cannot distinguish MemoryError from semantic failure
 
 A `MemoryError` caused solely by deliberately shrinking the heap is **expected pressure evidence** and does not require a compatibility repair.
 
-Do not create MYP19A merely because a 384K or 512K heap is too small.
+Do not create MPY19A merely because a 384K or 512K heap is too small.
 
 ---
 
 # Success Conditions
 
-MYP19 succeeds when:
+MPY19 succeeds when:
 
 ```text
 default pinned full route still passes
@@ -1469,13 +1469,13 @@ do not optimize gameplay merely to move the number
 
 # Future Gate
 
-If MYP19 seals cleanly:
+If MPY19 seals cleanly:
 
 ```text
-MYP20 - Cross-Runtime Regression Qualification And Campaign Closure
+MPY20 - Cross-Runtime Regression Qualification And Campaign Closure
 ```
 
-MYP20 should use the sealed MYP19 default and constrained-memory evidence as inputs, but it should not repeat the heap-floor hunt.
+MPY20 should use the sealed MPY19 default and constrained-memory evidence as inputs, but it should not repeat the heap-floor hunt.
 
 Its job is closure: prove the portable runtime contract remains aligned across the supported execution environments and freeze the MicroPython campaign evidence.
 
@@ -1486,37 +1486,37 @@ Its job is closure: prove the portable runtime contract remains aligned across t
 Commit exactly:
 
 ```text
-MYP19 - Qualify Constrained Heap Pressure
+MPY19 - Qualify Constrained Heap Pressure
 ```
 
 Push:
 
 ```text
-myp
+mpy
 ```
 
 Then verify:
 
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 tracked worktree clean
 exact-SHA CI successful
 18 historical docs/mpy files untouched and uncommitted
 ```
 
-The final MYP19 report must include:
+The final MPY19 report must include:
 
 ```text
 commit SHA/message
 
 full-suite total
-focused MYP19 test total
+focused MPY19 test total
 cumulative-suite total
 
 default pinned result
 explicit 1024K result
 
-MYP18 final-state FREE/ALLOC
+MPY18 final-state FREE/ALLOC
 evidence-release FREE/ALLOC
 evidence bytes reclaimed
 session-teardown FREE/ALLOC

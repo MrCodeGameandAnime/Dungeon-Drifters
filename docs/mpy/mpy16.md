@@ -1,10 +1,10 @@
-# MYP16 - Repair Portable Next Default Boundary
+# MPY16 - Repair Portable Next Default Boundary
 
-**Goal:** Advance pinned MicroPython `v1.29.0` beyond the sealed MYP15 `SESSION_VIEW` failure by removing Dungeon Drifters’ runtime dependency on two-argument `next(iterator, None)` while preserving first-match-or-None semantics everywhere it is currently used.
+**Goal:** Advance pinned MicroPython `v1.29.0` beyond the sealed MPY15 `SESSION_VIEW` failure by removing Dungeon Drifters’ runtime dependency on two-argument `next(iterator, None)` while preserving first-match-or-None semantics everywhere it is currently used.
 
 **Baseline:**
 ```text
-branch: myp
+branch: mpy
 SHA: 133846f6b15b0ea3ed2153af69b104a0945b3fcf
 
 MicroPython: v1.29.0
@@ -12,7 +12,7 @@ source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 platform: win32
 ```
 
-Sealed MYP15 runtime frontier:
+Sealed MPY15 runtime frontier:
 ```text
 SESSION_IMPORT        PASS
 SESSION_CONSTRUCTION  PASS
@@ -39,7 +39,7 @@ OverworldSession.current_view()
 
 Pinned MicroPython implements two-argument `next()` only when its `MICROPY_PY_BUILTINS_NEXT2` feature is enabled. The observed Windows runtime is exposing the one-argument implementation, which matches the exact arity failure.
 
-MYP16 must not modify or rebuild MicroPython to enable that feature.
+MPY16 must not modify or rebuild MicroPython to enable that feature.
 
 ## Root-Cause Qualification
 
@@ -60,7 +60,7 @@ iterator = iter(("value",))
 print(next(iterator, None))
 ```
 
-Record the exact result. The expected MYP15-correlated result is:
+Record the exact result. The expected MPY15-correlated result is:
 ```text
 TypeError: function takes 1 positional arguments but 2 were given
 ```
@@ -116,7 +116,7 @@ production files:        5
 
 Do not count test/tooling calls.
 
-Stop before implementation if the live census differs. Do not silently expand MYP16 to another built-in compatibility surface.
+Stop before implementation if the live census differs. Do not silently expand MPY16 to another built-in compatibility surface.
 
 ## Implementation
 
@@ -335,7 +335,7 @@ The direct preflight:
 next(iter(("a",)), None)
 ```
 
-should still fail on pinned MicroPython after MYP16. That failure is desirable evidence that DD crossed the boundary by changing its own required runtime surface rather than masking or modifying the interpreter.
+should still fail on pinned MicroPython after MPY16. That failure is desirable evidence that DD crossed the boundary by changing its own required runtime surface rather than masking or modifying the interpreter.
 
 ## Raw Probe Qualification
 
@@ -366,7 +366,7 @@ If a new unrelated failure appears after the `next` boundary is crossed:
 ```text
 record it
 preserve the original traceback
-finish only MYP16 verification/docs/release
+finish only MPY16 verification/docs/release
 do not repair it
 ```
 
@@ -386,14 +386,14 @@ DATACLASS CONSTRUCTED
 
 Native CPython and forced-overlay CPython probes must still reach:
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 ## Cumulative Verification
 
 Run the full suite first.
 
-Then run the exact sealed MYP15 cumulative suite that produced **259 passed**, appending the new MYP16 contract and the existing behavioral modules covering every changed consumer:
+Then run the exact sealed MPY15 cumulative suite that produced **259 passed**, appending the new MPY16 contract and the existing behavioral modules covering every changed consumer:
 ```powershell
 Push-Location root
 
@@ -509,7 +509,7 @@ Update:
 docs/portability/micropython-probe.md
 ```
 
-Record the sealed MYP15 SHA and evidence:
+Record the sealed MPY15 SHA and evidence:
 ```text
 133846f6b15b0ea3ed2153af69b104a0945b3fcf
 
@@ -543,7 +543,7 @@ dataclass census
 scope counts
 ```
 
-Explicitly state that MYP16:
+Explicitly state that MPY16:
 ```text
 does not enable MICROPY_PY_BUILTINS_NEXT2
 does not patch builtins.next
@@ -561,27 +561,27 @@ files untouched and uncommitted.
 
 ## Stop Conditions
 
-Stop and request a revised MYP16 plan if the baseline AST census is not exactly eight two-argument `next()` calls with `None` defaults, the pinned primitive reproduction does not match the observed `SESSION_VIEW` arity failure, preserving semantics requires something broader than first-or-None selection, a builtins/interpreter/bootstrap change becomes necessary, or the historical `next`-arity failure remains after all eight authorized sites are removed.
+Stop and request a revised MPY16 plan if the baseline AST census is not exactly eight two-argument `next()` calls with `None` defaults, the pinned primitive reproduction does not match the observed `SESSION_VIEW` arity failure, preserving semantics requires something broader than first-or-None selection, a builtins/interpreter/bootstrap change becomes necessary, or the historical `next`-arity failure remains after all eight authorized sites are removed.
 
-If the unchanged raw probe crosses that boundary and then fails for an unrelated reason, **MYP16 has succeeded**. Record the new frontier and finish documentation, verification, commit, push, and CI only.
+If the unchanged raw probe crosses that boundary and then fails for an unrelated reason, **MPY16 has succeeded**. Record the new frontier and finish documentation, verification, commit, push, and CI only.
 
-Do not repair the new frontier inside MYP16.
+Do not repair the new frontier inside MPY16.
 
 ## Release
 
 Commit exactly:
 ```text
-MYP16 - Repair Portable Next Default Boundary
+MPY16 - Repair Portable Next Default Boundary
 ```
 
 Push:
 ```text
-myp
+mpy
 ```
 
 Then verify:
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 tracked worktree clean
 exact-SHA CI successful
 historical docs/mpy files untouched
@@ -589,4 +589,4 @@ historical docs/mpy files untouched
 
 Final report must include the commit SHA/message, full and cumulative test totals, `8 → 0` production census, CPython semantic-oracle result, pinned one-argument/two-argument `next` evidence, direct `first_or_none` qualification, every raw session stage reached, last pass/next failure or complete marker, traceback, memory, dataclass census, CI run, branch synchronization, and untracked-file preservation.
 
-If the current session track completes after MYP16, MYP17 can remain the planned full-route qualification. If another unrelated session-runtime incompatibility appears first, preserve that evidence and derive the next gate from it rather than forcing the full-route milestone prematurely.
+If the current session track completes after MPY16, MPY17 can remain the planned full-route qualification. If another unrelated session-runtime incompatibility appears first, preserve that evidence and derive the next gate from it rather than forcing the full-route milestone prematurely.

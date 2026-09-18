@@ -1,4 +1,4 @@
-# MYP10 - Remove Counter Runtime Dependency
+# MPY10 - Remove Counter Runtime Dependency
 
 ## Summary
 
@@ -6,7 +6,7 @@ Remove Battle’s narrow `collections.Counter` dependency using ordinary diction
 
 Baseline:
 
-- Branch: `myp`
+- Branch: `mpy`
 - HEAD: `d78c07293219116f04f9c203b6654bf8b9728e35`
 - MicroPython: `v1.29.0`
 - Source SHA: `0fd6c573ea815774668bbb16b8e197c8822368b2`
@@ -59,7 +59,7 @@ Preserve `enemy_target_ids` and `enemy_display_labels` exactly.
 
 Compare the new implementation against a test-only native `Counter` reference over generated display-name sequences.
 
-Re-run all MYP3 through MYP9 portability tests, including dataclasses, StrEnum, keyword, regex, collections.abc, and ASCII string validation.
+Re-run all MPY3 through MPY9 portability tests, including dataclasses, StrEnum, keyword, regex, collections.abc, and ASCII string validation.
 
 ## Direct MicroPython Qualification
 
@@ -89,13 +89,13 @@ must not recur.
 
 If a direct qualification step exposes a new unrelated MicroPython incompatibility, record its exact stage, exception, message, traceback, memory evidence, and dataclass census, then stop. Later direct qualification steps are not required to pass after that frontier is reached.
 
-Run the unchanged raw probe through the existing bootstrap. Continue only until the first unrelated failure. Do not repair that failure in MYP10.
+Run the unchanged raw probe through the existing bootstrap. Continue only until the first unrelated failure. Do not repair that failure in MPY10.
 
 ## Documentation
 
 Update `docs/portability/micropython-probe.md` with:
 
-- MYP9 sealed SHA;
+- MPY9 sealed SHA;
 - original Counter import failure;
 - dynamic production Counter audit;
 - exact Battle label contract;
@@ -171,13 +171,13 @@ Review that only Battle, focused tests, and portability documentation changed. C
 - no raw-probe changes;
 - no save/schema changes;
 - no generated catalog changes;
-- no MYP3 through MYP9 changes;
+- no MPY3 through MPY9 changes;
 - no historical `docs/mpy/` changes.
 
 Commit exactly:
 
 ```text
-MYP10 - Remove Counter Runtime Dependency
+MPY10 - Remove Counter Runtime Dependency
 ```
 
-Push `myp`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.

@@ -1,8 +1,8 @@
-# MYP0 - Add Raw MicroPython Runtime Probe
+# MPY0 - Add Raw MicroPython Runtime Probe
 
 ## Summary
 
-Begin from the verified clean `myp` branch:
+Begin from the verified clean `mpy` branch:
 
 ```text
 HEAD:
@@ -12,10 +12,10 @@ Working tree:
 clean
 
 Remote:
-origin/myp synchronized
+origin/mpy synchronized
 ```
 
-MYP0 will identify the first real MicroPython incompatibility without changing DD production code, adding compatibility shims, or altering gameplay.
+MPY0 will identify the first real MicroPython incompatibility without changing DD production code, adding compatibility shims, or altering gameplay.
 
 The target is the upstream stable MicroPython `v1.29.0` Windows port. The runtime source will be cloned externally, checked out at the exact release tag, built using the official build procedure for that pinned release, and recorded by full resolved commit SHA.
 
@@ -24,7 +24,7 @@ References:
 - [MicroPython v1.29.0 release](https://github.com/micropython/micropython/releases/tag/v1.29.0)
 - [MicroPython v1.29.0 Windows port build instructions](https://github.com/micropython/micropython/blob/v1.29.0/ports/windows/README.md)
 
-The Windows port is being used for MYP0 to qualify DD's MicroPython language, import, and standard-library compatibility without introducing arbitrary microcontroller hardware, flashing, serial transport, or board-specific memory constraints.
+The Windows port is being used for MPY0 to qualify DD's MicroPython language, import, and standard-library compatibility without introducing arbitrary microcontroller hardware, flashing, serial transport, or board-specific memory constraints.
 
 Hardware-specific memory qualification is deferred to a later gate.
 
@@ -83,7 +83,7 @@ Provisioning will:
 
 5. Follow the official Windows-port build procedure for the pinned `v1.29.0` source.
 
-6. Build `mpy-cross` only if it is required by the pinned Windows-port build procedure or one of its documented dependencies. MYP0 will not introduce an unnecessary `mpy-cross` build requirement merely because other MicroPython ports use it.
+6. Build `mpy-cross` only if it is required by the pinned Windows-port build procedure or one of its documented dependencies. MPY0 will not introduce an unnecessary `mpy-cross` build requirement merely because other MicroPython ports use it.
 
 7. Build the standard Windows port with the documented MSBuild workflow.
 
@@ -154,14 +154,14 @@ Example:
 It emits deterministic machine-readable lines such as:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|...
-MYP|<STAGE>|BEGIN
-MYP|<STAGE>|PASS
-MYP|<STAGE>|FAIL|<ExceptionType>|<message>
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|...
+MPY|<STAGE>|BEGIN
+MPY|<STAGE>|PASS
+MPY|<STAGE>|FAIL|<ExceptionType>|<message>
 ```
 
 The probe will not emit a MicroPython source SHA because that information belongs to the external provisioning checkout and cannot be reliably derived from `micropython.exe` alone.
@@ -193,14 +193,14 @@ Memory evidence should be taken immediately around meaningful stages.
 Where these APIs are unavailable, the probe emits:
 
 ```text
-MYP|MEMORY|UNAVAILABLE
+MPY|MEMORY|UNAVAILABLE
 ```
 
 and continues.
 
-Lack of heap-reporting APIs is not itself a failure of MYP0.
+Lack of heap-reporting APIs is not itself a failure of MPY0.
 
-MYP0 memory measurements are diagnostic only. The Windows port is not being treated as representative of future PS5 or constrained-hardware memory limits.
+MPY0 memory measurements are diagnostic only. The Windows port is not being treated as representative of future PS5 or constrained-hardware memory limits.
 
 Hardware-specific heap qualification remains deferred.
 
@@ -208,9 +208,9 @@ Hardware-specific heap qualification remains deferred.
 
 The probe stops at the first failure in the active track.
 
-MYP0 does not attempt to collect a complete list of theoretical incompatibilities in one run.
+MPY0 does not attempt to collect a complete list of theoretical incompatibilities in one run.
 
-The first real observed incompatibility is sufficient evidence to close the raw-probe portion of MYP0 and derive the next gate.
+The first real observed incompatibility is sufficient evidence to close the raw-probe portion of MPY0 and derive the next gate.
 
 ### Core Track
 
@@ -320,13 +320,13 @@ FAIL due to persistence dependency
 
 would demonstrate a persistence compatibility edge while preserving evidence that the underlying game and combat runtime successfully execute.
 
-MYP0 may eventually reach the complete surface route, but it is not required to do so.
+MPY0 may eventually reach the complete surface route, but it is not required to do so.
 
 Its primary success condition is a trustworthy first-failure report.
 
 ## Raw Probe Versus Compatibility Probe
 
-MYP0 is a raw probe.
+MPY0 is a raw probe.
 
 It asks:
 
@@ -341,7 +341,7 @@ It does not ask:
 How many compatibility problems can we repair in one pass?
 ```
 
-Therefore MYP0 will not create:
+Therefore MPY0 will not create:
 
 ```text
 app.compat
@@ -353,14 +353,14 @@ Experimental shims are also outside the initial raw run.
 
 Future gates may use disposable compatibility experiments to determine whether an observed incompatibility can be crossed safely, but those experiments must be derived from actual probe evidence.
 
-No permanent compatibility abstraction is authorized by MYP0.
+No permanent compatibility abstraction is authorized by MPY0.
 
 ## Documentation
 
 `docs/portability/micropython-probe.md` will document:
 
-- MYP0 scope
-- MYP0 non-goals
+- MPY0 scope
+- MPY0 non-goals
 - pinned MicroPython version
 - why the Windows port is used for the raw qualification
 - external provisioning directory
@@ -380,10 +380,10 @@ No permanent compatibility abstraction is authorized by MYP0.
 - core-track versus session-track failures
 - how to interpret import and runtime failures
 - the rule that no production compatibility change is allowed without observed evidence
-- later MYP1 through MYP6 gate boundaries
+- later MPY1 through MPY6 gate boundaries
 - hardware-specific heap qualification as deferred work
 
-The guide will explicitly state that MYP0 does not create permanent compatibility architecture.
+The guide will explicitly state that MPY0 does not create permanent compatibility architecture.
 
 ## Verification
 
@@ -442,15 +442,15 @@ Review the diff to confirm:
 Commit exactly:
 
 ```text
-MYP0 - Add Raw MicroPython Runtime Probe
+MPY0 - Add Raw MicroPython Runtime Probe
 ```
 
-Push `myp`.
+Push `mpy`.
 
 Verify:
 
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 ```
 
 Run the existing DD CI suite for the documentation/tooling change.
@@ -471,7 +471,7 @@ Stop after reporting:
 
 ## Acceptance Criteria
 
-MYP0 is accepted when:
+MPY0 is accepted when:
 
 - MicroPython `v1.29.0` is provisioned reproducibly.
 - The runtime was built from the pinned upstream `v1.29.0` source.
@@ -496,7 +496,7 @@ MYP0 is accepted when:
 
 ## Explicit Stop Rules
 
-Stop MYP0 immediately when:
+Stop MPY0 immediately when:
 
 - the first DD incompatibility is identified
 - runtime provisioning cannot produce the exact stable `v1.29.0` runtime
@@ -508,7 +508,7 @@ Stop MYP0 immediately when:
 - the probe begins recreating DD gameplay behavior
 - a proposed fix would require modifying production code before evidence exists
 
-Do not attempt to solve the first incompatibility inside MYP0.
+Do not attempt to solve the first incompatibility inside MPY0.
 
 The next gate must be derived from the first observed failure.
 
@@ -522,43 +522,43 @@ No speculative:
 - content redesign
 - presentation redesign
 
-will be included in MYP0.
+will be included in MPY0.
 
 ## Future Gate Direction
 
-MYP0 determines the first real compatibility wall.
+MPY0 determines the first real compatibility wall.
 
 Later gates are expected to follow the evidence rather than a predetermined conversion list.
 
 The current conceptual sequence is:
 
 ```text
-MYP0
+MPY0
 Raw MicroPython compatibility probe.
 No production changes.
 Find the first real incompatibility.
 
-MYP1
+MPY1
 First evidence-backed compatibility primitive or adaptation.
-Advance the probe beyond the MYP0 failure.
+Advance the probe beyond the MPY0 failure.
 
-MYP2
+MPY2
 Core combat qualification.
 Reach a real BattleView and complete the canonical first battle.
 
-MYP3
+MPY3
 Session qualification.
 Drive the first encounter through OverworldSession.
 
-MYP4
+MPY4
 Surface-route qualification.
 Complete all 8 encounters, 3 Rests, and reach Dungeon Entrance.
 
-MYP5
+MPY5
 Memory and runtime-pressure qualification.
 Measure retained and peak memory behavior under an appropriate constrained target.
 
-MYP6
+MPY6
 Cross-runtime regression qualification.
 Prove the resulting authoritative source remains correct under normal CPython
 and remains suitable for Pyodide and Chaquopy qualification.
@@ -571,5 +571,5 @@ No production compatibility change without an observed MicroPython failure
 or a directly proven prerequisite of that failure.
 ```
 
-MYP0 exists to produce that evidence.
+MPY0 exists to produce that evidence.
 ```

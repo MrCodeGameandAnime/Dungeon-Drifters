@@ -1,8 +1,8 @@
-# MYP12 - Repair Portable Starred Tuple Expressions
+# MPY12 - Repair Portable Starred Tuple Expressions
 
 ## Summary
 
-Advance pinned MicroPython `v1.29.0` beyond the `*x must be assignment target` parser failure from MYP11 baseline `bd7726bb7d73cb7d2c3967071828de05ebdc72a9`.
+Advance pinned MicroPython `v1.29.0` beyond the `*x must be assignment target` parser failure from MPY11 baseline `bd7726bb7d73cb7d2c3967071828de05ebdc72a9`.
 
 The complete audit found 9 load-context starred tuple displays across 4 production presentation files:
 
@@ -91,7 +91,7 @@ Strengthen `root/tests/test_battle_presentation_session.py` to prove:
 - results are tuples;
 - reads do not mutate the internal list-backed history.
 
-The focused MYP12 suite must include protection for all four changed production surfaces:
+The focused MPY12 suite must include protection for all four changed production surfaces:
 
 ```powershell
 Push-Location root
@@ -125,7 +125,7 @@ Pop-Location
 
 Update `docs/portability/micropython-probe.md` with:
 
-- MYP11 sealed SHA;
+- MPY11 sealed SHA;
 - baseline evidence of 9 unsupported tuple displays across 4 files;
 - the AST classification boundary;
 - direct MicroPython parser failure;
@@ -135,8 +135,8 @@ Update `docs/portability/micropython-probe.md` with:
 - representative corrected-path results;
 - exact post-change raw-probe output;
 - next unrelated stage, exception, traceback, memory, and census;
-- MYP12 scope counts;
-- MYP13 derived from the next observed frontier.
+- MPY12 scope counts;
+- MPY13 derived from the next observed frontier.
 
 Historical `docs/mpy/` files remain untouched and uncommitted.
 
@@ -170,7 +170,7 @@ All four imports must pass. Also exercise one inexpensive corrected path from ea
 - a terminal battle control or render path;
 - a terminal overworld option, equipment, or render path.
 
-If a later step exposes a new unrelated MicroPython wall, record it and stop without repairing it in MYP12.
+If a later step exposes a new unrelated MicroPython wall, record it and stop without repairing it in MPY12.
 
 Run the unchanged raw probe through `root/tools/micropython_probe_bootstrap.py`. The previous `battle_session.py:30` syntax failure must disappear. Continue only to the first unrelated frontier and preserve its original traceback, memory evidence, and dynamic dataclass census.
 
@@ -217,7 +217,7 @@ historical docs/mpy changed: 0
 Commit exactly:
 
 ```text
-MYP12 - Repair Portable Starred Tuple Expression
+MPY12 - Repair Portable Starred Tuple Expression
 ```
 
-Push `myp`, verify local HEAD equals `origin/myp`, wait for exact-SHA green CI, and report the commit, full/focused test totals, exact next MicroPython frontier, memory/census evidence, synchronization, and preserved historical untracked files.
+Push `mpy`, verify local HEAD equals `origin/mpy`, wait for exact-SHA green CI, and report the commit, full/focused test totals, exact next MicroPython frontier, memory/census evidence, synchronization, and preserved historical untracked files.

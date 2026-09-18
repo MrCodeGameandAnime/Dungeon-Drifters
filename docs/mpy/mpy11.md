@@ -1,10 +1,10 @@
-# MYP11 - Repair Portable Typing Protocol Boundary
+# MPY11 - Repair Portable Typing Protocol Boundary
 
 **Goal:** Advance MicroPython beyond the missing `typing` import while preserving DD’s Protocol contracts, gameplay, persistence, content, and semantic APIs.
 
 **Architecture:** Keep native Protocol declarations for CPython and static tooling. Add a minimal MicroPython-only typing overlay, replace only production Protocol runtime checks with contract-owned structural predicates, and rewrite only runtime-evaluated TypeAlias unions.
 
-**Baseline:** `myp` at `00b7733c02a8b78ebfb856ccbe5fc9ea119f6fe9`. Historical untracked `docs/mpy/` files remain untouched.
+**Baseline:** `mpy` at `00b7733c02a8b78ebfb856ccbe5fc9ea119f6fe9`. Historical untracked `docs/mpy/` files remain untouched.
 
 ## Audit
 
@@ -255,7 +255,7 @@ tests/test_portable_counter_removal.py
 
 Update `docs/portability/micropython-probe.md` with:
 
-- MYP10 sealed SHA and the original `ImportError: no module named 'typing'`;
+- MPY10 sealed SHA and the original `ImportError: no module named 'typing'`;
 - the complete dynamic typing import audit;
 - all discovered Protocol declarations and runtime checks;
 - the distinction between Protocol declarations and runtime predicates;
@@ -272,7 +272,7 @@ Update `docs/portability/micropython-probe.md` with:
 - exact next stage, exception, message, traceback, memory, and dataclass census;
 - zero browser, Android, C++, persistence, schema, content, gameplay, and save changes.
 
-Update future-gate wording so MYP11 records the typing boundary and the next gate is derived from the next observed raw-probe failure.
+Update future-gate wording so MPY11 records the typing boundary and the next gate is derived from the next observed raw-probe failure.
 
 ## Verification
 
@@ -352,7 +352,7 @@ Forbidden:
 Commit exactly:
 
 ```text
-MYP11 - Repair Portable Typing Protocol Boundary
+MPY11 - Repair Portable Typing Protocol Boundary
 ```
 
-Push `myp`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next compatibility frontier.

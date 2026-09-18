@@ -1,8 +1,8 @@
-# MYP15 - Remove Itertools Groupby Runtime Dependency
+# MPY15 - Remove Itertools Groupby Runtime Dependency
 
-**Goal:** Advance pinned MicroPython v1.29.0 beyond the sealed MYP14 `itertools` import failure without adding compatibility machinery or changing encounter behavior.
+**Goal:** Advance pinned MicroPython v1.29.0 beyond the sealed MPY14 `itertools` import failure without adding compatibility machinery or changing encounter behavior.
 
-**Baseline:** `myp` at `3af2e4d2da435f29b6559f087aeb0a705cbe0fd0`, synchronized with `origin/myp`. Historical `docs/mpy/` files remain untouched.
+**Baseline:** `mpy` at `3af2e4d2da435f29b6559f087aeb0a705cbe0fd0`, synchronized with `origin/mpy`. Historical `docs/mpy/` files remain untouched.
 
 ## Implementation
 
@@ -62,7 +62,7 @@ After the correction, qualify `_adjacent_run_counts` under the existing compatib
 ("a", "a", "b", "a")
 ```
 
-If importing `overworld_presenter` to qualify `_adjacent_run_counts` reaches a new unrelated MicroPython dependency first, record that dependency as the next MYP16 frontier. Do not broaden MYP15 or treat that unrelated import failure as evidence that the helper correction failed. The CPython `groupby` oracle remains the semantic authority.
+If importing `overworld_presenter` to qualify `_adjacent_run_counts` reaches a new unrelated MicroPython dependency first, record that dependency as the next MPY16 frontier. Do not broaden MPY15 or treat that unrelated import failure as evidence that the helper correction failed. The CPython `groupby` oracle remains the semantic authority.
 
 Then run the unchanged bootstrap probe. The historical failure specifically caused by:
 
@@ -73,7 +73,7 @@ ImportError: no module named 'itertools'
 
 must disappear.
 
-`SESSION_IMPORT` may still fail at a new unrelated dependency. If so, record that failure as the MYP16 frontier and do not repair it. Continue only with MYP15 documentation, verification, commit, push, and exact-SHA CI.
+`SESSION_IMPORT` may still fail at a new unrelated dependency. If so, record that failure as the MPY16 frontier and do not repair it. Continue only with MPY15 documentation, verification, commit, push, and exact-SHA CI.
 
 Record the last passing stage, first new failing stage or complete-result marker, exception type/message, original traceback, `FREE`, `ALLOC`, and the dynamic dataclass census. Native and forced-overlay CPython probes must still complete all stages.
 
@@ -81,7 +81,7 @@ Record the last passing stage, first new failing stage or complete-result marker
 
 Run the full suite from `root`.
 
-Run the exact sealed MYP14 cumulative suite, which produced 233 passed, with these two additions appended:
+Run the exact sealed MPY14 cumulative suite, which produced 233 passed, with these two additions appended:
 
 ```text
 tests/test_dataclass_contract.py
@@ -129,14 +129,14 @@ persistence/schema changes: 0
 historical docs/mpy changes: 0
 ```
 
-Update `docs/portability/micropython-probe.md` with the MYP14 frontier, exact census, adjacent-run semantics, helper correction, CPython oracle evidence, authored map-inspection evidence, runtime results, next MYP16 frontier, memory/census values, test totals, and scope counts. Explicitly state that MYP15 adds no `itertools` overlay and changes no authored encounter composition, gameplay, or session state.
+Update `docs/portability/micropython-probe.md` with the MPY14 frontier, exact census, adjacent-run semantics, helper correction, CPython oracle evidence, authored map-inspection evidence, runtime results, next MPY16 frontier, memory/census values, test totals, and scope counts. Explicitly state that MPY15 adds no `itertools` overlay and changes no authored encounter composition, gameplay, or session state.
 
 Commit exactly:
 
 ```text
-MYP15 - Remove Itertools Groupby Runtime Dependency
+MPY15 - Remove Itertools Groupby Runtime Dependency
 ```
 
-Push `myp`, verify local HEAD equals `origin/myp`, wait for exact-SHA green CI, confirm the tracked worktree is clean, and report the next frontier.
+Push `mpy`, verify local HEAD equals `origin/mpy`, wait for exact-SHA green CI, confirm the tracked worktree is clean, and report the next frontier.
 
-Stop and request a revised MYP15 plan only if the historical `itertools` failure is not crossed or crossing it requires work outside the authorized MYP15 scope. Do not repair or investigate a new unrelated frontier during MYP15.
+Stop and request a revised MPY15 plan only if the historical `itertools` failure is not crossed or crossing it requires work outside the authorized MPY15 scope. Do not repair or investigate a new unrelated frontier during MPY15.

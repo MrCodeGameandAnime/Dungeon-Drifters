@@ -1,4 +1,4 @@
-# MYP2 - Qualify Portable Dataclass Contract
+# MPY2 - Qualify Portable Dataclass Contract
 
 **Goal:** Audit DD’s actual dataclass dependency, define the minimum portable contract, and select a compatibility strategy without changing production behavior.
 
@@ -6,15 +6,15 @@
 
 **Tech Stack:** Python, pytest, static inspection, pinned MicroPython `v1.29.0`.
 
-**Spec:** User-provided MYP2 qualification plan in this thread.
+**Spec:** User-provided MPY2 qualification plan in this thread.
 
 ## Global Constraints
 
-- Baseline: `myp` at `783f9dd9ab69ea8408218e8391adc532c4d32647`.
+- Baseline: `mpy` at `783f9dd9ab69ea8408218e8391adc532c4d32647`.
 - No production imports, gameplay, persistence, content, semantic APIs, or probe changes.
 - Raw MicroPython remains stopped at `ImportError: no module named 'dataclasses'`.
 - Leave historical untracked paths untouched.
-- Commit exactly `MYP2 - Qualify Portable Dataclass Contract`.
+- Commit exactly `MPY2 - Qualify Portable Dataclass Contract`.
 
 ### Task 1: Record the Complete Production Audit
 
@@ -132,7 +132,7 @@ Update the portability document with:
 - the `__dataclass_fields__` seam is the only observed runtime metadata dependency;
 - no migration of typing, enums, collections, pathlib, or persistence is authorized.
 
-End the MYP2 section with the required `DD PORTABLE DATACLASS VERDICT`, populated as:
+End the MPY2 section with the required `DD PORTABLE DATACLASS VERDICT`, populated as:
 
 ```text
 Recommended portability strategy:
@@ -175,7 +175,7 @@ Recommendation:
 PROCEED WITH STRICT BOUNDARY
 ```
 
-### Task 5: Verify and Close MYP2
+### Task 5: Verify and Close MPY2
 
 Run:
 
@@ -197,4 +197,4 @@ Confirm:
 - No gameplay, content, save, or semantic API behavior changed.
 - Only the focused conformance tests and portability documentation changed.
 
-Commit, push `myp`, verify local SHA equals `origin/myp`, wait for exact-SHA green CI, and stop. Do not implement the dataclass boundary or begin MYP3 in this gate.
+Commit, push `mpy`, verify local SHA equals `origin/mpy`, wait for exact-SHA green CI, and stop. Do not implement the dataclass boundary or begin MPY3 in this gate.

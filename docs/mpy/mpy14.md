@@ -1,8 +1,8 @@
-# MYP14 - Decouple Session Persistence Import Boundary
+# MPY14 - Decouple Session Persistence Import Boundary
 
 **Goal:** Remove the eager concrete `SaveRepository` dependency from `OverworldSession` so pinned MicroPython can import and construct a headless session without porting disk persistence.
 
-**Baseline:** Branch `myp`, commit `cc66563cd94c442ca4b1a95afbe09d1dca3a4828`; MicroPython `v1.29.0`, source SHA `0fd6c573ea815774668bbb16b8e197c8822368b2`.
+**Baseline:** Branch `mpy`, commit `cc66563cd94c442ca4b1a95afbe09d1dca3a4828`; MicroPython `v1.29.0`, source SHA `0fd6c573ea815774668bbb16b8e197c8822368b2`.
 
 ## Implementation
 
@@ -41,11 +41,11 @@ root/tests/test_session_persistence_boundary.py
 - Confirm pinned MicroPython still fails on `import tempfile`.
 - Confirm `save_contract` import, `overworld_session` import, headless session construction, and initial view.
 - Run the unchanged raw probe and record the actual last pass or complete-result marker, next failure, traceback, memory, and dataclass census.
-- Update `docs/portability/micropython-probe.md` with the MYP13 frontier, concrete import closure, lazy contract correction, qualification evidence, test totals, and explicit MYP14-not-SAVE-ARCH scope.
+- Update `docs/portability/micropython-probe.md` with the MPY13 frontier, concrete import closure, lazy contract correction, qualification evidence, test totals, and explicit MPY14-not-SAVE-ARCH scope.
 
 ## Verification
 
-Run the full suite, then use the exact sealed MYP13 cumulative command that produced 194 passing tests:
+Run the full suite, then use the exact sealed MPY13 cumulative command that produced 194 passing tests:
 
 ```powershell
 Push-Location root
@@ -85,9 +85,9 @@ Then run compileall for `root/src`, `root/tests`, `root/tools`, and `root/portab
 Commit exactly:
 
 ```text
-MYP14 - Decouple Session Persistence Import Boundary
+MPY14 - Decouple Session Persistence Import Boundary
 ```
 
-Push `myp`, verify local SHA equals `origin/myp`, require exact-SHA green CI, and confirm the only remaining untracked files are the untouched historical `docs/mpy/` paths.
+Push `mpy`, verify local SHA equals `origin/mpy`, require exact-SHA green CI, and confirm the only remaining untracked files are the untouched historical `docs/mpy/` paths.
 
 Stop if crossing `SESSION_IMPORT` requires porting `SaveRepository`, changing save schema or payload behavior, modifying the probe/bootstrap, adding interpreter-specific gameplay branches, or repairing the next unrelated MicroPython frontier.

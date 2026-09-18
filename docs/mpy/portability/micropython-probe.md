@@ -1,6 +1,6 @@
-# MYP0: Raw MicroPython Runtime Probe
+# MPY0: Raw MicroPython Runtime Probe
 
-MYP0 qualifies the untouched Dungeon Drifters runtime against the upstream stable MicroPython `v1.29.0` Windows port. It is a diagnostic gate, not a compatibility migration.
+MPY0 qualifies the untouched Dungeon Drifters runtime against the upstream stable MicroPython `v1.29.0` Windows port. It is a diagnostic gate, not a compatibility migration.
 
 ## Scope
 
@@ -11,7 +11,7 @@ How far can the current DD source execute before the first real
 MicroPython incompatibility?
 ```
 
-MYP0 does not add `app.compat`, change production code, alter gameplay, redesign persistence, or add browser, Android, hardware, or board-specific support. The Windows port is used to qualify the language, import, and standard-library surface without making an MCU memory claim. Hardware-specific heap qualification is deferred.
+MPY0 does not add `app.compat`, change production code, alter gameplay, redesign persistence, or add browser, Android, hardware, or board-specific support. The Windows port is used to qualify the language, import, and standard-library surface without making an MCU memory claim. Hardware-specific heap qualification is deferred.
 
 The raw probe must run against the current DD source without experimental shims. No production compatibility change is allowed without an observed probe failure or a directly proven prerequisite of that failure.
 
@@ -56,7 +56,7 @@ msbuild micropython.vcxproj
 Pop-Location
 ```
 
-Build `mpy-cross` only if the pinned Windows build requires it. MYP0 does not add that build as an independent requirement. The resulting standard runtime is normally under:
+Build `mpy-cross` only if the pinned Windows build requires it. MPY0 does not add that build as an independent requirement. The resulting standard runtime is normally under:
 
 ```text
 <source>\ports\windows\build-standard\ReleaseWin32\micropython.exe
@@ -95,19 +95,19 @@ CPython success confirms argument handling, stage ordering, and structured repor
 The probe reports interpreter facts directly:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|<STAGE>|BEGIN
-MYP|MEMORY|<STAGE>|BEFORE|FREE|...|ALLOC|...
-MYP|<STAGE>|PASS
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|<STAGE>|BEGIN
+MPY|MEMORY|<STAGE>|BEFORE|FREE|...|ALLOC|...
+MPY|<STAGE>|PASS
 ```
 
 If an optional garbage-collector measurement is unavailable, it reports:
 
 ```text
-MYP|MEMORY|UNAVAILABLE
+MPY|MEMORY|UNAVAILABLE
 ```
 
 The probe does not emit the MicroPython source SHA. Git in the external provisioning checkout is the authority for that value.
@@ -115,7 +115,7 @@ The probe does not emit the MicroPython source SHA. Git in the external provisio
 On the first failure it emits:
 
 ```text
-MYP|<STAGE>|FAIL|<ExceptionType>|<message>
+MPY|<STAGE>|FAIL|<ExceptionType>|<message>
 ```
 
 and then re-raises the exception. The original MicroPython traceback, import path, and source line must remain visible. The probe never normalizes away an exception or continues to a later stage after failure.
@@ -153,11 +153,11 @@ SESSION_ENCOUNTER_COMPLETE
 
 `OverworldSession` currently imports a concrete `SaveRepository`. A failure involving `pathlib`, `tempfile`, filesystem behavior, or another persistence dependency is reported as a session/persistence-edge failure. It must not be mistaken for evidence that the core game or combat path failed.
 
-MYP0 may be extended in a later run to qualify the full surface route, but reaching Dungeon Entrance is not required to identify the first raw incompatibility. Full-route qualification belongs to a later gate after evidence-backed compatibility work.
+MPY0 may be extended in a later run to qualify the full surface route, but reaching Dungeon Entrance is not required to identify the first raw incompatibility. Full-route qualification belongs to a later gate after evidence-backed compatibility work.
 
 ## Raw Versus Compatibility Probe
 
-MYP0 is intentionally raw:
+MPY0 is intentionally raw:
 
 ```text
 untouched DD source
@@ -167,9 +167,9 @@ untouched DD source
 
 Do not add a compatibility package, alter annotations, replace dataclasses, add enum shims, or change persistence in this gate. A future compatibility experiment must be disposable and derived from the exact failure recorded here.
 
-## MYP1 Evidence
+## MPY1 Evidence
 
-MYP0's first failure was the direct `types.MappingProxyType` import in:
+MPY0's first failure was the direct `types.MappingProxyType` import in:
 
 ```text
 root/src/app/content/catalog.py
@@ -177,7 +177,7 @@ root/src/app/content/catalog.py
 
 The complete production audit found the same dependency in `root/src/app/content/weapon_spec.py`. DD uses these mappings for catalog lookup and immutable authored weapon bonuses. The observed read contract is lookup, membership, iteration, length, `keys()`, and `items()`; DD does not mutate a backing dictionary after wrapping, and does not require live reflection, proxy identity, hashing, or pickling.
 
-MYP1 replaces those direct construction sites with:
+MPY1 replaces those direct construction sites with:
 
 ```text
 app.readonly_mapping.readonly_mapping(source)
@@ -185,22 +185,22 @@ app.readonly_mapping.readonly_mapping(source)
 
 CPython continues to use native `types.MappingProxyType`. When that module is unavailable, the helper uses a private `_ReadonlyMapping` around a copied dictionary. The fallback exposes only the required read operations and has no inherited dictionary mutation API.
 
-The unchanged probe under the pinned MicroPython runtime produced this MYP1 result:
+The unchanged probe under the pinned MicroPython runtime produced this MPY1 result:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|1015472|ALLOC|9040
-MYP|SOURCE_PATH|BEGIN
-MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1015424|ALLOC|9088
-MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1015408|ALLOC|9104
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1015408|ALLOC|9104
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|1004688|ALLOC|19824
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|1015472|ALLOC|9040
+MPY|SOURCE_PATH|BEGIN
+MPY|MEMORY|SOURCE_PATH|BEFORE|FREE|1015424|ALLOC|9088
+MPY|MEMORY|SOURCE_PATH|AFTER|FREE|1015408|ALLOC|9104
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1015408|ALLOC|9104
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|1004688|ALLOC|19824
 ```
 
 The original traceback is:
@@ -218,7 +218,7 @@ root/src/app/combat/move.py, line 3, in <module>
 ImportError: no module named 'dataclasses'
 ```
 
-MYP1 therefore crossed the observed `types` incompatibility and stopped at the next real incompatibility. `CATALOG_IMPORT` remains incomplete because the next failure occurs during its transitive imports. Dataclasses are intentionally deferred to the next evidence-driven gate.
+MPY1 therefore crossed the observed `types` incompatibility and stopped at the next real incompatibility. `CATALOG_IMPORT` remains incomplete because the next failure occurs during its transitive imports. Dataclasses are intentionally deferred to the next evidence-driven gate.
 
 MicroPython runtime evidence remains:
 
@@ -230,9 +230,9 @@ Runtime: MicroPython 1.29.0
 Platform: win32
 ```
 
-## MYP2 Evidence
+## MPY2 Evidence
 
-MYP2 qualifies the dataclass behavior that Dungeon Drifters actually uses. It does not install a compatibility implementation, change production imports, or advance the raw MicroPython probe. The unchanged probe remains expected to stop at the first missing `dataclasses` import.
+MPY2 qualifies the dataclass behavior that Dungeon Drifters actually uses. It does not install a compatibility implementation, change production imports, or advance the raw MicroPython probe. The unchanged probe remains expected to stop at the first missing `dataclasses` import.
 
 ### Production audit
 
@@ -339,7 +339,7 @@ The 58 post-init methods are behaviorally important because they perform enum no
 
 Save schema 8 does not depend on dataclass metadata. `save_state.py` validates explicit dictionary shapes, builds explicit payloads, and reconstructs objects through canonical constructors. It does not call `asdict()`, `fields()`, `replace()`, or inspect dataclass parameters. Dataclass equality is not a gameplay dispatch authority; persistence and route logic compare explicit identifiers and values.
 
-Annotations are needed by the native decorator to discover fields, but DD does not inspect `__annotations__` or evaluate type hints at runtime. PEP 604 annotations appear in production and remain a separate future MicroPython syntax/annotation concern. MYP2 does not migrate them.
+Annotations are needed by the native decorator to discover fields, but DD does not inspect `__annotations__` or evaluate type hints at runtime. PEP 604 annotations appear in production and remain a separate future MicroPython syntax/annotation concern. MPY2 does not migrate them.
 
 ### Strategy decision
 
@@ -356,28 +356,28 @@ Risk: MODERATE
 | DD compatibility import | Viable but would touch the broad production import surface and permanently make every model aware of an internal compatibility boundary. |
 | Build/source transform | Avoids runtime imports but adds a second source representation and debugging/build complexity. |
 | Manual records | Unjustified for the qualified subset; would rewrite 74 models and risk behavior drift. |
-| Third-party implementation | Not selected during MYP2 because no dependency is pinned or required by the audit. |
+| Third-party implementation | Not selected during MPY2 because no dependency is pinned or required by the audit. |
 
 An eventual overlay must live outside the normal `root/src` import path and be selected only by a MicroPython-specific launcher or bootstrap. A local `dataclasses.py` must never shadow the CPython standard library during tests, packaging, Pyodide, or Chaquopy execution.
 
 The estimated later implementation is one portable compatibility module plus one MicroPython-only path/bootstrap integration, with zero expected engine production-file changes. The semantic runtime API, save schema, gameplay ownership, and one authoritative implementation can remain unchanged.
 
-### MYP2 conformance result
+### MPY2 conformance result
 
 The implementation-neutral conformance suite is `root/tests/test_dataclass_contract.py`. It locks construction, defaults, default-factory isolation, equality, frozen assignment rejection, post-init normalization, validation, nested values, and the exact ordered-name metadata seam. It does not assert that incidental CPython methods are absent.
 
 The raw probe remains unchanged. Under the pinned runtime it is expected to report:
 
 ```text
-MYP|CATALOG_IMPORT|BEGIN
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
+MPY|CATALOG_IMPORT|BEGIN
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'dataclasses'
 ```
 
-MYP2 therefore qualifies the next implementation boundary without implementing it. The next gate may proceed only with the strict contract above; it must not broaden into annotation, enum, typing, persistence, or gameplay migration.
+MPY2 therefore qualifies the next implementation boundary without implementing it. The next gate may proceed only with the strict contract above; it must not broaden into annotation, enum, typing, persistence, or gameplay migration.
 
-## MYP3 - Portable dataclass field discovery and overlay
+## MPY3 - Portable dataclass field discovery and overlay
 
-MYP3 continued after the stock annotation discovery failure instead of treating it as evidence that portable dataclass behavior was impossible. The pinned runtime preserves class identity but does not preserve class annotations:
+MPY3 continued after the stock annotation discovery failure instead of treating it as evidence that portable dataclass behavior was impossible. The pinned runtime preserves class identity but does not preserve class annotations:
 
 ```text
 MicroPython: 1.29.0
@@ -414,7 +414,7 @@ The discovery ladder was evaluated in this order:
 4. explicit production field metadata
 ```
 
-The pinned source exposes no existing annotation-preservation option. A broad interpreter fork or production rewrite was not justified. MYP3 therefore selected generated metadata while preserving every DD production dataclass unchanged.
+The pinned source exposes no existing annotation-preservation option. A broad interpreter fork or production rewrite was not justified. MPY3 therefore selected generated metadata while preserving every DD production dataclass unchanged.
 
 The generator is `root/tools/generate_dataclass_manifest.py`. It imports the authoritative production modules under normal CPython and reads native `__dataclass_fields__` metadata. It fails closed for duplicate identities and terminal-input imports; current dataclass-bearing imports require no application startup, terminal interaction, persistence activity, or filesystem mutation. AST extraction remains the documented fallback if a future production addition makes native imports unsuitable.
 
@@ -434,13 +434,13 @@ discovered production dataclasses == generated manifest entries
 exact native field-order match
 ```
 
-The MYP2 count of 74 is historical evidence, not a permanent limit. Every portable dataclass must resolve exactly one manifest key. There is no bare-name fallback, ambiguous matching, or silent missing metadata.
+The MPY2 count of 74 is historical evidence, not a permanent limit. Every portable dataclass must resolve exactly one manifest key. There is no bare-name fallback, ambiguous matching, or silent missing metadata.
 
 The manifest contains only ordered field names. Ordinary defaults remain on the class, and `field(default_factory=...)` remains represented by the overlay field marker. It is compatibility metadata, not a second gameplay representation.
 
 ### Portable overlay
 
-The MicroPython-only implementation is `root/portability/micropython/dataclasses.py`. It implements only the MYP2-qualified subset:
+The MicroPython-only implementation is `root/portability/micropython/dataclasses.py`. It implements only the MPY2-qualified subset:
 
 ```text
 generated positional and keyword initialization
@@ -458,7 +458,7 @@ It does not implement ordering, hashing compatibility, slots, keyword-only field
 
 `root/tools/micropython_probe_bootstrap.py` selects the overlay by prepending `root/portability/micropython` only for the isolated probe process. The normal CPython path, Pyodide, Chaquopy, pytest, and packaging continue to use native standard-library `dataclasses`. The unchanged raw probe remains the stage authority.
 
-### MYP3 evidence
+### MPY3 evidence
 
 Portable conformance under CPython:
 
@@ -469,41 +469,41 @@ Portable conformance under CPython:
 Direct overlay smoke test under MicroPython:
 
 ```text
-MYP|OVERLAY|FIELDS|('value', 'items')
-MYP|OVERLAY|FACTORY_ISOLATED|True
-MYP|OVERLAY|POST_SETATTR|5
-MYP|OVERLAY|FROZEN|TypeError
-MYP|OVERLAY|PASS
+MPY|OVERLAY|FIELDS|('value', 'items')
+MPY|OVERLAY|FACTORY_ISOLATED|True
+MPY|OVERLAY|POST_SETATTR|5
+MPY|OVERLAY|FROZEN|TypeError
+MPY|OVERLAY|PASS
 ```
 
 Native CPython raw probe:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Forced-overlay CPython raw probe:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|CATALOG_IMPORT|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Pinned MicroPython raw probe:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|CATALOG_IMPORT|BEGIN
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'enum'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|978336|ALLOC|46176
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|CATALOG_IMPORT|BEGIN
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'enum'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|978336|ALLOC|46176
 ```
 
-The previous `ImportError: no module named 'dataclasses'` failure was crossed. The next compatibility frontier is the unrelated `enum` import in `root/src/app/combat/move.py`. MYP3 stops there; it does not repair enum, typing, collections, pathlib, persistence, annotations, or gameplay.
+The previous `ImportError: no module named 'dataclasses'` failure was crossed. The next compatibility frontier is the unrelated `enum` import in `root/src/app/combat/move.py`. MPY3 stops there; it does not repair enum, typing, collections, pathlib, persistence, annotations, or gameplay.
 
-MYP3 production impact:
+MPY3 production impact:
 
 ```text
 production dataclass imports changed: 0
@@ -521,7 +521,7 @@ Resolved source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 Source checkout: clean
 ```
 
-MYP3 establishes that the dataclass contract is portable when field identity is supplied separately. It does not claim that the full DD runtime is yet MicroPython-compatible.
+MPY3 establishes that the dataclass contract is portable when field identity is supplied separately. It does not claim that the full DD runtime is yet MicroPython-compatible.
 
 ## DD PORTABLE DATACLASS VERDICT
 
@@ -569,13 +569,13 @@ One authoritative gameplay implementation remains practical: YES WITH STRICT COM
 
 Recommendation: PROCEED WITH STRICT BOUNDARY
 
-## MYP4 - Portable StrEnum overlay
+## MPY4 - Portable StrEnum overlay
 
-MYP4 advances the raw MicroPython qualification past the `enum` import wall. It preserves the authoritative DD source and adds no production changes under `root/src`.
+MPY4 advances the raw MicroPython qualification past the `enum` import wall. It preserves the authoritative DD source and adds no production changes under `root/src`.
 
 ### Enum audit
 
-The production enum surface was discovered dynamically from `root/src/app`, rather than from a fixed count. The historical MYP4 baseline is 14 importing files and 34 direct `StrEnum` declarations. Every declaration derives directly from `StrEnum` and uses uppercase names assigned literal string values.
+The production enum surface was discovered dynamically from `root/src/app`, rather than from a fixed count. The historical MPY4 baseline is 14 importing files and 34 direct `StrEnum` declarations. Every declaration derives directly from `StrEnum` and uses uppercase names assigned literal string values.
 
 The current declaration surface is:
 
@@ -642,7 +642,7 @@ Hook safety is locked by subprocess-based forced-overlay tests. The original bui
 
 ### Dataclass census
 
-The MYP3 overlay now records unique identities rather than construction totals:
+The MPY3 overlay now records unique identities rather than construction totals:
 
 ```text
 EXPECTED    = set(FIELD_MANIFEST)
@@ -654,49 +654,49 @@ CONSTRUCTED = set()
 
 The bootstrap emits census diagnostics from a `finally` path without changing the raw probe or masking its original exception. If census access is unavailable it emits an explicit diagnostic-unavailable line.
 
-### MYP4 evidence
+### MPY4 evidence
 
 Native CPython raw probe:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Forced-overlay CPython raw probe:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|74
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|CATALOG_IMPORT|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|74
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 Direct portable enum smoke test under the pinned runtime:
 
 ```text
-MYP|ENUM|MICROPYTHON|PASS
+MPY|ENUM|MICROPYTHON|PASS
 ```
 
 Pinned MicroPython `v1.29.0` raw probe after the enum wall was crossed:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
-MYP|SOURCE_PATH|BEGIN
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'keyword'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|967856|ALLOC|56656
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|2
-MYP|DATACLASS|CONSTRUCTED|0
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MPY|SOURCE_PATH|BEGIN
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'keyword'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|967856|ALLOC|56656
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|2
+MPY|DATACLASS|CONSTRUCTED|0
 ```
 
-The original `ImportError: no module named 'dataclasses'` wall was crossed by MYP3, and the `ImportError: no module named 'enum'` wall was crossed by MYP4. The next observed incompatibility is the unrelated `keyword` import from `root/src/app/content/enemy_spec.py`. MYP4 stops there. It does not repair `keyword`, typing, collections, pathlib, persistence, annotations, or gameplay.
+The original `ImportError: no module named 'dataclasses'` wall was crossed by MPY3, and the `ImportError: no module named 'enum'` wall was crossed by MPY4. The next observed incompatibility is the unrelated `keyword` import from `root/src/app/content/enemy_spec.py`. MPY4 stops there. It does not repair `keyword`, typing, collections, pathlib, persistence, annotations, or gameplay.
 
 The external runtime evidence remains:
 
@@ -707,7 +707,7 @@ Source checkout: clean
 Reported platform: win32
 ```
 
-MYP4 production impact is:
+MPY4 production impact is:
 
 ```text
 root/src production files changed: 0
@@ -717,20 +717,20 @@ persistence changes: 0
 semantic API changes: 0
 ```
 
-The overlay is a MicroPython-only portability boundary. Native CPython, Pyodide, Chaquopy, pytest, and packaging continue using the standard-library `enum`. MYP4 establishes that DD's qualified StrEnum behavior is portable through the observed enum wall without claiming that the full DD runtime is yet MicroPython-compatible.
+The overlay is a MicroPython-only portability boundary. Native CPython, Pyodide, Chaquopy, pytest, and packaging continue using the standard-library `enum`. MPY4 establishes that DD's qualified StrEnum behavior is portable through the observed enum wall without claiming that the full DD runtime is yet MicroPython-compatible.
 
-## MYP5 - Portable keyword boundary
+## MPY5 - Portable keyword boundary
 
-MYP5 advances the raw MicroPython qualification past the observed `keyword` import failure while preserving DD production source, gameplay, content, persistence, semantic APIs, and the unchanged raw probe.
+MPY5 advances the raw MicroPython qualification past the observed `keyword` import failure while preserving DD production source, gameplay, content, persistence, semantic APIs, and the unchanged raw probe.
 
-MYP4 was sealed at:
+MPY4 was sealed at:
 
 ```text
 0a9677d58f80e90f80d50e6ac885a43c4279878e
-MYP4 - Add Portable StrEnum Overlay
+MPY4 - Add Portable StrEnum Overlay
 ```
 
-The starting MYP4 evidence was:
+The starting MPY4 evidence was:
 
 ```text
 CATALOG_IMPORT
@@ -778,44 +778,44 @@ Native CPython, Pyodide, Chaquopy, pytest, packaging, and development tooling co
 
 The real DD validation paths are exercised under the forced stack for enemy archetype IDs, Drifter IDs, starting weapon IDs, route/content IDs, and weapon item IDs. Valid authored identifiers are accepted, Python hard keywords are rejected by the existing validators, and punctuation, whitespace, and casing remain rejected by those production validators. Portable dataclasses and StrEnum behavior remain active through the same forced environment.
 
-### MYP5 evidence
+### MPY5 evidence
 
 Native CPython raw probe:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Forced-overlay CPython raw probe:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|74
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|CATALOG_IMPORT|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|74
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 Pinned MicroPython runtime:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
-MYP|SOURCE_PATH|BEGIN
-MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
-MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MPY|SOURCE_PATH|BEGIN
+MPY|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
+MPY|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
 Warning: exception chaining not supported
-MYP|CATALOG_IMPORT|FAIL|ValueError|invalid kind: 'damage'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|945088|ALLOC|79424
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|4
-MYP|DATACLASS|CONSTRUCTED|1
+MPY|CATALOG_IMPORT|FAIL|ValueError|invalid kind: 'damage'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|945088|ALLOC|79424
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|4
+MPY|DATACLASS|CONSTRUCTED|1
 ```
 
 The previous `ImportError: no module named 'keyword'` wall is crossed. The first unrelated post-keyword failure is:
@@ -836,7 +836,7 @@ root/src/app/combat/move.py, line 118, in _validate_enum
 ValueError: invalid kind: 'damage'
 ```
 
-MYP5 does not repair this enum-conversion frontier. It belongs to the next evidence-derived gate. The dataclass census remains diagnostic and dynamic; the new frontier was reached after four classes were decorated and one was successfully constructed.
+MPY5 does not repair this enum-conversion frontier. It belongs to the next evidence-derived gate. The dataclass census remains diagnostic and dynamic; the new frontier was reached after four classes were decorated and one was successfully constructed.
 
 External runtime evidence:
 
@@ -847,7 +847,7 @@ Source checkout: clean
 Reported platform: win32
 ```
 
-MYP5 impact remains:
+MPY5 impact remains:
 
 ```text
 root/src production files changed: 0
@@ -858,20 +858,20 @@ semantic API changes: 0
 raw probe changes: 0
 ```
 
-MYP5 closes only the observed keyword boundary. No speculative enum, typing, collections, pathlib, persistence, annotation, or gameplay compatibility work is included.
+MPY5 closes only the observed keyword boundary. No speculative enum, typing, collections, pathlib, persistence, annotation, or gameplay compatibility work is included.
 
 
 
-## MYP6 - Portable StrEnum member normalization
+## MPY6 - Portable StrEnum member normalization
 
-MYP6 advances the pinned MicroPython qualification past the existing-member
-lookup failure recorded by MYP5. The compatibility boundary remains outside
+MPY6 advances the pinned MicroPython qualification past the existing-member
+lookup failure recorded by MPY5. The compatibility boundary remains outside
 `root/src`; DD production source, gameplay, content, persistence, semantic
 APIs, and the unchanged raw probe remain untouched.
 
-### MYP6 diagnosis
+### MPY6 diagnosis
 
-The MYP5 failure occurred while `Move.__post_init__` normalized authored enum
+The MPY5 failure occurred while `Move.__post_init__` normalized authored enum
 members through `EnumType(value)`:
 
 ```text
@@ -897,7 +897,7 @@ creation, string subclassing, or ordinary value lookup. MicroPython's mapping
 behavior does not reliably resolve an existing portable string-subclass member
 as a string registry key.
 
-### MYP6 correction
+### MPY6 correction
 
 `root/portability/micropython/enum.py` now performs the smallest possible
 normalization before registry lookup:
@@ -925,52 +925,52 @@ once with raw string values. The test subprocess uses a member-sensitive
 registry to reproduce the lookup behavior observed on MicroPython while
 remaining runnable in the CPython CI environment.
 
-### MYP6 qualification evidence
+### MPY6 qualification evidence
 
 The direct qualification under the pinned MicroPython `v1.29.0` runtime
 reported:
 
 ```text
-MYP6|OVERLAY| enum
-MYP6|SAMPLE|RAW| True
-MYP6|SAMPLE|MEMBER| True
-MYP6|SAMPLE|INVALID|PASS
-MYP6|MOVEKIND|RAW| True
-MYP6|MOVEKIND|MEMBER| True
-MYP6|MOVE|MEMBERS|PASS| True True
-MYP6|MOVE|STRINGS|PASS| True True
-MYP6|RESULT|PASS
+MPY6|OVERLAY| enum
+MPY6|SAMPLE|RAW| True
+MPY6|SAMPLE|MEMBER| True
+MPY6|SAMPLE|INVALID|PASS
+MPY6|MOVEKIND|RAW| True
+MPY6|MOVEKIND|MEMBER| True
+MPY6|MOVE|MEMBERS|PASS| True True
+MPY6|MOVE|STRINGS|PASS| True True
+MPY6|RESULT|PASS
 ```
 
 Native CPython and the forced overlay both completed the unchanged raw probe.
 The forced overlay retained the dynamic dataclass census:
 
 ```text
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|74
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|74
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 The unchanged raw probe under pinned MicroPython crossed the enum frontier and
 stopped at the next unrelated compatibility wall:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|1003456|ALLOC|21056
-MYP|SOURCE_PATH|BEGIN
-MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
-MYP|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
-MYP|CATALOG_IMPORT|FAIL|AttributeError|'re' object has no attribute 'fullmatch'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|945040|ALLOC|79472
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|4
-MYP|DATACLASS|CONSTRUCTED|2
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|1003456|ALLOC|21056
+MPY|SOURCE_PATH|BEGIN
+MPY|MEMORY|SOURCE_PATH|BEFORE|FREE|1003408|ALLOC|21104
+MPY|MEMORY|SOURCE_PATH|AFTER|FREE|1003376|ALLOC|21136
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1003376|ALLOC|21136
+MPY|CATALOG_IMPORT|FAIL|AttributeError|'re' object has no attribute 'fullmatch'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|945040|ALLOC|79472
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|4
+MPY|DATACLASS|CONSTRUCTED|2
 ```
 
 The original traceback was preserved and re-raised:
@@ -994,10 +994,10 @@ AttributeError: 're' object has no attribute 'fullmatch'
 ```
 
 The next gate must be derived from this observed `re.fullmatch` failure.
-MYP6 does not repair `re`, typing, collections, pathlib, persistence,
+MPY6 does not repair `re`, typing, collections, pathlib, persistence,
 annotation syntax, or gameplay.
 
-MYP6 impact remains:
+MPY6 impact remains:
 
 ```text
 root/src production files changed: 0
@@ -1017,18 +1017,18 @@ Source checkout: clean
 Reported platform: win32
 ```
 
-## MYP7 - Portable Regex Fullmatch Boundary
+## MPY7 - Portable Regex Fullmatch Boundary
 
-MYP7 advances the pinned MicroPython qualification past the missing
-`re.fullmatch` behavior recorded by MYP6. The compatibility boundary remains
+MPY7 advances the pinned MicroPython qualification past the missing
+`re.fullmatch` behavior recorded by MPY6. The compatibility boundary remains
 outside `root/src`; the raw probe, gameplay, content, persistence, semantic
 APIs, and schema remain unchanged.
 
-MYP6 was sealed at:
+MPY6 was sealed at:
 
 ```text
 a97def8f26d811b08fe650157296a8da57bcb6a8
-MYP6 - Repair Portable StrEnum Construction
+MPY6 - Repair Portable StrEnum Construction
 ```
 
 ### Production regex audit
@@ -1073,7 +1073,7 @@ adding attributes directly.
 
 ### Selected compatibility boundary
 
-MYP7 uses:
+MPY7 uses:
 
 ```text
 root/portability/micropython/re_compat.py
@@ -1117,72 +1117,72 @@ the adapter explicitly in an isolated subprocess, and verifies the proxy
 marker and retained native module. It does not fake a MicroPython
 `sys.implementation` value or change normal bootstrap behavior.
 
-### MYP7 qualification evidence
+### MPY7 qualification evidence
 
 The direct qualification under pinned MicroPython `v1.29.0` reported:
 
 ```text
-MYP7|NATIVE|COMPILE| True
-MYP7|NATIVE|FULLMATCH| False
-MYP7|NATIVE|PATTERN_FULLMATCH| False
-MYP7|PROXY|ACTIVE| True
-MYP7|PROXY|DELEGATED_SEARCH| True
-MYP7|PROXY|COMPILED| True
-MYP7|PROXY|COMPILED_FULLMATCH| True True
-MYP7|PROXY|MODULE_FULLMATCH| True True
+MPY7|NATIVE|COMPILE| True
+MPY7|NATIVE|FULLMATCH| False
+MPY7|NATIVE|PATTERN_FULLMATCH| False
+MPY7|PROXY|ACTIVE| True
+MPY7|PROXY|DELEGATED_SEARCH| True
+MPY7|PROXY|COMPILED| True
+MPY7|PROXY|COMPILED_FULLMATCH| True True
+MPY7|PROXY|MODULE_FULLMATCH| True True
 ```
 
 The forced compatibility CPython raw probe completed every unchanged stage:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|DRIFTER_SPEC|PASS
-MYP|NEW_GAME|PASS
-MYP|FIRST_ENCOUNTER|PASS
-MYP|ENEMY_STATE|PASS
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|PASS
-MYP|BATTLE_INPUT|PASS
-MYP|BATTLE_COMPLETE|PASS
-MYP|SESSION_IMPORT|PASS
-MYP|SESSION_CONSTRUCTION|PASS
-MYP|SESSION_VIEW|PASS
-MYP|SESSION_ENCOUNTER_ENTRY|PASS
-MYP|SESSION_ENCOUNTER_COMPLETE|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|CATALOG_IMPORT|PASS
+MPY|DRIFTER_SPEC|PASS
+MPY|NEW_GAME|PASS
+MPY|FIRST_ENCOUNTER|PASS
+MPY|ENEMY_STATE|PASS
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|PASS
+MPY|BATTLE_INPUT|PASS
+MPY|BATTLE_COMPLETE|PASS
+MPY|SESSION_IMPORT|PASS
+MPY|SESSION_CONSTRUCTION|PASS
+MPY|SESSION_VIEW|PASS
+MPY|SESSION_ENCOUNTER_ENTRY|PASS
+MPY|SESSION_ENCOUNTER_COMPLETE|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The pinned MicroPython raw probe crossed the `re.fullmatch` frontier and
 stopped at the next unrelated compatibility wall:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|1001952|ALLOC|22560
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1001872|ALLOC|22640
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'collections.abc'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|934288|ALLOC|90224
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|4
-MYP|DATACLASS|CONSTRUCTED|3
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|1001952|ALLOC|22560
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|1001872|ALLOC|22640
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'collections.abc'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|934288|ALLOC|90224
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|4
+MPY|DATACLASS|CONSTRUCTED|3
 ```
 
 The next gate must be derived from the observed `collections.abc` import
 failure. No speculative repair is documented here.
 
-## MYP8 - Portable `collections.abc` Boundary
+## MPY8 - Portable `collections.abc` Boundary
 
-MYP8 advances the pinned MicroPython qualification past the missing
+MPY8 advances the pinned MicroPython qualification past the missing
 `collections.abc` module without changing `root/src`, gameplay, content,
-persistence, semantic APIs, or the raw probe. MYP7 was sealed at:
+persistence, semantic APIs, or the raw probe. MPY7 was sealed at:
 
 ```text
 6b4883a833d53ce6bf412ed7957a7b72a5a51736
-MYP7 - Add Portable Regex Fullmatch Boundary
+MPY7 - Add Portable Regex Fullmatch Boundary
 ```
 
 ### Production audit
@@ -1241,7 +1241,7 @@ typing system is added.
 
 ### Selected boundary
 
-MYP8 adds:
+MPY8 adds:
 
 ```text
 root/portability/micropython/collections_abc_compat.py
@@ -1257,7 +1257,7 @@ Mapping = (dict, _ReadonlyMapping)
 Sequence = (list, tuple)
 ```
 
-This preserves dictionary and MYP1 read-only mapping recognition, ordered
+This preserves dictionary and MPY1 read-only mapping recognition, ordered
 list/tuple enemy groups, and DD's explicit exclusion of strings, bytes, and
 bytearrays at the Battle call site. No global `isinstance` replacement,
 parent-module proxy, general ABC framework, or `Counter` implementation is
@@ -1270,18 +1270,18 @@ as `Mapping[str, int]` valid while still proving that the compatibility module
 was explicitly installed in an isolated subprocess. Normal CPython imports
 remain standard-library imports.
 
-### MYP8 qualification evidence
+### MPY8 qualification evidence
 
 The direct qualification under the pinned MicroPython runtime passed the
 qualified imports, mapping/sequence checks, annotation probe, and real
 Weapon/WeaponSpec construction:
 
 ```text
-MYP8|NATIVE|ABC_IMPORT|FAIL|ImportError|no module named 'collections.abc'
-MYP8|IMPORT|MAPPING_SEQUENCE|PASS
-MYP8|ANNOTATION|EVALUATED| False
-MYP8|WEAPON|REAL_PATH|PASS
-MYP8|COUNTER|NATIVE_AVAILABLE| False
+MPY8|NATIVE|ABC_IMPORT|FAIL|ImportError|no module named 'collections.abc'
+MPY8|IMPORT|MAPPING_SEQUENCE|PASS
+MPY8|ANNOTATION|EVALUATED| False
+MPY8|WEAPON|REAL_PATH|PASS
+MPY8|COUNTER|NATIVE_AVAILABLE| False
 ```
 
 The forced CPython subprocess tests passed native-module retention,
@@ -1293,19 +1293,19 @@ The unchanged raw probe crossed `collections.abc` and stopped at the next
 unrelated runtime incompatibility:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
-MYP|CATALOG_IMPORT|FAIL|AttributeError|'str' object has no attribute 'isascii'
-MYP|MEMORY|CATALOG_IMPORT|FAIL|FREE|906848|ALLOC|117664
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|10
-MYP|DATACLASS|CONSTRUCTED|7
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MPY|CATALOG_IMPORT|FAIL|AttributeError|'str' object has no attribute 'isascii'
+MPY|MEMORY|CATALOG_IMPORT|FAIL|FREE|906848|ALLOC|117664
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|10
+MPY|DATACLASS|CONSTRUCTED|7
 ```
 
 The original traceback identifies `DrifterSpec.__post_init__` at
@@ -1316,7 +1316,7 @@ called while the generated catalog constructs Azhvielle's specification:
 AttributeError: 'str' object has no attribute 'isascii'
 ```
 
-That `str.isascii` frontier is the next evidence-derived gate. MYP8 does not
+That `str.isascii` frontier is the next evidence-derived gate. MPY8 does not
 repair or speculate about it. The pinned external runtime evidence remains:
 
 ```text
@@ -1326,24 +1326,24 @@ Source checkout: clean
 Reported platform: win32
 ```
 
-MYP8 changed zero `root/src` production files, gameplay behavior, content,
+MPY8 changed zero `root/src` production files, gameplay behavior, content,
 persistence, semantic APIs, and raw-probe code. Dataclass, enum, keyword, and
 regex boundaries remain unchanged.
 
-## MYP9 - Portable ASCII String Validation
+## MPY9 - Portable ASCII String Validation
 
-MYP9 advances the pinned MicroPython qualification past the missing
+MPY9 advances the pinned MicroPython qualification past the missing
 `str.isascii()` and `str.isdecimal()` methods without adding a compatibility
-module or changing the raw probe. MYP8 was sealed at:
+module or changing the raw probe. MPY8 was sealed at:
 
 ```text
 bb99b7e1e9360078b157a85400e3c9dea73a386f
-MYP8 - Add Portable Collections ABC Boundary
+MPY8 - Add Portable Collections ABC Boundary
 ```
 
 ### Historical failure and runtime evidence
 
-The MYP8 probe stopped during `CATALOG_IMPORT` while the generated catalog
+The MPY8 probe stopped during `CATALOG_IMPORT` while the generated catalog
 constructed a `DrifterSpec`. Its `__post_init__` used two methods that the
 pinned runtime does not provide:
 
@@ -1362,7 +1362,7 @@ builtins.str replacement: literal strings remain builtin str
 ```
 
 Replacing `builtins.str` therefore cannot repair literal-string behavior, and
-the built-in string type cannot be extended. MYP9 uses the already qualified
+the built-in string type cannot be extended. MPY9 uses the already qualified
 regex boundary instead of global string patching or a string wrapper.
 
 ### Production audit and equivalent expression
@@ -1410,12 +1410,12 @@ The real catalog and Drifter path now construct successfully under the full
 existing compatibility stack:
 
 ```text
-MYP9|STR|ISASCII|False
-MYP9|STR|ISDECIMAL|False
-MYP9|STR|ISDIGIT|True
-MYP9|STR|SETATTR|AttributeError|'type' object has no attribute 'isascii'
-MYP9|DRIFTER_SPEC|PASS|branoc|1
-MYP9|CATALOG|IMPORT|PASS
+MPY9|STR|ISASCII|False
+MPY9|STR|ISDECIMAL|False
+MPY9|STR|ISDIGIT|True
+MPY9|STR|SETATTR|AttributeError|'type' object has no attribute 'isascii'
+MPY9|DRIFTER_SPEC|PASS|branoc|1
+MPY9|CATALOG|IMPORT|PASS
 ```
 
 The unchanged raw probe completes every stage under native CPython `3.14.6`,
@@ -1426,42 +1426,42 @@ compatibility evidence.
 The unchanged raw probe through the pinned MicroPython bootstrap now reports:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
-MYP|SOURCE_PATH|BEGIN
-MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
-MYP|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
-MYP|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
-MYP|CATALOG_IMPORT|PASS
-MYP|DRIFTER_SPEC|BEGIN
-MYP|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
-MYP|MEMORY|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
-MYP|DRIFTER_SPEC|PASS
-MYP|NEW_GAME|BEGIN
-MYP|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
-MYP|MEMORY|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
-MYP|NEW_GAME|PASS
-MYP|FIRST_ENCOUNTER|BEGIN
-MYP|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
-MYP|MEMORY|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
-MYP|FIRST_ENCOUNTER|PASS
-MYP|ENEMY_STATE|BEGIN
-MYP|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
-MYP|MEMORY|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
-MYP|ENEMY_STATE|PASS
-MYP|BATTLE_CONSTRUCTION|BEGIN
-MYP|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
-MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|can't import name Counter
-MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|822256|ALLOC|202256
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|15
-MYP|DATACLASS|CONSTRUCTED|13
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MPY|SOURCE_PATH|BEGIN
+MPY|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
+MPY|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MPY|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
+MPY|CATALOG_IMPORT|PASS
+MPY|DRIFTER_SPEC|BEGIN
+MPY|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
+MPY|MEMORY|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
+MPY|DRIFTER_SPEC|PASS
+MPY|NEW_GAME|BEGIN
+MPY|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
+MPY|MEMORY|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
+MPY|NEW_GAME|PASS
+MPY|FIRST_ENCOUNTER|BEGIN
+MPY|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
+MPY|MEMORY|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
+MPY|FIRST_ENCOUNTER|PASS
+MPY|ENEMY_STATE|BEGIN
+MPY|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
+MPY|MEMORY|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
+MPY|ENEMY_STATE|PASS
+MPY|BATTLE_CONSTRUCTION|BEGIN
+MPY|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
+MPY|BATTLE_CONSTRUCTION|FAIL|ImportError|can't import name Counter
+MPY|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|822256|ALLOC|202256
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|15
+MPY|DATACLASS|CONSTRUCTED|13
 ```
 
 The original traceback is preserved by the probe:
@@ -1470,8 +1470,8 @@ The original traceback is preserved by the probe:
 ImportError: can't import name Counter
 ```
 
-The first post-MYP9 frontier is therefore the unrelated `Counter` import in
-`root/src/app/combat/battle.py`. MYP9 does not repair or speculate about it.
+The first post-MPY9 frontier is therefore the unrelated `Counter` import in
+`root/src/app/combat/battle.py`. MPY9 does not repair or speculate about it.
 The dataclass census remains dynamic and diagnostic: `EXPECTED` is the
 generated manifest set, while the decorated and constructed values are unique
 identity counts emitted by the bootstrap's `finally` path.
@@ -1487,7 +1487,7 @@ Reported platform: win32
 
 ### Scope and release result
 
-MYP9 changed exactly one production file:
+MPY9 changed exactly one production file:
 `root/src/app/content/drifter_spec.py`. It added no overlay, bootstrap, raw
 probe, tooling, generated-catalog, save-schema, gameplay, content, or
 semantic-API changes. The production impact is:
@@ -1507,19 +1507,19 @@ bootstrap changes: 0
 The next gate must be derived from the observed `Counter` failure. No
 speculative repair is documented here.
 
-## MYP10 - Remove Counter Runtime Dependency
+## MPY10 - Remove Counter Runtime Dependency
 
-MYP10 advances the pinned MicroPython qualification past the `Counter` import
-failure without adding a Counter compatibility layer. MYP9 was sealed at:
+MPY10 advances the pinned MicroPython qualification past the `Counter` import
+failure without adding a Counter compatibility layer. MPY9 was sealed at:
 
 ```text
 d78c07293219116f04f9c203b6654bf8b9728e35
-MYP9 - Repair Portable ASCII String Validation
+MPY9 - Repair Portable ASCII String Validation
 ```
 
 ### Historical failure and production audit
 
-The MYP9 raw probe stopped at `BATTLE_CONSTRUCTION` because
+The MPY9 raw probe stopped at `BATTLE_CONSTRUCTION` because
 `root/src/app/combat/battle.py` imported `Counter` from `collections`. The
 audited production use was limited to enemy display-label bookkeeping:
 
@@ -1530,7 +1530,7 @@ positions[name] += 1
 counts[name]
 ```
 
-The dynamic audit scans only `root/src/app/**/*.py`. After MYP10 it discovers:
+The dynamic audit scans only `root/src/app/**/*.py`. After MPY10 it discovers:
 
 ```text
 production Counter imports: none
@@ -1585,7 +1585,7 @@ test-only native CPython `Counter` reference over generated name sequences and
 real catalog-backed enemies. The result was:
 
 ```text
-MYP10 focused collections and Battle-label tests: 13 passed
+MPY10 focused collections and Battle-label tests: 13 passed
 ```
 
 Native CPython `3.14.6` and a forced regex-compatibility CPython subprocess
@@ -1597,7 +1597,7 @@ The direct pinned MicroPython qualification recorded the native capability and
 the next import wall:
 
 ```text
-MYP10|COUNTER|AVAILABLE|False
+MPY10|COUNTER|AVAILABLE|False
 ImportError: no module named 'typing'
 ```
 
@@ -1609,42 +1609,42 @@ attempted after that frontier.
 The unchanged raw probe through the pinned MicroPython bootstrap reports:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|MEMORY|BOOT|FREE|999552|ALLOC|24960
-MYP|SOURCE_PATH|BEGIN
-MYP|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
-MYP|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
-MYP|SOURCE_PATH|PASS
-MYP|CATALOG_IMPORT|BEGIN
-MYP|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
-MYP|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
-MYP|CATALOG_IMPORT|PASS
-MYP|DRIFTER_SPEC|BEGIN
-MYP|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
-MYP|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
-MYP|DRIFTER_SPEC|PASS
-MYP|NEW_GAME|BEGIN
-MYP|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
-MYP|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
-MYP|NEW_GAME|PASS
-MYP|FIRST_ENCOUNTER|BEGIN
-MYP|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
-MYP|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
-MYP|FIRST_ENCOUNTER|PASS
-MYP|ENEMY_STATE|BEGIN
-MYP|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
-MYP|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
-MYP|ENEMY_STATE|PASS
-MYP|BATTLE_CONSTRUCTION|BEGIN
-MYP|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
-MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
-MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|783840|ALLOC|240672
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|31
-MYP|DATACLASS|CONSTRUCTED|15
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|MEMORY|BOOT|FREE|999552|ALLOC|24960
+MPY|SOURCE_PATH|BEGIN
+MPY|MEMORY|SOURCE_PATH|BEFORE|FREE|999504|ALLOC|25008
+MPY|MEMORY|SOURCE_PATH|AFTER|FREE|999488|ALLOC|25024
+MPY|SOURCE_PATH|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|MEMORY|CATALOG_IMPORT|BEFORE|FREE|999488|ALLOC|25024
+MPY|MEMORY|CATALOG_IMPORT|AFTER|FREE|860288|ALLOC|164224
+MPY|CATALOG_IMPORT|PASS
+MPY|DRIFTER_SPEC|BEGIN
+MPY|MEMORY|DRIFTER_SPEC|BEFORE|FREE|860288|ALLOC|164224
+MPY|DRIFTER_SPEC|AFTER|FREE|860272|ALLOC|164240
+MPY|DRIFTER_SPEC|PASS
+MPY|NEW_GAME|BEGIN
+MPY|MEMORY|NEW_GAME|BEFORE|FREE|860288|ALLOC|164224
+MPY|NEW_GAME|AFTER|FREE|834000|ALLOC|190512
+MPY|NEW_GAME|PASS
+MPY|FIRST_ENCOUNTER|BEGIN
+MPY|MEMORY|FIRST_ENCOUNTER|BEFORE|FREE|833984|ALLOC|190528
+MPY|FIRST_ENCOUNTER|AFTER|FREE|833968|ALLOC|190544
+MPY|FIRST_ENCOUNTER|PASS
+MPY|ENEMY_STATE|BEGIN
+MPY|MEMORY|ENEMY_STATE|BEFORE|FREE|833968|ALLOC|190544
+MPY|ENEMY_STATE|AFTER|FREE|833440|ALLOC|191072
+MPY|ENEMY_STATE|PASS
+MPY|BATTLE_CONSTRUCTION|BEGIN
+MPY|MEMORY|BATTLE_CONSTRUCTION|BEFORE|FREE|833440|ALLOC|191072
+MPY|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
+MPY|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|783840|ALLOC|240672
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|31
+MPY|DATACLASS|CONSTRUCTED|15
 ```
 
 The original traceback is preserved:
@@ -1653,7 +1653,7 @@ The original traceback is preserved:
 ImportError: no module named 'typing'
 ```
 
-The next gate must be derived from this observed `typing` failure. MYP10 does
+The next gate must be derived from this observed `typing` failure. MPY10 does
 not repair or speculate about it. The dataclass census remains dynamic and
 diagnostic, with unique identity sets rather than construction totals.
 
@@ -1668,7 +1668,7 @@ Reported platform: win32
 
 ### Scope and release result
 
-MYP10 changed exactly one production file:
+MPY10 changed exactly one production file:
 `root/src/app/combat/battle.py`. It changed no compatibility overlay,
 bootstrap, raw probe, save schema, content, or semantic API. The production
 impact is:
@@ -1694,25 +1694,25 @@ schema changed: 0
 generated catalog changed: 0
 ```
 
-## MYP11 - Portable Typing and Protocol Boundary
+## MPY11 - Portable Typing and Protocol Boundary
 
-MYP11 advances the raw MicroPython qualification past the `typing` import
-failure recorded at MYP10. The baseline was:
+MPY11 advances the raw MicroPython qualification past the `typing` import
+failure recorded at MPY10. The baseline was:
 
 ```text
-MYP10 sealed SHA: 00b7733c02a8b78ebfb856ccbe5fc9ea119f6fe9
+MPY10 sealed SHA: 00b7733c02a8b78ebfb856ccbe5fc9ea119f6fe9
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 Platform: win32
 ```
 
-The original MYP10 frontier was:
+The original MPY10 frontier was:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
+MPY|BATTLE_CONSTRUCTION|FAIL|ImportError|no module named 'typing'
 ```
 
-MYP11 keeps native `typing` for CPython and static tooling. Its only
+MPY11 keeps native `typing` for CPython and static tooling. Its only
 MicroPython compatibility module is the import-only subset at
 `root/portability/micropython/typing.py`. No file under `root/src` imports the
 overlay directly.
@@ -1822,7 +1822,7 @@ packaging continue to use the standard-library module.
 
 ### Qualification results
 
-The focused MYP11 contract and forced-overlay tests pass. The forced tests
+The focused MPY11 contract and forced-overlay tests pass. The forced tests
 run in subprocesses and verify the overlay's module origin, all four aliases,
 real combatants, structural UI values, callability rejection, and process
 isolation. Native tests continue to exercise CPython Protocol acceptance and
@@ -1832,32 +1832,32 @@ Battle, M10, and M11 contracts.
 The native CPython raw probe reaches every current stage:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|DRIFTER_SPEC|PASS
-MYP|NEW_GAME|PASS
-MYP|FIRST_ENCOUNTER|PASS
-MYP|ENEMY_STATE|PASS
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|PASS
-MYP|BATTLE_INPUT|PASS
-MYP|BATTLE_COMPLETE|PASS
-MYP|SESSION_IMPORT|PASS
-MYP|SESSION_CONSTRUCTION|PASS
-MYP|SESSION_VIEW|PASS
-MYP|SESSION_ENCOUNTER_ENTRY|PASS
-MYP|SESSION_ENCOUNTER_COMPLETE|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|CATALOG_IMPORT|PASS
+MPY|DRIFTER_SPEC|PASS
+MPY|NEW_GAME|PASS
+MPY|FIRST_ENCOUNTER|PASS
+MPY|ENEMY_STATE|PASS
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|PASS
+MPY|BATTLE_INPUT|PASS
+MPY|BATTLE_COMPLETE|PASS
+MPY|SESSION_IMPORT|PASS
+MPY|SESSION_CONSTRUCTION|PASS
+MPY|SESSION_VIEW|PASS
+MPY|SESSION_ENCOUNTER_ENTRY|PASS
+MPY|SESSION_ENCOUNTER_COMPLETE|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The unchanged raw probe through the complete pinned MicroPython bootstrap
 crosses the former typing wall. Its first unrelated frontier is:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
-MYP|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|733248|ALLOC|291264
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|46
-MYP|DATACLASS|CONSTRUCTED|17
+MPY|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
+MPY|MEMORY|BATTLE_CONSTRUCTION|FAIL|FREE|733248|ALLOC|291264
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|46
+MPY|DATACLASS|CONSTRUCTED|17
 ```
 
 The original traceback is preserved and identifies the next wall:
@@ -1868,7 +1868,7 @@ SyntaxError: *x must be assignment target
 ```
 
 The preceding MicroPython stages all pass through `ENEMY_STATE`. The typing
-failure is therefore crossed; MYP11 does not repair this unrelated syntax
+failure is therefore crossed; MPY11 does not repair this unrelated syntax
 limitation, nor does it speculate about the next gate.
 
 ### Scope and boundary
@@ -1887,20 +1887,20 @@ raw probe changed: 0
 browser, Android, C++, or platform architecture changed: 0
 ```
 
-MYP11 preserves one authoritative gameplay implementation. The new portable
+MPY11 preserves one authoritative gameplay implementation. The new portable
 boundary is limited to import markers and the three runtime structural checks;
 it does not introduce nominal combatant fallbacks, Protocol metaclass
 emulation, global type patching, source transformation, or a bootstrap
 redesign. The next gate must be derived from the observed
 `battle_session.py` syntax failure.
 
-## MYP12 - Portable Starred Tuple Expressions
+## MPY12 - Portable Starred Tuple Expressions
 
-MYP12 advances the pinned MicroPython qualification past the parser failure
-recorded at MYP11. The baseline was:
+MPY12 advances the pinned MicroPython qualification past the parser failure
+recorded at MPY11. The baseline was:
 
 ```text
-MYP11 sealed SHA: bd7726bb7d73cb7d2c3967071828de05ebdc72a9
+MPY11 sealed SHA: bd7726bb7d73cb7d2c3967071828de05ebdc72a9
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 Platform: win32
@@ -1909,7 +1909,7 @@ Platform: win32
 The previous raw-probe frontier was:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
+MPY|BATTLE_CONSTRUCTION|FAIL|SyntaxError|*x must be assignment target
 ```
 
 The pinned parser rejects a load-context starred tuple display such as:
@@ -1991,13 +1991,13 @@ The four changed presentation surfaces are protected by their existing
 character-profile and terminal UI tests:
 
 ```text
-MYP12 presentation and syntax-focused tests: 109 passed
-MYP12 cumulative portability and presentation suite: 222 passed
+MPY12 presentation and syntax-focused tests: 109 passed
+MPY12 cumulative portability and presentation suite: 222 passed
 Full DD suite: 1,383 passed
 ```
 
 Native CPython and the isolated forced-overlay CPython raw probes both reach
-`MYP|RESULT|RAW_PROBE_STAGES_COMPLETE`.
+`MPY|RESULT|RAW_PROBE_STAGES_COMPLETE`.
 
 The direct pinned-MicroPython qualification imported
 `battle_session` and `character_profile_presenter` successfully, then
@@ -2011,17 +2011,17 @@ This stopped that direct terminal-module qualification without stubbing or
 repairing the unrelated standard-library boundary. `terminal_overworld_ui`
 was not forced past that same frontier.
 
-The unchanged raw probe through the complete MYP compatibility bootstrap
+The unchanged raw probe through the complete MPY compatibility bootstrap
 crosses all nine starred tuple displays. Its first unrelated frontier is now
 in Battle view construction:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
-MYP|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|55
-MYP|DATACLASS|CONSTRUCTED|18
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
+MPY|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|55
+MPY|DATACLASS|CONSTRUCTED|18
 ```
 
 The original traceback is preserved:
@@ -2040,8 +2040,8 @@ File "root/src/app/presentation/battle_presenter.py", line 92, in build
 TypeError: function doesn't take keyword arguments
 ```
 
-All prior raw stages through `BATTLE_CONSTRUCTION` pass. MYP12 does not
-repair this next keyword-argument limitation or speculate about MYP13.
+All prior raw stages through `BATTLE_CONSTRUCTION` pass. MPY12 does not
+repair this next keyword-argument limitation or speculate about MPY13.
 
 ### Scope and release result
 
@@ -2062,13 +2062,13 @@ historical docs/mpy changed: 0
 
 The next gate is derived from the observed `BattleView` construction failure.
 
-## MYP13 - Repair Portable Strict Zip Boundary
+## MPY13 - Repair Portable Strict Zip Boundary
 
-MYP13 advances the pinned MicroPython qualification past the `BattleView`
-failure recorded at the sealed MYP12 baseline:
+MPY13 advances the pinned MicroPython qualification past the `BattleView`
+failure recorded at the sealed MPY12 baseline:
 
 ```text
-MYP12 sealed SHA: d421a5b7bbfb5f39006983d01b66818de6aea7c0
+MPY12 sealed SHA: d421a5b7bbfb5f39006983d01b66818de6aea7c0
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 Platform: win32
@@ -2077,12 +2077,12 @@ Platform: win32
 The previous raw-probe frontier was:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
-MYP|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|55
-MYP|DATACLASS|CONSTRUCTED|18
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|FAIL|TypeError|function doesn't take keyword arguments
+MPY|MEMORY|BATTLE_VIEW|FAIL|FREE|711808|ALLOC|312704
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|55
+MPY|DATACLASS|CONSTRUCTED|18
 ```
 
 ### Strict-zip capability evidence
@@ -2215,13 +2215,13 @@ label equivalence oracle.
 The native CPython raw probe and forced-overlay CPython raw probe both reach:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
-The focused MYP13 contract and presenter regression tests pass:
+The focused MPY13 contract and presenter regression tests pass:
 
 ```text
-MYP13 focused tests: 23 passed
+MPY13 focused tests: 23 passed
 Cumulative portability suite: 194 passed
 Full DD suite: 1,387 passed
 ```
@@ -2229,15 +2229,15 @@ Full DD suite: 1,387 passed
 The unchanged pinned MicroPython probe now reports:
 
 ```text
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|PASS
-MYP|BATTLE_INPUT|PASS
-MYP|BATTLE_COMPLETE|PASS
-MYP|SESSION_IMPORT|FAIL|ImportError|no module named 'tempfile'
-MYP|MEMORY|SESSION_IMPORT|FAIL|FREE|708720|ALLOC|315792
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|55
-MYP|DATACLASS|CONSTRUCTED|28
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|PASS
+MPY|BATTLE_INPUT|PASS
+MPY|BATTLE_COMPLETE|PASS
+MPY|SESSION_IMPORT|FAIL|ImportError|no module named 'tempfile'
+MPY|MEMORY|SESSION_IMPORT|FAIL|FREE|708720|ALLOC|315792
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|55
+MPY|DATACLASS|CONSTRUCTED|28
 ```
 
 The last passing stage is `BATTLE_COMPLETE`. The next unrelated frontier is
@@ -2256,7 +2256,7 @@ Traceback (most recent call last):
 ImportError: no module named 'tempfile'
 ```
 
-MYP13 does not repair `tempfile`, persistence, or the separately deferred
+MPY13 does not repair `tempfile`, persistence, or the separately deferred
 terminal `shutil` boundary.
 
 ### Scope and release result
@@ -2276,11 +2276,11 @@ compatibility overlays changed: 0
 historical docs/mpy changed: 0
 ```
 
-MYP14 is derived only from the new `SESSION_IMPORT` failure at `tempfile`.
+MPY14 is derived only from the new `SESSION_IMPORT` failure at `tempfile`.
 
-## MYP14 - Decouple Session Persistence Import Boundary
+## MPY14 - Decouple Session Persistence Import Boundary
 
-MYP13 was sealed at:
+MPY13 was sealed at:
 
 ```text
 cc66563cd94c442ca4b1a95afbe09d1dca3a4828
@@ -2305,7 +2305,7 @@ method contract during ordinary headless gameplay.
 
 ### Persistence boundary correction
 
-MYP14 added the lightweight `app.game.save_contract` module containing:
+MPY14 added the lightweight `app.game.save_contract` module containing:
 
 ```text
 SaveLoadStatus
@@ -2327,7 +2327,7 @@ encounter creation, battle finalization, rests, and ordinary session
 construction do not resolve it. Explicit structural repository injection
 continues to bypass the default adapter.
 
-This is not SAVE-ARCH. MYP14 adds no backend, save schema, payload shape,
+This is not SAVE-ARCH. MPY14 adds no backend, save schema, payload shape,
 filesystem overlay, `tempfile` shim, `pathlib` shim, or MicroPython-specific
 gameplay branch. Save/load, atomic replacement, schema-7 migration reporting,
 and schema-8 behavior remain owned by the existing concrete repository.
@@ -2361,7 +2361,7 @@ Traceback (most recent call last):
 ImportError: no module named 'tempfile'
 ```
 
-This confirms MYP14 crossed an import boundary rather than repairing or
+This confirms MPY14 crossed an import boundary rather than repairing or
 masking the unavailable filesystem module. The lightweight contract import
 passes:
 
@@ -2376,7 +2376,7 @@ With the existing regex and `collections.abc` setup applied, a direct
 ImportError: no module named 'itertools'
 ```
 
-The traceback identifies the first post-MYP14 frontier as:
+The traceback identifies the first post-MPY14 frontier as:
 
 ```text
 app.game.overworld_session
@@ -2384,23 +2384,23 @@ app.game.overworld_session
   -> from itertools import groupby
 ```
 
-No `itertools` repair is included in MYP14. Because session import stops at
+No `itertools` repair is included in MPY14. Because session import stops at
 this unrelated wall, direct session construction and initial view are not
 claimed beyond the point proven by the unchanged raw probe.
 
 The unchanged pinned MicroPython raw probe reports:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|SESSION_IMPORT|BEGIN
-MYP|SESSION_IMPORT|FAIL|ImportError|no module named 'itertools'
-MYP|MEMORY|SESSION_IMPORT|FAIL|FREE|689632|ALLOC|334880
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|70
-MYP|DATACLASS|CONSTRUCTED|28
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|SESSION_IMPORT|BEGIN
+MPY|SESSION_IMPORT|FAIL|ImportError|no module named 'itertools'
+MPY|MEMORY|SESSION_IMPORT|FAIL|FREE|689632|ALLOC|334880
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|70
+MPY|DATACLASS|CONSTRUCTED|28
 ```
 
 The last passing stage is `BATTLE_COMPLETE`. `SESSION_IMPORT` itself begins
@@ -2425,17 +2425,17 @@ still complete every unchanged raw-probe stage. The forced-overlay bootstrap
 also emitted its normal dynamic census after completion:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|73
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|73
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 The final CPython verification totals are:
 
 ```text
 Full DD suite: 1,404 passed
-Cumulative MYP13 plus MYP14 suite: 233 passed
+Cumulative MPY13 plus MPY14 suite: 233 passed
 ```
 
 ### Scope and release result
@@ -2460,12 +2460,12 @@ filesystem compatibility layers added: 0
 historical docs/mpy changes: 0
 ```
 
-MYP15 is derived only from the new `itertools` frontier. Historical
+MPY15 is derived only from the new `itertools` frontier. Historical
 `docs/mpy/` files remain untracked, untouched, and uncommitted.
 
-## MYP15 - Remove Itertools Groupby Runtime Dependency
+## MPY15 - Remove Itertools Groupby Runtime Dependency
 
-MYP14 was sealed at:
+MPY14 was sealed at:
 
 ```text
 3af2e4d2da435f29b6559f087aeb0a705cbe0fd0
@@ -2516,7 +2516,7 @@ operation was adjacent-run grouping, not global counting. For example:
 
 ### Source correction
 
-MYP15 removed the production `itertools` import and added the private
+MPY15 removed the production `itertools` import and added the private
 `_adjacent_run_counts(values)` helper in the same presenter module. It uses
 ordinary tuple/list operations to preserve contiguous run boundaries and
 authored order. It does not implement or add an `itertools` compatibility
@@ -2570,17 +2570,17 @@ ImportError: no module named 'itertools'
 The unchanged pinned MicroPython bootstrap probe reports:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|SESSION_IMPORT|PASS
-MYP|SESSION_CONSTRUCTION|PASS
-MYP|SESSION_VIEW|FAIL|TypeError|function takes 1 positional arguments but 2 were given
-MYP|MEMORY|SESSION_VIEW|FAIL|FREE|672400|ALLOC|352112
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|73
-MYP|DATACLASS|CONSTRUCTED|28
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|SESSION_IMPORT|PASS
+MPY|SESSION_CONSTRUCTION|PASS
+MPY|SESSION_VIEW|FAIL|TypeError|function takes 1 positional arguments but 2 were given
+MPY|MEMORY|SESSION_VIEW|FAIL|FREE|672400|ALLOC|352112
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|73
+MPY|DATACLASS|CONSTRUCTED|28
 ```
 
 The last passing stage is `SESSION_CONSTRUCTION`. The next frontier is a new,
@@ -2600,21 +2600,21 @@ Traceback (most recent call last):
 TypeError: function takes 1 positional arguments but 2 were given
 ```
 
-MYP15 does not investigate or repair this `SESSION_VIEW` frontier. It is the
-MYP16 starting point.
+MPY15 does not investigate or repair this `SESSION_VIEW` frontier. It is the
+MPY16 starting point.
 
 Native CPython and the forced-overlay CPython bootstrap both report:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The verification totals are:
 
 ```text
 Full DD suite: 1,415 passed
-MYP15 cumulative portability suite: 259 passed
-MYP15 helper/audit focus: 26 passed
+MPY15 cumulative portability suite: 259 passed
+MPY15 helper/audit focus: 26 passed
 ```
 
 ### Scope and release result
@@ -2635,13 +2635,13 @@ itertools compatibility overlay added: 0
 historical docs/mpy changes: 0
 ```
 
-MYP15 adds no authored encounter composition changes and no gameplay or
+MPY15 adds no authored encounter composition changes and no gameplay or
 session-state changes. Historical `docs/mpy/` files remain untracked,
 untouched, and uncommitted.
 
-## MYP16 - Repair Portable Next Default Boundary
+## MPY16 - Repair Portable Next Default Boundary
 
-MYP15 was sealed at:
+MPY15 was sealed at:
 
 ```text
 133846f6b15b0ea3ed2153af69b104a0945b3fcf
@@ -2660,7 +2660,7 @@ The traceback terminated at `OverworldPresenter.build()` while evaluating
 the selected-inventory-item lookup with `next(..., None)`. The pinned
 MicroPython Windows runtime exposes the one-argument `next()` implementation;
 the two-argument form is available only when `MICROPY_PY_BUILTINS_NEXT2` is
-enabled. MYP16 did not enable that feature or rebuild the interpreter.
+enabled. MPY16 did not enable that feature or rebuild the interpreter.
 
 ### Root-cause evidence
 
@@ -2700,7 +2700,7 @@ The permanent AST contract excludes test and tooling code and enforces the
 runtime invariant that direct production `next()` calls with two or more
 positional arguments remain absent.
 
-MYP16 added `root/src/app/iteration.py` with the deliberately narrow
+MPY16 added `root/src/app/iteration.py` with the deliberately narrow
 `first_or_none(values)` primitive. It returns the first yielded value or
 `None` when the iterable is exhausted, without materializing the iterable or
 consuming a second value. All eight callers now use this primitive while
@@ -2733,7 +2733,7 @@ None
 a
 ```
 
-The direct two-argument preflight still fails after MYP16:
+The direct two-argument preflight still fails after MPY16:
 
 ```text
 Traceback (most recent call last):
@@ -2749,34 +2749,34 @@ surface instead of patching `builtins.next` or changing MicroPython.
 Native CPython and the forced-overlay CPython bootstrap both still report:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The unchanged pinned MicroPython bootstrap probe now reports:
 
 ```text
-MYP|BOOT|PASS
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|PASS
-MYP|BATTLE_INPUT|PASS
-MYP|BATTLE_COMPLETE|PASS
-MYP|SESSION_IMPORT|PASS
-MYP|SESSION_CONSTRUCTION|PASS
-MYP|SESSION_VIEW|PASS
-MYP|SESSION_ENCOUNTER_ENTRY|FAIL|TypeError|rng must provide randint
-MYP|MEMORY|SESSION_ENCOUNTER_ENTRY|FAIL|FREE|671840|ALLOC|352672
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|73
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|BOOT|PASS
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|PASS
+MPY|BATTLE_INPUT|PASS
+MPY|BATTLE_COMPLETE|PASS
+MPY|SESSION_IMPORT|PASS
+MPY|SESSION_CONSTRUCTION|PASS
+MPY|SESSION_VIEW|PASS
+MPY|SESSION_ENCOUNTER_ENTRY|FAIL|TypeError|rng must provide randint
+MPY|MEMORY|SESSION_ENCOUNTER_ENTRY|FAIL|FREE|671840|ALLOC|352672
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|73
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 The last passing stage is `SESSION_VIEW`. The next unrelated frontier is
 `SESSION_ENCOUNTER_ENTRY`, where the existing deterministic route driver
-reaches a battle construction path requiring an RNG with `randint`. MYP16
-does not investigate or repair that frontier; it is the MYP17 starting point.
+reaches a battle construction path requiring an RNG with `randint`. MPY16
+does not investigate or repair that frontier; it is the MPY17 starting point.
 
 The original traceback is preserved:
 
@@ -2811,14 +2811,14 @@ persistence or save-schema changes: 0
 historical docs/mpy changes: 0
 ```
 
-MYP16 does not enable `MICROPY_PY_BUILTINS_NEXT2`, patch `builtins.next`,
+MPY16 does not enable `MICROPY_PY_BUILTINS_NEXT2`, patch `builtins.next`,
 add interpreter detection, alter first-match semantics, or change gameplay or
 session state. Historical `docs/mpy/` files remain untracked, untouched, and
 uncommitted.
 
-## MYP17 - Repair Portable Runtime Random Boundary
+## MPY17 - Repair Portable Runtime Random Boundary
 
-MYP16 was sealed at:
+MPY16 was sealed at:
 
 ```text
 dbc1da7586f209837aede5b04c670aa830e62f62
@@ -2866,7 +2866,7 @@ An independent pinned-runtime call to `random.getrandbits(8)` returned an
 `int` in the inclusive range `0..255`. This is the available primitive. The
 upstream boundary is `MICROPY_PY_RANDOM_EXTRA_FUNCS`: the Windows standard
 build enables `MICROPY_PY_RANDOM` without enabling the extra `randint`,
-`choice`, and `randrange` functions. MYP17 does not rebuild MicroPython or
+`choice`, and `randrange` functions. MPY17 does not rebuild MicroPython or
 enable that feature.
 
 ### Production random census
@@ -2889,11 +2889,11 @@ CombatResolver:  randint
 
 No combat code required `random`, `uniform`, `shuffle`, `sample`, or
 `randrange`. `world/event.py` remains a separate legacy/terminal path and was
-not changed in MYP17.
+not changed in MPY17.
 
 ### Portable adapter
 
-MYP17 added `root/src/app/randomness.py` and changed only the combat imports
+MPY17 added `root/src/app/randomness.py` and changed only the combat imports
 in `battle.py` and `resolver.py` to use `app.randomness as random`. The adapter
 performs capability lookup at call time, delegates to native
 `random.randint` and `random.choice` when available, and otherwise derives
@@ -2932,54 +2932,54 @@ functions remained unavailable:
 NATIVE True False False
 7
 only
-MYP_RANGE True
-MYP_CHOICE True
-RANDOMNESS|MYP|PASS
+MPY_RANGE True
+MPY_CHOICE True
+RANDOMNESS|MPY|PASS
 ```
 
 Both native CPython and forced-overlay CPython raw probes continued to reach:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The unchanged pinned MicroPython probe now reaches every current stage:
 
 ```text
-MYP|IMPLEMENTATION|micropython
-MYP|VERSION|1.29.0
-MYP|PLATFORM|win32
-MYP|BATTLE_CONSTRUCTION|PASS
-MYP|BATTLE_VIEW|PASS
-MYP|BATTLE_INPUT|PASS
-MYP|BATTLE_COMPLETE|PASS
-MYP|SESSION_IMPORT|PASS
-MYP|SESSION_CONSTRUCTION|PASS
-MYP|SESSION_VIEW|PASS
-MYP|SESSION_ENCOUNTER_ENTRY|PASS
-MYP|SESSION_ENCOUNTER_COMPLETE|PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
-MYP|DATACLASS|EXPECTED|74
-MYP|DATACLASS|DECORATED|73
-MYP|DATACLASS|CONSTRUCTED|33
+MPY|IMPLEMENTATION|micropython
+MPY|VERSION|1.29.0
+MPY|PLATFORM|win32
+MPY|BATTLE_CONSTRUCTION|PASS
+MPY|BATTLE_VIEW|PASS
+MPY|BATTLE_INPUT|PASS
+MPY|BATTLE_COMPLETE|PASS
+MPY|SESSION_IMPORT|PASS
+MPY|SESSION_CONSTRUCTION|PASS
+MPY|SESSION_VIEW|PASS
+MPY|SESSION_ENCOUNTER_ENTRY|PASS
+MPY|SESSION_ENCOUNTER_COMPLETE|PASS
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|DATACLASS|EXPECTED|74
+MPY|DATACLASS|DECORATED|73
+MPY|DATACLASS|CONSTRUCTED|33
 ```
 
 The session-entry memory evidence after the adapter was installed was:
 
 ```text
-MYP|MEMORY|SESSION_ENCOUNTER_ENTRY|AFTER|FREE|668112|ALLOC|356400
-MYP|MEMORY|SESSION_ENCOUNTER_COMPLETE|AFTER|FREE|669536|ALLOC|354976
+MPY|MEMORY|SESSION_ENCOUNTER_ENTRY|AFTER|FREE|668112|ALLOC|356400
+MPY|MEMORY|SESSION_ENCOUNTER_COMPLETE|AFTER|FREE|669536|ALLOC|354976
 ```
 
-There is no post-MYP17 failure traceback: the previous `rng must provide
+There is no post-MPY17 failure traceback: the previous `rng must provide
 randint` failure is crossed and the raw probe completes. The native
 MicroPython `random.randint` and `random.choice` functions remain absent;
 DD's adapter supplies only the qualified runtime surface.
 
 ### Verification and scope
 
-The full CPython suite passed `1,440` tests. The exact cumulative MYP16 suite
-plus MYP17 random contract and combat regressions passed `519` tests. The
+The full CPython suite passed `1,440` tests. The exact cumulative MPY16 suite
+plus MPY17 random contract and combat regressions passed `519` tests. The
 random-focused qualification subset passed `175` tests. Compileall,
 dataclass-manifest freshness, and `git diff --check` were also run after the
 implementation.
@@ -3000,18 +3000,18 @@ content, route, persistence/schema:    0
 historical docs/mpy changes:           0
 ```
 
-MYP17 does not enable `MICROPY_PY_RANDOM_EXTRA_FUNCS`, replace MicroPython's
+MPY17 does not enable `MICROPY_PY_RANDOM_EXTRA_FUNCS`, replace MicroPython's
 random module, patch builtins or `sys.modules`, add interpreter detection, or
 change combat probabilities and gameplay rules. Historical `docs/mpy/` files
 remain untracked, untouched, and uncommitted.
 
-## MYP18 - Full Surface Route Qualification
+## MPY18 - Full Surface Route Qualification
 
-MYP17 was sealed at:
+MPY17 was sealed at:
 
 ```text
 4ac69098c173d7fecbd590eb329c3222af00876b
-MYP17 - Repair Portable Runtime Random Boundary
+MPY17 - Repair Portable Runtime Random Boundary
 ```
 
 Its real default session path completed the first encounter and reached:
@@ -3019,10 +3019,10 @@ Its real default session path completed the first encounter and reached:
 ```text
 SESSION_ENCOUNTER_ENTRY     PASS
 SESSION_ENCOUNTER_COMPLETE  PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
-MYP18 changed no production source. It extended the qualification artifact
+MPY18 changed no production source. It extended the qualification artifact
 after the sealed stages, using a fresh Branoc game and fresh headless
 `OverworldSession` for the full authored route. The route driver uses the
 real session, `Battle`, `EnemyState`, `BattlePresenter`, and
@@ -3030,8 +3030,8 @@ real session, `Battle`, `EnemyState`, `BattlePresenter`, and
 probe-local Battle factory, resolver, and RNG so this gate measures route
 orchestration and progression rather than combat-balance randomness.
 
-MYP17 already qualified the real default session Battle, RNG adapter, and
-CombatResolver path. MYP18 therefore uses deterministic combat to make all
+MPY17 already qualified the real default session Battle, RNG adapter, and
+CombatResolver path. MPY18 therefore uses deterministic combat to make all
 eight encounters finish through the semantic Battle view/input contract:
 actions, enabled moves, and enabled targets. It does not claim statistically
 representative combat balance under MicroPython.
@@ -3100,28 +3100,28 @@ remained unmaterialized.
 ### Route results
 
 Native CPython, forced-overlay CPython, and pinned MicroPython all passed the
-sealed MYP17 stage prefix, all 12 route nodes, `SURFACE_ROUTE_COMPLETE`, and
+sealed MPY17 stage prefix, all 12 route nodes, `SURFACE_ROUTE_COMPLETE`, and
 `ROUTE_FINAL_STATE`, ending with:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 The route markers were:
 
 ```text
-MYP|ROUTE|surface_goblin_solo|PASS
-MYP|ROUTE|surface_goblin_pair|PASS
-MYP|ROUTE|surface_warrior_solo|PASS
-MYP|ROUTE|surface_rest_after_warrior_solo|PASS
-MYP|ROUTE|surface_warrior_pair|PASS
-MYP|ROUTE|surface_shaman_solo|PASS
-MYP|ROUTE|surface_shaman_pair|PASS
-MYP|ROUTE|surface_rest_after_shaman_pair|PASS
-MYP|ROUTE|surface_elite_patrol|PASS
-MYP|ROUTE|surface_rest_before_goblin_lord|PASS
-MYP|ROUTE|surface_goblin_lord|PASS
-MYP|ROUTE|surface_dungeon_entrance|PASS
+MPY|ROUTE|surface_goblin_solo|PASS
+MPY|ROUTE|surface_goblin_pair|PASS
+MPY|ROUTE|surface_warrior_solo|PASS
+MPY|ROUTE|surface_rest_after_warrior_solo|PASS
+MPY|ROUTE|surface_warrior_pair|PASS
+MPY|ROUTE|surface_shaman_solo|PASS
+MPY|ROUTE|surface_shaman_pair|PASS
+MPY|ROUTE|surface_rest_after_shaman_pair|PASS
+MPY|ROUTE|surface_elite_patrol|PASS
+MPY|ROUTE|surface_rest_before_goblin_lord|PASS
+MPY|ROUTE|surface_goblin_lord|PASS
+MPY|ROUTE|surface_dungeon_entrance|PASS
 ```
 
 Pinned MicroPython final state:
@@ -3150,7 +3150,7 @@ with no contextual route action.
 ### Route memory evidence
 
 Pinned MicroPython emitted the following per-node memory observations. Values
-are `FREE / ALLOC` bytes; no MYP18 threshold was applied.
+are `FREE / ALLOC` bytes; no MPY18 threshold was applied.
 
 ```text
 ROUTE_CONSTRUCTION                 646656/377856 -> 644816/379696
@@ -3182,13 +3182,13 @@ CONSTRUCTED: 35
 
 ### Verification and scope
 
-The full CPython suite passed `1,443` tests. The exact sealed MYP17
-cumulative portability suite plus MYP18 route qualification coverage passed
+The full CPython suite passed `1,443` tests. The exact sealed MPY17
+cumulative portability suite plus MPY18 route qualification coverage passed
 `553` tests. Compileall passed for `root/src`, `root/tests`, `root/tools`,
 and `root/portability`; the dataclass manifest remained current at 74
 entries; and `git diff --check` was clean.
 
-The permanent route-probe contract test checks the sealed MYP17 stage prefix,
+The permanent route-probe contract test checks the sealed MPY17 stage prefix,
 the exact twelve-node oracle, eight encounters, three Rests, fourteen enemy
 instances, final progression, final node, and the absence of filesystem or
 test-framework dependencies in the raw probe.
@@ -3211,22 +3211,22 @@ enemy instances qualified:             14
 historical docs/mpy changes:           0
 ```
 
-MYP18 is a qualification gate only. It adds no compatibility repair, does
+MPY18 is a qualification gate only. It adds no compatibility repair, does
 not alter authored route/content, does not change gameplay or session state,
 and does not import or instantiate desktop persistence during route traversal.
-The meaning of `MYP|RESULT|RAW_PROBE_STAGES_COMPLETE` is now the expanded
-full-route probe rather than only the MYP17 first-encounter horizon.
+The meaning of `MPY|RESULT|RAW_PROBE_STAGES_COMPLETE` is now the expanded
+full-route probe rather than only the MPY17 first-encounter horizon.
 
-## MYP19 - Constrained Heap Pressure
+## MPY19 - Constrained Heap Pressure
 
-MYP18 was sealed at:
+MPY18 was sealed at:
 
 ```text
 6eaafc416240b5344570e7dd7e349767f84538a5
-MYP18 - Qualify Full Surface Route
+MPY18 - Qualify Full Surface Route
 ```
 
-MYP19 preserved the complete MYP18 evidence-retaining route through:
+MPY19 preserved the complete MPY18 evidence-retaining route through:
 
 ```text
 ROUTE_CONSTRUCTION
@@ -3238,8 +3238,8 @@ ROUTE_FINAL_STATE
 Only after `ROUTE_FINAL_STATE` passed did the probe release its deliberately
 retained Battle and EnemyState evidence, validate the authoritative live game
 and session state, tear down the route references, and emit the final result
-marker. The marker now means the sealed MYP17 stages, the full MYP18 route,
-MYP19 evidence release, and MYP19 route-session teardown all passed.
+marker. The marker now means the sealed MPY17 stages, the full MPY18 route,
+MPY19 evidence release, and MPY19 route-session teardown all passed.
 
 ### Heap-control qualification
 
@@ -3260,7 +3260,7 @@ The Python-visible total is `512256` bytes, which is below the requested
 524288 bytes as expected from GC metadata and alignment. No MicroPython
 rebuild or configuration change was used.
 
-MYP19 distinguishes four observations:
+MPY19 distinguishes four observations:
 
 ```text
 qualification peak     route complete while Battle/enemy evidence is retained
@@ -3306,7 +3306,7 @@ qstr interning, and legitimate runtime caches may remain reachable.
 
 The host-only `root/tools/micropython_heap_sweep.py` runs the pinned executable
 without importing DD production modules. It uses `subprocess.run()` without a
-shell, preserves each command and return code, parses the existing `MYP|...`
+shell, preserves each command and return code, parses the existing `MPY|...`
 line protocol, and classifies each run as `PASS`, `MEMORY_LIMIT`, or
 `UNEXPECTED_FAILURE`. MemoryError output is pressure evidence; semantic or
 other runtime failures are not reclassified as memory limits.
@@ -3351,8 +3351,8 @@ The 416K pressure run's observed census at failure was `74 / 70 / 28`.
 The 448K run completed the full route in all three additional confirmations:
 
 ```text
-MYP19|STABLE_PASS|448K|STABLE_PASS|3/3
-MYP19|BOUNDARY|LOWER|416K|MEMORY_LIMIT|3/3
+MPY19|STABLE_PASS|448K|STABLE_PASS|3/3
+MPY19|BOUNDARY|LOWER|416K|MEMORY_LIMIT|3/3
 ```
 
 Therefore the smallest observed stable passing heap for this Windows
@@ -3368,13 +3368,13 @@ Native CPython and forced-overlay CPython both passed:
 ROUTE_FINAL_STATE PASS
 ROUTE_EVIDENCE_RELEASE PASS
 ROUTE_SESSION_TEARDOWN PASS
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 Pinned MicroPython passed the same stages at default heap, explicit 1024K,
 and every stable successful constrained heap listed above. The full CPython
-suite passed `1453` tests. The focused MYP19 contract suite passed `13`
-tests. The cumulative MYP18 suite plus MYP19 heap-sweep contract passed
+suite passed `1453` tests. The focused MPY19 contract suite passed `13`
+tests. The cumulative MPY18 suite plus MPY19 heap-sweep contract passed
 `563` tests. Compileall, the 74-entry dataclass manifest check, and
 `git diff --check` passed.
 
@@ -3390,40 +3390,40 @@ historical docs/mpy changes:           0
 final dataclasses:                      74 / 73 / 35
 ```
 
-MYP19 is a runtime-health stress test. It is not a PS5 RAM budget, does not
+MPY19 is a runtime-health stress test. It is not a PS5 RAM budget, does not
 model PS5 unified memory, and excludes native host, graphics, audio, assets,
 SDK, and GPU memory. It does not imply that an embedded MicroPython VM should
 receive the minimum passing heap observed here. A low-heap `MemoryError` is
 not itself a gameplay defect. The observed floor includes the conservative
-MYP18 workload with retained Battle/enemy evidence through
+MPY18 workload with retained Battle/enemy evidence through
 `ROUTE_FINAL_STATE`.
 
 ## Future Gates
 
 ```text
-MYP0  Raw probe; find the first real incompatibility.
-MYP1  First evidence-backed compatibility primitive.
-MYP2  Qualify the portable dataclass contract.
-MYP3  Portable dataclass field discovery and overlay; stop at enum.
-MYP4  Portable StrEnum overlay; stop at keyword.
-MYP5  Portable keyword boundary; stop at the next unrelated wall.
-MYP6  Qualify the next evidence-derived compatibility frontier.
-MYP7  Portable regex fullmatch boundary; stop at collections.abc.
-MYP8  Portable collections.abc boundary; stop at str.isascii.
-MYP9  Portable ASCII string validation; stop at the next unrelated wall.
-MYP10 Next evidence-derived compatibility frontier.
-MYP11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
-MYP12 Portable starred tuple expressions; stop at BattleView construction.
-MYP13 Portable strict zip boundary; stop at the tempfile persistence edge.
-MYP14 Session persistence import boundary; stop at itertools.
-MYP15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
-MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
-MYP17 Portable runtime random boundary.
-MYP18 Full surface route qualification.
-MYP19 Constrained heap pressure qualification.
-MYP20 Cross-runtime regression qualification and campaign closure: sealed.
+MPY0  Raw probe; find the first real incompatibility.
+MPY1  First evidence-backed compatibility primitive.
+MPY2  Qualify the portable dataclass contract.
+MPY3  Portable dataclass field discovery and overlay; stop at enum.
+MPY4  Portable StrEnum overlay; stop at keyword.
+MPY5  Portable keyword boundary; stop at the next unrelated wall.
+MPY6  Qualify the next evidence-derived compatibility frontier.
+MPY7  Portable regex fullmatch boundary; stop at collections.abc.
+MPY8  Portable collections.abc boundary; stop at str.isascii.
+MPY9  Portable ASCII string validation; stop at the next unrelated wall.
+MPY10 Next evidence-derived compatibility frontier.
+MPY11 Portable typing and Protocol boundary; stop at battle_session.py syntax.
+MPY12 Portable starred tuple expressions; stop at BattleView construction.
+MPY13 Portable strict zip boundary; stop at the tempfile persistence edge.
+MPY14 Session persistence import boundary; stop at itertools.
+MPY15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
+MPY16 Derived only from the new SESSION_VIEW MicroPython failure.
+MPY17 Portable runtime random boundary.
+MPY18 Full surface route qualification.
+MPY19 Constrained heap pressure qualification.
+MPY20 Cross-runtime regression qualification and campaign closure: sealed.
 
-No further nominal MYP gates are scheduled. Future qualification is
+No further nominal MPY gates are scheduled. Future qualification is
 evidence-driven and triggered by material runtime or architecture changes.
 ```
 
@@ -3431,13 +3431,13 @@ Hardware-specific heap results remain separate from the Windows-port language/im
 
 ## Repository Verification
 
-MYP13 verification was run from the nested `root/` project directory and
+MPY13 verification was run from the nested `root/` project directory and
 included the full suite, cumulative portability suite, compileall,
 dataclass-manifest freshness, and `git diff --check`. Runtime verification
 also included native CPython, forced-overlay CPython, the pinned strict-zip
 preflights, and the unchanged pinned MicroPython bootstrap probe.
 
-The expected tracked MYP13 changes are limited to:
+The expected tracked MPY13 changes are limited to:
 
 ```text
 root/src/app/combat/battle.py
@@ -3451,13 +3451,13 @@ docs/portability/micropython-probe.md
 No compatibility overlay, bootstrap, raw probe, generated metadata, save
 schema, gameplay, content, or historical `docs/mpy/` file changed.
 
-## MYP20 - Cross-Runtime Qualification Closure
+## MPY20 - Cross-Runtime Qualification Closure
 
-MYP20 was executed from the sealed MYP19 baseline:
+MPY20 was executed from the sealed MPY19 baseline:
 
 ```text
 896b1b39f24c0a35768f69d2394b124160c55c15
-MYP19 - Qualify Constrained Heap Pressure
+MPY19 - Qualify Constrained Heap Pressure
 ```
 
 The closure tool is host-side only:
@@ -3498,11 +3498,11 @@ MICROPYTHON_448K        micropython 1.29.0 win32
 The matrix result was:
 
 ```text
-MYP20|RUNTIME|CPYTHON_NATIVE|PASS
-MYP20|RUNTIME|CPYTHON_FORCED_OVERLAY|PASS
-MYP20|RUNTIME|MICROPYTHON_DEFAULT|PASS
-MYP20|RUNTIME|MICROPYTHON_448K|PASS
-MYP20|SEMANTIC_PARITY|PASS
+MPY20|RUNTIME|CPYTHON_NATIVE|PASS
+MPY20|RUNTIME|CPYTHON_FORCED_OVERLAY|PASS
+MPY20|RUNTIME|MICROPYTHON_DEFAULT|PASS
+MPY20|RUNTIME|MICROPYTHON_448K|PASS
+MPY20|SEMANTIC_PARITY|PASS
 ```
 
 The forced-overlay run is retained as a distinct middle runtime: native
@@ -3511,13 +3511,13 @@ compatibility surfaces on CPython, and pinned MicroPython proves the same
 authoritative headless runtime executes under the constrained interpreter.
 This is one gameplay implementation, not three gameplay implementations.
 
-### Fixed MYP19 pressure confirmation
+### Fixed MPY19 pressure confirmation
 
-MYP20 did not re-hunt the heap floor. It reran only the sealed boundary:
+MPY20 did not re-hunt the heap floor. It reran only the sealed boundary:
 
 ```text
-MYP20|HEAP|448K|STABLE_PASS|3/3
-MYP20|HEAP|416K|MEMORY_LIMIT_CONFIRMED|3/3
+MPY20|HEAP|448K|STABLE_PASS|3/3
+MPY20|HEAP|416K|MEMORY_LIMIT_CONFIRMED|3/3
 ```
 
 The 448K runs reached `ROUTE_FINAL_STATE`, `ROUTE_EVIDENCE_RELEASE`,
@@ -3529,7 +3529,7 @@ Windows MicroPython qualification floor, not a product or PS5 memory budget.
 ### Closure result
 
 ```text
-MYP20|RESULT|CLOSURE_COMPLETE
+MPY20|RESULT|CLOSURE_COMPLETE
 ```
 
 The qualified runtime surface remains:
@@ -3562,11 +3562,11 @@ Future MicroPython qualification is triggered only by material changes such
 as a runtime version change, new headless standard-library dependency,
 unqualified gameplay content, core session/combat architecture changes,
 dataclass-contract or overlay changes, persistence entering the constrained
-runtime contract, or a material target runtime change. No nominal MYP21 gate
+runtime contract, or a material target runtime change. No nominal MPY21 gate
 is scheduled.
 
 ```text
-Dungeon Drifters MicroPython portability campaign MYP0-MYP20: CLOSED.
+Dungeon Drifters MicroPython portability campaign MPY0-MPY20: CLOSED.
 
 The current authoritative headless gameplay runtime and authored surface-route
 contract are qualified on pinned MicroPython v1.29.0 without a second

@@ -1,10 +1,10 @@
-# MYP17 - Repair Portable Runtime Random Boundary
+# MPY17 - Repair Portable Runtime Random Boundary
 
-**Goal:** Advance pinned MicroPython `v1.29.0` beyond the sealed MYP16 `SESSION_ENCOUNTER_ENTRY` failure by providing the combat runtime with the narrow `randint` / `choice` surface it requires, using the `random.getrandbits()` primitive shared by CPython and the pinned MicroPython runtime when native convenience functions are unavailable.
+**Goal:** Advance pinned MicroPython `v1.29.0` beyond the sealed MPY16 `SESSION_ENCOUNTER_ENTRY` failure by providing the combat runtime with the narrow `randint` / `choice` surface it requires, using the `random.getrandbits()` primitive shared by CPython and the pinned MicroPython runtime when native convenience functions are unavailable.
 
 **Baseline:**
 ```text
-branch: myp
+branch: mpy
 SHA: dbc1da7586f209837aede5b04c670aa830e62f62
 
 MicroPython: v1.29.0
@@ -12,7 +12,7 @@ source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 platform: win32
 ```
 
-Sealed MYP16 frontier:
+Sealed MPY16 frontier:
 ```text
 BATTLE_CONSTRUCTION        PASS
 BATTLE_VIEW                PASS
@@ -45,7 +45,7 @@ OverworldSession.submit()
 
 The standalone Battle probe already passes because it injects its own deterministic RNG. The session probe constructs the real `Battle` class through `OverworldSession`, allowing `Battle`'s default `rng=random` to take effect.
 
-MYP17 repairs that production runtime boundary. It must not inject probe-only randomness or change `OverworldSession` simply to satisfy qualification.
+MPY17 repairs that production runtime boundary. It must not inject probe-only randomness or change `OverworldSession` simply to satisfy qualification.
 
 ## Root-Cause Qualification
 
@@ -78,7 +78,7 @@ print("GETRANDBITS|PASS")
 
 Record the actual results.
 
-Stop before implementation if `getrandbits` is absent or non-callable. Do not design another RNG source inside MYP17.
+Stop before implementation if `getrandbits` is absent or non-callable. Do not design another RNG source inside MPY17.
 
 The upstream explanation must also be recorded: pinned MicroPython places `randint`, `choice`, and `randrange` behind:
 ```text
@@ -140,7 +140,7 @@ sample
 randrange
 ```
 
-If this census differs, stop and report instead of silently expanding MYP17.
+If this census differs, stop and report instead of silently expanding MPY17.
 
 ## Architecture
 
@@ -363,11 +363,11 @@ Do **not** modify:
 root/src/app/world/event.py
 ```
 
-in MYP17.
+in MPY17.
 
 It is the third production stdlib-random import, but it is outside the sealed headless runtime path and its terminal `Events.avoid_battle()` behavior is unrelated to the observed `SESSION_ENCOUNTER_ENTRY` failure.
 
-After MYP17, the expected whole-app direct stdlib-random census is therefore:
+After MPY17, the expected whole-app direct stdlib-random census is therefore:
 ```text
 before: 3
 after:  2
@@ -516,7 +516,7 @@ battle.rng is app.randomness
 battle.resolver.rng is app.randomness
 ```
 
-This directly protects the exact path that failed under MYP16.
+This directly protects the exact path that failed under MPY16.
 
 ## Permanent AST Boundary
 
@@ -625,10 +625,10 @@ for _ in range(32):
     if value not in ("a", "b", "c"):
         raise AssertionError("choice escaped supplied sequence")
 
-print("RANDOMNESS|MYP|PASS")
+print("RANDOMNESS|MPY|PASS")
 ```
 
-The native MicroPython convenience functions must remain absent after MYP17.
+The native MicroPython convenience functions must remain absent after MPY17.
 
 That is expected evidence:
 ```text
@@ -638,7 +638,7 @@ DD randomness.randint: PASS
 DD randomness.choice:  PASS
 ```
 
-MYP17 crosses the runtime boundary without modifying the interpreter.
+MPY17 crosses the runtime boundary without modifying the interpreter.
 
 ## Raw Probe Qualification
 
@@ -675,7 +675,7 @@ RAW_PROBE_STAGES_COMPLETE
 
 Do not assume either later result.
 
-If the probe crosses the RNG validation and reaches a new unrelated failure, that is successful MYP17 evidence.
+If the probe crosses the RNG validation and reaches a new unrelated failure, that is successful MPY17 evidence.
 
 Record:
 ```text
@@ -697,7 +697,7 @@ Do not repair another incompatibility inside this gate.
 
 Both CPython probe modes must continue to reach:
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 This specifically verifies that introducing `app.randomness` did not alter the normal host runtime or forced portability overlay environment.
@@ -706,7 +706,7 @@ This specifically verifies that introducing `app.randomness` did not alter the n
 
 Run the full suite first.
 
-Then run the exact sealed MYP16 cumulative portability suite plus the new MYP17 contract and the random-sensitive combat regressions:
+Then run the exact sealed MPY16 cumulative portability suite plus the new MPY17 contract and the random-sensitive combat regressions:
 ```powershell
 Push-Location root
 
@@ -840,7 +840,7 @@ Update:
 docs/portability/micropython-probe.md
 ```
 
-Record the sealed MYP16 baseline:
+Record the sealed MPY16 baseline:
 ```text
 dbc1da7586f209837aede5b04c670aa830e62f62
 ```
@@ -907,12 +907,12 @@ scope counts
 
 Explicitly state:
 ```text
-MYP17 does not enable MICROPY_PY_RANDOM_EXTRA_FUNCS.
-MYP17 does not replace MicroPython's random module.
-MYP17 does not patch builtins or sys.modules.
-MYP17 does not add interpreter detection.
-MYP17 preserves CPython's native randint/choice behavior when available.
-MYP17 changes no combat probabilities or gameplay rules.
+MPY17 does not enable MICROPY_PY_RANDOM_EXTRA_FUNCS.
+MPY17 does not replace MicroPython's random module.
+MPY17 does not patch builtins or sys.modules.
+MPY17 does not add interpreter detection.
+MPY17 preserves CPython's native randint/choice behavior when available.
+MPY17 changes no combat probabilities or gameplay rules.
 ```
 
 Leave historical:
@@ -924,7 +924,7 @@ untouched and uncommitted.
 
 ## Stop Conditions
 
-Stop and request a revised MYP17 plan if any of these occurs:
+Stop and request a revised MPY17 plan if any of these occurs:
 ```text
 pinned random.getrandbits is unavailable
 
@@ -948,7 +948,7 @@ If:
 SESSION_ENCOUNTER_ENTRY
 ```
 
-passes and a new unrelated failure appears later, **MYP17 succeeded**.
+passes and a new unrelated failure appears later, **MPY17 succeeded**.
 
 Record that failure and continue only with:
 ```text
@@ -959,43 +959,43 @@ push
 exact-SHA CI
 ```
 
-Do not repair it inside MYP17.
+Do not repair it inside MPY17.
 
 ## Gate Renumbering
 
-Because MYP17 is now consumed by a real evidence-derived compatibility frontier, do not force the old route milestone into this commit.
+Because MPY17 is now consumed by a real evidence-derived compatibility frontier, do not force the old route milestone into this commit.
 
 Update future gates to:
 ```text
-MYP17 Portable runtime random boundary.
+MPY17 Portable runtime random boundary.
 
-MYP18 Eight encounters, three Rests, Dungeon Entrance.
+MPY18 Eight encounters, three Rests, Dungeon Entrance.
 
-MYP19 Constrained-target memory and runtime pressure.
+MPY19 Constrained-target memory and runtime pressure.
 
-MYP20 Cross-runtime regression qualification.
+MPY20 Cross-runtime regression qualification.
 ```
 
-If MYP17 exposes another unrelated compatibility failure before the current raw session stages complete, derive the next gate from that evidence instead of pretending MYP18 is ready for the entire route.
+If MPY17 exposes another unrelated compatibility failure before the current raw session stages complete, derive the next gate from that evidence instead of pretending MPY18 is ready for the entire route.
 
 ## Release
 
 Commit exactly:
 ```text
-MYP17 - Repair Portable Runtime Random Boundary
+MPY17 - Repair Portable Runtime Random Boundary
 ```
 
 Push:
 ```text
-myp
+mpy
 ```
 
 Verify:
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 tracked worktree clean
 exact-SHA CI completed successfully
 historical docs/mpy files unchanged and uncommitted
 ```
 
-The final MYP17 report must include the commit SHA/message, full-suite and cumulative totals, exact pre/post random census, pinned native random capability results, CPython delegation result, fallback rejection-sampling result, direct MicroPython adapter result, all raw session stages reached, last PASS, next FAIL or complete marker, traceback, memory, dataclass census, CI run ID/conclusion, branch synchronization, and historical-file preservation.
+The final MPY17 report must include the commit SHA/message, full-suite and cumulative totals, exact pre/post random census, pinned native random capability results, CPython delegation result, fallback rejection-sampling result, direct MicroPython adapter result, all raw session stages reached, last PASS, next FAIL or complete marker, traceback, memory, dataclass census, CI run ID/conclusion, branch synchronization, and historical-file preservation.

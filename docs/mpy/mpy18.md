@@ -1,13 +1,13 @@
-# MYP18 - Qualify Full Surface Route Under MicroPython
+# MPY18 - Qualify Full Surface Route Under MicroPython
 
 **Goal:** Extend the sealed MicroPython runtime qualification from one completed session encounter to the entire authored v0.3 surface route, proving that the same authoritative `OverworldSession` / `Battle` runtime can traverse all eight encounters, resolve all three Rests, defeat the Goblin Lord, apply progression/rewards, and arrive at Dungeon Entrance under pinned MicroPython `v1.29.0`.
 
-MYP18 is a **qualification gate**, not a compatibility-repair gate. No production behavior is expected to change.
+MPY18 is a **qualification gate**, not a compatibility-repair gate. No production behavior is expected to change.
 
 ## Baseline
 
 ```text
-branch: myp
+branch: mpy
 SHA: 4ac69098c173d7fecbd590eb329c3222af00876b
 
 MicroPython: v1.29.0
@@ -15,7 +15,7 @@ source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
 platform: win32
 ```
 
-Sealed MYP17 qualification:
+Sealed MPY17 qualification:
 
 ```text
 BATTLE_CONSTRUCTION         PASS
@@ -30,7 +30,7 @@ SESSION_ENCOUNTER_COMPLETE  PASS
 RAW_PROBE_STAGES_COMPLETE
 ```
 
-Final MYP17 memory:
+Final MPY17 memory:
 
 ```text
 FREE:  669536
@@ -45,9 +45,9 @@ DECORATED:   73
 CONSTRUCTED: 33
 ```
 
-MYP17 therefore establishes that a real headless `OverworldSession` can enter and complete its first encounter under pinned MicroPython.
+MPY17 therefore establishes that a real headless `OverworldSession` can enter and complete its first encounter under pinned MicroPython.
 
-MYP18 expands the qualification horizon to the entire authored surface route.
+MPY18 expands the qualification horizon to the entire authored surface route.
 
 ---
 
@@ -194,9 +194,9 @@ terminal route state
 
 It is **not** a stochastic combat-balance test.
 
-MYP17 already proved the default production RNG/CombatResolver path through a real session encounter.
+MPY17 already proved the default production RNG/CombatResolver path through a real session encounter.
 
-For MYP18, use a deterministic qualification Battle factory equivalent to the already-sealed CPython runtime qualification test.
+For MPY18, use a deterministic qualification Battle factory equivalent to the already-sealed CPython runtime qualification test.
 
 ## Deterministic RNG
 
@@ -288,7 +288,7 @@ Do not stub enemy state.
 
 # Preserve the Existing Raw Probe
 
-The existing stages through MYP17 are sealed.
+The existing stages through MPY17 are sealed.
 
 Do not weaken, replace, or shortcut:
 
@@ -334,23 +334,23 @@ Inside `SURFACE_ROUTE_COMPLETE`, emit explicit node markers before and after eve
 For example:
 
 ```text
-MYP|ROUTE|surface_goblin_solo|BEGIN
-MYP|ROUTE|surface_goblin_solo|PASS
+MPY|ROUTE|surface_goblin_solo|BEGIN
+MPY|ROUTE|surface_goblin_solo|PASS
 
-MYP|ROUTE|surface_goblin_pair|BEGIN
-MYP|ROUTE|surface_goblin_pair|PASS
+MPY|ROUTE|surface_goblin_pair|BEGIN
+MPY|ROUTE|surface_goblin_pair|PASS
 ...
 ```
 
 If a node fails, emit:
 
 ```text
-MYP|ROUTE|<node_id>|FAIL|<ExceptionType>|<message>
+MPY|ROUTE|<node_id>|FAIL|<ExceptionType>|<message>
 ```
 
 before propagating the exception.
 
-This gives MYP19 and any future compatibility gate an exact route frontier rather than merely:
+This gives MPY19 and any future compatibility gate an exact route frontier rather than merely:
 
 ```text
 SURFACE_ROUTE_COMPLETE failed somewhere
@@ -634,7 +634,7 @@ No post-route encounter or Rest action may remain available.
 
 # Persistence Boundary
 
-MYP18 must remain entirely in-memory.
+MPY18 must remain entirely in-memory.
 
 Construct the route session with:
 
@@ -671,7 +671,7 @@ The existing CPython `test_runtime_qualification.py` remains authoritative for t
 
 # Memory Evidence
 
-MYP18 is not yet the memory-pressure gate, but collect evidence while the complete route is running.
+MPY18 is not yet the memory-pressure gate, but collect evidence while the complete route is running.
 
 For every route node emit:
 
@@ -692,11 +692,11 @@ Dungeon Entrance
 ROUTE_FINAL_STATE
 ```
 
-Do **not** introduce pass/fail memory thresholds in MYP18.
+Do **not** introduce pass/fail memory thresholds in MPY18.
 
-That belongs to MYP19.
+That belongs to MPY19.
 
-MYP18 fails only if the runtime actually cannot complete due to memory/runtime failure.
+MPY18 fails only if the runtime actually cannot complete due to memory/runtime failure.
 
 ---
 
@@ -744,7 +744,7 @@ root/tools/micropython_probe.py
 
 and permanently require:
 
-1. The sealed MYP17 stage sequence remains the exact prefix through:
+1. The sealed MPY17 stage sequence remains the exact prefix through:
 
 ```text
 SESSION_ENCOUNTER_COMPLETE
@@ -801,7 +801,7 @@ Do not change the expectations in:
 root/tests/test_runtime_qualification.py
 ```
 
-unless the live authoritative game behavior has already changed independently of MYP18.
+unless the live authoritative game behavior has already changed independently of MPY18.
 
 That test remains the CPython semantic oracle for:
 
@@ -826,7 +826,7 @@ tests/test_overworld_session.py
 tests/test_overworld_state.py
 ```
 
-MYP18 should prove the MicroPython runtime reaches the same outcome, not redefine the outcome.
+MPY18 should prove the MicroPython runtime reaches the same outcome, not redefine the outcome.
 
 ---
 
@@ -834,7 +834,7 @@ MYP18 should prove the MicroPython runtime reaches the same outcome, not redefin
 
 Run the full suite from `root`.
 
-Then run the exact sealed MYP17 cumulative suite plus MYP18 route qualification coverage:
+Then run the exact sealed MPY17 cumulative suite plus MPY18 route qualification coverage:
 
 ```powershell
 Push-Location root
@@ -928,7 +928,7 @@ RAW_PROBE_STAGES_COMPLETE
 
 Require the same result.
 
-This is important because the expanded route exercises much more of the overlay-backed runtime than MYP17 did.
+This is important because the expanded route exercises much more of the overlay-backed runtime than MPY17 did.
 
 ## 3. Pinned MicroPython v1.29.0
 
@@ -951,10 +951,10 @@ no persistence materialization
 and finally:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
-After MYP18, that marker now means the **expanded full-route probe**, not merely the MYP17 first-encounter probe.
+After MPY18, that marker now means the **expanded full-route probe**, not merely the MPY17 first-encounter probe.
 
 Document that semantic expansion explicitly.
 
@@ -1026,11 +1026,11 @@ Update:
 docs/portability/micropython-probe.md
 ```
 
-Record sealed MYP17:
+Record sealed MPY17:
 
 ```text
 4ac69098c173d7fecbd590eb329c3222af00876b
-MYP17 - Repair Portable Runtime Random Boundary
+MPY17 - Repair Portable Runtime Random Boundary
 ```
 
 and its completion evidence:
@@ -1041,7 +1041,7 @@ SESSION_ENCOUNTER_COMPLETE  PASS
 RAW_PROBE_STAGES_COMPLETE
 ```
 
-Then document MYP18:
+Then document MPY18:
 
 ```text
 exact 12-node route oracle
@@ -1051,7 +1051,7 @@ exact 12-node route oracle
 14 fresh EnemyState instances
 deterministic route qualification harness
 why deterministic combat is used
-why MYP17 already covers default runtime RNG
+why MPY17 already covers default runtime RNG
 semantic battle-input driver
 prefix-state assertions
 reward/progression assertions
@@ -1073,14 +1073,14 @@ scope counts
 Explicitly distinguish:
 
 ```text
-MYP17
+MPY17
 → real default session Battle/RNG/CombatResolver first-encounter qualification
 
-MYP18
+MPY18
 → deterministic full-route orchestration/state/progression qualification
 ```
 
-Do not claim MYP18 proves statistically representative combat balance under MicroPython.
+Do not claim MPY18 proves statistically representative combat balance under MicroPython.
 
 That is not the purpose of this gate.
 
@@ -1088,7 +1088,7 @@ That is not the purpose of this gate.
 
 # Stop Conditions
 
-Stop and request a revised MYP18 plan if:
+Stop and request a revised MPY18 plan if:
 
 ```text
 the live authored route differs from the controlling 12-node contract
@@ -1115,7 +1115,7 @@ CPython runtime qualification test
 If pinned MicroPython fails on a new language/runtime incompatibility during the expanded route:
 
 ```text
-do not repair it inside MYP18
+do not repair it inside MPY18
 ```
 
 Record:
@@ -1132,7 +1132,7 @@ dataclass census
 
 and stop before release.
 
-Unlike MYP14-MYP17, MYP18's actual goal is **full-route completion**, so a newly exposed incompatibility means MYP18 is not yet complete.
+Unlike MPY14-MPY17, MPY18's actual goal is **full-route completion**, so a newly exposed incompatibility means MPY18 is not yet complete.
 
 Derive a new evidence-backed compatibility gate from that failure.
 
@@ -1140,7 +1140,7 @@ Derive a new evidence-backed compatibility gate from that failure.
 
 # Success Condition
 
-MYP18 succeeds only when all three environments independently reach:
+MPY18 succeeds only when all three environments independently reach:
 
 ```text
 surface_goblin_solo
@@ -1175,22 +1175,22 @@ active_battle = None
 and:
 
 ```text
-MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MPY|RESULT|RAW_PROBE_STAGES_COMPLETE
 ```
 
 ---
 
 # Future Gates
 
-If MYP18 passes without exposing another compatibility wall:
+If MPY18 passes without exposing another compatibility wall:
 
 ```text
-MYP19  Constrained-target memory and runtime pressure.
+MPY19  Constrained-target memory and runtime pressure.
 
-MYP20  Cross-runtime regression qualification and campaign closure.
+MPY20  Cross-runtime regression qualification and campaign closure.
 ```
 
-MYP19 should use the per-node memory evidence generated here as its baseline rather than inventing thresholds before observing the full route.
+MPY19 should use the per-node memory evidence generated here as its baseline rather than inventing thresholds before observing the full route.
 
 ---
 
@@ -1199,19 +1199,19 @@ MYP19 should use the per-node memory evidence generated here as its baseline rat
 Commit exactly:
 
 ```text
-MYP18 - Qualify Full Surface Route
+MPY18 - Qualify Full Surface Route
 ```
 
 Push:
 
 ```text
-myp
+mpy
 ```
 
 Then verify:
 
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 tracked worktree clean
 exact-SHA CI successful
 historical docs/mpy files untouched and uncommitted

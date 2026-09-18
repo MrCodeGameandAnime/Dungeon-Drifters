@@ -1,8 +1,8 @@
-# MYP13 - Repair Portable Strict Zip Boundary
+# MPY13 - Repair Portable Strict Zip Boundary
 
 ## Summary
 
-Remove the five unsupported `strict=True` keyword arguments identified by the sealed MYP13 audit. Preserve all existing alignment guarantees, presenter validation, Battle ownership, terminal rendering, and gameplay behavior.
+Remove the five unsupported `strict=True` keyword arguments identified by the sealed MPY13 audit. Preserve all existing alignment guarantees, presenter validation, Battle ownership, terminal rendering, and gameplay behavior.
 
 No compatibility helper, bootstrap change, raw-probe change, or broader keyword portability work is included.
 
@@ -41,13 +41,13 @@ Confirm:
 
 Commit exactly:
 
-`MYP13 - Repair Portable Strict Zip Boundary`
+`MPY13 - Repair Portable Strict Zip Boundary`
 
-Push `myp`, verify exact local/remote SHA equality and green exact-SHA CI, then stop.
+Push `mpy`, verify exact local/remote SHA equality and green exact-SHA CI, then stop.
 
 ## Assumptions
 
 - All five audited sites are safe to convert to ordinary `zip()` based on their existing construction or validation guarantees.
 - No explicit replacement length checks are needed at the four construction-guaranteed sites.
 - The terminal `shutil` frontier remains deferred.
-- MYP14 will be derived only from the next observed MicroPython failure.
+- MPY14 will be derived only from the next observed MicroPython failure.

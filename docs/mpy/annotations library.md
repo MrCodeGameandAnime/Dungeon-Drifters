@@ -114,4 +114,4 @@ DD
     first serious consumer
 ```
 
-If MYP3’s generated-metadata path works cleanly, you may have stumbled into a reusable library almost by accident.
+If MPY3’s generated-metadata path works cleanly, you may have stumbled into a reusable library almost by accident.

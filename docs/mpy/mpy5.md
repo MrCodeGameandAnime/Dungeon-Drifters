@@ -1,4 +1,4 @@
-# MYP5 - Add Portable Keyword Overlay
+# MPY5 - Add Portable Keyword Overlay
 
 ## Summary
 
@@ -7,7 +7,7 @@ Advance the pinned MicroPython `v1.29.0` probe beyond the observed `keyword` imp
 Baseline:
 
 ```text
-Branch: myp
+Branch: mpy
 HEAD: 0a9677d58f80e90f80d50e6ac885a43c4279878e
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
@@ -88,7 +88,7 @@ The portable tests must prove:
 
 Forced-overlay tests must run in subprocesses and explicitly verify module origin. Normal host imports must remain native.
 
-Update `docs/portability/micropython-probe.md` with a new MYP5 section covering:
+Update `docs/portability/micropython-probe.md` with a new MPY5 section covering:
 
 - the original `keyword` failure;
 - dynamically discovered production call sites;
@@ -160,14 +160,14 @@ no speculative compatibility work
 Commit exactly:
 
 ```text
-MYP5 - Add Portable Keyword Overlay
+MPY5 - Add Portable Keyword Overlay
 ```
 
-Push `myp`, verify local and remote SHA equality, require green exact-SHA CI, and stop at the next observed compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require green exact-SHA CI, and stop at the next observed compatibility frontier.
 
 ## Assumptions
 
 - The existing bootstrap’s overlay path insertion is sufficient; no bootstrap modification is expected.
 - The current CPython `3.14.6` hard-keyword list is the authoritative data source for this gate.
 - A future Python-version change should make tests fail visibly rather than silently changing the overlay.
-- The next unrelated MicroPython failure defines MYP6.
+- The next unrelated MicroPython failure defines MPY6.

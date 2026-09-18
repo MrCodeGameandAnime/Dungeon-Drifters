@@ -1,4 +1,4 @@
-# MYP4 - Add Portable StrEnum Overlay
+# MPY4 - Add Portable StrEnum Overlay
 
 ## Summary
 
@@ -6,7 +6,7 @@ Advance the pinned MicroPython v1.29.0 probe past the observed `enum` failure wh
 
 Baseline:
 
-- Branch: `myp`
+- Branch: `mpy`
 - HEAD: `28b0e7e48b9b1f214a2b0621a0518043a42f776e`
 - MicroPython tag: `v1.29.0`
 - Source SHA: `0fd6c573ea815774668bbb16b8e197c8822368b2`
@@ -140,9 +140,9 @@ Extend the MicroPython bootstrap, not the raw probe, to emit deterministic censu
 Expected diagnostic shape:
 
 ```text
-MYP|DATACLASS|EXPECTED|N
-MYP|DATACLASS|DECORATED|N
-MYP|DATACLASS|CONSTRUCTED|N
+MPY|DATACLASS|EXPECTED|N
+MPY|DATACLASS|DECORATED|N
+MPY|DATACLASS|CONSTRUCTED|N
 ```
 
 If census access itself is unavailable, emit an explicit diagnostic-unavailable line without masking the original failure.
@@ -236,10 +236,10 @@ Confirm:
 Commit exactly:
 
 ```text
-MYP4 - Add Portable StrEnum Overlay
+MPY4 - Add Portable StrEnum Overlay
 ```
 
-Push `myp`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed compatibility frontier.
 
 ## Stop Conditions
 
@@ -253,4 +253,4 @@ Stop without repairing the next wall if:
 - the hook becomes a general compatibility framework;
 - the next failure is unrelated to `enum`.
 
-MYP5 must be derived from the first real post-enum failure.
+MPY5 must be derived from the first real post-enum failure.

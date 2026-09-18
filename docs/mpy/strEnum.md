@@ -1,4 +1,4 @@
-This is a **really good MYP5 result**, because it exposed exactly the kind of thing the real MicroPython run is supposed to catch.
+This is a **really good MPY5 result**, because it exposed exactly the kind of thing the real MicroPython run is supposed to catch.
 
 `keyword` is done. The new failure is not another missing stdlib module:
 
@@ -24,18 +24,18 @@ MoveKind("damage")
 ValueError
 ```
 
-That means MYP5 itself can close, but the next frontier is **back inside the portable StrEnum implementation**.
+That means MPY5 itself can close, but the next frontier is **back inside the portable StrEnum implementation**.
 
 The crucial distinction is:
 
 ```text
-MYP4 proved:
+MPY4 proved:
 - enum module import works
 - StrEnum declarations can be transformed
 - synthetic portable enum tests work
 - forced-overlay CPython works
 
-MYP5 has now proven:
+MPY5 has now proven:
 - actual MicroPython reaches a real DD enum conversion
 - EnumType(value) is not yet correct there
 ```
@@ -43,14 +43,14 @@ MYP5 has now proven:
 So I would record:
 
 ```text
-MYP5
+MPY5
 SEALED
 2f656ba3b176e3f8c812d2b12c57a713e5cc8960
 
 keyword:
 CROSSED
 
-MYP6:
+MPY6:
 Repair real MicroPython StrEnum value lookup
 ```
 
@@ -59,7 +59,7 @@ And this is exactly why the census was worth adding.
 You went from:
 
 ```text
-MYP4
+MPY4
 DECORATED    2
 CONSTRUCTED  0
 ```
@@ -67,7 +67,7 @@ CONSTRUCTED  0
 to:
 
 ```text
-MYP5
+MPY5
 DECORATED    4
 CONSTRUCTED  1
 ```
@@ -82,7 +82,7 @@ under the actual interpreter.
 
 CPython could not reveal that if the implementation mechanism depends on MicroPython-specific class/string behavior.
 
-So MYP6 should **not** move on to `typing`, `re`, `collections`, etc. yet. The next gate is narrower:
+So MPY6 should **not** move on to `typing`, `re`, `collections`, etc. yet. The next gate is narrower:
 
 > **Make the already-created portable StrEnum classes support canonical value construction on actual MicroPython.**
 
@@ -151,24 +151,24 @@ move.kind is MoveKind.DAMAGE
 
 Then rerun the unchanged probe.
 
-One other important conclusion: **do not reopen or invalidate MYP4 conceptually.** MYP4 successfully established the class-construction mechanism and crossed the import frontier. We just discovered that one qualified behavior was incompletely implemented under the real interpreter.
+One other important conclusion: **do not reopen or invalidate MPY4 conceptually.** MPY4 successfully established the class-construction mechanism and crossed the import frontier. We just discovered that one qualified behavior was incompletely implemented under the real interpreter.
 
 That's normal progressive qualification.
 
 So the sequence now reads nicely:
 
 ```text
-MYP3
+MPY3
 dataclass infrastructure
 
-MYP4
+MPY4
 StrEnum declaration/member infrastructure
 
-MYP5
+MPY5
 keyword compatibility
 + first real enum normalization failure exposed
 
-MYP6
+MPY6
 actual MicroPython StrEnum constructor semantics
 ```
 

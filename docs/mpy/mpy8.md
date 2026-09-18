@@ -1,4 +1,4 @@
-# MYP8 - Add Portable `collections.abc` Boundary
+# MPY8 - Add Portable `collections.abc` Boundary
 
 ## Summary
 
@@ -13,7 +13,7 @@ Repository evidence confirms:
 - MicroPython provides `deque`, `namedtuple`, and `OrderedDict`, but not `Mapping`, `Sequence`, or `Counter`.
 - Native `collections` is frozen/non-package-like, rejects adding `abc`, but direct `sys.modules["collections.abc"]` injection supports `from collections.abc import ...`.
 
-MYP8 will cross only the `Mapping`/`Sequence` boundary and stop at the next unrelated raw-probe failure.
+MPY8 will cross only the `Mapping`/`Sequence` boundary and stop at the next unrelated raw-probe failure.
 
 ## Implementation Changes
 
@@ -96,7 +96,7 @@ Record:
 - real Weapon and WeaponSpec results;
 - exact first post-ABC raw-probe stage, exception, message, traceback, memory values, and dataclass census.
 
-Update `docs/portability/micropython-probe.md` with the MYP7 sealed SHA, the dynamic audit, selected mechanism, precise runtime contract, and zero production/gameplay/content/persistence/semantic/raw-probe changes. Do not document speculative MYP9 repairs.
+Update `docs/portability/micropython-probe.md` with the MPY7 sealed SHA, the dynamic audit, selected mechanism, precise runtime contract, and zero production/gameplay/content/persistence/semantic/raw-probe changes. Do not document speculative MPY9 repairs.
 
 ## Verification And Release
 
@@ -107,9 +107,9 @@ Review that no `root/src` files, save schema, gameplay, content, raw probe, or p
 Commit exactly:
 
 ```text
-MYP8 - Add Portable Collections ABC Boundary
+MPY8 - Add Portable Collections ABC Boundary
 ```
 
-Push `myp`, verify local and remote SHA equality, wait for exact-SHA green CI, and stop at the first unrelated MicroPython incompatibility.
+Push `mpy`, verify local and remote SHA equality, wait for exact-SHA green CI, and stop at the first unrelated MicroPython incompatibility.
 
 Assume the next raw wall may be `Counter`, but do not treat that as fact until the unchanged probe produces the evidence.

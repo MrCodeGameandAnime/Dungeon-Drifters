@@ -1,12 +1,12 @@
 ```markdown
-# MYP1 - Add Portable Read-Only Mapping Boundary
+# MPY1 - Add Portable Read-Only Mapping Boundary
 
 ## Summary
 
-Begin from the verified sealed MYP0 state on branch:
+Begin from the verified sealed MPY0 state on branch:
 
 ```text
-myp
+mpy
 ```
 
 Expected baseline:
@@ -15,23 +15,23 @@ Expected baseline:
 HEAD:
 f39770a236568db7f2fa9002bf6725611682ac06
 
-MYP0:
+MPY0:
 SEALED
 
 Working tree:
 clean
 
 Remote:
-origin/myp synchronized
+origin/mpy synchronized
 ```
 
-MYP0 successfully provisioned and executed the pinned upstream MicroPython `v1.29.0` Windows runtime against untouched Dungeon Drifters production source.
+MPY0 successfully provisioned and executed the pinned upstream MicroPython `v1.29.0` Windows runtime against untouched Dungeon Drifters production source.
 
 The first observed incompatibility was:
 
 ```text
-MYP|CATALOG_IMPORT|BEGIN
-MYP|CATALOG_IMPORT|FAIL|ImportError|no module named 'types'
+MPY|CATALOG_IMPORT|BEGIN
+MPY|CATALOG_IMPORT|FAIL|ImportError|no module named 'types'
 ```
 
 Original traceback:
@@ -60,7 +60,7 @@ Platform:
 win32
 ```
 
-MYP1 will address only this first observed compatibility wall.
+MPY1 will address only this first observed compatibility wall.
 
 It will not proactively migrate other expected incompatibilities such as:
 
@@ -84,7 +84,7 @@ Preserve DD's existing read-only mapping semantics
         ↓
 remove the hard runtime dependency on types.MappingProxyType
         ↓
-rerun the unchanged MYP0 probe
+rerun the unchanged MPY0 probe
         ↓
 prove CATALOG_IMPORT passes
         ↓
@@ -93,9 +93,9 @@ stop at the next observed MicroPython failure
 
 ## Governing Rule
 
-MYP1 is evidence-driven.
+MPY1 is evidence-driven.
 
-The only compatibility problem authorized for correction is the one demonstrated by MYP0:
+The only compatibility problem authorized for correction is the one demonstrated by MPY0:
 
 ```text
 ImportError: no module named 'types'
@@ -127,7 +127,7 @@ and introduce the smallest host-neutral abstraction necessary to preserve those 
 
 The solution must preserve one authoritative gameplay and content implementation.
 
-MYP1 must not create a MicroPython-specific content catalog or fork.
+MPY1 must not create a MicroPython-specific content catalog or fork.
 
 ## Phase 1 - Repository Usage Audit
 
@@ -229,7 +229,7 @@ If not used, they are not part of the compatibility contract.
 
 ## Phase 2 - Choose the Narrowest Architecture
 
-Do not create a broad generic compatibility framework in MYP1.
+Do not create a broad generic compatibility framework in MPY1.
 
 Do not introduce:
 
@@ -363,13 +363,13 @@ This decision must follow DD's actual behavior.
 
 If production code never mutates the backing dictionary after wrapping, a snapshot may be sufficient and safer under MicroPython.
 
-If DD depends on live reflection of backing-dictionary changes, the fallback must preserve that behavior or MYP1 must stop and report that the compatibility requirement is larger than expected.
+If DD depends on live reflection of backing-dictionary changes, the fallback must preserve that behavior or MPY1 must stop and report that the compatibility requirement is larger than expected.
 
 Do not make this choice by assumption.
 
 ## Scope of Production Changes
 
-MYP1 may modify only production files directly required to replace the observed `MappingProxyType` dependency cleanly.
+MPY1 may modify only production files directly required to replace the observed `MappingProxyType` dependency cleanly.
 
 Expected change categories:
 
@@ -377,7 +377,7 @@ Expected change categories:
 one narrow read-only mapping helper
 MappingProxyType import replacement at actual production call sites
 targeted contract tests
-MYP documentation update
+MPY documentation update
 ```
 
 Do not touch unrelated models or runtime features.
@@ -460,7 +460,7 @@ If practical, add a targeted test proving the native implementation is selected 
 
 ## MicroPython Probe
 
-After the MYP1 change is implemented and all CPython tests pass, rerun the exact MYP0 probe under the exact same pinned MicroPython runtime:
+After the MPY1 change is implemented and all CPython tests pass, rerun the exact MPY0 probe under the exact same pinned MicroPython runtime:
 
 ```text
 MicroPython:
@@ -479,13 +479,13 @@ Invocation remains:
 <external>\micropython.exe root/tools/micropython_probe.py root/src
 ```
 
-Do not alter the raw probe merely to make MYP1 pass unless the probe itself contains a demonstrated defect.
+Do not alter the raw probe merely to make MPY1 pass unless the probe itself contains a demonstrated defect.
 
 The desired progression is:
 
 ```text
-MYP|CATALOG_IMPORT|BEGIN
-MYP|CATALOG_IMPORT|PASS
+MPY|CATALOG_IMPORT|BEGIN
+MPY|CATALOG_IMPORT|PASS
 ```
 
 The probe should then continue naturally until the next real incompatibility.
@@ -496,26 +496,26 @@ When the next failure occurs:
 STOP.
 ```
 
-Do not fix the next failure during MYP1.
+Do not fix the next failure during MPY1.
 
 Record it as evidence for the next gate.
 
 ## Probe Success Interpretation
 
-MYP1 succeeds if the previous failure is crossed.
+MPY1 succeeds if the previous failure is crossed.
 
 Example:
 
 ```text
-MYP|CATALOG_IMPORT|PASS
-MYP|DRIFTER_SPEC|BEGIN
+MPY|CATALOG_IMPORT|PASS
+MPY|DRIFTER_SPEC|BEGIN
 ...
-MYP|<NEXT_STAGE>|FAIL|<ExceptionType>|<message>
+MPY|<NEXT_STAGE>|FAIL|<ExceptionType>|<message>
 ```
 
-That is a successful MYP1 result.
+That is a successful MPY1 result.
 
-MYP1 is not required to reach:
+MPY1 is not required to reach:
 
 ```text
 create_new_game()
@@ -527,22 +527,22 @@ full route
 
 unless the runtime naturally reaches them before encountering another incompatibility.
 
-The next failure is useful evidence, not an MYP1 defect.
+The next failure is useful evidence, not an MPY1 defect.
 
 ## Memory Evidence
 
-Preserve the existing MYP0 memory reporting.
+Preserve the existing MPY0 memory reporting.
 
 Compare:
 
 ```text
-MYP0 CATALOG_IMPORT failure memory
+MPY0 CATALOG_IMPORT failure memory
 ```
 
 against:
 
 ```text
-MYP1 CATALOG_IMPORT success memory
+MPY1 CATALOG_IMPORT success memory
 ```
 
 where possible.
@@ -551,7 +551,7 @@ Do not optimize based on Windows-port heap measurements.
 
 The purpose is only to detect obvious pathological growth caused by the fallback.
 
-Hardware-specific memory qualification remains MYP5 work.
+Hardware-specific memory qualification remains MPY5 work.
 
 ## Cross-Runtime Safety
 
@@ -590,16 +590,16 @@ Update:
 docs/portability/micropython-probe.md
 ```
 
-with an MYP1 evidence section recording:
+with an MPY1 evidence section recording:
 
 ```text
-MYP0 failure:
+MPY0 failure:
 types / MappingProxyType import
 
 Observed location:
 root/src/app/content/catalog.py
 
-MYP1 adaptation:
+MPY1 adaptation:
 <exact implemented boundary>
 
 DD semantics preserved:
@@ -611,7 +611,7 @@ CPython implementation:
 MicroPython implementation:
 <actual fallback>
 
-MYP1 probe result:
+MPY1 probe result:
 <exact stage progression>
 
 Next observed failure:
@@ -624,9 +624,9 @@ MicroPython source SHA:
 0fd6c573ea815774668bbb16b8e197c8822368b2
 ```
 
-Do not rewrite MYP0 history.
+Do not rewrite MPY0 history.
 
-MYP0 remains the sealed raw baseline.
+MPY0 remains the sealed raw baseline.
 
 ## Verification
 
@@ -640,7 +640,7 @@ git diff --check
 
 The full existing suite must remain green.
 
-Expected baseline suite size before new MYP1 tests:
+Expected baseline suite size before new MPY1 tests:
 
 ```text
 1,262 passed
@@ -652,7 +652,7 @@ The final total should therefore be:
 >= 1,262 passed
 ```
 
-with any additional count attributable only to new MYP1 tests.
+with any additional count attributable only to new MPY1 tests.
 
 Run the raw probe under CPython:
 
@@ -684,14 +684,14 @@ Confirm every changed production file is directly justified by the observed Mapp
 
 After local verification:
 
-1. Commit MYP1.
-2. Push `myp`.
+1. Commit MPY1.
+2. Push `mpy`.
 3. Run the normal DD CI suite.
 4. Require CI green.
 5. Verify:
 
 ```text
-local HEAD == origin/myp
+local HEAD == origin/mpy
 ```
 
 6. Require clean working tree.
@@ -701,12 +701,12 @@ local HEAD == origin/myp
 Use:
 
 ```text
-MYP1 - Add Portable Read-Only Mapping Boundary
+MPY1 - Add Portable Read-Only Mapping Boundary
 ```
 
 ## Acceptance Criteria
 
-MYP1 is accepted when all of the following are true:
+MPY1 is accepted when all of the following are true:
 
 - The actual DD `MappingProxyType` usage has been audited.
 - The minimum required read-only mapping semantics are documented.
@@ -733,7 +733,7 @@ MYP1 is accepted when all of the following are true:
 
 ## Explicit Stop Rules
 
-Stop MYP1 immediately if:
+Stop MPY1 immediately if:
 
 - DD materially depends on `MappingProxyType` semantics that cannot be reproduced narrowly.
 - Preserving the behavior requires changing content ownership.
@@ -748,7 +748,7 @@ Stop MYP1 immediately if:
 When the next MicroPython incompatibility appears:
 
 ```text
-DO NOT FIX IT IN MYP1.
+DO NOT FIX IT IN MPY1.
 ```
 
 Record:
@@ -765,7 +765,7 @@ and derive the next gate from that evidence.
 
 ## Non-Goals
 
-MYP1 does not attempt to solve:
+MPY1 does not attempt to solve:
 
 ```text
 dataclasses
@@ -792,12 +792,12 @@ Even if those are expected future incompatibilities.
 
 They remain speculative until the probe actually reaches them.
 
-## MYP1 Completion State
+## MPY1 Completion State
 
 The desired gate transition is:
 
 ```text
-MYP0
+MPY0
 
 CATALOG_IMPORT
 FAIL
@@ -805,7 +805,7 @@ ImportError: no module named 'types'
 
         ↓
 
-MYP1
+MPY1
 
 introduce minimal portable read-only mapping boundary
 
@@ -827,7 +827,7 @@ NEXT REAL FAILURE
 STOP
 ```
 
-MYP1 is successful when the evidence frontier moves forward without changing Dungeon Drifters gameplay behavior.
+MPY1 is successful when the evidence frontier moves forward without changing Dungeon Drifters gameplay behavior.
 
 ## Governing Principle
 
@@ -847,5 +847,5 @@ one progression system
 one semantic runtime API
 ```
 
-MYP1 exists only to move that same implementation one compatibility boundary farther.
+MPY1 exists only to move that same implementation one compatibility boundary farther.
 ```

@@ -45,23 +45,23 @@ The recommendation should still be executed **after DD's MicroPython qualificati
 
 # 2. Gate-to-library map
 
-I could verify the contemporary MicroPython ecosystem independently, but public search indexing did **not expose the contents of the `myp` branch or individual DD MYP commits sufficiently for a trustworthy independent diff audit**. Consequently, the mechanism descriptions below are grounded in the supplied gate record, rather than pretending I independently inspected code I could not retrieve. The repository itself is publicly indexed and was shown as updated in August 2026. 
+I could verify the contemporary MicroPython ecosystem independently, but public search indexing did **not expose the contents of the `mpy` branch or individual DD MPY commits sufficiently for a trustworthy independent diff audit**. Consequently, the mechanism descriptions below are grounded in the supplied gate record, rather than pretending I independently inspected code I could not retrieve. The repository itself is publicly indexed and was shown as updated in August 2026. 
 
 | Gate | SHA | Problem | Mechanism | Reusability | Likely destination |
 |---|---|---|---|---|---|
-| MYP0 | `f39770a...` | Qualification infrastructure | Probe/test foundation | Medium | DD tooling, possibly reusable test pattern |
-| MYP1 | `783f9dd...` | `MappingProxyType` absence | copied read-only mapping | Low–medium | implementation detail |
-| MYP2 | `34f697d...` | Runtime cannot discover normal dataclass fields | contract/audit of annotation loss | **Very high** | metadata/dataclass project |
-| MYP3 | `28b0e7e...` | Supply missing field model | CPython discovery + generated manifest + MicroPython decorator | **Very high** | primary extraction |
-| MYP4 | `0a9677d...` | `StrEnum` absent | portable string-enum overlay | Medium–high | possible separate package |
-| MYP5 | `2f656ba...` | `keyword.iskeyword` missing | narrow compatibility module | Low | replace |
-| MYP6 | `a97def8...` | constructing enum from existing member | construction repair | Medium–high | StrEnum package feature |
-| MYP7 | `6b4883a...` | no `re.fullmatch` | native `match()` + consumption check | Low | shim/internal |
-| MYP8 | `bb99b7e...` | imports/`isinstance` expectations for ABCs | synthetic `collections.abc`, tuple-like type boundaries | Low | DD-specific |
+| MPY0 | `f39770a...` | Qualification infrastructure | Probe/test foundation | Medium | DD tooling, possibly reusable test pattern |
+| MPY1 | `783f9dd...` | `MappingProxyType` absence | copied read-only mapping | Low–medium | implementation detail |
+| MPY2 | `34f697d...` | Runtime cannot discover normal dataclass fields | contract/audit of annotation loss | **Very high** | metadata/dataclass project |
+| MPY3 | `28b0e7e...` | Supply missing field model | CPython discovery + generated manifest + MicroPython decorator | **Very high** | primary extraction |
+| MPY4 | `0a9677d...` | `StrEnum` absent | portable string-enum overlay | Medium–high | possible separate package |
+| MPY5 | `2f656ba...` | `keyword.iskeyword` missing | narrow compatibility module | Low | replace |
+| MPY6 | `a97def8...` | constructing enum from existing member | construction repair | Medium–high | StrEnum package feature |
+| MPY7 | `6b4883a...` | no `re.fullmatch` | native `match()` + consumption check | Low | shim/internal |
+| MPY8 | `bb99b7e...` | imports/`isinstance` expectations for ABCs | synthetic `collections.abc`, tuple-like type boundaries | Low | DD-specific |
 
 Those classifications follow the behavioral descriptions in the supplied lineage. 
 
-I found no reliably indexed evidence establishing a newer sealed MYP gate, so I would continue treating MYP8 as the audited completed baseline rather than guessing that MYP9 has landed.
+I found no reliably indexed evidence establishing a newer sealed MPY gate, so I would continue treating MPY8 as the audited completed baseline rather than guessing that MPY9 has landed.
 
 ---
 
@@ -141,7 +141,7 @@ That gives DD's architecture a meaningful differentiator.
 
 ### Approximate comparison
 
-| Capability | DD MYP3 design | `udataclasses` | old `micropython-dataclasses` |
+| Capability | DD MPY3 design | `udataclasses` | old `micropython-dataclasses` |
 |---|---:|---:|---:|
 | Normal `@dataclass`-style source | **Yes** | Mostly |
 | annotation-only required fields | **Yes, through generated metadata** | **No** | No meaningful implementation |
@@ -290,7 +290,7 @@ Current recommendation: **PROMISING, RESEARCH FURTHER**.
 
 # 6. Secondary compatibility analysis
 
-## MYP1 — read-only mapping
+## MPY1 — read-only mapping
 
 Useful internally, but not enough for a separate library.
 
@@ -300,7 +300,7 @@ The best packaging outcome is probably to keep `_ReadonlyMapping` private inside
 
 ---
 
-## MYP5 — `keyword`
+## MPY5 — `keyword`
 
 This is already solved.
 
@@ -314,7 +314,7 @@ There is no good case for publishing DD's own `keyword` library.
 
 ---
 
-## MYP7 — `re.fullmatch`
+## MPY7 — `re.fullmatch`
 
 MicroPython 1.29 still exposes `match`, `search`, `sub` and related regex-object methods, but no documented `fullmatch`. 
 
@@ -335,7 +335,7 @@ A contribution to `micropython-lib` would be more valuable than `micropython-re-
 
 ---
 
-## MYP8 — `collections.abc`
+## MPY8 — `collections.abc`
 
 The historical `micropython-collections.abc` package is another dummy implementation intended mostly to satisfy imports. 
 
@@ -612,22 +612,22 @@ The behavioral subset is coherent, and existing CPython `StrEnum` libraries do n
 
 Re-evaluate after testing against that implementation.
 
-### MYP1 read-only mapping
+### MPY1 read-only mapping
 **KEEP INTERNAL**
 
 Useful implementation machinery, not an independent product.
 
-### MYP5 keyword
+### MPY5 keyword
 **REPLACE WITH EXISTING LIBRARY**
 
 Already solved by the official historical MicroPython stdlib port. 
 
-### MYP7 fullmatch
+### MPY7 fullmatch
 **KEEP INTERNAL**
 
 The gap still exists in MicroPython 1.29's documented regex API, but the fix is too small for an independent library. 
 
-### MYP8 collections.abc
+### MPY8 collections.abc
 **KEEP INTERNAL**
 
 DD's representation is intentionally a compatibility trick rather than an ABC implementation. The old public MicroPython package is itself only a dummy placeholder. 
@@ -664,7 +664,7 @@ And the audit independently found `udataclasses`, which is probably the most imp
 So on that one I’d upgrade my confidence considerably:
 
 ```text
-MYP2 + MYP3
+MPY2 + MPY3
 Dataclass metadata generator + runtime
 
 → very likely worth extracting
@@ -675,7 +675,7 @@ The auditor even arrives at essentially the same package boundary we were circli
 
 The **StrEnum result is more interesting**, because the independent audit is noticeably more cautious than I was initially. It agrees the functionality is useful and that existing CPython `StrEnum` packages don't solve this MicroPython problem, but it flags the same ugly part we already knew about: the process-wide `__build_class__` interception is much easier to justify inside DD than inside an arbitrary user's runtime. 
 
-And the important new information is that **official `micropython-lib` enum work is actively moving**. That means before we extract MYP4/MYP6, we'd want to test our exact contract against whatever that implementation becomes. If it gives us a safe Enum foundation, we may be able to keep the nice DD `StrEnum` semantics while deleting the sketchiest part of our implementation.  
+And the important new information is that **official `micropython-lib` enum work is actively moving**. That means before we extract MPY4/MPY6, we'd want to test our exact contract against whatever that implementation becomes. If it gives us a safe Enum foundation, we may be able to keep the nice DD `StrEnum` semantics while deleting the sketchiest part of our implementation.  
 
 So I'd now classify them:
 
@@ -688,17 +688,17 @@ POSSIBLE LIBRARY
 but wait for DD qualification + official enum comparison
 ```
 
-The secondary findings also fit beautifully with what MYP9 and MYP10 are teaching us. The audit says read-only mapping should stay internal, `keyword` already has an existing implementation, `re.fullmatch` is useful but too tiny for its own package, and our `collections.abc` solution is intentionally not a real ABC implementation and therefore should stay DD-specific. 
+The secondary findings also fit beautifully with what MPY9 and MPY10 are teaching us. The audit says read-only mapping should stay internal, `keyword` already has an existing implementation, `re.fullmatch` is useful but too tiny for its own package, and our `collections.abc` solution is intentionally not a real ABC implementation and therefore should stay DD-specific. 
 
 And now we've subsequently added:
 
 ```text
-MYP9
+MPY9
 str.isascii / str.isdecimal
 → don't build a string compatibility framework
 → rewrite the source portably
 
-MYP10
+MPY10
 Counter
 → don't build a Counter compatibility framework
 → rewrite the source portably
@@ -754,21 +754,21 @@ when MicroPython discards the annotation metadata your models require."
 
 That is a much sharper product.
 
-One caveat with the audit: it explicitly says it couldn't independently inspect the live `myp` branch/commits well enough and therefore treated **MYP8 as the last sealed gate**. 
+One caveat with the audit: it explicitly says it couldn't independently inspect the live `mpy` branch/commits well enough and therefore treated **MPY8 as the last sealed gate**. 
 
 So its ecosystem analysis is valuable, but its DD lineage is now stale. We know the actual state is:
 
 ```text
-MYP9
+MPY9
 d78c07293219116f04f9c203b6654bf8b9728e35
 SEALED
 
-MYP10
+MPY10
 Counter removal
 READY
 ```
 
-That doesn't undermine its conclusion at all. If anything, MYP9 and MYP10 strengthen the conclusion that **only the genuinely hard compatibility mechanisms should become libraries**.
+That doesn't undermine its conclusion at all. If anything, MPY9 and MPY10 strengthen the conclusion that **only the genuinely hard compatibility mechanisms should become libraries**.
 
 The independent audit's bottom line is basically the one I'd adopt now:
 

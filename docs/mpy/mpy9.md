@@ -1,4 +1,4 @@
-# MYP9 - Repair Portable ASCII String Validation
+# MPY9 - Repair Portable ASCII String Validation
 
 ## Summary
 
@@ -11,11 +11,11 @@ AttributeError: 'str' object has no attribute 'isascii'
 Baseline:
 
 ```text
-MYP8:
+MPY8:
 bb99b7e1e9360078b157a85400e3c9dea73a386f
 ```
 
-The pinned runtime lacks both `str.isascii()` and `str.isdecimal()`. MYP9 will replace both assumptions with the already-qualified MYP7 regex boundary while preserving the exact existing validation semantics.
+The pinned runtime lacks both `str.isascii()` and `str.isdecimal()`. MPY9 will replace both assumptions with the already-qualified MPY7 regex boundary while preserving the exact existing validation semantics.
 
 ## Production Change
 
@@ -123,15 +123,15 @@ setattr(str, "isascii", ...): AttributeError
 builtins.str replacement: literal strings remain builtin str
 ```
 
-Then run the real Drifter specification under the complete existing MYP compatibility stack and require successful construction.
+Then run the real Drifter specification under the complete existing MPY compatibility stack and require successful construction.
 
 Run the unchanged raw probe through the existing bootstrap. Record the exact next stage, exception, message, traceback, memory values, and dataclass census. Stop at that next unrelated wall without repairing it.
 
 Update `docs/portability/micropython-probe.md` with:
 
-- MYP8 sealed SHA;
+- MPY8 sealed SHA;
 - historical dual-method failure;
-- post-MYP9 production audit;
+- post-MPY9 production audit;
 - exact validation equivalence;
 - rejected global string-patching mechanisms;
 - direct MicroPython results;
@@ -156,7 +156,7 @@ bootstrap changes: 0
 
 ## Verification And Release
 
-Run the full suite, all prior MYP portability tests plus the new string tests, compileall for `root/src`, `root/tests`, `root/tools`, and `root/portability`, dataclass-manifest freshness, and `git diff --check`.
+Run the full suite, all prior MPY portability tests plus the new string tests, compileall for `root/src`, `root/tests`, `root/tools`, and `root/portability`, dataclass-manifest freshness, and `git diff --check`.
 
 Review specifically for:
 
@@ -173,7 +173,7 @@ no gameplay drift
 Commit exactly:
 
 ```text
-MYP9 - Repair Portable ASCII String Validation
+MPY9 - Repair Portable ASCII String Validation
 ```
 
-Push `myp`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed MicroPython compatibility frontier.
+Push `mpy`, verify local and remote SHA equality, require exact-SHA green CI, and stop at the next observed MicroPython compatibility frontier.

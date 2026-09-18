@@ -1,11 +1,11 @@
-# MYP6 - Repair Portable StrEnum Construction
+# MPY6 - Repair Portable StrEnum Construction
 
 **Goal:** Advance the pinned MicroPython probe past the existing-member lookup failure while preserving DD production behavior.
 
 **Baseline:**
 
 ```text
-Branch: myp
+Branch: mpy
 HEAD: 2f656ba3b176e3f8c812d2b12c57a713e5cc8960
 MicroPython: v1.29.0
 Source SHA: 0fd6c573ea815774668bbb16b8e197c8822368b2
@@ -129,7 +129,7 @@ Record:
 - memory evidence;
 - dynamic dataclass census values;
 - confirmation that the enum failure is crossed;
-- confirmation that no unrelated failure was repaired in MYP6.
+- confirmation that no unrelated failure was repaired in MPY6.
 
 The next unrelated MicroPython incompatibility is the stop point.
 
@@ -137,7 +137,7 @@ The next unrelated MicroPython incompatibility is the stop point.
 
 Update `docs/portability/micropython-probe.md` with:
 
-- the original MYP5 failure;
+- the original MPY5 failure;
 - the distinction between raw-string and existing-member lookup;
 - the authored `Move` normalization path that exposed the defect;
 - the selected `isinstance(value, cls)` correction;
@@ -184,9 +184,9 @@ speculative compatibility work: 0
 Commit exactly:
 
 ```text
-MYP6 - Repair Portable StrEnum Construction
+MPY6 - Repair Portable StrEnum Construction
 ```
 
-Push `myp`, verify local HEAD equals `origin/myp`, require exact-SHA green CI, and stop at the next unrelated MicroPython incompatibility.
+Push `mpy`, verify local HEAD equals `origin/mpy`, require exact-SHA green CI, and stop at the next unrelated MicroPython incompatibility.
 
-MYP6 is blocked only if canonical existing-member normalization cannot be implemented without DD production rewrites, a general compatibility framework, or a significant MicroPython fork.
+MPY6 is blocked only if canonical existing-member normalization cannot be implemented without DD production rewrites, a general compatibility framework, or a significant MicroPython fork.
