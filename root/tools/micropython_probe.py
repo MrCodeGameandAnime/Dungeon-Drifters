@@ -575,6 +575,54 @@ def _assert_route_final_state():
         raise AssertionError("route qualification materialized persistence")
 
 
+def _assert_route_live_state():
+    from app.presentation.overworld_models import OverworldScreen
+
+    game = STATE["route_game"]
+    session = STATE["route_session"]
+    if session.active_battle is not None:
+        raise AssertionError("route session retained an active Battle")
+    if game.overworld_state.current_route_node_id != _EXPECTED_FINAL_NODE:
+        raise AssertionError("live route node changed during evidence cleanup")
+    if not game.overworld_state.route_complete:
+        raise AssertionError("live route became incomplete during cleanup")
+    if not game.overworld_state.dungeon_entrance_reached:
+        raise AssertionError("Dungeon Entrance state changed during cleanup")
+    if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
+        raise AssertionError("defeated encounters changed during cleanup")
+    if game.overworld_state.resolved_rest_node_ids != _EXPECTED_RESTS:
+        raise AssertionError("resolved Rests changed during cleanup")
+    player = game.player_state
+    if (
+        player.level_state.current,
+        player.exp_state.current,
+        player.growth_points,
+        player.gold,
+    ) != _EXPECTED_PROGRESS:
+        raise AssertionError("player progression changed during cleanup")
+    view = session.current_view()
+    if view.screen is not OverworldScreen.MAIN:
+        raise AssertionError("live route view changed during evidence cleanup")
+    if view.contextual_route_option is not None:
+        raise AssertionError("live route offered another action after cleanup")
+    if session._save_repository is not None:
+        raise AssertionError("evidence cleanup materialized persistence")
+
+
+def _release_route_evidence():
+    del STATE["route_battle_factory"].battles[:]
+    del STATE["route_enemy_factory"].enemies[:]
+    del STATE["route_initial_view"]
+    _assert_route_live_state()
+
+
+def _teardown_route_session():
+    del STATE["route_game"]
+    del STATE["route_session"]
+    del STATE["route_battle_factory"]
+    del STATE["route_enemy_factory"]
+
+
 def main():
     if len(sys.argv) != 2:
         print("MYP|USAGE|FAIL|expected exactly one DD source directory")
@@ -603,6 +651,8 @@ def main():
     _run_stage("ROUTE_INITIAL_VIEW", _obtain_route_initial_view)
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
+    _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
+    _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")
 

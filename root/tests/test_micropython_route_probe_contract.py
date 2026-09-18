@@ -74,11 +74,20 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 4]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 6]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
         "ROUTE_FINAL_STATE",
+        "ROUTE_EVIDENCE_RELEASE",
+        "ROUTE_SESSION_TEARDOWN",
+    )
+
+    assert stages.index("ROUTE_EVIDENCE_RELEASE") > stages.index(
+        "ROUTE_FINAL_STATE"
+    )
+    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
+        "ROUTE_EVIDENCE_RELEASE"
     )
 
 
@@ -93,6 +102,17 @@ def test_probe_route_contract_contains_the_authored_surface_route():
         "surface_dungeon_entrance"
     )
     assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 75)
+
+
+def test_probe_releases_route_evidence_only_after_final_state():
+    source = _probe_source()
+
+    assert source.index("def _assert_route_final_state") < source.index(
+        "def _release_route_evidence"
+    )
+    assert source.index("def _release_route_evidence") < source.index(
+        '"ROUTE_EVIDENCE_RELEASE"'
+    )
 
 
 def test_probe_excludes_host_persistence_and_test_dependencies():

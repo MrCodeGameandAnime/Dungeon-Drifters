@@ -3217,6 +3217,187 @@ and does not import or instantiate desktop persistence during route traversal.
 The meaning of `MYP|RESULT|RAW_PROBE_STAGES_COMPLETE` is now the expanded
 full-route probe rather than only the MYP17 first-encounter horizon.
 
+## MYP19 - Constrained Heap Pressure
+
+MYP18 was sealed at:
+
+```text
+6eaafc416240b5344570e7dd7e349767f84538a5
+MYP18 - Qualify Full Surface Route
+```
+
+MYP19 preserved the complete MYP18 evidence-retaining route through:
+
+```text
+ROUTE_CONSTRUCTION
+ROUTE_INITIAL_VIEW
+SURFACE_ROUTE_COMPLETE
+ROUTE_FINAL_STATE
+```
+
+Only after `ROUTE_FINAL_STATE` passed did the probe release its deliberately
+retained Battle and EnemyState evidence, validate the authoritative live game
+and session state, tear down the route references, and emit the final result
+marker. The marker now means the sealed MYP17 stages, the full MYP18 route,
+MYP19 evidence release, and MYP19 route-session teardown all passed.
+
+### Heap-control qualification
+
+The pinned executable advertises:
+
+```text
+heapsize=<n>[w][K|M] -- set the heap size for the GC
+```
+
+The independent `-X heapsize=512K` preflight succeeded with:
+
+```text
+FREE:  511696
+ALLOC: 560
+```
+
+The Python-visible total is `512256` bytes, which is below the requested
+524288 bytes as expected from GC metadata and alignment. No MicroPython
+rebuild or configuration change was used.
+
+MYP19 distinguishes four observations:
+
+```text
+qualification peak     route complete while Battle/enemy evidence is retained
+live route state        completed GameState/session after evidence release
+warm residual           route/session released and GC collected
+constrained heap floor  smallest repeatedly successful explicit heap
+```
+
+The approximately 1 MiB Windows qualification heap is not a PS5 memory
+budget.
+
+### Evidence release and teardown
+
+The representative default pinned run recorded:
+
+```text
+ROUTE_CONSTRUCTION|BEFORE       FREE 643440 / ALLOC 381072
+ROUTE_FINAL_STATE|AFTER         FREE 617296 / ALLOC 407216
+ROUTE_EVIDENCE_RELEASE|AFTER    FREE 641312 / ALLOC 383200
+ROUTE_SESSION_TEARDOWN|AFTER    FREE 643392 / ALLOC 381120
+```
+
+Evidence reclaimed:
+
+```text
+407216 - 383200 = 24016 bytes
+```
+
+Warm residual relative to the route-construction baseline was:
+
+```text
+381120 - 381072 = 48 bytes
+```
+
+The cleanup validated the completed route node, all 8 defeated encounters,
+all 3 Rests, progression `9 / 68 / 24 / 75`, MAIN final view, no contextual
+action, no active Battle, and an unmaterialized lazy SaveRepository. It did
+not call the retained-evidence final-state assertion after clearing the
+evidence. A nonzero warm residual is not classified as a leak; module imports,
+qstr interning, and legitimate runtime caches may remain reachable.
+
+### Heap sweep
+
+The host-only `root/tools/micropython_heap_sweep.py` runs the pinned executable
+without importing DD production modules. It uses `subprocess.run()` without a
+shell, preserves each command and return code, parses the existing `MYP|...`
+line protocol, and classifies each run as `PASS`, `MEMORY_LIMIT`, or
+`UNEXPECTED_FAILURE`. MemoryError output is pressure evidence; semantic or
+other runtime failures are not reclassified as memory limits.
+
+The default and explicit 1024K control runs completed the full route. The
+explicit 1024K control observed:
+
+```text
+BOOT:              FREE 972400 / ALLOC 52112
+lowest FREE:       617152
+highest ALLOC:     407360
+ROUTE_FINAL_STATE: FREE 617248 / ALLOC 407264
+EVIDENCE_RELEASE:  FREE 641264 / ALLOC 383248
+TEARDOWN:          FREE 643344 / ALLOC 381168
+```
+
+The coarse sweep and 32K refinement were:
+
+```text
+requested heap   classification     lowest FREE   highest ALLOC
+1024K            PASS               617152        407360
+896K             PASS               489088        407360
+768K             PASS               361024        407360
+640K             PASS               232960        407360
+512K             PASS               104896        407360
+384K             MEMORY_LIMIT        74256         309936
+256K             MEMORY_LIMIT        99840         156288
+480K             PASS                72800        407392
+448K             PASS                40832        407360
+416K             MEMORY_LIMIT        53648        362544
+```
+
+The 384K run failed during `BATTLE_CONSTRUCTION`. The 256K run failed during
+`CATALOG_IMPORT`. The nearest lower 416K run failed after `BATTLE_COMPLETE`
+at `SESSION_IMPORT` with:
+
+```text
+MemoryError: memory allocation failed, allocating 2344 bytes
+```
+
+The 416K pressure run's observed census at failure was `74 / 70 / 28`.
+The 448K run completed the full route in all three additional confirmations:
+
+```text
+MYP19|STABLE_PASS|448K|STABLE_PASS|3/3
+MYP19|BOUNDARY|LOWER|416K|MEMORY_LIMIT|3/3
+```
+
+Therefore the smallest observed stable passing heap for this Windows
+MicroPython qualification harness is `448K`, with a clean observed pressure
+boundary at `416K`. No product threshold is being proposed, and no production
+optimization was performed to lower the floor.
+
+### Cross-runtime and verification results
+
+Native CPython and forced-overlay CPython both passed:
+
+```text
+ROUTE_FINAL_STATE PASS
+ROUTE_EVIDENCE_RELEASE PASS
+ROUTE_SESSION_TEARDOWN PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+Pinned MicroPython passed the same stages at default heap, explicit 1024K,
+and every stable successful constrained heap listed above. The full CPython
+suite passed `1453` tests. The focused MYP19 contract suite passed `13`
+tests. The cumulative MYP18 suite plus MYP19 heap-sweep contract passed
+`563` tests. Compileall, the 74-entry dataclass manifest check, and
+`git diff --check` passed.
+
+```text
+production source changes:             0
+gameplay/combat/route changes:         0
+session/persistence/schema changes:    0
+compatibility overlay changes:         0
+bootstrap changes:                     0
+MicroPython source/config changes:     0
+qualification additions:               evidence release, teardown, heap sweep
+historical docs/mpy changes:           0
+final dataclasses:                      74 / 73 / 35
+```
+
+MYP19 is a runtime-health stress test. It is not a PS5 RAM budget, does not
+model PS5 unified memory, and excludes native host, graphics, audio, assets,
+SDK, and GPU memory. It does not imply that an embedded MicroPython VM should
+receive the minimum passing heap observed here. A low-heap `MemoryError` is
+not itself a gameplay defect. The observed floor includes the conservative
+MYP18 workload with retained Battle/enemy evidence through
+`ROUTE_FINAL_STATE`.
+
 ## Future Gates
 
 ```text
@@ -3239,7 +3420,7 @@ MYP15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
 MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
 MYP17 Portable runtime random boundary.
 MYP18 Full surface route qualification.
-MYP19 Constrained-target memory and runtime pressure.
+MYP19 Constrained heap pressure qualification.
 MYP20 Cross-runtime regression qualification and campaign closure.
 ```
 
