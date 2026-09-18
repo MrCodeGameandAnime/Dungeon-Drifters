@@ -2816,6 +2816,195 @@ add interpreter detection, alter first-match semantics, or change gameplay or
 session state. Historical `docs/mpy/` files remain untracked, untouched, and
 uncommitted.
 
+## MYP17 - Repair Portable Runtime Random Boundary
+
+MYP16 was sealed at:
+
+```text
+dbc1da7586f209837aede5b04c670aa830e62f62
+```
+
+Its final session stages were:
+
+```text
+SESSION_VIEW               PASS
+SESSION_ENCOUNTER_ENTRY    FAIL
+TypeError: rng must provide randint
+
+FREE: 671840
+ALLOC: 352672
+
+EXPECTED:    74
+DECORATED:   73
+CONSTRUCTED: 33
+```
+
+The traceback path was:
+
+```text
+OverworldSession.submit()
+-> OverworldSession._create_active_battle()
+-> Battle(...)
+-> Battle.__init__()
+-> default RNG validation
+-> TypeError: rng must provide randint
+```
+
+The standalone Battle qualification injected a deterministic RNG, while the
+session path used Battle's default `random` object. The pinned MicroPython
+random module exposes `getrandbits` but not the convenience functions required
+by the combat runtime:
+
+```text
+getrandbits: True
+randint:     False
+choice:      False
+randrange:   False
+```
+
+An independent pinned-runtime call to `random.getrandbits(8)` returned an
+`int` in the inclusive range `0..255`. This is the available primitive. The
+upstream boundary is `MICROPY_PY_RANDOM_EXTRA_FUNCS`: the Windows standard
+build enables `MICROPY_PY_RANDOM` without enabling the extra `randint`,
+`choice`, and `randrange` functions. MYP17 does not rebuild MicroPython or
+enable that feature.
+
+### Production random census
+
+The pre-edit AST census was dynamically restricted to `root/src/app/**/*.py`.
+It found exactly three direct standard-library `random` imports:
+
+```text
+root/src/app/combat/battle.py
+root/src/app/combat/resolver.py
+root/src/app/world/event.py
+```
+
+The two combat imports were the sealed runtime surface:
+
+```text
+Battle:          randint, choice
+CombatResolver:  randint
+```
+
+No combat code required `random`, `uniform`, `shuffle`, `sample`, or
+`randrange`. `world/event.py` remains a separate legacy/terminal path and was
+not changed in MYP17.
+
+### Portable adapter
+
+MYP17 added `root/src/app/randomness.py` and changed only the combat imports
+in `battle.py` and `resolver.py` to use `app.randomness as random`. The adapter
+performs capability lookup at call time, delegates to native
+`random.randint` and `random.choice` when available, and otherwise derives
+the required operations from `getrandbits` using rejection sampling. It does
+not use modulo reduction, materialize choice sequences, cache patched native
+functions, detect MicroPython, replace `sys.modules`, or patch builtins.
+
+The contract tests cover native delegation, rejected candidates, inclusive
+`randint` ranges, empty choices, missing `getrandbits`, default Battle and
+CombatResolver wiring, and the combat-only AST import boundary. The fallback
+preserves the existing injected-RNG API and the existing CPython monkeypatch
+patterns.
+
+The post-edit census is:
+
+```text
+core combat direct stdlib random imports: 2 -> 0
+whole-app direct stdlib random imports:    3 -> 2
+remaining direct stdlib imports:
+  root/src/app/randomness.py
+  root/src/app/world/event.py
+```
+
+### Qualification results
+
+The direct CPython adapter qualification passed:
+
+```text
+RANDOMNESS|CPYTHON|PASS
+```
+
+The direct pinned MicroPython qualification passed while native convenience
+functions remained unavailable:
+
+```text
+NATIVE True False False
+7
+only
+MYP_RANGE True
+MYP_CHOICE True
+RANDOMNESS|MYP|PASS
+```
+
+Both native CPython and forced-overlay CPython raw probes continued to reach:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The unchanged pinned MicroPython probe now reaches every current stage:
+
+```text
+MYP|IMPLEMENTATION|micropython
+MYP|VERSION|1.29.0
+MYP|PLATFORM|win32
+MYP|BATTLE_CONSTRUCTION|PASS
+MYP|BATTLE_VIEW|PASS
+MYP|BATTLE_INPUT|PASS
+MYP|BATTLE_COMPLETE|PASS
+MYP|SESSION_IMPORT|PASS
+MYP|SESSION_CONSTRUCTION|PASS
+MYP|SESSION_VIEW|PASS
+MYP|SESSION_ENCOUNTER_ENTRY|PASS
+MYP|SESSION_ENCOUNTER_COMPLETE|PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+MYP|DATACLASS|EXPECTED|74
+MYP|DATACLASS|DECORATED|73
+MYP|DATACLASS|CONSTRUCTED|33
+```
+
+The session-entry memory evidence after the adapter was installed was:
+
+```text
+MYP|MEMORY|SESSION_ENCOUNTER_ENTRY|AFTER|FREE|668112|ALLOC|356400
+MYP|MEMORY|SESSION_ENCOUNTER_COMPLETE|AFTER|FREE|669536|ALLOC|354976
+```
+
+There is no post-MYP17 failure traceback: the previous `rng must provide
+randint` failure is crossed and the raw probe completes. The native
+MicroPython `random.randint` and `random.choice` functions remain absent;
+DD's adapter supplies only the qualified runtime surface.
+
+### Verification and scope
+
+The full CPython suite passed `1,440` tests. The exact cumulative MYP16 suite
+plus MYP17 random contract and combat regressions passed `519` tests. The
+random-focused qualification subset passed `175` tests. Compileall,
+dataclass-manifest freshness, and `git diff --check` were also run after the
+implementation.
+
+```text
+new portable random adapter:          1
+existing production files modified:   2
+core combat stdlib random imports:     2 -> 0
+whole-app stdlib random imports:       3 -> 2
+MicroPython source/config changes:     0
+builtins patches:                      0
+sys.modules random overlays:           0
+interpreter detection:                 0
+OverworldSession changes:              0
+raw probe/bootstrap changes:           0
+gameplay rule changes:                 0
+content, route, persistence/schema:    0
+historical docs/mpy changes:           0
+```
+
+MYP17 does not enable `MICROPY_PY_RANDOM_EXTRA_FUNCS`, replace MicroPython's
+random module, patch builtins or `sys.modules`, add interpreter detection, or
+change combat probabilities and gameplay rules. Historical `docs/mpy/` files
+remain untracked, untouched, and uncommitted.
+
 ## Future Gates
 
 ```text
@@ -2836,9 +3025,10 @@ MYP13 Portable strict zip boundary; stop at the tempfile persistence edge.
 MYP14 Session persistence import boundary; stop at itertools.
 MYP15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
 MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
-MYP17 Eight encounters, three Rests, Dungeon Entrance.
-MYP18 Constrained-target memory and runtime pressure.
-MYP19 Cross-runtime regression qualification.
+MYP17 Portable runtime random boundary.
+MYP18 Eight encounters, three Rests, Dungeon Entrance.
+MYP19 Constrained-target memory and runtime pressure.
+MYP20 Cross-runtime regression qualification.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.

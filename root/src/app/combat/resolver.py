@@ -1,6 +1,6 @@
 """Mechanical structured combat resolver."""
 
-import random
+import app.randomness as random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC

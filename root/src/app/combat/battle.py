@@ -1,4 +1,4 @@
-import random
+import app.randomness as random
 from collections.abc import Sequence
 
 from app.combat.combat_state import CombatState
