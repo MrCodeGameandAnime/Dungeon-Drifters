@@ -42,5 +42,8 @@ jobs:
       - name: Run pytest
         run: python -m pytest
 
+      - name: Run web tests
+        run: python -m pytest web_tests
+
       - name: Compile Python sources
-        run: python -m compileall src tests tools
+        run: python -m compileall src tests web_tests tools

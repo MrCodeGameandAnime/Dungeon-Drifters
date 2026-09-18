@@ -1,0 +1,80 @@
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+
+from app.presentation.battle_models import InteractionPhase
+from app.presentation.overworld_models import OverworldScreen
+from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+from app.ui.overworld_ui import ChooseOverworldAction
+
+
+ROOT = Path(__file__).parents[1]
+BRIDGE_PATH = ROOT / "web" / "python" / "dd_bridge.py"
+SPEC = importlib.util.spec_from_file_location("dd_bridge_contract", BRIDGE_PATH)
+bridge = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(bridge)
+
+
+def test_bridge_starts_the_canonical_headless_runtime():
+    runtime = bridge.BrowserRuntime()
+
+    view = runtime.start_game()
+
+    assert view["screen"] == OverworldScreen.MAIN.value
+    assert view["contextual_route_option"]["action"] == "enter_encounter"
+    assert runtime._session.game_state is runtime._game
+    assert runtime._session._save_repository is None
+
+
+def test_bridge_projects_and_submits_existing_semantic_inputs():
+    runtime = bridge.BrowserRuntime()
+    initial = runtime.start_game()
+
+    assert json.loads(runtime.current_view_json()) == initial
+    battle = runtime.submit({"kind": "overworld_action", "action": "enter_encounter"})
+
+    assert battle["interaction_phase"] in {
+        InteractionPhase.ACTIONS.value,
+        InteractionPhase.COMPLETE.value,
+    }
+    assert runtime._session.active_battle is not None
+
+
+def test_bridge_command_decoder_returns_existing_input_types():
+    cases = (
+        ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
+        ({"kind": "action", "intent": "attack"}, ChooseAction),
+        ({"kind": "move", "key": "slash"}, ChooseMove),
+        ({"kind": "target", "target_id": "enemy-1"}, ChooseTarget),
+    )
+
+    for command, expected_type in cases:
+        assert isinstance(bridge._command_to_input(command), expected_type)
+
+
+def test_bridge_rejects_unknown_commands_and_restart_rebuilds_the_runtime():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game()
+    first_game = runtime._game
+
+    with pytest.raises(ValueError, match="unknown browser command"):
+        runtime.submit({"kind": "teleport"})
+
+    restarted = runtime.restart_game()
+
+    assert restarted["screen"] == OverworldScreen.MAIN.value
+    assert runtime._game is not first_game
+    assert runtime._session.active_battle is None
+    assert runtime.current_view()["screen"] == OverworldScreen.MAIN.value
+
+
+def test_bridge_projection_contains_no_browser_owned_gameplay_state():
+    source = BRIDGE_PATH.read_text()
+
+    assert "class GameState" not in source
+    assert "class OverworldSession" not in source
+    assert "damage" not in source
+    assert "reward" not in source
+    assert "route_complete =" not in source

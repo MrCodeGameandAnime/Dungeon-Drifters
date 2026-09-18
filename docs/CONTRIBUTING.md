@@ -9,6 +9,7 @@ proved and released.
 ```text
 root/src/       game code
 root/tests/     automated tests
+root/web_tests/ browser-specific contract tests
 root/tools/     content and development tools
 docs/           guides, design notes, and project history
 res/            local visual assets
@@ -74,7 +75,8 @@ verification set:
 ```powershell
 ..\.venv\Scripts\python.exe -m tools.validate_content
 ..\.venv\Scripts\python.exe -m pytest
-..\.venv\Scripts\python.exe -m compileall src tests tools
+..\.venv\Scripts\python.exe -m pytest web_tests
+..\.venv\Scripts\python.exe -m compileall src tests web_tests tools
 ```
 
 From the repository root, run:
