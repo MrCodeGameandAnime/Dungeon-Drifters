@@ -1,7 +1,7 @@
 """Overworld session orchestration around the existing Battle boundary."""
 
 from enum import StrEnum
-from typing import TypeAlias
+from typing import TypeAlias, Union
 
 from app.content.catalog import (
     get_encounter_spec,
@@ -12,11 +12,12 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import (
+from app.game.save_contract import (
     SaveLoadStatus,
-    SaveRepository,
     SaveRepositoryError,
+    is_save_repository,
 )
+from app.iteration import first_or_none
 from app.presentation.overworld_models import (
     OverworldAction,
     OverworldAvailabilityReason,
@@ -30,7 +31,7 @@ from app.ui.overworld_ui import (
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     OverworldInput,
-    OverworldUI,
+    is_overworld_ui,
 )
 from app.ui.battle_ui import (
     BattleInput,
@@ -49,8 +50,8 @@ class OverworldSessionResult(StrEnum):
     QUIT = "quit"
 
 
-SessionView: TypeAlias = OverworldView | BattleView
-SessionInput: TypeAlias = OverworldInput | BattleInput
+SessionView: TypeAlias = Union[OverworldView, BattleView]
+SessionInput: TypeAlias = Union[OverworldInput, BattleInput]
 
 
 _BATTLE_INPUT_TYPES = (
@@ -83,7 +84,7 @@ class OverworldSession:
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
-        if ui is not None and not isinstance(ui, OverworldUI):
+        if ui is not None and not is_overworld_ui(ui):
             raise TypeError("ui must satisfy OverworldUI")
         for name, value in (
             ("battle_factory", battle_factory),
@@ -97,9 +98,7 @@ class OverworldSession:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
             raise TypeError("presenter must be an OverworldPresenter")
-        if save_repository is None:
-            save_repository = SaveRepository()
-        if not isinstance(save_repository, SaveRepository):
+        if save_repository is not None and not is_save_repository(save_repository):
             raise TypeError("save_repository must be a SaveRepository")
 
         self._game_state = game_state
@@ -237,21 +236,15 @@ class OverworldSession:
             or current_view.skills is None
         ):
             return False
-        previous_row = next(
-            (
-                row
-                for row in previous_view.skills.stats
-                if row.stat_name == session_input.stat_name
-            ),
-            None,
+        previous_row = first_or_none(
+            row
+            for row in previous_view.skills.stats
+            if row.stat_name == session_input.stat_name
         )
-        current_row = next(
-            (
-                row
-                for row in current_view.skills.stats
-                if row.stat_name == session_input.stat_name
-            ),
-            None,
+        current_row = first_or_none(
+            row
+            for row in current_view.skills.stats
+            if row.stat_name == session_input.stat_name
         )
         return bool(
             previous_row
@@ -290,8 +283,16 @@ class OverworldSession:
     def _load_available(self):
         return (
             self._screen is OverworldScreen.OPTIONS
-            and self._save_repository.inspect().status is SaveLoadStatus.VALID
+            and self._save_repository_instance().inspect().status
+            is SaveLoadStatus.VALID
         )
+
+    def _save_repository_instance(self):
+        if self._save_repository is None:
+            from app.game.save_repository import SaveRepository
+
+            self._save_repository = SaveRepository()
+        return self._save_repository
 
     def _select_item(self, view, overworld_input):
         if view.screen is not OverworldScreen.ITEMS or view.inventory is None:
@@ -311,13 +312,10 @@ class OverworldSession:
             self._notice = "That stat is not available."
             return
 
-        row = next(
-            (
-                row
-                for row in view.skills.stats
-                if row.stat_name == overworld_input.stat_name
-            ),
-            None,
+        row = first_or_none(
+            row
+            for row in view.skills.stats
+            if row.stat_name == overworld_input.stat_name
         )
         if row is None or not row.increase_enabled:
             self._notice = self._stat_unavailable_message(
@@ -436,14 +434,14 @@ class OverworldSession:
 
     def _save_current_session(self):
         try:
-            self._save_repository.save(self.game_state)
+            self._save_repository_instance().save(self.game_state)
         except (SaveRepositoryError, TypeError, ValueError):
             self._notice = "The game could not be saved."
         else:
             self._notice = "Game saved."
 
     def _load_saved_session(self):
-        result = self._save_repository.load()
+        result = self._save_repository_instance().load()
         if result.status is not SaveLoadStatus.LOADED:
             self._notice = result.error or "The saved game could not be loaded."
             self._screen = OverworldScreen.OPTIONS

@@ -3,6 +3,28 @@
 from typing import Protocol, Sequence, runtime_checkable
 
 from app.combat.move import DamageType, Move
+from app.runtime_contracts import has_required_members
+
+
+_COMBATANT_DATA_MEMBERS = (
+    "display_name",
+    "health",
+    "mana_resource",
+    "super_resource",
+    "generates_super",
+    "can_defend",
+    "combat_moves",
+)
+_COMBATANT_CALLABLE_MEMBERS = (
+    "effective_stat",
+    "defend_reduction_percent",
+    "is_alive",
+)
+_ENEMY_COMBATANT_DATA_MEMBERS = _COMBATANT_DATA_MEMBERS + (
+    "archetype_id",
+    "tier",
+)
+_ENEMY_COMBATANT_CALLABLE_MEMBERS = _COMBATANT_CALLABLE_MEMBERS
 
 
 @runtime_checkable
@@ -56,3 +78,19 @@ class EnemyCombatant(Combatant, Protocol):
     @property
     def tier(self):
         ...
+
+
+def is_combatant(value):
+    return has_required_members(
+        value,
+        _COMBATANT_DATA_MEMBERS + _COMBATANT_CALLABLE_MEMBERS,
+        _COMBATANT_CALLABLE_MEMBERS,
+    )
+
+
+def is_enemy_combatant(value):
+    return has_required_members(
+        value,
+        _ENEMY_COMBATANT_DATA_MEMBERS + _ENEMY_COMBATANT_CALLABLE_MEMBERS,
+        _ENEMY_COMBATANT_CALLABLE_MEMBERS,
+    )

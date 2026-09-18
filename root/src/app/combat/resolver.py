@@ -1,12 +1,12 @@
 """Mechanical structured combat resolver."""
 
-import random
+import app.randomness as random
 
 from app.combat.arcane import GRAVEMANTLE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
-from app.combat.combatant import Combatant
+from app.combat.combatant import is_combatant
 from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
 from app.combat.result import (
     CombatOutcome,
@@ -426,7 +426,7 @@ def _outcomes_for_discharge(discharge):
 
 
 def _is_valid_combatant(value):
-    if not isinstance(value, Combatant):
+    if not is_combatant(value):
         return False
 
     try:

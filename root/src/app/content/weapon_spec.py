@@ -2,9 +2,9 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 
 from app.items.weapon import Weapon
+from app.readonly_mapping import readonly_mapping
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class WeaponSpec:
         object.__setattr__(
             self,
             "stat_bonuses",
-            MappingProxyType(weapon.stat_bonuses),
+            readonly_mapping(weapon.stat_bonuses),
         )
 
     def _create_weapon(self):

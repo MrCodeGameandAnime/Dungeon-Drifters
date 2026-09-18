@@ -60,9 +60,14 @@ def test_session_keeps_complete_current_action_before_eviction():
 def test_session_exposes_immutable_entry_snapshots():
     session = BattlePresentationSession()
     session.record(_entry(1))
+    internal_entries = session._entries
+    internal_snapshot = list(internal_entries)
     snapshot = session.entries
 
     assert isinstance(snapshot, tuple)
+    assert isinstance(internal_entries, list)
+    assert session._entries is internal_entries
+    assert internal_entries == internal_snapshot
     with pytest.raises(AttributeError):
         snapshot.append(_entry(2))
     session.record(_entry(2))

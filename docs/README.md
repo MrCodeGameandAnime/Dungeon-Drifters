@@ -108,9 +108,9 @@ and architecture.
 From the `root/` project directory:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
-python -m pytest
-python -m compileall src tests tools
+..\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+..\.venv\Scripts\python.exe -m pytest
+..\.venv\Scripts\python.exe -m compileall src tests tools
 ```
 
 ## Project Structure
@@ -131,7 +131,7 @@ repository-level configuration remain at the repository root.
 
 ## Change Log
 
-The complete version history is maintained in the [change log](change/change%20log.md).
+The complete version history is maintained in the [change log](CHANGE_LOG.md).
 
 ## Contact
 
@@ -142,7 +142,7 @@ For questions or support, please get in touch with the maintainer:
 
 ## Development
 
-- Use the [content authoring guide](content%20creation/content%20authoring.md)
+- Use the [content authoring guide](CONTENT_AUTHORING.md)
   to add Drifters, enemies, weapons, encounters, or routes through the supported
   scaffolding and validation workflow.
 - `tools/balance_probe.py` provides deterministic combat simulations and

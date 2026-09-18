@@ -37,10 +37,8 @@ def render_full_profile(profile: DrifterSpec) -> str:
 
 def render_roster(profiles: tuple[DrifterSpec, ...]) -> str:
     return "\n\n".join(
-        (
-            "Choose your Drifter:",
-            *(render_compact_profile(profile) for profile in profiles),
-        )
+        ("Choose your Drifter:",)
+        + tuple(render_compact_profile(profile) for profile in profiles)
     )
 
 

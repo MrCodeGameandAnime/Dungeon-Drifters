@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
+from app.iteration import first_or_none
 from app.player.character_run_state import CharacterRunState, InventoryActionId
 from app.player.run_items import INVENTORY_RECIPES
 
@@ -100,9 +101,10 @@ class InventoryActionResolver:
 
     @staticmethod
     def _recipe_for_action(action_id):
-        return next(
-            (recipe for recipe in INVENTORY_RECIPES if recipe.action_id == action_id),
-            None,
+        return first_or_none(
+            recipe
+            for recipe in INVENTORY_RECIPES
+            if recipe.action_id == action_id
         )
 
     @staticmethod

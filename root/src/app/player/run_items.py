@@ -9,6 +9,7 @@ from app.player.character_run_state import (
     InventoryActionId,
     RunItemId,
 )
+from app.iteration import first_or_none
 
 
 class InventoryCommand(StrEnum):
@@ -104,9 +105,10 @@ def run_item_definition(item_id):
         item_id = RunItemId(item_id)
     except (TypeError, ValueError):
         return None
-    return next(
-        (definition for definition in RUN_ITEM_DEFINITIONS if definition.item_id == item_id),
-        None,
+    return first_or_none(
+        definition
+        for definition in RUN_ITEM_DEFINITIONS
+        if definition.item_id == item_id
     )
 
 
@@ -126,13 +128,10 @@ def inventory_recipe_for_pair(first_item_id, second_item_id):
         return None
     if first_item_id == second_item_id:
         return None
-    return next(
-        (
-            recipe
-            for recipe in INVENTORY_RECIPES
-            if set(recipe.ingredient_ids) == {first_item_id, second_item_id}
-        ),
-        None,
+    return first_or_none(
+        recipe
+        for recipe in INVENTORY_RECIPES
+        if set(recipe.ingredient_ids) == {first_item_id, second_item_id}
     )
 
 

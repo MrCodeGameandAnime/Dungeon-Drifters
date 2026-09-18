@@ -1,7 +1,5 @@
 """Pure translation from persistent session state to overworld views."""
 
-from itertools import groupby
-
 from app.content.catalog import (
     get_encounter_spec,
     get_enemy_spec,
@@ -12,6 +10,7 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
+from app.iteration import first_or_none
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
 from app.presentation.overworld_models import (
@@ -50,6 +49,17 @@ _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
 
 
+def _adjacent_run_counts(values):
+    groups = []
+    for value in values:
+        if groups and groups[-1][0] == value:
+            previous_value, count = groups[-1]
+            groups[-1] = (previous_value, count + 1)
+        else:
+            groups.append((value, 1))
+    return tuple(groups)
+
+
 class OverworldPresenter:
     def build(
         self,
@@ -68,9 +78,10 @@ class OverworldPresenter:
         node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
         adventure_text = adventure_text or self._default_adventure_text(game_state)
         items = self._inventory_items(game_state)
-        selected_item = next(
-            (item for item in items if item.selection_key == selected_item_key),
-            None,
+        selected_item = first_or_none(
+            item
+            for item in items
+            if item.selection_key == selected_item_key
         )
         options = self._options(
             game_state,
@@ -331,8 +342,9 @@ class OverworldPresenter:
         encounter = get_encounter_spec(inspection_node.encounter_id)
 
         composition = []
-        for archetype_id, grouped_ids in groupby(encounter.enemy_archetype_ids):
-            count = sum(1 for _ in grouped_ids)
+        for archetype_id, count in _adjacent_run_counts(
+            encounter.enemy_archetype_ids
+        ):
             enemy_spec = get_enemy_spec(archetype_id)
             composition.append(
                 enemy_spec.name

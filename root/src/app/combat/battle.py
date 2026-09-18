@@ -1,9 +1,8 @@
-import random
-from collections import Counter
+import app.randomness as random
 from collections.abc import Sequence
 
 from app.combat.combat_state import CombatState
-from app.combat.combatant import EnemyCombatant
+from app.combat.combatant import is_enemy_combatant
 from app.combat.move import ResourceType, TargetType
 from app.combat.resolver import CombatResolver
 from app.presentation.battle_models import (
@@ -101,7 +100,7 @@ class Battle:
 
     @staticmethod
     def _normalize_enemies(enemies):
-        if isinstance(enemies, EnemyCombatant):
+        if is_enemy_combatant(enemies):
             normalized = (enemies,)
         elif isinstance(enemies, Sequence) and not isinstance(
             enemies,
@@ -117,7 +116,7 @@ class Battle:
             raise ValueError("Battle requires at least one enemy")
         if len(normalized) > 4:
             raise ValueError("Battle supports at most four enemies")
-        if not all(isinstance(enemy, EnemyCombatant) for enemy in normalized):
+        if not all(is_enemy_combatant(enemy) for enemy in normalized):
             raise TypeError("all Battle enemies must be enemy combatants")
         if len({id(enemy) for enemy in normalized}) != len(normalized):
             raise ValueError("the same EnemyState cannot appear more than once")
@@ -125,16 +124,21 @@ class Battle:
 
     @staticmethod
     def _build_enemy_display_labels(enemies):
-        counts = Counter(enemy.display_name for enemy in enemies)
-        positions = Counter()
+        counts = {}
+        for enemy in enemies:
+            name = enemy.display_name
+            counts[name] = counts.get(name, 0) + 1
+
+        positions = {}
         labels = []
         for enemy in enemies:
             name = enemy.display_name
             if counts[name] == 1:
                 labels.append(name)
                 continue
-            positions[name] += 1
-            labels.append(f"{name} {positions[name]}")
+            position = positions.get(name, 0) + 1
+            positions[name] = position
+            labels.append(f"{name} {position}")
         return tuple(labels)
 
     @property
@@ -303,7 +307,6 @@ class Battle:
         for enemy, label in zip(
             self.enemies,
             self.enemy_display_labels,
-            strict=True,
         ):
             if combatant is enemy:
                 return label
@@ -693,7 +696,6 @@ class Battle:
         for current_id, enemy in zip(
             self.enemy_target_ids,
             self.enemies,
-            strict=True,
         ):
             if current_id == target_id:
                 return enemy

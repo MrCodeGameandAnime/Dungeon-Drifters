@@ -1,9 +1,10 @@
 """Semantic overworld input values and UI protocol."""
 
 from dataclasses import dataclass
-from typing import Protocol, TypeAlias, runtime_checkable
+from typing import Protocol, TypeAlias, Union, runtime_checkable
 
 from app.presentation.overworld_models import OverworldAction, OverworldView
+from app.runtime_contracts import has_required_members
 
 
 @dataclass(frozen=True)
@@ -32,11 +33,11 @@ class ChoosePermanentStatIncrease:
             raise ValueError("stat_name must be a nonempty string")
 
 
-OverworldInput: TypeAlias = (
-    ChooseOverworldAction
-    | ChooseOverworldItem
-    | ChoosePermanentStatIncrease
-)
+OverworldInput: TypeAlias = Union[
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+    ChoosePermanentStatIncrease,
+]
 
 
 @runtime_checkable
@@ -46,3 +47,14 @@ class OverworldUI(Protocol):
 
     def read_input(self, view: OverworldView) -> OverworldInput:
         ...
+
+
+_OVERWORLD_UI_CALLABLE_MEMBERS = ("render", "read_input")
+
+
+def is_overworld_ui(value):
+    return has_required_members(
+        value,
+        _OVERWORLD_UI_CALLABLE_MEMBERS,
+        _OVERWORLD_UI_CALLABLE_MEMBERS,
+    )

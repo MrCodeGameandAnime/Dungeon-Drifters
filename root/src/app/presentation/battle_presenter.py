@@ -7,6 +7,7 @@ from app.combat.move import DamageType, MoveKind, ResourceType
 from app.combat.move_presentation import MoveRole
 from app.combat.status_state import StatusKind
 from app.combat.storm import LIGHTNING_PALM_MECHANIC, STORM_RULES
+from app.iteration import first_or_none
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -93,7 +94,6 @@ class BattlePresenter:
                 enemies,
                 enemy_target_ids,
                 enemy_display_labels,
-                strict=True,
             )
         )
         return BattleView(
@@ -531,20 +531,17 @@ class BattlePresenter:
 
         origin = InteractionPhase(originating_move_phase)
         moves = self._moves_for_phase(player, origin)
-        selected = next(
-            (
-                (number, move)
-                for number, move in enumerate(moves, start=1)
-                if move.name == selected_move_key
-            ),
-            None,
+        selected = first_or_none(
+            (number, move)
+            for number, move in enumerate(moves, start=1)
+            if move.name == selected_move_key
         )
         if selected is None:
             return ()
         move_number, move = selected
 
         options = []
-        for enemy, enemy_view in zip(enemies, enemy_views, strict=True):
+        for enemy, enemy_view in zip(enemies, enemy_views):
             if not enemy.is_alive():
                 continue
             preview = self._move_option(

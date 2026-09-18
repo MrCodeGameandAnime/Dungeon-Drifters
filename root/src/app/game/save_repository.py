@@ -4,10 +4,13 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 
 from app.game.game_state import GameState
+from app.game.save_contract import (
+    SaveLoadStatus,
+    SaveRepositoryError,
+)
 from app.game.save_state import (
     DISK_SCHEMA_VERSION,
     build_save_document,
@@ -20,23 +23,12 @@ SAVE_DIRECTORY = Path(__file__).resolve().parents[2] / "saves"
 SAVE_PATH = SAVE_DIRECTORY / "dungeon_drifters.json"
 
 
-class SaveLoadStatus(StrEnum):
-    MISSING = "missing"
-    VALID = "valid"
-    LOADED = "loaded"
-    INVALID = "invalid"
-
-
 @dataclass(frozen=True)
 class SaveLoadResult:
     status: SaveLoadStatus
     game_state: GameState | None = None
     error: str | None = None
     migrated_from_schema_7: bool = False
-
-
-class SaveRepositoryError(RuntimeError):
-    """Raised when an atomic save write cannot complete."""
 
 
 class SaveRepository:

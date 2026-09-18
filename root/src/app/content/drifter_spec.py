@@ -9,6 +9,7 @@ from app.player.character_run_state import PreparedPayloadId, RunItemId
 
 
 _CONTENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+_ASCII_DECIMAL_PATTERN = re.compile(r"^[0-9]+$")
 
 
 def _nonempty_string(name, value):
@@ -123,7 +124,7 @@ class DrifterSpec:
         ):
             object.__setattr__(self, name, _nonempty_string(name, getattr(self, name)))
         choice = _nonempty_string("choice", self.choice)
-        if not choice.isascii() or not choice.isdecimal() or int(choice) < 1:
+        if _ASCII_DECIMAL_PATTERN.fullmatch(choice) is None or int(choice) < 1:
             raise ValueError("choice must be a positive ASCII integer string")
         object.__setattr__(self, "choice", choice)
         if (
