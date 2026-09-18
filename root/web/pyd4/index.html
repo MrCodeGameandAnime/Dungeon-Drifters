@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#10241f">
+    <title>Dungeon Drifters | Browser Playtest</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+  </head>
+  <body>
+    <div id="orientation-guidance" class="orientation-guidance" role="status">
+      Rotate your device to landscape for the best playtest experience.
+    </div>
+    <div id="loading" class="status-panel" role="status" aria-live="polite">
+      <p class="eyebrow">DUNGEON DRIFTERS</p>
+      <h1>Loading the playtest</h1>
+      <p>Starting the authoritative Python runtime in your browser.</p>
+    </div>
+    <div id="error" class="status-panel error-panel" role="alert" hidden>
+      <p class="eyebrow">PLAYTEST ERROR</p>
+      <h1>We could not start the game</h1>
+      <p id="error-message"></p>
+      <button id="retry" type="button">Retry</button>
+    </div>
+    <main id="app" class="app-shell" hidden>
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">DUNGEON DRIFTERS</p>
+          <h1>Browser Playtest</h1>
+          <p id="runtime-status" class="runtime-status">Python runtime ready</p>
+        </div>
+        <button id="restart" class="secondary-button" type="button">Restart</button>
+      </header>
+
+      <div class="play-grid">
+        <section id="route-panel" class="panel route-panel" aria-labelledby="route-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">CURRENT ROUTE</p>
+              <h2 id="route-title">The road ahead</h2>
+            </div>
+            <span id="screen-badge" class="badge"></span>
+          </div>
+          <p id="location-label" class="location-label"></p>
+          <p id="adventure-text" class="adventure-text"></p>
+          <div id="route-actions" class="button-grid"></div>
+          <div id="overworld-options" class="button-grid"></div>
+          <p id="notice" class="notice" hidden></p>
+        </section>
+
+        <section id="player-panel" class="panel player-panel" aria-labelledby="player-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">PARTY</p>
+              <h2 id="player-title">Branoc</h2>
+            </div>
+          </div>
+          <div id="player-status" class="stat-grid"></div>
+          <div id="player-details" class="details-list"></div>
+        </section>
+
+        <section id="enemy-panel" class="panel enemy-panel" aria-labelledby="enemy-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">ENCOUNTER</p>
+              <h2 id="enemy-title">Battle</h2>
+            </div>
+            <span id="phase-badge" class="badge"></span>
+          </div>
+          <div id="enemies" class="enemy-list"></div>
+          <div id="battle-log" class="battle-log" aria-live="polite"></div>
+        </section>
+
+        <section id="controls-panel" class="panel controls-panel" aria-labelledby="controls-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">AVAILABLE INPUT</p>
+              <h2 id="controls-title">Choose your next move</h2>
+            </div>
+          </div>
+          <div id="actions" class="control-group"></div>
+          <div id="moves" class="control-group"></div>
+          <div id="targets" class="control-group"></div>
+          <div id="inventory" class="control-group"></div>
+        </section>
+      </div>
+
+      <section id="completion" class="completion-panel" hidden aria-live="polite">
+        <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
+        <h2>You reached the Dungeon Entrance.</h2>
+        <p>The current playtest route is complete. Start again whenever you want another run.</p>
+        <button id="completion-restart" type="button">Restart the route</button>
+      </section>
+    </main>
+    <script src="js/pyd4.js"></script>
+  </body>
+</html>

@@ -1,0 +1,185 @@
+:root {
+  color-scheme: dark;
+  --ink: #edf5ee;
+  --muted: #a8b9ad;
+  --panel: #172b27;
+  --panel-raised: #1d3831;
+  --line: #315148;
+  --accent: #f5bd5c;
+  --accent-strong: #ffd98e;
+  --success: #8bd3a5;
+  --danger: #ff9c91;
+  --shadow: 0 1rem 2.5rem rgb(0 0 0 / 22%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0d1b19;
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgb(16 36 31 / 94%), rgb(9 25 31 / 98%)),
+    #0d1b19;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: .55rem;
+  min-height: 2.75rem;
+  padding: .7rem .9rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--panel-raised);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+button:hover:not(:disabled), button:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: #28473d;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  color: #71857b;
+  background: #15231f;
+  cursor: not-allowed;
+  opacity: .76;
+}
+
+.status-panel {
+  width: min(92vw, 42rem);
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  gap: .6rem;
+}
+
+.status-panel h1, .status-panel p { margin: 0; }
+.status-panel h1 { font-size: clamp(1.8rem, 5vw, 3.4rem); }
+.status-panel p:not(.eyebrow) { color: var(--muted); line-height: 1.55; }
+
+.error-panel { color: var(--danger); }
+.error-panel p:not(.eyebrow) { color: #ffd0ca; }
+
+.eyebrow {
+  margin: 0 0 .35rem;
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.app-shell {
+  height: 100dvh;
+  overflow: auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+.app-header, .play-grid, .completion-panel { width: min(100%, 80rem); margin-inline: auto; }
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.app-header h1, .panel h2, .completion-panel h2 { margin: 0; }
+.app-header h1 { font-size: clamp(1.6rem, 4vw, 2.5rem); }
+.runtime-status { margin: .35rem 0 0; color: var(--muted); font-size: .9rem; }
+.secondary-button { white-space: nowrap; }
+
+.play-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, .75fr);
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.panel, .completion-panel {
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  background: rgb(23 43 39 / 94%);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.route-panel { grid-column: 1; }
+.player-panel { grid-column: 2; grid-row: 1; }
+.enemy-panel { grid-column: 1; }
+.controls-panel { grid-column: 2; grid-row: 2; }
+
+.panel-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: .8rem; }
+.panel h2 { font-size: 1.1rem; }
+.badge { color: var(--accent-strong); font-size: .78rem; font-weight: 800; text-transform: uppercase; }
+.location-label { margin: 0; color: var(--accent-strong); font-size: 1.05rem; font-weight: 700; }
+.adventure-text, .notice { color: var(--muted); line-height: 1.5; }
+.notice { margin: .8rem 0 0; border-left: 3px solid var(--accent); padding-left: .7rem; }
+
+.button-grid, .control-group { display: grid; gap: .55rem; margin-top: .8rem; }
+.button-grid { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+.control-group:empty { display: none; }
+.control-group h3 { margin: .3rem 0 0; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+.control-group button { text-align: left; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+.stat { border: 1px solid var(--line); border-radius: .45rem; padding: .6rem; background: rgb(29 56 49 / 56%); }
+.stat-label { display: block; color: var(--muted); font-size: .72rem; }
+.stat-value { display: block; margin-top: .2rem; font-weight: 800; }
+.details-list { display: grid; gap: .35rem; margin-top: .8rem; color: var(--muted); font-size: .84rem; }
+.detail-row { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgb(49 81 72 / 55%); padding-bottom: .3rem; }
+.detail-row strong { color: var(--ink); text-align: right; }
+
+.enemy-list { display: grid; gap: .6rem; }
+.enemy { border: 1px solid var(--line); border-radius: .5rem; padding: .7rem; background: rgb(29 56 49 / 56%); }
+.enemy.defeated { border-color: var(--success); }
+.enemy-head { display: flex; justify-content: space-between; gap: 1rem; font-weight: 700; }
+.enemy-meta { color: var(--muted); font-size: .82rem; margin-top: .25rem; }
+.battle-log { max-height: 12rem; overflow: auto; margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .6rem; color: var(--muted); font-size: .82rem; }
+.log-entry { padding: .25rem 0; }
+.log-entry strong { color: var(--ink); }
+
+.completion-panel { margin-bottom: 1rem; border-color: var(--accent); }
+.completion-panel p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
+.orientation-guidance { display: none; }
+
+@media (max-width: 48rem) {
+  body { overflow: auto; }
+  .app-shell { height: auto; min-height: 100dvh; }
+  .play-grid { grid-template-columns: 1fr; }
+  .route-panel, .player-panel, .enemy-panel, .controls-panel { grid-column: 1; grid-row: auto; }
+}
+
+@media (orientation: portrait) and (max-width: 60rem) {
+  .orientation-guidance {
+    display: block;
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    padding: .65rem 1rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--accent-strong);
+    background: #152b26;
+    text-align: center;
+    font-size: .82rem;
+  }
+}
+
+@media (min-width: 60rem) {
+  .app-shell { overflow: hidden; }
+  .play-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  .panel { min-height: 0; overflow: auto; }
+  .battle-log { max-height: 8rem; }
+}
