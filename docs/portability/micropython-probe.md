@@ -3421,7 +3421,10 @@ MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
 MYP17 Portable runtime random boundary.
 MYP18 Full surface route qualification.
 MYP19 Constrained heap pressure qualification.
-MYP20 Cross-runtime regression qualification and campaign closure.
+MYP20 Cross-runtime regression qualification and campaign closure: sealed.
+
+No further nominal MYP gates are scheduled. Future qualification is
+evidence-driven and triggered by material runtime or architecture changes.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
@@ -3447,3 +3450,127 @@ docs/portability/micropython-probe.md
 
 No compatibility overlay, bootstrap, raw probe, generated metadata, save
 schema, gameplay, content, or historical `docs/mpy/` file changed.
+
+## MYP20 - Cross-Runtime Qualification Closure
+
+MYP20 was executed from the sealed MYP19 baseline:
+
+```text
+896b1b39f24c0a35768f69d2394b124160c55c15
+MYP19 - Qualify Constrained Heap Pressure
+```
+
+The closure tool is host-side only:
+
+```text
+root/tools/runtime_qualification_matrix.py
+```
+
+It does not import production modules and does not modify the raw probe,
+bootstrap, heap-sweep tool, or production source. It runs the same probe in
+native CPython, forced-overlay CPython, pinned MicroPython at its default
+heap, and pinned MicroPython at the sealed 448K stable heap.
+
+### Cross-runtime semantic contract
+
+The matrix compares the exact semantic signature:
+
+```text
+(stage PASS sequence, route PASS sequence, completion marker)
+```
+
+It ignores memory values, traceback formatting, runtime identity, and
+dataclass census values for parity purposes. Each runtime must independently
+match the sealed expected contract before signatures are compared. The
+expected route remains the twelve authored nodes from `surface_goblin_solo`
+through `surface_dungeon_entrance`; the completion marker must occur exactly
+once.
+
+Runtime identity evidence was:
+
+```text
+CPYTHON_NATIVE          cpython 3.14.6 win32
+CPYTHON_FORCED_OVERLAY  cpython 3.14.6 win32
+MICROPYTHON_DEFAULT     micropython 1.29.0 win32
+MICROPYTHON_448K        micropython 1.29.0 win32
+```
+
+The matrix result was:
+
+```text
+MYP20|RUNTIME|CPYTHON_NATIVE|PASS
+MYP20|RUNTIME|CPYTHON_FORCED_OVERLAY|PASS
+MYP20|RUNTIME|MICROPYTHON_DEFAULT|PASS
+MYP20|RUNTIME|MICROPYTHON_448K|PASS
+MYP20|SEMANTIC_PARITY|PASS
+```
+
+The forced-overlay run is retained as a distinct middle runtime: native
+CPython proves ordinary DD behavior, forced-overlay CPython exercises the
+compatibility surfaces on CPython, and pinned MicroPython proves the same
+authoritative headless runtime executes under the constrained interpreter.
+This is one gameplay implementation, not three gameplay implementations.
+
+### Fixed MYP19 pressure confirmation
+
+MYP20 did not re-hunt the heap floor. It reran only the sealed boundary:
+
+```text
+MYP20|HEAP|448K|STABLE_PASS|3/3
+MYP20|HEAP|416K|MEMORY_LIMIT_CONFIRMED|3/3
+```
+
+The 448K runs reached `ROUTE_FINAL_STATE`, `ROUTE_EVIDENCE_RELEASE`,
+`ROUTE_SESSION_TEARDOWN`, and the completion marker. The 416K runs remained
+clean `MemoryError` pressure results; their exact failure frontiers were
+retained in the matrix subprocess output. The 448K result is an observed
+Windows MicroPython qualification floor, not a product or PS5 memory budget.
+
+### Closure result
+
+```text
+MYP20|RESULT|CLOSURE_COMPLETE
+```
+
+The qualified runtime surface remains:
+
+```text
+catalog loading, DrifterSpec resolution, new-game construction,
+EnemyState and Battle construction, BattleView generation, semantic Battle
+inputs and completion, OverworldSession import/construction/view generation,
+session encounter entry/completion, the full eight-encounter three-Rest
+surface route, Goblin Lord defeat, Dungeon Entrance, progression/rewards,
+evidence release, and route-session teardown.
+```
+
+The compatibility inventory is unchanged and consists of narrow portable
+source corrections and MicroPython-only overlays: readonly mappings,
+generated dataclass metadata and the dataclass overlay, StrEnum, keyword and
+regex boundaries, `collections.abc`, typing/Protocol, portable ASCII
+validation, Counter removal, starred tuple portability, strict-zip removal,
+the lazy session persistence import boundary, `itertools.groupby` removal,
+`first_or_none`, and the portable random adapter.
+
+The campaign retains one authoritative Python gameplay implementation. It
+does not claim universal future-content compatibility, exhaustive mechanic
+coverage, a PS5 RAM budget, PS5 host integration, completed SAVE-ARCH,
+desktop persistence portability, or PS5 shipping readiness. SAVE-ARCH,
+graphics, audio, input, platform lifecycle, SDK integration, native storage,
+packaging, and certification remain separate host/platform concerns.
+
+Future MicroPython qualification is triggered only by material changes such
+as a runtime version change, new headless standard-library dependency,
+unqualified gameplay content, core session/combat architecture changes,
+dataclass-contract or overlay changes, persistence entering the constrained
+runtime contract, or a material target runtime change. No nominal MYP21 gate
+is scheduled.
+
+```text
+Dungeon Drifters MicroPython portability campaign MYP0-MYP20: CLOSED.
+
+The current authoritative headless gameplay runtime and authored surface-route
+contract are qualified on pinned MicroPython v1.29.0 without a second
+gameplay implementation.
+
+Future portability work is evidence-driven rather than gate-number-driven.
+```
