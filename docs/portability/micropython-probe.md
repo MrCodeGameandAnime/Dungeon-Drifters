@@ -3005,6 +3005,218 @@ random module, patch builtins or `sys.modules`, add interpreter detection, or
 change combat probabilities and gameplay rules. Historical `docs/mpy/` files
 remain untracked, untouched, and uncommitted.
 
+## MYP18 - Full Surface Route Qualification
+
+MYP17 was sealed at:
+
+```text
+4ac69098c173d7fecbd590eb329c3222af00876b
+MYP17 - Repair Portable Runtime Random Boundary
+```
+
+Its real default session path completed the first encounter and reached:
+
+```text
+SESSION_ENCOUNTER_ENTRY     PASS
+SESSION_ENCOUNTER_COMPLETE  PASS
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+MYP18 changed no production source. It extended the qualification artifact
+after the sealed stages, using a fresh Branoc game and fresh headless
+`OverworldSession` for the full authored route. The route driver uses the
+real session, `Battle`, `EnemyState`, `BattlePresenter`, and
+`BattlePresentationSession` objects. Its only deterministic pieces are a
+probe-local Battle factory, resolver, and RNG so this gate measures route
+orchestration and progression rather than combat-balance randomness.
+
+MYP17 already qualified the real default session Battle, RNG adapter, and
+CombatResolver path. MYP18 therefore uses deterministic combat to make all
+eight encounters finish through the semantic Battle view/input contract:
+actions, enabled moves, and enabled targets. It does not claim statistically
+representative combat balance under MicroPython.
+
+### Route oracle
+
+The live authored route and the CPython qualification oracle agree on exactly
+12 nodes, 8 encounters, 3 Rests, 1 boss, and `surface_dungeon_entrance` as
+the terminal node:
+
+```text
+surface_goblin_solo
+surface_goblin_pair
+surface_warrior_solo
+surface_rest_after_warrior_solo
+surface_warrior_pair
+surface_shaman_solo
+surface_shaman_pair
+surface_rest_after_shaman_pair
+surface_elite_patrol
+surface_rest_before_goblin_lord
+surface_goblin_lord
+surface_dungeon_entrance
+```
+
+Encounter IDs:
+
+```text
+surface_goblin_solo
+surface_goblin_pair
+surface_warrior_solo
+surface_warrior_pair
+surface_shaman_solo
+surface_shaman_pair
+surface_elite_patrol
+surface_goblin_lord
+```
+
+Rest IDs:
+
+```text
+surface_rest_after_warrior_solo
+surface_rest_after_shaman_pair
+surface_rest_before_goblin_lord
+```
+
+Encounter compositions remained authored and unchanged:
+
+```text
+(goblin)
+(goblin, goblin)
+(goblin_warrior)
+(goblin_warrior, goblin_warrior)
+(goblin_shaman)
+(goblin_shaman, goblin_shaman)
+(goblin_elite, goblin)
+(goblin_lord, goblin, goblin_warrior)
+```
+
+The route probe asserts each immediate successor, encounter and Rest prefix,
+semantic action flow, exactly-once encounter finalization, fresh enemy
+identity, final progression, and final route state. It does not visit the
+Options screen and keeps `save_repository=None`; the lazy disk repository
+remained unmaterialized.
+
+### Route results
+
+Native CPython, forced-overlay CPython, and pinned MicroPython all passed the
+sealed MYP17 stage prefix, all 12 route nodes, `SURFACE_ROUTE_COMPLETE`, and
+`ROUTE_FINAL_STATE`, ending with:
+
+```text
+MYP|RESULT|RAW_PROBE_STAGES_COMPLETE
+```
+
+The route markers were:
+
+```text
+MYP|ROUTE|surface_goblin_solo|PASS
+MYP|ROUTE|surface_goblin_pair|PASS
+MYP|ROUTE|surface_warrior_solo|PASS
+MYP|ROUTE|surface_rest_after_warrior_solo|PASS
+MYP|ROUTE|surface_warrior_pair|PASS
+MYP|ROUTE|surface_shaman_solo|PASS
+MYP|ROUTE|surface_shaman_pair|PASS
+MYP|ROUTE|surface_rest_after_shaman_pair|PASS
+MYP|ROUTE|surface_elite_patrol|PASS
+MYP|ROUTE|surface_rest_before_goblin_lord|PASS
+MYP|ROUTE|surface_goblin_lord|PASS
+MYP|ROUTE|surface_dungeon_entrance|PASS
+```
+
+Pinned MicroPython final state:
+
+```text
+encounters defeated:       8
+Rests resolved:            3
+fresh EnemyState objects: 14
+Battle instances:          8
+boss:                      Goblin Lord
+current route node:        surface_dungeon_entrance
+route_complete:            True
+dungeon_entrance_reached:  True
+active_battle:             None
+level:                     9
+EXP:                       68
+growth points:             24
+gold:                      75
+save repository:           not materialized
+```
+
+Every recorded Battle reached `InteractionPhase.COMPLETE`, all fourteen
+EnemyState objects were distinct by identity, and the final view was MAIN
+with no contextual route action.
+
+### Route memory evidence
+
+Pinned MicroPython emitted the following per-node memory observations. Values
+are `FREE / ALLOC` bytes; no MYP18 threshold was applied.
+
+```text
+ROUTE_CONSTRUCTION                 646656/377856 -> 644816/379696
+ROUTE_INITIAL_VIEW                 644816/379696 -> 644384/380128
+surface_goblin_solo                644272/380240 -> 641824/382688
+surface_goblin_pair                641808/382704 -> 638624/385888
+surface_warrior_solo               638608/385904 -> 636272/388240
+surface_rest_after_warrior_solo    636272/388240 -> 636256/388256
+surface_warrior_pair               636256/388256 -> 633008/391504
+surface_shaman_solo                633008/391504 -> 630592/393920
+surface_shaman_pair                630576/393936 -> 627360/397152
+surface_rest_after_shaman_pair     627344/397168 -> 627408/397104
+surface_elite_patrol               627408/397104 -> 624272/400240
+surface_rest_before_goblin_lord    624272/400240 -> 624320/400192
+surface_goblin_lord                624320/400192 -> 620432/404080
+surface_dungeon_entrance           620416/404096 -> 620416/404096
+ROUTE_FINAL_STATE                   620528/403984 -> 620512/404000
+```
+
+The lowest observed route `FREE` was `620416`; the highest observed route
+`ALLOC` was `404096`. The final route-final-state measurement was
+`FREE 620512 / ALLOC 404000`. The final dataclass census was:
+
+```text
+EXPECTED:    74
+DECORATED:   73
+CONSTRUCTED: 35
+```
+
+### Verification and scope
+
+The full CPython suite passed `1,443` tests. The exact sealed MYP17
+cumulative portability suite plus MYP18 route qualification coverage passed
+`553` tests. Compileall passed for `root/src`, `root/tests`, `root/tools`,
+and `root/portability`; the dataclass manifest remained current at 74
+entries; and `git diff --check` was clean.
+
+The permanent route-probe contract test checks the sealed MYP17 stage prefix,
+the exact twelve-node oracle, eight encounters, three Rests, fourteen enemy
+instances, final progression, final node, and the absence of filesystem or
+test-framework dependencies in the raw probe.
+
+```text
+production source files changed:       0
+gameplay code changed:                 0
+combat rules changed:                  0
+route/content changed:                 0
+session implementation changed:        0
+persistence/schema changed:            0
+compatibility overlays changed:        0
+bootstrap changed:                     0
+MicroPython source/config changed:     0
+new runtime compatibility primitive:   0
+raw qualification horizon:             1 encounter -> full 12-node route
+encounters qualified:                  8
+Rests qualified:                        3
+enemy instances qualified:             14
+historical docs/mpy changes:           0
+```
+
+MYP18 is a qualification gate only. It adds no compatibility repair, does
+not alter authored route/content, does not change gameplay or session state,
+and does not import or instantiate desktop persistence during route traversal.
+The meaning of `MYP|RESULT|RAW_PROBE_STAGES_COMPLETE` is now the expanded
+full-route probe rather than only the MYP17 first-encounter horizon.
+
 ## Future Gates
 
 ```text
@@ -3026,9 +3238,9 @@ MYP14 Session persistence import boundary; stop at itertools.
 MYP15 Remove the itertools groupby dependency; stop at SESSION_VIEW.
 MYP16 Derived only from the new SESSION_VIEW MicroPython failure.
 MYP17 Portable runtime random boundary.
-MYP18 Eight encounters, three Rests, Dungeon Entrance.
+MYP18 Full surface route qualification.
 MYP19 Constrained-target memory and runtime pressure.
-MYP20 Cross-runtime regression qualification.
+MYP20 Cross-runtime regression qualification and campaign closure.
 ```
 
 Hardware-specific heap results remain separate from the Windows-port language/import qualification.
