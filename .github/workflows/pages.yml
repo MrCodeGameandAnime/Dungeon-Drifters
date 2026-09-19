@@ -3,7 +3,7 @@ name: Browser Pages
 on:
   push:
     branches:
-      - master
+      - pyodide
   workflow_dispatch:
 
 permissions:
