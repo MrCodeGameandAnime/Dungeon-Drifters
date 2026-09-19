@@ -69,6 +69,13 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     runtime_path = output_root / "game" / "dd_runtime.zip"
     runtime_file_count = len(_runtime_builder()(source_root, runtime_path))
 
+    qualification_root = output_root / "qualification"
+    qualification_source = repository_root / "root" / "web" / "pyd2"
+    _copy(qualification_source / "index.html", qualification_root / "index.html")
+    _copy(qualification_source / "js" / "pyd2.js", qualification_root / "js" / "pyd2.js")
+    _copy(qualification_source / "python" / "boot.py", qualification_root / "python" / "boot.py")
+    _runtime_builder()(source_root, qualification_root / "game" / "dd_runtime.zip")
+
     (output_root / ".nojekyll").write_bytes(b"")
     metadata = {
         "pyodide_version": PYODIDE_VERSION,

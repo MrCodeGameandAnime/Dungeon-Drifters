@@ -21,6 +21,7 @@ dist/
 .coverage
 coverage.xml
 htmlcov/
+root/web_tests/node_modules/
 
 # Type checker / linter caches
 .mypy_cache/

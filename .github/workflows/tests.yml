@@ -18,7 +18,7 @@ jobs:
   tests:
     name: Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
 
     defaults:
       run:
@@ -47,3 +47,30 @@ jobs:
 
       - name: Compile Python sources
         run: python -m compileall src tests web_tests tools
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: root/web_tests/package-lock.json
+
+      - name: Build browser site for smoke test
+        run: python tools/build_browser_site.py --output site
+
+      - name: Install browser test dependencies
+        working-directory: root/web_tests
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: root/web_tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Start browser test server
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 --directory site > browser-server.log 2>&1 &
+          echo $! > browser-server.pid
+          sleep 2
+
+      - name: Run headless browser smoke
+        run: node web_tests/browser_smoke.mjs http://127.0.0.1:8765
