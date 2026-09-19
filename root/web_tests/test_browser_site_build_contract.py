@@ -70,7 +70,7 @@ def test_pages_workflow_builds_and_deploys_the_static_site():
     workflow = WORKFLOW_PATH.read_text()
 
     for required in (
-        "branches:\n      - master",
+        "branches:\n      - pyodide",
         "actions/checkout@v6",
         "actions/setup-python@v6",
         "python -m pytest web_tests",
