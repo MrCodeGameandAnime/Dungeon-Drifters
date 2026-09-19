@@ -61,45 +61,38 @@
     }
   }
 
-  function appendStat(container, label, value) {
-    const stat = document.createElement("div");
-    stat.className = "stat";
-    const name = document.createElement("span");
-    name.className = "stat-label";
-    name.textContent = label;
-    const content = document.createElement("span");
-    content.className = "stat-value";
-    content.textContent = value == null ? "-" : String(value);
-    stat.append(name, content);
-    container.append(stat);
+  function appendStatus(container, label, value) {
+    const line = document.createElement("div");
+    line.className = "status-line";
+    line.textContent = `${label} ${value == null ? "-" : value}`;
+    container.append(line);
   }
 
-  function appendDetail(container, label, value) {
-    const row = document.createElement("div");
-    row.className = "detail-row";
-    const name = document.createElement("span");
-    name.textContent = label;
-    const content = document.createElement("strong");
-    content.textContent = value == null ? "-" : String(value);
-    row.append(name, content);
-    container.append(row);
-  }
-
-  function makeButton(label, command, enabled, reason) {
+  function makeButton(label, command, enabled, reason, className) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = label;
+    button.className = className || "battle-option";
+    const text = document.createElement("span");
+    text.className = "choice-label";
+    text.textContent = label;
+    button.append(text);
     const available = enabled !== false;
     button.disabled = !available;
     button.setAttribute("aria-disabled", String(!available));
-    if (!available && reason) button.title = String(reason);
+    if (!available && reason) {
+      const detail = document.createElement("span");
+      detail.className = "option-reason";
+      detail.textContent = `Unavailable: ${String(reason).replace(/_/g, " ")}`;
+      button.title = detail.textContent;
+      button.append(detail);
+    }
     if (available && command) {
       button.addEventListener("click", () => send(command));
     }
     return button;
   }
 
-  function renderOptions(container, options, commandFactory, labelFactory) {
+  function renderOptions(container, options, commandFactory, labelFactory, className) {
     clear(container);
     for (const option of options || []) {
       const label = labelFactory(option);
@@ -109,6 +102,7 @@
           commandFactory(option),
           option.enabled,
           option.disabled_reason,
+          className || "battle-option action-option",
         ),
       );
     }
@@ -119,17 +113,16 @@
     const details = $("player-details");
     clear(stats);
     clear(details);
+    setText("player-title", player && player.display_name ? player.display_name : "Party");
     if (!player) {
-      appendDetail(details, "Status", "Ready for the route");
+      appendStatus(details, "Status", "Ready for the route");
       return;
     }
-    appendStat(stats, "HP", `${player.hp_current} / ${player.hp_maximum}`);
-    appendStat(stats, "Mana", `${player.mana_current} / ${player.mana_maximum}`);
-    appendStat(stats, "Super", `${player.super_current} / ${player.super_maximum}`);
-    appendDetail(details, "Name", player.display_name);
-    if (player.defending != null) appendDetail(details, "Guarding", player.defending ? "Yes" : "No");
+    appendStatus(stats, "HP", `${player.hp_current}/${player.hp_maximum}`);
+    if (player.mana_current != null) appendStatus(stats, "Mana", `${player.mana_current}/${player.mana_maximum}`);
+    if (player.defending) appendStatus(details, "Guarding", "Yes");
     if (player.temporary_labels && player.temporary_labels.length) {
-      appendDetail(details, "Statuses", player.temporary_labels.join(", "));
+      appendStatus(details, "State", player.temporary_labels.join(", "));
     }
   }
 
@@ -144,7 +137,7 @@
       const name = document.createElement("span");
       name.textContent = enemy.display_label;
       const hp = document.createElement("span");
-      hp.textContent = `${enemy.hp_current} / ${enemy.hp_maximum}`;
+      hp.textContent = `HP ${enemy.hp_current}/${enemy.hp_maximum}`;
       head.append(name, hp);
       card.append(head);
       if (enemy.temporary_labels && enemy.temporary_labels.length) {
@@ -157,86 +150,205 @@
     }
   }
 
+  function formatLogEntry(entry) {
+    const actor = entry.actor_name || "Combatant";
+    const target = entry.target_name;
+    const action = entry.action_name || "action";
+    const targetContext = target && target !== actor ? ` against ${target}` : "";
+    const lines = [];
+
+    switch (entry.event_type) {
+      case "encounter_start":
+        lines.push(`A ${target || "foe"} blocks your path!`);
+        break;
+      case "initiative":
+        lines.push(`${actor} will go first.`);
+        break;
+      case "damage":
+        lines.push(`${actor} used ${action}${targetContext}.${entry.critical ? " Critical hit!" : ""} It dealt ${entry.amount} damage.`);
+        break;
+      case "miss":
+        lines.push(`${actor} used ${action}${targetContext}, but missed.`);
+        break;
+      case "healing":
+        lines.push(`${actor} used ${action}${targetContext}. It restored ${entry.amount} health.`);
+        break;
+      case "defend":
+        lines.push(`${actor} used Defend.`);
+        break;
+      case "utility":
+        lines.push(`${actor} used ${action}. It resolved.`);
+        break;
+      case "action_rejected":
+        lines.push(`${actor} used ${action}${targetContext}, but it failed: ${entry.reason || "unavailable"}.`);
+        break;
+      case "input_rejected":
+        lines.push(`That input is not available: ${String(entry.rejection_reason || "unknown").replace(/_/g, " ")}.`);
+        break;
+      case "victory":
+        lines.push(`${actor} is victorious over ${target || "the enemy"}.`);
+        break;
+      case "defeat":
+        lines.push(`${actor} was defeated by ${target || "the enemy"}.`);
+        break;
+      case "inventory":
+        if (entry.accepted === false) lines.push("That inventory action is not available.");
+        else if (entry.action_name) lines.push(`${actor} used ${entry.action_name}.`);
+        break;
+      case "status":
+        break;
+      default:
+        lines.push(String(entry.event_type || "Battle event").replace(/_/g, " "));
+    }
+
+    if (entry.resource_spent) lines.push(`Resource spent: ${entry.resource_spent}.`);
+    if (entry.statuses_applied && entry.statuses_applied.length) {
+      lines.push(`Statuses applied: ${entry.statuses_applied.join(", ")}.`);
+    }
+    for (const outcome of entry.outcomes || []) {
+      let detail = String(outcome.outcome_type).replace(/_/g, " ");
+      if (outcome.charge_count != null) detail += ` (${outcome.charge_count}/3)`;
+      if (outcome.amount) detail += ` (${outcome.amount})`;
+      lines.push(detail.charAt(0).toUpperCase() + detail.slice(1) + ".");
+    }
+    return lines;
+  }
+
   function renderLog(entries) {
     const container = $("battle-log");
     clear(container);
-    for (const entry of (entries || []).slice(-10)) {
-      const line = document.createElement("div");
-      line.className = "log-entry";
-      const actor = entry.actor_name || "Battle";
-      const target = entry.target_name ? ` → ${entry.target_name}` : "";
-      const action = entry.action_name ? `: ${entry.action_name}` : "";
-      const amount = entry.amount ? ` (${entry.amount})` : "";
-      line.innerHTML = "";
-      const strong = document.createElement("strong");
-      strong.textContent = actor;
-      line.append(strong, document.createTextNode(`${target}${action}${amount}`));
-      container.append(line);
+    for (const entry of entries || []) {
+      for (const message of formatLogEntry(entry)) {
+        const line = document.createElement("div");
+        line.className = "log-entry";
+        line.textContent = message;
+        container.append(line);
+      }
     }
+  }
+
+  function appendChoiceDetail(button, className, value) {
+    if (!value) return;
+    const detail = document.createElement("span");
+    detail.className = className;
+    detail.textContent = value;
+    button.append(detail);
+  }
+
+  function renderMoveOptions(container, options, commandKind) {
+    clear(container);
+    for (const option of options || []) {
+      const button = makeButton(
+        `${option.number}. ${option.name}`,
+        { kind: commandKind, key: option.selection_key },
+        option.enabled,
+        option.disabled_reason,
+        "battle-option battle-choice move-choice",
+      );
+      const tags = (option.tags || []).filter((tag) => tag !== option.resource_label);
+      appendChoiceDetail(button, "choice-meta", tags.join(" | "));
+      if (option.resource_label) appendChoiceDetail(button, "choice-cost", option.resource_label);
+      appendChoiceDetail(button, "choice-summary", option.rules_summary);
+      container.append(button);
+    }
+    appendBack(container);
+  }
+
+  function renderTargets(container, options) {
+    clear(container);
+    for (const option of options || []) {
+      const button = makeButton(
+        `${option.number}. ${option.display_label}`,
+        { kind: "target", target_id: option.target_id },
+        option.enabled,
+        option.disabled_reason,
+        "battle-option battle-choice target-choice",
+      );
+      appendChoiceDetail(button, "choice-meta", `HP ${option.hp_current}/${option.hp_maximum}`);
+      appendChoiceDetail(button, "choice-state", (option.temporary_labels || []).join(", "));
+      const preview = option.move_preview;
+      if (preview) {
+        const tags = (preview.tags || []).filter((tag) => tag !== preview.resource_label);
+        const moveMeta = [tags.join(" | "), preview.resource_label].filter(Boolean).join(" · ");
+        appendChoiceDetail(button, "choice-meta", `${preview.name}${moveMeta ? ` · ${moveMeta}` : ""}`);
+        appendChoiceDetail(button, "choice-summary", preview.rules_summary);
+      }
+      container.append(button);
+    }
+    appendBack(container);
+  }
+
+  function appendBack(container) {
+    container.append(makeButton("Back", { kind: "back" }, true, null, "battle-option back-option"));
   }
 
   function renderInventory(container, view) {
     clear(container);
-    const inventory = view.inventory;
-    if (inventory && inventory.items && inventory.items.length) {
-      const heading = document.createElement("h3");
-      heading.textContent = "Inventory";
+    const phase = view.interaction_phase;
+    const heading = document.createElement("h3");
+    const message = document.createElement("p");
+
+    if (phase === "inventory") {
+      heading.textContent = "Choose an item:";
       container.append(heading);
-      renderOptions(
-        container,
-        inventory.items,
-        (item) => ({ kind: "overworld_item", selection_key: item.selection_key }),
-        (item) => `${item.display_name} × ${item.quantity}`,
-      );
-    }
-    if (view.inventory_items && view.inventory_items.length) {
-      const heading = document.createElement("h3");
-      heading.textContent = "Battle items";
-      container.append(heading);
-      renderOptions(
-        container,
-        view.inventory_items,
-        (item) => ({ kind: "inventory_item", item_id: item.item_id }),
-        (item) => `${item.display_name} × ${item.quantity}`,
-      );
-    }
-    if (view.inventory_commands && view.inventory_commands.length) {
-      const heading = document.createElement("h3");
-      heading.textContent = "Item commands";
+      if (view.inventory_items && view.inventory_items.length) {
+        renderOptions(
+          container,
+          view.inventory_items,
+          (item) => ({ kind: "inventory_item", item_id: item.item_id }),
+          (item) => `${item.number}. ${item.display_name} × ${item.quantity}`,
+        );
+      } else {
+        message.textContent = "Your inventory is empty.";
+        container.append(message);
+      }
+    } else if (phase === "inventory_item") {
+      heading.textContent = view.selected_inventory_item
+        ? `${view.selected_inventory_item.display_name} × ${view.selected_inventory_item.quantity}`
+        : "Item";
       container.append(heading);
       renderOptions(
         container,
         view.inventory_commands,
         (option) => ({ kind: "inventory_command", command: option.command }),
-        (option) => option.label,
+        (option) => `${option.number}. ${option.label}`,
       );
-    }
-    if (view.inventory_companions && view.inventory_companions.length) {
-      const heading = document.createElement("h3");
-      heading.textContent = "Companion items";
+    } else if (phase === "inventory_inspect") {
+      const inspection = view.inventory_inspection;
+      if (inspection) {
+        heading.textContent = inspection.display_name;
+        message.textContent = inspection.description;
+        container.append(heading, message);
+      }
+    } else if (phase === "inventory_combination") {
+      heading.textContent = "Choose a companion item:";
       container.append(heading);
       renderOptions(
         container,
         view.inventory_companions,
         (item) => ({ kind: "inventory_companion", item_id: item.item_id }),
-        (item) => `${item.display_name} × ${item.quantity}`,
+        (item) => `${item.number}. ${item.display_name} × ${item.quantity}`,
       );
+    } else if (phase === "inventory_confirmation") {
+      const confirmation = view.inventory_confirmation;
+      if (confirmation) {
+        heading.textContent = `Combine ${confirmation.source_display_name} and ${confirmation.companion_display_name}`;
+        message.textContent = `to prepare ${confirmation.result_display_name}?`;
+        container.append(heading, message);
+        container.append(
+          makeButton("Yes", { kind: "inventory_confirm", confirmed: true }, true, null, "battle-option action-option"),
+          makeButton("No", { kind: "inventory_confirm", confirmed: false }, true, null, "battle-option action-option"),
+        );
+      }
+    } else {
+      return;
     }
-    if (view.inventory_confirmation) {
-      const heading = document.createElement("h3");
-      heading.textContent = `Confirm ${view.inventory_confirmation.result_display_name}`;
-      container.append(heading);
-      container.append(makeButton("Confirm", { kind: "inventory_confirm", confirmed: true }));
-      container.append(makeButton("Cancel", { kind: "inventory_confirm", confirmed: false }));
-    }
-    if (view.interaction_phase && view.interaction_phase !== "actions") {
-      container.append(makeButton("Back", { kind: "back" }));
-    }
+
+    appendBack(container);
   }
 
   function renderOverworld(view) {
     setText("screen-badge", view.screen === "main" ? "OVERWORLD" : view.screen);
-    setText("phase-badge", "");
     setText("location-label", view.location_label);
     setText("adventure-text", view.adventure_text);
     renderPlayer(view.character);
@@ -247,12 +359,14 @@
       view.contextual_route_option ? [view.contextual_route_option] : [],
       (option) => ({ kind: "overworld_action", action: option.action }),
       (option) => option.label,
+      "overworld-option",
     );
     renderOptions(
       $("overworld-options"),
       view.options,
       (option) => ({ kind: "overworld_action", action: option.action }),
       (option) => option.label,
+      "overworld-option",
     );
     renderInventory($("inventory"), view);
     clear($("actions"));
@@ -263,37 +377,65 @@
     notice.textContent = view.notice || "";
   }
 
+  function renderSuperMeter(meter) {
+    const current = meter ? meter.current : 0;
+    const maximum = meter ? meter.maximum : 0;
+    const fill = meter ? meter.fill_bps : 0;
+    $("super-progress").value = fill;
+    $("super-progress").setAttribute("aria-valuetext", `${current} / ${maximum}`);
+    setText("super-value", `${current} / ${maximum}`);
+    $("super-ready").hidden = !(meter && meter.activation_offered);
+  }
+
   function renderBattle(view) {
-    setText("phase-badge", view.interaction_phase);
-    setText("location-label", view.encounter_label);
-    setText("adventure-text", "Choose from the actions offered by the battle view.");
+    const phase = view.interaction_phase;
+    const matchupPlayer = view.visual && view.visual.player_lines && view.visual.player_lines.length
+      ? view.visual.player_lines.join(" ")
+      : view.player.display_name;
+    setText("battle-matchup", `[ ${matchupPlayer} ]   VS   [ ${view.encounter_label} ]`);
     renderPlayer(view.player);
     renderEnemies(view.enemies);
     renderLog(view.log_entries);
-    clear($("route-actions"));
-    clear($("overworld-options"));
-    clear($("notice"));
-    $("notice").hidden = true;
-    renderOptions(
-      $("actions"),
-      view.action_options,
-      (option) => ({ kind: "action", intent: option.intent }),
-      (option) => option.label,
-    );
-    renderOptions(
-      $("moves"),
-      view.move_options,
-      (option) => ({ kind: "move", key: option.selection_key }),
-      (option) => `${option.name}${option.resource_label ? ` · ${option.resource_label}` : ""}`,
-    );
-    renderOptions(
-      $("targets"),
-      view.target_options,
-      (option) => ({ kind: "target", target_id: option.target_id }),
-      (option) => `${option.display_label} · ${option.hp_current} / ${option.hp_maximum}`,
-    );
-    renderInventory($("inventory"), view);
-    clear($("overworld-options"));
+    renderSuperMeter(view.super_meter);
+
+    const actions = $("actions");
+    const moves = $("moves");
+    const targets = $("targets");
+    const inventory = $("inventory");
+    clear(actions);
+    clear(moves);
+    clear(targets);
+    clear(inventory);
+
+    if (phase === "actions") {
+      setText("controls-title", "Actions");
+      renderOptions(
+        actions,
+        view.action_options,
+        (option) => ({ kind: "action", intent: option.intent }),
+        (option) => option.label,
+      );
+      if (view.super_meter.activation_offered) {
+        actions.append(makeButton("Super", { kind: "action", intent: "super" }, true, null, "battle-option action-option"));
+      }
+    } else if (phase === "regular_moves" || phase === "healing_moves" || phase === "super_moves") {
+      setText("controls-title", phase === "super_moves" ? "Choose a Super:" : "Choose a move:");
+      renderMoveOptions(moves, view.move_options, "move");
+    } else if (phase === "targets") {
+      setText("controls-title", "Choose a target:");
+      renderTargets(targets, view.target_options);
+    } else {
+      const headings = {
+        inventory: "Items",
+        inventory_item: "Item actions",
+        inventory_inspect: "Item details",
+        inventory_combination: "Combine items",
+        inventory_confirmation: "Confirm combination",
+        complete: "Battle complete",
+      };
+      setText("controls-title", headings[phase] || "Battle");
+      renderInventory(inventory, view);
+    }
   }
 
   function render() {
@@ -324,6 +466,9 @@
     try {
       pyodide.globals.set("_browser_command_json", JSON.stringify(command));
       state = await pythonJson("submit_json(_browser_command_json)");
+      if (state && state.interaction_phase === "complete") {
+        state = await pythonJson("current_view_json()");
+      }
       render();
     } catch (error) {
       showError(error);

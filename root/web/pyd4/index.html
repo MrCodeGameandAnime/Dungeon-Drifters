@@ -60,41 +60,35 @@
       </section>
 
       <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
-        <section id="player-panel" class="panel player-panel" aria-labelledby="player-title">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">PARTY</p>
-              <h2 id="player-title">Branoc</h2>
-            </div>
-          </div>
-          <div id="player-status" class="stat-grid"></div>
-          <div id="player-details" class="details-list"></div>
-        </section>
+        <div id="battle-status" class="battle-status">
+          <section id="player-panel" class="combatant-status player-panel" aria-labelledby="player-title">
+            <h2 id="player-title">Branoc</h2>
+            <div id="player-status" class="combatant-lines"></div>
+            <div id="player-details" class="combatant-lines"></div>
+          </section>
 
-        <section id="enemy-panel" class="panel enemy-panel" aria-labelledby="enemy-title">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">ENCOUNTER</p>
-              <h2 id="enemy-title">Battle</h2>
-            </div>
-            <span id="phase-badge" class="badge"></span>
-          </div>
-          <div id="enemies" class="enemy-list"></div>
-          <div id="battle-log" class="battle-log" aria-live="polite"></div>
-        </section>
+          <section id="enemy-panel" class="combatant-status enemy-panel" aria-label="Enemies">
+            <div id="enemies" class="enemy-list"></div>
+          </section>
+        </div>
 
-        <section id="controls-panel" class="panel controls-panel" aria-labelledby="controls-title">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">AVAILABLE INPUT</p>
-              <h2 id="controls-title">Choose your next move</h2>
-            </div>
-          </div>
+        <div id="battle-matchup" class="battle-matchup" aria-label="Battle matchup"></div>
+        <div id="battle-log" class="battle-log" aria-label="Battle log" aria-live="polite"></div>
+
+        <section id="controls-panel" class="battle-controls" aria-labelledby="controls-title">
+          <h2 id="controls-title">Actions</h2>
           <div id="actions" class="control-group"></div>
           <div id="moves" class="control-group"></div>
           <div id="targets" class="control-group"></div>
           <div id="inventory" class="control-group"></div>
         </section>
+
+        <div id="super-meter" class="super-meter" role="group" aria-label="Super meter">
+          <span class="super-label">SUPER</span>
+          <progress id="super-progress" max="10000" value="0"></progress>
+          <span id="super-value">0 / 100</span>
+          <span id="super-ready" hidden>READY</span>
+        </div>
       </section>
     </main>
     <script src="js/pyd4.js"></script>

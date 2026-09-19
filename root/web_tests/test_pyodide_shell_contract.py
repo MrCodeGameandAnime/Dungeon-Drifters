@@ -45,6 +45,9 @@ def test_shell_contains_operational_view_regions_and_controls():
         "player-panel",
         "enemy-panel",
         "battle-log",
+        "battle-status",
+        "battle-matchup",
+        "super-meter",
         "actions",
         "moves",
         "targets",
@@ -53,6 +56,22 @@ def test_shell_contains_operational_view_regions_and_controls():
         "restart",
     ):
         assert f'id="{element_id}"' in html
+
+
+def test_battle_shell_uses_terminal_information_order():
+    html = _read("index.html")
+    order = (
+        'id="battle-status"',
+        'id="battle-matchup"',
+        'id="battle-log"',
+        'id="controls-panel"',
+        'id="super-meter"',
+    )
+
+    positions = [html.index(element_id) for element_id in order]
+
+    assert positions == sorted(positions)
+    assert 'id="phase-badge"' not in html
 
 
 def test_shell_separates_initial_overworld_from_inactive_battle_surface():
@@ -90,12 +109,34 @@ def test_shell_javascript_uses_authoritative_projection_and_commands():
     assert "button.disabled" in javascript
     assert 'kind: "overworld_action"' in javascript
     assert 'kind: "action"' in javascript
-    assert 'kind: "move"' in javascript
+    assert 'kind: commandKind' in javascript
+    assert 'renderMoveOptions(moves, view.move_options, "move")' in javascript
     assert 'kind: "target"' in javascript
+    assert 'state.interaction_phase === "complete"' in javascript
+    assert 'pythonJson("current_view_json()")' in javascript
     assert "window.__DD_BROWSER_READY__ = true" in javascript
 
     for forbidden in ("damage =", "reward =", "route_complete =", "class GameState"):
         assert forbidden not in javascript
+
+
+def test_shell_javascript_preserves_battle_phase_detail():
+    javascript = _read("js/pyd4.js")
+
+    for projection_field in (
+        "view.interaction_phase",
+        "option.tags",
+        "option.resource_label",
+        "option.rules_summary",
+        "option.disabled_reason",
+        "option.target_id",
+        "option.move_preview",
+        "view.super_meter",
+        "view.inventory_inspection",
+    ):
+        assert projection_field in javascript
+
+    assert 'kind: "back"' in javascript
 
 
 def test_shell_does_not_copy_production_runtime_or_add_host_persistence():
