@@ -279,6 +279,11 @@ try {
       moveText.includes("3 Mana"),
     "Move Selection omitted authoritative names, tags, resource costs, or rules summaries",
   );
+  const desktopMoveContext = await page.evaluate(() =>
+    getComputedStyle(document.querySelector(".app-header")).display !== "none" &&
+      ["battle-status", "battle-matchup", "battle-log"].every((id) =>
+        getComputedStyle(document.getElementById(id)).display !== "none"));
+  requireCondition(desktopMoveContext, "desktop Move Selection changed the existing Battle layout");
   requireCondition(
     (await page.locator("#moves button").count()) > 0 &&
       (await page.locator("#moves button").filter({ hasText: "Back" }).count()) === 1,
@@ -348,9 +353,21 @@ try {
   await page.keyboard.press("Enter");
   await page.locator("#moves").waitFor({ state: "visible" });
   const landscapeMoveMetrics = await assertBattleViewport(page, "moves", "landscape-phone Move Selection");
+  const mobileMovePresentation = await page.evaluate(() => ({
+    phase: document.getElementById("battle-screen").dataset.interactionPhase,
+    headerHidden: getComputedStyle(document.querySelector(".app-header")).display === "none",
+    statusHidden: getComputedStyle(document.getElementById("battle-status")).display === "none",
+    matchupHidden: getComputedStyle(document.getElementById("battle-matchup")).display === "none",
+    logHidden: getComputedStyle(document.getElementById("battle-log")).display === "none",
+    superVisible: getComputedStyle(document.getElementById("super-meter")).display !== "none",
+    controlsScrollable: document.getElementById("controls-panel").scrollHeight > document.getElementById("controls-panel").clientHeight + 1,
+  }));
   requireCondition(
-    ["auto", "scroll"].includes(landscapeMoveMetrics.controlsOverflowY) && landscapeMoveMetrics.controlsScrollable,
-    `long Move Selection is not reachable through its contained controls region: ${JSON.stringify(landscapeMoveMetrics)}`,
+    mobileMovePresentation.phase === "regular_moves" && mobileMovePresentation.headerHidden &&
+      mobileMovePresentation.statusHidden && mobileMovePresentation.matchupHidden &&
+      mobileMovePresentation.logHidden && mobileMovePresentation.superVisible &&
+      !mobileMovePresentation.controlsScrollable,
+    `mobile Move Selection should replace Battle context only on mobile: ${JSON.stringify(mobileMovePresentation)} ${JSON.stringify(landscapeMoveMetrics)}`,
   );
   const moveButtons = page.locator("#moves .move-choice");
   requireCondition(await moveButtons.count() > 1, "mobile Move Selection does not exercise the authored option list");
@@ -383,6 +400,20 @@ try {
   await captureScreenshot(page, "landscape-move-selection");
   await mobileBack.click();
   await page.locator("#actions").waitFor({ state: "visible" });
+  const mobileActionsContextRestored = await page.evaluate(() =>
+    getComputedStyle(document.querySelector(".app-header")).display !== "none" &&
+      ["battle-status", "battle-matchup", "battle-log"].every((id) =>
+        getComputedStyle(document.getElementById(id)).display !== "none"));
+  requireCondition(mobileActionsContextRestored, "Back did not restore the normal mobile Battle view");
+  await page.getByRole("button", { name: "Attack" }).click();
+  await page.locator("#moves").waitFor({ state: "visible" });
+  await page.locator("#moves").getByRole("button", { name: /Crestgrave Reaping/ }).click();
+  await page.locator("#actions").waitFor({ state: "visible" });
+  requireCondition(
+    await page.evaluate(() => document.getElementById("battle-screen").dataset.interactionPhase === "actions") &&
+      await page.locator("#battle-log").isVisible(),
+    "mobile move resolution did not return to Battle Actions",
+  );
   console.log("PD|UI3|VIEWPORT|LANDSCAPE_MOVES|PASS");
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -465,6 +496,21 @@ try {
     "Target Selection omitted authoritative labels, HP/state, preview, or availability",
   );
   await captureScreenshot(targetPage, "desktop-target-selection");
+  await targetPage.setViewportSize({ width: 844, height: 390 });
+  await waitForViewportSync(targetPage, 844, 390);
+  const mobileTargetPresentation = await targetPage.evaluate(() => ({
+    phase: document.getElementById("battle-screen").dataset.interactionPhase,
+    headerHidden: getComputedStyle(document.querySelector(".app-header")).display === "none",
+    statusHidden: getComputedStyle(document.getElementById("battle-status")).display === "none",
+    logHidden: getComputedStyle(document.getElementById("battle-log")).display === "none",
+    targetsVisible: getComputedStyle(document.getElementById("targets")).display !== "none",
+  }));
+  requireCondition(
+    mobileTargetPresentation.phase === "targets" && mobileTargetPresentation.headerHidden &&
+      mobileTargetPresentation.statusHidden && mobileTargetPresentation.logHidden &&
+      mobileTargetPresentation.targetsVisible,
+    `mobile Target Selection did not use the focused submenu: ${JSON.stringify(mobileTargetPresentation)}`,
+  );
   await targetButtons.nth(0).click();
   await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
   const submittedTarget = await targetPage.evaluate(() => window.__fixtureCommands.at(-1));

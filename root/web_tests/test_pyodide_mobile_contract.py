@@ -50,6 +50,20 @@ def test_phase_shell_contains_scrolling_without_document_or_shell_overflow():
     assert "overscroll-behavior: contain" in controls_rule
 
 
+def test_mobile_move_and_target_phases_use_a_dedicated_surface_only_on_mobile():
+    css = _read("styles.css")
+    javascript = _read("js/pyd4.js")
+
+    assert "dataset.interactionPhase = phase" in javascript
+    assert "@media (max-width: 60rem)" in css
+    assert '.battle-screen[data-interaction-phase="regular_moves"]' in css
+    assert '.battle-screen[data-interaction-phase="targets"]' in css
+    assert ".app-header" in css
+    assert ".battle-status" in css
+    assert ".battle-log" in css
+    assert "overflow-y: hidden" in css
+
+
 def test_battle_choices_keep_touch_targets_and_wrap_authored_detail():
     css = _read("styles.css")
     choice_rule = re.search(r"(?m)^\.battle-choice \{([^}]*)\}", css).group(1)
@@ -71,6 +85,8 @@ def test_playwright_smoke_qualifies_responsive_phases_and_captures_evidence():
         "width: 390, height: 844",
         "landscape-phone Battle Actions",
         "landscape-phone Move Selection",
+        "mobile Move Selection should replace Battle context only on mobile",
+        "mobile move resolution did not return to Battle Actions",
         "portrait guidance",
         "controlsScrollable",
         "orientationGuidanceVisible",

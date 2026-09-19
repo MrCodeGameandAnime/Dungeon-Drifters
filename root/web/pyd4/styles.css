@@ -250,3 +250,91 @@ button:disabled {
   .super-meter { min-height: 2.5rem; padding-block: .3rem; }
   .super-meter progress { height: .85rem; }
 }
+
+@media (max-width: 60rem) {
+  .app-shell[data-interaction-phase="regular_moves"] .app-header,
+  .app-shell[data-interaction-phase="targets"] .app-header {
+    display: none;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"],
+  .battle-screen[data-interaction-phase="targets"] {
+    max-width: none;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .battle-status,
+  .battle-screen[data-interaction-phase="regular_moves"] .battle-matchup,
+  .battle-screen[data-interaction-phase="regular_moves"] .battle-log,
+  .battle-screen[data-interaction-phase="targets"] .battle-status,
+  .battle-screen[data-interaction-phase="targets"] .battle-matchup,
+  .battle-screen[data-interaction-phase="targets"] .battle-log {
+    display: none;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .battle-controls,
+  .battle-screen[data-interaction-phase="targets"] .battle-controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow-y: hidden;
+    padding: .3rem .6rem;
+    scrollbar-gutter: auto;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .battle-controls h2,
+  .battle-screen[data-interaction-phase="targets"] .battle-controls h2 {
+    flex: 0 0 auto;
+    margin-bottom: .2rem;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] #moves,
+  .battle-screen[data-interaction-phase="targets"] #targets {
+    flex: 0 0 auto;
+    align-content: center;
+    gap: .05rem;
+    margin-top: 0;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .move-choice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    align-items: baseline;
+    gap: .05rem .45rem;
+    min-height: 2.75rem;
+    padding: .2rem .1rem;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .move-choice .choice-label {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .move-choice .choice-meta {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .move-choice .choice-cost {
+    grid-column: 3;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .move-choice .choice-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: .8rem;
+    line-height: 1.2;
+  }
+
+  .battle-screen[data-interaction-phase="regular_moves"] .back-option,
+  .battle-screen[data-interaction-phase="targets"] .back-option {
+    min-height: 2.75rem;
+    margin-top: .1rem;
+  }
+}

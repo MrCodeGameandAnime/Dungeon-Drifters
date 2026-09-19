@@ -245,6 +245,11 @@
         option.disabled_reason,
         "battle-option battle-choice move-choice",
       );
+      const label = document.createElement("span");
+      label.className = "choice-label";
+      label.textContent = button.textContent;
+      button.textContent = "";
+      button.append(label);
       const tags = (option.tags || []).filter((tag) => tag !== option.resource_label);
       appendChoiceDetail(button, "choice-meta", tags.join(" | "));
       if (option.resource_label) appendChoiceDetail(button, "choice-cost", option.resource_label);
@@ -389,6 +394,8 @@
 
   function renderBattle(view) {
     const phase = view.interaction_phase;
+    $("app").dataset.interactionPhase = phase;
+    $("battle-screen").dataset.interactionPhase = phase;
     const matchupPlayer = view.visual && view.visual.player_lines && view.visual.player_lines.length
       ? view.visual.player_lines.join(" ")
       : view.player.display_name;
@@ -445,7 +452,11 @@
     $("overworld-screen").hidden = battle;
     $("battle-screen").hidden = !battle;
     if (battle) renderBattle(state);
-    else renderOverworld(state);
+    else {
+      $("app").removeAttribute("data-interaction-phase");
+      $("battle-screen").removeAttribute("data-interaction-phase");
+      renderOverworld(state);
+    }
     const complete = !battle && state.screen === "main" && !state.contextual_route_option;
     $("completion").hidden = !complete;
     setText("runtime-status", complete ? "Route complete" : "Python runtime ready");
