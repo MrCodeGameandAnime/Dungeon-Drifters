@@ -10,7 +10,8 @@
   </head>
   <body>
     <div id="orientation-guidance" class="orientation-guidance" role="status">
-      Rotate your device to landscape for the best playtest experience.
+      <strong>Landscape play is recommended.</strong>
+      <span id="orientation-detail">If automatic rotation is unavailable, use your device's manual rotation control.</span>
     </div>
     <div id="loading" class="status-panel" role="status" aria-live="polite">
       <p class="eyebrow">DUNGEON DRIFTERS</p>
@@ -30,7 +31,10 @@
           <h1>Browser Playtest</h1>
           <p id="runtime-status" class="runtime-status">Python runtime ready</p>
         </div>
-        <button id="restart" class="secondary-button" type="button">Restart</button>
+        <div class="header-actions">
+          <button id="immersive" class="secondary-button" type="button">Fullscreen</button>
+          <button id="restart" class="secondary-button" type="button">Restart</button>
+        </div>
       </header>
 
       <div class="play-grid">

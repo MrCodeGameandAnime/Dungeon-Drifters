@@ -5,6 +5,7 @@
   const INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
   let pyodide = null;
   let state = null;
+  const orientationQuery = window.matchMedia("(orientation: portrait)");
 
   const $ = (id) => document.getElementById(id);
 
@@ -31,6 +32,33 @@
     showLoading(false);
     $("error").hidden = true;
     $("app").hidden = false;
+  }
+
+  function updateViewportHeight() {
+    document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+  }
+
+  function updateOrientationGuidance() {
+    const portrait = orientationQuery.matches;
+    const guidance = $("orientation-guidance");
+    guidance.hidden = !portrait;
+    $("orientation-detail").textContent = portrait
+      ? "If automatic rotation is unavailable, use your device's manual rotation control."
+      : "";
+  }
+
+  function bindViewportAndOrientation() {
+    updateViewportHeight();
+    updateOrientationGuidance();
+    window.addEventListener("resize", function () {
+      updateViewportHeight();
+      updateOrientationGuidance();
+    });
+    if (orientationQuery.addEventListener) {
+      orientationQuery.addEventListener("change", updateOrientationGuidance);
+    } else if (orientationQuery.addListener) {
+      orientationQuery.addListener(updateOrientationGuidance);
+    }
   }
 
   function appendStat(container, label, value) {
@@ -347,11 +375,13 @@
     await requestImmersion();
     await restart();
   });
+  $("immersive").addEventListener("click", requestImmersion);
   $("completion-restart").addEventListener("click", restart);
   $("retry").addEventListener("click", function () {
     window.location.reload();
   });
 
+  bindViewportAndOrientation();
   boot().catch(function (error) {
     showError(error);
     console.error(error);
