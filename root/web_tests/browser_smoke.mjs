@@ -414,6 +414,7 @@ try {
       await page.locator("#battle-log").isVisible(),
     "mobile move resolution did not return to Battle Actions",
   );
+  const resolvedActionSignature = await controlSignature(page);
   console.log("PD|UI3|VIEWPORT|LANDSCAPE_MOVES|PASS");
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -427,8 +428,8 @@ try {
     "portrait guidance or layout hides the offered Attack input",
   );
   requireCondition(
-    JSON.stringify(await controlSignature(page)) === JSON.stringify(desktopActionSignature),
-    "portrait reflow changed offered Battle actions, disabled state, or reasons",
+    JSON.stringify(await controlSignature(page)) === JSON.stringify(resolvedActionSignature),
+    `portrait reflow changed offered Battle actions, disabled state, or reasons: ${JSON.stringify(resolvedActionSignature)} -> ${JSON.stringify(await controlSignature(page))}`,
   );
   await page.getByRole("button", { name: "Attack" }).click();
   await page.locator("#moves").waitFor({ state: "visible" });
