@@ -33,7 +33,16 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
     ):
         assert required in source
 
-    assert "screenshot" not in source.lower()
+    for screenshot in (
+        "desktop-overworld",
+        "desktop-battle-actions",
+        "desktop-move-selection",
+        "desktop-target-selection",
+        "landscape-battle-actions",
+        "landscape-move-selection",
+    ):
+        assert f'"{screenshot}"' in source
+    assert 'await page.screenshot({ path: output })' in source
     assert "damage" not in source
     assert "reward" not in source
     assert "route_complete =" not in source

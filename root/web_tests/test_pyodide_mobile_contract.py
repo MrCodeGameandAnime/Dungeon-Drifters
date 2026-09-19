@@ -33,6 +33,57 @@ def test_mobile_css_uses_viewport_safe_area_and_touch_constraints():
     assert "orientation: portrait" in css
 
 
+def test_phase_shell_contains_scrolling_without_document_or_shell_overflow():
+    css = _read("styles.css")
+    shell_rule = re.search(r"(?m)^\.app-shell \{([^}]*)\}", css).group(1)
+    battle_rule = re.search(r"(?m)^\.battle-screen \{([^}]*)\}", css).group(1)
+    controls_rule = re.search(r"(?m)^\.battle-controls \{([^}]*)\}", css).group(1)
+
+    assert "display: grid" in shell_rule
+    assert "grid-template-rows: auto minmax(0, 1fr)" in shell_rule
+    assert "overflow: hidden" in shell_rule
+    assert "display: flex" in battle_rule
+    assert "min-height: 0" in battle_rule
+    assert "overflow: hidden" in battle_rule
+    assert "min-height: 0" in controls_rule
+    assert "overflow-y: auto" in controls_rule
+    assert "overscroll-behavior: contain" in controls_rule
+
+
+def test_battle_choices_keep_touch_targets_and_wrap_authored_detail():
+    css = _read("styles.css")
+    choice_rule = re.search(r"(?m)^\.battle-choice \{([^}]*)\}", css).group(1)
+    back_rule = re.search(r"(?m)^\.back-option \{([^}]*)\}", css).group(1)
+    summary_rule = re.search(r"(?m)^\.choice-summary \{([^}]*)\}", css).group(1)
+
+    assert "min-height: 3rem" in choice_rule
+    assert "min-height: 3rem" in back_rule
+    assert "white-space: normal" in summary_rule
+    assert "overflow-wrap: anywhere" in summary_rule
+
+
+def test_playwright_smoke_qualifies_responsive_phases_and_captures_evidence():
+    smoke = (ROOT / "web_tests" / "browser_smoke.mjs").read_text()
+
+    for required in (
+        "width: 1440, height: 900",
+        "width: 844, height: 390",
+        "width: 390, height: 844",
+        "landscape-phone Battle Actions",
+        "landscape-phone Move Selection",
+        "portrait guidance",
+        "controlsScrollable",
+        "orientationGuidanceVisible",
+        'captureScreenshot(page, "desktop-overworld")',
+        'captureScreenshot(page, "desktop-battle-actions")',
+        'captureScreenshot(page, "desktop-move-selection")',
+        'captureScreenshot(targetPage, "desktop-target-selection")',
+        'captureScreenshot(page, "landscape-battle-actions")',
+        'captureScreenshot(page, "landscape-move-selection")',
+    ):
+        assert required in smoke
+
+
 def test_mobile_javascript_handles_orientation_and_progressive_enhancement():
     javascript = _read("js/pyd4.js")
 

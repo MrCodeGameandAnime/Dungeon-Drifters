@@ -1,7 +1,89 @@
 import { chromium } from "playwright";
+import { mkdir } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const baseUrl = (process.argv[2] || "http://127.0.0.1:8765").replace(/\/$/, "");
 const errors = [];
+const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
+await mkdir(screenshotDirectory, { recursive: true });
+
+async function captureScreenshot(page, name) {
+  const output = path.join(screenshotDirectory, `${name}.png`);
+  await page.screenshot({ path: output });
+  console.log(`PD|UI3|SCREENSHOT|${name}|${output}`);
+}
+
+async function scrollWithinControls(locator) {
+  await locator.evaluate((element) => {
+    const panel = document.getElementById("controls-panel");
+    panel.scrollTop += element.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+  });
+}
+
+async function waitForViewportSync(page, width, height) {
+  await page.waitForFunction(({ expectedWidth, expectedHeight }) =>
+    window.innerWidth === expectedWidth &&
+      window.innerHeight === expectedHeight &&
+      getComputedStyle(document.documentElement).getPropertyValue("--app-height").trim() === `${expectedHeight}px`,
+  { expectedWidth: width, expectedHeight: height });
+}
+
+async function inspectViewport(page) {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const shell = document.getElementById("app");
+    const battle = document.getElementById("battle-screen");
+    const controls = document.getElementById("controls-panel");
+    const battleRect = battle.getBoundingClientRect();
+    const phaseIds = ["actions", "moves", "targets", "inventory"];
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      pageOverflowX: root.scrollWidth > window.innerWidth + 1 || body.scrollWidth > window.innerWidth + 1,
+      pageOverflowY: root.scrollHeight > window.innerHeight + 1 || body.scrollHeight > window.innerHeight + 1,
+      documentSize: { rootWidth: root.clientWidth, rootHeight: root.clientHeight, rootScrollHeight: root.scrollHeight, bodyClientHeight: body.clientHeight, bodyScrollHeight: body.scrollHeight },
+      documentScrollTop: document.scrollingElement.scrollTop,
+      shellRect: (() => { const rect = shell.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, height: rect.height, clientHeight: shell.clientHeight, scrollHeight: shell.scrollHeight }; })(),
+      battleRect: { top: battleRect.top, bottom: battleRect.bottom, height: battleRect.height },
+      battleStatusRect: (() => { const rect = document.getElementById("battle-status").getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; })(),
+      shellOverflowX: shell.scrollWidth > shell.clientWidth + 1,
+      shellOverflowY: shell.scrollHeight > shell.clientHeight + 1,
+      battleWithinViewport: battleRect.top >= -1 && battleRect.bottom <= window.innerHeight + 1,
+      controlsOverflowY: getComputedStyle(controls).overflowY,
+      controlsScrollable: controls.scrollHeight > controls.clientHeight + 1,
+      activePhases: phaseIds.filter((id) => {
+        const element = document.getElementById(id);
+        const rect = element && element.getBoundingClientRect();
+        return element && !element.hidden && getComputedStyle(element).display !== "none" && rect.width > 0 && rect.height > 0;
+      }),
+      orientationGuidanceVisible: getComputedStyle(document.getElementById("orientation-guidance")).display !== "none",
+    };
+  });
+}
+
+async function assertBattleViewport(page, expectedPhase, label) {
+  const metrics = await inspectViewport(page);
+  requireCondition(
+    !metrics.pageOverflowX && !metrics.pageOverflowY && !metrics.shellOverflowX && !metrics.shellOverflowY,
+    `${label} introduced page/shell scrolling or horizontal overflow: ${JSON.stringify(metrics)}`,
+  );
+  requireCondition(metrics.battleWithinViewport, `${label} clipped the active Battle surface: ${JSON.stringify(metrics)}`);
+  requireCondition(
+    metrics.activePhases.join(",") === expectedPhase,
+    `${label} changed the active interaction phase: ${JSON.stringify(metrics.activePhases)}`,
+  );
+  return metrics;
+}
+
+async function controlSignature(page) {
+  return page.locator("#actions button").evaluateAll((buttons) => buttons.map((button) => ({
+    label: button.querySelector(".choice-label")?.textContent || button.textContent.trim(),
+    disabled: button.disabled,
+    reason: button.querySelector(".option-reason")?.textContent || "",
+  })));
+}
 
 const targetProjection = {
   interaction_phase: "targets",
@@ -73,6 +155,7 @@ function requireCondition(condition, message) {
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
+  await page.setViewportSize({ width: 1440, height: 900 });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -118,6 +201,7 @@ try {
     );
   });
   requireCondition(overworldOrder, "Overworld information does not follow canonical order");
+  await captureScreenshot(page, "desktop-overworld");
 
   await page.getByRole("button", { name: "Enter Encounter" }).click();
   await page.locator("#overworld-screen").waitFor({ state: "hidden" });
@@ -172,6 +256,10 @@ try {
     actionText.includes("Unavailable: not implemented"),
     `disabled action did not preserve its authoritative availability reason: ${actionText}`,
   );
+  await assertBattleViewport(page, "actions", "desktop Battle Actions");
+  const desktopActionHeight = await page.locator("#actions button").first().evaluate((button) => button.getBoundingClientRect().height);
+  requireCondition(desktopActionHeight <= 56, `desktop Battle action is too tall for the compact layout: ${desktopActionHeight}px`);
+  await captureScreenshot(page, "desktop-battle-actions");
 
   await page.getByRole("button", { name: "Attack" }).click();
   await page.locator("#moves").waitFor({ state: "visible" });
@@ -196,6 +284,8 @@ try {
       (await page.locator("#moves button").filter({ hasText: "Back" }).count()) === 1,
     "Move Selection choices or Back control are missing",
   );
+  await assertBattleViewport(page, "moves", "desktop Move Selection");
+  await captureScreenshot(page, "desktop-move-selection");
 
   await page.locator("#moves").getByRole("button", { name: "Back" }).click();
   await page.locator("#actions").waitFor({ state: "visible" });
@@ -229,6 +319,94 @@ try {
     await page.locator("#battle-screen").isVisible(),
     "semantic input did not return an authoritative Battle phase",
   );
+
+  await page.getByRole("button", { name: "Restart" }).click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(await page.getByRole("button", { name: "Enter Encounter" }).isVisible(), "Restart did not restore the initial Overworld");
+  await page.evaluate(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  });
+  await page.getByRole("button", { name: "Enter Encounter" }).click();
+  await page.locator("#actions").waitFor({ state: "visible" });
+
+  const desktopActionSignature = await controlSignature(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await waitForViewportSync(page, 844, 390);
+  const landscapeMetrics = await assertBattleViewport(page, "actions", "landscape-phone Battle Actions");
+  requireCondition(!landscapeMetrics.orientationGuidanceVisible, "landscape viewport incorrectly shows portrait guidance");
+  requireCondition(
+    JSON.stringify(await controlSignature(page)) === JSON.stringify(desktopActionSignature),
+    "landscape reflow changed offered Battle actions, disabled state, or reasons",
+  );
+  const actionHeights = await page.locator("#actions button").evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+  requireCondition(actionHeights.every((height) => height >= 44), `landscape Battle action touch targets are too small: ${actionHeights.join(", ")}`);
+  await captureScreenshot(page, "landscape-battle-actions");
+  console.log("PD|UI3|VIEWPORT|LANDSCAPE_ACTIONS|PASS");
+
+  const landscapeAttack = page.getByRole("button", { name: "Attack" });
+  await landscapeAttack.focus();
+  await page.keyboard.press("Enter");
+  await page.locator("#moves").waitFor({ state: "visible" });
+  const landscapeMoveMetrics = await assertBattleViewport(page, "moves", "landscape-phone Move Selection");
+  requireCondition(
+    ["auto", "scroll"].includes(landscapeMoveMetrics.controlsOverflowY) && landscapeMoveMetrics.controlsScrollable,
+    `long Move Selection is not reachable through its contained controls region: ${JSON.stringify(landscapeMoveMetrics)}`,
+  );
+  const moveButtons = page.locator("#moves .move-choice");
+  requireCondition(await moveButtons.count() > 1, "mobile Move Selection does not exercise the authored option list");
+  const moveHeights = await moveButtons.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+  requireCondition(moveHeights.every((height) => height >= 44), `landscape Move Selection touch targets are too small: ${moveHeights.join(", ")}`);
+  for (let index = 0; index < await moveButtons.count(); index += 1) {
+    const moveButton = moveButtons.nth(index);
+    await scrollWithinControls(moveButton);
+    const detailsFit = await moveButton.evaluate((button) => {
+      const panel = document.getElementById("controls-panel").getBoundingClientRect();
+      const label = button.querySelector(".choice-label").getBoundingClientRect();
+      const summaries = Array.from(button.querySelectorAll(".choice-summary"));
+      return label.top >= panel.top - 1 && label.bottom <= panel.bottom + 1 &&
+        button.scrollWidth <= button.clientWidth + 1 &&
+        summaries.every((summary) => summary.scrollWidth <= summary.clientWidth + 1 && summary.scrollHeight <= summary.clientHeight + 1);
+    });
+    requireCondition(detailsFit, `mobile move option ${index + 1} or its authored detail is clipped`);
+  }
+  const mobileBack = page.locator("#moves").getByRole("button", { name: "Back" });
+  await scrollWithinControls(mobileBack);
+  const backFits = await mobileBack.evaluate((button) => {
+    const panel = document.getElementById("controls-panel").getBoundingClientRect();
+    const rect = button.getBoundingClientRect();
+    return rect.top >= panel.top - 1 && rect.bottom <= panel.bottom + 1 && rect.height >= 44;
+  });
+  requireCondition(backFits, "mobile Back control is clipped or below touch-target size");
+  await page.locator("#controls-panel").evaluate((panel) => { panel.scrollTop = 0; });
+  const cleanLandscapeMoveMetrics = await assertBattleViewport(page, "moves", "landscape-phone Move Selection after contained scrolling");
+  console.log(`PD|UI3|VIEWPORT_METRICS|LANDSCAPE_MOVES|${JSON.stringify(cleanLandscapeMoveMetrics)}`);
+  await captureScreenshot(page, "landscape-move-selection");
+  await mobileBack.click();
+  await page.locator("#actions").waitFor({ state: "visible" });
+  console.log("PD|UI3|VIEWPORT|LANDSCAPE_MOVES|PASS");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await waitForViewportSync(page, 390, 844);
+  await page.waitForFunction(() => window.matchMedia("(orientation: portrait)").matches && !document.getElementById("orientation-guidance").hidden);
+  const portraitMetrics = await assertBattleViewport(page, "actions", "portrait Battle Actions");
+  requireCondition(portraitMetrics.orientationGuidanceVisible, "portrait guidance is not visible");
+  const portraitAttackBox = await page.getByRole("button", { name: "Attack" }).boundingBox();
+  requireCondition(
+    portraitAttackBox && portraitAttackBox.y >= 0 && portraitAttackBox.y + portraitAttackBox.height <= 844,
+    "portrait guidance or layout hides the offered Attack input",
+  );
+  requireCondition(
+    JSON.stringify(await controlSignature(page)) === JSON.stringify(desktopActionSignature),
+    "portrait reflow changed offered Battle actions, disabled state, or reasons",
+  );
+  await page.getByRole("button", { name: "Attack" }).click();
+  await page.locator("#moves").waitFor({ state: "visible" });
+  await assertBattleViewport(page, "moves", "portrait Move Selection");
+  const portraitBack = page.locator("#moves").getByRole("button", { name: "Back" });
+  await portraitBack.scrollIntoViewIfNeeded();
+  await portraitBack.click();
+  await page.locator("#actions").waitFor({ state: "visible" });
+  console.log("PD|UI3|VIEWPORT|PORTRAIT_GUIDANCE|PASS");
 
   const targetPage = await browser.newPage();
   targetPage.on("pageerror", (error) => errors.push(error.message));
@@ -286,6 +464,7 @@ try {
       await secondTarget.isDisabled(),
     "Target Selection omitted authoritative labels, HP/state, preview, or availability",
   );
+  await captureScreenshot(targetPage, "desktop-target-selection");
   await targetButtons.nth(0).click();
   await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
   const submittedTarget = await targetPage.evaluate(() => window.__fixtureCommands.at(-1));
