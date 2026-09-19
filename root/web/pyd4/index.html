@@ -37,22 +37,29 @@
         </div>
       </header>
 
-      <div class="play-grid">
-        <section id="route-panel" class="panel route-panel" aria-labelledby="route-title">
+      <section id="overworld-screen" class="phase-screen overworld-screen" aria-label="Overworld">
+        <section id="route-panel" class="route-panel">
           <div class="panel-heading">
-            <div>
-              <p class="eyebrow">CURRENT ROUTE</p>
-              <h2 id="route-title">The road ahead</h2>
-            </div>
-            <span id="screen-badge" class="badge"></span>
+            <span id="screen-badge" class="badge">OVERWORLD</span>
+            <span aria-hidden="true">|</span>
+            <h2 id="location-label" class="location-label"></h2>
           </div>
-          <p id="location-label" class="location-label"></p>
+          <p class="eyebrow adventure-heading">ADVENTURE</p>
           <p id="adventure-text" class="adventure-text"></p>
           <div id="route-actions" class="button-grid"></div>
           <div id="overworld-options" class="button-grid"></div>
           <p id="notice" class="notice" hidden></p>
         </section>
 
+        <section id="completion" class="completion-panel" hidden aria-live="polite">
+          <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
+          <h2>You reached the Dungeon Entrance.</h2>
+          <p>The current playtest route is complete. Start again whenever you want another run.</p>
+          <button id="completion-restart" type="button">Restart the route</button>
+        </section>
+      </section>
+
+      <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
         <section id="player-panel" class="panel player-panel" aria-labelledby="player-title">
           <div class="panel-heading">
             <div>
@@ -88,13 +95,6 @@
           <div id="targets" class="control-group"></div>
           <div id="inventory" class="control-group"></div>
         </section>
-      </div>
-
-      <section id="completion" class="completion-panel" hidden aria-live="polite">
-        <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
-        <h2>You reached the Dungeon Entrance.</h2>
-        <p>The current playtest route is complete. Start again whenever you want another run.</p>
-        <button id="completion-restart" type="button">Restart the route</button>
       </section>
     </main>
     <script src="js/pyd4.js"></script>

@@ -20,14 +20,52 @@ try {
     await page.getByRole("heading", { name: "Browser Playtest" }).isVisible(),
     "browser shell did not render",
   );
+  requireCondition(
+    await page.locator("#overworld-screen").isVisible(),
+    "initial Overworld phase is not the active surface",
+  );
+  requireCondition(
+    !(await page.locator("#player-panel").isVisible()) &&
+      !(await page.locator("#enemy-panel").isVisible()) &&
+      !(await page.locator("#controls-panel").isVisible()),
+    "inactive Battle dashboard panels remain visible in the Overworld",
+  );
+  requireCondition(
+    await page.locator("#route-actions button").count() > 0 &&
+      await page.locator("#overworld-options button").count() > 0,
+    "Overworld did not render its offered contextual and general actions",
+  );
+  const overworldOrder = await page.evaluate(() => {
+    const ids = [
+      "location-label",
+      "adventure-text",
+      "route-actions",
+      "overworld-options",
+    ];
+    const elements = ids.map((id) => document.getElementById(id));
+    return elements.every((element, index) =>
+      element && (index === elements.length - 1 ||
+        Boolean(element.compareDocumentPosition(elements[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING)),
+    );
+  });
+  requireCondition(overworldOrder, "Overworld information does not follow canonical order");
+
   await page.getByRole("button", { name: "Enter Encounter" }).click();
+  await page.locator("#overworld-screen").waitFor({ state: "hidden" });
+  await page.locator("#battle-screen").waitFor({ state: "visible" });
+  requireCondition(
+    !(await page.locator("#overworld-screen").isVisible()) &&
+      await page.locator("#battle-screen").isVisible(),
+    "entering an encounter did not replace the Overworld with the Battle surface",
+  );
   await page.getByRole("button", { name: "Attack" }).click();
   await page.locator("#moves button:not(:disabled)").first().click();
   const targets = page.locator("#targets button:not(:disabled)");
   if (await targets.count()) await targets.first().click();
   requireCondition(
-    ["BATTLE", "MAIN"].includes(await page.locator("#screen-badge").innerText()),
-    "semantic input did not return an authoritative screen",
+    await page.locator("#battle-screen").isVisible() &&
+      (await page.locator("#phase-badge").innerText()).length > 0,
+    "semantic input did not return an authoritative Battle phase",
   );
 
   const qualification = await browser.newPage();

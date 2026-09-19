@@ -1,4 +1,5 @@
 from pathlib import Path
+from html.parser import HTMLParser
 
 
 ROOT = Path(__file__).parents[1]
@@ -7,6 +8,18 @@ SHELL = ROOT / "web" / "pyd4"
 
 def _read(relative):
     return (SHELL / relative).read_text()
+
+
+class _PhaseSurfaceParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.surfaces = {}
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        element_id = attributes.get("id")
+        if element_id in ("overworld-screen", "battle-screen"):
+            self.surfaces[element_id] = (tag, "hidden" in attributes)
 
 
 def test_shell_has_pinned_pyodide_and_required_assets():
@@ -27,6 +40,8 @@ def test_shell_contains_operational_view_regions_and_controls():
     for element_id in (
         "app",
         "route-panel",
+        "overworld-screen",
+        "battle-screen",
         "player-panel",
         "enemy-panel",
         "battle-log",
@@ -38,6 +53,16 @@ def test_shell_contains_operational_view_regions_and_controls():
         "restart",
     ):
         assert f'id="{element_id}"' in html
+
+
+def test_shell_separates_initial_overworld_from_inactive_battle_surface():
+    parser = _PhaseSurfaceParser()
+    parser.feed(_read("index.html"))
+
+    assert parser.surfaces == {
+        "overworld-screen": ("section", False),
+        "battle-screen": ("section", True),
+    }
 
 
 def test_shell_boot_wraps_the_existing_bridge():

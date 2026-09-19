@@ -235,7 +235,7 @@
   }
 
   function renderOverworld(view) {
-    setText("screen-badge", view.screen);
+    setText("screen-badge", view.screen === "main" ? "OVERWORLD" : view.screen);
     setText("phase-badge", "");
     setText("location-label", view.location_label);
     setText("adventure-text", view.adventure_text);
@@ -264,7 +264,6 @@
   }
 
   function renderBattle(view) {
-    setText("screen-badge", "battle");
     setText("phase-badge", view.interaction_phase);
     setText("location-label", view.encounter_label);
     setText("adventure-text", "Choose from the actions offered by the battle view.");
@@ -301,8 +300,8 @@
     if (!state) return;
     showApp();
     const battle = Boolean(state.interaction_phase);
-    $("enemy-panel").hidden = !battle;
-    $("controls-panel").hidden = false;
+    $("overworld-screen").hidden = battle;
+    $("battle-screen").hidden = !battle;
     if (battle) renderBattle(state);
     else renderOverworld(state);
     const complete = !battle && state.screen === "main" && !state.contextual_route_option;

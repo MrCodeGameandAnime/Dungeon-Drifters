@@ -87,27 +87,25 @@ button:disabled {
   padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
-.app-header, .play-grid, .completion-panel { width: min(100%, 80rem); margin-inline: auto; }
+.app-header, .phase-screen { width: min(100%, 80rem); margin-inline: auto; }
 
 .app-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 1rem;
+  gap: .75rem;
+  padding-bottom: .5rem;
 }
 
 .app-header h1, .panel h2, .completion-panel h2 { margin: 0; }
-.app-header h1 { font-size: clamp(1.6rem, 4vw, 2.5rem); }
-.runtime-status { margin: .35rem 0 0; color: var(--muted); font-size: .9rem; }
+.app-header h1 { font-size: .95rem; }
+.app-header .eyebrow { margin: 0; font-size: .62rem; }
+.runtime-status { margin: .15rem 0 0; color: var(--muted); font-size: .72rem; }
 .header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .55rem; }
-.secondary-button { white-space: nowrap; }
+.secondary-button { min-height: 2.4rem; padding: .4rem .7rem; white-space: nowrap; font-size: .85rem; }
 
-.play-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, .75fr);
-  gap: 1rem;
-  padding-bottom: 1rem;
+.phase-screen {
+  min-height: 0;
 }
 
 .panel, .completion-panel {
@@ -118,10 +116,24 @@ button:disabled {
   padding: 1rem;
 }
 
-.route-panel { grid-column: 1; }
-.player-panel { grid-column: 2; grid-row: 1; }
-.enemy-panel { grid-column: 1; }
-.controls-panel { grid-column: 2; grid-row: 2; }
+.overworld-screen { padding: .45rem 0 1rem; }
+.route-panel { max-width: 68rem; margin: 0 auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.route-panel .panel-heading { justify-content: flex-start; align-items: baseline; gap: .65rem; margin: 0 0 .9rem; padding: .55rem .7rem; border-block: 1px solid var(--line); }
+.route-panel .panel-heading h2 { font-size: 1.05rem; }
+.adventure-heading { margin: 1.1rem 0 .35rem; }
+.adventure-text { max-width: 72ch; margin: 0 0 1.1rem; color: var(--ink); }
+.route-panel .button-grid { margin-top: .7rem; }
+#route-actions { grid-template-columns: minmax(12rem, 24rem); }
+#overworld-options { grid-template-columns: repeat(2, minmax(10rem, 1fr)); max-width: 42rem; margin-top: 1.1rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+#route-actions button, #overworld-options button { min-height: 2.6rem; text-align: left; }
+.completion-panel { max-width: 68rem; margin: 1rem auto 0; padding: .8rem 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
+.completion-panel h2 { font-size: 1.05rem; }
+.completion-panel p:not(.eyebrow) { margin: .45rem 0; }
+
+.battle-screen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, .65fr); grid-template-rows: auto minmax(0, 1fr); gap: .7rem; }
+.player-panel { grid-column: 1 / -1; }
+.enemy-panel { grid-column: 1; min-height: 0; overflow: auto; }
+.controls-panel { grid-column: 2; min-height: 0; overflow: auto; }
 
 .panel-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: .8rem; }
 .panel h2 { font-size: 1.1rem; }
@@ -153,15 +165,20 @@ button:disabled {
 .log-entry { padding: .25rem 0; }
 .log-entry strong { color: var(--ink); }
 
-.completion-panel { margin-bottom: 1rem; border-color: var(--accent); }
 .completion-panel p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
 .orientation-guidance { display: none; }
 [hidden] { display: none !important; }
 
 @media (max-width: 48rem) {
   .app-shell { height: var(--app-height, 100dvh); min-height: var(--app-height, 100dvh); overflow: auto; }
-  .play-grid { grid-template-columns: 1fr; }
-  .route-panel, .player-panel, .enemy-panel, .controls-panel { grid-column: 1; grid-row: auto; }
+  .app-header { gap: .5rem; }
+  .app-header h1 { font-size: .82rem; }
+  .runtime-status { display: none; }
+  .header-actions { gap: .35rem; }
+  .secondary-button { min-height: 2.3rem; padding-inline: .55rem; }
+  .battle-screen { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .player-panel, .enemy-panel, .controls-panel { grid-column: 1; grid-row: auto; }
+  #overworld-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (orientation: portrait) and (max-width: 60rem) {
@@ -181,7 +198,5 @@ button:disabled {
 
 @media (min-width: 60rem) {
   .app-shell { overflow: hidden; }
-  .play-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
-  .panel { min-height: 0; overflow: auto; }
   .battle-log { max-height: 8rem; }
 }
