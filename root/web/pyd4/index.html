@@ -13,11 +13,21 @@
       <strong>Landscape play is recommended.</strong>
       <span id="orientation-detail">If automatic rotation is unavailable, use your device's manual rotation control.</span>
     </div>
-    <div id="loading" class="status-panel" role="status" aria-live="polite">
-      <p class="eyebrow">DUNGEON DRIFTERS</p>
-      <h1>Loading the playtest</h1>
-      <p>Starting the authoritative Python runtime in your browser.</p>
-    </div>
+    <main id="start-screen" class="start-screen" aria-labelledby="start-title">
+      <section class="start-content">
+        <h1 id="start-title" class="visually-hidden">Dungeon Drifters</h1>
+        <img
+          id="start-logo"
+          class="start-logo"
+          src="assets/dungeon-drifters-logo.png"
+          alt="Dungeon Drifters"
+        >
+        <button id="start" class="start-button" type="button" disabled>Loading...</button>
+        <p id="start-status" class="start-status" role="status" aria-live="polite">
+          Starting the Python runtime...
+        </p>
+      </section>
+    </main>
     <div id="error" class="status-panel error-panel" role="alert" hidden>
       <p class="eyebrow">PLAYTEST ERROR</p>
       <h1>We could not start the game</h1>
@@ -26,14 +36,10 @@
     </div>
     <main id="app" class="app-shell" hidden>
       <header class="app-header">
-        <div>
-          <p class="eyebrow">DUNGEON DRIFTERS</p>
-          <h1>Browser Playtest</h1>
-          <p id="runtime-status" class="runtime-status">Python runtime ready</p>
-        </div>
         <div class="header-actions">
-          <button id="immersive" class="secondary-button" type="button">Fullscreen</button>
-          <button id="restart" class="secondary-button" type="button">Restart</button>
+          <button id="immersive" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/fullscreen.png" alt=""></button>
+          <button id="sound-toggle" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/music-on.png" alt=""></button>
+          <button id="restart" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/restart.png" alt=""></button>
         </div>
       </header>
 
@@ -91,6 +97,7 @@
         </div>
       </section>
     </main>
+    <audio id="theme-music" src="assets/theme.m4a" loop preload="none"></audio>
     <script src="js/pyd4.js"></script>
   </body>
 </html>

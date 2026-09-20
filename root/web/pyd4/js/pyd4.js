@@ -5,6 +5,8 @@
   const INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
   let pyodide = null;
   let state = null;
+  let gameStarted = false;
+  let musicStarted = false;
   const orientationQuery = window.matchMedia("(orientation: portrait)");
 
   const $ = (id) => document.getElementById(id);
@@ -18,18 +20,22 @@
   }
 
   function showLoading(visible) {
-    $("loading").hidden = !visible;
+    $("start").disabled = visible;
+    setText("start", visible ? "Loading..." : "Start");
+    setText("start-status", visible
+      ? "Starting the Python runtime..."
+      : "Python runtime ready.");
   }
 
   function showError(error) {
-    showLoading(false);
+    $("start-screen").hidden = true;
     $("app").hidden = true;
     $("error").hidden = false;
     setText("error-message", `${error.name || "Error"}: ${error.message || error}`);
   }
 
   function showApp() {
-    showLoading(false);
+    $("start-screen").hidden = true;
     $("error").hidden = true;
     $("app").hidden = false;
   }
@@ -447,7 +453,7 @@
 
   function render() {
     if (!state) return;
-    showApp();
+    if (gameStarted) showApp();
     const battle = Boolean(state.interaction_phase);
     $("overworld-screen").hidden = battle;
     $("battle-screen").hidden = !battle;
@@ -459,7 +465,6 @@
     }
     const complete = !battle && state.screen === "main" && !state.contextual_route_option;
     $("completion").hidden = !complete;
-    setText("runtime-status", complete ? "Route complete" : "Python runtime ready");
   }
 
   function unwrap(proxy) {
@@ -499,10 +504,63 @@
 
   async function requestImmersion() {
     try {
-      if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
       if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape");
     } catch (error) {
       console.info("Fullscreen or orientation enhancement unavailable", error);
+    }
+  }
+
+  function updateFullscreenButton() {
+    const isFullscreen = Boolean(document.fullscreenElement);
+    $("immersive").querySelector(".utility-icon").setAttribute(
+      "src",
+      isFullscreen ? "assets/icons/exit-fullscreen.png" : "assets/icons/fullscreen.png",
+    );
+  }
+
+  async function toggleImmersion() {
+    try {
+      if (document.fullscreenElement) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      } else {
+        await requestImmersion();
+      }
+    } catch (error) {
+      console.info("Fullscreen enhancement unavailable", error);
+    }
+  }
+
+  function updateMusicButton() {
+    const audio = $("theme-music");
+    const icon = $("sound-toggle").querySelector(".utility-icon");
+    icon.setAttribute("src", !musicStarted || audio.muted
+      ? "assets/icons/music-off.png"
+      : "assets/icons/music-on.png");
+  }
+
+  function startMusic() {
+    const audio = $("theme-music");
+    musicStarted = true;
+    updateMusicButton();
+    let playback;
+    try {
+      playback = audio.play();
+    } catch (error) {
+      musicStarted = false;
+      updateMusicButton();
+      console.info("Background music could not start", error);
+      return;
+    }
+    if (playback && typeof playback.catch === "function") {
+      playback.catch(function (error) {
+        musicStarted = false;
+        updateMusicButton();
+        console.info("Background music could not start", error);
+      });
     }
   }
 
@@ -523,14 +581,36 @@
     await pythonJson("boot()");
     state = await pythonJson("current_view_json()");
     render();
+    showLoading(false);
     window.__DD_BROWSER_READY__ = true;
   }
+
+  $("start").addEventListener("click", async function () {
+    if (!state || gameStarted) return;
+    gameStarted = true;
+    $("start").disabled = true;
+    startMusic();
+    await requestImmersion();
+    render();
+  });
+
+  $("sound-toggle").addEventListener("click", function () {
+    const audio = $("theme-music");
+    if (!musicStarted) {
+      startMusic();
+      return;
+    }
+    audio.muted = !audio.muted;
+    updateMusicButton();
+  });
 
   $("restart").addEventListener("click", async function () {
     await requestImmersion();
     await restart();
   });
-  $("immersive").addEventListener("click", requestImmersion);
+  $("immersive").addEventListener("click", toggleImmersion);
+  document.addEventListener("fullscreenchange", updateFullscreenButton);
+  updateFullscreenButton();
   $("completion-restart").addEventListener("click", restart);
   $("retry").addEventListener("click", function () {
     window.location.reload();

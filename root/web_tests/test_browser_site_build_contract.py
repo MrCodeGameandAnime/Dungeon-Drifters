@@ -26,9 +26,35 @@ def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
     assert (output / "python" / "boot.py").is_file()
     assert (output / "python" / "dd_bridge.py").is_file()
     assert (output / "game" / "dd_runtime.zip").is_file()
+    logo_source = ROOT.parent / "res" / "Dungeon Drifters Logo.png"
+    logo_output = output / "assets" / "dungeon-drifters-logo.png"
+    assert logo_source.is_file()
+    assert logo_output.read_bytes() == logo_source.read_bytes()
+    music_source = ROOT.parent / "res" / "music" / "theme.m4a"
+    music_output = output / "assets" / "theme.m4a"
+    assert music_source.is_file()
+    assert music_output.read_bytes() == music_source.read_bytes()
     assert (output / ".nojekyll").is_file()
     assert (output / "build-metadata.json").is_file()
     assert not (output / "app").exists()
+
+
+def test_site_builder_stages_utility_icons_without_modifying_source_images(tmp_path):
+    output = tmp_path / "site"
+
+    site_builder.build_site(ROOT / "src", output)
+
+    for name in (
+        "exit-fullscreen.png",
+        "fullscreen.png",
+        "music-off.png",
+        "music-on.png",
+        "restart.png",
+    ):
+        source = ROOT.parent / "res" / "icons" / name
+        staged = output / "assets" / "icons" / name
+        assert source.is_file()
+        assert staged.read_bytes() == source.read_bytes()
 
 
 def test_site_builder_metadata_and_archive_are_deterministic(tmp_path):
@@ -60,6 +86,7 @@ def test_site_paths_are_relative_for_project_pages_deployment(tmp_path):
 
     assert 'href="styles.css"' in html
     assert 'src="js/pyd4.js"' in html
+    assert 'src="assets/theme.m4a"' in html
     assert 'fetch("game/dd_runtime.zip")' in javascript
     assert 'fetch("python/dd_bridge.py")' in javascript
     assert "src=\"/" not in html

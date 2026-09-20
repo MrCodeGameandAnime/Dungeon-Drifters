@@ -156,6 +156,41 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => {
+    window.__fullscreenRequests = 0;
+    window.__fullscreenExits = 0;
+    window.__fullscreenElement = null;
+    window.__musicPlayRequests = 0;
+    window.__musicPlayedBeforeFullscreen = false;
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => window.__fullscreenElement,
+    });
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: async function () {
+        window.__fullscreenRequests += 1;
+        window.__fullscreenElement = this;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      },
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value: async function () {
+        window.__fullscreenExits += 1;
+        window.__fullscreenElement = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: function () {
+        window.__musicPlayRequests += 1;
+        window.__musicPlayedBeforeFullscreen = window.__fullscreenRequests === 0;
+        return Promise.resolve();
+      },
+    });
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -169,8 +204,95 @@ try {
     throw new Error(startupError || errors.join("; ") || error.message);
   });
   requireCondition(
-    await page.getByRole("heading", { name: "Browser Playtest" }).isVisible(),
-    "browser shell did not render",
+    await page.locator("#start-screen").isVisible() &&
+      await page.locator("#start-logo").evaluate((image) => image.complete && image.naturalWidth > 0) &&
+      await page.getByRole("button", { name: "Start" }).isEnabled() &&
+      await page.locator("#theme-music").evaluate((audio) => audio.loop && !audio.autoplay && audio.preload === "none") &&
+      await page.evaluate(() => window.__musicPlayRequests === 0) &&
+      await page.locator("#app").isHidden(),
+    "ready browser launch did not show Start without autoplaying the looped theme",
+  );
+  await captureScreenshot(page, "desktop-start-ready");
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  const startTransition = await page.evaluate(() => ({
+    startHidden: document.getElementById("start-screen").hidden,
+    appVisible: !document.getElementById("app").hidden,
+    fullscreenRequests: window.__fullscreenRequests,
+    fullscreenActive: Boolean(document.fullscreenElement),
+  }));
+  requireCondition(
+    startTransition.startHidden && startTransition.appVisible && startTransition.fullscreenRequests === 1 && startTransition.fullscreenActive,
+    `Start did not request fullscreen and reveal the ready game: ${JSON.stringify(startTransition)}`,
+  );
+  const utilityIcons = await page.locator(".header-actions img").evaluateAll((images) => images.map((image) => {
+    const rect = image.getBoundingClientRect();
+    return {
+      source: image.getAttribute("src"),
+      loaded: image.complete && image.naturalWidth > 0,
+      width: rect.width,
+      height: rect.height,
+    };
+  }));
+  requireCondition(
+    utilityIcons.length === 3 &&
+      utilityIcons.every((icon) => icon.loaded && icon.width >= 16 && icon.width <= 20 && icon.height >= 16 && icon.height <= 20) &&
+      utilityIcons.some((icon) => icon.source === "assets/icons/exit-fullscreen.png") &&
+      utilityIcons.some((icon) => icon.source === "assets/icons/music-on.png") &&
+      utilityIcons.some((icon) => icon.source === "assets/icons/restart.png"),
+    `utility buttons did not show compact rendered icons: ${JSON.stringify(utilityIcons)}`,
+  );
+  await page.locator("#immersive").click();
+  const fullscreenExit = await page.evaluate(() => ({
+    requests: window.__fullscreenRequests,
+    exits: window.__fullscreenExits,
+    active: Boolean(document.fullscreenElement),
+    icon: document.querySelector("#immersive img").getAttribute("src"),
+  }));
+  requireCondition(
+    fullscreenExit.requests === 1 && fullscreenExit.exits === 1 && !fullscreenExit.active && fullscreenExit.icon === "assets/icons/fullscreen.png",
+    `Fullscreen control did not show its inactive icon after exiting: ${JSON.stringify(fullscreenExit)}`,
+  );
+  await page.locator("#immersive").click();
+  const fullscreenEntry = await page.evaluate(() => ({
+    requests: window.__fullscreenRequests,
+    exits: window.__fullscreenExits,
+    active: Boolean(document.fullscreenElement),
+    icon: document.querySelector("#immersive img").getAttribute("src"),
+  }));
+  requireCondition(
+    fullscreenEntry.requests === 2 && fullscreenEntry.exits === 1 && fullscreenEntry.active && fullscreenEntry.icon === "assets/icons/exit-fullscreen.png",
+    `Fullscreen control did not show its active icon after re-entering: ${JSON.stringify(fullscreenEntry)}`,
+  );
+  requireCondition(
+    await page.evaluate(() => window.__musicPlayRequests === 1 && window.__musicPlayedBeforeFullscreen && document.getElementById("theme-music").loop),
+    "Start did not begin the looping theme before fullscreen exactly once",
+  );
+  const audioElement = await page.locator("#theme-music").evaluate((audio) => {
+    window.__themeMusicElement = audio;
+    return true;
+  });
+  requireCondition(audioElement, "theme audio element was not available after Start");
+  await page.locator("#sound-toggle").click();
+  requireCondition(
+    await page.locator("#theme-music").evaluate((audio) => audio.muted) &&
+      await page.locator("#sound-toggle img").getAttribute("src") === "assets/icons/music-off.png",
+    "music control did not mute the background theme",
+  );
+  await page.locator("#sound-toggle").click();
+  requireCondition(
+    !(await page.locator("#theme-music").evaluate((audio) => audio.muted)) &&
+      await page.locator("#sound-toggle img").getAttribute("src") === "assets/icons/music-on.png",
+    "music control did not unmute the background theme",
+  );
+  requireCondition(
+    !(await page.locator(".app-header").innerText()).includes("DUNGEON DRIFTERS") &&
+      !(await page.locator(".app-header").innerText()).includes("Browser Playtest") &&
+      !(await page.locator(".app-header").innerText()).includes("Python runtime ready") &&
+      await page.locator("#immersive").isVisible() &&
+      await page.locator("#sound-toggle").isVisible() &&
+      await page.locator("#restart").isVisible(),
+    "header did not retain only browser utility controls",
   );
   requireCondition(
     await page.locator("#overworld-screen").isVisible(),
@@ -201,6 +323,15 @@ try {
     );
   });
   requireCondition(overworldOrder, "Overworld information does not follow canonical order");
+  const overworldHeaderAlignment = await page.evaluate(() => {
+    const actions = document.querySelector(".header-actions").getBoundingClientRect();
+    const topLine = document.querySelector("#route-panel .panel-heading").getBoundingClientRect();
+    return { actionsRight: actions.right, topLineRight: topLine.right };
+  });
+  requireCondition(
+    Math.abs(overworldHeaderAlignment.actionsRight - overworldHeaderAlignment.topLineRight) <= 1,
+    `header utilities do not align with the Overworld top line: ${JSON.stringify(overworldHeaderAlignment)}`,
+  );
   await captureScreenshot(page, "desktop-overworld");
 
   await page.getByRole("button", { name: "Enter Encounter" }).click();
@@ -325,12 +456,30 @@ try {
     "semantic input did not return an authoritative Battle phase",
   );
 
-  await page.getByRole("button", { name: "Restart" }).click();
+  await page.locator("#restart").click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   requireCondition(await page.getByRole("button", { name: "Enter Encounter" }).isVisible(), "Restart did not restore the initial Overworld");
+  requireCondition(
+    await page.evaluate(() => window.__musicPlayRequests === 1 && window.__themeMusicElement === document.getElementById("theme-music")),
+    "Restart restarted or replaced the continuously playing theme",
+  );
+  requireCondition(
+    await page.evaluate(() => window.__fullscreenRequests === 2 && window.__fullscreenExits === 1 && Boolean(document.fullscreenElement)),
+    "Restart changed an already active fullscreen state",
+  );
   await page.evaluate(async () => {
     if (document.fullscreenElement) await document.exitFullscreen();
   });
+  requireCondition(
+    await page.locator("#immersive img").getAttribute("src") === "assets/icons/fullscreen.png",
+    "Fullscreen icon did not follow an external fullscreen exit",
+  );
+  await page.locator("#immersive").click();
+  requireCondition(
+    await page.evaluate(() => window.__fullscreenRequests === 3 && window.__fullscreenExits === 2 && Boolean(document.fullscreenElement)) &&
+      await page.locator("#immersive img").getAttribute("src") === "assets/icons/exit-fullscreen.png",
+    "Fullscreen control did not show its active icon after external exit",
+  );
   await page.getByRole("button", { name: "Enter Encounter" }).click();
   await page.locator("#actions").waitFor({ state: "visible" });
 
@@ -441,6 +590,7 @@ try {
   console.log("PD|UI3|VIEWPORT|PORTRAIT_GUIDANCE|PASS");
 
   const targetPage = await browser.newPage();
+  await targetPage.setViewportSize({ width: 844, height: 390 });
   targetPage.on("pageerror", (error) => errors.push(error.message));
   await targetPage.route("**/pyodide.js", (route) =>
     route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
@@ -449,22 +599,40 @@ try {
     window.__fixtureCommands = [];
     window.__fixtureGlobals = {};
     window.__fixtureTransitionComplete = false;
-    window.loadPyodide = async () => ({
-      FS: { writeFile() {} },
-      globals: { set(key, value) { window.__fixtureGlobals[key] = value; } },
-      runPython() {},
-      async runPythonAsync(source) {
-        if (source === "current_view_json()") {
-          return JSON.stringify(window.__fixtureTransitionComplete ? views.overworld : views.targets);
-        }
-        if (source === "restart_game_json()") return JSON.stringify(views.targets);
-        if (source === "submit_json(_browser_command_json)") {
-          window.__fixtureCommands.push(JSON.parse(window.__fixtureGlobals._browser_command_json));
-          window.__fixtureTransitionComplete = true;
-          return JSON.stringify(views.complete);
-        }
-        return "null";
+    window.__fullscreenRequests = 0;
+    window.__musicPlayRequests = 0;
+    window.__musicPlayedBeforeFullscreen = false;
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: async function () { window.__fullscreenRequests += 1; },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: function () {
+        window.__musicPlayRequests += 1;
+        window.__musicPlayedBeforeFullscreen = window.__fullscreenRequests === 0;
+        return Promise.resolve();
       },
+    });
+    window.__resolvePyodide = null;
+    window.loadPyodide = () => new Promise((resolve) => {
+      window.__resolvePyodide = () => resolve({
+        FS: { writeFile() {} },
+        globals: { set(key, value) { window.__fixtureGlobals[key] = value; } },
+        runPython() {},
+        async runPythonAsync(source) {
+          if (source === "current_view_json()") {
+            return JSON.stringify(window.__fixtureTransitionComplete ? views.overworld : views.targets);
+          }
+          if (source === "restart_game_json()") return JSON.stringify(views.targets);
+          if (source === "submit_json(_browser_command_json)") {
+            window.__fixtureCommands.push(JSON.parse(window.__fixtureGlobals._browser_command_json));
+            window.__fixtureTransitionComplete = true;
+            return JSON.stringify(views.complete);
+          }
+          return "null";
+        },
+      });
     });
   }, {
     targets: targetProjection,
@@ -472,7 +640,36 @@ try {
     overworld: resultOverworldProjection,
   });
   await targetPage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await targetPage.waitForFunction(() => typeof window.__resolvePyodide === "function");
+  requireCondition(
+    await targetPage.locator("#start-screen").isVisible() &&
+      await targetPage.locator("#start-logo").evaluate((image) => image.complete && image.naturalWidth > 0) &&
+      await targetPage.getByRole("button", { name: "Loading..." }).isDisabled() &&
+      await targetPage.evaluate(() => window.__musicPlayRequests === 0) &&
+      await targetPage.locator("#app").isHidden(),
+    "loading browser launch did not keep Start disabled without starting theme music",
+  );
+  await captureScreenshot(targetPage, "mobile-start-screen");
+  await targetPage.evaluate(() => window.__resolvePyodide());
   await targetPage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, { timeout: 30000 });
+  requireCondition(
+    await targetPage.getByRole("button", { name: "Start" }).isEnabled() &&
+      await targetPage.locator("#app").isHidden(),
+    "runtime-ready splash did not enable Start while keeping gameplay hidden",
+  );
+  await captureScreenshot(targetPage, "mobile-start-ready");
+  await targetPage.getByRole("button", { name: "Start" }).click();
+  await targetPage.locator("#targets").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.evaluate(() => window.__fullscreenRequests === 1),
+    "mobile Start did not request fullscreen from its user gesture",
+  );
+  requireCondition(
+    await targetPage.evaluate(() => window.__musicPlayRequests === 1 && window.__musicPlayedBeforeFullscreen),
+    "mobile Start did not start theme music before fullscreen from its user gesture",
+  );
+  await targetPage.setViewportSize({ width: 1440, height: 900 });
+  await waitForViewportSync(targetPage, 1440, 900);
   requireCondition(
     await targetPage.locator("#targets").isVisible() &&
       !(await targetPage.locator("#actions").isVisible()) &&

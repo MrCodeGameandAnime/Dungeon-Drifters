@@ -41,6 +41,16 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     output_root = Path(output_root)
     shell_root = Path(shell_root or repository_root / "root" / "web" / "pyd4")
     bridge_path = Path(bridge_path or repository_root / "root" / "web" / "python" / "dd_bridge.py")
+    logo_path = repository_root / "res" / "Dungeon Drifters Logo.png"
+    music_path = repository_root / "res" / "music" / "theme.m4a"
+    icon_names = (
+        "exit-fullscreen.png",
+        "fullscreen.png",
+        "music-off.png",
+        "music-on.png",
+        "restart.png",
+    )
+    icon_paths = tuple(repository_root / "res" / "icons" / name for name in icon_names)
 
     required = (
         shell_root / "index.html",
@@ -48,6 +58,9 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         shell_root / "js" / "pyd4.js",
         shell_root / "python" / "boot.py",
         bridge_path,
+        logo_path,
+        music_path,
+        *icon_paths,
     )
     missing = [path for path in required if not path.is_file()]
     if missing:
@@ -65,6 +78,10 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     _copy(shell_root / "js" / "pyd4.js", output_root / "js" / "pyd4.js")
     _copy(shell_root / "python" / "boot.py", output_root / "python" / "boot.py")
     _copy(bridge_path, output_root / "python" / "dd_bridge.py")
+    _copy(logo_path, output_root / "assets" / "dungeon-drifters-logo.png")
+    _copy(music_path, output_root / "assets" / "theme.m4a")
+    for name, source in zip(icon_names, icon_paths):
+        _copy(source, output_root / "assets" / "icons" / name)
 
     runtime_path = output_root / "game" / "dd_runtime.zip"
     runtime_file_count = len(_runtime_builder()(source_root, runtime_path))

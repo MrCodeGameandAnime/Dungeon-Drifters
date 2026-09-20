@@ -28,10 +28,34 @@ def test_shell_has_pinned_pyodide_and_required_assets():
     assert 'cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js' in html
     assert 'href="styles.css"' in html
     assert 'src="js/pyd4.js"' in html
-    assert 'id="loading"' in html
+    assert 'id="start-screen"' in html
+    assert 'id="start-logo"' in html
+    assert 'src="assets/dungeon-drifters-logo.png"' in html
+    assert 'id="start"' in html
+    assert 'id="start-status"' in html
     assert 'id="error"' in html
     assert 'id="retry"' in html
     assert 'id="orientation-guidance"' in html
+
+
+def test_launch_screen_gates_game_until_start_gesture():
+    html = _read("index.html")
+    javascript = _read("js/pyd4.js")
+
+    assert '<main id="start-screen"' in html
+    assert 'id="start" class="start-button" type="button" disabled>Loading...' in html
+    assert '<main id="app" class="app-shell" hidden>' in html
+    assert 'gameStarted = true' in javascript
+    assert '$("start").addEventListener("click"' in javascript
+    assert 'await requestImmersion()' in javascript
+    assert 'setText("start", visible ? "Loading..." : "Start")' in javascript
+
+
+def test_theme_music_is_looped_but_does_not_autoplay():
+    html = _read("index.html")
+
+    assert '<audio id="theme-music" src="assets/theme.m4a" loop preload="none"></audio>' in html
+    assert 'id="sound-toggle"' in html
 
 
 def test_shell_contains_operational_view_regions_and_controls():

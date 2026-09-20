@@ -59,21 +59,66 @@ button:disabled {
   opacity: .76;
 }
 
-.status-panel {
+.start-screen {
+  display: grid;
+  flex: 1 1 0;
+  min-height: 0;
+  place-items: center;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+}
+
+.start-content {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: min(100%, 70rem);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.start-logo {
+  display: block;
+  width: 100%;
+  max-height: min(52vh, 30rem);
+  object-fit: contain;
+}
+
+.start-button {
+  width: min(100%, 18rem);
+  min-height: 3.5rem;
+  border-color: var(--accent);
+  font-size: 1.1rem;
+}
+
+.start-status {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.error-panel {
   width: min(92vw, 42rem);
+  min-height: var(--app-height, 100dvh);
   margin: 0 auto;
   padding: 2rem;
-  min-height: var(--app-height, 100dvh);
   display: grid;
   align-content: center;
   gap: .6rem;
+  color: var(--danger);
 }
 
-.status-panel h1, .status-panel p { margin: 0; }
-.status-panel h1 { font-size: clamp(1.8rem, 5vw, 3.4rem); }
-.status-panel p:not(.eyebrow) { color: var(--muted); line-height: 1.55; }
-
-.error-panel { color: var(--danger); }
+.error-panel h1, .error-panel p { margin: 0; }
 .error-panel p:not(.eyebrow) { color: #ffd0ca; }
 
 .eyebrow {
@@ -98,17 +143,17 @@ button:disabled {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  width: min(100%, 68rem);
   gap: .75rem;
   padding-bottom: .5rem;
 }
 
-.app-header h1, .panel h2, .completion-panel h2 { margin: 0; }
-.app-header h1 { font-size: .95rem; }
-.app-header .eyebrow { margin: 0; font-size: .62rem; }
-.runtime-status { margin: .15rem 0 0; color: var(--muted); font-size: .72rem; }
+.panel h2, .completion-panel h2 { margin: 0; }
 .header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .55rem; }
 .secondary-button { min-height: 2.4rem; padding: .4rem .7rem; white-space: nowrap; font-size: .85rem; }
+.secondary-button.icon-button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; padding: .35rem; }
+.utility-icon { display: block; width: 18px; height: 18px; object-fit: contain; filter: brightness(0) invert(1); pointer-events: none; }
 
 .phase-screen {
   min-height: 0;
@@ -208,9 +253,9 @@ button:disabled {
 [hidden] { display: none !important; }
 
 @media (max-width: 48rem) {
+  .start-content { gap: .6rem; }
+  .start-logo { max-height: 54vh; }
   .app-header { gap: .5rem; }
-  .app-header h1 { font-size: .82rem; }
-  .runtime-status { display: none; }
   .header-actions { gap: .35rem; }
   .secondary-button { min-height: 2.3rem; padding-inline: .55rem; }
   .battle-status { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
