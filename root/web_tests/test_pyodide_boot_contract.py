@@ -1,6 +1,6 @@
 import importlib.util
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZIP_STORED, ZipFile
 
 
 ROOT = Path(__file__).parents[1]
@@ -28,6 +28,9 @@ def test_runtime_archive_contains_only_authoritative_app_python(tmp_path):
         assert all(name.startswith("app/") for name in names)
         assert all("__pycache__" not in name for name in names)
         assert all(name.endswith(".py") for name in names)
+        assert all(
+            item.compress_type == ZIP_STORED for item in archive.infolist()
+        )
 
     assert len(files) == len(names)
 

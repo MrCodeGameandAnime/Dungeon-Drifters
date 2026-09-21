@@ -2,7 +2,7 @@
 
 import argparse
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+from zipfile import ZIP_STORED, ZipFile, ZipInfo
 
 
 def _repository_root():
@@ -29,12 +29,12 @@ def build_runtime(source_root, output_path):
     files = _runtime_files(source_root)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with ZipFile(output_path, "w", compression=ZIP_DEFLATED) as archive:
+    with ZipFile(output_path, "w", compression=ZIP_STORED) as archive:
         for path in files:
             relative = path.relative_to(source_root).as_posix()
             info = ZipInfo(relative)
             info.date_time = (1980, 1, 1, 0, 0, 0)
-            info.compress_type = ZIP_DEFLATED
+            info.compress_type = ZIP_STORED
             info.external_attr = 0o644 << 16
             archive.writestr(info, path.read_bytes())
 
