@@ -25,5 +25,9 @@ def restart_game_json():
     return _json(dd_bridge.restart_game())
 
 
+def drifter_roster_json():
+    return _json(dd_bridge.drifter_roster())
+
+
 def boot():
-    return start_game_json("branoc")
+    return drifter_roster_json()

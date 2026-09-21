@@ -64,6 +64,20 @@ def test_mobile_move_and_target_phases_use_a_dedicated_surface_only_on_mobile():
     assert "overflow-y: hidden" in css
 
 
+def test_mobile_character_surfaces_isolate_the_page_and_keep_navigation_at_the_bottom():
+    css = _read("styles.css")
+    javascript = _read("js/pyd4.js")
+    html = _read("index.html")
+    smoke = (ROOT / "web_tests" / "browser_smoke.mjs").read_text()
+
+    assert "dataset.detailScreen = view.screen" in javascript
+    assert '.overworld-screen[data-detail-screen] #route-panel' in css
+    assert "detail-page-content" in html
+    assert ".detail-page-content" in css
+    assert "mobileDetailLayout" in smoke
+    assert 'captureScreenshot(page, "mobile-character")' in smoke
+
+
 def test_battle_choices_keep_touch_targets_and_wrap_authored_detail():
     css = _read("styles.css")
     choice_rule = re.search(r"(?m)^\.battle-choice \{([^}]*)\}", css).group(1)

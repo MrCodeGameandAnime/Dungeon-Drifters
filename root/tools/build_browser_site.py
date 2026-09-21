@@ -51,6 +51,12 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         "restart.png",
     )
     icon_paths = tuple(repository_root / "res" / "icons" / name for name in icon_names)
+    drifter_sprites = {
+        "branoc.png": repository_root / "res" / "Ser Branoc Sprite.png",
+        "azhvielle.png": repository_root / "res" / "Azhvielle Sprite.png",
+        "zhaivra.png": repository_root / "res" / "Zhaivra Kelyth Sprite.png",
+        "joruun.png": repository_root / "res" / "Joruun Veyr Sprite.png",
+    }
 
     required = (
         shell_root / "index.html",
@@ -61,6 +67,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         logo_path,
         music_path,
         *icon_paths,
+        *drifter_sprites.values(),
     )
     missing = [path for path in required if not path.is_file()]
     if missing:
@@ -82,6 +89,8 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     _copy(music_path, output_root / "assets" / "theme.m4a")
     for name, source in zip(icon_names, icon_paths):
         _copy(source, output_root / "assets" / "icons" / name)
+    for name, source in drifter_sprites.items():
+        _copy(source, output_root / "assets" / "drifters" / name)
 
     runtime_path = output_root / "game" / "dd_runtime.zip"
     runtime_file_count = len(_runtime_builder()(source_root, runtime_path))

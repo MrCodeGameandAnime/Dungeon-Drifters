@@ -61,6 +61,24 @@ def test_site_builder_stages_utility_icons_without_modifying_source_images(tmp_p
         assert staged.read_bytes() == source.read_bytes()
 
 
+def test_site_builder_stages_drifter_sprites_without_modifying_source_images(tmp_path):
+    output = tmp_path / "site"
+
+    site_builder.build_site(ROOT / "src", output)
+
+    sprites = {
+        "branoc.png": "Ser Branoc Sprite.png",
+        "azhvielle.png": "Azhvielle Sprite.png",
+        "zhaivra.png": "Zhaivra Kelyth Sprite.png",
+        "joruun.png": "Joruun Veyr Sprite.png",
+    }
+    for output_name, source_name in sprites.items():
+        source = ROOT.parent / "res" / source_name
+        staged = output / "assets" / "drifters" / output_name
+        assert source.is_file()
+        assert staged.read_bytes() == source.read_bytes()
+
+
 def test_site_builder_metadata_and_archive_are_deterministic(tmp_path):
     first = tmp_path / "first"
     second = tmp_path / "second"

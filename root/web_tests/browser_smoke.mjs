@@ -29,6 +29,39 @@ async function waitForViewportSync(page, width, height) {
   { expectedWidth: width, expectedHeight: height });
 }
 
+async function mobileDetailLayout(page, panelId, navigationId) {
+  return page.evaluate(({ activePanelId, activeNavigationId }) => {
+    const overworld = document.getElementById("overworld-screen");
+    const route = document.getElementById("route-panel");
+    const activePanel = document.getElementById(activePanelId);
+    const content = activePanel.querySelector(".detail-page-content");
+    const navigation = document.getElementById(activeNavigationId);
+    const screenRect = overworld.getBoundingClientRect();
+    const navigationRect = navigation.getBoundingClientRect();
+    const visibleDetails = Array.from(overworld.querySelectorAll(".overworld-detail-panel"))
+      .filter((panel) => !panel.hidden && panel.getBoundingClientRect().width > 0)
+      .map((panel) => panel.id);
+    return {
+      routeVisible: route.getBoundingClientRect().width > 0,
+      visibleDetails,
+      contentOverflowY: content ? getComputedStyle(content).overflowY : "missing",
+      navigationBottomGap: screenRect.bottom - navigationRect.bottom,
+      documentOverflowY: document.documentElement.scrollHeight > window.innerHeight + 1 ||
+        document.body.scrollHeight > window.innerHeight + 1,
+    };
+  }, { activePanelId: panelId, activeNavigationId: navigationId });
+}
+
+async function assertMobileDetailView(page, panelId, navigationId, label) {
+  const layout = await mobileDetailLayout(page, panelId, navigationId);
+  requireCondition(
+    !layout.routeVisible && layout.visibleDetails.join(",") === panelId &&
+      layout.contentOverflowY === "auto" && layout.navigationBottomGap >= -1 &&
+      layout.navigationBottomGap <= 24 && !layout.documentOverflowY,
+    `${label} did not isolate its page with reachable bottom navigation: ${JSON.stringify(layout)}`,
+  );
+}
+
 async function inspectViewport(page) {
   return page.evaluate(() => {
     const root = document.documentElement;
@@ -214,17 +247,50 @@ try {
   );
   await captureScreenshot(page, "desktop-start-ready");
   await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
   const startTransition = await page.evaluate(() => ({
     startHidden: document.getElementById("start-screen").hidden,
     appVisible: !document.getElementById("app").hidden,
+    selectionVisible: !document.getElementById("selection-screen").hidden,
     fullscreenRequests: window.__fullscreenRequests,
     fullscreenActive: Boolean(document.fullscreenElement),
   }));
   requireCondition(
-    startTransition.startHidden && startTransition.appVisible && startTransition.fullscreenRequests === 1 && startTransition.fullscreenActive,
-    `Start did not request fullscreen and reveal the ready game: ${JSON.stringify(startTransition)}`,
+    startTransition.startHidden && startTransition.appVisible && startTransition.selectionVisible &&
+      startTransition.fullscreenRequests === 1 && startTransition.fullscreenActive,
+    `Start did not request fullscreen and reveal Drifter selection: ${JSON.stringify(startTransition)}`,
   );
+  const rosterButtons = page.locator("#drifter-options [data-drifter-id]");
+  const rosterLabels = await rosterButtons.allInnerTexts();
+  const rosterCards = await rosterButtons.evaluateAll((buttons) => buttons.map((button) => {
+    const image = button.querySelector("img");
+    const text = Array.from(button.children).map((child) => child.textContent.trim());
+    return {
+      id: button.dataset.drifterId,
+      source: image && image.getAttribute("src"),
+      loaded: Boolean(image && image.complete && image.naturalWidth > 0),
+      text,
+    };
+  }));
+  requireCondition(
+    await rosterButtons.count() === 4 &&
+      rosterLabels.some((text) => text.includes("Ser Branoc")) &&
+      rosterLabels.some((text) => text.includes("Azhvielle")) &&
+      rosterLabels.some((text) => text.includes("Joruun")) &&
+      rosterLabels.some((text) => text.includes("Zhaivra")) &&
+      rosterCards.every((card) => card.loaded && card.text.length === 4) &&
+      rosterCards.map((card) => card.source).join(",") === [
+        "assets/drifters/branoc.png",
+        "assets/drifters/azhvielle.png",
+        "assets/drifters/zhaivra.png",
+        "assets/drifters/joruun.png",
+      ].join(",") &&
+      rosterCards.every((card) => card.text[1].length > 0 && card.text[2].includes("|") && card.text[3].length > 0),
+    `Drifter picker did not show loaded sprites with authored text below: ${JSON.stringify(rosterCards)}`,
+  );
+  await captureScreenshot(page, "desktop-drifter-selection");
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
   const utilityIcons = await page.locator(".header-actions img").evaluateAll((images) => images.map((image) => {
     const rect = image.getBoundingClientRect();
     return {
@@ -452,6 +518,38 @@ try {
     "Character Back did not restore the active Overworld actions",
   );
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  await waitForViewportSync(page, 390, 844);
+  await page.locator("#overworld-options").getByRole("button", { name: "Character" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await assertMobileDetailView(page, "character-panel", "character-options", "mobile Character");
+  await captureScreenshot(page, "mobile-character");
+
+  await page.locator("#character-options").getByRole("button", { name: "Skills" }).click();
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await assertMobileDetailView(page, "skills-panel", "skills-options", "mobile Skills");
+  await captureScreenshot(page, "mobile-skills");
+  await page.locator("#skills-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+
+  await page.locator("#character-options").getByRole("button", { name: "Weapon" }).click();
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  await assertMobileDetailView(page, "weapon-panel", "weapon-options", "mobile Weapon");
+  await captureScreenshot(page, "mobile-weapon");
+  await page.locator("#weapon-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+
+  await page.locator("#character-options").getByRole("button", { name: "Equipment" }).click();
+  await page.locator("#equipment-panel").waitFor({ state: "visible" });
+  await assertMobileDetailView(page, "equipment-panel", "equipment-options", "mobile Equipment");
+  await captureScreenshot(page, "mobile-equipment");
+  await page.locator("#equipment-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await page.locator("#character-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#route-actions").waitFor({ state: "visible" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await waitForViewportSync(page, 1440, 900);
+
   await page.getByRole("button", { name: "Enter Encounter" }).click();
   await page.locator("#overworld-screen").waitFor({ state: "hidden" });
   await page.locator("#battle-screen").waitFor({ state: "visible" });
@@ -575,8 +673,12 @@ try {
   );
 
   await page.locator("#restart").click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  requireCondition(await page.getByRole("button", { name: "Enter Encounter" }).isVisible(), "Restart did not restore the initial Overworld");
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#overworld-screen").isHidden() && await page.locator("#battle-screen").isHidden() &&
+      await page.locator("#drifter-options [data-drifter-id]").count() === 4,
+    "Restart did not return to Drifter selection",
+  );
   requireCondition(
     await page.evaluate(() => window.__musicPlayRequests === 1 && window.__themeMusicElement === document.getElementById("theme-music")),
     "Restart restarted or replaced the continuously playing theme",
@@ -585,6 +687,19 @@ try {
     await page.evaluate(() => window.__fullscreenRequests === 2 && window.__fullscreenExits === 1 && Boolean(document.fullscreenElement)),
     "Restart changed an already active fullscreen state",
   );
+  await page.locator('#drifter-options [data-drifter-id="azhvielle"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await page.locator("#overworld-options").getByRole("button", { name: "Character" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  const switchedName = await page.locator("#character-name").innerText();
+  requireCondition(
+    switchedName.includes("Azhvielle"),
+    `selecting a different Drifter after Restart did not start that character: ${switchedName}`,
+  );
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
   await page.evaluate(async () => {
     if (document.fullscreenElement) await document.exitFullscreen();
   });
@@ -739,6 +854,16 @@ try {
         globals: { set(key, value) { window.__fixtureGlobals[key] = value; } },
         runPython() {},
         async runPythonAsync(source) {
+          if (source === "boot()") return JSON.stringify([
+            { drifter_id: "branoc", choice: "1", short_name: "Ser Branoc", archetype_name: "Brawler", combat_role: "Tank", selection_summary: "A steady frontline fighter.", sprite_url: "assets/drifters/branoc.png" },
+            { drifter_id: "azhvielle", choice: "2", short_name: "Azhvielle", archetype_name: "Black Mage", combat_role: "Caster", selection_summary: "A focused spellcaster.", sprite_url: "assets/drifters/azhvielle.png" },
+            { drifter_id: "zhaivra", choice: "3", short_name: "Zhaivra Kelyth", archetype_name: "Rogue Archer", combat_role: "Archer", selection_summary: "A precise ranged fighter.", sprite_url: "assets/drifters/zhaivra.png" },
+            { drifter_id: "joruun", choice: "4", short_name: "Joruun Veyr", archetype_name: "Monk", combat_role: "Monk", selection_summary: "A mobile martial artist.", sprite_url: "assets/drifters/joruun.png" },
+          ]);
+          if (source === "start_game_json(_selected_drifter_id)") {
+            window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
+            return JSON.stringify(views.targets);
+          }
           if (source === "current_view_json()") {
             return JSON.stringify(window.__fixtureTransitionComplete ? views.overworld : views.targets);
           }
@@ -777,7 +902,29 @@ try {
   );
   await captureScreenshot(targetPage, "mobile-start-ready");
   await targetPage.getByRole("button", { name: "Start" }).click();
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  const mobileRosterCards = await targetPage.locator("#drifter-options [data-drifter-id]").evaluateAll((buttons) => buttons.map((button) => {
+    const image = button.querySelector("img");
+    return {
+      source: image && image.getAttribute("src"),
+      loaded: Boolean(image && image.complete && image.naturalWidth > 0),
+      width: button.getBoundingClientRect().width,
+      role: button.querySelector(".drifter-option-role")?.textContent.trim(),
+      summary: button.querySelector(".drifter-option-summary")?.textContent.trim(),
+    };
+  }));
+  requireCondition(
+    mobileRosterCards.length === 4 && mobileRosterCards.every((card) =>
+      card.loaded && card.width > 0 && card.role.includes("|") && card.summary.length > 0),
+    `mobile Start did not show four sprite choices with text beneath: ${JSON.stringify(mobileRosterCards)}`,
+  );
+  await captureScreenshot(targetPage, "mobile-drifter-selection");
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#targets").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.evaluate(() => window.__fixtureSelectedDrifter === "branoc"),
+    "Drifter selection did not pass its authored ID to the Python bridge",
+  );
   requireCondition(
     await targetPage.evaluate(() => window.__fullscreenRequests === 1),
     "mobile Start did not request fullscreen from its user gesture",

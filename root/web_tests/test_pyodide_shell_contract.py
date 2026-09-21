@@ -18,7 +18,7 @@ class _PhaseSurfaceParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
         element_id = attributes.get("id")
-        if element_id in ("overworld-screen", "battle-screen"):
+        if element_id in ("selection-screen", "overworld-screen", "battle-screen"):
             self.surfaces[element_id] = (tag, "hidden" in attributes)
 
 
@@ -45,10 +45,25 @@ def test_launch_screen_gates_game_until_start_gesture():
     assert '<main id="start-screen"' in html
     assert 'id="start" class="start-button" type="button" disabled>Loading...' in html
     assert '<main id="app" class="app-shell" hidden>' in html
-    assert 'gameStarted = true' in javascript
+    assert 'selection-screen' in html
+    assert 'gameStarted = true' not in javascript
     assert '$("start").addEventListener("click"' in javascript
     assert 'await requestImmersion()' in javascript
     assert 'setText("start", visible ? "Loading..." : "Start")' in javascript
+
+
+def test_drifter_picker_uses_clickable_sprite_cards_with_text_below():
+    html = _read("index.html")
+    javascript = _read("js/pyd4.js")
+
+    assert 'id="selection-screen"' in html
+    assert 'id="drifter-options"' in html
+    assert "renderDrifterSelection" in javascript
+    assert 'document.createElement("img")' in javascript
+    assert 'image.src = profile.sprite_url' in javascript
+    assert 'button.append(image, name, role, summary)' in javascript
+    assert "drifter_roster_json" in _read("python/boot.py")
+    assert 'start_game_json(_selected_drifter_id)' in javascript
 
 
 def test_theme_music_is_looped_but_does_not_autoplay():
@@ -103,7 +118,8 @@ def test_shell_separates_initial_overworld_from_inactive_battle_surface():
     parser.feed(_read("index.html"))
 
     assert parser.surfaces == {
-        "overworld-screen": ("section", False),
+        "selection-screen": ("section", True),
+        "overworld-screen": ("section", True),
         "battle-screen": ("section", True),
     }
 
@@ -113,6 +129,7 @@ def test_shell_boot_wraps_the_existing_bridge():
 
     assert "import dd_bridge" in boot
     assert "start_game_json" in boot
+    assert "drifter_roster_json" in boot
     assert "current_view_json" in boot
     assert "submit_json" in boot
     assert "restart_game_json" in boot
@@ -125,10 +142,11 @@ def test_shell_javascript_uses_authoritative_projection_and_commands():
     assert 'PYODIDE_VERSION = "314.0.7"' in javascript
     assert 'fetch("game/dd_runtime.zip")' in javascript
     assert 'fetch("python/dd_bridge.py")' in javascript
-    assert "start_game_json()" in javascript
+    assert 'pythonJson("boot()")' in javascript
+    assert "start_game_json(_selected_drifter_id)" in javascript
     assert "current_view_json()" in javascript
     assert "submit_json(_browser_command_json)" in javascript
-    assert "restart_game_json()" in javascript
+    assert "showDrifterSelection()" in javascript
     assert "option.enabled" in javascript
     assert "button.disabled" in javascript
     assert 'kind: "overworld_action"' in javascript

@@ -5,7 +5,7 @@ from dataclasses import fields, is_dataclass
 from enum import Enum
 
 from app.combat.battle import Battle
-from app.content.catalog import create_enemy_state
+from app.content.catalog import DRIFTER_SPECS, create_enemy_state
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.player.run_items import InventoryCommand
@@ -24,6 +24,14 @@ from app.ui.overworld_ui import (
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
 )
+
+
+_DRIFTER_SPRITE_URLS = {
+    "branoc": "assets/drifters/branoc.png",
+    "azhvielle": "assets/drifters/azhvielle.png",
+    "zhaivra": "assets/drifters/zhaivra.png",
+    "joruun": "assets/drifters/joruun.png",
+}
 
 
 def _project(value):
@@ -75,6 +83,21 @@ def _command_to_input(command):
     if kind == "back":
         return GoBack()
     raise ValueError("unknown browser command: " + str(kind))
+
+
+def drifter_roster():
+    return [
+        {
+            "drifter_id": profile.drifter_id,
+            "choice": profile.choice,
+            "short_name": profile.short_name,
+            "archetype_name": profile.archetype_name,
+            "combat_role": profile.combat_role,
+            "selection_summary": profile.selection_summary,
+            "sprite_url": _DRIFTER_SPRITE_URLS[profile.drifter_id],
+        }
+        for profile in DRIFTER_SPECS
+    ]
 
 
 class BrowserRuntime:

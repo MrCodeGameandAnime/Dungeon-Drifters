@@ -28,6 +28,36 @@ def test_bridge_starts_the_canonical_headless_runtime():
     assert runtime._session._save_repository is None
 
 
+def test_bridge_exposes_authored_roster_and_starts_each_drifter():
+    runtime = bridge.BrowserRuntime()
+    roster = bridge.drifter_roster()
+
+    assert [profile["drifter_id"] for profile in roster] == [
+        "branoc",
+        "azhvielle",
+        "zhaivra",
+        "joruun",
+    ]
+    assert [profile["sprite_url"] for profile in roster] == [
+        "assets/drifters/branoc.png",
+        "assets/drifters/azhvielle.png",
+        "assets/drifters/zhaivra.png",
+        "assets/drifters/joruun.png",
+    ]
+    assert all(profile["short_name"] and profile["combat_role"] for profile in roster)
+
+    for profile in roster:
+        view = runtime.start_game(profile["drifter_id"])
+        assert view["screen"] == OverworldScreen.MAIN.value
+        assert view["contextual_route_option"]["action"] == "enter_encounter"
+        assert runtime._game.player_state.character.profile.drifter_id == profile["drifter_id"]
+        battle = runtime.submit({"kind": "overworld_action", "action": "enter_encounter"})
+        assert battle["interaction_phase"] in {
+            InteractionPhase.ACTIONS.value,
+            InteractionPhase.COMPLETE.value,
+        }
+
+
 def test_bridge_projects_and_submits_existing_semantic_inputs():
     runtime = bridge.BrowserRuntime()
     initial = runtime.start_game()

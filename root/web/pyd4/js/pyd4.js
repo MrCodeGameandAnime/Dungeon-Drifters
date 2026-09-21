@@ -5,7 +5,7 @@
   const INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
   let pyodide = null;
   let state = null;
-  let gameStarted = false;
+  let drifters = [];
   let musicStarted = false;
   const orientationQuery = window.matchMedia("(orientation: portrait)");
 
@@ -38,6 +38,46 @@
     $("start-screen").hidden = true;
     $("error").hidden = true;
     $("app").hidden = false;
+  }
+
+  function showDrifterSelection() {
+    state = null;
+    showApp();
+    $("selection-screen").hidden = false;
+    $("overworld-screen").hidden = true;
+    $("battle-screen").hidden = true;
+    $("app").removeAttribute("data-interaction-phase");
+    $("battle-screen").removeAttribute("data-interaction-phase");
+    renderDrifterSelection();
+  }
+
+  function renderDrifterSelection() {
+    const container = $("drifter-options");
+    clear(container);
+    for (const profile of drifters) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "drifter-option";
+      button.dataset.drifterId = profile.drifter_id;
+
+      const image = document.createElement("img");
+      image.className = "drifter-option-sprite";
+      image.src = profile.sprite_url;
+      image.alt = "";
+
+      const name = document.createElement("span");
+      name.className = "drifter-option-name";
+      name.textContent = profile.short_name;
+      const role = document.createElement("span");
+      role.className = "drifter-option-role";
+      role.textContent = `${profile.archetype_name} | ${profile.combat_role}`;
+      const summary = document.createElement("span");
+      summary.className = "drifter-option-summary";
+      summary.textContent = profile.selection_summary;
+      button.append(image, name, role, summary);
+      button.addEventListener("click", () => selectDrifter(profile.drifter_id));
+      container.append(button);
+    }
   }
 
   function updateViewportHeight() {
@@ -502,6 +542,11 @@
     const characterMenuScreens = ["character", "skills", "weapon", "equipment"];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
+    if (characterMenuActive) {
+      $("overworld-screen").dataset.detailScreen = view.screen;
+    } else {
+      delete $("overworld-screen").dataset.detailScreen;
+    }
     setText("screen-badge", characterMenuActive || mainScreen ? "OVERWORLD" : view.screen);
     setText("location-label", view.location_label);
     setText("adventure-text", view.adventure_text);
@@ -609,7 +654,8 @@
 
   function render() {
     if (!state) return;
-    if (gameStarted) showApp();
+    showApp();
+    $("selection-screen").hidden = true;
     const battle = Boolean(state.interaction_phase);
     $("overworld-screen").hidden = battle;
     $("battle-screen").hidden = !battle;
@@ -648,10 +694,22 @@
     }
   }
 
+  async function selectDrifter(drifterId) {
+    try {
+      for (const button of $("drifter-options").querySelectorAll("button")) button.disabled = true;
+      pyodide.globals.set("_selected_drifter_id", drifterId);
+      state = await pythonJson("start_game_json(_selected_drifter_id)");
+      render();
+    } catch (error) {
+      showError(error);
+      console.error(error);
+    }
+  }
+
   async function restart() {
     try {
-      state = await pythonJson("restart_game_json()");
-      render();
+      await requestImmersion();
+      showDrifterSelection();
     } catch (error) {
       showError(error);
       console.error(error);
@@ -734,20 +792,21 @@
     const bootResponse = await fetch("python/boot.py");
     if (!bootResponse.ok) throw new Error(`python/boot.py returned HTTP ${bootResponse.status}`);
     await pyodide.runPythonAsync(await bootResponse.text());
-    await pythonJson("boot()");
-    state = await pythonJson("current_view_json()");
-    render();
+    drifters = await pythonJson("boot()");
+    if (!Array.isArray(drifters) || drifters.length === 0) {
+      throw new Error("The Drifter roster is empty");
+    }
+    renderDrifterSelection();
     showLoading(false);
     window.__DD_BROWSER_READY__ = true;
   }
 
   $("start").addEventListener("click", async function () {
-    if (!state || gameStarted) return;
-    gameStarted = true;
+    if (drifters.length === 0) return;
     $("start").disabled = true;
     startMusic();
     await requestImmersion();
-    render();
+    showDrifterSelection();
   });
 
   $("sound-toggle").addEventListener("click", function () {
