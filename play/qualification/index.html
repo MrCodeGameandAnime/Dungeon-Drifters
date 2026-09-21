@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dungeon Drifters PYD2</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+    <style>
+      :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111827; }
+      pre { width: min(92vw, 62rem); padding: 1.25rem; border: 1px solid #4b5563; border-radius: .5rem; white-space: pre-wrap; }
+      .pass { color: #bbf7d0; border-color: #22c55e; }
+      .fail { color: #fecaca; border-color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <pre id="status">PYD2|LOADING</pre>
+    <script src="js/pyd2.js"></script>
+  </body>
+</html>

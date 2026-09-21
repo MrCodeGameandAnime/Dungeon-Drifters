@@ -1,9 +1,12 @@
 import importlib.util
 import json
+import os
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
+REPOSITORY_ROOT = ROOT.parent
 TOOL_PATH = ROOT / "tools" / "build_browser_site.py"
 WORKFLOW_PATH = ROOT.parent / ".github" / "workflows" / "pages.yml"
 SPEC = importlib.util.spec_from_file_location("build_browser_site", TOOL_PATH)
@@ -26,6 +29,7 @@ def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
     assert (output / "python" / "boot.py").is_file()
     assert (output / "python" / "dd_bridge.py").is_file()
     assert (output / "game" / "dd_runtime.zip").is_file()
+    assert (output / "qualification" / "game" / "dd_runtime.zip").is_file()
     logo_source = ROOT.parent / "res" / "Dungeon Drifters Logo.png"
     logo_output = output / "assets" / "dungeon-drifters-logo.png"
     assert logo_source.is_file()
@@ -93,21 +97,60 @@ def test_site_paths_are_relative_for_project_pages_deployment(tmp_path):
     assert "fetch(\"/" not in javascript
 
 
-def test_pages_workflow_builds_and_deploys_the_static_site():
+def test_play_navigation_follows_home_on_every_normal_website_page():
+    pages = (
+        REPOSITORY_ROOT / "index.html",
+        *sorted((REPOSITORY_ROOT / "site").rglob("*.html")),
+    )
+
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        navigation = re.search(
+            r'<nav class="site-nav"[^>]*>(.*?)</nav>', html, flags=re.DOTALL
+        )
+        assert navigation is not None, page
+        links = re.findall(
+            r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+            navigation.group(1),
+            flags=re.DOTALL,
+        )
+        first_two_labels = [
+            re.sub(r"<[^>]+>", "", label).strip() for _, label in links[:2]
+        ]
+        expected_play_href = (
+            os.path.relpath(REPOSITORY_ROOT / "play", page.parent).replace("\\", "/")
+            + "/"
+        )
+
+        assert first_two_labels == ["Home", "Play"], page
+        assert links[1][0] == expected_play_href, page
+
+
+def test_branch_playtest_runtime_archive_is_not_ignored():
+    gitignore = (REPOSITORY_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    for archive in (
+        "!play/game/dd_runtime.zip",
+        "!play/qualification/game/dd_runtime.zip",
+    ):
+        assert archive in gitignore
+
+
+def test_pages_workflow_validates_branch_playtest_without_deploying_it():
     workflow = WORKFLOW_PATH.read_text()
 
     for required in (
         "branches:\n      - pyodide",
         "actions/checkout@v6",
         "actions/setup-python@v6",
-        "python -m pytest web_tests",
-        "python tools/build_browser_site.py",
-        "actions/upload-pages-artifact@v3",
-        "actions/deploy-pages@v4",
-        "pages: write",
-        "id-token: write",
+        "python tools/build_browser_site.py --output ../play",
+        "git -C .. status --porcelain --untracked-files=all -- play",
     ):
         assert required in workflow
+    assert "actions/upload-pages-artifact" not in workflow
+    assert "actions/deploy-pages" not in workflow
+    assert "pages: write" not in workflow
+    assert "id-token: write" not in workflow
 
 
 def test_pages_artifact_does_not_include_tests_or_docs(tmp_path):

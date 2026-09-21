@@ -1,4 +1,4 @@
-name: Browser Pages
+name: Browser Pages Branch Validation
 
 on:
   push:
@@ -8,16 +8,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build browser site
+  validate-playtest:
+    name: Verify branch-hosted Play page
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -32,40 +30,13 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install development dependencies
-        run: python -m pip install -r requirements-dev.txt
+      - name: Build branch-hosted Play page
+        run: python tools/build_browser_site.py --output ../play
 
-      - name: Validate authored content
-        run: python -m tools.validate_content
-
-      - name: Run Python tests
-        run: python -m pytest
-
-      - name: Run web tests
-        run: python -m pytest web_tests
-
-      - name: Compile Python sources
-        run: python -m compileall src tests web_tests tools
-
-      - name: Check dataclass manifest
-        run: python tools/generate_dataclass_manifest.py --check
-
-      - name: Build static browser site
-        run: python tools/build_browser_site.py --output site
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: root/site
-
-  deploy:
-    name: Deploy browser site
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy Pages artifact
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Verify committed Play page is current
+        run: |
+          if [ -n "$(git -C .. status --porcelain --untracked-files=all -- play)" ]; then
+            git -C .. status --short --untracked-files=all -- play
+            echo "Regenerate and commit the branch-hosted /play/ directory."
+            exit 1
+          fi

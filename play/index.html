@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#10241f">
+    <title>Dungeon Drifters | Browser Playtest</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+  </head>
+  <body>
+    <div id="orientation-guidance" class="orientation-guidance" role="status">
+      <strong>Landscape play is recommended.</strong>
+      <span id="orientation-detail">If automatic rotation is unavailable, use your device's manual rotation control.</span>
+    </div>
+    <main id="start-screen" class="start-screen" aria-labelledby="start-title">
+      <section class="start-content">
+        <h1 id="start-title" class="visually-hidden">Dungeon Drifters</h1>
+        <img
+          id="start-logo"
+          class="start-logo"
+          src="assets/dungeon-drifters-logo.png"
+          alt="Dungeon Drifters"
+        >
+        <button id="start" class="start-button" type="button" disabled>Loading...</button>
+        <p id="start-status" class="start-status" role="status" aria-live="polite">
+          Starting the Python runtime...
+        </p>
+      </section>
+    </main>
+    <div id="error" class="status-panel error-panel" role="alert" hidden>
+      <p class="eyebrow">PLAYTEST ERROR</p>
+      <h1>We could not start the game</h1>
+      <p id="error-message"></p>
+      <button id="retry" type="button">Retry</button>
+    </div>
+    <main id="app" class="app-shell" hidden>
+      <header class="app-header">
+        <div class="header-actions">
+          <button id="immersive" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/fullscreen.png" alt=""></button>
+          <button id="sound-toggle" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/music-on.png" alt=""></button>
+          <button id="restart" class="secondary-button icon-button" type="button"><img class="utility-icon" src="assets/icons/restart.png" alt=""></button>
+        </div>
+      </header>
+
+      <section id="overworld-screen" class="phase-screen overworld-screen" aria-label="Overworld">
+        <section id="route-panel" class="route-panel">
+          <div class="panel-heading">
+            <span id="screen-badge" class="badge">OVERWORLD</span>
+            <span aria-hidden="true">|</span>
+            <h2 id="location-label" class="location-label"></h2>
+          </div>
+          <p class="eyebrow adventure-heading">ADVENTURE</p>
+          <p id="adventure-text" class="adventure-text"></p>
+          <div id="route-actions" class="button-grid"></div>
+          <div id="overworld-options" class="button-grid"></div>
+          <p id="notice" class="notice" hidden></p>
+        </section>
+
+        <section id="character-panel" class="overworld-detail-panel" hidden aria-labelledby="character-name">
+          <h2 id="character-name" class="character-name"></h2>
+          <p id="character-archetype" class="character-archetype"></p>
+          <p class="eyebrow detail-heading">STATS</p>
+          <div id="character-stats" class="character-stats"></div>
+          <div id="character-progression" class="character-progression">
+            <h3 id="character-level"></h3>
+            <div id="character-resources" class="character-resources"></div>
+            <div class="experience-line">
+              <span id="experience-label">XP</span>
+              <progress id="experience-progress" max="10000" value="0"></progress>
+              <span id="experience-value"></span>
+            </div>
+          </div>
+          <div id="character-options" class="button-grid character-options"></div>
+        </section>
+
+        <section id="skills-panel" class="overworld-detail-panel" hidden aria-labelledby="skills-title">
+          <h2 id="skills-title" class="visually-hidden">Skills</h2>
+          <p class="eyebrow detail-heading">LEVEL UP</p>
+          <div id="growth-summary" class="growth-summary"></div>
+          <p id="growth-message" class="growth-message"></p>
+          <div id="skill-stats" class="skill-stats"></div>
+          <p class="eyebrow detail-heading attacks-heading">ATTACKS</p>
+          <div id="skill-attacks" class="skill-attacks"></div>
+          <div id="skills-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="weapon-panel" class="overworld-detail-panel" hidden aria-labelledby="weapon-name">
+          <h2 id="weapon-name" class="detail-title"></h2>
+          <p id="weapon-type" class="detail-subtitle"></p>
+          <p id="weapon-wielder" class="detail-line"></p>
+          <p class="eyebrow detail-heading">BONUSES</p>
+          <div id="weapon-bonuses" class="detail-list"></div>
+          <p class="eyebrow detail-heading">DESCRIPTION</p>
+          <p id="weapon-description" class="detail-copy"></p>
+          <div id="weapon-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
+          <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+          <p class="eyebrow detail-heading">ACCESSORIES</p>
+          <div id="equipment-slots" class="detail-list"></div>
+          <p class="eyebrow detail-heading">BENEFITS</p>
+          <div id="equipment-benefits" class="detail-list"></div>
+          <div id="equipment-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="completion" class="completion-panel" hidden aria-live="polite">
+          <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
+          <h2>You reached the Dungeon Entrance.</h2>
+          <p>The current playtest route is complete. Start again whenever you want another run.</p>
+          <button id="completion-restart" type="button">Restart the route</button>
+        </section>
+      </section>
+
+      <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
+        <div id="battle-status" class="battle-status">
+          <section id="player-panel" class="combatant-status player-panel" aria-labelledby="player-title">
+            <h2 id="player-title">Branoc</h2>
+            <div id="player-status" class="combatant-lines"></div>
+            <div id="player-details" class="combatant-lines"></div>
+          </section>
+
+          <section id="enemy-panel" class="combatant-status enemy-panel" aria-label="Enemies">
+            <div id="enemies" class="enemy-list"></div>
+          </section>
+        </div>
+
+        <div id="battle-matchup" class="battle-matchup" aria-label="Battle matchup"></div>
+        <div id="battle-log" class="battle-log" aria-label="Battle log" aria-live="polite"></div>
+
+        <section id="controls-panel" class="battle-controls" aria-labelledby="controls-title">
+          <h2 id="controls-title">Actions</h2>
+          <div id="actions" class="control-group"></div>
+          <div id="moves" class="control-group"></div>
+          <div id="targets" class="control-group"></div>
+          <div id="inventory" class="control-group"></div>
+        </section>
+
+        <div id="super-meter" class="super-meter" role="group" aria-label="Super meter">
+          <span class="super-label">SUPER</span>
+          <progress id="super-progress" max="10000" value="0"></progress>
+          <span id="super-value">0 / 100</span>
+          <span id="super-ready" hidden>READY</span>
+        </div>
+      </section>
+    </main>
+    <audio id="theme-music" src="assets/theme.m4a" loop preload="none"></audio>
+    <script src="js/pyd4.js"></script>
+  </body>
+</html>

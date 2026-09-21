@@ -44,6 +44,8 @@ update info/
 res/maps/
 res/menu/
 *.zip
+!play/game/dd_runtime.zip
+!play/qualification/game/dd_runtime.zip
 *.tar
 *.tar.gz
 *.bak
