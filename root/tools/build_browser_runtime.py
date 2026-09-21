@@ -34,6 +34,7 @@ def build_runtime(source_root, output_path):
             relative = path.relative_to(source_root).as_posix()
             info = ZipInfo(relative)
             info.date_time = (1980, 1, 1, 0, 0, 0)
+            info.create_system = 3
             info.compress_type = ZIP_STORED
             info.external_attr = 0o644 << 16
             archive.writestr(info, path.read_bytes())

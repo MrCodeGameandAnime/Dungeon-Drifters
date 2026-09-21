@@ -31,6 +31,7 @@ def test_runtime_archive_contains_only_authoritative_app_python(tmp_path):
         assert all(
             item.compress_type == ZIP_STORED for item in archive.infolist()
         )
+        assert all(item.create_system == 3 for item in archive.infolist())
 
     assert len(files) == len(names)
 
