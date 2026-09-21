@@ -256,6 +256,8 @@ button:disabled {
 }
 .detail-page-content { display: contents; }
 .character-name, .detail-title { margin: 0; font: inherit; font-size: 1.05rem; }
+.character-name::before { content: "[ "; }
+.character-name::after { content: " ]"; }
 .character-archetype, .detail-subtitle, .detail-line, .detail-copy, .growth-message { margin: 0; }
 .detail-heading { margin: 1rem 0 .15rem; }
 .character-stats {
@@ -369,7 +371,39 @@ button:disabled {
   #overworld-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-option-sprite { height: clamp(8rem, 24vh, 13rem); }
-  .character-stats { grid-template-rows: none; grid-auto-flow: row; }
+  .character-name::before, .character-name::after { content: none; }
+  .character-stats {
+    grid-template-areas:
+      "constitution spirit strength"
+      "intelligence dexterity intuition";
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: row;
+    gap: .2rem .45rem;
+  }
+  .character-stat { min-width: 0; overflow-wrap: anywhere; }
+  .character-stat[data-stat-name="constitution"] { grid-area: constitution; }
+  .character-stat[data-stat-name="spirit"] { grid-area: spirit; }
+  .character-stat[data-stat-name="strength"] { grid-area: strength; }
+  .character-stat[data-stat-name="intelligence"] { grid-area: intelligence; }
+  .character-stat[data-stat-name="dexterity"] { grid-area: dexterity; }
+  .character-stat[data-stat-name="intuition"] { grid-area: intuition; }
+  .character-progression {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .2rem .35rem;
+    margin-top: .75rem;
+  }
+  .character-progression h3::after { content: " |"; color: var(--muted); }
+  .character-resources { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem .45rem; }
+  #character-resources .status-line { white-space: nowrap; }
+  #character-resources .status-line + .status-line::before {
+    content: "|";
+    margin-inline-end: .45rem;
+    color: var(--muted);
+  }
+  .experience-line { flex: 0 0 100%; }
   .skill-stat { grid-template-columns: 1.6rem minmax(5rem, 1fr) 2.5rem minmax(8rem, auto); gap: .2rem; }
 }
 
@@ -408,6 +442,11 @@ button:disabled {
 }
 
 @media (max-width: 60rem) {
+  .overworld-screen:not([data-detail-screen]) {
+    overflow: hidden;
+    padding-bottom: .45rem;
+  }
+
   .overworld-screen[data-detail-screen] {
     display: flex;
     flex-direction: column;
@@ -542,4 +581,52 @@ button:disabled {
     min-height: 2.75rem;
     margin-top: .1rem;
   }
+}
+
+@media (orientation: landscape) and (max-width: 60rem) {
+  #app:has(> #selection-screen:not([hidden])) {
+    position: relative;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  #app:has(> #selection-screen:not([hidden])) > .app-header {
+    position: absolute;
+    inset-block-start: max(1rem, env(safe-area-inset-top));
+    inset-inline-end: max(1rem, env(safe-area-inset-right));
+    z-index: 1;
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .selection-screen {
+    display: flex;
+    overflow: hidden;
+    padding-block: .25rem;
+  }
+
+  .selection-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .selection-content > .eyebrow { display: none; }
+  .selection-content h1 { flex: 0 0 auto; margin-bottom: .35rem; font-size: 1.5rem; }
+
+  .drifter-options {
+    flex: 1 1 auto;
+    align-content: center;
+    align-items: start;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .25rem;
+    min-height: 0;
+  }
+
+  .drifter-option { gap: .2rem; padding: .2rem .1rem; }
+  .drifter-option-sprite { height: clamp(7rem, 35dvh, 13rem); }
+  .drifter-option-name { font-size: .9rem; line-height: 1.15; }
+  .drifter-option-role { font-size: .8rem; line-height: 1.15; }
+  .drifter-option-summary { font-size: .75rem; line-height: 1.2; }
 }

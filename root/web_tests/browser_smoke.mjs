@@ -29,6 +29,95 @@ async function waitForViewportSync(page, width, height) {
   { expectedWidth: width, expectedHeight: height });
 }
 
+async function inspectMobileSelection(page) {
+  return page.evaluate(() => {
+    const selection = document.getElementById("selection-screen");
+    const grid = document.getElementById("drifter-options");
+    const title = document.getElementById("selection-title").getBoundingClientRect();
+    const header = document.querySelector(".app-header").getBoundingClientRect();
+    const selectionRect = selection.getBoundingClientRect();
+    const cards = [...grid.querySelectorAll("[data-drifter-id]")].map((button) => ({
+      buttonTop: button.getBoundingClientRect().top,
+      buttonBottom: button.getBoundingClientRect().bottom,
+      summaryBottom: button.querySelector(".drifter-option-summary").getBoundingClientRect().bottom,
+    }));
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+      titleHeaderCenterGap: Math.abs(
+        (title.top + title.bottom) / 2 - (header.top + header.bottom) / 2,
+      ),
+      pageHeight: document.documentElement.scrollHeight,
+      selectionHeight: selection.clientHeight,
+      selectionScrollHeight: selection.scrollHeight,
+      selectionTop: selectionRect.top,
+      selectionBottom: selectionRect.bottom,
+      titleBottom: title.bottom,
+      cards,
+    };
+  });
+}
+
+function mobileSelectionFits(layout) {
+  const rowTop = Math.min(...layout.cards.map((card) => card.buttonTop));
+  const rowBottom = Math.max(...layout.cards.map((card) => card.buttonBottom));
+  const spaceAboveCards = rowTop - layout.titleBottom;
+  const spaceBelowCards = layout.selectionBottom - rowBottom;
+  return layout.columns === 4 &&
+    layout.titleHeaderCenterGap <= 18 &&
+    layout.pageHeight <= layout.viewport.height &&
+    layout.selectionScrollHeight <= layout.selectionHeight &&
+    layout.cards.length === 4 &&
+    layout.cards.every((card) =>
+      card.buttonBottom <= layout.selectionBottom + 1 &&
+      card.summaryBottom <= layout.selectionBottom + 1 &&
+      card.buttonBottom - card.summaryBottom <= 12) &&
+    Math.abs(spaceAboveCards - spaceBelowCards) <= 24;
+}
+
+async function inspectMobileOverworld(page) {
+  return page.evaluate(() => {
+    const screen = document.getElementById("overworld-screen");
+    const screenRect = screen.getBoundingClientRect();
+    const route = document.getElementById("route-panel").getBoundingClientRect();
+    const controls = [...screen.querySelectorAll("#route-actions button, #overworld-options button")]
+      .map((button) => {
+        const rect = button.getBoundingClientRect();
+        return {
+          label: button.innerText.trim(),
+          visible: rect.width > 0 && rect.height > 0,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      });
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      pageHeight: document.documentElement.scrollHeight,
+      bodyHeight: document.body.scrollHeight,
+      screenClientHeight: screen.clientHeight,
+      screenScrollHeight: screen.scrollHeight,
+      screenOverflowY: getComputedStyle(screen).overflowY,
+      screenTop: screenRect.top,
+      screenBottom: screenRect.bottom,
+      routeTop: route.top,
+      routeBottom: route.bottom,
+      controls,
+    };
+  });
+}
+
+function mobileOverworldFits(layout) {
+  return layout.pageHeight <= layout.viewport.height &&
+    layout.bodyHeight <= layout.viewport.height &&
+    layout.screenOverflowY === "hidden" &&
+    layout.screenScrollHeight <= layout.screenClientHeight + 1 &&
+    layout.routeTop >= layout.screenTop - 1 &&
+    layout.routeBottom <= layout.screenBottom + 1 &&
+    layout.controls.length >= 5 &&
+    layout.controls.every((control) => control.visible &&
+      control.top >= layout.screenTop - 1 && control.bottom <= layout.screenBottom + 1);
+}
+
 async function mobileDetailLayout(page, panelId, navigationId) {
   return page.evaluate(({ activePanelId, activeNavigationId }) => {
     const overworld = document.getElementById("overworld-screen");
@@ -60,6 +149,50 @@ async function assertMobileDetailView(page, panelId, navigationId, label) {
       layout.navigationBottomGap <= 24 && !layout.documentOverflowY,
     `${label} did not isolate its page with reachable bottom navigation: ${JSON.stringify(layout)}`,
   );
+}
+
+async function mobileCharacterLayout(page) {
+  return page.evaluate(() => {
+    const panel = document.getElementById("character-panel");
+    const content = panel.querySelector(".detail-page-content");
+    const stats = [...document.querySelectorAll("#character-stats .character-stat")]
+      .map((stat) => {
+        const rect = stat.getBoundingClientRect();
+        return { name: stat.dataset.statName, text: stat.innerText.trim(), top: rect.top, left: rect.left };
+      })
+      .sort((first, second) => Math.abs(first.top - second.top) > 1
+        ? first.top - second.top
+        : first.left - second.left);
+    const resources = document.getElementById("character-resources");
+    const progress = document.getElementById("experience-progress");
+    const progressRect = progress.getBoundingClientRect();
+    const contentRect = content.getBoundingClientRect();
+    return {
+      name: document.getElementById("character-name").innerText.trim(),
+      archetype: document.getElementById("character-archetype").innerText.trim(),
+      stats,
+      statColumns: getComputedStyle(document.getElementById("character-stats")).gridTemplateColumns.split(" ").length,
+      level: document.getElementById("character-level").innerText.trim(),
+      resources: [...resources.querySelectorAll(".status-line")].map((line) => line.innerText.trim()),
+      resourceLayout: getComputedStyle(resources).display,
+      progressVisible: !progress.hidden && progressRect.width > 0 && progressRect.height > 0,
+      progressInsideContent: progressRect.left >= contentRect.left - 1 && progressRect.right <= contentRect.right + 1,
+      contentFits: content.scrollHeight <= content.clientHeight + 1,
+    };
+  });
+}
+
+function mobileCharacterFits(layout) {
+  return !layout.name.startsWith("[") && !layout.name.endsWith("]") &&
+    layout.archetype.length > 0 &&
+    layout.statColumns === 3 &&
+    JSON.stringify(layout.stats.map((stat) => stat.name)) === JSON.stringify([
+      "constitution", "spirit", "strength", "intelligence", "dexterity", "intuition",
+    ]) &&
+    layout.stats.every((stat) => stat.text.includes(":")) &&
+    layout.level.startsWith("Level ") &&
+    layout.resources.length === 3 && layout.resourceLayout === "flex" &&
+    layout.progressVisible && layout.progressInsideContent && layout.contentFits;
 }
 
 async function inspectViewport(page) {
@@ -399,6 +532,21 @@ try {
     `header utilities do not align with the Overworld top line: ${JSON.stringify(overworldHeaderAlignment)}`,
   );
   await captureScreenshot(page, "desktop-overworld");
+  for (const [width, height, screenshotName] of [
+    [844, 390, "mobile-overworld-landscape"],
+    [667, 375, "mobile-overworld-narrow-landscape"],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await waitForViewportSync(page, width, height);
+    const layout = await inspectMobileOverworld(page);
+    requireCondition(
+      mobileOverworldFits(layout),
+      `mobile Overworld should fit without a page or screen scrollbar at ${width}x${height}: ${JSON.stringify(layout)}`,
+    );
+    await captureScreenshot(page, screenshotName);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await waitForViewportSync(page, 1440, 900);
 
   await page.locator("#overworld-options").getByRole("button", { name: "Character" }).click();
   await page.locator("#character-panel").waitFor({ state: "visible" });
@@ -426,7 +574,10 @@ try {
       .map((id) => [id, document.getElementById(id).innerText]),
   ));
   requireCondition(
-    characterDetails["character-name"] === "[ Ser Branoc, the Unbroken Crest ]" &&
+    characterDetails["character-name"] === "Ser Branoc, the Unbroken Crest" &&
+      await page.locator("#character-name").evaluate((element) =>
+        getComputedStyle(element, "::before").content === '"[ "' &&
+        getComputedStyle(element, "::after").content === '" ]"') &&
       characterDetails["character-archetype"] === "Brawler" &&
       characterDetails["character-stats"].includes("Strength") &&
       characterDetails["character-stats"].includes("15") &&
@@ -523,6 +674,11 @@ try {
   await page.locator("#overworld-options").getByRole("button", { name: "Character" }).click();
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await assertMobileDetailView(page, "character-panel", "character-options", "mobile Character");
+  const mobileCharacter = await mobileCharacterLayout(page);
+  requireCondition(
+    mobileCharacterFits(mobileCharacter),
+    `mobile Character should show the full identity, two rows of three stats, compact progression, and XP without clipping: ${JSON.stringify(mobileCharacter)}`,
+  );
   await captureScreenshot(page, "mobile-character");
 
   await page.locator("#character-options").getByRole("button", { name: "Skills" }).click();
@@ -855,10 +1011,10 @@ try {
         runPython() {},
         async runPythonAsync(source) {
           if (source === "boot()") return JSON.stringify([
-            { drifter_id: "branoc", choice: "1", short_name: "Ser Branoc", archetype_name: "Brawler", combat_role: "Tank", selection_summary: "A steady frontline fighter.", sprite_url: "assets/drifters/branoc.png" },
-            { drifter_id: "azhvielle", choice: "2", short_name: "Azhvielle", archetype_name: "Black Mage", combat_role: "Caster", selection_summary: "A focused spellcaster.", sprite_url: "assets/drifters/azhvielle.png" },
-            { drifter_id: "zhaivra", choice: "3", short_name: "Zhaivra Kelyth", archetype_name: "Rogue Archer", combat_role: "Archer", selection_summary: "A precise ranged fighter.", sprite_url: "assets/drifters/zhaivra.png" },
-            { drifter_id: "joruun", choice: "4", short_name: "Joruun Veyr", archetype_name: "Monk", combat_role: "Monk", selection_summary: "A mobile martial artist.", sprite_url: "assets/drifters/joruun.png" },
+            { drifter_id: "branoc", choice: "1", short_name: "Ser Branoc", archetype_name: "Brawler", combat_role: "Heavy Vanguard", selection_summary: "durable, relentless, slow", sprite_url: "assets/drifters/branoc.png" },
+            { drifter_id: "azhvielle", choice: "2", short_name: "Azhvielle", archetype_name: "Black Mage", combat_role: "Elemental Controller", selection_summary: "versatile, dangerous, unpredictable", sprite_url: "assets/drifters/azhvielle.png" },
+            { drifter_id: "zhaivra", choice: "3", short_name: "Zhaivra Kelyth", archetype_name: "Rogue Archer", combat_role: "Alchemical Marksman", selection_summary: "precise, prepared, resource-limited", sprite_url: "assets/drifters/zhaivra.png" },
+            { drifter_id: "joruun", choice: "4", short_name: "Joruun Veyr", archetype_name: "Monk", combat_role: "Elemental Skirmisher", selection_summary: "mobile, adaptable, physically costly", sprite_url: "assets/drifters/joruun.png" },
           ]);
           if (source === "start_game_json(_selected_drifter_id)") {
             window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
@@ -918,7 +1074,21 @@ try {
       card.loaded && card.width > 0 && card.role.includes("|") && card.summary.length > 0),
     `mobile Start did not show four sprite choices with text beneath: ${JSON.stringify(mobileRosterCards)}`,
   );
+  requireCondition(
+    mobileSelectionFits(await inspectMobileSelection(targetPage)),
+    `mobile Drifter selection should show four complete cards in one non-scrolling row: ${JSON.stringify(await inspectMobileSelection(targetPage))}`,
+  );
   await captureScreenshot(targetPage, "mobile-drifter-selection");
+  await targetPage.setViewportSize({ width: 667, height: 375 });
+  await waitForViewportSync(targetPage, 667, 375);
+  const narrowMobileSelection = await inspectMobileSelection(targetPage);
+  requireCondition(
+    mobileSelectionFits(narrowMobileSelection),
+    `narrow mobile Drifter selection should show four complete cards without scrolling: ${JSON.stringify(narrowMobileSelection)}`,
+  );
+  await captureScreenshot(targetPage, "mobile-drifter-selection-narrow-landscape");
+  await targetPage.setViewportSize({ width: 844, height: 390 });
+  await waitForViewportSync(targetPage, 844, 390);
   await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#targets").waitFor({ state: "visible" });
   requireCondition(

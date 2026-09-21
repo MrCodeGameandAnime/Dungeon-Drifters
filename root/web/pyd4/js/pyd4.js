@@ -401,7 +401,7 @@
   function renderCharacter(view) {
     const character = view.character;
     if (!character) return;
-    setText("character-name", `[ ${character.display_name} ]`);
+    setText("character-name", character.display_name);
     setText("character-archetype", character.archetype_label);
 
     const stats = $("character-stats");
@@ -409,6 +409,7 @@
     for (const stat of character.stats || []) {
       const line = document.createElement("div");
       line.className = "character-stat";
+      line.dataset.statName = stat.stat_name;
       line.textContent = `${stat.label}: ${stat.value}`;
       stats.append(line);
     }

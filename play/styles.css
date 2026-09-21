@@ -408,6 +408,11 @@ button:disabled {
 }
 
 @media (max-width: 60rem) {
+  .overworld-screen:not([data-detail-screen]) {
+    overflow: hidden;
+    padding-bottom: .45rem;
+  }
+
   .overworld-screen[data-detail-screen] {
     display: flex;
     flex-direction: column;
@@ -542,4 +547,52 @@ button:disabled {
     min-height: 2.75rem;
     margin-top: .1rem;
   }
+}
+
+@media (orientation: landscape) and (max-width: 60rem) {
+  #app:has(> #selection-screen:not([hidden])) {
+    position: relative;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  #app:has(> #selection-screen:not([hidden])) > .app-header {
+    position: absolute;
+    inset-block-start: max(1rem, env(safe-area-inset-top));
+    inset-inline-end: max(1rem, env(safe-area-inset-right));
+    z-index: 1;
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .selection-screen {
+    display: flex;
+    overflow: hidden;
+    padding-block: .25rem;
+  }
+
+  .selection-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .selection-content > .eyebrow { display: none; }
+  .selection-content h1 { flex: 0 0 auto; margin-bottom: .35rem; font-size: 1.5rem; }
+
+  .drifter-options {
+    flex: 1 1 auto;
+    align-content: center;
+    align-items: start;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .25rem;
+    min-height: 0;
+  }
+
+  .drifter-option { gap: .2rem; padding: .2rem .1rem; }
+  .drifter-option-sprite { height: clamp(7rem, 35dvh, 13rem); }
+  .drifter-option-name { font-size: .9rem; line-height: 1.15; }
+  .drifter-option-role { font-size: .8rem; line-height: 1.15; }
+  .drifter-option-summary { font-size: .75rem; line-height: 1.2; }
 }
