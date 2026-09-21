@@ -181,6 +181,48 @@ button:disabled {
 .completion-panel h2 { font-size: 1.05rem; }
 .completion-panel p:not(.eyebrow) { margin: .45rem 0; }
 
+.overworld-detail-panel {
+  max-width: 68rem;
+  margin: 1.35rem auto 0;
+  padding: .7rem .85rem;
+  background: #0d1117;
+  color: #c9d2dc;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  line-height: 1.45;
+}
+.character-name, .detail-title { margin: 0; font: inherit; font-size: 1.05rem; }
+.character-archetype, .detail-subtitle, .detail-line, .detail-copy, .growth-message { margin: 0; }
+.detail-heading { margin: 1rem 0 .15rem; }
+.character-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  column-gap: 2rem;
+  max-width: 52rem;
+}
+.character-progression { margin-top: 1.15rem; }
+.character-progression h3 { margin: 0; font: inherit; }
+.character-resources { display: grid; }
+.experience-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .4rem; }
+.experience-line progress { width: 100%; height: 1rem; accent-color: var(--accent); }
+.button-grid.character-options { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 42rem; }
+.character-options button, .detail-options button { min-height: 2.5rem; text-align: left; }
+.growth-summary { margin-bottom: .2rem; }
+.growth-message { color: var(--muted); }
+.skill-stats { display: grid; gap: .15rem; margin-top: .8rem; max-width: 36rem; }
+.skill-stat { display: grid; grid-template-columns: 2rem 14ch 4ch max-content; align-items: center; gap: .35rem; min-height: 1.65rem; }
+.skill-value { text-align: right; }
+.stat-increase { justify-self: start; min-height: 1.85rem; padding: .1rem .35rem; border: 0; border-radius: .2rem; background: transparent; color: var(--accent-strong); font: inherit; font-weight: 500; }
+.stat-increase:hover:not(:disabled), .stat-increase:focus-visible:not(:disabled) { background: rgb(49 81 72 / 45%); transform: none; }
+.stat-increase:disabled { width: max-content; min-height: 1.7rem; padding: .05rem .25rem; color: var(--muted); background: transparent; opacity: 1; font-weight: 400; }
+.attacks-heading { margin-top: 1rem; }
+.skill-attacks, .detail-list { display: grid; gap: .05rem; }
+.weapon-panel .detail-subtitle, .weapon-panel .detail-line { margin-top: .1rem; }
+.weapon-panel .detail-copy { max-width: 92ch; white-space: pre-wrap; }
+.detail-options, #skills-options { grid-template-columns: minmax(10rem, 18rem); max-width: 18rem; }
+.character-options button:focus-visible, .detail-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .battle-screen {
   display: flex;
   flex-direction: column;
@@ -260,6 +302,8 @@ button:disabled {
   .secondary-button { min-height: 2.3rem; padding-inline: .55rem; }
   .battle-status { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
   #overworld-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .character-stats { grid-template-rows: none; grid-auto-flow: row; }
+  .skill-stat { grid-template-columns: 1.6rem minmax(5rem, 1fr) 2.5rem minmax(8rem, auto); gap: .2rem; }
 }
 
 @media (orientation: portrait) and (max-width: 60rem) {

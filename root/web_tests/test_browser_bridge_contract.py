@@ -7,7 +7,7 @@ import pytest
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldScreen
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
-from app.ui.overworld_ui import ChooseOverworldAction
+from app.ui.overworld_ui import ChooseOverworldAction, ChoosePermanentStatIncrease
 
 
 ROOT = Path(__file__).parents[1]
@@ -45,6 +45,7 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
+        ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
         ({"kind": "target", "target_id": "enemy-1"}, ChooseTarget),
@@ -52,6 +53,34 @@ def test_bridge_command_decoder_returns_existing_input_types():
 
     for command, expected_type in cases:
         assert isinstance(bridge._command_to_input(command), expected_type)
+
+
+def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game()
+    runtime._game.player_state.gain_experience(100)
+
+    character = runtime.submit({"kind": "overworld_action", "action": "character"})
+    assert character["screen"] == OverworldScreen.CHARACTER.value
+    assert [option["action"] for option in character["options"]] == [
+        "skills",
+        "weapon",
+        "equipment",
+        "back",
+    ]
+
+    skills = runtime.submit({"kind": "overworld_action", "action": "skills"})
+    strength = next(row for row in skills["skills"]["stats"] if row["stat_name"] == "strength")
+    assert skills["screen"] == OverworldScreen.SKILLS.value
+    assert skills["skills"]["growth_points_available"] == 3
+    assert strength["value"] == 15
+    assert strength["increase_enabled"] is True
+
+    updated = runtime.submit({"kind": "stat_increase", "stat_name": "strength"})
+    strength = next(row for row in updated["skills"]["stats"] if row["stat_name"] == "strength")
+    assert updated["screen"] == OverworldScreen.SKILLS.value
+    assert updated["skills"]["growth_points_available"] == 2
+    assert strength["value"] == 16
 
 
 def test_bridge_rejects_unknown_commands_and_restart_rebuilds_the_runtime():

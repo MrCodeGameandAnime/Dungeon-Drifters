@@ -57,6 +57,54 @@
           <p id="notice" class="notice" hidden></p>
         </section>
 
+        <section id="character-panel" class="overworld-detail-panel" hidden aria-labelledby="character-name">
+          <h2 id="character-name" class="character-name"></h2>
+          <p id="character-archetype" class="character-archetype"></p>
+          <p class="eyebrow detail-heading">STATS</p>
+          <div id="character-stats" class="character-stats"></div>
+          <div id="character-progression" class="character-progression">
+            <h3 id="character-level"></h3>
+            <div id="character-resources" class="character-resources"></div>
+            <div class="experience-line">
+              <span id="experience-label">XP</span>
+              <progress id="experience-progress" max="10000" value="0"></progress>
+              <span id="experience-value"></span>
+            </div>
+          </div>
+          <div id="character-options" class="button-grid character-options"></div>
+        </section>
+
+        <section id="skills-panel" class="overworld-detail-panel" hidden aria-labelledby="skills-title">
+          <h2 id="skills-title" class="visually-hidden">Skills</h2>
+          <p class="eyebrow detail-heading">LEVEL UP</p>
+          <div id="growth-summary" class="growth-summary"></div>
+          <p id="growth-message" class="growth-message"></p>
+          <div id="skill-stats" class="skill-stats"></div>
+          <p class="eyebrow detail-heading attacks-heading">ATTACKS</p>
+          <div id="skill-attacks" class="skill-attacks"></div>
+          <div id="skills-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="weapon-panel" class="overworld-detail-panel" hidden aria-labelledby="weapon-name">
+          <h2 id="weapon-name" class="detail-title"></h2>
+          <p id="weapon-type" class="detail-subtitle"></p>
+          <p id="weapon-wielder" class="detail-line"></p>
+          <p class="eyebrow detail-heading">BONUSES</p>
+          <div id="weapon-bonuses" class="detail-list"></div>
+          <p class="eyebrow detail-heading">DESCRIPTION</p>
+          <p id="weapon-description" class="detail-copy"></p>
+          <div id="weapon-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
+          <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+          <p class="eyebrow detail-heading">ACCESSORIES</p>
+          <div id="equipment-slots" class="detail-list"></div>
+          <p class="eyebrow detail-heading">BENEFITS</p>
+          <div id="equipment-benefits" class="detail-list"></div>
+          <div id="equipment-options" class="button-grid detail-options"></div>
+        </section>
+
         <section id="completion" class="completion-panel" hidden aria-live="polite">
           <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
           <h2>You reached the Dungeon Entrance.</h2>

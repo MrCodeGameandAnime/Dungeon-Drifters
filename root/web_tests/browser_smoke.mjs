@@ -334,6 +334,124 @@ try {
   );
   await captureScreenshot(page, "desktop-overworld");
 
+  await page.locator("#overworld-options").getByRole("button", { name: "Character" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  const characterContext = await page.evaluate(() => ({
+    routeVisible: !document.getElementById("route-panel").hidden,
+    location: document.getElementById("location-label").textContent,
+    adventure: document.getElementById("adventure-text").textContent,
+    contextualVisible: !document.getElementById("route-actions").hidden,
+    generalVisible: !document.getElementById("overworld-options").hidden,
+  }));
+  requireCondition(
+    await page.locator("#character-panel").isVisible(),
+    "Character action did not render the authoritative Character view",
+  );
+  requireCondition(
+    await page.locator("#route-panel").isVisible() &&
+      (await page.locator("#location-label").innerText()) === "Goblin Ambush" &&
+      (await page.locator("#adventure-text").innerText()).includes("edge of the Goblin horde") &&
+      !(await page.locator("#route-actions").isVisible()) &&
+      !(await page.locator("#overworld-options").isVisible()),
+    `Character view did not retain route context while hiding inactive Overworld controls: ${JSON.stringify(characterContext)}`,
+  );
+  const characterDetails = await page.evaluate(() => Object.fromEntries(
+    ["character-name", "character-archetype", "character-stats", "character-progression"]
+      .map((id) => [id, document.getElementById(id).innerText]),
+  ));
+  requireCondition(
+    characterDetails["character-name"] === "[ Ser Branoc, the Unbroken Crest ]" &&
+      characterDetails["character-archetype"] === "Brawler" &&
+      characterDetails["character-stats"].includes("Strength") &&
+      characterDetails["character-stats"].includes("15") &&
+      characterDetails["character-progression"].includes("Level 1") &&
+      characterDetails["character-progression"].includes("116/116") &&
+      characterDetails["character-progression"].includes("46/46") &&
+      characterDetails["character-progression"].includes("0 / 100"),
+    `Character view omitted identity, stats, progression, or resource values: ${JSON.stringify(characterDetails)}`,
+  );
+  const characterOptions = page.locator("#character-options button");
+  requireCondition(
+    JSON.stringify(await characterOptions.allInnerTexts()) === JSON.stringify(["Skills", "Weapon", "Equipment", "Back"]),
+    `Character navigation did not preserve its offered actions and order: ${JSON.stringify(await characterOptions.allInnerTexts())}`,
+  );
+  const characterGrid = await characterOptions.evaluateAll((buttons) => buttons.map((button) => {
+    const rect = button.getBoundingClientRect();
+    return { left: rect.left, top: rect.top };
+  }));
+  requireCondition(
+    characterGrid.length === 4 && Math.abs(characterGrid[0].top - characterGrid[1].top) <= 1 &&
+      Math.abs(characterGrid[2].top - characterGrid[3].top) <= 1 &&
+      characterGrid[2].top > characterGrid[0].top &&
+      Math.abs(characterGrid[0].left - characterGrid[2].left) <= 1 &&
+      Math.abs(characterGrid[1].left - characterGrid[3].left) <= 1 &&
+      characterGrid[0].left < characterGrid[1].left,
+    `Character menu did not use the requested two-by-two desktop button layout: ${JSON.stringify(characterGrid)}`,
+  );
+  await captureScreenshot(page, "desktop-character");
+
+  await page.locator("#character-options").getByRole("button", { name: "Skills" }).click();
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#skills-panel").isVisible() && !(await page.locator("#character-panel").isVisible()),
+    "Skills action did not replace Character details with the Skills view",
+  );
+  requireCondition(
+    (await page.locator("#growth-summary").innerText()).includes("Growth Points: 0") &&
+      (await page.locator("#growth-message").innerText()).includes("Earn Growth Points by leveling up.") &&
+      await page.locator("#skill-stats .skill-stat").count() === 6 &&
+      (await page.locator("#skill-attacks").innerText()).includes("Crestgrave Reaping") &&
+      (await page.locator("#skill-attacks").innerText()).includes("Third Gate Obsequy"),
+    "Skills view omitted authoritative growth state, stat rows, or the attack list",
+  );
+  const unavailableGrowth = page.locator("#skill-stats button");
+  requireCondition(
+    await unavailableGrowth.count() === 6 &&
+      (await unavailableGrowth.evaluateAll((buttons) => buttons.every((button) => button.disabled))) &&
+      (await page.locator("#skill-stats").innerText()).includes("No Growth Points"),
+    "Skills view did not preserve disabled stat increases and their authoritative reason",
+  );
+  requireCondition(
+    JSON.stringify(await page.locator("#skills-options button").allInnerTexts()) === JSON.stringify(["Back"]),
+    "Skills view exposed controls other than its offered Back action",
+  );
+  await captureScreenshot(page, "desktop-skills");
+  await page.locator("#skills-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(await page.locator("#character-panel").isVisible(), "Skills Back did not return to Character");
+
+  await page.locator("#character-options").getByRole("button", { name: "Weapon" }).click();
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#weapon-panel").isVisible() &&
+      (await page.locator("#weapon-panel").innerText()).includes("BONUSES") &&
+      (await page.locator("#weapon-panel").innerText()).includes("DESCRIPTION"),
+    "Weapon action did not render its authoritative detail view",
+  );
+  await page.locator("#weapon-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(await page.locator("#character-panel").isVisible(), "Weapon Back did not return to Character");
+
+  await page.locator("#character-options").getByRole("button", { name: "Equipment" }).click();
+  await page.locator("#equipment-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#equipment-panel").isVisible() &&
+      (await page.locator("#equipment-panel").innerText()).includes("Necklace") &&
+      (await page.locator("#equipment-panel").innerText()).includes("Ring") &&
+      (await page.locator("#equipment-panel").innerText()).includes("BENEFITS"),
+    "Equipment action did not render its authoritative detail view",
+  );
+  await page.locator("#equipment-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(await page.locator("#character-panel").isVisible(), "Equipment Back did not return to Character");
+  await page.locator("#character-options").getByRole("button", { name: "Back" }).click();
+  await page.locator("#route-actions").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#route-actions").isVisible() && await page.locator("#overworld-options").isVisible() &&
+      await page.getByRole("button", { name: "Enter Encounter" }).isVisible(),
+    "Character Back did not restore the active Overworld actions",
+  );
+
   await page.getByRole("button", { name: "Enter Encounter" }).click();
   await page.locator("#overworld-screen").waitFor({ state: "hidden" });
   await page.locator("#battle-screen").waitFor({ state: "visible" });

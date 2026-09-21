@@ -358,16 +358,162 @@
     appendBack(container);
   }
 
+  function renderCharacter(view) {
+    const character = view.character;
+    if (!character) return;
+    setText("character-name", `[ ${character.display_name} ]`);
+    setText("character-archetype", character.archetype_label);
+
+    const stats = $("character-stats");
+    clear(stats);
+    for (const stat of character.stats || []) {
+      const line = document.createElement("div");
+      line.className = "character-stat";
+      line.textContent = `${stat.label}: ${stat.value}`;
+      stats.append(line);
+    }
+
+    setText("character-level", `Level ${character.level}`);
+    const resources = $("character-resources");
+    clear(resources);
+    appendStatus(resources, "HP", `${character.hp_current}/${character.hp_maximum}`);
+    appendStatus(resources, "Mana", `${character.mana_current}/${character.mana_maximum}`);
+    appendStatus(resources, "Super", `${character.super_current}/${character.super_maximum}`);
+    const experience = character.exp_threshold == null
+      ? "MAX LEVEL"
+      : `${character.exp_current} / ${character.exp_threshold}`;
+    setText("experience-value", experience);
+    $("experience-progress").hidden = character.exp_threshold == null;
+    $("experience-progress").value = character.exp_fill_bps;
+    $("experience-progress").setAttribute("aria-valuetext", experience);
+    renderOptions(
+      $("character-options"),
+      view.options,
+      (option) => ({ kind: "overworld_action", action: option.action }),
+      (option) => option.label,
+      "overworld-option",
+    );
+  }
+
+  function disabledStatLabel(reason) {
+    if (reason === "no_growth_points") return "[No Growth Points]";
+    if (reason === "stat_at_maximum") return "[Maximum]";
+    return "[Unavailable]";
+  }
+
+  function renderSkills(view) {
+    const skills = view.skills;
+    if (!skills) return;
+    setText("growth-summary", `Growth Points: ${skills.growth_points_available}`);
+    setText("growth-message", skills.growth_message);
+
+    const stats = $("skill-stats");
+    clear(stats);
+    for (const [index, stat] of (skills.stats || []).entries()) {
+      const row = document.createElement("div");
+      row.className = "skill-stat";
+      const number = document.createElement("span");
+      number.className = "skill-number";
+      number.textContent = `${index + 1}.`;
+      const label = document.createElement("span");
+      label.className = "skill-label";
+      label.textContent = stat.label;
+      const value = document.createElement("span");
+      value.className = "skill-value";
+      value.textContent = String(stat.value);
+      row.append(number, label, value);
+      if (stat.increase_visible) {
+        row.append(makeButton(
+          stat.increase_enabled ? "[+1]" : disabledStatLabel(stat.disabled_reason),
+          stat.increase_enabled ? { kind: "stat_increase", stat_name: stat.stat_name } : null,
+          stat.increase_enabled,
+          null,
+          "stat-increase",
+        ));
+      }
+      stats.append(row);
+    }
+
+    const attacks = $("skill-attacks");
+    clear(attacks);
+    for (const move of skills.moves || []) {
+      const line = document.createElement("div");
+      line.className = "skill-attack";
+      line.textContent = move.name;
+      attacks.append(line);
+    }
+    renderOptions(
+      $("skills-options"),
+      view.options,
+      (option) => ({ kind: "overworld_action", action: option.action }),
+      (option) => option.label,
+      "overworld-option",
+    );
+  }
+
+  function renderWeapon(view) {
+    const weapon = view.weapon;
+    if (!weapon) return;
+    setText("weapon-name", weapon.name);
+    setText("weapon-type", weapon.weapon_type);
+    setText("weapon-wielder", `Wielder: ${weapon.intended_wielder}`);
+    const bonuses = $("weapon-bonuses");
+    clear(bonuses);
+    for (const bonus of weapon.bonuses || []) {
+      const line = document.createElement("div");
+      line.textContent = `${bonus.label} +${bonus.amount}`;
+      bonuses.append(line);
+    }
+    setText("weapon-description", weapon.description);
+    renderDetailOptions("weapon-options", view.options);
+  }
+
+  function renderEquipment(view) {
+    const equipment = view.equipment;
+    if (!equipment) return;
+    const slots = $("equipment-slots");
+    clear(slots);
+    for (const slot of [equipment.necklace, equipment.ring]) {
+      const line = document.createElement("div");
+      line.textContent = `[ ${slot.label} ]  ${slot.item_name}`;
+      slots.append(line);
+    }
+    const benefits = $("equipment-benefits");
+    clear(benefits);
+    for (const benefit of equipment.benefits || []) {
+      const line = document.createElement("div");
+      line.textContent = benefit;
+      benefits.append(line);
+    }
+    renderDetailOptions("equipment-options", view.options);
+  }
+
+  function renderDetailOptions(containerId, options) {
+    renderOptions(
+      $(containerId),
+      options,
+      (option) => ({ kind: "overworld_action", action: option.action }),
+      (option) => option.label,
+      "overworld-option",
+    );
+  }
+
   function renderOverworld(view) {
-    setText("screen-badge", view.screen === "main" ? "OVERWORLD" : view.screen);
+    const characterMenuScreens = ["character", "skills", "weapon", "equipment"];
+    const characterMenuActive = characterMenuScreens.includes(view.screen);
+    const mainScreen = view.screen === "main";
+    setText("screen-badge", characterMenuActive || mainScreen ? "OVERWORLD" : view.screen);
     setText("location-label", view.location_label);
     setText("adventure-text", view.adventure_text);
     renderPlayer(view.character);
     renderEnemies([]);
     renderLog([]);
+
+    $("route-actions").hidden = characterMenuActive;
+    $("overworld-options").hidden = characterMenuActive;
     renderOptions(
       $("route-actions"),
-      view.contextual_route_option ? [view.contextual_route_option] : [],
+      characterMenuActive || !view.contextual_route_option ? [] : [view.contextual_route_option],
       (option) => ({ kind: "overworld_action", action: option.action }),
       (option) => option.label,
       "overworld-option",
@@ -379,6 +525,16 @@
       (option) => option.label,
       "overworld-option",
     );
+
+    $("character-panel").hidden = view.screen !== "character";
+    $("skills-panel").hidden = view.screen !== "skills";
+    $("weapon-panel").hidden = view.screen !== "weapon";
+    $("equipment-panel").hidden = view.screen !== "equipment";
+    if (view.screen === "character") renderCharacter(view);
+    else if (view.screen === "skills") renderSkills(view);
+    else if (view.screen === "weapon") renderWeapon(view);
+    else if (view.screen === "equipment") renderEquipment(view);
+
     renderInventory($("inventory"), view);
     clear($("actions"));
     clear($("moves"));
