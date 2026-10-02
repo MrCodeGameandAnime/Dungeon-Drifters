@@ -39,7 +39,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     repository_root = _repository_root()
     source_root = Path(source_root)
     output_root = Path(output_root)
-    shell_root = Path(shell_root or repository_root / "root" / "web" / "pyd4")
+    shell_root = Path(shell_root or repository_root / "root" / "web" / "play")
     bridge_path = Path(bridge_path or repository_root / "root" / "web" / "python" / "dd_bridge.py")
     logo_path = repository_root / "res" / "Dungeon Drifters Logo.png"
     music_path = repository_root / "res" / "music" / "theme.m4a"
@@ -96,7 +96,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     runtime_file_count = len(_runtime_builder()(source_root, runtime_path))
 
     qualification_root = output_root / "qualification"
-    qualification_source = repository_root / "root" / "web" / "pyd2"
+    qualification_source = repository_root / "root" / "web" / "qualification"
     _copy(qualification_source / "index.html", qualification_root / "index.html")
     _copy(qualification_source / "js" / "pyd2.js", qualification_root / "js" / "pyd2.js")
     _copy(qualification_source / "python" / "boot.py", qualification_root / "python" / "boot.py")
@@ -106,7 +106,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     metadata = {
         "pyodide_version": PYODIDE_VERSION,
         "runtime_file_count": runtime_file_count,
-        "shell": "pyd4",
+        "shell": "play",
     }
     (output_root / "build-metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n",
@@ -123,7 +123,7 @@ def _parser():
     parser.add_argument("--source", default=str(repository_root / "root" / "src"))
     parser.add_argument(
         "--shell",
-        default=str(repository_root / "root" / "web" / "pyd4"),
+        default=str(repository_root / "root" / "web" / "play"),
     )
     parser.add_argument(
         "--bridge",

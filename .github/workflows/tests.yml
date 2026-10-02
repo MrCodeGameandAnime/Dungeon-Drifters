@@ -56,7 +56,7 @@ jobs:
           cache-dependency-path: root/web_tests/package-lock.json
 
       - name: Build browser site for smoke test
-        run: python tools/build_browser_site.py --output site
+        run: python tools/build_browser_site.py --output web/dist
 
       - name: Install browser test dependencies
         working-directory: root/web_tests
@@ -68,7 +68,7 @@ jobs:
 
       - name: Start browser test server
         run: |
-          python -m http.server 8765 --bind 127.0.0.1 --directory site > browser-server.log 2>&1 &
+          python -m http.server 8765 --bind 127.0.0.1 --directory web/dist > browser-server.log 2>&1 &
           echo $! > browser-server.pid
           sleep 2
 

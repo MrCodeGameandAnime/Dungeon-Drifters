@@ -128,7 +128,7 @@ root/src/app/
 root/web/python/
     browser host and presentation projection
 
-root/web/js/
+root/web/play/
     rendering, input collection, fullscreen/orientation
 
 root/tools/

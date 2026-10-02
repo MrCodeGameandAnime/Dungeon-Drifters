@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-BOOT_PATH = ROOT / "web" / "pyd2" / "python" / "boot.py"
+BOOT_PATH = ROOT / "web" / "qualification" / "python" / "boot.py"
 
 EXPECTED_ROUTE = (
     "surface_goblin_solo",
@@ -21,7 +21,7 @@ EXPECTED_ROUTE = (
 
 
 def test_pyd2_uses_the_pinned_runtime_archive():
-    root = ROOT / "web" / "pyd2"
+    root = ROOT / "web" / "qualification"
     html = (root / "index.html").read_text()
     javascript = (root / "js" / "pyd2.js").read_text()
 
@@ -71,7 +71,7 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
 
 
 def test_pyd2_does_not_copy_application_code_or_create_browser_state():
-    assert not (ROOT / "web" / "pyd2" / "app").exists()
+    assert not (ROOT / "web" / "qualification" / "app").exists()
     boot = BOOT_PATH.read_text()
 
     assert "class GameState" not in boot

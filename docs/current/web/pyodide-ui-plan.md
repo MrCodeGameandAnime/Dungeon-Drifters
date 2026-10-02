@@ -2,7 +2,7 @@
 
 **Goal:** Make the browser playtest preserve Dungeon Drifters' canonical phase-driven interaction flow, information hierarchy, transitions, and authored detail while retaining responsive browser presentation.
 
-**Architecture:** Keep `root/src/app` and `root/web/python/dd_bridge.py` authoritative for game state, offered actions, and transitions. Refactor the existing `root/web/pyd4` shell into a faithful browser renderer of the current `SessionView` or `BattleView`. The browser adapts geometry for the viewport but does not redesign DD's interaction model. Keep every browser-specific test under `root/web_tests`.
+**Architecture:** Keep `root/src/app` and `root/web/python/dd_bridge.py` authoritative for game state, offered actions, and transitions. Refactor the existing `root/web/play` shell into a faithful browser renderer of the current `SessionView` or `BattleView`. The browser adapts geometry for the viewport but does not redesign DD's interaction model. Keep every browser-specific test under `root/web_tests`.
 
 **Tech Stack:** Pinned Pyodide 314.0.7, HTML, CSS, vanilla JavaScript, the existing Python browser bridge, Python web contracts, and Playwright browser smoke tests.
 
@@ -130,9 +130,9 @@ After an encounter resolves:
 
 **Files:**
 
-- Modify: `root/web/pyd4/index.html`
-- Modify: `root/web/pyd4/js/pyd4.js`
-- Modify: `root/web/pyd4/styles.css`
+- Modify: `root/web/play/index.html`
+- Modify: `root/web/play/js/pyd4.js`
+- Modify: `root/web/play/styles.css`
 - Modify: `root/web_tests/test_pyodide_shell_contract.py`
 - Modify: `root/web_tests/browser_smoke.mjs`
 
@@ -160,9 +160,9 @@ After an encounter resolves:
 
 **Files:**
 
-- Modify: `root/web/pyd4/index.html` only if the focused Battle surface needs semantic regions.
-- Modify: `root/web/pyd4/js/pyd4.js`
-- Modify: `root/web/pyd4/styles.css`
+- Modify: `root/web/play/index.html` only if the focused Battle surface needs semantic regions.
+- Modify: `root/web/play/js/pyd4.js`
+- Modify: `root/web/play/styles.css`
 - Modify: `root/web_tests/test_pyodide_shell_contract.py`
 - Modify: `root/web_tests/browser_smoke.mjs`
 - Modify or create: focused Battle-flow contracts under `root/web_tests/`
@@ -199,8 +199,8 @@ After an encounter resolves:
 
 **Files:**
 
-- Modify: `root/web/pyd4/styles.css`
-- Modify: `root/web/pyd4/index.html` and `root/web/pyd4/js/pyd4.js` only for accessibility or rendering fixes exposed by responsive qualification.
+- Modify: `root/web/play/styles.css`
+- Modify: `root/web/play/index.html` and `root/web/play/js/pyd4.js` only for accessibility or rendering fixes exposed by responsive qualification.
 - Modify: `root/web_tests/test_pyodide_mobile_contract.py`
 - Modify: `root/web_tests/browser_smoke.mjs`
 

@@ -13,6 +13,7 @@ ENV/
 # Packaging and build output
 build/
 dist/
+pages-dist/
 *.egg-info/
 .eggs/
 
@@ -44,8 +45,6 @@ update info/
 res/maps/
 res/menu/
 *.zip
-!play/game/dd_runtime.zip
-!play/qualification/game/dd_runtime.zip
 *.tar
 *.tar.gz
 *.bak

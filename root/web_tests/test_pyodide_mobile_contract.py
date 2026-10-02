@@ -3,7 +3,7 @@ import re
 
 
 ROOT = Path(__file__).parents[1]
-SHELL = ROOT / "web" / "pyd4"
+SHELL = ROOT / "web" / "play"
 
 
 def _read(relative):

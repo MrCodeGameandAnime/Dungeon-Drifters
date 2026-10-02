@@ -8,10 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 REPOSITORY_ROOT = ROOT.parent
 TOOL_PATH = ROOT / "tools" / "build_browser_site.py"
+PAGES_TOOL_PATH = ROOT / "tools" / "build_pages_site.py"
 WORKFLOW_PATH = ROOT.parent / ".github" / "workflows" / "pages.yml"
 SPEC = importlib.util.spec_from_file_location("build_browser_site", TOOL_PATH)
 site_builder = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(site_builder)
+PAGES_SPEC = importlib.util.spec_from_file_location("build_pages_site", PAGES_TOOL_PATH)
+pages_builder = importlib.util.module_from_spec(PAGES_SPEC)
+PAGES_SPEC.loader.exec_module(pages_builder)
 
 
 def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
@@ -96,7 +100,7 @@ def test_site_builder_metadata_and_archive_are_deterministic(tmp_path):
     assert metadata == {
         "pyodide_version": "314.0.7",
         "runtime_file_count": 122,
-        "shell": "pyd4",
+        "shell": "play",
     }
 
 
@@ -118,7 +122,7 @@ def test_site_paths_are_relative_for_project_pages_deployment(tmp_path):
 def test_play_navigation_follows_home_on_every_normal_website_page():
     pages = (
         REPOSITORY_ROOT / "index.html",
-        *sorted((REPOSITORY_ROOT / "site").rglob("*.html")),
+        *sorted((ROOT / "web" / "site").rglob("*.html")),
     )
 
     for page in pages:
@@ -135,40 +139,47 @@ def test_play_navigation_follows_home_on_every_normal_website_page():
         first_two_labels = [
             re.sub(r"<[^>]+>", "", label).strip() for _, label in links[:2]
         ]
-        expected_play_href = (
-            os.path.relpath(REPOSITORY_ROOT / "play", page.parent).replace("\\", "/")
-            + "/"
-        )
+        if page == REPOSITORY_ROOT / "index.html":
+            expected_play_href = "play/"
+        elif page.parent.name == "characters":
+            expected_play_href = "../../play/"
+        else:
+            expected_play_href = "../play/"
 
         assert first_two_labels == ["Home", "Play"], page
         assert links[1][0] == expected_play_href, page
 
 
-def test_branch_playtest_runtime_archive_is_not_ignored():
-    gitignore = (REPOSITORY_ROOT / ".gitignore").read_text(encoding="utf-8")
-
-    for archive in (
-        "!play/game/dd_runtime.zip",
-        "!play/qualification/game/dd_runtime.zip",
-    ):
-        assert archive in gitignore
-
-
-def test_pages_workflow_validates_branch_playtest_without_deploying_it():
+def test_pages_workflow_builds_and_deploys_a_staged_site():
     workflow = WORKFLOW_PATH.read_text()
 
     for required in (
-        "branches:\n      - pyodide",
+        "branches:\n      - master",
         "actions/checkout@v6",
         "actions/setup-python@v6",
-        "python tools/build_browser_site.py --output ../play",
-        "git -C .. status --porcelain --untracked-files=all -- play",
+        "python tools/build_pages_site.py --output ../pages-dist",
+        "actions/upload-pages-artifact@v3",
+        "actions/deploy-pages@v4",
     ):
         assert required in workflow
-    assert "actions/upload-pages-artifact" not in workflow
-    assert "actions/deploy-pages" not in workflow
-    assert "pages: write" not in workflow
-    assert "id-token: write" not in workflow
+
+
+def test_pages_builder_preserves_public_site_layout(tmp_path):
+    output = tmp_path / "pages"
+
+    pages_builder.build_pages_site(output)
+
+    assert (output / "index.html").is_file()
+    assert (output / ".nojekyll").is_file()
+    assert (output / "site" / "css" / "site.css").is_file()
+    assert (output / "site" / "characters" / "branoc.html").is_file()
+    assert (output / "play" / "index.html").is_file()
+    assert (output / "play" / "game" / "dd_runtime.zip").is_file()
+    assert (output / "play" / "qualification" / "game" / "dd_runtime.zip").is_file()
+    assert (output / "res" / "Dungeon Drifters Heros.png").is_file()
+    assert not (output / "root").exists()
+    assert not (output / "docs").exists()
+    assert not (output / "web_tests").exists()
 
 
 def test_pages_artifact_does_not_include_tests_or_docs(tmp_path):
