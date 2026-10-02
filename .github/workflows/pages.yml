@@ -1,0 +1,42 @@
+name: Browser Pages Branch Validation
+
+on:
+  push:
+    branches:
+      - pyodide
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  validate-playtest:
+    name: Verify branch-hosted Play page
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: root
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Build branch-hosted Play page
+        run: python tools/build_browser_site.py --output ../play
+
+      - name: Verify committed Play page is current
+        run: |
+          if [ -n "$(git -C .. status --porcelain --untracked-files=all -- play)" ]; then
+            git -C .. status --short --untracked-files=all -- play
+            echo "Regenerate and commit the branch-hosted /play/ directory."
+            exit 1
+          fi
