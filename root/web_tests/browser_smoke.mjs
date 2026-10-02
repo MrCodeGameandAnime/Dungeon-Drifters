@@ -680,6 +680,16 @@ try {
     `mobile Character should show the full identity, two rows of three stats, compact progression, and XP without clipping: ${JSON.stringify(mobileCharacter)}`,
   );
   await captureScreenshot(page, "mobile-character");
+  await page.setViewportSize({ width: 824, height: 384 });
+  await waitForViewportSync(page, 824, 384);
+  const landscapeCharacter = await mobileCharacterLayout(page);
+  requireCondition(
+    mobileCharacterFits(landscapeCharacter),
+    `landscape mobile Character should use the compact layout at 824x384: ${JSON.stringify(landscapeCharacter)}`,
+  );
+  await captureScreenshot(page, "landscape-mobile-character");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await waitForViewportSync(page, 390, 844);
 
   await page.locator("#character-options").getByRole("button", { name: "Skills" }).click();
   await page.locator("#skills-panel").waitFor({ state: "visible" });

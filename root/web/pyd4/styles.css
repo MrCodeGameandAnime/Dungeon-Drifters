@@ -371,39 +371,6 @@ button:disabled {
   #overworld-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-option-sprite { height: clamp(8rem, 24vh, 13rem); }
-  .character-name::before, .character-name::after { content: none; }
-  .character-stats {
-    grid-template-areas:
-      "constitution spirit strength"
-      "intelligence dexterity intuition";
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(2, auto);
-    grid-auto-flow: row;
-    gap: .2rem .45rem;
-  }
-  .character-stat { min-width: 0; overflow-wrap: anywhere; }
-  .character-stat[data-stat-name="constitution"] { grid-area: constitution; }
-  .character-stat[data-stat-name="spirit"] { grid-area: spirit; }
-  .character-stat[data-stat-name="strength"] { grid-area: strength; }
-  .character-stat[data-stat-name="intelligence"] { grid-area: intelligence; }
-  .character-stat[data-stat-name="dexterity"] { grid-area: dexterity; }
-  .character-stat[data-stat-name="intuition"] { grid-area: intuition; }
-  .character-progression {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: .2rem .35rem;
-    margin-top: .75rem;
-  }
-  .character-progression h3::after { content: " |"; color: var(--muted); }
-  .character-resources { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem .45rem; }
-  #character-resources .status-line { white-space: nowrap; }
-  #character-resources .status-line + .status-line::before {
-    content: "|";
-    margin-inline-end: .45rem;
-    color: var(--muted);
-  }
-  .experience-line { flex: 0 0 100%; }
   .skill-stat { grid-template-columns: 1.6rem minmax(5rem, 1fr) 2.5rem minmax(8rem, auto); gap: .2rem; }
 }
 
@@ -442,6 +409,40 @@ button:disabled {
 }
 
 @media (max-width: 60rem) {
+  .character-name::before, .character-name::after { content: none; }
+  .character-stats {
+    grid-template-areas:
+      "constitution spirit strength"
+      "intelligence dexterity intuition";
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: row;
+    gap: .2rem .45rem;
+  }
+  .character-stat { min-width: 0; overflow-wrap: anywhere; }
+  .character-stat[data-stat-name="constitution"] { grid-area: constitution; }
+  .character-stat[data-stat-name="spirit"] { grid-area: spirit; }
+  .character-stat[data-stat-name="strength"] { grid-area: strength; }
+  .character-stat[data-stat-name="intelligence"] { grid-area: intelligence; }
+  .character-stat[data-stat-name="dexterity"] { grid-area: dexterity; }
+  .character-stat[data-stat-name="intuition"] { grid-area: intuition; }
+  .character-progression {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .2rem .35rem;
+    margin-top: .75rem;
+  }
+  .character-progression h3::after { content: " |"; color: var(--muted); }
+  .character-resources { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem .45rem; }
+  #character-resources .status-line { white-space: nowrap; }
+  #character-resources .status-line + .status-line::before {
+    content: "|";
+    margin-inline-end: .45rem;
+    color: var(--muted);
+  }
+  .experience-line { flex: 0 0 100%; }
+
   .overworld-screen:not([data-detail-screen]) {
     overflow: hidden;
     padding-bottom: .45rem;
@@ -584,6 +585,18 @@ button:disabled {
 }
 
 @media (orientation: landscape) and (max-width: 60rem) {
+  .overworld-screen[data-detail-screen] .overworld-detail-panel:not([hidden]) {
+    padding-top: .35rem;
+  }
+
+  .overworld-screen[data-detail-screen] .detail-heading {
+    margin-top: .65rem;
+  }
+
+  .overworld-screen[data-detail-screen] .character-progression {
+    margin-top: .35rem;
+  }
+
   #app:has(> #selection-screen:not([hidden])) {
     position: relative;
     grid-template-rows: minmax(0, 1fr);
