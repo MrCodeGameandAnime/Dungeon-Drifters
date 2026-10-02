@@ -39,9 +39,6 @@ qodana.sarif.json
 .qodana/
 
 # Local backups and archives
-backup/
-update info/
-.codex-remote-attachments/
 res/maps/
 res/menu/
 *.zip
