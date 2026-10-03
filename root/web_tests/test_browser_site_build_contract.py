@@ -34,11 +34,11 @@ def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
     assert (output / "python" / "dd_bridge.py").is_file()
     assert (output / "game" / "dd_runtime.zip").is_file()
     assert (output / "qualification" / "game" / "dd_runtime.zip").is_file()
-    logo_source = ROOT.parent / "res" / "Dungeon Drifters Logo.png"
+    logo_source = ROOT / "res" / "Dungeon Drifters Logo.png"
     logo_output = output / "assets" / "dungeon-drifters-logo.png"
     assert logo_source.is_file()
     assert logo_output.read_bytes() == logo_source.read_bytes()
-    music_source = ROOT.parent / "res" / "music" / "theme.m4a"
+    music_source = ROOT / "res" / "music" / "theme.m4a"
     music_output = output / "assets" / "theme.m4a"
     assert music_source.is_file()
     assert music_output.read_bytes() == music_source.read_bytes()
@@ -59,7 +59,7 @@ def test_site_builder_stages_utility_icons_without_modifying_source_images(tmp_p
         "music-on.png",
         "restart.png",
     ):
-        source = ROOT.parent / "res" / "icons" / name
+        source = ROOT / "res" / "icons" / name
         staged = output / "assets" / "icons" / name
         assert source.is_file()
         assert staged.read_bytes() == source.read_bytes()
@@ -77,7 +77,7 @@ def test_site_builder_stages_drifter_sprites_without_modifying_source_images(tmp
         "joruun.png": "Joruun Veyr Sprite.png",
     }
     for output_name, source_name in sprites.items():
-        source = ROOT.parent / "res" / source_name
+        source = ROOT / "res" / source_name
         staged = output / "assets" / "drifters" / output_name
         assert source.is_file()
         assert staged.read_bytes() == source.read_bytes()
@@ -157,7 +157,7 @@ def test_pages_workflow_builds_and_deploys_a_staged_site():
         "branches:\n      - master",
         "actions/checkout@v6",
         "actions/setup-python@v6",
-        "python tools/build_pages_site.py --output ../pages-dist",
+        "python tools/build_pages_site.py --output pages-dist",
         "actions/upload-pages-artifact@v3",
         "actions/deploy-pages@v4",
     ):

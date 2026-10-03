@@ -34,7 +34,7 @@ def _browser_site_builder():
 
 def _copy_public_assets(repository_root, output_root):
     for relative_path in PUBLIC_ASSETS:
-        source = repository_root / "res" / relative_path
+        source = repository_root / "root" / "res" / relative_path
         destination = output_root / "res" / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
@@ -68,7 +68,7 @@ def _parser():
     parser = argparse.ArgumentParser(
         description="Build the complete Dungeon Drifters GitHub Pages artifact."
     )
-    parser.add_argument("--output", default=str(_repository_root() / "pages-dist"))
+    parser.add_argument("--output", default=str(_repository_root() / "root" / "pages-dist"))
     return parser
 
 

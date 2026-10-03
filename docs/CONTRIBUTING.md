@@ -9,10 +9,12 @@ proved and released.
 ```text
 root/src/       game code
 root/tests/     automated tests
+root/web/       website and browser playtest source
 root/web_tests/ browser-specific contract tests
 root/tools/     content and development tools
+root/pages-dist/ generated Pages artifact
 docs/           guides, design notes, and project history
-res/            local visual assets
+root/res/       local visual assets
 ```
 
 Run Python project commands from `root/`. Run Git commands from the repository
@@ -120,8 +122,9 @@ where practical, and do not rewrite shared history unless explicitly agreed.
 
 ## Local Assets
 
-`res/maps/` and `res/menu/` contain local visual assets and are intentionally
-ignored by Git. Do not re-add them unless the project policy changes.
+`root/res/maps/` and `root/res/menu/` contain local visual assets and are
+intentionally ignored by Git. Do not re-add them unless the project policy
+changes.
 
 ## Community Standards
 

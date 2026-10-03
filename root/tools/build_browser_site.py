@@ -41,8 +41,9 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     output_root = Path(output_root)
     shell_root = Path(shell_root or repository_root / "root" / "web" / "play")
     bridge_path = Path(bridge_path or repository_root / "root" / "web" / "python" / "dd_bridge.py")
-    logo_path = repository_root / "res" / "Dungeon Drifters Logo.png"
-    music_path = repository_root / "res" / "music" / "theme.m4a"
+    asset_root = repository_root / "root" / "res"
+    logo_path = asset_root / "Dungeon Drifters Logo.png"
+    music_path = asset_root / "music" / "theme.m4a"
     icon_names = (
         "exit-fullscreen.png",
         "fullscreen.png",
@@ -50,12 +51,12 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         "music-on.png",
         "restart.png",
     )
-    icon_paths = tuple(repository_root / "res" / "icons" / name for name in icon_names)
+    icon_paths = tuple(asset_root / "icons" / name for name in icon_names)
     drifter_sprites = {
-        "branoc.png": repository_root / "res" / "Ser Branoc Sprite.png",
-        "azhvielle.png": repository_root / "res" / "Azhvielle Sprite.png",
-        "zhaivra.png": repository_root / "res" / "Zhaivra Kelyth Sprite.png",
-        "joruun.png": repository_root / "res" / "Joruun Veyr Sprite.png",
+        "branoc.png": asset_root / "Ser Branoc Sprite.png",
+        "azhvielle.png": asset_root / "Azhvielle Sprite.png",
+        "zhaivra.png": asset_root / "Zhaivra Kelyth Sprite.png",
+        "joruun.png": asset_root / "Joruun Veyr Sprite.png",
     }
 
     required = (

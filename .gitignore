@@ -13,7 +13,7 @@ ENV/
 # Packaging and build output
 build/
 dist/
-pages-dist/
+root/pages-dist/
 *.egg-info/
 .eggs/
 
@@ -39,8 +39,8 @@ qodana.sarif.json
 .qodana/
 
 # Local backups and archives
-res/maps/
-res/menu/
+root/res/maps/
+root/res/menu/
 *.zip
 *.tar
 *.tar.gz
@@ -56,3 +56,5 @@ Thumbs.db
 # Generated balance probe runs; keep the usage README tracked.
 root/tools/balance_probe_outputs/*
 !root/tools/balance_probe_outputs/README.md
+
+root/extraction/

@@ -33,12 +33,12 @@ jobs:
           python-version: "3.14"
 
       - name: Build Pages artifact
-        run: python tools/build_pages_site.py --output ../pages-dist
+        run: python tools/build_pages_site.py --output pages-dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: pages-dist
+          path: root/pages-dist
 
   deploy:
     name: Deploy Pages artifact
