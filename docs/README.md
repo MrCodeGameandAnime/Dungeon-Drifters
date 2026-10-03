@@ -1,4 +1,4 @@
-![](<../res/Dungeon Drifters Heros.png>)
+![](<../root/res/Dungeon Drifters Heros.png>)
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
@@ -12,7 +12,7 @@ dungeon.
 
 ## The Drifters
 
-# <img src="../res/Ser%20Branoc%20Sprite.png" width="48" height="48"> Ser Branoc, the Unbroken Crest 
+# <img src="../root/res/Ser%20Branoc%20Sprite.png" width="48" height="48"> Ser Branoc, the Unbroken Crest
 
 A relentless close-range fighter built around endurance, retaliation, and
 overwhelming physical force.
@@ -23,7 +23,7 @@ such as Brace and Ironwake Dismemberment reinforce his identity:
 
 **plant → endure → answer**
 
-# <img src="../res/Azhvielle%20Sprite.png" width="48" height="48"> Azhvielle, the Unconfessed
+# <img src="../root/res/Azhvielle%20Sprite.png" width="48" height="48"> Azhvielle, the Unconfessed
 
 A dangerous Black Mage whose combat style revolves around powerful magic,
 Frost, Gravemantle, and calculated resource use.
@@ -31,7 +31,7 @@ Frost, Gravemantle, and calculated resource use.
 Azhvielle can shape the pace of a fight through elemental pressure and
 high-impact spell routes rather than meeting enemies head-on.
 
-# <img src="../res/Zhaivra%20Kelyth%20Sprite.png" width="48" height="48"> Zhaivra Kelyth, the Uncontrolled Reagent
+# <img src="../root/res/Zhaivra%20Kelyth%20Sprite.png" width="48" height="48"> Zhaivra Kelyth, the Uncontrolled Reagent
 
 A Rogue Archer built around preparation, precision, and alchemical aggression.
 
@@ -39,7 +39,7 @@ Zhaivra can prepare specialized payloads, including Fire and Poison Infused
 Barbs, turning inventory preparation and status pressure into part of her
 combat identity.
 
-# <img src="../res/Joruun%20Veyr%20Sprite.png" width="48" height="48"> Joruun Veyr, the Bloody Storm Monk
+# <img src="../root/res/Joruun%20Veyr%20Sprite.png" width="48" height="48"> Joruun Veyr, the Bloody Storm Monk
 
 A fast, aggressive Monk whose techniques draw on Water, Air, and Lightning.
 
@@ -72,15 +72,15 @@ You can also run `root/src/run_game.py` directly from PyCharm.
 
 The current terminal presentation is shown below:
 
-![Structured move menu with Brace and empowered Ironwake](../res/screenshots/DD_001.jpeg)
+![Structured move menu with Brace and empowered Ironwake](../root/res/screenshots/DD_001.jpeg)
 
 *Structured move menu showing authored roles, resource costs, Brace rules, and the dynamic Ironwake payoff label.*
 
-![Battle HUD with five ordinary actions and persistent Super meter](../res/screenshots/DD_002.jpeg)
+![Battle HUD with five ordinary actions and persistent Super meter](../root/res/screenshots/DD_002.jpeg)
 
 *Battle HUD showing the five ordinary actions, unavailable-state labels, bounded battle log, and persistent Super meter.*
 
-![Brace payoff resolved through Ironwake Dismemberment](../res/screenshots/DD_003.jpeg)
+![Brace payoff resolved through Ironwake Dismemberment](../root/res/screenshots/DD_003.jpeg)
 
 *Battle log after Brace and an empowered Ironwake Dismemberment action.*
 
