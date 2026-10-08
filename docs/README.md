@@ -137,7 +137,7 @@ The complete version history is maintained in the [change log](CHANGE_LOG.md).
 
 For questions or support, please get in touch with the maintainer:
 
-- Email: [mrcodegameandanime@gmail.com](mailto:mrcodegameandanime@gmail.com)
+- Email: [mrcodegameandanime@gmail.com](support@404builds.com)
 - GitHub: [MrCodeGameAndAnime](https://github.com/MrCodeGameAndAnime)
 
 ## Development
