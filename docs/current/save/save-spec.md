@@ -121,17 +121,17 @@ The sync-state invariants are:
 | `pending` | non-null | null or positive | Local payload is awaiting remote creation/upload |
 | `conflict` | non-null | positive | A pending local branch and a different remote head are preserved |
 
-The local sequence starts at `1` and advances on each successful local save. It never decreases or derives from a timestamp. A new payload gets a new `client_save_id`; retrying an unchanged pending payload reuses its ID. A clean envelope may retain the ID of its most recently accepted save.
+The local sequence starts at `1` and advances on each successful local save. It never decreases or derives from a timestamp. Every sequence-advancing save gets a new `client_save_id`; retrying an unchanged pending payload reuses its ID. Metadata-only sync updates retain the sequence and save ID. A clean envelope may retain the ID of its most recently accepted save.
 
 ## Local Storage and Legacy Migration
 
-The local store receives its storage root through composition. Production composition chooses a host-appropriate per-user writable application-data root; neither the codec nor store derives a user's writable location from `__file__` or the current working directory. Tests inject temporary roots. The v0.4 composition root continues to select one default active profile automatically; the store contract can list multiple profiles without adding profile-management UI in this milestone.
+The local store receives its storage root through composition. Production composition chooses a host-appropriate per-user writable application-data root; neither the codec nor store derives a user's writable location from `__file__` or the current working directory. Tests inject temporary roots. Active envelopes are stored as `profiles/<canonical-profile-id>.json`; conflict evidence is stored separately as `conflicts/<canonical-profile-id>.json`. The v0.4 composition root continues to select one default active profile automatically; the store contract can list multiple profiles without adding profile-management UI in this milestone.
 
 Every write validates the complete new envelope before replacing the old one. It writes a temporary sibling file as UTF-8 deterministic JSON, flushes and `fsync`s it, then atomically replaces the destination with `os.replace`; failed writes clean up the temporary file and preserve the previous valid profile. The envelope file has no BOM and no required final newline. Exact file formatting is not part of the payload digest.
 
 Legacy migration recognizes only the existing bare schema-7/schema-8 save at `root/src/saves/dungeon_drifters.json`. It validates before migration, normalizes schema 7 using the existing 7-to-8 rules, generates one profile UUID, wraps the normalized payload as envelope v1 in `local_only` state, and validates/atomically commits the new profile before changing or removing the original. Invalid legacy input is untouched. A repeat after successful commit selects the committed profile and does not create a new profile ID. Migration may add envelope metadata but must preserve the reconstructed gameplay state.
 
-Conflict files/records are stored separately from the active envelope and are never substituted for one another implicitly.
+Conflict files use exactly the conflict fields listed above, reject unknown/missing fields, and are immutable until explicitly archived/cleared. They are stored separately from the active envelope and are never substituted for one another implicitly.
 
 ## Accounts, Profiles, and Credentials
 

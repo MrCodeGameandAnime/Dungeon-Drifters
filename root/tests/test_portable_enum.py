@@ -159,6 +159,21 @@ for module_name, class_name, members in records:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_forced_overlay_supports_save_uuid_values_without_cpython_enum():
+    result = _run_forced_overlay(
+        """
+from uuid import UUID, uuid4
+
+parsed = UUID("00000000-0000-4000-8000-000000000001")
+assert str(parsed) == "00000000-0000-4000-8000-000000000001"
+generated = uuid4()
+assert generated.version == 4
+assert str(UUID(str(generated))) == str(generated)
+"""
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_overlay_transforms_only_direct_strenum_subclasses_and_keeps_dataclasses_working():
     result = _run_forced_overlay(
         """
