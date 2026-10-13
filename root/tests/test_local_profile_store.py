@@ -168,6 +168,48 @@ def test_conflict_snapshot_is_separate_validated_and_immutable_until_cleared(tmp
     assert store.load_conflict(PROFILE_ID).status is ConflictStoreStatus.MISSING
 
 
+def test_conflict_replacement_is_compare_and_swap_and_atomic(tmp_path, monkeypatch):
+    store = LocalProfileStore(tmp_path)
+    previous = build_conflict_snapshot(
+        profile_id=PROFILE_ID,
+        local_client_save_id=SAVE_ID,
+        local_payload=_payload("local"),
+        base_remote_revision=1,
+        remote_current_revision=2,
+        remote_payload=_payload("remote-a"),
+        detected_at=SAVED_AT,
+    )
+    replacement = build_conflict_snapshot(
+        profile_id=PROFILE_ID,
+        local_client_save_id=SAVE_ID,
+        local_payload=_payload("local"),
+        base_remote_revision=2,
+        remote_current_revision=3,
+        remote_payload=_payload("remote-b"),
+        detected_at=SAVED_AT,
+    )
+    store.save_conflict(previous)
+    path = tmp_path / "conflicts" / f"{PROFILE_ID}.json"
+
+    def fail_replace(source, destination):
+        raise OSError("injected sidecar replace failure")
+
+    monkeypatch.setattr("app.persistence.local_store.os.replace", fail_replace)
+    with pytest.raises(ProfileStoreError):
+        store.replace_conflict(previous, replacement)
+
+    store = LocalProfileStore(tmp_path)
+    assert store.load_conflict(PROFILE_ID).snapshot == previous
+    assert list(path.parent.glob("*.tmp")) == []
+
+    monkeypatch.undo()
+    store.replace_conflict(previous, replacement)
+    assert store.load_conflict(PROFILE_ID).snapshot == replacement
+
+    with pytest.raises(ProfileStoreError):
+        store.replace_conflict(previous, previous)
+
+
 def test_recovery_archives_preserve_profile_and_conflict_as_immutable_records(tmp_path):
     store = LocalProfileStore(tmp_path)
     local = _envelope(
@@ -204,3 +246,29 @@ def test_recovery_archives_preserve_profile_and_conflict_as_immutable_records(tm
     )
     with pytest.raises(ProfileStoreError):
         store.archive_recovery(changed, conflict)
+
+
+def test_recovery_profile_archive_is_idempotent_across_sync_metadata_changes(tmp_path):
+    store = LocalProfileStore(tmp_path)
+    original = _envelope(
+        account_id=ACCOUNT_ID,
+        remote_revision=1,
+        sync_state=SyncState.PENDING,
+        payload=_payload("same-branch"),
+    )
+    retried = _envelope(
+        account_id=ACCOUNT_ID,
+        remote_revision=2,
+        sync_state=SyncState.PENDING,
+        payload=_payload("same-branch"),
+        saved_at=SAVED_AT.replace(day=13),
+    )
+
+    store.archive_recovery(original)
+    store = LocalProfileStore(tmp_path)
+    store.archive_recovery(retried)
+
+    archived = store.load_recovery_profile(PROFILE_ID, SAVE_ID)
+    assert archived.status is ProfileStoreStatus.VALID
+    assert archived.envelope.payload == original.payload
+    assert archived.envelope.client_save_id == original.client_save_id

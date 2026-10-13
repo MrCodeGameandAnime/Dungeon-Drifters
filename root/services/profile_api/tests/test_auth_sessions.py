@@ -1,9 +1,10 @@
 import hashlib
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from profile_api.identity import IdentityService, VerifiedIdentity
 from profile_api.models import AccountSession
 
 from conftest import authorization, create_account
@@ -60,9 +61,19 @@ def test_refresh_reissues_access_token_without_rotating_refresh_token(service):
 
 
 def test_revocation_invalidates_access_and_refresh_credentials(service):
-    client, _ = service
+    client, session_factory = service
     created = create_account(client)
     headers = authorization(created["access_token"])
+
+    class _Verifier:
+        def verify(self, proof):
+            return VerifiedIdentity("test-provider", proof)
+
+    with session_factory() as session:
+        IdentityService(session, _Verifier()).link(
+            UUID(created["account_id"]), "revocation-recovery-subject"
+        )
+        session.commit()
 
     response = client.delete("/v1/sessions/current", headers=headers)
 

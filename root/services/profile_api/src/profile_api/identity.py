@@ -52,7 +52,7 @@ class IdentityService:
         self._verifier = verifier
 
     def link(self, account_id: UUID, proof: object) -> LinkedIdentity:
-        account = self._session.get(Account, account_id)
+        account = self._lock_account(account_id)
         if account is None or account.status != "active":
             raise IdentityNotFound("account is unavailable")
         identity = self._verify(proof)
@@ -85,6 +85,9 @@ class IdentityService:
         return linked
 
     def unlink(self, account_id: UUID, identity_id: UUID, *, now=None) -> None:
+        account = self._lock_account(account_id)
+        if account is None or account.status != "active":
+            raise IdentityNotFound("account is unavailable")
         linked = self._session.scalar(
             select(LinkedIdentity)
             .where(
@@ -120,6 +123,14 @@ class IdentityService:
             )
         self._session.delete(linked)
         self._session.flush()
+
+    def _lock_account(self, account_id):
+        return self._session.scalar(
+            select(Account)
+            .where(Account.id == account_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
 
     def _verify(self, proof):
         try:

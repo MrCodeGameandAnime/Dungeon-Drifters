@@ -14,6 +14,7 @@ from app.persistence.envelope import (
 )
 from app.persistence.ports import (
     ConflictStoreStatus,
+    ProfileStoreError,
     ProfileStoreStatus,
 )
 from app.persistence.remote_client import (
@@ -68,31 +69,42 @@ class ProfileSyncCoordinator:
     def enable_cloud(self, account_id):
         if not isinstance(account_id, UUID):
             raise TypeError("account_id must be a UUID")
-        loaded = self._store.load(self._profile_id)
-        if loaded.status is not ProfileStoreStatus.VALID:
-            return self._result(None, error="local_profile_unavailable")
-        envelope = loaded.envelope
-        if envelope.account_id is not None:
-            if envelope.account_id != account_id:
-                return self._result(envelope, error="account_mismatch")
-            return self.sync_pending()
-        self._store.save(
-            self._copy_envelope(
-                envelope,
-                account_id=account_id,
-                remote_revision=None,
-                sync_state=SyncState.PENDING,
+        envelope = None
+        try:
+            loaded = self._store.load(self._profile_id)
+            if loaded.status is not ProfileStoreStatus.VALID:
+                return self._result(None, error="local_profile_unavailable")
+            envelope = loaded.envelope
+            if envelope.account_id is not None:
+                if envelope.account_id != account_id:
+                    return self._result(envelope, error="account_mismatch")
+                return self.sync_pending()
+            self._store.save(
+                self._copy_envelope(
+                    envelope,
+                    account_id=account_id,
+                    remote_revision=None,
+                    sync_state=SyncState.PENDING,
+                )
             )
-        )
+        except (OSError, ProfileStoreError):
+            return self._result(
+                envelope, remote_available=False, error="local_store_unavailable"
+            )
+        except ProfileEnvelopeValidationError:
+            return self._result(
+                envelope, remote_available=False, error="invalid_local_profile"
+            )
         return self.sync_pending()
 
     def download_remote(self):
-        loaded = self._store.load(self._profile_id)
-        if loaded.status is ProfileStoreStatus.VALID:
-            return self.refresh()
-        if loaded.status is not ProfileStoreStatus.MISSING:
-            return self._result(None, error="local_profile_invalid")
+        envelope = None
         try:
+            loaded = self._store.load(self._profile_id)
+            if loaded.status is ProfileStoreStatus.VALID:
+                return self.refresh()
+            if loaded.status is not ProfileStoreStatus.MISSING:
+                return self._result(None, error="local_profile_invalid")
             head = self._remote.get_profile(self._profile_id)
             envelope = build_profile_envelope(
                 head.payload,
@@ -109,20 +121,25 @@ class ProfileSyncCoordinator:
             return self._remote_error(None, error)
         except ProfileEnvelopeValidationError:
             return self._result(None, remote_available=True, error="invalid_remote_profile")
+        except (OSError, ProfileStoreError):
+            return self._result(
+                envelope, remote_available=False, error="local_store_unavailable"
+            )
         return self._result(envelope, remote_available=True)
 
     def refresh(self):
-        loaded = self._store.load(self._profile_id)
-        if loaded.status is not ProfileStoreStatus.VALID:
-            return self._result(None, error="local_profile_unavailable")
-        envelope = loaded.envelope
-        if envelope.sync_state is SyncState.LOCAL_ONLY:
-            return self._result(envelope)
-        if envelope.sync_state is SyncState.PENDING:
-            return self.sync_pending()
-        if envelope.sync_state is SyncState.CONFLICT:
-            return self._result(envelope, remote_available=False)
+        envelope = None
         try:
+            loaded = self._store.load(self._profile_id)
+            if loaded.status is not ProfileStoreStatus.VALID:
+                return self._result(None, error="local_profile_unavailable")
+            envelope = loaded.envelope
+            if envelope.sync_state is SyncState.LOCAL_ONLY:
+                return self._result(envelope)
+            if envelope.sync_state is SyncState.PENDING:
+                return self.sync_pending()
+            if envelope.sync_state is SyncState.CONFLICT:
+                return self._result(envelope, remote_available=False)
             head = self._remote.get_profile(self._profile_id)
             self._require_same_account(envelope, head)
             if head.current_revision < envelope.remote_revision:
@@ -137,25 +154,119 @@ class ProfileSyncCoordinator:
                         error="remote_revision_mismatch",
                     )
                 return self._result(envelope, remote_available=True)
-            if head.payload_sha256 == envelope.payload_sha256:
-                updated = self._copy_envelope(
+            return self._install_remote_head(envelope, head)
+        except (RemoteProfileError, RemoteProtocolError) as error:
+            return self._remote_error(envelope, error)
+        except ProfileEnvelopeValidationError:
+            return self._result(
+                envelope, remote_available=True, error="invalid_remote_profile"
+            )
+        except (OSError, ProfileStoreError):
+            return self._result(
+                envelope, remote_available=False, error="local_store_unavailable"
+            )
+
+    def sync_pending(self):
+        envelope = None
+        try:
+            loaded = self._store.load(self._profile_id)
+            if loaded.status is not ProfileStoreStatus.VALID:
+                return self._result(None, error="local_profile_unavailable")
+            envelope = loaded.envelope
+            local_conflict = self._store.load_conflict(self._profile_id)
+            if local_conflict.status is ConflictStoreStatus.INVALID:
+                return self._result(
+                    envelope, error="local_conflict_invalid", remote_available=False
+                )
+
+            if envelope.sync_state is SyncState.CLEAN:
+                if local_conflict.status is ConflictStoreStatus.VALID:
+                    snapshot = local_conflict.snapshot
+                    if not self._conflict_is_superseded(envelope, snapshot):
+                        return self._result(
+                            envelope,
+                            error="local_conflict_unreconciled",
+                            remote_available=False,
+                        )
+                    recovery = self._recovery_envelope_for(snapshot, envelope)
+                    self._store.archive_recovery(recovery, snapshot)
+                    self._store.clear_conflict(self._profile_id)
+                return self._result(envelope, remote_available=False)
+
+            if envelope.sync_state is SyncState.CONFLICT:
+                if local_conflict.status is ConflictStoreStatus.MISSING:
+                    return self._rebuild_missing_conflict(envelope)
+                snapshot = local_conflict.snapshot
+                if envelope.remote_revision != snapshot.base_remote_revision:
+                    envelope = self._copy_envelope(
+                        envelope,
+                        remote_revision=snapshot.base_remote_revision,
+                        sync_state=SyncState.CONFLICT,
+                    )
+                    self._store.save(envelope)
+                return self._result(envelope, remote_available=False)
+
+            if envelope.sync_state is SyncState.LOCAL_ONLY:
+                if local_conflict.status is ConflictStoreStatus.VALID:
+                    return self._result(
+                        envelope,
+                        error="local_conflict_unreconciled",
+                        remote_available=False,
+                    )
+                return self._result(envelope)
+
+            if local_conflict.status is ConflictStoreStatus.VALID:
+                if not self._conflict_matches_envelope(envelope, local_conflict.snapshot):
+                    return self._result(
+                        envelope,
+                        error="local_conflict_unreconciled",
+                        remote_available=False,
+                    )
+                conflict_envelope = self._copy_envelope(
                     envelope,
-                    remote_revision=head.current_revision,
-                    sync_state=SyncState.CLEAN,
+                    remote_revision=local_conflict.snapshot.base_remote_revision,
+                    sync_state=SyncState.CONFLICT,
                 )
-            else:
-                updated = build_profile_envelope(
-                    head.payload,
-                    profile_id=self._profile_id,
-                    account_id=envelope.account_id,
-                    remote_revision=head.current_revision,
-                    local_sequence=envelope.local_sequence + 1,
-                    sync_state=SyncState.CLEAN,
-                    client_save_id=self._new_save_id(envelope.client_save_id),
-                    saved_at=self._now_factory(),
+                self._store.save(conflict_envelope)
+                return self._result(conflict_envelope, remote_available=False)
+            if envelope.sync_state is not SyncState.PENDING:
+                return self._result(envelope)
+            if envelope.remote_revision is None:
+                return self._claim_pending(envelope)
+            return self._push_pending(envelope)
+        except (RemoteProfileError, RemoteProtocolError) as error:
+            return self._remote_error(envelope, error)
+        except (OSError, ProfileStoreError):
+            return self._result(
+                None, remote_available=False, error="local_store_unavailable"
+            )
+        except ProfileEnvelopeValidationError:
+            return self._result(
+                None, remote_available=True, error="invalid_remote_profile"
+            )
+
+    def _rebuild_missing_conflict(self, envelope):
+        try:
+            head = self._remote.get_profile(self._profile_id)
+            self._require_same_account(envelope, head)
+            base_revision = envelope.remote_revision
+            if base_revision is None or head.current_revision <= base_revision:
+                return self._result(
+                    envelope,
+                    error="local_conflict_unavailable",
+                    remote_available=True,
                 )
-            self._store.save(updated)
-            return self._result(updated, remote_available=True)
+            snapshot = build_conflict_snapshot(
+                profile_id=self._profile_id,
+                local_client_save_id=envelope.client_save_id,
+                local_payload=envelope.payload,
+                base_remote_revision=base_revision,
+                remote_current_revision=head.current_revision,
+                remote_payload=head.payload,
+                detected_at=self._now_factory(),
+            )
+            self._store.save_conflict(snapshot)
+            return self._result(envelope, remote_available=True)
         except (RemoteProfileError, RemoteProtocolError) as error:
             return self._remote_error(envelope, error)
         except ProfileEnvelopeValidationError:
@@ -163,36 +274,35 @@ class ProfileSyncCoordinator:
                 envelope, remote_available=True, error="invalid_remote_profile"
             )
 
-    def sync_pending(self):
-        loaded = self._store.load(self._profile_id)
-        if loaded.status is not ProfileStoreStatus.VALID:
-            return self._result(None, error="local_profile_unavailable")
-        envelope = loaded.envelope
-        if envelope.sync_state is SyncState.LOCAL_ONLY:
-            return self._result(envelope)
-        if envelope.sync_state is SyncState.CONFLICT:
-            return self._result(envelope, remote_available=False)
-        local_conflict = self._store.load_conflict(self._profile_id)
-        if local_conflict.status is ConflictStoreStatus.INVALID:
-            return self._result(
-                envelope, error="local_conflict_invalid", remote_available=False
-            )
-        if local_conflict.status is ConflictStoreStatus.VALID:
-            conflict_envelope = self._copy_envelope(
-                envelope,
-                remote_revision=local_conflict.snapshot.base_remote_revision,
-                sync_state=SyncState.CONFLICT,
-            )
-            self._store.save(conflict_envelope)
-            return self._result(conflict_envelope, remote_available=False)
-        if envelope.sync_state is not SyncState.PENDING:
-            return self._result(envelope)
-        try:
-            if envelope.remote_revision is None:
-                return self._claim_pending(envelope)
-            return self._push_pending(envelope)
-        except (RemoteProfileError, RemoteProtocolError) as error:
-            return self._remote_error(envelope, error)
+    @staticmethod
+    def _conflict_is_superseded(envelope, snapshot):
+        if envelope.remote_revision > snapshot.remote_current_revision:
+            return True
+        return (
+            envelope.remote_revision == snapshot.remote_current_revision
+            and envelope.payload_sha256 == snapshot.remote_payload_sha256
+        )
+
+    @staticmethod
+    def _conflict_matches_envelope(envelope, snapshot):
+        return (
+            snapshot.profile_id == envelope.profile_id
+            and snapshot.local_client_save_id == envelope.client_save_id
+            and snapshot.local_payload_sha256 == envelope.payload_sha256
+            and snapshot.local_payload == envelope.payload
+        )
+
+    def _recovery_envelope_for(self, snapshot, current):
+        return build_profile_envelope(
+            snapshot.local_payload,
+            profile_id=snapshot.profile_id,
+            account_id=current.account_id,
+            remote_revision=snapshot.base_remote_revision,
+            local_sequence=max(1, current.local_sequence),
+            sync_state=SyncState.CONFLICT,
+            client_save_id=snapshot.local_client_save_id,
+            saved_at=snapshot.detected_at,
+        )
 
     def resolve_use_remote(self):
         loaded = self._load_conflicted_profile()
@@ -202,32 +312,16 @@ class ProfileSyncCoordinator:
         try:
             head = self._remote.get_profile(self._profile_id)
             self._require_same_account(envelope, head)
-            self._store.archive_recovery(envelope, snapshot)
-            if head.payload_sha256 == envelope.payload_sha256:
-                updated = self._copy_envelope(
-                    envelope,
-                    remote_revision=head.current_revision,
-                    sync_state=SyncState.CLEAN,
-                )
-            else:
-                updated = build_profile_envelope(
-                    head.payload,
-                    profile_id=self._profile_id,
-                    account_id=envelope.account_id,
-                    remote_revision=head.current_revision,
-                    local_sequence=envelope.local_sequence + 1,
-                    sync_state=SyncState.CLEAN,
-                    client_save_id=self._new_save_id(envelope.client_save_id),
-                    saved_at=self._now_factory(),
-                )
-            self._store.save(updated)
-            self._store.clear_conflict(self._profile_id)
-            return self._result(updated, remote_available=True)
+            return self._finish_remote_resolution(envelope, snapshot, head)
         except (RemoteProfileError, RemoteProtocolError) as error:
             return self._remote_error(envelope, error)
         except ProfileEnvelopeValidationError:
             return self._result(
                 envelope, remote_available=True, error="invalid_remote_profile"
+            )
+        except (OSError, ProfileStoreError):
+            return self._result(
+                envelope, remote_available=False, error="local_store_unavailable"
             )
 
     def resolve_keep_local(self):
@@ -253,6 +347,13 @@ class ProfileSyncCoordinator:
                 return self._record_conflict(
                     envelope, head.current_revision, latest
                 )
+            if pushed.accepted_revision is not None:
+                if (
+                    envelope.remote_revision is None
+                    or pushed.accepted_revision <= envelope.remote_revision
+                ):
+                    raise RemoteProtocolError("remote progression marker is invalid")
+                return self._finish_remote_resolution(envelope, snapshot, pushed)
             if pushed.payload_sha256 == envelope.payload_sha256:
                 return self._finish_keep_local(envelope, snapshot, pushed)
             latest = self._remote.get_profile(self._profile_id)
@@ -262,15 +363,27 @@ class ProfileSyncCoordinator:
             return self._record_conflict(envelope, base_revision, latest)
         except (RemoteProfileError, RemoteProtocolError) as error:
             return self._remote_error(envelope, error)
+        except (OSError, ProfileStoreError):
+            return self._result(
+                envelope, remote_available=False, error="local_store_unavailable"
+            )
 
     def fork_local(self, new_profile_id, client_save_id=None):
-        loaded = self._load_conflicted_profile()
+        loaded = self._load_conflicted_profile(allow_unclaimed_pending=True)
         if isinstance(loaded, SyncResult):
             return loaded
         source_envelope, _ = loaded
         if not isinstance(new_profile_id, UUID) or new_profile_id == self._profile_id:
             raise TypeError("new_profile_id must be a different UUID")
-        existing = self._store.load(new_profile_id)
+        try:
+            existing = self._store.load(new_profile_id)
+        except (OSError, ProfileStoreError):
+            return self._result(
+                source_envelope,
+                remote_available=False,
+                error="local_store_unavailable",
+                profile_id=new_profile_id,
+            )
         if existing.status is ProfileStoreStatus.INVALID:
             return self._result(
                 source_envelope,
@@ -317,25 +430,32 @@ class ProfileSyncCoordinator:
                 client_save_id=client_save_id,
                 saved_at=self._now_factory(),
             )
-            self._store.save(fork)
+            try:
+                self._store.save(fork)
+            except (OSError, ProfileStoreError):
+                return self._result(
+                    source_envelope,
+                    remote_available=False,
+                    error="local_store_unavailable",
+                    profile_id=new_profile_id,
+                )
         try:
             head = self._remote.create_profile(
                 new_profile_id, fork.client_save_id, fork.payload
             )
         except RemoteProfileCreationConflict:
-            try:
-                head = self._remote.get_profile(new_profile_id)
-            except (RemoteProfileError, RemoteProtocolError) as error:
-                return self._remote_error(
-                    fork, error, profile_id=new_profile_id
-                )
+            return self._result(
+                fork,
+                remote_available=True,
+                error="fork_profile_collision",
+                profile_id=new_profile_id,
+            )
         except (RemoteProfileError, RemoteProtocolError) as error:
             return self._remote_error(fork, error, profile_id=new_profile_id)
         try:
             if (
                 head.profile_id != new_profile_id
                 or head.account_id != source_envelope.account_id
-                or head.payload_sha256 != fork.payload_sha256
             ):
                 return self._result(
                     fork,
@@ -343,20 +463,28 @@ class ProfileSyncCoordinator:
                     error="fork_profile_mismatch",
                     profile_id=new_profile_id,
                 )
-            clean_fork = self._copy_envelope(
-                fork,
-                remote_revision=head.current_revision,
-                sync_state=SyncState.CLEAN,
-            )
-            self._store.save(clean_fork)
-            return self._result(
-                clean_fork, remote_available=True, profile_id=new_profile_id
-            )
+            if head.created_revision is not None and head.created_revision != 1:
+                raise RemoteProtocolError("remote profile claim marker is invalid")
+            if head.created_revision is None and head.payload_sha256 != fork.payload_sha256:
+                return self._result(
+                    fork,
+                    remote_available=True,
+                    error="fork_profile_mismatch",
+                    profile_id=new_profile_id,
+                )
+            return self._install_remote_head(fork, head)
         except ProfileEnvelopeValidationError:
             return self._result(
                 fork,
                 remote_available=True,
                 error="invalid_remote_profile",
+                profile_id=new_profile_id,
+            )
+        except (OSError, ProfileStoreError):
+            return self._result(
+                fork,
+                remote_available=False,
+                error="local_store_unavailable",
                 profile_id=new_profile_id,
             )
 
@@ -368,14 +496,6 @@ class ProfileSyncCoordinator:
                 envelope.payload,
             )
         except RemoteProfileCreationConflict:
-            head = self._remote.get_profile(self._profile_id)
-            self._require_same_account(envelope, head)
-            if head.payload_sha256 == envelope.payload_sha256:
-                return self._mark_clean(envelope, head)
-            if head.current_revision > 1:
-                return self._record_conflict(
-                    envelope, head.created_revision or 1, head
-                )
             return self._result(
                 envelope,
                 remote_available=True,
@@ -393,14 +513,14 @@ class ProfileSyncCoordinator:
                 local_only, remote_available=True, error="profile_unavailable"
             )
         self._require_same_account(envelope, head)
+        if head.created_revision is not None:
+            if head.created_revision != 1:
+                raise RemoteProtocolError("remote profile claim marker is invalid")
+            return self._install_remote_head(envelope, head)
         if head.payload_sha256 == envelope.payload_sha256:
             return self._mark_clean(envelope, head)
-        if head.current_revision > 1:
-            return self._record_conflict(
-                envelope, head.created_revision or 1, head
-            )
         return self._result(
-            envelope, remote_available=True, error="profile_claim_conflict"
+            envelope, remote_available=True, error="profile_claim_unverified"
         )
 
     def _push_pending(self, envelope):
@@ -419,6 +539,13 @@ class ProfileSyncCoordinator:
                 envelope, pushed.base_revision, head
             )
         self._require_same_account(envelope, pushed)
+        if pushed.accepted_revision is not None:
+            if (
+                envelope.remote_revision is None
+                or pushed.accepted_revision <= envelope.remote_revision
+            ):
+                raise RemoteProtocolError("remote progression marker is invalid")
+            return self._install_remote_head(envelope, pushed)
         if pushed.payload_sha256 == envelope.payload_sha256:
             return self._mark_clean(envelope, pushed)
         latest = self._remote.get_profile(self._profile_id)
@@ -457,7 +584,6 @@ class ProfileSyncCoordinator:
                     self._store.save(conflict_envelope)
                 return self._result(conflict_envelope, remote_available=True)
             self._store.archive_recovery(envelope, existing.snapshot)
-            self._store.clear_conflict(self._profile_id)
         snapshot = build_conflict_snapshot(
             profile_id=self._profile_id,
             local_client_save_id=envelope.client_save_id,
@@ -467,7 +593,10 @@ class ProfileSyncCoordinator:
             remote_payload=head.payload,
             detected_at=self._now_factory(),
         )
-        self._store.save_conflict(snapshot)
+        if existing.status is ConflictStoreStatus.VALID:
+            self._store.replace_conflict(existing.snapshot, snapshot)
+        else:
+            self._store.save_conflict(snapshot)
         conflict_envelope = self._copy_envelope(
             envelope,
             remote_revision=base_revision,
@@ -486,22 +615,42 @@ class ProfileSyncCoordinator:
             return self._result(
                 envelope, remote_available=True, error="keep_local_not_current"
             )
-        self._store.archive_recovery(envelope, snapshot)
-        updated = self._copy_envelope(
-            envelope,
-            remote_revision=head.current_revision,
-            sync_state=SyncState.CLEAN,
-        )
-        self._store.save(updated)
-        self._store.clear_conflict(self._profile_id)
-        return self._result(updated, remote_available=True)
+        return self._finish_remote_resolution(envelope, snapshot, head)
 
-    def _load_conflicted_profile(self):
-        loaded = self._store.load(self._profile_id)
+    def _finish_remote_resolution(self, envelope, snapshot, head):
+        self._store.archive_recovery(envelope, snapshot)
+        result = self._install_remote_head(envelope, head)
+        self._store.clear_conflict(self._profile_id)
+        return result
+
+    def _load_conflicted_profile(self, *, allow_unclaimed_pending=False):
+        try:
+            loaded = self._store.load(self._profile_id)
+        except (OSError, ProfileStoreError):
+            return self._result(None, error="local_store_unavailable")
         if loaded.status is not ProfileStoreStatus.VALID:
             return self._result(None, error="local_profile_unavailable")
         envelope = loaded.envelope
-        conflict = self._store.load_conflict(self._profile_id)
+        try:
+            conflict = self._store.load_conflict(self._profile_id)
+        except (OSError, ProfileStoreError):
+            return self._result(envelope, error="local_store_unavailable")
+        if (
+            allow_unclaimed_pending
+            and envelope.sync_state is SyncState.PENDING
+            and envelope.account_id is not None
+            and envelope.remote_revision is None
+        ):
+            if conflict.status is ConflictStoreStatus.MISSING:
+                return envelope, None
+            return self._result(
+                envelope,
+                error=(
+                    "local_conflict_invalid"
+                    if conflict.status is ConflictStoreStatus.INVALID
+                    else "local_conflict_unreconciled"
+                ),
+            )
         if envelope.sync_state is not SyncState.CONFLICT:
             return self._result(envelope, error="profile_not_conflicted")
         if conflict.status is not ConflictStoreStatus.VALID:
@@ -512,13 +661,39 @@ class ProfileSyncCoordinator:
         self._require_same_account(envelope, head)
         if head.payload_sha256 != envelope.payload_sha256:
             raise RemoteProtocolError("accepted payload differs from local save")
-        updated = self._copy_envelope(
-            envelope,
-            remote_revision=head.current_revision,
-            sync_state=SyncState.CLEAN,
-        )
+        return self._install_remote_head(envelope, head)
+
+    def _install_remote_head(self, envelope, head):
+        if (
+            not isinstance(head, RemoteProfileHead)
+            or head.profile_id != envelope.profile_id
+            or head.account_id != envelope.account_id
+        ):
+            raise RemoteProtocolError("remote profile identity did not match local account")
+        if (
+            head.payload_sha256 == envelope.payload_sha256
+            and head.client_save_id == envelope.client_save_id
+        ):
+            updated = self._copy_envelope(
+                envelope,
+                remote_revision=head.current_revision,
+                sync_state=SyncState.CLEAN,
+            )
+        else:
+            updated = build_profile_envelope(
+                head.payload,
+                profile_id=envelope.profile_id,
+                account_id=envelope.account_id,
+                remote_revision=head.current_revision,
+                local_sequence=envelope.local_sequence + 1,
+                sync_state=SyncState.CLEAN,
+                client_save_id=head.client_save_id,
+                saved_at=self._now_factory(),
+            )
         self._store.save(updated)
-        return self._result(updated, remote_available=True)
+        return self._result(
+            updated, remote_available=True, profile_id=envelope.profile_id
+        )
 
     def _copy_envelope(
         self,

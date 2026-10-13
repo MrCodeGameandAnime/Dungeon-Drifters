@@ -12,7 +12,7 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
-from app.persistence.ports import (
+from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
     is_save_port,
@@ -281,11 +281,12 @@ class OverworldSession:
         }
 
     def _load_available(self):
-        return (
-            self._screen is OverworldScreen.OPTIONS
-            and self._save_port_instance().inspect().status
-            is SaveLoadStatus.VALID
-        )
+        if self._screen is not OverworldScreen.OPTIONS:
+            return False
+        try:
+            return self._save_port_instance().inspect().status is SaveLoadStatus.VALID
+        except SavePortError:
+            return False
 
     def _save_port_instance(self):
         if self._save_port is None:
@@ -444,9 +445,16 @@ class OverworldSession:
                 self._notice = "Game saved."
 
     def _load_saved_session(self):
-        result = self._save_port_instance().load()
-        if result.status is not SaveLoadStatus.LOADED:
-            self._notice = result.error or "The saved game could not be loaded."
+        try:
+            result = self._save_port_instance().load()
+        except SavePortError:
+            result = None
+        if result is None or result.status is not SaveLoadStatus.LOADED:
+            self._notice = (
+                "The saved game could not be loaded."
+                if result is None
+                else result.error or "The saved game could not be loaded."
+            )
             self._screen = OverworldScreen.OPTIONS
             self._adventure_text = None
             return

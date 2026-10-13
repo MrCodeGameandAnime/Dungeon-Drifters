@@ -7,7 +7,11 @@ from uuid import UUID
 
 from app.game.game_state import GameState
 from app.persistence.envelope import ConflictSnapshot, ProfileEnvelope
-from app.runtime_contracts import has_required_members
+from app.persistence.save_port_contract import (
+    SaveLoadStatus,
+    SavePortError,
+    is_save_port,
+)
 
 
 class ProfileStoreStatus(StrEnum):
@@ -24,18 +28,6 @@ class ConflictStoreStatus(StrEnum):
 
 class ProfileStoreError(RuntimeError):
     """Raised when a local profile operation cannot safely complete."""
-
-
-class SaveLoadStatus(StrEnum):
-    MISSING = "missing"
-    VALID = "valid"
-    LOADED = "loaded"
-    SAVED = "saved"
-    INVALID = "invalid"
-
-
-class SavePortError(RuntimeError):
-    """Raised when a save-port operation cannot safely complete."""
 
 
 @dataclass(frozen=True)
@@ -73,6 +65,12 @@ class ProfileStore(Protocol):
 
     def save_conflict(self, snapshot: ConflictSnapshot) -> None: ...
 
+    def replace_conflict(
+        self,
+        expected: ConflictSnapshot,
+        replacement: ConflictSnapshot,
+    ) -> None: ...
+
     def clear_conflict(self, profile_id: UUID) -> None: ...
 
     def archive_recovery(
@@ -94,13 +92,6 @@ class SavePort(Protocol):
     def save(self, game_state: GameState) -> SaveLoadResult: ...
 
     def load(self) -> SaveLoadResult: ...
-
-
-_SAVE_PORT_METHODS = ("inspect", "save", "load")
-
-
-def is_save_port(value):
-    return has_required_members(value, _SAVE_PORT_METHODS, _SAVE_PORT_METHODS)
 
 
 __all__ = [

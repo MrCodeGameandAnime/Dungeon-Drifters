@@ -1,6 +1,6 @@
 # Dungeon Drifters Save Architecture Specification
 
-**Status:** Authority for SAVE-ARCH implementation. This specification freezes the existing approved architecture; it does not select a cloud identity/storage vendor or change the game-state schema.
+**Status:** Authority for SAVE-ARCH and SAVE-ARCH-R1. R1 hardens the approved architecture without selecting a cloud identity/storage vendor or changing any persistence wire version.
 
 **Related plan:** [save-plan.md](save-plan.md)
 **API contract:** [api-contract.md](api-contract.md)
@@ -16,6 +16,7 @@ The boundaries are:
 - `SaveCoordinator` composes the game-state codec and profile store and later coordinates optional remote sync.
 - A standalone DD profile service owns canonical accounts, linked identities, sessions, profile ownership, immutable revisions, and entitlements.
 - Host/platform adapters provide filesystem roots, credentials, identity proof, and HTTP transport. Shared game/persistence code does not depend on Firebase or platform SDKs.
+- The gameplay session depends only on a lightweight structural `SavePort` contract. Its import-time dependency graph must not load profile envelopes, local filesystem stores, remote clients, or sync orchestration; host composition supplies the concrete coordinator.
 
 No browser, mobile, console, launcher, or platform-specific credential UI is part of SAVE-ARCH. A local-only profile must remain fully playable and saveable without an account, service, or network.
 
@@ -133,12 +134,17 @@ Legacy migration recognizes only the existing bare schema-7/schema-8 save at `ro
 
 Conflict files use exactly the conflict fields listed above, reject unknown/missing fields, and are immutable until explicitly archived/cleared. They are stored separately from the active envelope and are never substituted for one another implicitly.
 
+Conflict sidecars and active envelopes are separate atomic files, so their multi-file transitions must be restart-reconciled. A pending envelope with valid conflict evidence completes entry into `conflict`. A clean envelope may retire older conflict residue only when its accepted remote revision supersedes that evidence (or is the same revision with the same validated remote payload); the residue must never resurrect a resolved conflict. A conflict envelope with missing or invalid evidence must remain visibly/recoverably conflicted and may rebuild evidence only from the active local branch plus a validated current remote head. It must not silently become clean.
+
+Replacing conflict evidence archives the previous valid evidence first, then atomically replaces the sidecar without a clear-before-write gap; the active envelope is updated after a valid successor sidecar exists. Recovery-profile archive idempotency is defined by the immutable local branch (`profile_id`, `client_save_id`, and payload/digest), not mutable sync metadata such as base revision, sync state, or save timestamp.
+
 ## Accounts, Profiles, and Credentials
 
 - A DD account owns zero or more profile slots, linked identities, sessions, and entitlements.
 - A profile UUID is generated locally once and remains unchanged when a local guest profile is claimed by a DD account.
 - An account ID is created by the DD service. A client cannot choose another account ID or assert ownership.
 - A provider identity can be linked only after a trusted server-side verifier validates its proof. Clients cannot self-assert provider subjects.
+- Identity link/unlink recovery decisions and refreshable-session revocation are serialized on the owning account. Concurrent changes must not remove the final recovery path: at least one verified linked identity or refreshable session must remain after the transaction commits.
 - `device_id` is a pseudonymous client installation identifier used for revision attribution, not authentication or account identity. A host may replace it; it is never placed in game state or the profile envelope.
 - Access/refresh credentials are held by a separate `CredentialStore` boundary and are never written into game-state payloads, profile envelopes, entitlements, or logs.
 - The service stores token hashes, not bearer-token plaintext. Hosted API traffic uses HTTPS.
@@ -152,6 +158,8 @@ The service is authoritative for account identity, profile ownership, revision o
 
 An upload identifies `profile_id`, `base_revision`, `client_save_id`, `device_id`, and the complete schema-8 `payload`. The server validates ownership and payload, recomputes the digest, and transactionally compares the base with the current head. A matching base creates exactly one next immutable revision. The same profile/save ID and same payload digest returns the already accepted revision without creating another. Reusing that ID for a different payload is rejected. A stale base returns `409` with current-head metadata and changes nothing.
 
+The `created_revision` and `accepted_revision` response markers identify acceptance of the exact retried create or progression request. When either marker is present, the returned current head is an authoritative descendant of that accepted request: after validating profile/account identity and payload, the client installs that current head as `clean`, using the head's actual `client_save_id`. A differing current-head payload is not a conflict in this case. Conversely, an explicit profile-creation `409` is proof that this claim was not accepted; a later head whose payload happens to match is not evidence of ancestry and must remain a claim-collision/recovery condition. A fork UUID collision follows the same rule and must not adopt the unrelated profile.
+
 `saved_at`, filesystem metadata, request arrival time, and device clocks never select a winner. There is no automatic field merge and no silent last-write-wins.
 
 State transitions:
@@ -160,6 +168,12 @@ State transitions:
 - `clean`: a local save is atomically stored first as `pending`, then uploaded against the last accepted revision. Acceptance advances `remote_revision` and returns to `clean`; network failure stays `pending`.
 - `pending`: play continues offline. Further saves advance the local sequence and replace the active pending payload with a new save ID. Upload retries the current payload; an accepted duplicate is idempotent.
 - `conflict`: automatic upload stops. The original conflict evidence and active local branch are preserved separately from the remote head. Local gameplay may continue, advancing the active local branch while retaining `conflict` state; it must not erase the captured evidence or trigger an upload.
+
+### Local-First Save Result and Operational Failures
+
+The `SavePort.save()` result is determined by the local commit: after the active envelope has been atomically stored and read back as valid, return `SAVED`. Automatic cloud sync is subsequent best-effort work and cannot retroactively fail a durable gameplay save. `ProfileSyncCoordinator` converts expected remote and profile-store operational failures into `SyncResult`; it must not blanket-catch programming errors. The committed local payload remains pending/retryable after such a failure.
+
+`inspect()` and `load()` normalize expected local-store failures into their normal invalid/unavailable results. A `SavePortError` raised by a host adapter during session inspection or loading must not crash the options menu or session; save remains local-first and reports failure only when its local commit did not succeed.
 
 At launch, local loading never waits indefinitely for the service. If offline, use a valid local cache. If a clean cloud-backed profile has a newer validated remote head, it may fast-forward. If a pending upload is stale, capture both sides and enter conflict. Every fetched payload is validated before it can replace the active cache.
 
@@ -187,4 +201,4 @@ Browser, MicroPython, and future console clients may use the same logical API th
 
 ## SAVE-ARCH Acceptance Boundary
 
-Completion requires all plan gates through SAVE-ARCH-7: old `SaveRepository` removed, client routed through the permanent persistence boundary, local offline flow retained, DD API/PostgreSQL revisions and account boundaries tested, conflict/idempotency behavior proven, entitlements kept outside gameplay saves, existing campaign behavior preserved, CI/migrations qualified, and no unrelated gameplay changes. Platform clients, identity SDKs, receipt verification, and UI for multi-profile/conflict management are outside this milestone.
+The original SAVE-ARCH-0 through SAVE-ARCH-7 implementation remains historical. Current completion additionally requires SAVE-ARCH-R1: local commit outcome isolation, crash/restart-safe conflict transitions and recovery archives, correct create/progression replay ancestry and collision handling, a lightweight gameplay save-port import boundary, a real PostgreSQL identity-unlink concurrency proof, and fresh execution of the actual pinned MicroPython raw/default, route, semantic-parity, 448K stability, and lower-pressure qualification. Game schema stays `8`, envelope schema stays `1`, and the API stays `/v1`. Platform clients, identity SDKs, receipt verification, and UI for multi-profile/conflict management remain outside this milestone.

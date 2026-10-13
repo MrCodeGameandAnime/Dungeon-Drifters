@@ -104,3 +104,35 @@ def test_removing_last_identity_requires_another_recovery_path(service):
 
     assert len(remaining) == 1
     assert remaining[0].id == second.id
+
+
+def test_current_session_cannot_be_revoked_after_last_identity_is_removed(service):
+    client, session_factory = service
+    account = create_account(client)
+    account_id = UUID(account["account_id"])
+    verifier = FakeVerifier(
+        {"only-proof": VerifiedIdentity("test-provider", "only-subject")}
+    )
+    with session_factory() as session:
+        identity = IdentityService(session, verifier).link(account_id, "only-proof")
+        session.commit()
+    with session_factory() as session:
+        IdentityService(session, verifier).unlink(account_id, identity.id)
+        session.commit()
+
+    response = client.delete(
+        "/v1/sessions/current",
+        headers={"Authorization": f"Bearer {account['access_token']}"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "identity_recovery_required"
+    with session_factory() as session:
+        active = session.scalar(
+            select(AccountSession).where(
+                AccountSession.account_id == account_id,
+                AccountSession.revoked_at.is_(None),
+            )
+        )
+        assert active is not None
+        assert session.scalar(select(func.count()).select_from(LinkedIdentity)) == 0

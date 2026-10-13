@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -23,6 +23,7 @@ from profile_api.models import (
     Account,
     AccountSession,
     Entitlement,
+    LinkedIdentity,
     Profile,
     ProfileRevision,
     utc_now,
@@ -273,9 +274,43 @@ def create_app(*, session_factory, settings=None):
     @app.delete("/v1/sessions/current", status_code=204, response_class=Response)
     def revoke_current_session(
         principal=Depends(authenticated_session),
+        session: Session = Depends(get_db, scope="function"),
     ):
-        _, record = principal
-        record.revoked_at = utc_now()
+        account, record = principal
+        locked_account = session.scalar(
+            select(Account)
+            .where(Account.id == account.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked_account is None or locked_account.status != "active":
+            _unauthorized()
+
+        now = utc_now()
+        linked_identity_count = session.scalar(
+            select(func.count()).select_from(LinkedIdentity).where(
+                LinkedIdentity.account_id == account.id
+            )
+        )
+        other_refreshable_session_count = session.scalar(
+            select(func.count()).select_from(AccountSession).where(
+                AccountSession.account_id == account.id,
+                AccountSession.id != record.id,
+                AccountSession.revoked_at.is_(None),
+                AccountSession.refresh_expires_at > now,
+            )
+        )
+        if (
+            linked_identity_count == 0
+            and other_refreshable_session_count == 0
+            and _aware(record.refresh_expires_at) > now
+        ):
+            raise APIError(
+                409,
+                "identity_recovery_required",
+                "Another linked identity or refreshable session is required.",
+            )
+        record.revoked_at = now
         return None
 
     @app.get("/v1/profiles", response_model=ProfileListResponse)

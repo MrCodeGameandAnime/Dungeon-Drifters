@@ -63,7 +63,7 @@ class MemoryRemoteProfileServer:
                 profile_id, account_id, 1, None, save_id, payload, created=1
             )
             record["revisions"].append(record["head"])
-            record["accepted"][(save_id, digest)] = 1
+            record["accepted"][save_id] = (digest, 1)
             self.profiles[profile_id] = record
             if self.drop_next_create_after_commit:
                 self.drop_next_create_after_commit = False
@@ -89,13 +89,14 @@ class MemoryRemoteProfileServer:
         if record is None or record["account_id"] != account_id:
             raise RemoteProfileNotFound("profile is unavailable to this account")
         digest = payload_sha256(payload)
-        accepted_revision = record["accepted"].get((save_id, digest))
-        if accepted_revision is not None:
+        accepted = record["accepted"].get(save_id)
+        if accepted is not None:
+            accepted_digest, accepted_revision = accepted
+            if accepted_digest != digest:
+                raise RemoteRequestRejected("idempotency_key_reuse")
             return self._head(
                 profile_id, record, accepted=accepted_revision
             )
-        if (save_id, digest) in record["accepted"]:
-            raise RemoteRequestRejected("idempotency_key_reuse")
         current = record["head"]
         if current.current_revision != base_revision:
             return RemoteConflict(
@@ -117,7 +118,7 @@ class MemoryRemoteProfileServer:
         )
         record["head"] = head
         record["revisions"].append(head)
-        record["accepted"][(save_id, digest)] = revision
+        record["accepted"][save_id] = (digest, revision)
         if self.drop_next_push_after_commit:
             self.drop_next_push_after_commit = False
             raise RemoteUnavailable("test response was lost after progression commit")

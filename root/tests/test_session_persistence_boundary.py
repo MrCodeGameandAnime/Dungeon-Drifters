@@ -1,5 +1,8 @@
 import ast
+import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -8,9 +11,13 @@ from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.persistence import bootstrap as persistence_bootstrap
 from app.game.overworld_session import OverworldSession
-from app.persistence.ports import SaveLoadStatus, is_save_port
+from app.persistence.ports import SaveLoadStatus, SavePortError, is_save_port
 from app.player.player_state import PlayerState
-from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.presentation.overworld_models import (
+    OverworldAction,
+    OverworldAvailabilityReason,
+    OverworldScreen,
+)
 from app.ui.overworld_ui import ChooseOverworldAction
 
 
@@ -133,3 +140,87 @@ def test_overworld_session_has_no_module_level_filesystem_store_import():
     ]
 
     assert module_level_imports == []
+
+
+def test_overworld_session_import_does_not_load_heavy_persistence_modules():
+    script = """
+import builtins
+import sys
+original_import = builtins.__import__
+persistence_imports = []
+def track_import(name, globals=None, *args, **kwargs):
+    caller = "" if globals is None else globals.get("__name__", "")
+    if caller.startswith("app.persistence.") and name.split(".", 1)[0] in {"copy", "datetime"}:
+        persistence_imports.append((caller, name))
+    return original_import(name, globals, *args, **kwargs)
+builtins.__import__ = track_import
+import app.game.overworld_session
+forbidden = {
+    "app.persistence.ports",
+    "app.persistence.envelope",
+    "app.persistence.save_document",
+    "app.persistence.migration",
+    "app.persistence.bootstrap",
+    "app.persistence.local_store",
+    "app.persistence.coordinator",
+    "app.persistence.account",
+    "app.persistence.remote_client",
+    "app.persistence.sync",
+}
+loaded = sorted(forbidden.intersection(sys.modules))
+print("\\n".join(loaded + [f"{caller}:{name}" for caller, name in persistence_imports]))
+"""
+    environment = os.environ.copy()
+    source = str(ROOT / "src")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        part for part in (source, environment.get("PYTHONPATH", "")) if part
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.strip() == ""
+
+
+def test_save_port_inspection_failure_keeps_options_surface_available():
+    class FailingInspectPort(TrackingSavePort):
+        def inspect(self):
+            raise SavePortError("storage unavailable")
+
+    session = _session(FailingInspectPort())
+
+    view = session.submit(ChooseOverworldAction(OverworldAction.OPTIONS))
+
+    assert view.screen is OverworldScreen.OPTIONS
+    load_option = next(
+        option for option in view.options if option.action is OverworldAction.LOAD
+    )
+    assert load_option.enabled is False
+    assert load_option.disabled_reason is OverworldAvailabilityReason.LOAD_UNAVAILABLE
+
+
+def test_save_port_load_failure_returns_to_options_with_notice():
+    class FailingLoadPort(TrackingSavePort):
+        def inspect(self):
+            return SimpleNamespace(status=SaveLoadStatus.VALID)
+
+        def load(self):
+            raise SavePortError("storage unavailable")
+
+    session = _session(FailingLoadPort())
+    options = session.submit(ChooseOverworldAction(OverworldAction.OPTIONS))
+    assert options.screen is OverworldScreen.OPTIONS
+
+    confirmation = session.submit(ChooseOverworldAction(OverworldAction.LOAD))
+    assert confirmation.screen is OverworldScreen.LOAD_CONFIRMATION
+
+    result = session.submit(ChooseOverworldAction(OverworldAction.CONFIRM))
+
+    assert result.screen is OverworldScreen.OPTIONS
+    assert result.notice is not None

@@ -131,6 +131,32 @@ class LocalProfileStore:
         except (OSError, TypeError, ValueError) as error:
             raise ProfileStoreError("local conflict could not be saved safely") from error
 
+    def replace_conflict(self, expected, replacement):
+        if not isinstance(expected, ConflictSnapshot):
+            raise TypeError("expected must be a ConflictSnapshot")
+        if not isinstance(replacement, ConflictSnapshot):
+            raise TypeError("replacement must be a ConflictSnapshot")
+        if expected.profile_id != replacement.profile_id:
+            raise ProfileStoreError("replacement conflict must use the same profile")
+        try:
+            encoded = serialize_conflict_snapshot(replacement)
+            canonical = parse_conflict_snapshot(encoded)
+            current = self.load_conflict(canonical.profile_id)
+            if (
+                current.status is not ConflictStoreStatus.VALID
+                or current.snapshot != expected
+            ):
+                raise ProfileStoreError(
+                    "conflict evidence changed before replacement"
+                )
+            self._atomic_write(self._conflict_path(canonical.profile_id), encoded)
+        except ProfileStoreError:
+            raise
+        except (OSError, TypeError, ValueError) as error:
+            raise ProfileStoreError(
+                "local conflict could not be replaced safely"
+            ) from error
+
     def clear_conflict(self, profile_id):
         path = self._conflict_path(profile_id)
         try:
@@ -163,7 +189,9 @@ class LocalProfileStore:
                     canonical_conflict.local_client_save_id,
                     canonical_conflict.remote_current_revision,
                 )
-            self._write_immutable_archive(profile_path, encoded_profile)
+            self._write_immutable_profile_archive(
+                profile_path, encoded_profile, canonical_profile
+            )
             if conflict_path is not None:
                 self._write_immutable_archive(conflict_path, encoded_conflict)
         except ProfileStoreError:
@@ -255,6 +283,24 @@ class LocalProfileStore:
             if existing == encoded:
                 return
             raise ProfileStoreError("recovery data is immutable")
+        self._atomic_write(path, encoded)
+
+    def _write_immutable_profile_archive(self, path, encoded, candidate):
+        if path.exists():
+            try:
+                existing = parse_profile_envelope(path.read_bytes())
+            except (OSError, TypeError, ValueError) as error:
+                raise ProfileStoreError(
+                    "existing recovery profile is invalid"
+                ) from error
+            if (
+                existing.profile_id == candidate.profile_id
+                and existing.client_save_id == candidate.client_save_id
+                and existing.payload_sha256 == candidate.payload_sha256
+                and existing.payload == candidate.payload
+            ):
+                return
+            raise ProfileStoreError("recovery profile branch is immutable")
         self._atomic_write(path, encoded)
 
     def _load_recovery_record(

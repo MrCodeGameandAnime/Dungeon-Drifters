@@ -1069,6 +1069,14 @@ try {
   await captureScreenshot(targetPage, "mobile-start-ready");
   await targetPage.getByRole("button", { name: "Start" }).click();
   await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await targetPage.waitForFunction(
+    () => [...document.querySelectorAll("#drifter-options img")].length === 4 &&
+      [...document.querySelectorAll("#drifter-options img")].every(
+        (image) => image.complete && image.naturalWidth > 0,
+      ),
+    null,
+    { timeout: 30000 },
+  );
   const mobileRosterCards = await targetPage.locator("#drifter-options [data-drifter-id]").evaluateAll((buttons) => buttons.map((button) => {
     const image = button.querySelector("img");
     return {

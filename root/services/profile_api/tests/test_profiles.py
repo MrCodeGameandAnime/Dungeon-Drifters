@@ -249,6 +249,64 @@ def test_progression_is_idempotent_and_stale_writes_preserve_head(
         assert session.scalar(select(func.count()).select_from(ProfileRevision)) == 2
 
 
+def test_progression_replay_after_head_advances_returns_acceptance_ancestry(
+    service, valid_payload
+):
+    client, session_factory = service
+    account = create_account(client)
+    _, profile_id, _ = _create_profile(
+        client,
+        account["access_token"],
+        valid_payload,
+    )
+    first_save_id = uuid4()
+    first_payload = deepcopy(valid_payload)
+    first_payload["metadata"]["replay"] = "accepted-at-two"
+    headers = authorization(account["access_token"])
+    first_request = {
+        "base_revision": 1,
+        "client_save_id": str(first_save_id),
+        "device_id": "00000000-0000-4000-8000-000000000003",
+        "payload": first_payload,
+    }
+    first = client.put(
+        f"/v1/profiles/{profile_id}/progression",
+        headers=headers,
+        json=first_request,
+    )
+    second_save_id = uuid4()
+    second_payload = deepcopy(valid_payload)
+    second_payload["metadata"]["replay"] = "advanced-to-three"
+    second = client.put(
+        f"/v1/profiles/{profile_id}/progression",
+        headers=headers,
+        json={
+            "base_revision": 2,
+            "client_save_id": str(second_save_id),
+            "device_id": "00000000-0000-4000-8000-000000000006",
+            "payload": second_payload,
+        },
+    )
+    replay = client.put(
+        f"/v1/profiles/{profile_id}/progression",
+        headers=headers,
+        json=first_request,
+    )
+
+    assert first.status_code == 200
+    assert first.json()["accepted_revision"] == 2
+    assert second.status_code == 200
+    assert second.json()["accepted_revision"] == 3
+    assert replay.status_code == 200
+    assert replay.json()["accepted_revision"] == 2
+    assert replay.json()["current_revision"] == 3
+    assert replay.json()["head"]["revision"] == 3
+    assert replay.json()["head"]["client_save_id"] == str(second_save_id)
+    assert replay.json()["head"]["payload"] == second_payload
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(ProfileRevision)) == 3
+
+
 def test_invalid_payload_and_client_owned_fields_never_create_revision(
     service, valid_payload
 ):

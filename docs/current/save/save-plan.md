@@ -8,6 +8,8 @@
 
 **Spec:** `docs/current/save/save-spec.md` (created by SAVE-ARCH-0 from this plan before implementation).
 
+**Post-series audit status (2026-10-13):** The original SAVE-ARCH-0 through SAVE-ARCH-7 commits remain intact on `master`, ending at `3eb37f5993186e41340ac8d51d0638e182a8215b`. An independent cumulative review identified correctness and MicroPython-qualification gaps. Do not treat the original Gate 7 disposition as the current closure authority; complete [SAVE-ARCH-R1](save-r1-plan.md) before calling the persistence foundation sealed.
+
 **Planning baseline observed:** `master` at `474e0b412207cdee6b684a4810e698d72da7d1ba` (`RELEASE - Document v0.4 foundation`). The executor MUST resolve and record the actual starting `master` SHA before branching; do not assume this SHA is still current.
 
 ## Global Constraints
@@ -965,7 +967,7 @@ Then review:
 
 **Commit:** `SAVE-ARCH-7 - Seal Cross-Platform Persistence Foundation`
 
-**Disposition when accepted:** `SAVE-ARCH SEALED`
+**Historical disposition:** Gate 7 closed the original implementation series. Its `SAVE-ARCH SEALED` label is superseded by the post-series audit; current closure requires SAVE-ARCH-R1 acceptance.
 
 ---
 
@@ -1018,6 +1020,8 @@ SAVE-ARCH-6 - Add Offline Cloud Sync and Conflict Safety
 SAVE-ARCH-7 - Seal Cross-Platform Persistence Foundation
 ```
 
+The original eight commits are historical implementation stages and are not to be rewritten. The single post-series correction is `SAVE-ARCH-R1 - Harden Sync Recovery, Replay Semantics, Identity Concurrency, and Runtime Portability`, planned in [save-r1-plan.md](save-r1-plan.md).
+
 Corrective `A` commits are allowed when review finds a real defect:
 
 ```text
@@ -1060,4 +1064,6 @@ Entitlements are account/service data, not save data.
 Current v0.4 campaign/save behavior still passes.
 
 The current game runs through SaveCoordinator, not SaveRepository.
+
+The persistence foundation is not currently sealed until SAVE-ARCH-R1 also proves local-save durability across sync failures, restart-safe conflict reconciliation, server idempotent-replay ancestry semantics, serialized identity-recovery decisions, and a fresh run of the actual pinned MicroPython qualification matrix.
 ```

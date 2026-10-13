@@ -14,7 +14,7 @@ from app.persistence.bootstrap import (
 from app.persistence.coordinator import SaveCoordinator
 from app.persistence.envelope import SyncState
 from app.persistence.local_store import LocalProfileStore
-from app.persistence.ports import SaveLoadStatus
+from app.persistence.ports import ProfileStoreError, SaveLoadStatus
 from app.persistence.save_document import build_save_document
 from app.player.player_state import PlayerState
 
@@ -119,6 +119,25 @@ def test_invalid_profile_is_reported_and_not_overwritten(tmp_path):
     assert save.status is SaveLoadStatus.INVALID
     assert load.status is SaveLoadStatus.INVALID
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("failure", (OSError("read failed"), ProfileStoreError("read failed")))
+def test_store_errors_during_inspect_load_and_save_return_invalid(tmp_path, failure):
+    class FailingStore:
+        def inspect(self, profile_id):
+            raise failure
+
+        def load(self, profile_id):
+            raise failure
+
+        def save(self, envelope):
+            raise failure
+
+    coordinator = SaveCoordinator(FailingStore(), PROFILE_ID)
+
+    assert coordinator.inspect().status is SaveLoadStatus.INVALID
+    assert coordinator.load().status is SaveLoadStatus.INVALID
+    assert coordinator.save(_game_state()).status is SaveLoadStatus.INVALID
 
 
 @pytest.mark.parametrize(

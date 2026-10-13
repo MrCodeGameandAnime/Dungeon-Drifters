@@ -53,7 +53,13 @@ class SaveCoordinator:
         return self._profile_id
 
     def inspect(self):
-        result = self._store.inspect(self._profile_id)
+        try:
+            result = self._store.inspect(self._profile_id)
+        except (OSError, ProfileStoreError):
+            return SaveLoadResult(
+                status=SaveLoadStatus.INVALID,
+                error="The save file could not be inspected.",
+            )
         if result.status is ProfileStoreStatus.VALID:
             return SaveLoadResult(status=SaveLoadStatus.VALID)
         if result.status is ProfileStoreStatus.INVALID:
@@ -75,14 +81,13 @@ class SaveCoordinator:
                 status=SaveLoadStatus.INVALID,
                 error="The game could not be saved.",
             )
-        current = self._store.load(self._profile_id)
-        if current.status is ProfileStoreStatus.INVALID:
-            return SaveLoadResult(
-                status=SaveLoadStatus.INVALID,
-                error="The local profile is invalid and was not replaced.",
-            )
-
         try:
+            current = self._store.load(self._profile_id)
+            if current.status is ProfileStoreStatus.INVALID:
+                return SaveLoadResult(
+                    status=SaveLoadStatus.INVALID,
+                    error="The local profile is invalid and was not replaced.",
+                )
             payload = build_save_document(game_state)
             previous = current.envelope
             account_id = None if previous is None else previous.account_id
@@ -127,7 +132,13 @@ class SaveCoordinator:
         return SaveLoadResult(status=SaveLoadStatus.SAVED)
 
     def load(self):
-        result = self._store.load(self._profile_id)
+        try:
+            result = self._store.load(self._profile_id)
+        except (OSError, ProfileStoreError):
+            return SaveLoadResult(
+                status=SaveLoadStatus.INVALID,
+                error="The save file could not be loaded.",
+            )
         if result.status is ProfileStoreStatus.MISSING:
             if self._migration_failed:
                 return SaveLoadResult(
