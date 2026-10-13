@@ -1,3 +1,6 @@
+import importlib.util
+import json
+import runpy
 from pathlib import Path
 
 
@@ -59,7 +62,7 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
         "ChooseAction",
         "ChooseMove",
         "ChooseTarget",
-        "save_repository=None",
+        "save_port=None",
         "InteractionPhase.COMPLETE",
         "dungeon_entrance_reached",
     ):
@@ -68,6 +71,39 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
     assert "SaveRepository" not in boot
     assert "import pytest" not in boot
     assert "tempfile" not in boot
+
+
+def test_pyd2_qualification_executes_the_full_route_without_persistence():
+    namespace = runpy.run_path(str(BOOT_PATH))
+
+    result = json.loads(namespace["boot"]())
+
+    assert {
+        key: result[key]
+        for key in (
+            "route_nodes",
+            "encounters",
+            "rests",
+            "battles",
+            "enemies",
+            "final_node",
+            "level",
+            "exp",
+            "growth_points",
+            "gold",
+        )
+    } == {
+        "route_nodes": 12,
+        "encounters": 8,
+        "rests": 3,
+        "battles": 8,
+        "enemies": 14,
+        "final_node": "surface_dungeon_entrance",
+        "level": 9,
+        "exp": 68,
+        "growth_points": 24,
+        "gold": 75,
+    }
 
 
 def test_pyd2_does_not_copy_application_code_or_create_browser_state():

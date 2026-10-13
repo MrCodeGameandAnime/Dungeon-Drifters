@@ -114,7 +114,7 @@ class BrowserRuntime:
             battle_factory=Battle,
             enemy_factory=create_enemy_state,
             battle_ui_factory=None,
-            save_repository=None,
+            save_port=None,
         )
         self._drifter_id = drifter_id
         return self.current_view()

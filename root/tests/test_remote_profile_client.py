@@ -178,3 +178,34 @@ def test_remote_revision_metadata_must_match_the_wire_contract(field, value):
 
     with pytest.raises(RemoteProtocolError):
         client.get_profile(PROFILE_ID)
+
+
+def test_profile_list_is_parsed_from_the_authoritative_account_scoped_endpoint():
+    transport = RecordingTransport(
+        FakeResponse(
+            200,
+            {
+                "profiles": [
+                    {
+                        "profile_id": str(PROFILE_ID),
+                        "current_revision": 4,
+                        "created_at": "2026-10-13T12:00:00.000000Z",
+                        "updated_at": "2026-10-13T12:05:00.000000Z",
+                    }
+                ]
+            },
+        )
+    )
+    client = JsonApiRemoteProfileClient(
+        transport,
+        access_token="opaque-access-token",
+        device_id=DEVICE_ID,
+    )
+
+    profiles = client.list_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].profile_id == PROFILE_ID
+    assert profiles[0].current_revision == 4
+    assert profiles[0].created_at.isoformat() == "2026-10-13T12:00:00+00:00"
+    assert transport.calls[0][0:2] == ("GET", "/v1/profiles")

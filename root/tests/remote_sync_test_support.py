@@ -1,6 +1,7 @@
 """Deterministic remote profile API double for client sync acceptance tests."""
 
 from uuid import UUID
+from datetime import datetime, timezone
 
 from app.content.catalog import get_drifter_spec_by_choice
 from app.game.game_state import GameState
@@ -10,6 +11,7 @@ from app.persistence.remote_client import (
     RemoteProfileCreationConflict,
     RemoteProfileHead,
     RemoteProfileNotFound,
+    RemoteProfileSummary,
     RemoteRequestRejected,
     RemoteUnavailable,
 )
@@ -132,6 +134,19 @@ class MemoryRemoteProfileServer:
     def revision_count(self, profile_id):
         return len(self.profiles[profile_id]["revisions"])
 
+    def list_profiles(self, account_id):
+        created_at = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+        return tuple(
+            RemoteProfileSummary(
+                profile_id=profile_id,
+                current_revision=record["head"].current_revision,
+                created_at=created_at,
+                updated_at=created_at,
+            )
+            for profile_id, record in sorted(self.profiles.items(), key=lambda item: str(item[0]))
+            if record["account_id"] == account_id
+        )
+
     def _head(self, profile_id, record, *, created=None, accepted=None):
         head = record["head"]
         return RemoteProfileHead(
@@ -181,6 +196,9 @@ class BoundMemoryRemoteClient:
         self.account_id = account_id
         self.device_id = device_id
         self.advance_before_next_push = None
+
+    def list_profiles(self):
+        return self.server.list_profiles(self.account_id)
 
     def get_profile(self, profile_id):
         return self.server.get_profile(self.account_id, profile_id)

@@ -45,6 +45,28 @@ class RemoteProtocolError(ValueError):
 
 
 @dataclass(frozen=True)
+class RemoteProfileSummary:
+    profile_id: UUID
+    current_revision: int
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_response(cls, document):
+        expected = {"profile_id", "current_revision", "created_at", "updated_at"}
+        if not isinstance(document, dict) or set(document) != expected:
+            raise RemoteProtocolError("remote profile summary has an invalid shape")
+        return cls(
+            profile_id=_parse_uuid(document["profile_id"], "profile_id"),
+            current_revision=_positive_int(
+                document["current_revision"], "current_revision"
+            ),
+            created_at=_parse_timestamp(document["created_at"], "created_at"),
+            updated_at=_parse_timestamp(document["updated_at"], "updated_at"),
+        )
+
+
+@dataclass(frozen=True)
 class RemoteProfileHead:
     profile_id: UUID
     account_id: UUID
@@ -164,6 +186,8 @@ class RemoteConflict:
 
 
 class RemoteProfileClient(Protocol):
+    def list_profiles(self) -> tuple[RemoteProfileSummary, ...]: ...
+
     def get_profile(self, profile_id: UUID) -> RemoteProfileHead: ...
 
     def create_profile(
@@ -199,6 +223,17 @@ class JsonApiRemoteProfileClient:
         if status != 200:
             raise RemoteRequestRejected("unexpected_status")
         return self._parse_head(document, profile_id)
+
+    def list_profiles(self):
+        status, document = self._request("GET", "/v1/profiles")
+        if status != 200:
+            raise RemoteRequestRejected("unexpected_status")
+        if not isinstance(document, dict) or set(document) != {"profiles"}:
+            raise RemoteProtocolError("remote profile list has an invalid shape")
+        profiles = document["profiles"]
+        if not isinstance(profiles, list):
+            raise RemoteProtocolError("remote profile list has an invalid shape")
+        return tuple(RemoteProfileSummary.from_response(item) for item in profiles)
 
     def create_profile(self, profile_id, client_save_id, payload):
         _require_uuid(profile_id, "profile_id")
@@ -349,6 +384,7 @@ __all__ = [
     "RemoteProfileHead",
     "RemoteProfileNotFound",
     "RemoteProtocolError",
+    "RemoteProfileSummary",
     "RemoteRequestRejected",
     "RemoteUnavailable",
 ]

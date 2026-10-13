@@ -100,6 +100,34 @@ Key foundations include:
 - Versioned persistent game state with save/load support.
 - Development tooling for content scaffolding, validation, and balance testing.
 
+### Save and Cloud Data
+
+The schema-8 `GameState` payload contains progression only. A separate local
+profile envelope stores the stable profile ID, optional DD account association,
+local sequence, accepted remote revision, sync state, and payload digest. The
+local profile store is authoritative for immediate play: saves are committed
+locally first, and a player can continue playing, saving, quitting, and loading
+without an account or network connection.
+
+Optional cloud sync uses the DD-owned HTTPS/JSON profile API backed by
+PostgreSQL. The game depends on profile and transport interfaces, not on
+FastAPI, a vendor SDK, or a particular HTTP library. Host adapters supply
+transport and credential storage; credentials never enter a game-state payload
+or profile envelope. Cloud revisions are immutable and idempotent. A stale
+revision preserves the local branch and remote head as separate conflict
+evidence; resolving it is explicit, with recovery data retained before the
+active profile changes. Sync ordering never depends on timestamps or silently
+merges progression.
+
+Accounts, linked platform identities, sessions, and entitlements remain service
+data outside progression. Entitlements are account-scoped and service-owned;
+source, expiry, and revocation can be represented without granting authority to
+the client save. Ordinary earned gold remains in `GameState`. Any future
+platform-restricted currency must use separate account/service data rather than
+the schema-8 gold field. Firebase has not been selected; provider integrations
+must sit behind the DD contracts and be qualified independently on each
+platform.
+
 See the project documentation and change log for detailed implementation history
 and architecture.
 

@@ -25,7 +25,7 @@ def test_bridge_starts_the_canonical_headless_runtime():
     assert view["screen"] == OverworldScreen.MAIN.value
     assert view["contextual_route_option"]["action"] == "enter_encounter"
     assert runtime._session.game_state is runtime._game
-    assert runtime._session._save_repository is None
+    assert runtime._session._save_port is None
 
 
 def test_bridge_exposes_authored_roster_and_starts_each_drifter():

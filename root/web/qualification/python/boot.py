@@ -175,7 +175,7 @@ def _qualify_route():
         battle_factory=battle_factory,
         enemy_factory=enemy_factory,
         battle_ui_factory=None,
-        save_repository=None,
+        save_port=None,
     )
 
     route_trace = []
@@ -280,7 +280,7 @@ def _qualify_route():
         raise AssertionError("unexpected final gold")
     if session.active_battle is not None:
         raise AssertionError("active Battle remained at Dungeon Entrance")
-    if session._save_repository is not None:
+    if session._save_port is not None:
         raise AssertionError("route materialized persistence")
 
     return {

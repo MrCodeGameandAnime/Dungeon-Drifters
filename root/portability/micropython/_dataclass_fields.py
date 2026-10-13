@@ -41,6 +41,7 @@ FIELD_MANIFEST = {
     ('app.persistence.ports', 'SaveLoadResult'): ('status', 'game_state', 'error', 'migrated_from_schema_7'),
     ('app.persistence.remote_client', 'RemoteConflict'): ('profile_id', 'base_revision', 'current_revision', 'client_save_id', 'payload_sha256'),
     ('app.persistence.remote_client', 'RemoteProfileHead'): ('profile_id', 'account_id', 'current_revision', 'client_save_id', 'payload_sha256', 'payload', 'base_revision', 'created_revision', 'accepted_revision'),
+    ('app.persistence.remote_client', 'RemoteProfileSummary'): ('profile_id', 'current_revision', 'created_at', 'updated_at'),
     ('app.persistence.sync', 'SyncResult'): ('sync_state', 'remote_available', 'error', 'profile_id'),
     ('app.player.character_run_state', 'CharacterRunCheckpoint'): ('inventory', 'prepared_payloads'),
     ('app.player.inventory_action', 'InventoryActionResult'): ('action_id', 'accepted', 'reason', 'outcomes'),
