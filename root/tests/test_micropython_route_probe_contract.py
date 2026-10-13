@@ -136,7 +136,8 @@ def test_probe_excludes_host_persistence_and_test_dependencies():
     assert imported_from.isdisjoint(
         {"pytest", "tempfile", "pathlib", "shutil"}
     )
-    assert "SaveRepository" not in source
+    assert "SaveCoordinator" not in source
+    assert "build_default_save_port" not in source
     assert "os.walk" not in source
     assert "os.listdir" not in source
     assert "os.scandir" not in source

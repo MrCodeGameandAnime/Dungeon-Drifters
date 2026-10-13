@@ -4,7 +4,7 @@ from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
@@ -83,7 +83,7 @@ def test_terminal_session_driver_uses_semantic_battle_steps_once(tmp_path):
             width_provider=lambda: 80,
             interactive=False,
         ),
-        save_repository=SaveRepository(tmp_path / "save.json"),
+        save_port=make_test_save_port(tmp_path / "save.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT

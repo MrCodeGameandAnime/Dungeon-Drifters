@@ -6,7 +6,7 @@ from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     FIRE_INFUSION_REQUIREMENTS,
@@ -115,7 +115,7 @@ class BattleUIFactory:
         return instance
 
 
-def run_session(game, inputs, winners=(), mutations=(), save_repository=None):
+def run_session(game, inputs, winners=(), mutations=(), save_port=None):
     ui = ScriptedUI(inputs)
     battles = BattleHarness(winners, mutations)
     enemies = EnemyFactory()
@@ -126,7 +126,7 @@ def run_session(game, inputs, winners=(), mutations=(), save_repository=None):
         battle_factory=battles.factory,
         enemy_factory=enemies,
         battle_ui_factory=battle_uis,
-        save_repository=save_repository,
+        save_port=save_port,
     )
     result = session.run()
     return result, ui, battles, enemies, battle_uis
@@ -615,7 +615,7 @@ def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node(tmp_path):
             ChooseOverworldAction(OverworldAction.SKIP_REST),
             *quit_inputs(),
         ],
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert result is OverworldSessionResult.QUIT

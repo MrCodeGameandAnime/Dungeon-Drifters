@@ -9,7 +9,7 @@ from app.game.overworld_session import (
     OverworldSessionResult,
 )
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -153,7 +153,7 @@ def make_session(tmp_path, *, resolvers):
         battle_factory=battle_factory,
         enemy_factory=enemy_factory,
         battle_ui_factory=None,
-        save_repository=SaveRepository(tmp_path / "save.json"),
+        save_port=make_test_save_port(tmp_path / "save.json"),
     )
     return session, battle_factory, enemy_factory
 

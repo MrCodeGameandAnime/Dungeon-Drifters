@@ -347,7 +347,7 @@ def _construct_route_qualification():
         enemy_factory=enemy_factory,
         ui=None,
         battle_ui_factory=None,
-        save_repository=None,
+        save_port=None,
     )
     STATE["route_game"] = game
     STATE["route_session"] = session
@@ -571,7 +571,7 @@ def _assert_route_final_state():
         raise AssertionError("final route view did not return MAIN")
     if final_view.contextual_route_option is not None:
         raise AssertionError("final route view offered another action")
-    if session._save_repository is not None:
+    if session._save_port is not None:
         raise AssertionError("route qualification materialized persistence")
 
 
@@ -605,7 +605,7 @@ def _assert_route_live_state():
         raise AssertionError("live route view changed during evidence cleanup")
     if view.contextual_route_option is not None:
         raise AssertionError("live route offered another action after cleanup")
-    if session._save_repository is not None:
+    if session._save_port is not None:
         raise AssertionError("evidence cleanup materialized persistence")
 
 

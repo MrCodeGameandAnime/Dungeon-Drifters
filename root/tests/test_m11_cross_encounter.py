@@ -8,7 +8,7 @@ from app.enemies.state import EnemyState
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.player.inventory_action import InventoryActionResolver
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
@@ -380,7 +380,7 @@ def test_real_session_discards_completed_battle_and_next_battle_is_fresh(tmp_pat
         battle_factory=battles,
         enemy_factory=create_enemy_state,
         battle_ui_factory=battle_uis,
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT
@@ -470,7 +470,7 @@ def test_real_solo_defeat_boundary_restores_before_retry_and_rewards_once(tmp_pa
         battle_factory=battle_factory,
         enemy_factory=create_enemy_state,
         battle_ui_factory=battle_ui_factory,
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT
@@ -579,7 +579,7 @@ def test_pair_defeat_retry_restores_player_and_pays_reward_once(tmp_path):
         battle_factory=battles,
         enemy_factory=create_enemy_state,
         battle_ui_factory=NoInputBattleUI,
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT
@@ -632,7 +632,7 @@ def test_goblin_lord_defeat_retry_reaches_dungeon_and_pays_once(tmp_path):
         battle_factory=battles,
         enemy_factory=create_enemy_state,
         battle_ui_factory=NoInputBattleUI,
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT

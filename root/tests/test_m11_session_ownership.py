@@ -7,7 +7,7 @@ import pytest
 from app.content.catalog import DRIFTER_SPECS, create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -112,7 +112,7 @@ def test_selected_drifter_owner_graph_survives_battle_and_return(
         battle_factory=IdentityBattle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=lambda: object(),
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT

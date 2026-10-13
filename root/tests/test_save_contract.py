@@ -1,18 +1,11 @@
-import pytest
 from types import SimpleNamespace
 
-from app.game.save_contract import (
-    SaveLoadStatus as ContractStatus,
-    SaveRepositoryError as ContractError,
-    is_save_repository,
-)
-from app.game.save_repository import (
-    SaveLoadStatus as RepositoryStatus,
-    SaveRepositoryError as RepositoryError,
-)
+import pytest
+
+from app.persistence.ports import SaveLoadStatus, SavePortError, is_save_port
 
 
-class CompleteRepository:
+class CompleteSavePort:
     def save(self, game_state):
         return game_state
 
@@ -23,34 +16,38 @@ class CompleteRepository:
         return None
 
 
-def test_none_is_not_a_save_repository():
-    assert is_save_repository(None) is False
+def test_none_is_not_a_save_port():
+    assert is_save_port(None) is False
 
 
-def test_repository_with_callable_persistence_methods_is_accepted():
-    assert is_save_repository(CompleteRepository()) is True
+def test_object_with_callable_save_port_methods_is_accepted():
+    assert is_save_port(CompleteSavePort()) is True
 
 
 @pytest.mark.parametrize(
-    "repository",
+    "save_port",
     [
         SimpleNamespace(inspect=lambda: None, load=lambda: None),
         SimpleNamespace(save=lambda game_state: game_state, load=lambda: None),
         SimpleNamespace(save=lambda game_state: game_state, inspect=lambda: None),
     ],
 )
-def test_repository_missing_required_method_is_rejected(repository):
-    assert is_save_repository(repository) is False
+def test_save_port_missing_required_method_is_rejected(save_port):
+    assert is_save_port(save_port) is False
 
 
 @pytest.mark.parametrize("attribute", ["save", "inspect", "load"])
-def test_repository_with_non_callable_method_is_rejected(attribute):
-    repository = CompleteRepository()
-    setattr(repository, attribute, None)
+def test_save_port_with_non_callable_method_is_rejected(attribute):
+    save_port = CompleteSavePort()
+    setattr(save_port, attribute, None)
 
-    assert is_save_repository(repository) is False
+    assert is_save_port(save_port) is False
 
 
-def test_repository_re_exports_contract_types():
-    assert RepositoryStatus is ContractStatus
-    assert RepositoryError is ContractError
+def test_save_status_distinguishes_success_from_inspection():
+    assert SaveLoadStatus.SAVED.value == "saved"
+    assert SaveLoadStatus.VALID.value == "valid"
+
+
+def test_save_port_error_is_a_runtime_error():
+    assert issubclass(SavePortError, RuntimeError)

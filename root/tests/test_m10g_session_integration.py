@@ -7,7 +7,8 @@ from app.game.game_state import GameState
 from app.game.main_loop import _startup_game_state
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import SaveLoadStatus, SaveRepository
+from app.persistence.ports import SaveLoadStatus
+from tests.persistence_test_support import make_test_save_port, profile_path_for
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
@@ -40,7 +41,7 @@ def _session(game, ui, repository):
         battle_factory=no_battle,
         enemy_factory=no_battle,
         battle_ui_factory=no_battle,
-        save_repository=repository,
+        save_port=repository,
     )
 
 
@@ -64,7 +65,7 @@ def _saved_game():
 def test_save_from_options_writes_valid_file_and_does_not_change_session(tmp_path):
     game = _saved_game()
     before = game.snapshot()
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     ui = ScriptedUI(
         [
             ChooseOverworldAction(OverworldAction.OPTIONS),
@@ -83,7 +84,7 @@ def test_save_from_options_writes_valid_file_and_does_not_change_session(tmp_pat
 
 def test_confirmed_load_replaces_session_and_returns_to_main(tmp_path):
     saved = _saved_game()
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     repository.save(saved)
     current = GameState(PlayerState(create_drifter("branoc")))
     ui = ScriptedUI(
@@ -114,7 +115,7 @@ def test_confirmed_load_replaces_session_and_returns_to_main(tmp_path):
 
 def test_invalid_load_does_not_mutate_current_session(tmp_path):
     game = GameState(PlayerState(create_drifter("branoc")))
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     repository.save(_saved_game())
     before = game.snapshot()
     corrupted = False
@@ -122,7 +123,10 @@ def test_invalid_load_does_not_mutate_current_session(tmp_path):
     def corrupt_after_options(view, _ui):
         nonlocal corrupted
         if view.screen is OverworldScreen.OPTIONS and not corrupted:
-            repository.path.write_text("not json", encoding="utf-8")
+            profile_path_for(tmp_path / "dungeon_drifters.json").write_text(
+                "not json",
+                encoding="utf-8",
+            )
             corrupted = True
 
     ui = ScriptedUI(
@@ -145,7 +149,7 @@ def test_invalid_load_does_not_mutate_current_session(tmp_path):
 
 
 def test_valid_startup_save_loads_without_character_selection(tmp_path, monkeypatch):
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     saved = _saved_game()
     repository.save(saved)
     answers = iter(["l"])
@@ -159,7 +163,7 @@ def test_valid_startup_save_loads_without_character_selection(tmp_path, monkeypa
 
 def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
     saved = _saved_game()
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     repository.save(saved)
     current = GameState(PlayerState(create_drifter("branoc")))
 
@@ -205,7 +209,7 @@ def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
         battle_factory=ContinuingBattle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=lambda: object(),
-        save_repository=repository,
+        save_port=repository,
     )
 
     assert session.run() is OverworldSessionResult.QUIT
@@ -219,7 +223,7 @@ def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
 
 
 def test_main_load_startup_bypasses_new_game_flow(tmp_path, monkeypatch):
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     saved = _saved_game()
     repository.save(saved)
     answers = iter(["l"])
@@ -245,7 +249,7 @@ def test_main_load_startup_bypasses_new_game_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(main_loop, "Events", UnexpectedEvents)
     monkeypatch.setattr(main_loop, "OverworldSession", CapturingSession)
 
-    main_loop.main(save_repository=repository)
+    main_loop.main(save_port=repository)
 
     assert len(captured) == 1
     assert captured[0] is not saved
@@ -255,7 +259,7 @@ def test_main_load_startup_bypasses_new_game_flow(tmp_path, monkeypatch):
 def test_real_terminal_traverses_options_load_confirmation_without_crashing(
     tmp_path,
 ):
-    repository = SaveRepository(tmp_path / "dungeon_drifters.json")
+    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     repository.save(_saved_game())
     output = []
     inputs = iter(["o", "l", "n", "q", "y"])

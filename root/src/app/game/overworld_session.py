@@ -12,10 +12,10 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_contract import (
+from app.persistence.ports import (
     SaveLoadStatus,
-    SaveRepositoryError,
-    is_save_repository,
+    SavePortError,
+    is_save_port,
 )
 from app.iteration import first_or_none
 from app.presentation.overworld_models import (
@@ -80,7 +80,7 @@ class OverworldSession:
         ui=None,
         battle_ui_factory=None,
         presenter=None,
-        save_repository=None,
+        save_port=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -98,8 +98,8 @@ class OverworldSession:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
             raise TypeError("presenter must be an OverworldPresenter")
-        if save_repository is not None and not is_save_repository(save_repository):
-            raise TypeError("save_repository must be a SaveRepository")
+        if save_port is not None and not is_save_port(save_port):
+            raise TypeError("save_port must satisfy SavePort")
 
         self._game_state = game_state
         self._ui = ui
@@ -107,7 +107,7 @@ class OverworldSession:
         self._enemy_factory = enemy_factory
         self._battle_ui_factory = battle_ui_factory
         self._presenter = presenter
-        self._save_repository = save_repository
+        self._save_port = save_port
         self._screen = OverworldScreen.MAIN
         self._selected_item_key = None
         self._adventure_text = None
@@ -283,16 +283,16 @@ class OverworldSession:
     def _load_available(self):
         return (
             self._screen is OverworldScreen.OPTIONS
-            and self._save_repository_instance().inspect().status
+            and self._save_port_instance().inspect().status
             is SaveLoadStatus.VALID
         )
 
-    def _save_repository_instance(self):
-        if self._save_repository is None:
-            from app.game.save_repository import SaveRepository
+    def _save_port_instance(self):
+        if self._save_port is None:
+            from app.persistence.bootstrap import build_default_save_port
 
-            self._save_repository = SaveRepository()
-        return self._save_repository
+            self._save_port = build_default_save_port()
+        return self._save_port
 
     def _select_item(self, view, overworld_input):
         if view.screen is not OverworldScreen.ITEMS or view.inventory is None:
@@ -434,14 +434,17 @@ class OverworldSession:
 
     def _save_current_session(self):
         try:
-            self._save_repository_instance().save(self.game_state)
-        except (SaveRepositoryError, TypeError, ValueError):
+            result = self._save_port_instance().save(self.game_state)
+        except (SavePortError, TypeError, ValueError):
             self._notice = "The game could not be saved."
         else:
-            self._notice = "Game saved."
+            if result.status is not SaveLoadStatus.SAVED:
+                self._notice = result.error or "The game could not be saved."
+            else:
+                self._notice = "Game saved."
 
     def _load_saved_session(self):
-        result = self._save_repository_instance().load()
+        result = self._save_port_instance().load()
         if result.status is not SaveLoadStatus.LOADED:
             self._notice = result.error or "The saved game could not be loaded."
             self._screen = OverworldScreen.OPTIONS

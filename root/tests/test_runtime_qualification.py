@@ -3,7 +3,7 @@ from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_state
 from app.game.overworld_session import OverworldSession
 from app.game.new_game import create_new_game
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
@@ -134,7 +134,7 @@ def test_headless_semantic_runtime_completes_the_surface_route_without_persisten
         battle_factory=battle_factory,
         enemy_factory=enemy_factory,
         battle_ui_factory=None,
-        save_repository=SaveRepository(save_path),
+        save_port=make_test_save_port(save_path),
     )
 
     view = session.current_view()

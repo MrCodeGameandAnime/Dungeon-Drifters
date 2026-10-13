@@ -10,7 +10,7 @@ from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from app.game.save_repository import SaveRepository
+from tests.persistence_test_support import make_test_save_port
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import (
@@ -237,7 +237,7 @@ def test_four_drifters_complete_the_full_surface_route(
         battle_factory=battle_factory,
         enemy_factory=create_enemy_state,
         battle_ui_factory=battle_ui_factory,
-        save_repository=SaveRepository(tmp_path / "dungeon_drifters.json"),
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
     )
 
     assert session.run() is OverworldSessionResult.QUIT

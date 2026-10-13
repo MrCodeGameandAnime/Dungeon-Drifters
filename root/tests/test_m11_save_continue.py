@@ -16,7 +16,8 @@ from app.game.main_loop import _startup_game_state
 from app.content.route_spec import RouteNodeKind
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_repository import SaveLoadStatus, SaveRepository
+from app.persistence.ports import SaveLoadStatus
+from tests.persistence_test_support import make_test_save_port, profile_path_for
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -140,7 +141,7 @@ def _state_at_node(profile_choice, target_node_id, *, begin_route=True):
 def test_all_drifters_round_trip_complete_persistent_session(profile, tmp_path):
     game = _state_at_node(profile.choice, "surface_warrior_pair")
     before = game.snapshot()
-    repository = SaveRepository(tmp_path / f"{profile.choice}.json")
+    repository = make_test_save_port(tmp_path / f"{profile.choice}.json")
 
     repository.save(game)
     result = repository.load()
@@ -242,7 +243,7 @@ def test_save_load_preserves_every_approved_route_boundary(target_node_id, tmp_p
         target_node_id,
         begin_route=target_node_id != "surface_goblin_solo",
     )
-    repository = SaveRepository(tmp_path / "boundary.json")
+    repository = make_test_save_port(tmp_path / "boundary.json")
 
     repository.save(game)
     loaded = repository.load()
@@ -260,7 +261,7 @@ def test_save_load_preserves_every_approved_route_boundary(target_node_id, tmp_p
 
 def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path):
     saved = _state_at_node("1", "surface_goblin_pair")
-    repository = SaveRepository(tmp_path / "continue.json")
+    repository = make_test_save_port(tmp_path / "continue.json")
     repository.save(saved)
     current = GameState(PlayerState(create_drifter("branoc")))
     captured = {}
@@ -309,7 +310,7 @@ def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path)
         battle_factory=ContinuingBattle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=lambda: object(),
-        save_repository=repository,
+        save_port=repository,
     )
 
     assert session.run() is OverworldSessionResult.QUIT
@@ -330,7 +331,7 @@ def test_loaded_session_continues_and_resaves_without_duplicate_reward(tmp_path)
 
 
 def test_split_campaign_saves_quits_restarts_loads_and_finishes_route(tmp_path, monkeypatch):
-    repository = SaveRepository(tmp_path / "split-campaign.json")
+    repository = make_test_save_port(tmp_path / "split-campaign.json")
     first_session_game = GameState(
         PlayerState(get_profile_by_choice("1").create_character())
     )
@@ -352,11 +353,11 @@ def test_split_campaign_saves_quits_restarts_loads_and_finishes_route(tmp_path, 
         battle_factory=DeterministicBattle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=lambda: object(),
-        save_repository=repository,
+        save_port=repository,
     )
 
     assert first_session.run() is OverworldSessionResult.QUIT
-    assert repository.path.exists()
+    assert profile_path_for(tmp_path / "split-campaign.json").exists()
     saved_result = repository.load()
     assert saved_result.status is SaveLoadStatus.LOADED, saved_result.error
     saved_mid_route = saved_result.game_state
@@ -399,7 +400,7 @@ def test_split_campaign_saves_quits_restarts_loads_and_finishes_route(tmp_path, 
         battle_factory=DeterministicBattle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=lambda: object(),
-        save_repository=repository,
+        save_port=repository,
     )
 
     assert second_session.run() is OverworldSessionResult.QUIT
@@ -438,7 +439,7 @@ def test_startup_load_reconstructs_each_drifter_without_character_selection(
     monkeypatch,
 ):
     game = _state_at_node(profile.choice, "surface_goblin_pair")
-    repository = SaveRepository(tmp_path / "startup.json")
+    repository = make_test_save_port(tmp_path / "startup.json")
     repository.save(game)
     answers = iter(["l"])
     monkeypatch.setattr(builtins, "input", lambda _prompt: next(answers))
