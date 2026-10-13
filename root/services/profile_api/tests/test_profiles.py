@@ -1,8 +1,11 @@
 from copy import deepcopy
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import func, select
 
+from app.persistence.envelope import SyncState, build_profile_envelope
+from app.persistence.local_store import LocalProfileStore
 from profile_api.models import ProfileRevision
 
 from conftest import authorization, create_account, make_payload
@@ -63,6 +66,46 @@ def test_profile_claim_listing_and_head_read_are_account_scoped(service, valid_p
     assert read.json()["head"]["payload"] == valid_payload
     assert hidden.status_code == 404
     assert hidden.json()["error"]["code"] == "not_found"
+
+
+def test_guest_claim_keeps_the_same_local_profile_identity_and_payload(
+    service, tmp_path, valid_payload
+):
+    client, _ = service
+    local_profile_id = uuid4()
+    local_save_id = uuid4()
+    local_store = LocalProfileStore(tmp_path / "guest-data")
+    guest_envelope = build_profile_envelope(
+        valid_payload,
+        profile_id=local_profile_id,
+        client_save_id=local_save_id,
+        local_sequence=1,
+        saved_at=datetime(2026, 10, 13, tzinfo=timezone.utc),
+    )
+    local_store.save(guest_envelope)
+    account = create_account(client)
+
+    claimed = client.post(
+        "/v1/profiles",
+        headers=authorization(account["access_token"]),
+        json={
+            "profile_id": str(local_profile_id),
+            "client_save_id": str(local_save_id),
+            "device_id": "00000000-0000-4000-8000-000000000003",
+            "payload": valid_payload,
+        },
+    )
+
+    after_claim = local_store.load(local_profile_id).envelope
+    assert claimed.status_code == 201
+    assert claimed.json()["profile_id"] == str(local_profile_id)
+    assert claimed.json()["head"]["client_save_id"] == str(local_save_id)
+    assert claimed.json()["current_revision"] == 1
+    assert after_claim.profile_id == guest_envelope.profile_id
+    assert after_claim.account_id is None
+    assert after_claim.remote_revision is None
+    assert after_claim.sync_state is SyncState.LOCAL_ONLY
+    assert after_claim.payload == guest_envelope.payload
 
 
 def test_profile_claim_retry_is_idempotent_even_after_head_advances(

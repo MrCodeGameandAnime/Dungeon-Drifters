@@ -32,6 +32,7 @@ FIELD_MANIFEST = {
     ('app.content.route_spec', 'RouteNodeSpec'): ('node_id', 'display_label', 'kind', 'encounter_id'),
     ('app.content.route_spec', 'RouteSpec'): ('route_id', 'nodes'),
     ('app.content.weapon_spec', 'WeaponSpec'): ('item_id', 'persistence_key', 'name', 'weapon_type', 'intended_wielder', 'stat_bonuses', 'value', 'description'),
+    ('app.persistence.account', 'AccountCredentials'): ('account_id', 'access_token', 'access_expires_at', 'refresh_token', 'refresh_expires_at'),
     ('app.persistence.envelope', 'ConflictSnapshot'): ('profile_id', 'local_client_save_id', 'local_payload', 'local_payload_sha256', 'base_remote_revision', 'remote_current_revision', 'remote_payload', 'remote_payload_sha256', 'detected_at'),
     ('app.persistence.envelope', 'ProfileEnvelope'): ('envelope_version', 'profile_id', 'account_id', 'remote_revision', 'local_sequence', 'sync_state', 'client_save_id', 'saved_at', 'payload_sha256', 'payload'),
     ('app.persistence.migration', 'LegacyMigrationResult'): ('status', 'profile_id', 'migrated_from_schema_7', 'error'),

@@ -18,6 +18,7 @@ PROTOCOL_MODULES = {
     "app.ui.battle_ui": ("BattleUI",),
     "app.ui.overworld_ui": ("OverworldUI",),
     "app.persistence.ports": ("ProfileStore", "SavePort"),
+    "app.persistence.credentials": ("CredentialStore",),
 }
 TYPE_ALIAS_NAMES = {
     "BattleInput",
