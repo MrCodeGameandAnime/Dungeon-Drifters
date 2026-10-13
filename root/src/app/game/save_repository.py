@@ -11,7 +11,7 @@ from app.game.save_contract import (
     SaveLoadStatus,
     SaveRepositoryError,
 )
-from app.game.save_state import (
+from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
     build_save_document,
     reconstruct_game_state,

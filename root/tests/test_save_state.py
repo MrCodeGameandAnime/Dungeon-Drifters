@@ -4,7 +4,7 @@ import pytest
 
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
-from app.game.save_state import (
+from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
     SaveStateValidationError,
     build_save_document,

@@ -19,7 +19,7 @@ from app.content.catalog import (
 from app.content.encounter_spec import EncounterSpec
 from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
 from app.game.game_state import GameState
-from app.game.save_state import build_save_document, reconstruct_game_state
+from app.persistence.save_document import build_save_document, reconstruct_game_state
 from app.player.player_state import PlayerState
 from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 from tools.generate_content_catalog import (
@@ -351,7 +351,7 @@ def test_required_runtime_readers_query_the_content_catalog_directly():
         "src/app/game/overworld_state.py",
         "src/app/game/overworld_session.py",
         "src/app/presentation/overworld_presenter.py",
-        "src/app/game/save_state.py",
+        "src/app/persistence/save_document.py",
     )
     for relative_path in paths:
         source = (ROOT / relative_path).read_text(encoding="utf-8")

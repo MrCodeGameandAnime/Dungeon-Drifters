@@ -200,10 +200,10 @@ def _validate_schema_round_trips(records, errors):
             get_route_successor_id,
         )
         from app.game.game_state import GameState
-        from app.game.save_state import build_save_document, reconstruct_game_state
+        from app.persistence.save_document import build_save_document, reconstruct_game_state
         from app.player.player_state import PlayerState
     except (ImportError, KeyError, TypeError, ValueError) as error:
-        _error(errors, ROOT / "src/app/game/save_state.py", f"cannot load schema-8 boundary: {error}")
+        _error(errors, ROOT / "src/app/persistence/save_document.py", f"cannot load schema-8 boundary: {error}")
         return
 
     for _, spec, path in records["enemy"]:
