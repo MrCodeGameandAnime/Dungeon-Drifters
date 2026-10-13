@@ -6,7 +6,7 @@
 
 **Tech Stack:** Python 3.14 client, existing DD domain/persistence code, stdlib JSON/UUID/hash/atomic filesystem operations, FastAPI profile service, PostgreSQL, SQLAlchemy 2.x, Alembic, pytest, httpx test client, GitHub Actions PostgreSQL service.
 
-**Spec:** `docs/save/save-spec.md` (created by SAVE-ARCH-0 from this plan before implementation).
+**Spec:** `docs/current/save/save-spec.md` (created by SAVE-ARCH-0 from this plan before implementation).
 
 **Planning baseline observed:** `master` at `474e0b412207cdee6b684a4810e698d72da7d1ba` (`RELEASE - Document v0.4 foundation`). The executor MUST resolve and record the actual starting `master` SHA before branching; do not assume this SHA is still current.
 
@@ -30,6 +30,18 @@
 - Do not build a GUI, launcher, installer, MSIX package, browser client, mobile client, or PlayStation client in SAVE-ARCH.
 - No compatibility shim may remain merely because implementation used it temporarily. Temporary adapters are allowed during a task but must be removed by the task's acceptance gate if the plan marks them obsolete.
 - Existing content validation and the complete current regression suite must remain green after every gate.
+
+## Firebase Compatibility Discussion
+
+Firebase was discussed as a possible way to provide cloud identity or storage. That discussion did not select Firebase or authorize replacing the DD account/session model, the PostgreSQL service, or the save/API contracts in this plan. Those remain the planned architecture unless SAVE-ARCH-0 records an explicit decision to change them.
+
+- Keep Firebase SDKs and provider-specific data out of `GameState`, the save document, and the shared persistence interfaces.
+- If Firebase is selected after evaluation, integrate it behind the existing DD account/profile service contracts. Map provider identity to DD's canonical account ID rather than using a provider subject as the save identity.
+- Browser, MicroPython, and console clients can use the DD HTTPS/JSON API through their host or platform adapters; they do not need Firebase client SDKs in the game core.
+- Qualify each target's storage, authentication, TLS, and credential handling on that target. The existing Windows MicroPython route qualification does not establish board storage or networking support.
+- Local-only play and save/load remain independent of accounts and network access.
+
+The evaluation may select Firebase, retain the existing providers, or recommend a different service. No Firestore data model, Firebase Auth flow, Cloud Run deployment, or changed profile payload is part of the plan until that decision is approved.
 
 ---
 
@@ -191,38 +203,24 @@ root/
 │   │   ├── remote_client.py
 │   │   └── sync.py
 │   └── ...
+├── services/
+│   └── profile_api/
+│       ├── requirements.txt
+│       ├── alembic.ini
+│       ├── migrations/
+│       ├── src/profile_api/
+│       └── tests/
 ├── tests/
 └── tools/
 
-services/
-└── profile_api/
-    ├── requirements.txt
-    ├── alembic.ini
-    ├── migrations/
-    ├── src/profile_api/
-    │   ├── __init__.py
-    │   ├── app.py
-    │   ├── config.py
-    │   ├── db.py
-    │   ├── models.py
-    │   ├── schemas.py
-    │   ├── save_contract.py
-    │   ├── auth.py
-    │   ├── accounts.py
-    │   ├── identities.py
-    │   ├── profiles.py
-    │   ├── entitlements.py
-    │   └── routes/
-    └── tests/
-
 docs/
-└── save/
+└── current/save/
     ├── save-spec.md
     ├── api-contract.md
     └── operations.md
 ```
 
-`services/profile_api/src/profile_api/save_contract.py` imports only the persistence validation boundary from `root/src`; it must not import UI/presentation/session orchestration. CI sets both source roots explicitly for service tests.
+`root/services/profile_api/src/profile_api/save_contract.py` imports only the persistence validation boundary from `root/src`; it must not import UI/presentation/session orchestration. CI sets both source roots explicitly for service tests.
 
 ---
 
@@ -231,8 +229,8 @@ docs/
 **Purpose:** Turn the architecture into an explicit project authority before implementation starts.
 
 **Files:**
-- Create: `docs/save/save-spec.md`
-- Create: `docs/save/api-contract.md`
+- Create: `docs/current/save/save-spec.md`
+- Create: `docs/current/save/api-contract.md`
 - Modify only if needed for a link: `README.md`
 
 **Required spec content:**
@@ -481,11 +479,11 @@ Create one default persistence builder used by `main_loop.py`. It composes:
 **Purpose:** Implement the actual canonical remote authority rather than leaving cloud save as a hypothetical interface.
 
 **Files:**
-- Create complete `services/profile_api/` service tree
-- Create service dependencies in `services/profile_api/requirements.txt`
+- Create complete `root/services/profile_api/` service tree
+- Create service dependencies in `root/services/profile_api/requirements.txt`
 - Create Alembic initial migration
 - Create service tests
-- Create: `docs/save/operations.md`
+- Create: `docs/current/save/operations.md`
 - Modify CI later in SAVE-ARCH-7, not mid-gate unless required for proof
 
 **Service stack:**
@@ -640,7 +638,7 @@ Transaction:
 Return `409` if base revision is stale, with current revision metadata but without mutating the profile.
 
 **Save validation boundary:**
-`profile_api/save_contract.py` imports the storage-neutral DD save validator from `root/src/app/persistence/save_document.py`. The service is allowed to depend on persistence/domain validation; it must not import terminal UI, presentation, or game-session orchestration.
+`root/services/profile_api/src/profile_api/save_contract.py` imports the storage-neutral DD save validator from `root/src/app/persistence/save_document.py`. The service is allowed to depend on persistence/domain validation; it must not import terminal UI, presentation, or game-session orchestration.
 
 **Service tests must prove:**
 - cross-account profile reads/writes are denied
@@ -921,7 +919,7 @@ Modify `.github/workflows/tests.yml` or split a dedicated service workflow so CI
 - Alembic migration proof
 - diff-check/repository hygiene as appropriate
 
-Keep the existing client job working from `root/`.
+Keep the existing client job working from `root/`; run the service and its tests from `root/services/profile_api/` with both source roots configured.
 
 **Documentation:**
 Update README architecture section to explain:
