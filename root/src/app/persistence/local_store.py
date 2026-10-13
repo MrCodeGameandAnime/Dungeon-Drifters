@@ -6,6 +6,8 @@ from pathlib import Path
 from uuid import UUID
 
 from app.persistence.envelope import (
+    ConflictSnapshot,
+    ProfileEnvelope,
     parse_conflict_snapshot,
     parse_profile_envelope,
     serialize_conflict_snapshot,
@@ -136,6 +138,66 @@ class LocalProfileStore:
         except OSError as error:
             raise ProfileStoreError("local conflict could not be cleared") from error
 
+    def archive_recovery(self, envelope, snapshot=None):
+        if not isinstance(envelope, ProfileEnvelope):
+            raise TypeError("envelope must be a ProfileEnvelope")
+        try:
+            encoded_profile = serialize_profile_envelope(envelope)
+            canonical_profile = parse_profile_envelope(encoded_profile)
+            profile_path = self._recovery_profile_path(
+                canonical_profile.profile_id, canonical_profile.client_save_id
+            )
+            encoded_conflict = None
+            conflict_path = None
+            if snapshot is not None:
+                if not isinstance(snapshot, ConflictSnapshot):
+                    raise TypeError("snapshot must be a ConflictSnapshot")
+                if snapshot.profile_id != canonical_profile.profile_id:
+                    raise ProfileStoreError(
+                        "recovery records must belong to the same profile"
+                    )
+                encoded_conflict = serialize_conflict_snapshot(snapshot)
+                canonical_conflict = parse_conflict_snapshot(encoded_conflict)
+                conflict_path = self._recovery_conflict_path(
+                    canonical_conflict.profile_id,
+                    canonical_conflict.local_client_save_id,
+                    canonical_conflict.remote_current_revision,
+                )
+            self._write_immutable_archive(profile_path, encoded_profile)
+            if conflict_path is not None:
+                self._write_immutable_archive(conflict_path, encoded_conflict)
+        except ProfileStoreError:
+            raise
+        except (OSError, TypeError, ValueError) as error:
+            raise ProfileStoreError("recovery data could not be archived safely") from error
+
+    def load_recovery_profile(self, profile_id, client_save_id):
+        path = self._recovery_profile_path(profile_id, client_save_id)
+        return self._load_recovery_record(
+            path,
+            parse_profile_envelope,
+            ProfileStoreStatus,
+            ProfileStoreResult,
+            lambda record: record.profile_id == profile_id
+            and record.client_save_id == client_save_id,
+            "The recovery profile is invalid and was not loaded.",
+        )
+
+    def load_recovery_conflict(self, profile_id, client_save_id, remote_revision):
+        path = self._recovery_conflict_path(
+            profile_id, client_save_id, remote_revision
+        )
+        return self._load_recovery_record(
+            path,
+            parse_conflict_snapshot,
+            ConflictStoreStatus,
+            ConflictStoreResult,
+            lambda record: record.profile_id == profile_id
+            and record.local_client_save_id == client_save_id
+            and record.remote_current_revision == remote_revision,
+            "The recovery conflict is invalid and was not loaded.",
+        )
+
     @property
     def _profiles_directory(self):
         return self._root / "profiles"
@@ -153,6 +215,62 @@ class LocalProfileStore:
         if not isinstance(profile_id, UUID):
             raise TypeError("profile_id must be a UUID")
         return self._conflicts_directory / f"{profile_id}.json"
+
+    def _recovery_profile_path(self, profile_id, client_save_id):
+        self._require_archive_ids(profile_id, client_save_id)
+        return (
+            self._recovery_profiles_directory
+            / str(profile_id)
+            / f"{client_save_id}.json"
+        )
+
+    def _recovery_conflict_path(self, profile_id, client_save_id, remote_revision):
+        self._require_archive_ids(profile_id, client_save_id)
+        if type(remote_revision) is not int or remote_revision < 1:
+            raise TypeError("remote_revision must be a positive integer")
+        return (
+            self._recovery_conflicts_directory
+            / str(profile_id)
+            / f"{client_save_id}-{remote_revision}.json"
+        )
+
+    @property
+    def _recovery_profiles_directory(self):
+        return self._root / "recovery" / "profiles"
+
+    @property
+    def _recovery_conflicts_directory(self):
+        return self._root / "recovery" / "conflicts"
+
+    def _require_archive_ids(self, profile_id, client_save_id):
+        if not isinstance(profile_id, UUID) or not isinstance(client_save_id, UUID):
+            raise TypeError("recovery IDs must be UUIDs")
+
+    def _write_immutable_archive(self, path, encoded):
+        if path.exists():
+            try:
+                existing = path.read_bytes()
+            except OSError as error:
+                raise ProfileStoreError("existing recovery data could not be read") from error
+            if existing == encoded:
+                return
+            raise ProfileStoreError("recovery data is immutable")
+        self._atomic_write(path, encoded)
+
+    def _load_recovery_record(
+        self, path, parser, status_type, result_type, identity_matches, error_message
+    ):
+        if not path.exists():
+            return result_type(status=status_type.MISSING)
+        try:
+            record = parser(path.read_bytes())
+        except (OSError, TypeError, ValueError):
+            return result_type(status=status_type.INVALID, error=error_message)
+        if not identity_matches(record):
+            return result_type(status=status_type.INVALID, error=error_message)
+        if isinstance(record, ProfileEnvelope):
+            return result_type(status=status_type.VALID, envelope=record)
+        return result_type(status=status_type.VALID, snapshot=record)
 
     def _validate_sequence_advance(self, current, candidate):
         if candidate.local_sequence < current.local_sequence:

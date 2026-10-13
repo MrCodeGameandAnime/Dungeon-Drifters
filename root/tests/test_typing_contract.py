@@ -19,6 +19,7 @@ PROTOCOL_MODULES = {
     "app.ui.overworld_ui": ("OverworldUI",),
     "app.persistence.ports": ("ProfileStore", "SavePort"),
     "app.persistence.credentials": ("CredentialStore",),
+    "app.persistence.remote_client": ("RemoteProfileClient",),
 }
 TYPE_ALIAS_NAMES = {
     "BattleInput",

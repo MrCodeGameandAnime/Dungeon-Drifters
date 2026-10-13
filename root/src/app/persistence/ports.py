@@ -75,6 +75,18 @@ class ProfileStore(Protocol):
 
     def clear_conflict(self, profile_id: UUID) -> None: ...
 
+    def archive_recovery(
+        self, envelope: ProfileEnvelope, snapshot: ConflictSnapshot | None = None
+    ) -> None: ...
+
+    def load_recovery_profile(
+        self, profile_id: UUID, client_save_id: UUID
+    ) -> ProfileStoreResult: ...
+
+    def load_recovery_conflict(
+        self, profile_id: UUID, client_save_id: UUID, remote_revision: int
+    ) -> ConflictStoreResult: ...
+
 
 class SavePort(Protocol):
     def inspect(self) -> SaveLoadResult: ...

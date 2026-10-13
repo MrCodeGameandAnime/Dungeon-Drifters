@@ -166,3 +166,41 @@ def test_conflict_snapshot_is_separate_validated_and_immutable_until_cleared(tmp
 
     store.clear_conflict(PROFILE_ID)
     assert store.load_conflict(PROFILE_ID).status is ConflictStoreStatus.MISSING
+
+
+def test_recovery_archives_preserve_profile_and_conflict_as_immutable_records(tmp_path):
+    store = LocalProfileStore(tmp_path)
+    local = _envelope(
+        account_id=ACCOUNT_ID,
+        remote_revision=1,
+        sync_state=SyncState.CONFLICT,
+        payload=_payload("local"),
+    )
+    conflict = build_conflict_snapshot(
+        profile_id=PROFILE_ID,
+        local_client_save_id=SAVE_ID,
+        local_payload=local.payload,
+        base_remote_revision=1,
+        remote_current_revision=2,
+        remote_payload=_payload("remote"),
+        detected_at=SAVED_AT,
+    )
+
+    store.archive_recovery(local, conflict)
+    store.archive_recovery(local, conflict)
+
+    archived_profile = store.load_recovery_profile(PROFILE_ID, SAVE_ID)
+    archived_conflict = store.load_recovery_conflict(PROFILE_ID, SAVE_ID, 2)
+    assert archived_profile.status is ProfileStoreStatus.VALID
+    assert archived_profile.envelope == local
+    assert archived_conflict.status is ConflictStoreStatus.VALID
+    assert archived_conflict.snapshot == conflict
+
+    changed = _envelope(
+        account_id=ACCOUNT_ID,
+        remote_revision=1,
+        sync_state=SyncState.CONFLICT,
+        payload=_payload("changed"),
+    )
+    with pytest.raises(ProfileStoreError):
+        store.archive_recovery(changed, conflict)

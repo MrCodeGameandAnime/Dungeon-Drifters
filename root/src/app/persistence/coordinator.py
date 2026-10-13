@@ -30,6 +30,7 @@ class SaveCoordinator:
         profile_id: UUID,
         *,
         migration_result=None,
+        sync_coordinator=None,
         client_save_id_factory=uuid4,
         now_factory=lambda: datetime.now(timezone.utc),
     ):
@@ -38,6 +39,12 @@ class SaveCoordinator:
         self._store = store
         self._profile_id = profile_id
         self._migration_result = migration_result
+        if (
+            sync_coordinator is not None
+            and getattr(sync_coordinator, "profile_id", None) != profile_id
+        ):
+            raise ValueError("sync coordinator must use the same profile_id")
+        self._sync_coordinator = sync_coordinator
         self._client_save_id_factory = client_save_id_factory
         self._now_factory = now_factory
 
@@ -112,6 +119,11 @@ class SaveCoordinator:
                 status=SaveLoadStatus.INVALID,
                 error="The game could not be saved.",
             )
+        if (
+            self._sync_coordinator is not None
+            and committed.envelope.sync_state is SyncState.PENDING
+        ):
+            self._sync_coordinator.sync_pending()
         return SaveLoadResult(status=SaveLoadStatus.SAVED)
 
     def load(self):
