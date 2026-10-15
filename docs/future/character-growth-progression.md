@@ -1,8 +1,7 @@
 # Character Growth And Stat Scaling
 
 This note records future authored design direction for character growth,
-progression, and stat scaling. It is documentation only and is not authorized for
-implementation during Milestone 3.
+progression, and stat scaling.
 
 ## Core Progression Loop
 
@@ -846,17 +845,11 @@ Do not freeze these yet:
 
 ## Milestone Boundary
 
-Milestone 3 must preserve the existing implementation exactly while separating
+Preserve the existing implementation exactly while separating
 definitions from runtime state.
 
-Do not implement during Milestone 3:
+Future implementation:
 
-- ~~the six-stat replacement~~
-- ~~60-point budget enforcement~~
-- ~~stat caps~~
-- automatic HP or mana growth
-- Growth Points
-- stat spending
 - passive trees
 - move unlocking
 - new scaling curves
@@ -879,3 +872,12 @@ clearly represent:
 - passive ranks
 - prerequisites
 - snapshot and save-state representation
+
+# Complete
+
+- ~~the six-stat replacement~~
+- ~~60-point budget enforcement~~
+- ~~stat caps~~
+- ~~automatic HP or mana growth~~
+- ~~Growth Points~~
+- ~~stat spending~~
