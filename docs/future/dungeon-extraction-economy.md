@@ -505,3 +505,11 @@ clearly represent:
 - equipment slots
 - extraction outcomes
 - death outcomes
+
+# Complete
+
+## v0.3 Surface Campaign Boundary
+
+The v0.3 surface campaign ends after the Goblin Lord at the passive Dungeon
+Entrance endpoint. It does not enter the dungeon or introduce companions or
+party state. See [CHANGE_LOG.md](../CHANGE_LOG.md).

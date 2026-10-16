@@ -568,9 +568,12 @@ without implementing this system or altering existing combat behavior.
 The weapon system should be designed formally only after the foundational work
 for:
 
-- ~~permanent stats~~
 - resource formulas
-- ~~structured moves~~
 - damage components
 - combat resolution
+
+# Complete
+
+- ~~permanent stats~~
+- ~~structured moves~~
 - ~~equipment ownership~~

@@ -87,11 +87,6 @@ physical, 40% magical, and 30% hybrid after normal mitigation. Player Defend is
 separate runtime combatant behavior with 30/20/10 baselines, effective
 Strength/Spirit/Dexterity bonuses, and 70/60/50 caps.
 
-The legacy Battle loop still contains a temporary universal low-HP enemy
-healing branch. That branch is not the enemy model. Milestone 8 must remove it
-when Battle begins using structured enemy moves and authored enemy capabilities.
-Battle also does not yet expose the core Defend action in its terminal flow.
-
 ## Tier
 
 Tier determines numerical strength for one encounter instance.
@@ -136,9 +131,8 @@ Current canonical roster:
 2. jumping slash
 ```
 
-Every current ordinary Goblin move is supported by the Milestone 7 resolver.
-Milestone 8 should not need to silently filter malformed or unsupported ordinary
-Goblin moves before action selection.
+Every current ordinary Goblin move is supported by `CombatResolver` and routed
+through structured Battle integration.
 
 `suplex` is deferred future Goblin-family design for a higher-complexity
 archetype such as Goblin Brute, Goblin Grappler, or Goblin Captain. Stagger is
