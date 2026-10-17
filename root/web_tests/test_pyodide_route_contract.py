@@ -47,6 +47,10 @@ def test_pyd2_contains_the_exact_authored_route_oracle():
     assert "EXPECTED_BATTLE_COUNT = 8" in boot
     assert "EXPECTED_ENEMY_COUNT = 14" in boot
     assert '"surface_dungeon_entrance"' in boot
+    qualification_js = (ROOT / "web" / "qualification" / "js" / "pyd2.js").read_text()
+    assert "Hub: ${result.hub_screen}" in qualification_js
+    assert "Tutorial: ${result.tutorial_party_size} Drifters" in qualification_js
+    assert "Extraction: ${result.lead_tutorial_exp} EXP each" in qualification_js
 
 
 def test_pyd2_uses_real_session_and_probe_only_determinism():
@@ -62,9 +66,12 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
         "ChooseAction",
         "ChooseMove",
         "ChooseTarget",
+        "ChooseCompanion",
         "save_port=None",
         "InteractionPhase.COMPLETE",
         "dungeon_entrance_reached",
+        "OverworldScreen.HUB",
+        "OverworldAction.RETURN_TO_HUB",
     ):
         assert required in boot
 
@@ -91,6 +98,12 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
             "exp",
             "growth_points",
             "gold",
+            "hub_screen",
+            "tutorial_party_size",
+            "tutorial_enemy_count",
+            "secured_gold",
+            "lead_tutorial_exp",
+            "companion_tutorial_exp",
         )
     } == {
         "route_nodes": 12,
@@ -103,6 +116,12 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
         "exp": 68,
         "growth_points": 24,
         "gold": 75,
+        "hub_screen": "hub",
+        "tutorial_party_size": 2,
+        "tutorial_enemy_count": 3,
+        "secured_gold": 19,
+        "lead_tutorial_exp": 60,
+        "companion_tutorial_exp": 60,
     }
 
 

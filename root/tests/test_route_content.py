@@ -70,6 +70,7 @@ EXPECTED_SURFACE_ROUTE = (
 )
 
 EXPECTED_ENCOUNTERS = (
+    ("dungeon_goblin_trio", ("goblin", "goblin", "goblin")),
     ("surface_goblin_solo", ("goblin",)),
     ("surface_goblin_pair", ("goblin", "goblin")),
     ("surface_warrior_solo", ("goblin_warrior",)),
@@ -119,7 +120,7 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     assert discover_route_ids() == ("surface",)
 
 
-def test_eight_encounter_packages_match_the_independent_authored_contract():
+def test_encounter_packages_match_the_independent_authored_contract():
     assert tuple(
         (encounter_id, get_encounter_spec(encounter_id).enemy_archetype_ids)
         for encounter_id, _composition in EXPECTED_ENCOUNTERS
@@ -371,7 +372,7 @@ def test_global_route_node_lookup_and_successors_match_authored_order():
         )
 
 
-def test_schema8_payload_is_byte_equivalent_after_canonical_reconstruction():
+def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
     player = PlayerState(get_profile_by_choice("1").create_character())
     document = build_save_document(GameState(player))
     encoded = json.dumps(document, sort_keys=True, separators=(",", ":"))
@@ -380,7 +381,7 @@ def test_schema8_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 8
+    assert rebuilt["schema_version"] == 9
     assert rebuilt["overworld"] == {
         "current_route_node_id": "surface_goblin_solo",
         "surface_route_begun": False,

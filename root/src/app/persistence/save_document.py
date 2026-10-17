@@ -1,4 +1,4 @@
-"""Schema-8 save documents and canonical in-memory reconstruction."""
+"""Schema-9 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -11,6 +11,7 @@ from app.content.catalog import (
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
+from app.game.party_state import DungeonPhase, PartyState
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
 from app.player.character_run_state import (
@@ -46,7 +47,9 @@ _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[0]
 _DUNGEON_ENTRANCE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[-1]
 
 
-DISK_SCHEMA_VERSION = 8
+_LEGACY_RUNTIME_SCHEMA_VERSION = 7
+_LEGACY_DISK_SCHEMA_VERSION = 8
+DISK_SCHEMA_VERSION = 9
 
 
 class SaveStateValidationError(ValueError):
@@ -71,6 +74,7 @@ def build_save_document(game_state):
             "disk saves require a selected canonical character profile"
         )
     player.pop("combat", None)
+    _strip_companion_combat(source.get("party"))
     source["schema_version"] = DISK_SCHEMA_VERSION
     _validate_document(source, schema_version=DISK_SCHEMA_VERSION)
     return source
@@ -79,7 +83,7 @@ def build_save_document(game_state):
 def migrate_schema_7(document):
     _validate_plain_document(document)
     schema_version = document.get("schema_version")
-    if schema_version != STATE_SCHEMA_VERSION:
+    if schema_version != _LEGACY_RUNTIME_SCHEMA_VERSION:
         raise SaveStateValidationError(
             "only schema 7 documents can be migrated"
         )
@@ -110,8 +114,41 @@ def migrate_schema_7(document):
             for encounter_id in defeated
             if encounter_id not in _SURFACE_ENCOUNTER_NODES
         ]
+    _add_legacy_party_state(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
+
+
+def migrate_schema_8(document):
+    """Upgrade an original disk schema-8 payload without changing its input."""
+    _validate_plain_document(document)
+    _validate_legacy_schema8_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_legacy_party_state(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def validate_legacy_schema8_document(document):
+    """Validate and copy an original schema-8 disk payload without migrating it."""
+    _validate_plain_document(document)
+    _validate_legacy_schema8_document(document)
+    return deepcopy(document)
+
+
+def validate_profile_payload(document):
+    """Validate a current payload or an immutable legacy schema-8 payload."""
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
+        and "party" not in document
+    ):
+        return validate_legacy_schema8_document(document)
+    normalized = validate_save_document(document)
+    if normalized != document:
+        raise SaveStateValidationError("profile payload is not canonical")
+    return normalized
 
 
 def reconstruct_game_state(document):
@@ -124,12 +161,21 @@ def reconstruct_game_state(document):
         story = StoryState.from_snapshot(document["story"])
         world = WorldState.from_snapshot(document["world"])
         overworld = OverworldState.from_snapshot(document["overworld"])
+        companions = tuple(
+            _reconstruct_player(
+                _canonical_profile(snapshot).create_character(),
+                snapshot,
+            )
+            for snapshot in document["party"]["companions"]
+        )
+        party = PartyState.from_snapshot(document["party"], companions=companions)
         return GameState.from_persistent_parts(
             player,
             story,
             world,
             overworld,
             document["metadata"],
+            party,
         )
     except (KeyError, TypeError, ValueError) as error:
         if isinstance(error, SaveStateValidationError):
@@ -140,15 +186,26 @@ def reconstruct_game_state(document):
 
 
 def validate_save_document(document):
-    """Validate and normalize a schema 7 or schema 8 document without loading it."""
+    """Validate and normalize a legacy or current save document without loading it."""
     _validate_plain_document(document)
     schema_version = document.get("schema_version")
-    if schema_version == STATE_SCHEMA_VERSION:
+    if schema_version == _LEGACY_RUNTIME_SCHEMA_VERSION:
         return migrate_schema_7(document)
+    if schema_version == _LEGACY_DISK_SCHEMA_VERSION:
+        if "party" not in document:
+            return migrate_schema_8(document)
+        normalized = deepcopy(document)
+        normalized["schema_version"] = DISK_SCHEMA_VERSION
+        if isinstance(normalized.get("player"), dict):
+            normalized["player"].pop("combat", None)
+        _strip_companion_combat(normalized.get("party"))
+        _validate_document(normalized, schema_version=DISK_SCHEMA_VERSION)
+        return normalized
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
             normalized["player"].pop("combat", None)
+        _strip_companion_combat(normalized.get("party"))
         _validate_document(normalized, schema_version=DISK_SCHEMA_VERSION)
         return normalized
     raise SaveStateValidationError(
@@ -277,6 +334,7 @@ def _validate_document(document, *, schema_version):
         "story",
         "world",
         "overworld",
+        "party",
         "metadata",
     }
     _require_mapping(document, "game")
@@ -287,7 +345,143 @@ def _validate_document(document, *, schema_version):
     _validate_story(document["story"])
     _validate_world(document["world"])
     _validate_overworld(document["overworld"], document["world"])
+    _validate_party(document["party"], document["player"])
+    at_dungeon_entrance = (
+        document["overworld"]["current_route_node_id"]
+        == _DUNGEON_ENTRANCE_NODE_ID
+    )
+    if at_dungeon_entrance != (
+        document["party"]["phase"] != DungeonPhase.OUTSIDE.value
+    ):
+        raise SaveStateValidationError(
+            "dungeon entrance and party phase are inconsistent"
+        )
     validate_plain_value(document["metadata"], "game.metadata")
+
+
+def _validate_legacy_schema8_document(document):
+    allowed_keys = {
+        "schema_version",
+        "player",
+        "story",
+        "world",
+        "overworld",
+        "metadata",
+    }
+    _require_mapping(document, "game")
+    _require_exact_keys(document, allowed_keys, "game")
+    if document["schema_version"] != _LEGACY_DISK_SCHEMA_VERSION:
+        raise SaveStateValidationError("save schema version mismatch")
+    _validate_player(document["player"])
+    _validate_story(document["story"])
+    _validate_world(document["world"])
+    _validate_overworld(document["overworld"], document["world"])
+    validate_plain_value(document["metadata"], "game.metadata")
+
+
+def _validate_party(party, player):
+    _require_mapping(party, "party")
+    _require_exact_keys(
+        party,
+        {
+            "companions",
+            "shared_gold",
+            "shared_items",
+            "tutorial_complete",
+            "phase",
+            "outing_rewards",
+        },
+        "party",
+    )
+    if not isinstance(party["companions"], list) or len(party["companions"]) > 1:
+        raise SaveStateValidationError("party.companions must contain at most one Drifter")
+    lead_profile = _canonical_profile(player)
+    companion_ids = set()
+    for index, companion in enumerate(party["companions"]):
+        _validate_player(companion)
+        choice = _canonical_profile(companion).choice
+        if choice == lead_profile.choice or choice in companion_ids:
+            raise SaveStateValidationError("party contains a duplicate Drifter")
+        companion_ids.add(choice)
+
+    _require_int_min(party["shared_gold"], 0, "party.shared_gold")
+    _validate_item_stacks(party["shared_items"], "party.shared_items")
+    if not isinstance(party["tutorial_complete"], bool):
+        raise SaveStateValidationError("party.tutorial_complete must be a boolean")
+    try:
+        phase = DungeonPhase(party["phase"])
+    except (TypeError, ValueError) as error:
+        raise SaveStateValidationError("party.phase is invalid") from error
+
+    rewards = party["outing_rewards"]
+    _require_mapping(rewards, "party.outing_rewards")
+    _require_exact_keys(rewards, {"experience", "gold", "items"}, "party.outing_rewards")
+    _require_int_min(rewards["experience"], 0, "party.outing_rewards.experience")
+    _require_int_min(rewards["gold"], 0, "party.outing_rewards.gold")
+    _validate_item_stacks(rewards["items"], "party.outing_rewards.items")
+    has_pending_rewards = bool(
+        rewards["experience"] or rewards["gold"] or rewards["items"]
+    )
+    has_companion = bool(party["companions"])
+    if phase is DungeonPhase.OUTSIDE and (
+        has_companion
+        or party["shared_gold"]
+        or party["shared_items"]
+        or party["tutorial_complete"]
+        or has_pending_rewards
+    ):
+        raise SaveStateValidationError("outside party state contains dungeon progress")
+    if phase in {DungeonPhase.PARTY_READY, DungeonPhase.OUTING, DungeonPhase.EXTRACTION} and not has_companion:
+        raise SaveStateValidationError("active dungeon phase requires a companion")
+    if phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY, DungeonPhase.COMPLETE} and has_pending_rewards:
+        raise SaveStateValidationError("pending rewards require an outing or extraction phase")
+    if party["tutorial_complete"] and phase not in {DungeonPhase.HUB, DungeonPhase.COMPLETE}:
+        raise SaveStateValidationError("completed tutorial must be at the hub")
+    if phase is DungeonPhase.COMPLETE and not party["tutorial_complete"]:
+        raise SaveStateValidationError("complete phase requires a completed tutorial")
+
+
+def _validate_item_stacks(items, path):
+    _require_mapping(items, path)
+    for item_id, quantity in items.items():
+        if not isinstance(item_id, str) or not item_id:
+            raise SaveStateValidationError(f"{path} contains an invalid item ID")
+        _require_int_min(quantity, 1, f"{path}.{item_id}")
+
+
+def _add_legacy_party_state(document):
+    player = document.get("player")
+    if not isinstance(player, dict):
+        raise SaveStateValidationError("game.player must be an object")
+    overworld = document.get("overworld")
+    at_dungeon_entrance = (
+        isinstance(overworld, dict)
+        and overworld.get("current_route_node_id") == _DUNGEON_ENTRANCE_NODE_ID
+    )
+    shared_gold = 0
+    phase = DungeonPhase.OUTSIDE.value
+    if at_dungeon_entrance:
+        shared_gold = player["gold"]
+        player["gold"] = 0
+        phase = DungeonPhase.HUB.value
+    document["party"] = {
+        "companions": [],
+        "shared_gold": shared_gold,
+        "shared_items": {},
+        "tutorial_complete": False,
+        "phase": phase,
+        "outing_rewards": {"experience": 0, "gold": 0, "items": {}},
+    }
+
+
+def _strip_companion_combat(party):
+    if not isinstance(party, dict):
+        return
+    companions = party.get("companions")
+    if isinstance(companions, list):
+        for companion in companions:
+            if isinstance(companion, dict):
+                companion.pop("combat", None)
 
 
 def _validate_player(player):
@@ -584,5 +778,7 @@ __all__ = [
     "build_save_document",
     "migrate_schema_7",
     "reconstruct_game_state",
+    "validate_legacy_schema8_document",
+    "validate_profile_payload",
     "validate_save_document",
 ]

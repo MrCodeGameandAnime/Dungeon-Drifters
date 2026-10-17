@@ -44,6 +44,13 @@ def _payload(gold=0):
     return build_save_document(GameState(PlayerState(character, gold=gold)))
 
 
+def _legacy_schema8_payload(gold=0):
+    payload = _payload(gold)
+    payload["schema_version"] = 8
+    payload.pop("party")
+    return payload
+
+
 def _profile_response(payload):
     return {
         "profile_id": str(PROFILE_ID),
@@ -90,6 +97,21 @@ def test_profile_claim_uses_the_existing_identity_and_full_validated_payload():
             },
         )
     ]
+
+
+def test_remote_schema8_head_is_verified_without_rewriting_its_payload():
+    payload = _legacy_schema8_payload(gold=19)
+    client = JsonApiRemoteProfileClient(
+        RecordingTransport(FakeResponse(200, _profile_response(payload))),
+        access_token="opaque-access-token",
+        device_id=DEVICE_ID,
+    )
+
+    head = client.get_profile(PROFILE_ID)
+
+    assert head.payload == payload
+    assert head.payload["schema_version"] == 8
+    assert head.payload_sha256 == payload_sha256(payload)
 
 
 def test_progression_stale_revision_is_returned_as_a_conflict_value():

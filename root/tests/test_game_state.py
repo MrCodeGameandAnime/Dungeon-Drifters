@@ -20,6 +20,21 @@ def test_valid_player_state_constructs_game_state():
     assert game_state.metadata == {}
 
 
+def test_new_game_has_empty_dungeon_party_progress():
+    game_state = GameState(PlayerState(create_drifter("branoc")))
+
+    party = game_state.party_state
+
+    assert party.companions == ()
+    assert party.shared_gold == 0
+    assert party.shared_items == {}
+    assert party.tutorial_complete is False
+    assert party.phase.value == "outside"
+    assert party.outing_rewards.experience == 0
+    assert party.outing_rewards.gold == 0
+    assert party.outing_rewards.items == {}
+
+
 def test_invalid_player_state_is_rejected():
     with pytest.raises(TypeError):
         GameState(create_drifter("branoc"))
@@ -38,6 +53,8 @@ def test_ownership_properties_cannot_be_replaced():
         setattr(game_state, "world_state", None)
     with pytest.raises(AttributeError):
         setattr(game_state, "overworld_state", None)
+    with pytest.raises(AttributeError):
+        setattr(game_state, "party_state", None)
     with pytest.raises(AttributeError):
         setattr(game_state, "metadata", {})
 
@@ -60,13 +77,17 @@ def test_game_state_instances_do_not_share_state_containers():
     first.set_metadata("session", "first")
     first.story_state.add_story_flag("met_goblin")
     first.world_state.discover_location("woods")
+    first.party_state.add_shared_gold(12)
 
     assert first.metadata == {"session": "first"}
     assert second.metadata == {}
     assert first.story_state is not second.story_state
     assert first.world_state is not second.world_state
     assert first.overworld_state is not second.overworld_state
+    assert first.party_state is not second.party_state
     assert first.story_state.story_flags == ("met_goblin",)
     assert second.story_state.story_flags == ()
     assert first.world_state.discovered_locations == ("woods",)
     assert second.world_state.discovered_locations == ()
+    assert first.party_state.shared_gold == 12
+    assert second.party_state.shared_gold == 0

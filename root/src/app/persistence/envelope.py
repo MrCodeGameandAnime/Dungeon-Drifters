@@ -1,4 +1,4 @@
-"""Versioned local profile envelopes around schema-8 game-state payloads."""
+"""Versioned local profile envelopes around versioned game-state payloads."""
 
 import hashlib
 import json
@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from app.persistence.save_document import validate_save_document
+from app.persistence.save_document import (
+    validate_legacy_schema8_document,
+    validate_save_document,
+)
 from app.snapshot import validate_plain_value
 
 
@@ -86,7 +89,7 @@ def canonical_json_bytes(value):
 
 
 def payload_sha256(payload):
-    normalized = _validated_schema8_payload(payload)
+    normalized = _validated_profile_payload(payload)
     return hashlib.sha256(canonical_json_bytes(normalized)).hexdigest()
 
 
@@ -115,7 +118,7 @@ def build_profile_envelope(
     except (TypeError, ValueError) as error:
         raise ProfileEnvelopeValidationError("unknown sync state") from error
 
-    normalized_payload = _validated_schema8_payload(payload)
+    normalized_payload = _validated_profile_payload(payload)
     envelope = ProfileEnvelope(
         envelope_version=_ENVELOPE_VERSION,
         profile_id=profile_id,
@@ -163,7 +166,7 @@ def validate_profile_envelope(document):
     _validate_sync_state(sync_state, account_id, remote_revision)
 
     saved_at = _parse_datetime(document["saved_at"])
-    payload = _validated_schema8_payload(document["payload"])
+    payload = _validated_profile_payload(document["payload"])
     digest = document["payload_sha256"]
     if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
         raise ProfileEnvelopeValidationError("payload_sha256 must be lowercase SHA-256 hex")
@@ -237,8 +240,8 @@ def build_conflict_snapshot(
         raise ProfileEnvelopeValidationError("profile_id must be a UUID")
     if not isinstance(local_client_save_id, UUID):
         raise ProfileEnvelopeValidationError("local_client_save_id must be a UUID")
-    local_payload = _validated_schema8_payload(local_payload)
-    remote_payload = _validated_schema8_payload(remote_payload)
+    local_payload = _validated_profile_payload(local_payload)
+    remote_payload = _validated_profile_payload(remote_payload)
     snapshot = ConflictSnapshot(
         profile_id=profile_id,
         local_client_save_id=local_client_save_id,
@@ -285,8 +288,8 @@ def validate_conflict_snapshot(document):
             "remote_current_revision must be newer than the base"
         )
 
-    local_payload = _validated_schema8_payload(document["local_payload"])
-    remote_payload = _validated_schema8_payload(document["remote_payload"])
+    local_payload = _validated_profile_payload(document["local_payload"])
+    remote_payload = _validated_profile_payload(document["remote_payload"])
     local_digest = _validate_digest(document["local_payload_sha256"])
     remote_digest = _validate_digest(document["remote_payload_sha256"])
     if local_digest != hashlib.sha256(canonical_json_bytes(local_payload)).hexdigest():
@@ -344,17 +347,21 @@ def parse_conflict_snapshot(encoded):
     return validate_conflict_snapshot(document)
 
 
-def _validated_schema8_payload(payload):
+def _validated_profile_payload(payload):
     if not isinstance(payload, dict) or type(payload.get("schema_version")) is not int:
-        raise ProfileEnvelopeValidationError("payload must be a schema-8 object")
-    if payload["schema_version"] != 8:
-        raise ProfileEnvelopeValidationError("profile envelope payload must use schema 8")
+        raise ProfileEnvelopeValidationError(
+            "payload must be a schema-8 or schema-9 object"
+        )
     try:
+        if payload["schema_version"] == 8 and "party" not in payload:
+            return validate_legacy_schema8_document(payload)
         normalized = validate_save_document(payload)
     except (TypeError, ValueError) as error:
         raise ProfileEnvelopeValidationError("payload is not a valid game-state document") from error
     if normalized != payload:
-        raise ProfileEnvelopeValidationError("payload must already be normalized schema 8")
+        raise ProfileEnvelopeValidationError(
+            "profile payload must already be normalized for its schema"
+        )
     return deepcopy(normalized)
 
 

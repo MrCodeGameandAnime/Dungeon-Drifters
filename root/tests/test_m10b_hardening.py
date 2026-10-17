@@ -41,7 +41,7 @@ class ScriptedUI:
         return next(self._inputs)
 
 
-def test_all_encounter_completion_ids_remain_world_owned_and_schema_seven():
+def test_all_encounter_completion_ids_remain_world_owned_and_schema_eight():
     game = GameState(PlayerState(create_drifter("branoc")))
 
     for encounter_id in EXPECTED_ENCOUNTER_IDS:
@@ -50,7 +50,7 @@ def test_all_encounter_completion_ids_remain_world_owned_and_schema_seven():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == EXPECTED_ENCOUNTER_IDS
-    assert snapshot["schema_version"] == 7
+    assert snapshot["schema_version"] == 8
     assert snapshot["world"]["defeated_encounters"] == list(
         EXPECTED_ENCOUNTER_IDS
     )

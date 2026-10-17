@@ -1,11 +1,16 @@
 """Pure translation from persistent session state to overworld views."""
 
 from app.content.catalog import (
+    DRIFTER_SPECS,
     get_encounter_spec,
     get_enemy_spec,
     get_inspectable_route_node_spec,
     get_route_node_spec,
     get_route_spec,
+)
+from app.game.party_state import (
+    COMPANION_RECRUITMENT_COST,
+    DungeonPhase,
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
@@ -16,6 +21,7 @@ from app.player.run_items import owned_run_item_definitions
 from app.presentation.overworld_models import (
     AccessorySlotView,
     CharacterOverviewView,
+    CompanionChoiceView,
     EquipmentView,
     InventoryView,
     MapNodeState,
@@ -26,6 +32,8 @@ from app.presentation.overworld_models import (
     OverworldAvailabilityReason,
     OverworldItemView,
     OverworldOptionView,
+    OutingItemRewardView,
+    OutingRewardsView,
     OverworldScreen,
     OverworldView,
     SkillMoveView,
@@ -76,7 +84,19 @@ class OverworldPresenter:
             raise TypeError("game_state must be a GameState")
         screen = OverworldScreen(screen)
         node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
-        adventure_text = adventure_text or self._default_adventure_text(game_state)
+        if adventure_text is None:
+            adventure_text = (
+                self._hub_adventure_text(game_state, screen)
+                if screen
+                in {
+                    OverworldScreen.HUB,
+                    OverworldScreen.COMPANION_SELECTION,
+                    OverworldScreen.PARTY_READY,
+                    OverworldScreen.OUTING,
+                    OverworldScreen.EXTRACTION,
+                }
+                else self._default_adventure_text(game_state)
+            )
         items = self._inventory_items(game_state)
         selected_item = first_or_none(
             item
@@ -97,7 +117,18 @@ class OverworldPresenter:
 
         return OverworldView(
             screen=screen,
-            location_label=node.display_label,
+            location_label=(
+                "Floor 1 Hub"
+                if screen
+                in {
+                    OverworldScreen.HUB,
+                    OverworldScreen.COMPANION_SELECTION,
+                    OverworldScreen.PARTY_READY,
+                    OverworldScreen.OUTING,
+                    OverworldScreen.EXTRACTION,
+                }
+                else node.display_label
+            ),
             adventure_text=adventure_text,
             notice=notice,
             options=options,
@@ -147,6 +178,80 @@ class OverworldPresenter:
                 if screen is OverworldScreen.MAP_INSPECT
                 else None
             ),
+            companion_choices=(
+                self._companion_choices(game_state)
+                if screen is OverworldScreen.COMPANION_SELECTION
+                else ()
+            ),
+            shared_gold=(
+                game_state.party_state.shared_gold
+                if screen
+                in {
+                    OverworldScreen.HUB,
+                    OverworldScreen.COMPANION_SELECTION,
+                    OverworldScreen.PARTY_READY,
+                }
+                else None
+            ),
+            recruitment_cost=(
+                COMPANION_RECRUITMENT_COST
+                if screen is OverworldScreen.COMPANION_SELECTION
+                else None
+            ),
+            outing_rewards=(
+                OutingRewardsView(
+                    experience=game_state.party_state.outing_rewards.experience,
+                    gold=game_state.party_state.outing_rewards.gold,
+                    items=tuple(
+                        OutingItemRewardView(item_id=item_id, quantity=quantity)
+                        for item_id, quantity in sorted(
+                            game_state.party_state.outing_rewards.items.items()
+                        )
+                    ),
+                )
+                if screen is OverworldScreen.EXTRACTION
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _hub_adventure_text(game_state, screen):
+        if screen is OverworldScreen.COMPANION_SELECTION:
+            return "Choose one Drifter to join your party."
+        if screen is OverworldScreen.PARTY_READY:
+            return "Your party is ready to set out."
+        if screen is OverworldScreen.OUTING:
+            return "Your party has set out from the Floor 1 Hub."
+        if screen is OverworldScreen.EXTRACTION:
+            return "The Goblin trio is defeated. Return to the hub to secure your rewards."
+        if game_state.party_state.phase is DungeonPhase.PARTY_READY:
+            return "Your party is assembled and ready to set out."
+        return "You have reached the Floor 1 Hub. Recruit one companion to continue."
+
+    @staticmethod
+    def _companion_choices(game_state):
+        profile = game_state.player_state.character.profile
+        if profile is None:
+            raise ValueError("companion selection requires a canonical lead Drifter")
+        lead_id = profile.drifter_id
+        shared_gold = game_state.party_state.shared_gold
+        enabled = shared_gold >= COMPANION_RECRUITMENT_COST
+        return tuple(
+            CompanionChoiceView(
+                drifter_id=spec.drifter_id,
+                display_name=spec.display_name,
+                archetype_label=spec.archetype_name,
+                summary=spec.selection_summary,
+                cost=COMPANION_RECRUITMENT_COST,
+                enabled=enabled,
+                disabled_reason=(
+                    None
+                    if enabled
+                    else OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD
+                ),
+            )
+            for spec in DRIFTER_SPECS
+            if spec.drifter_id != lead_id
         )
 
     @staticmethod
@@ -376,6 +481,35 @@ class OverworldPresenter:
                 enabled(OverworldAction.MAP, "Map"),
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
+        if screen is OverworldScreen.HUB:
+            party_actions = {
+                DungeonPhase.HUB: (
+                    enabled(
+                        OverworldAction.RECRUIT_COMPANION,
+                        "Recruit Companion",
+                    ),
+                ) if not game_state.party_state.tutorial_complete else (),
+                DungeonPhase.PARTY_READY: (
+                    enabled(OverworldAction.READY, "Ready / Set Out"),
+                ),
+            }.get(game_state.party_state.phase, ())
+            return party_actions + (
+                enabled(OverworldAction.CHARACTER, "Character"),
+                enabled(OverworldAction.ITEMS, "Items"),
+                enabled(OverworldAction.MAP, "Map"),
+                enabled(OverworldAction.OPTIONS, "Options"),
+            )
+        if screen is OverworldScreen.COMPANION_SELECTION:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.PARTY_READY:
+            return (
+                enabled(OverworldAction.READY, "Ready / Set Out"),
+                enabled(OverworldAction.BACK, "Back"),
+            )
+        if screen is OverworldScreen.OUTING:
+            return ()
+        if screen is OverworldScreen.EXTRACTION:
+            return (enabled(OverworldAction.RETURN_TO_HUB, "Return to Hub"),)
         if screen is OverworldScreen.CHARACTER:
             return (
                 enabled(OverworldAction.SKILLS, "Skills"),

@@ -33,10 +33,20 @@ class ChoosePermanentStatIncrease:
             raise ValueError("stat_name must be a nonempty string")
 
 
+@dataclass(frozen=True)
+class ChooseCompanion:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
 OverworldInput: TypeAlias = Union[
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseCompanion,
 ]
 
 

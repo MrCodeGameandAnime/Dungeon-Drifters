@@ -40,14 +40,23 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 7
+    assert snapshot["schema_version"] == 8
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
         "story",
         "world",
         "overworld",
+        "party",
         "metadata",
+    }
+    assert snapshot["party"] == {
+        "companions": [],
+        "shared_gold": 0,
+        "shared_items": {},
+        "tutorial_complete": False,
+        "phase": "outside",
+        "outing_rewards": {"experience": 0, "gold": 0, "items": {}},
     }
     assert snapshot["player"]["gold"] == 12
     assert snapshot["player"]["resources"]["super"] == {
@@ -93,12 +102,14 @@ def test_game_snapshot_is_isolated_from_runtime_state():
     first_snapshot["story"]["story_flags"].append("changed")
     first_snapshot["world"]["opened_objects"].append("changed")
     first_snapshot["overworld"]["resolved_rest_node_ids"].append("changed")
+    first_snapshot["party"]["shared_items"]["changed"] = 1
     first_snapshot["player"]["gold"] = 999
 
     assert game_state.metadata == {"run_id": "test-run"}
     assert game_state.story_state.story_flags == ("heard_goblin",)
     assert game_state.world_state.opened_objects == ("old_chest",)
     assert game_state.overworld_state.resolved_rest_node_ids == ()
+    assert game_state.party_state.shared_items == {}
     assert game_state.player_state.gold == 12
     assert second_snapshot["metadata"] == {"run_id": "test-run"}
     assert second_snapshot["story"]["story_flags"] == ["heard_goblin"]

@@ -61,6 +61,12 @@
           <p class="eyebrow adventure-heading">ADVENTURE</p>
           <p id="adventure-text" class="adventure-text"></p>
           <div id="route-actions" class="button-grid"></div>
+          <p id="hub-shared-gold" class="hub-shared-gold" hidden></p>
+          <section id="companion-selection" class="companion-selection" hidden aria-label="Choose a companion">
+            <p id="companion-funds" class="companion-funds"></p>
+            <div id="companion-choices" class="companion-choices"></div>
+          </section>
+          <section id="extraction-rewards" class="extraction-rewards" hidden aria-label="Pending extraction rewards"></section>
           <div id="overworld-options" class="button-grid"></div>
           <p id="notice" class="notice" hidden></p>
         </section>
@@ -135,6 +141,10 @@
             <h2 id="player-title">Branoc</h2>
             <div id="player-status" class="combatant-lines"></div>
             <div id="player-details" class="combatant-lines"></div>
+          </section>
+
+          <section id="party-panel" class="combatant-status party-panel" aria-label="Drifter party" hidden>
+            <div id="party-members" class="party-members"></div>
           </section>
 
           <section id="enemy-panel" class="combatant-status enemy-panel" aria-label="Enemies">

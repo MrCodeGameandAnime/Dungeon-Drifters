@@ -96,6 +96,11 @@ def test_semantic_overworld_inputs_validate_and_the_protocol_is_runtime_checkabl
 def test_all_approved_screen_values_are_typed():
     assert tuple(screen.value for screen in OverworldScreen) == (
         "main",
+        "hub",
+        "companion_selection",
+        "party_ready",
+        "outing",
+        "extraction",
         "character",
         "skills",
         "weapon",

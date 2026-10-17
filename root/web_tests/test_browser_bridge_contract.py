@@ -6,8 +6,13 @@ import pytest
 
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldScreen
+from app.combat.battle import Battle
+from app.content.catalog import create_enemy_state, get_route_spec
+from app.game.overworld_session import OverworldSession
+from app.game.overworld_state import OverworldState
+from app.game.party_state import DungeonPhase
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
-from app.ui.overworld_ui import ChooseOverworldAction, ChoosePermanentStatIncrease
+from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction, ChoosePermanentStatIncrease
 
 
 ROOT = Path(__file__).parents[1]
@@ -75,6 +80,7 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
+        ({"kind": "companion", "drifter_id": "azhvielle"}, ChooseCompanion),
         ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
@@ -83,6 +89,75 @@ def test_bridge_command_decoder_returns_existing_input_types():
 
     for command, expected_type in cases:
         assert isinstance(bridge._command_to_input(command), expected_type)
+
+
+def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    route = get_route_spec("surface")
+    entrance = route.nodes[-1]
+    for node in route.nodes[:-1]:
+        if node.encounter_id is not None:
+            game.world_state.mark_encounter_defeated(node.encounter_id)
+    game.player_state.add_gold(75)
+    rests = tuple(
+        node.node_id for node in route.nodes[:-1] if node.kind.value == "rest"
+    )
+    game._overworld_state = OverworldState.from_snapshot(
+        {
+            "current_route_node_id": entrance.node_id,
+            "surface_route_begun": True,
+            "dungeon_entrance_reached": True,
+            "route_complete": True,
+            "resolved_rest_node_ids": list(rests),
+            "current_contextual_route_phase": "none",
+        }
+    )
+    assert game.party_state.arrive_at_hub(game.player_state)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    hub = runtime.current_view()
+    assert hub["screen"] == OverworldScreen.HUB.value
+    assert runtime.submit(
+        {"kind": "overworld_action", "action": "recruit_companion"}
+    )["screen"] == OverworldScreen.COMPANION_SELECTION.value
+    ready = runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    assert ready["notice"] is None, ready
+    assert ready["screen"] == OverworldScreen.PARTY_READY.value
+    battle = runtime.submit({"kind": "overworld_action", "action": "ready"})
+
+    assert battle["interaction_phase"] == InteractionPhase.ACTIONS.value
+    assert tuple(member["target_id"] for member in battle["party_members"]) == (
+        "drifter_branoc",
+        "drifter_azhvielle",
+    )
+    assert len(battle["enemies"]) == 3
+    for enemy in runtime._session.active_battle.enemies:
+        enemy.health.take_damage(enemy.health.current)
+    completed = runtime.submit({"kind": "action", "intent": "defend"})
+    assert completed["interaction_phase"] == InteractionPhase.COMPLETE.value
+
+    extraction = runtime.current_view()
+    assert extraction["screen"] == "extraction"
+    assert extraction["outing_rewards"] == {
+        "experience": 120,
+        "gold": 9,
+        "items": [],
+    }
+    returned = runtime.submit(
+        {"kind": "overworld_action", "action": "return_to_hub"}
+    )
+    assert returned["screen"] == OverworldScreen.HUB.value
+    assert game.party_state.phase is DungeonPhase.HUB
+    assert game.party_state.shared_gold == 19
+    assert tuple(member.character.profile.drifter_id for member in game.party_state.companions) == (
+        "azhvielle",
+    )
 
 
 def test_bridge_spends_growth_points_from_the_authoritative_skills_view():

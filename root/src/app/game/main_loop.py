@@ -2,7 +2,7 @@ from app.combat.battle import Battle
 from app.content.catalog import create_enemy_state
 from app.game import console
 from app.game.new_game import create_new_game
-from app.game.overworld_session import OverworldSession
+from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.persistence.bootstrap import build_default_save_port
 from app.persistence.ports import SaveLoadStatus
 from app.ui.terminal_battle_ui import TerminalBattleUI
@@ -48,14 +48,18 @@ def main(*, save_port=None):
     if save_port is None:
         save_port = build_default_save_port()
     game_state = _startup_game_state(save_port)
-    OverworldSession(
-        game_state,
-        ui=TerminalOverworldUI(),
-        battle_factory=Battle,
-        enemy_factory=create_enemy_state,
-        battle_ui_factory=TerminalBattleUI,
-        save_port=save_port,
-    ).run()
+    while True:
+        result = OverworldSession(
+            game_state,
+            ui=TerminalOverworldUI(),
+            battle_factory=Battle,
+            enemy_factory=create_enemy_state,
+            battle_ui_factory=TerminalBattleUI,
+            save_port=save_port,
+        ).run()
+        if result is not OverworldSessionResult.SELECT_DRIFTER:
+            return result
+        game_state = _new_game_state()
 
 
 if __name__ == "__main__":

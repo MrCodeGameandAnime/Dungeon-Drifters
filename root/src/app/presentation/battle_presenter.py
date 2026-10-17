@@ -25,6 +25,7 @@ from app.presentation.battle_models import (
     InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
+    PartyCombatantView,
     SuperMeterView,
     TargetOptionView,
 )
@@ -58,6 +59,8 @@ class BattlePresenter:
         originating_move_phase=None,
         selected_inventory_item_id=None,
         selected_inventory_companion_id=None,
+        party=None,
+        active_player_id=None,
     ):
         phase = InteractionPhase(interaction_phase)
         enemies = self._normalize_enemies(enemy=enemy, enemies=enemies)
@@ -96,58 +99,101 @@ class BattlePresenter:
                 enemy_display_labels,
             )
         )
+        party_member_views = ()
+        if party is not None:
+            if not isinstance(party, tuple) or not party:
+                raise TypeError("party must be a non-empty tuple")
+            if not all(hasattr(member, "character") for member in party):
+                raise TypeError("party must contain player states")
+            party_ids = tuple(self._drifter_id(member) for member in party)
+            if len(set(party_ids)) != len(party_ids):
+                raise ValueError("party Drifter IDs must be unique")
+            if active_player_id is None:
+                active_player_id = self._drifter_id(player)
+            if active_player_id not in party_ids:
+                raise ValueError("active player must be in the party")
+            party_member_views = tuple(
+                self._combatant_view(
+                    member,
+                    enemies[0] if len(enemies) == 1 else None,
+                    combat_state,
+                    is_player=True,
+                    target_id=f"drifter_{drifter_id}",
+                    active=drifter_id == active_player_id,
+                )
+                for member, drifter_id in zip(party, party_ids)
+            )
+        view_player = self._combatant_view(
+            player,
+            enemies[0] if len(enemies) == 1 else None,
+            combat_state,
+            is_player=True,
+        )
+        super_meter = self._super_meter_view(
+            player,
+            activation_allowed=phase != InteractionPhase.COMPLETE,
+        )
+        action_options = (
+            ()
+            if phase == InteractionPhase.COMPLETE
+            else self._action_options(player, combat_state)
+        )
+        move_options = self._move_options(
+            player,
+            exact_move_target,
+            combat_state,
+            phase,
+        )
+        target_options = self._target_options(
+            player,
+            enemies,
+            enemy_views,
+            combat_state,
+            phase,
+            selected_move_key,
+            originating_move_phase,
+        )
+        inventory_items = self._inventory_items(player, phase)
+        inventory_commands = self._inventory_commands(player, phase, selected_item)
+        inventory_inspection = self._inventory_inspection(phase, selected_item)
+        inventory_companions = self._inventory_companions(
+            player,
+            phase,
+            selected_item,
+        )
+        inventory_confirmation = self._inventory_confirmation(
+            player,
+            phase,
+            selected_item,
+            selected_inventory_companion_id,
+        )
+        log_entries = tuple(log_entries)
         return BattleView(
             interaction_phase=phase,
-            player=self._combatant_view(
-                player,
-                enemies[0] if len(enemies) == 1 else None,
-                combat_state,
-                is_player=True,
-            ),
+            player=view_player,
             enemies=enemy_views,
-            super_meter=self._super_meter_view(
-                player,
-                activation_allowed=phase != InteractionPhase.COMPLETE,
-            ),
+            super_meter=super_meter,
             encounter_label=encounter_label,
-            action_options=(
-                ()
-                if phase == InteractionPhase.COMPLETE
-                else self._action_options(player, combat_state)
-            ),
-            move_options=self._move_options(
-                player,
-                exact_move_target,
-                combat_state,
-                phase,
-            ),
-            target_options=self._target_options(
-                player,
-                enemies,
-                enemy_views,
-                combat_state,
-                phase,
-                selected_move_key,
-                originating_move_phase,
-            ),
-            inventory_items=self._inventory_items(player, phase),
+            action_options=action_options,
+            move_options=move_options,
+            target_options=target_options,
+            inventory_items=inventory_items,
             selected_inventory_item=selected_item,
-            inventory_commands=self._inventory_commands(player, phase, selected_item),
-            inventory_inspection=self._inventory_inspection(phase, selected_item),
-            inventory_companions=self._inventory_companions(
-                player,
-                phase,
-                selected_item,
-            ),
-            inventory_confirmation=self._inventory_confirmation(
-                player,
-                phase,
-                selected_item,
-                selected_inventory_companion_id,
-            ),
-            log_entries=tuple(log_entries),
+            inventory_commands=inventory_commands,
+            inventory_inspection=inventory_inspection,
+            inventory_companions=inventory_companions,
+            inventory_confirmation=inventory_confirmation,
+            log_entries=log_entries,
             visual=BattleVisualView(),
+            party_members=party_member_views,
         )
+
+    @staticmethod
+    def _drifter_id(player_state):
+        profile = getattr(player_state.character, "profile", None)
+        if profile is None:
+            raise ValueError("party members require canonical Drifter profiles")
+        return profile.drifter_id
 
     @staticmethod
     def _normalize_enemies(*, enemy, enemies):
@@ -205,7 +251,16 @@ class BattlePresenter:
             defeated=defeated,
         )
 
-    def _combatant_view(self, combatant, opposing, combat_state, *, is_player):
+    def _combatant_view(
+        self,
+        combatant,
+        opposing,
+        combat_state,
+        *,
+        is_player,
+        target_id=None,
+        active=False,
+    ):
         mana_current, mana_maximum = self._relevant_mana(combatant, is_player=is_player)
         super_current, super_maximum = self._relevant_super(combatant, is_player=is_player)
         labels = []
@@ -262,7 +317,19 @@ class BattlePresenter:
             }
         )
 
-        return CombatantView(
+        if target_id is None:
+            return CombatantView(
+                display_name=combatant.display_name,
+                hp_current=combatant.health.current,
+                hp_maximum=combatant.health.maximum,
+                mana_current=mana_current,
+                mana_maximum=mana_maximum,
+                super_current=super_current,
+                super_maximum=super_maximum,
+                defending=combat_state.is_defending(combatant),
+                temporary_labels=tuple(labels),
+            )
+        return PartyCombatantView(
             display_name=combatant.display_name,
             hp_current=combatant.health.current,
             hp_maximum=combatant.health.maximum,
@@ -272,6 +339,8 @@ class BattlePresenter:
             super_maximum=super_maximum,
             defending=combat_state.is_defending(combatant),
             temporary_labels=tuple(labels),
+            target_id=target_id,
+            active=active,
         )
 
     @staticmethod

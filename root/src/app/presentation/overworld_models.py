@@ -6,6 +6,11 @@ from enum import StrEnum
 
 class OverworldScreen(StrEnum):
     MAIN = "main"
+    HUB = "hub"
+    COMPANION_SELECTION = "companion_selection"
+    PARTY_READY = "party_ready"
+    OUTING = "outing"
+    EXTRACTION = "extraction"
     CHARACTER = "character"
     SKILLS = "skills"
     WEAPON = "weapon"
@@ -42,6 +47,9 @@ class OverworldAction(StrEnum):
     REST = "rest"
     SKIP_REST = "skip_rest"
     MENU = "menu"
+    RECRUIT_COMPANION = "recruit_companion"
+    READY = "ready"
+    RETURN_TO_HUB = "return_to_hub"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -54,6 +62,32 @@ class OverworldAvailabilityReason(StrEnum):
     ENCOUNTER_INSPECTION_UNAVAILABLE = "encounter_inspection_unavailable"
     SAVE_UNAVAILABLE = "save_unavailable"
     LOAD_UNAVAILABLE = "load_unavailable"
+    INSUFFICIENT_SHARED_GOLD = "insufficient_shared_gold"
+
+
+@dataclass(frozen=True)
+class CompanionChoiceView:
+    drifter_id: str
+    display_name: str
+    archetype_label: str
+    summary: str
+    cost: int
+    enabled: bool
+    disabled_reason: OverworldAvailabilityReason | None = None
+
+    def __post_init__(self):
+        for name in ("drifter_id", "display_name", "archetype_label", "summary"):
+            _validate_text(name, getattr(self, name))
+        _validate_nonnegative("cost", self.cost)
+        _validate_bool("enabled", self.enabled)
+        if self.disabled_reason is not None:
+            object.__setattr__(
+                self,
+                "disabled_reason",
+                OverworldAvailabilityReason(self.disabled_reason),
+            )
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("companion availability and disabled reason disagree")
 
 
 class MapNodeState(StrEnum):
@@ -262,6 +296,31 @@ class InventoryView:
 
 
 @dataclass(frozen=True)
+class OutingItemRewardView:
+    item_id: str
+    quantity: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        if isinstance(self.quantity, bool) or not isinstance(self.quantity, int):
+            raise TypeError("quantity must be an integer")
+        if self.quantity <= 0:
+            raise ValueError("quantity must be positive")
+
+
+@dataclass(frozen=True)
+class OutingRewardsView:
+    experience: int
+    gold: int
+    items: tuple[OutingItemRewardView, ...] = ()
+
+    def __post_init__(self):
+        _validate_nonnegative("experience", self.experience)
+        _validate_nonnegative("gold", self.gold)
+        _validate_instance_tuple("items", self.items, OutingItemRewardView)
+
+
+@dataclass(frozen=True)
 class MapNodeView:
     display_label: str
     kind_label: str
@@ -310,12 +369,21 @@ class OverworldView:
     inventory: InventoryView | None = None
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
+    companion_choices: tuple[CompanionChoiceView, ...] = ()
+    shared_gold: int | None = None
+    recruitment_cost: int | None = None
+    outing_rewards: OutingRewardsView | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
         _validate_text("location_label", self.location_label)
         _validate_text("adventure_text", self.adventure_text)
         _validate_instance_tuple("options", self.options, OverworldOptionView)
+        _validate_instance_tuple(
+            "companion_choices",
+            self.companion_choices,
+            CompanionChoiceView,
+        )
         if any(
             option.action in {
                 OverworldAction.ENTER_ENCOUNTER,
@@ -347,6 +415,26 @@ class OverworldView:
                 raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)
+        if self.shared_gold is not None:
+            _validate_nonnegative("shared_gold", self.shared_gold)
+        if self.recruitment_cost is not None:
+            _validate_nonnegative("recruitment_cost", self.recruitment_cost)
+        if self.outing_rewards is not None and not isinstance(
+            self.outing_rewards,
+            OutingRewardsView,
+        ):
+            raise TypeError("outing_rewards must be an OutingRewardsView")
+        if (self.screen is OverworldScreen.EXTRACTION) != (
+            self.outing_rewards is not None
+        ):
+            raise ValueError("pending outing rewards belong only to Extraction")
+        if self.screen is OverworldScreen.COMPANION_SELECTION:
+            if len(self.companion_choices) != 3:
+                raise ValueError("companion selection must offer three choices")
+            if self.shared_gold is None or self.recruitment_cost is None:
+                raise ValueError("companion selection must show shared gold and cost")
+        elif self.companion_choices:
+            raise ValueError("companion choices are only valid on their selection screen")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),

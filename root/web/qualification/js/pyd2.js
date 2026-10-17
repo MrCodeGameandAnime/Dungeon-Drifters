@@ -51,6 +51,9 @@
           `Enemies: ${result.enemies}`,
           `Final node: ${result.final_node}`,
           `Progression: L${result.level} EXP ${result.exp} GP ${result.growth_points} Gold ${result.gold}`,
+          `Hub: ${result.hub_screen}`,
+          `Tutorial: ${result.tutorial_party_size} Drifters, ${result.tutorial_enemy_count} Goblins`,
+          `Extraction: ${result.lead_tutorial_exp} EXP each, ${result.secured_gold} shared gold`,
         ].join("\n"),
         "pass"
       );

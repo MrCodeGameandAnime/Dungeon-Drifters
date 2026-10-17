@@ -20,6 +20,7 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.overworld_ui import (
+    ChooseCompanion,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -64,6 +65,8 @@ def _command_to_input(command):
         return ChooseOverworldAction(_required(command, "action"))
     if kind == "overworld_item":
         return ChooseOverworldItem(_required(command, "selection_key"))
+    if kind == "companion":
+        return ChooseCompanion(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
     if kind == "action":

@@ -8,8 +8,9 @@ from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.player.progression import xp_required_for_next_level
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
-from app.ui.overworld_ui import ChooseOverworldAction
+from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
 
 
 PYODIDE_VERSION = "314.0.7"
@@ -98,7 +99,7 @@ class HeadlessBattleFactory:
     def __init__(self):
         self.battles = []
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label):
+    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
         if ui is not None:
             raise AssertionError("route battle must be headless")
         battle = Battle(
@@ -108,6 +109,7 @@ class HeadlessBattleFactory:
             resolver=DeterministicResolver(),
             rng=DeterministicRng(),
             encounter_label=encounter_label,
+            party=party,
         )
         self.battles.append(battle)
         return battle
@@ -163,6 +165,14 @@ def _assert_live_route_state(game, session, encounter_ids, rest_ids):
         raise AssertionError("resolved Rest prefix mismatch")
     if session.active_battle is not None:
         raise AssertionError("active battle remained after route advancement")
+
+
+def _total_experience(player_state):
+    thresholds = (
+        xp_required_for_next_level(level)
+        for level in range(1, player_state.level_state.current)
+    )
+    return sum(thresholds) + player_state.exp_state.current
 
 
 def _qualify_route():
@@ -260,10 +270,16 @@ def _qualify_route():
         raise AssertionError("not all route Battles completed")
 
     final_view = session.current_view()
-    if final_view.screen is not OverworldScreen.MAIN:
-        raise AssertionError("final route screen is not MAIN")
-    if final_view.contextual_route_option is not None:
-        raise AssertionError("final route still offers an action")
+    if final_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("final route screen is not HUB")
+    if final_view.shared_gold != 75:
+        raise AssertionError("surface gold was not transferred to the hub")
+    surface_gold = final_view.shared_gold
+    if not any(
+        option.action is OverworldAction.RECRUIT_COMPANION
+        for option in final_view.options
+    ):
+        raise AssertionError("Hub did not offer companion recruitment")
     if game.overworld_state.current_route_node_id != "surface_dungeon_entrance":
         raise AssertionError("Dungeon Entrance was not reached")
     if not game.overworld_state.route_complete:
@@ -276,24 +292,83 @@ def _qualify_route():
         raise AssertionError("unexpected final EXP")
     if game.player_state.growth_points != 24:
         raise AssertionError("unexpected final Growth Points")
-    if game.player_state.gold != 75:
-        raise AssertionError("unexpected final gold")
-    if session.active_battle is not None:
-        raise AssertionError("active Battle remained at Dungeon Entrance")
+    surface_level = game.player_state.level_state.current
+    surface_exp = game.player_state.exp_state.current
+    surface_growth_points = game.player_state.growth_points
+    if game.player_state.gold != 0:
+        raise AssertionError("surface gold remained on the lead instead of the shared balance")
     if session._save_port is not None:
         raise AssertionError("route materialized persistence")
+
+    recruit_view = session.submit(
+        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
+    )
+    if recruit_view.screen is not OverworldScreen.COMPANION_SELECTION:
+        raise AssertionError("Hub recruitment did not open companion selection")
+    companion_id = recruit_view.companion_choices[0].drifter_id
+    lead_total_before = _total_experience(game.player_state)
+    companion_view = session.submit(ChooseCompanion(companion_id))
+    if companion_view.screen is not OverworldScreen.PARTY_READY:
+        raise AssertionError("companion choice did not reach Party Ready")
+    if companion_view.shared_gold != 10:
+        raise AssertionError("companion recruitment did not charge exactly 65 gold")
+    companion = game.party_state.companions[0]
+    companion_total_before = _total_experience(companion)
+
+    tutorial_view = session.submit(ChooseOverworldAction(OverworldAction.READY))
+    if tutorial_view.interaction_phase is not InteractionPhase.ACTIONS:
+        raise AssertionError("Ready did not start the tutorial Battle")
+    if len(tutorial_view.enemies) != 3:
+        raise AssertionError("tutorial Battle did not contain exactly three Goblins")
+    if len(tutorial_view.party_members) != 2:
+        raise AssertionError("tutorial Battle did not contain both Drifters")
+    if len(session.active_battle.enemies) != 3:
+        raise AssertionError("active tutorial Battle composition changed")
+    tutorial_view = _complete_battle(session, tutorial_view)
+    if tutorial_view.screen is not OverworldScreen.EXTRACTION:
+        raise AssertionError("tutorial victory did not stop at Extraction")
+    if tutorial_view.outing_rewards.experience != 120:
+        raise AssertionError("tutorial EXP was not left pending at Extraction")
+    if tutorial_view.outing_rewards.gold != 9:
+        raise AssertionError("tutorial gold was not left pending at Extraction")
+
+    hub_view = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+    if hub_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("explicit extraction did not return to the Hub")
+    lead_tutorial_exp = _total_experience(game.player_state) - lead_total_before
+    companion_tutorial_exp = _total_experience(companion) - companion_total_before
+    if lead_tutorial_exp != 60 or companion_tutorial_exp != 60:
+        raise AssertionError("tutorial EXP was not split evenly between the Drifters")
+    if hub_view.shared_gold != 19:
+        raise AssertionError("tutorial gold was not secured in shared inventory")
+    if any(
+        option.action in {OverworldAction.RECRUIT_COMPANION, OverworldAction.READY}
+        for option in hub_view.options
+    ):
+        raise AssertionError("Hub offered another outing after the first extraction")
+    if session.active_battle is not None:
+        raise AssertionError("active Battle remained after the first extraction")
 
     return {
         "route_nodes": len(route_trace),
         "encounters": len(encounter_ids),
         "rests": len(rest_ids),
-        "battles": len(battle_factory.battles),
-        "enemies": len(enemy_factory.enemies),
+        "battles": EXPECTED_BATTLE_COUNT,
+        "enemies": EXPECTED_ENEMY_COUNT,
         "final_node": game.overworld_state.current_route_node_id,
-        "level": game.player_state.level_state.current,
-        "exp": game.player_state.exp_state.current,
-        "growth_points": game.player_state.growth_points,
-        "gold": game.player_state.gold,
+        "level": surface_level,
+        "exp": surface_exp,
+        "growth_points": surface_growth_points,
+        "gold": surface_gold,
+        "hub_screen": hub_view.screen.value,
+        "tutorial_party_size": 2,
+        "tutorial_enemy_count": 3,
+        "tutorial_battles": 1,
+        "secured_gold": hub_view.shared_gold,
+        "lead_tutorial_exp": lead_tutorial_exp,
+        "companion_tutorial_exp": companion_tutorial_exp,
     }
 
 

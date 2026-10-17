@@ -170,6 +170,8 @@ class RouteUI:
             action = next(self._rest_actions)
             self.rest_decisions.append((view.location_label, action))
             return ChooseOverworldAction(action)
+        if view.screen is OverworldScreen.HUB:
+            return ChooseOverworldAction(OverworldAction.OPTIONS)
         if view.screen is OverworldScreen.MAIN:
             if view.contextual_route_option is not None:
                 return ChooseOverworldAction(view.contextual_route_option.action)
@@ -304,7 +306,12 @@ def test_four_drifters_complete_the_full_surface_route(
     assert player.level_state.current == 9
     assert player.exp_state.current == 68
     assert player.growth_points == 24
-    assert player.gold == 75
+    assert player.gold == 0
+    assert game.party_state.shared_gold == 75
+    hub_view = next(
+        view for view in route_ui.views if view.screen is OverworldScreen.HUB
+    )
+    assert hub_view.shared_gold == 75
     assert route_ui.views[-1].contextual_route_option is None
 
     presenter = OverworldPresenter()

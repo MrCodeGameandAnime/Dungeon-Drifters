@@ -275,7 +275,11 @@ def test_surface_route_rewards_match_the_locked_cumulative_progression():
         assert player.health.maximum == hp
         assert player.mana_resource.maximum == mana
         assert player.growth_points == points
-        assert player.gold == gold
+        if encounter_id == "surface_goblin_lord":
+            assert player.gold == 0
+            assert game.party_state.shared_gold == gold
+        else:
+            assert player.gold == gold
         assert game.world_state.defeated_encounters == tuple(
             entry[0] for entry in expected[: index + 1]
         )

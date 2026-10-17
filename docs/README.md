@@ -102,12 +102,15 @@ Key foundations include:
 
 ### Save and Cloud Data
 
-The schema-8 `GameState` payload contains progression only. A separate local
-profile envelope stores the stable profile ID, optional DD account association,
-local sequence, accepted remote revision, sync state, and payload digest. The
-local profile store is authoritative for immediate play: saves are committed
-locally first, and a player can continue playing, saving, quitting, and loading
-without an account or network connection.
+The schema-9 `GameState` payload contains progression only, including the
+recruited party, shared hub inventory, and pending outing rewards. Existing
+schema-8 disk payloads remain readable and are migrated only after their
+original envelope digest is verified. A separate version-1 local profile
+envelope stores the stable profile ID, optional DD account association, local
+sequence, accepted remote revision, sync state, and payload digest. The local
+profile store is authoritative for immediate play: saves are committed locally
+first, and a player can continue playing, saving, quitting, and loading without
+an account or network connection.
 
 Optional cloud sync uses the DD-owned HTTPS/JSON profile API backed by
 PostgreSQL. The game depends on profile and transport interfaces, not on
@@ -122,11 +125,11 @@ merges progression.
 Accounts, linked platform identities, sessions, and entitlements remain service
 data outside progression. Entitlements are account-scoped and service-owned;
 source, expiry, and revocation can be represented without granting authority to
-the client save. Ordinary earned gold remains in `GameState`. Any future
+the client save. Ordinary earned gold remains gameplay data in `GameState`,
+with dungeon-hub funds represented in the party state. Any future
 platform-restricted currency must use separate account/service data rather than
-the schema-8 gold field. Firebase has not been selected; provider integrations
-must sit behind the DD contracts and be qualified independently on each
-platform.
+game-state fields. Firebase has not been selected; provider integrations must
+sit behind the DD contracts and be qualified independently on each platform.
 
 See the project documentation and change log for detailed implementation history
 and architecture.

@@ -46,6 +46,7 @@ EXPECTED_WEAPON_IDS = (
 )
 EXPECTED_DRIFTER_IDS = ("azhvielle", "branoc", "joruun", "zhaivra")
 EXPECTED_ENCOUNTER_IDS = (
+    "dungeon_goblin_trio",
     "surface_elite_patrol",
     "surface_goblin_lord",
     "surface_goblin_pair",

@@ -231,7 +231,15 @@ class TerminalBattleUI:
 
     def _linear_lines(self, view, width):
         lines = ["STATUS"]
-        lines.extend(self._combatant_status(view.player, include_super=False))
+        if view.party_members:
+            for member in view.party_members:
+                marker = "ACTIVE: " if member.active else "         "
+                lines.append(marker + member.display_name)
+                lines.extend(
+                    self._combatant_status(member, include_super=False)[1:]
+                )
+        else:
+            lines.extend(self._combatant_status(view.player, include_super=False))
         for enemy in view.enemies:
             lines.extend(self._combatant_status(enemy, include_super=True))
         lines.append("VISUALS")
@@ -249,10 +257,22 @@ class TerminalBattleUI:
         )
 
     def _status_lines(self, view, width):
-        player_lines = self._combatant_status(view.player, include_super=False)
         separator = " │ " if self._unicode_enabled else " | "
         left_width = (width - len(separator)) // 2
         right_width = width - len(separator) - left_width
+        if view.party_members:
+            party_blocks = []
+            for member in view.party_members:
+                block = list(self._combatant_status(member, include_super=False))
+                block[0] = (
+                    f"ACTIVE: {member.display_name}"
+                    if member.active
+                    else member.display_name
+                )
+                party_blocks.append(tuple(block))
+            player_lines = self._enemy_side_lines(tuple(party_blocks), left_width)
+        else:
+            player_lines = self._combatant_status(view.player, include_super=False)
         enemy_blocks = tuple(
             self._combatant_status(enemy, include_super=True)
             for enemy in view.enemies
@@ -307,7 +327,12 @@ class TerminalBattleUI:
         return tuple(lines)
 
     def _visual_lines(self, view, width):
-        if view.visual.player_lines or view.visual.enemy_lines:
+        if view.party_members:
+            player = " / ".join(
+                f"{'* ' if member.active else ''}{member.display_name}"
+                for member in view.party_members
+            )
+        elif view.visual.player_lines or view.visual.enemy_lines:
             player = " ".join(view.visual.player_lines) or view.player.display_name
         else:
             player = view.player.display_name

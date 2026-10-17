@@ -160,7 +160,10 @@ def test_headless_semantic_runtime_completes_the_surface_route_without_persisten
             encounter_ids.append(current_node_id)
             battle_view = session.submit(ChooseOverworldAction(route_action))
             view = _complete_battle(session, battle_view)
-            assert view.screen is OverworldScreen.MAIN or view.screen is OverworldScreen.REST
+            if game.overworld_state.route_complete:
+                assert view.screen is OverworldScreen.HUB
+            else:
+                assert view.screen in (OverworldScreen.MAIN, OverworldScreen.REST)
         elif route_action is OverworldAction.REST:
             rest_view = session.submit(ChooseOverworldAction(route_action))
             assert rest_view.screen is OverworldScreen.REST
@@ -195,10 +198,12 @@ def test_headless_semantic_runtime_completes_the_surface_route_without_persisten
     assert session.active_battle is None
 
     final_view = session.current_view()
-    assert final_view.screen is OverworldScreen.MAIN
+    assert final_view.screen is OverworldScreen.HUB
     assert final_view.contextual_route_option is None
+    assert final_view.shared_gold == 75
     assert game.player_state.level_state.current == 9
     assert game.player_state.exp_state.current == 68
     assert game.player_state.growth_points == 24
-    assert game.player_state.gold == 75
+    assert game.player_state.gold == 0
+    assert game.party_state.shared_gold == 75
     assert not save_path.exists()

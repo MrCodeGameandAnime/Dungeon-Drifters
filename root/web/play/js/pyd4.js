@@ -539,6 +539,55 @@
     );
   }
 
+  function renderCompanionChoices(view) {
+    const section = $("companion-selection");
+    const visible = view.screen === "companion_selection";
+    section.hidden = !visible;
+    if (!visible) return;
+    setText(
+      "companion-funds",
+      `Shared gold: ${view.shared_gold} | Recruitment cost: ${view.recruitment_cost}`,
+    );
+    const container = $("companion-choices");
+    clear(container);
+    for (const candidate of view.companion_choices || []) {
+      const button = makeButton(
+        candidate.display_name,
+        { kind: "companion", drifter_id: candidate.drifter_id },
+        candidate.enabled,
+        candidate.disabled_reason,
+        "companion-choice",
+      );
+      appendChoiceDetail(button, "companion-role", candidate.archetype_label);
+      appendChoiceDetail(button, "companion-summary", candidate.summary);
+      appendChoiceDetail(button, "companion-cost", `${candidate.cost} gold`);
+      container.append(button);
+    }
+  }
+
+  function renderOutingRewards(view) {
+    const section = $("extraction-rewards");
+    const rewards = view.screen === "extraction" ? view.outing_rewards : null;
+    section.hidden = !rewards;
+    clear(section);
+    if (!rewards) return;
+    const heading = document.createElement("h3");
+    heading.textContent = "Pending rewards";
+    const summary = document.createElement("p");
+    summary.textContent = `${rewards.experience} EXP | ${rewards.gold} gold`;
+    section.append(heading, summary);
+    for (const item of rewards.items || []) {
+      const line = document.createElement("p");
+      line.textContent = `${item.quantity} x ${item.item_id}`;
+      section.append(line);
+    }
+    if (!rewards.items || rewards.items.length === 0) {
+      const line = document.createElement("p");
+      line.textContent = "Items: none";
+      section.append(line);
+    }
+  }
+
   function renderOverworld(view) {
     const characterMenuScreens = ["character", "skills", "weapon", "equipment"];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
@@ -548,12 +597,24 @@
     } else {
       delete $("overworld-screen").dataset.detailScreen;
     }
-    setText("screen-badge", characterMenuActive || mainScreen ? "OVERWORLD" : view.screen);
+    const screenLabels = {
+      companion_selection: "RECRUITMENT",
+      party_ready: "PARTY READY",
+      extraction: "EXTRACTION",
+    };
+    setText("screen-badge", characterMenuActive || mainScreen
+      ? "OVERWORLD"
+      : (screenLabels[view.screen] || view.screen.toUpperCase()));
     setText("location-label", view.location_label);
     setText("adventure-text", view.adventure_text);
     renderPlayer(view.character);
     renderEnemies([]);
     renderLog([]);
+    const hubBalance = $("hub-shared-gold");
+    const showHubBalance = ["hub", "party_ready"].includes(view.screen) &&
+      view.shared_gold != null;
+    hubBalance.hidden = !showHubBalance;
+    hubBalance.textContent = showHubBalance ? `Shared gold: ${view.shared_gold}` : "";
 
     $("route-actions").hidden = characterMenuActive;
     $("overworld-options").hidden = characterMenuActive;
@@ -564,6 +625,8 @@
       (option) => option.label,
       "overworld-option",
     );
+    renderCompanionChoices(view);
+    renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),
       view.options,
@@ -600,14 +663,58 @@
     $("super-ready").hidden = !(meter && meter.activation_offered);
   }
 
+  function renderPartyMembers(members) {
+    const container = $("party-members");
+    clear(container);
+    for (const member of members || []) {
+      const card = document.createElement("article");
+      card.className = `party-member${member.active ? " is-active" : ""}`;
+      card.dataset.targetId = member.target_id;
+      const heading = document.createElement("h3");
+      heading.textContent = member.display_name;
+      if (member.active) {
+        const marker = document.createElement("span");
+        marker.className = "active-actor";
+        marker.textContent = "Active";
+        heading.append(" ", marker);
+      }
+      card.append(heading);
+      const lines = [
+        `HP ${member.hp_current}/${member.hp_maximum}`,
+      ];
+      if (member.mana_current != null) {
+        lines.push(`Mana ${member.mana_current}/${member.mana_maximum}`);
+      }
+      if (member.super_current != null) {
+        lines.push(`Super ${member.super_current}/${member.super_maximum}`);
+      }
+      if (member.defending) lines.push("Guarding");
+      if (member.temporary_labels && member.temporary_labels.length) {
+        lines.push(member.temporary_labels.join(", "));
+      }
+      const status = document.createElement("div");
+      status.className = "party-member-status";
+      status.textContent = lines.join(" | ");
+      card.append(status);
+      container.append(card);
+    }
+  }
+
   function renderBattle(view) {
     const phase = view.interaction_phase;
     $("app").dataset.interactionPhase = phase;
     $("battle-screen").dataset.interactionPhase = phase;
-    const matchupPlayer = view.visual && view.visual.player_lines && view.visual.player_lines.length
-      ? view.visual.player_lines.join(" ")
-      : view.player.display_name;
+    const matchupPlayer = view.party_members && view.party_members.length
+      ? view.party_members.map((member) =>
+        `${member.display_name}${member.active ? " (Active)" : ""}`).join(" / ")
+      : (view.visual && view.visual.player_lines && view.visual.player_lines.length
+        ? view.visual.player_lines.join(" ")
+        : view.player.display_name);
     setText("battle-matchup", `[ ${matchupPlayer} ]   VS   [ ${view.encounter_label} ]`);
+    const hasParty = Boolean(view.party_members && view.party_members.length);
+    $("player-panel").hidden = hasParty;
+    $("party-panel").hidden = !hasParty;
+    if (hasParty) renderPartyMembers(view.party_members);
     renderPlayer(view.player);
     renderEnemies(view.enemies);
     renderLog(view.log_entries);
@@ -685,6 +792,10 @@
     try {
       pyodide.globals.set("_browser_command_json", JSON.stringify(command));
       state = await pythonJson("submit_json(_browser_command_json)");
+      if (state === "select_drifter") {
+        showDrifterSelection();
+        return;
+      }
       if (state && state.interaction_phase === "complete") {
         state = await pythonJson("current_view_json()");
       }

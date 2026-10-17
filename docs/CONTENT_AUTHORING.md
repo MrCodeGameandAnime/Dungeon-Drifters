@@ -63,7 +63,7 @@ git diff --check
 
 The validator checks catalog freshness, exports, immutable specifications,
 identity uniqueness, references, factories, authored move compatibility, and
-schema-8 reconstruction.
+schema-9 reconstruction.
 
 Adding content means composing behavior already supported by the engine. A new
 move mechanic, runtime state owner, persistence field, target rule, or combat

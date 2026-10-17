@@ -13,6 +13,7 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.ui.overworld_ui import (
+    ChooseCompanion,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -43,6 +44,9 @@ class TerminalOverworldUI:
         OverworldAction.REST: "R",
         OverworldAction.SKIP_REST: "C",
         OverworldAction.MENU: "M",
+        OverworldAction.RECRUIT_COMPANION: "R",
+        OverworldAction.READY: "Y",
+        OverworldAction.RETURN_TO_HUB: "H",
     }
 
     def __init__(
@@ -111,6 +115,18 @@ class TerminalOverworldUI:
                 if row.increase_enabled:
                     return ChoosePermanentStatIncrease(row.stat_name)
                 self._output(self._disabled_message(row.disabled_reason))
+                return self._REJECTED
+
+        if (
+            view.screen is OverworldScreen.COMPANION_SELECTION
+            and view.companion_choices
+        ):
+            for number, candidate in enumerate(view.companion_choices, start=1):
+                if choice != str(number):
+                    continue
+                if candidate.enabled:
+                    return ChooseCompanion(candidate.drifter_id)
+                self._output(self._disabled_message(candidate.disabled_reason))
                 return self._REJECTED
 
         for option in self._input_options(view):
@@ -185,6 +201,50 @@ class TerminalOverworldUI:
                 )
                 if view.adventure_text != load_prompt:
                     lines.extend(("", load_prompt))
+        elif view.screen is OverworldScreen.HUB:
+            lines = ["ADVENTURE", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.COMPANION_SELECTION:
+            lines = [
+                "RECRUIT A COMPANION",
+                f"Shared gold: {view.shared_gold}",
+                f"Recruitment cost: {view.recruitment_cost}",
+                "",
+            ]
+            for number, candidate in enumerate(view.companion_choices, start=1):
+                availability = "" if candidate.enabled else " [Unavailable]"
+                lines.append(
+                    f"{number}. {candidate.display_name} | "
+                    f"{candidate.archetype_label} | {candidate.cost} gold"
+                    f"{availability}"
+                )
+                lines.extend(self._wrapped(candidate.summary, width))
+        elif view.screen is OverworldScreen.PARTY_READY:
+            lines = ["PARTY READY", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.OUTING:
+            lines = ["OUTING", ""] + list(
+                self._wrapped(view.adventure_text, width)
+            )
+        elif view.screen is OverworldScreen.EXTRACTION:
+            rewards = view.outing_rewards
+            lines = ["EXTRACTION", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(
+                (
+                    "",
+                    f"Pending rewards: {rewards.experience} EXP, {rewards.gold} gold",
+                )
+            )
+            if rewards.items:
+                lines.extend(
+                    f"{item.quantity} x {item.item_id}"
+                    for item in rewards.items
+                )
+            else:
+                lines.append("Items: none")
         elif view.screen is OverworldScreen.CHARACTER:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:
@@ -457,6 +517,11 @@ class TerminalOverworldUI:
     def _screen_title(screen):
         return {
             OverworldScreen.MAIN: "OVERWORLD",
+            OverworldScreen.HUB: "HUB",
+            OverworldScreen.COMPANION_SELECTION: "RECRUITMENT",
+            OverworldScreen.PARTY_READY: "PARTY READY",
+            OverworldScreen.OUTING: "OUTING",
+            OverworldScreen.EXTRACTION: "EXTRACTION",
             OverworldScreen.CHARACTER: "CHARACTER",
             OverworldScreen.SKILLS: "SKILLS",
             OverworldScreen.WEAPON: "WEAPON",
@@ -500,5 +565,8 @@ class TerminalOverworldUI:
             ),
             OverworldAvailabilityReason.LOAD_UNAVAILABLE: (
                 "Loading is not yet available."
+            ),
+            OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD: (
+                "You need 65 shared gold to recruit a Drifter."
             ),
         }[reason]

@@ -203,7 +203,7 @@ def _validate_schema_round_trips(records, errors):
         from app.persistence.save_document import build_save_document, reconstruct_game_state
         from app.player.player_state import PlayerState
     except (ImportError, KeyError, TypeError, ValueError) as error:
-        _error(errors, ROOT / "src/app/persistence/save_document.py", f"cannot load schema-8 boundary: {error}")
+        _error(errors, ROOT / "src/app/persistence/save_document.py", f"cannot load schema-9 boundary: {error}")
         return
 
     for _, spec, path in records["enemy"]:
@@ -236,9 +236,9 @@ def _validate_schema_round_trips(records, errors):
             document = build_save_document(GameState(PlayerState(spec.create_character())))
             rebuilt = reconstruct_game_state(document)
             if build_save_document(rebuilt) != document:
-                _error(errors, path, "schema-8 build/reconstruct/build payload drift")
+                _error(errors, path, "schema-9 build/reconstruct/build payload drift")
         except (KeyError, TypeError, ValueError) as error:
-            _error(errors, path, f"schema-8 reconstruction failed: {error}")
+            _error(errors, path, f"schema-9 reconstruction failed: {error}")
 
 
 def validate_content():

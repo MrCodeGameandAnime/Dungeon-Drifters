@@ -251,6 +251,19 @@ async function controlSignature(page) {
   })));
 }
 
+async function clickVisibleOption(page, containerSelector, label) {
+  const buttons = page.locator(`${containerSelector} button`);
+  for (let index = 0; index < await buttons.count(); index += 1) {
+    const button = buttons.nth(index);
+    const text = await button.locator(".choice-label").textContent().catch(() => null);
+    if (text?.trim() === label && await button.isEnabled()) {
+      await button.click();
+      return;
+    }
+  }
+  throw new Error(`offered control not found: ${label} in ${containerSelector}`);
+}
+
 const targetProjection = {
   interaction_phase: "targets",
   player: {
@@ -314,11 +327,96 @@ const resultOverworldProjection = {
   },
 };
 
+const hubProjection = {
+  screen: "hub",
+  location_label: "Floor 1 Hub",
+  adventure_text: "You have reached the Floor 1 Hub. Recruit one companion to continue.",
+  options: [
+    { action: "recruit_companion", label: "Recruit Companion", enabled: true, disabled_reason: null },
+    { action: "character", label: "Character", enabled: true, disabled_reason: null },
+    { action: "items", label: "Items", enabled: true, disabled_reason: null },
+    { action: "map", label: "Map", enabled: true, disabled_reason: null },
+    { action: "options", label: "Options", enabled: true, disabled_reason: null },
+  ],
+  contextual_route_option: null,
+  character: null,
+  notice: null,
+  shared_gold: 75,
+};
+
+const companionProjection = {
+  ...hubProjection,
+  screen: "companion_selection",
+  adventure_text: "Choose one Drifter to join your party.",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  companion_choices: [
+    { drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
+    { drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
+    { drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
+  ],
+  recruitment_cost: 65,
+};
+
+const partyReadyProjection = {
+  ...hubProjection,
+  screen: "party_ready",
+  adventure_text: "Your party is assembled and ready to set out.",
+  shared_gold: 10,
+  options: [
+    { action: "ready", label: "Ready / Set Out", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+    ...hubProjection.options.slice(1),
+  ],
+};
+
+const partyBattleProjection = {
+  ...targetProjection,
+  interaction_phase: "actions",
+  encounter_label: "Goblin Trio",
+  enemies: [1, 2, 3].map((number) => ({
+    target_id: `enemy_${number}`,
+    display_label: `Goblin ${number}`,
+    hp_current: 60,
+    hp_maximum: 60,
+    temporary_labels: [],
+    defeated: false,
+  })),
+  party_members: [
+    { target_id: "drifter_branoc", display_name: "Ser Branoc", hp_current: 116, hp_maximum: 116, mana_current: 46, mana_maximum: 46, super_current: 0, super_maximum: 100, defending: false, temporary_labels: [], active: true },
+    { target_id: "drifter_azhvielle", display_name: "Azhvielle", hp_current: 92, hp_maximum: 92, mana_current: 70, mana_maximum: 70, super_current: 0, super_maximum: 100, defending: false, temporary_labels: [], active: false },
+  ],
+  action_options: [{ intent: "defend", label: "Defend", enabled: true, disabled_reason: null }],
+  target_options: [],
+  log_entries: [],
+};
+
+const extractionProjection = {
+  screen: "extraction",
+  location_label: "Floor 1 Hub",
+  adventure_text: "The Goblin trio is defeated. Return to the hub to secure your rewards.",
+  options: [{ action: "return_to_hub", label: "Return to Hub", enabled: true, disabled_reason: null }],
+  contextual_route_option: null,
+  character: null,
+  notice: null,
+  outing_rewards: { experience: 120, gold: 9, items: [] },
+};
+
+const securedHubProjection = {
+  ...hubProjection,
+  adventure_text: "You return to the Floor 1 Hub. The tutorial rewards are secured.",
+  shared_gold: 19,
+  options: hubProjection.options.slice(1),
+};
+
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const browser = await chromium.launch({ headless: true });
+const browserOptions = { headless: true };
+if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+  browserOptions.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+}
+const browser = await chromium.launch(browserOptions);
 try {
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -998,6 +1096,8 @@ try {
     window.__fixtureCommands = [];
     window.__fixtureGlobals = {};
     window.__fixtureTransitionComplete = false;
+    window.__fixtureHubMode = false;
+    window.__fixtureHubPhase = "hub";
     window.__fullscreenRequests = 0;
     window.__musicPlayRequests = 0;
     window.__musicPlayedBeforeFullscreen = false;
@@ -1028,14 +1128,39 @@ try {
           ]);
           if (source === "start_game_json(_selected_drifter_id)") {
             window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
-            return JSON.stringify(views.targets);
+            return JSON.stringify(window.__fixtureHubMode ? views.hub : views.targets);
           }
           if (source === "current_view_json()") {
+            if (window.__fixtureHubMode) return JSON.stringify(views[window.__fixtureHubPhase]);
             return JSON.stringify(window.__fixtureTransitionComplete ? views.overworld : views.targets);
           }
           if (source === "restart_game_json()") return JSON.stringify(views.targets);
           if (source === "submit_json(_browser_command_json)") {
-            window.__fixtureCommands.push(JSON.parse(window.__fixtureGlobals._browser_command_json));
+            const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
+            window.__fixtureCommands.push(command);
+            if (window.__fixtureHubMode) {
+              if (window.__fixtureHubPhase === "hub" && command.action === "recruit_companion") {
+                window.__fixtureHubPhase = "companion";
+                return JSON.stringify(views.companion);
+              }
+              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle") {
+                window.__fixtureHubPhase = "partyReady";
+                return JSON.stringify(views.partyReady);
+              }
+              if (window.__fixtureHubPhase === "partyReady" && command.action === "ready") {
+                window.__fixtureHubPhase = "battle";
+                return JSON.stringify(views.partyBattle);
+              }
+              if (window.__fixtureHubPhase === "battle" && command.intent === "defend") {
+                window.__fixtureHubPhase = "extraction";
+                return JSON.stringify(views.complete);
+              }
+              if (window.__fixtureHubPhase === "extraction" && command.action === "return_to_hub") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              throw new Error(`unexpected hub fixture command at ${window.__fixtureHubPhase}`);
+            }
             window.__fixtureTransitionComplete = true;
             return JSON.stringify(views.complete);
           }
@@ -1047,6 +1172,12 @@ try {
     targets: targetProjection,
     complete: completeProjection,
     overworld: resultOverworldProjection,
+    hub: hubProjection,
+    companion: companionProjection,
+    partyReady: partyReadyProjection,
+    partyBattle: partyBattleProjection,
+    extraction: extractionProjection,
+    securedHub: securedHubProjection,
   });
   await targetPage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await targetPage.waitForFunction(() => typeof window.__resolvePyodide === "function");
@@ -1176,6 +1307,76 @@ try {
     "completed Battle did not return to the authoritative Overworld result projection",
   );
 
+  await targetPage.evaluate(() => {
+    window.__fixtureHubMode = true;
+    window.__fixtureHubPhase = "hub";
+    window.__fixtureCommands = [];
+  });
+  await targetPage.locator("#restart").click();
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#location-label").innerText()) === "Floor 1 Hub" &&
+      (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 75" &&
+      await targetPage.getByRole("button", { name: "Recruit Companion" }).isVisible(),
+    "Hub projection omitted the shared balance or authoritative recruitment action",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-hub");
+  await clickVisibleOption(targetPage, "#overworld-options", "Recruit Companion");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "RECRUITMENT");
+  requireCondition(
+    await targetPage.locator("#companion-choices button:enabled").count() === 3 &&
+      (await targetPage.locator("#companion-funds").innerText()).includes("Shared gold: 75") &&
+      (await targetPage.locator("#companion-funds").innerText()).includes("Recruitment cost: 65"),
+    "companion projection omitted the three candidates or authoritative price/balance",
+  );
+  await clickVisibleOption(targetPage, "#companion-choices", "Azhvielle");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "PARTY READY");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 10" &&
+      await targetPage.getByRole("button", { name: "Ready / Set Out" }).isVisible(),
+    "Party Ready projection omitted the post-recruitment balance or explicit action",
+  );
+  await clickVisibleOption(targetPage, "#overworld-options", "Ready / Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#party-members .party-member").count() === 2 &&
+      (await targetPage.locator("#party-members").innerText()).includes("Ser Branoc") &&
+      (await targetPage.locator("#party-members").innerText()).includes("Azhvielle") &&
+      await targetPage.locator("#enemy-panel .enemy").count() === 3,
+    "party Battle projection omitted a Drifter or one of the three Goblins",
+  );
+  await captureScreenshot(targetPage, "desktop-hub-party-battle");
+  await clickVisibleOption(targetPage, "#actions", "Defend");
+  await targetPage.locator("#extraction-rewards").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#extraction-rewards").innerText()).includes("120 EXP | 9 gold") &&
+      await targetPage.getByRole("button", { name: "Return to Hub" }).isVisible(),
+    "Extraction projection omitted pending tutorial totals or its explicit return action",
+  );
+  await captureScreenshot(targetPage, "desktop-hub-extraction");
+  await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
+      await targetPage.locator("#overworld-options button").count() === 4 &&
+      !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
+      !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
+    "returned Hub did not show secured currency or stop at the first extraction",
+  );
+  const hubCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    JSON.stringify(hubCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "recruit_companion" },
+      { kind: "companion", drifter_id: "azhvielle" },
+      { kind: "overworld_action", action: "ready" },
+      { kind: "action", intent: "defend" },
+      { kind: "overworld_action", action: "return_to_hub" },
+    ]),
+    `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
+  );
+  console.log("PYD7|BROWSER|HUB_OUTING|PASS");
+
   const qualification = await browser.newPage();
   qualification.on("pageerror", (error) => errors.push(error.message));
   qualification.on("console", (message) => {
@@ -1185,13 +1386,20 @@ try {
     waitUntil: "domcontentloaded",
   });
   await qualification.waitForFunction(
-    () => document.getElementById("status").textContent.includes("PYD2|PASS"),
+    () => {
+      const output = document.getElementById("status").textContent;
+      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
+    },
     null,
     { timeout: 120000 },
   );
   const result = await qualification.locator("#status").innerText();
+  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
   requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
   requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
+  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
+  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
+  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
   requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
 
   console.log("PYD7|PASS");

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -58,7 +59,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "41de49b00b15bc7069588d40b77e3ca66dccd0f0ff4f3be50b2ce4aa3f0bd2c1"
+        "b00f1da7aae94f885336690c2dc1b415470b4267444e095311a4aa65d3bcb65e"
     )
 
 
@@ -127,3 +128,30 @@ def test_profile_envelope_validation_does_not_mutate_caller_payload():
     envelope.payload["metadata"]["added"] = "after-build"
 
     assert payload == original
+
+
+def test_legacy_schema8_envelope_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 8
+    legacy_payload.pop("party")
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_legacy_schema8_payload_digest_is_checked_before_any_migration():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 8
+    legacy_payload.pop("party")
+    envelope_document = profile_envelope_to_document(_envelope())
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = "0" * 64
+
+    with pytest.raises(ProfileEnvelopeValidationError):
+        validate_profile_envelope(envelope_document)

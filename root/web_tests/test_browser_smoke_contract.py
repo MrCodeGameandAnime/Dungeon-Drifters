@@ -10,7 +10,9 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
 
     for required in (
         'import { chromium } from "playwright"',
-        "chromium.launch({ headless: true })",
+        "const browserOptions = { headless: true }",
+        "process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH",
+        "chromium.launch(browserOptions)",
         'locator("#overworld-screen").waitFor({ state: "visible" })',
         'locator(".app-header").innerText()',
         'locator("#immersive").isVisible()',
@@ -52,6 +54,19 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         'PYD2|PASS',
         "surface_dungeon_entrance",
         "L9 EXP 68 GP 24 Gold 75",
+        "const companionProjection = {",
+        "const partyBattleProjection = {",
+        "const extractionProjection = {",
+        "const securedHubProjection = {",
+        "window.__fixtureHubMode = true",
+        'targetPage.locator("#companion-choices',
+        'targetPage.locator("#party-members',
+        'targetPage.locator("#extraction-rewards',
+        'targetPage.locator("#hub-shared-gold',
+        '"Shared gold: 19"',
+        '"Recruitment cost: 65"',
+        '"120 EXP | 9 gold"',
+        "PYD7|BROWSER|HUB_OUTING|PASS",
         "PYD7|BROWSER|COMPLETION_SIGNAL|PASS",
     ):
         assert required in source
@@ -63,12 +78,15 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         "desktop-battle-actions",
         "desktop-move-selection",
         "desktop-target-selection",
+        "desktop-floor-one-hub",
+        "desktop-hub-party-battle",
+        "desktop-hub-extraction",
         "landscape-battle-actions",
         "landscape-move-selection",
         "mobile-start-ready",
     ):
         assert f'"{screenshot}"' in source
     assert 'await page.screenshot({ path: output })' in source
-    assert "damage" not in source
-    assert "reward" not in source
+    assert "damage =" not in source
+    assert "reward =" not in source
     assert "route_complete =" not in source

@@ -113,10 +113,10 @@ def test_production_dataclass_surface_is_exactly_audited():
     texts = tuple(path.read_text(encoding="utf-8") for path in files)
 
     assert len(import_files) == 28
-    assert sum(text.count("@dataclass") for text in texts) == 84
-    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 81
+    assert sum(text.count("@dataclass") for text in texts) == 89
+    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 86
     assert sum(text.count("@dataclass\n") for text in texts) == 3
-    assert sum(text.count("def __post_init__(self)") for text in texts) == 61
+    assert sum(text.count("def __post_init__(self)") for text in texts) == 66
     assert sum(text.count("field(default_factory=") for text in texts) == 1
 
     forbidden = (

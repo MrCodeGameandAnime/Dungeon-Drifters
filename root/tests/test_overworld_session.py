@@ -535,12 +535,42 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 7
+    assert snapshot["schema_version"] == 8
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
         "surface_rest_before_goblin_lord",
     ]
+
+
+def test_surface_route_exit_arrives_at_the_dungeon_hub():
+    game = GameState(PlayerState(create_drifter("branoc"), gold=75))
+    move_to_authored_rest(game, "surface_rest_before_goblin_lord")
+    battles = BattleHarness(("player",))
+    enemies = EnemyFactory()
+    session = OverworldSession(
+        game,
+        battle_factory=battles.factory,
+        enemy_factory=enemies,
+    )
+
+    rest_view = session.submit(
+        ChooseOverworldAction(OverworldAction.REST)
+    )
+    assert rest_view.screen is OverworldScreen.REST
+
+    session.submit(
+        ChooseOverworldAction(OverworldAction.SKIP_REST)
+    )
+    session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+    hub_view = session.current_view()
+
+    assert hub_view.screen.value == "hub"
+    assert game.party_state.phase.value == "hub"
+    assert game.player_state.gold == 0
+    assert game.party_state.shared_gold >= 75
 
 
 @pytest.mark.parametrize(
@@ -573,7 +603,8 @@ def test_complete_surface_route_resolves_all_rests_without_changing_rewards(
     assert player.level_state.current == 9
     assert player.exp_state.current == 68
     assert player.growth_points == 24
-    assert player.gold == 75
+    assert player.gold == 0
+    assert game.party_state.shared_gold == 75
     if rest_action is OverworldAction.REST:
         assert player.health.current == player.health.maximum - 1
         assert player.mana_resource.current == player.mana_resource.maximum - 1

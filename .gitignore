@@ -19,10 +19,16 @@ root/pages-dist/
 
 # Test and coverage output
 .pytest_cache/
+.pytest-tmp-*/
 .coverage
 coverage.xml
 htmlcov/
 root/web_tests/node_modules/
+
+# Browser/runtime diagnostic output
+/debug.log
+/root/debug.log
+/root/web_tests/debug.log
 
 # Type checker / linter caches
 .mypy_cache/

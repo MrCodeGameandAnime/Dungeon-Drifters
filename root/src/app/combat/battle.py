@@ -61,8 +61,23 @@ class Battle:
         presenter=None,
         presentation_session=None,
         inventory_action_resolver=None,
+        party=(),
     ):
         self.player_state = player_state
+        if not isinstance(party, Sequence) or isinstance(
+            party,
+            (str, bytes, bytearray),
+        ):
+            raise TypeError("party must be an ordered player-state sequence")
+        if party:
+            party_members = (player_state,) + tuple(party)
+            if any(not hasattr(member, "character") for member in party_members):
+                raise TypeError("party must contain player states")
+            if len({id(member) for member in party_members}) != len(party_members):
+                raise ValueError("a Drifter cannot appear more than once in the party")
+            self._party_members = party_members
+            self._party_turn_queue = []
+            self._party_dexterity_snapshot = {}
         self.player = player_state.character
         self._enemies = self._normalize_enemies(enemies)
         self._enemy_target_ids = tuple(
@@ -146,6 +161,25 @@ class Battle:
         return self._enemies
 
     @property
+    def active_player_id(self):
+        if not self._party_mode:
+            return None
+        return self._drifter_id(self.player_state)
+
+    @property
+    def party(self):
+        return self.party_states
+
+    @property
+    def party_states(self):
+        party_members = getattr(self, "_party_members", None)
+        return party_members if party_members is not None else (self.player_state,)
+
+    @property
+    def _party_mode(self):
+        return getattr(self, "_party_members", None) is not None
+
+    @property
     def foe(self):
         if len(self.enemies) != 1:
             raise ValueError("Battle.foe is available only for single-enemy battles")
@@ -186,6 +220,16 @@ class Battle:
 
         accepted_action = self._process_player_input(view, battle_input)
         if accepted_action:
+            if self._party_mode:
+                acting_player = self.player_state
+                winner = self._winner()
+                if winner is not None:
+                    return self._finish(winner)
+                self._consume_party_turn(acting_player)
+                self._advance_automatic_state()
+                if self._final_view is not None:
+                    return self._final_view
+                return self._build_view()
             winner = self._winner()
             if winner is not None:
                 return self._finish(winner)
@@ -207,16 +251,24 @@ class Battle:
             )
         )
 
-        self._player_side_turn = self.rng.randint(1, 2) == 1
-        self.presentation_session.record(
-            BattleLogEntry(
-                event_type=BattleEventType.INITIATIVE,
-                actor_name="Player side" if self._player_side_turn else "Enemy side",
+        if self._party_mode:
+            self._start_party_round()
+        else:
+            self._player_side_turn = self.rng.randint(1, 2) == 1
+            self.presentation_session.record(
+                BattleLogEntry(
+                    event_type=BattleEventType.INITIATIVE,
+                    actor_name=(
+                        "Player side" if self._player_side_turn else "Enemy side"
+                    ),
+                )
             )
-        )
         self._advance_automatic_state()
 
     def _advance_automatic_state(self):
+        if self._party_mode:
+            self._advance_party_state()
+            return
         while not self.is_complete:
             if self._player_side_turn:
                 if self._skip_action_opportunity_suppression(self.player_state):
@@ -231,6 +283,119 @@ class Battle:
                 return
             self._player_side_turn = True
 
+    def _advance_party_state(self):
+        while not self.is_complete:
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
+                return
+            if not self._party_turn_queue:
+                self._start_party_round()
+                if not self._party_turn_queue:
+                    self._finish("enemy")
+                    return
+
+            actor = self._party_turn_queue[0]
+            if not actor.is_alive():
+                self._consume_party_turn(actor)
+                continue
+            if self._is_party_member(actor):
+                self._activate_party_member(actor)
+                if self._skip_action_opportunity_suppression(actor):
+                    self._consume_party_turn(actor)
+                    continue
+                return
+            if self._skip_action_opportunity_suppression(actor):
+                self._consume_party_turn(actor)
+                continue
+            self._process_enemy_action(actor)
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
+                return
+            self._consume_party_turn(actor)
+
+    def _start_party_round(self):
+        combatants = tuple(
+            actor
+            for actor in self._party_members + self.enemies
+            if actor.is_alive()
+        )
+        self._party_turn_queue = self._ordered_by_dexterity(combatants)
+        self._party_dexterity_snapshot = {
+            id(actor): self._effective_dexterity(actor)
+            for actor in self._party_members + self.enemies
+        }
+        if self._party_turn_queue:
+            self.presentation_session.record(
+                BattleLogEntry(
+                    event_type=BattleEventType.INITIATIVE,
+                    actor_name=" -> ".join(
+                        self._display_name_for(actor)
+                        for actor in self._party_turn_queue
+                    ),
+                )
+            )
+
+    def _ordered_by_dexterity(self, combatants):
+        groups = {}
+        for actor in combatants:
+            groups.setdefault(self._effective_dexterity(actor), []).append(actor)
+        ordered = []
+        for dexterity in sorted(groups, reverse=True):
+            tied = groups[dexterity]
+            while tied:
+                actor = self.rng.choice(tuple(tied))
+                tied.remove(actor)
+                ordered.append(actor)
+        return ordered
+
+    def _consume_party_turn(self, actor):
+        if self._party_turn_queue and self._party_turn_queue[0] is actor:
+            self._party_turn_queue.pop(0)
+        else:
+            self._party_turn_queue = [
+                current for current in self._party_turn_queue if current is not actor
+            ]
+
+        current_snapshot = {
+            id(combatant): self._effective_dexterity(combatant)
+            for combatant in self._party_members + self.enemies
+        }
+        remaining = tuple(
+            combatant
+            for combatant in self._party_turn_queue
+            if combatant.is_alive()
+        )
+        dexterity_changed = any(
+            self._party_dexterity_snapshot.get(id(combatant))
+            != current_snapshot[id(combatant)]
+            for combatant in remaining
+        )
+        if dexterity_changed:
+            self._party_turn_queue = self._ordered_by_dexterity(remaining)
+        self._party_dexterity_snapshot = current_snapshot
+
+    def _activate_party_member(self, player_state):
+        self.player_state = player_state
+        self.player = player_state.character
+
+    def _is_party_member(self, combatant):
+        if not self._party_mode:
+            return combatant is self.player_state
+        return any(member is combatant for member in self._party_members)
+
+    @staticmethod
+    def _effective_dexterity(combatant):
+        return combatant.effective_stat("dexterity")
+
+    @staticmethod
+    def _drifter_id(player_state):
+        profile = getattr(player_state.character, "profile", None)
+        if profile is None:
+            raise ValueError("party members require canonical Drifter profiles")
+        return profile.drifter_id
+
     def _finish(self, winner):
         if self.is_complete:
             return self._final_view
@@ -242,7 +407,11 @@ class Battle:
                     if winner == "player"
                     else BattleEventType.DEFEAT
                 ),
-                actor_name=self.player_state.display_name,
+                actor_name=(
+                    self._party_members[0].display_name
+                    if self._party_mode
+                    else self.player_state.display_name
+                ),
                 target_name=self._enemy_group_label(),
             )
         )
@@ -302,7 +471,11 @@ class Battle:
         )
 
     def _display_name_for(self, combatant):
-        if combatant is self.player_state:
+        if self._party_mode:
+            for member in self._party_members:
+                if combatant is member:
+                    return member.display_name
+        elif combatant is self.player_state:
             return self.player_state.display_name
         for enemy, label in zip(
             self.enemies,
@@ -343,18 +516,37 @@ class Battle:
         self._record_move_result(result, actor=self.player_state, target=target)
         return result
 
-    def _enemy_target_for_move(self, move, enemy=None):
+    def _enemy_target_for_move(self, move, enemy=None, target=None):
         enemy = self.foe if enemy is None else enemy
         if move.target == TargetType.ENEMY:
+            if target is not None:
+                if self._party_mode:
+                    valid_target = any(
+                        target is member for member in self._party_members
+                    )
+                else:
+                    valid_target = target is self.player_state
+                if not valid_target:
+                    raise ValueError("enemy target does not belong to this party")
+                if not target.is_alive():
+                    raise ValueError("defeated Drifters cannot be targeted")
+                return target
+            if self._party_mode:
+                living_party = tuple(
+                    member for member in self._party_members if member.is_alive()
+                )
+                if not living_party:
+                    raise ValueError("no living Drifter is available")
+                return self.rng.choice(living_party)
             return self.player_state
         if move.target == TargetType.SELF:
             return enemy
 
         raise ValueError(f"Unsupported enemy move target: {move.target!r}")
 
-    def _resolve_enemy_move(self, move, enemy=None):
+    def _resolve_enemy_move(self, move, enemy=None, target=None):
         enemy = self.foe if enemy is None else enemy
-        target = self._enemy_target_for_move(move, enemy)
+        target = self._enemy_target_for_move(move, enemy, target)
         result = self.resolver.resolve_move(
             enemy,
             target,
@@ -410,6 +602,8 @@ class Battle:
             selected_inventory_companion_id=self._selected_inventory_companion_id,
             selected_move_key=self._selected_move_key,
             originating_move_phase=self._originating_move_phase,
+            party=(self._party_members if self._party_mode else None),
+            active_player_id=(self.active_player_id if self._party_mode else None),
         )
 
     def _render_current_view(self):
@@ -460,6 +654,14 @@ class Battle:
         return ", ".join(self.enemy_display_labels)
 
     def _winner(self):
+        if self._party_mode:
+            party_alive = any(member.is_alive() for member in self._party_members)
+            all_enemies_defeated = all(not enemy.is_alive() for enemy in self.enemies)
+            if not party_alive:
+                return "enemy"
+            if all_enemies_defeated:
+                return "player"
+            return None
         player_alive = self.player_state.is_alive()
         all_enemies_defeated = all(not enemy.is_alive() for enemy in self.enemies)
         if not player_alive:
@@ -477,8 +679,14 @@ class Battle:
             return False
         opposing_name = (
             self._enemy_group_label()
-            if actor is self.player_state
-            else self.player_state.display_name
+            if self._is_party_member(actor)
+            else (
+                " and ".join(
+                    member.display_name for member in self._party_members
+                )
+                if self._party_mode
+                else self.player_state.display_name
+            )
         )
         self.presentation_session.record(
             BattleLogEntry(
@@ -870,15 +1078,16 @@ class Battle:
             raise ValueError("defeated enemies cannot act")
 
         move = select_enemy_move(enemy, self.rng)
-        result = self._resolve_enemy_move(move, enemy)
+        target = self._enemy_target_for_move(move, enemy)
+        result = self._resolve_enemy_move(move, enemy, target)
         if not result.accepted:
             raise RuntimeError("enemy resolver rejected a legal selected move")
 
         self._complete_accepted_action(
             enemy,
-            (self.player_state,),
+            self._party_members if self._party_mode else (self.player_state,),
             result,
-            presentation_target=self.player_state,
+            presentation_target=target,
         )
         return True
 

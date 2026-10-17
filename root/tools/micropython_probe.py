@@ -48,7 +48,7 @@ _EXPECTED_COMPOSITIONS = (
 )
 _EXPECTED_ENEMY_COUNT = 14
 _EXPECTED_FINAL_NODE = "surface_dungeon_entrance"
-_EXPECTED_PROGRESS = (9, 68, 24, 75)
+_EXPECTED_PROGRESS = (9, 68, 24, 0)
 
 
 def _emit_memory(label):
@@ -456,7 +456,10 @@ def _drive_route_encounter(node_id, encounter_index):
     expected_next = _ROUTE_NODE_IDS[_ROUTE_NODE_IDS.index(node_id) + 1]
     if game.overworld_state.current_route_node_id != expected_next:
         raise AssertionError("route did not advance to its immediate successor")
-    if final_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
+    if node_id == _EXPECTED_ENCOUNTERS[-1]:
+        if final_view.screen is not OverworldScreen.HUB:
+            raise AssertionError("the completed route did not return to the Hub")
+    elif final_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
         raise AssertionError("completed encounter returned an invalid screen")
 
 
@@ -491,14 +494,16 @@ def _complete_surface_route():
                 from app.presentation.overworld_models import OverworldScreen
 
                 view = STATE["route_session"].current_view()
-                if view.screen is not OverworldScreen.MAIN:
-                    raise AssertionError("Dungeon Entrance did not present MAIN")
+                if view.screen is not OverworldScreen.HUB:
+                    raise AssertionError("Dungeon Entrance did not present the Hub")
                 if STATE["route_game"].overworld_state.current_route_node_id != node_id:
                     raise AssertionError("route ended at the wrong node")
                 if not STATE["route_game"].overworld_state.route_complete:
                     raise AssertionError("route did not complete at Dungeon Entrance")
                 if view.contextual_route_option is not None:
                     raise AssertionError("Dungeon Entrance offered another action")
+                if STATE["route_game"].party_state.shared_gold != 75:
+                    raise AssertionError("route gold was not transferred to the Hub")
 
             _run_route_node(node_id, verify_final_node)
             continue
@@ -566,9 +571,11 @@ def _assert_route_final_state():
         player.gold,
     ) != _EXPECTED_PROGRESS:
         raise AssertionError("final player progression changed")
+    if game.party_state.shared_gold != 75:
+        raise AssertionError("Hub shared gold changed after route completion")
     final_view = session.current_view()
-    if final_view.screen is not OverworldScreen.MAIN:
-        raise AssertionError("final route view did not return MAIN")
+    if final_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("final route view did not return to the Hub")
     if final_view.contextual_route_option is not None:
         raise AssertionError("final route view offered another action")
     if session._save_port is not None:
@@ -600,8 +607,10 @@ def _assert_route_live_state():
         player.gold,
     ) != _EXPECTED_PROGRESS:
         raise AssertionError("player progression changed during cleanup")
+    if game.party_state.shared_gold != 75:
+        raise AssertionError("Hub shared gold changed during evidence cleanup")
     view = session.current_view()
-    if view.screen is not OverworldScreen.MAIN:
+    if view.screen is not OverworldScreen.HUB:
         raise AssertionError("live route view changed during evidence cleanup")
     if view.contextual_route_option is not None:
         raise AssertionError("live route offered another action after cleanup")

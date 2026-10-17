@@ -302,7 +302,8 @@ def test_goblin_lord_victory_reaches_dungeon_with_rewards_and_without_continuati
     assert player.exp_state.current == 42
     assert player.level_state.current == 4
     assert player.growth_points == 9
-    assert player.gold == 65
+    assert player.gold == 0
+    assert game.party_state.shared_gold == 65
     assert player.health.current == before_health + 12
     assert player.mana_resource.current == before_mana + 3
     assert player.super_resource.current == before_super

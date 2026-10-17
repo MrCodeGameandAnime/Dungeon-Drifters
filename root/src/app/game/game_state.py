@@ -2,6 +2,7 @@
 
 from app.game.story_state import StoryState
 from app.game.overworld_state import OverworldState
+from app.game.party_state import PartyState
 from app.game.world_state import WorldState
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value
@@ -16,6 +17,7 @@ class GameState:
         self._story_state = StoryState()
         self._world_state = WorldState()
         self._overworld_state = OverworldState()
+        self._party_state = PartyState()
         self._metadata = {}
 
     @property
@@ -35,6 +37,10 @@ class GameState:
         return self._overworld_state
 
     @property
+    def party_state(self):
+        return self._party_state
+
+    @property
     def metadata(self):
         return dict(self._metadata)
 
@@ -49,11 +55,14 @@ class GameState:
         world_state,
         overworld_state,
         metadata,
+        party_state=None,
     ):
         game_state = cls(player_state)
         game_state._story_state = story_state
         game_state._world_state = world_state
         game_state._overworld_state = overworld_state
+        if party_state is not None:
+            game_state._party_state = party_state
         game_state._metadata = dict(metadata)
         return game_state
 
@@ -65,6 +74,7 @@ class GameState:
                 "story": self.story_state.snapshot(),
                 "world": self.world_state.snapshot(),
                 "overworld": self.overworld_state.snapshot(),
+                "party": self.party_state.snapshot(),
                 "metadata": self.metadata,
             },
             "game",

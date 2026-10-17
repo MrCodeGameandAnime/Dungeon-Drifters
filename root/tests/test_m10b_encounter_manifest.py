@@ -106,13 +106,13 @@ def test_surface_route_manifest_matches_the_approved_contract_exactly():
 
 
 def test_encounter_counts_rewards_and_unique_boss_match_the_contract():
-    assert len(ENCOUNTER_SPECS) == 8
+    assert len(ENCOUNTER_SPECS) == 9
     assert sum(
         get_encounter_rewards(spec.encounter_id)[0] for spec in ENCOUNTER_SPECS
-    ) == 1060
+    ) == 1180
     assert sum(
         get_encounter_rewards(spec.encounter_id)[1] for spec in ENCOUNTER_SPECS
-    ) == 75
+    ) == 84
     assert tuple(
         node.encounter_id
         for node in SURFACE_ROUTE_NODES

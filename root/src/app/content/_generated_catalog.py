@@ -13,6 +13,7 @@ from app.content.drifters.azhvielle.drifter import DRIFTER as azhvielle_drifter
 from app.content.drifters.branoc.drifter import DRIFTER as branoc_drifter
 from app.content.drifters.joruun.drifter import DRIFTER as joruun_drifter
 from app.content.drifters.zhaivra.drifter import DRIFTER as zhaivra_drifter
+from app.content.encounters.dungeon_goblin_trio.encounter import ENCOUNTER as dungeon_goblin_trio_encounter
 from app.content.encounters.surface_elite_patrol.encounter import ENCOUNTER as surface_elite_patrol_encounter
 from app.content.encounters.surface_goblin_lord.encounter import ENCOUNTER as surface_goblin_lord_encounter
 from app.content.encounters.surface_goblin_pair.encounter import ENCOUNTER as surface_goblin_pair_encounter
@@ -50,6 +51,7 @@ GENERATED_DRIFTER_SPECS = (
 
 
 GENERATED_ENCOUNTER_SPECS = (
+    ("dungeon_goblin_trio", dungeon_goblin_trio_encounter),
     ("surface_elite_patrol", surface_elite_patrol_encounter),
     ("surface_goblin_lord", surface_goblin_lord_encounter),
     ("surface_goblin_pair", surface_goblin_pair_encounter),

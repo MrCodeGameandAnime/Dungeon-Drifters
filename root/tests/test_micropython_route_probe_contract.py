@@ -101,7 +101,7 @@ def test_probe_route_contract_contains_the_authored_surface_route():
     assert _assigned_literal(tree, "_EXPECTED_FINAL_NODE") == (
         "surface_dungeon_entrance"
     )
-    assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 75)
+    assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 0)
 
 
 def test_probe_releases_route_evidence_only_after_final_state():
