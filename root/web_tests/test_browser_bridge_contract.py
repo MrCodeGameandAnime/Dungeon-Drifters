@@ -160,6 +160,55 @@ def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
     )
 
 
+def test_bridge_projects_tutorial_defeat_to_drifter_selection_and_fresh_start():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    route = get_route_spec("surface")
+    entrance = route.nodes[-1]
+    for node in route.nodes[:-1]:
+        if node.encounter_id is not None:
+            game.world_state.mark_encounter_defeated(node.encounter_id)
+    game.player_state.add_gold(75)
+    rests = tuple(
+        node.node_id for node in route.nodes[:-1] if node.kind.value == "rest"
+    )
+    game._overworld_state = OverworldState.from_snapshot(
+        {
+            "current_route_node_id": entrance.node_id,
+            "surface_route_begun": True,
+            "dungeon_entrance_reached": True,
+            "route_complete": True,
+            "resolved_rest_node_ids": list(rests),
+            "current_contextual_route_phase": "none",
+        }
+    )
+    assert game.party_state.arrive_at_hub(game.player_state)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+    runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
+    runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    battle_view = runtime.submit({"kind": "overworld_action", "action": "ready"})
+    assert battle_view["interaction_phase"] == InteractionPhase.ACTIONS.value
+    for member in (game.player_state, *game.party_state.companions):
+        member.health.take_damage(member.health.maximum)
+    runtime._session.active_battle._finish("enemy")
+
+    result = runtime.submit({"kind": "back"})
+
+    assert result == "select_drifter"
+    assert game.party_state.phase is DungeonPhase.OUTSIDE
+    assert game.party_state.companions == ()
+    fresh = runtime.start_game("joruun")
+    assert fresh["screen"] == OverworldScreen.MAIN.value
+    assert runtime._game is not game
+    assert runtime._game.player_state.character.profile.drifter_id == "joruun"
+    assert runtime._game.party_state.phase is DungeonPhase.OUTSIDE
+
+
 def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
     runtime = bridge.BrowserRuntime()
     runtime.start_game()

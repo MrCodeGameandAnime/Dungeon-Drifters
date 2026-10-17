@@ -91,10 +91,10 @@ def test_shell_contains_operational_view_regions_and_controls():
         "moves",
         "targets",
         "inventory",
-        "completion",
         "restart",
     ):
         assert f'id="{element_id}"' in html
+    assert 'id="completion"' not in html
 
 
 def test_hub_renderer_exposes_shared_balance_and_authoritative_party_phases():

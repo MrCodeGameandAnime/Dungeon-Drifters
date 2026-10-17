@@ -315,6 +315,17 @@ def test_party_hub_and_pending_outing_snapshot_round_trip():
         lambda party: party["companions"].append(copy.deepcopy(party["companions"][0])),
         lambda party: party.update(phase="unknown"),
         lambda party: party.update(phase="outing", companions=[]),
+        lambda party: party.update(phase="outing"),
+        lambda party: party.update(
+            phase="hub",
+            companions=[],
+            tutorial_complete=True,
+        ),
+        lambda party: party.update(phase="hub", tutorial_complete=False),
+        lambda party: party.update(
+            phase="extraction",
+            outing_rewards={"experience": 121, "gold": 9, "items": {}},
+        ),
         lambda party: party["companions"].__setitem__(
             0, _create_populated_game("1").player_state.snapshot()
         ),

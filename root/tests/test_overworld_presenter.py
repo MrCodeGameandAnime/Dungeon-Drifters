@@ -75,6 +75,29 @@ def test_main_view_uses_authored_labels_and_only_the_valid_contextual_action():
     assert "surface_" not in repr(paused)
 
 
+def test_hub_location_label_is_preserved_in_secondary_menus():
+    game = create_game()
+    assert game.party_state.arrive_at_hub(game.player_state)
+    presenter = OverworldPresenter()
+
+    views = tuple(
+        presenter.build(game, screen=screen)
+        for screen in (
+            OverworldScreen.CHARACTER,
+            OverworldScreen.ITEMS,
+            OverworldScreen.MAP,
+            OverworldScreen.OPTIONS,
+        )
+    )
+
+    assert tuple(view.location_label for view in views) == (
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+    )
+
+
 @pytest.mark.parametrize("profile", get_character_profiles())
 def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     profile,

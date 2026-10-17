@@ -773,8 +773,6 @@
       $("battle-screen").removeAttribute("data-interaction-phase");
       renderOverworld(state);
     }
-    const complete = !battle && state.screen === "main" && !state.contextual_route_option;
-    $("completion").hidden = !complete;
   }
 
   function unwrap(proxy) {
@@ -938,7 +936,6 @@
   $("immersive").addEventListener("click", toggleImmersion);
   document.addEventListener("fullscreenchange", updateFullscreenButton);
   updateFullscreenButton();
-  $("completion-restart").addEventListener("click", restart);
   $("retry").addEventListener("click", function () {
     window.location.reload();
   });

@@ -837,8 +837,7 @@ try {
     "Battle status region is not visible",
   );
   requireCondition(
-    !(await page.locator("#route-panel").isVisible()) &&
-      !(await page.locator("#completion").isVisible()),
+    !(await page.locator("#route-panel").isVisible()),
     "Overworld content remains visible during Battle",
   );
   requireCondition(
@@ -1097,7 +1096,10 @@ try {
     window.__fixtureGlobals = {};
     window.__fixtureTransitionComplete = false;
     window.__fixtureHubMode = false;
+    window.__fixtureDefeatMode = false;
+    window.__fixtureAwaitingReselect = false;
     window.__fixtureHubPhase = "hub";
+    window.__fixtureStartCalls = [];
     window.__fullscreenRequests = 0;
     window.__musicPlayRequests = 0;
     window.__musicPlayedBeforeFullscreen = false;
@@ -1128,6 +1130,13 @@ try {
           ]);
           if (source === "start_game_json(_selected_drifter_id)") {
             window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
+            window.__fixtureStartCalls.push(window.__fixtureSelectedDrifter);
+            if (window.__fixtureAwaitingReselect) {
+              window.__fixtureDefeatMode = false;
+              window.__fixtureAwaitingReselect = false;
+              window.__fixtureHubMode = false;
+              return JSON.stringify(views.overworld);
+            }
             return JSON.stringify(window.__fixtureHubMode ? views.hub : views.targets);
           }
           if (source === "current_view_json()") {
@@ -1152,6 +1161,10 @@ try {
                 return JSON.stringify(views.partyBattle);
               }
               if (window.__fixtureHubPhase === "battle" && command.intent === "defend") {
+                if (window.__fixtureDefeatMode) {
+                  window.__fixtureAwaitingReselect = true;
+                  return JSON.stringify("select_drifter");
+                }
                 window.__fixtureHubPhase = "extraction";
                 return JSON.stringify(views.complete);
               }
@@ -1377,6 +1390,40 @@ try {
   );
   console.log("PYD7|BROWSER|HUB_OUTING|PASS");
 
+  await targetPage.evaluate(() => {
+    window.__fixtureHubMode = true;
+    window.__fixtureDefeatMode = true;
+    window.__fixtureHubPhase = "hub";
+    window.__fixtureCommands = [];
+  });
+  await targetPage.locator("#restart").click();
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Recruit Companion");
+  await clickVisibleOption(targetPage, "#companion-choices", "Azhvielle");
+  await clickVisibleOption(targetPage, "#overworld-options", "Ready / Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#actions", "Defend");
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#battle-screen").isHidden() &&
+      await targetPage.locator("#drifter-options [data-drifter-id]").count() === 4,
+    "Python defeat result did not return the browser to Drifter selection",
+  );
+  await targetPage.locator('#drifter-options [data-drifter-id="zhaivra"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.evaluate(() =>
+      window.__fixtureStartCalls.slice(-2).join(",") === "branoc,zhaivra" &&
+        window.__fixtureSelectedDrifter === "zhaivra" &&
+        window.__fixtureCommands.at(-1).intent === "defend") &&
+      (await targetPage.locator("#screen-badge").innerText()) === "OVERWORLD" &&
+      (await targetPage.locator("#location-label").innerText()) === "The road ahead",
+    "defeat did not allow a new Drifter selection and fresh Overworld session",
+  );
+  console.log("PYD7|BROWSER|DEFEAT_RESELECT|PASS");
+
   const qualification = await browser.newPage();
   qualification.on("pageerror", (error) => errors.push(error.message));
   qualification.on("console", (message) => {
@@ -1408,7 +1455,6 @@ try {
   console.log("PYD7|BROWSER|MULTI_TARGET_PROJECTION|PASS");
   console.log("PYD7|BROWSER|RESULT_TO_OVERWORLD|PASS");
   console.log("PYD7|BROWSER|FULL_ROUTE|PASS");
-  console.log("PYD7|BROWSER|COMPLETION_SIGNAL|PASS");
 } finally {
   await browser.close();
 }

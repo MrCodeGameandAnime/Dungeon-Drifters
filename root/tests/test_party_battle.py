@@ -1,15 +1,17 @@
 import pytest
+from types import SimpleNamespace
 
 from app.combat.battle import Battle
 from app.combat.resolver import CombatResolver
 from app.content.catalog import (
     create_enemy_state,
+    create_drifter,
     get_drifter_spec,
     get_encounter_spec,
 )
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType
-from app.ui.battle_ui import ChooseAction
+from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
 
 
 class StableRng:
@@ -64,6 +66,121 @@ def test_single_drifter_battle_does_not_allocate_party_turn_state():
     assert not hasattr(battle, "_party_turn_queue")
     assert not hasattr(battle, "_party_dexterity_snapshot")
     assert battle.party == (battle.player_state,)
+
+
+def test_party_battle_requires_player_states_with_unique_canonical_drifter_ids():
+    lead = player("branoc", 6)
+
+    with pytest.raises(TypeError, match="PlayerState"):
+        Battle(
+            lead,
+            (goblin(1),),
+            party=(SimpleNamespace(character=player("azhvielle", 4).character),),
+            rng=StableRng(),
+        )
+
+    with pytest.raises(ValueError, match="Drifter IDs must be unique"):
+        Battle(
+            lead,
+            (goblin(1),),
+            party=(player("branoc", 4),),
+            rng=StableRng(),
+        )
+
+    forged_profile = player("azhvielle", 4)
+    forged_profile.character.profile = SimpleNamespace(drifter_id="azhvielle")
+    with pytest.raises(ValueError, match="canonical Drifter profiles"):
+        Battle(
+            lead,
+            (goblin(1),),
+            party=(forged_profile,),
+            rng=StableRng(),
+        )
+
+    unselected = PlayerState(create_drifter("azhvielle"))
+    with pytest.raises(ValueError, match="canonical Drifter profiles"):
+        Battle(
+            lead,
+            (goblin(1),),
+            party=(unselected,),
+            rng=StableRng(),
+        )
+
+
+def test_party_turns_project_and_resolve_each_drifters_own_combat_state():
+    lead = player("branoc", 40)
+    companion = player("zhaivra", 9)
+    lead.super_resource.gain(23)
+    companion.super_resource.gain(71)
+    enemy = goblin(1)
+
+    class RecordingResolver(CombatResolver):
+        def __init__(self):
+            super().__init__(rng=StableRng())
+            self.calls = []
+
+        def resolve_move(self, actor, target, move_name, **kwargs):
+            self.calls.append((actor, move_name, kwargs))
+            return super().resolve_move(actor, target, move_name, **kwargs)
+
+    resolver = RecordingResolver()
+    battle = Battle(
+        lead,
+        (enemy,),
+        party=(companion,),
+        resolver=resolver,
+        rng=StableRng(),
+    )
+
+    lead_view = battle.current_view()
+    assert lead_view.active_player_id == "drifter_branoc"
+    assert lead_view.player.super_current == 23
+    assert lead_view.super_meter.current == 23
+    assert tuple(member.super_current for member in lead_view.party_members) == (
+        23,
+        71,
+    )
+
+    lead_moves = battle.submit(ChooseAction(ActionIntent.ATTACK))
+    assert tuple(option.name for option in lead_moves.move_options) == tuple(
+        move.name for move in lead.combat_moves if move.resource_type.value != "super"
+    )
+    companion_view = battle.submit(ChooseMove("Cinderlung Vesper"))
+
+    assert companion_view.active_player_id == "drifter_zhaivra"
+    assert companion_view.player.display_name == companion.display_name
+    assert companion_view.player.super_current == 71
+    assert companion_view.super_meter.current == 71
+    assert companion_view.player.mana_current == companion.mana_resource.current
+    items_view = battle.submit(ChooseAction(ActionIntent.ITEMS))
+    assert {item.item_id for item in items_view.inventory_items} == {
+        "ember_shard",
+        "deep_coal",
+        "night_berry",
+    }
+    assert all(item.quantity == 1 for item in items_view.inventory_items)
+    battle.submit(GoBack())
+
+    companion_moves = battle.submit(ChooseAction(ActionIntent.ATTACK))
+    assert tuple(option.name for option in companion_moves.move_options) == tuple(
+        move.name
+        for move in companion.combat_moves
+        if move.resource_type.value != "super"
+    )
+    before_mana = companion.mana_resource.current
+    battle.submit(ChooseMove("Hollowstring Trine"))
+
+    assert lead.mana_resource.current == lead.mana_resource.maximum - 3
+    assert companion.mana_resource.current == before_mana - 4
+    assert resolver.calls[0][0] is lead
+    assert resolver.calls[0][1] == "Cinderlung Vesper"
+    assert resolver.calls[0][2]["character_run_state"] is lead.character_run_state
+    assert resolver.calls[1][0] is companion
+    assert resolver.calls[1][1] == "Hollowstring Trine"
+    assert (
+        resolver.calls[1][2]["character_run_state"]
+        is companion.character_run_state
+    )
 
 
 def test_party_battle_interleaves_individual_dexterity_order_and_projects_party():

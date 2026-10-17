@@ -1,15 +1,20 @@
 from app.combat.battle import Battle
+import pytest
+
 from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
+from app.persistence.ports import SaveLoadStatus
 from app.persistence.save_document import build_save_document, reconstruct_game_state
+from app.player.character_run_state import FIRE_INFUSION_REQUIREMENTS, InfusionKind
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleView, InteractionPhase
 from app.presentation.overworld_models import OverworldAction
 from app.ui.battle_ui import ChooseAction, GoBack
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
+from tests.persistence_test_support import make_test_save_port
 from app.content.catalog import get_route_spec
 from app.content import catalog
 
@@ -176,3 +181,155 @@ def test_tutorial_defeat_discards_attempt_and_returns_to_drifter_selection():
     assert game.party_state.companions == ()
     assert game.party_state.outing_rewards.experience == 0
     assert game.party_state.outing_rewards.gold == 0
+
+
+@pytest.mark.parametrize(
+    ("failure_point", "error_type"),
+    (
+        ("enemy", RuntimeError),
+        ("battle", RuntimeError),
+        ("battle", MemoryError),
+    ),
+)
+def test_ready_failure_restores_party_state_when_construction_raises(
+    failure_point, error_type
+):
+    game = game_at_hub()
+    def fail_battle_construction(player, _enemies, **kwargs):
+        if failure_point == "battle":
+            companion = kwargs["party"][0]
+            player.health.take_damage(7)
+            player.mana_resource.spend(3)
+            player.super_resource.gain(8)
+            companion.health.take_damage(11)
+            companion.mana_resource.spend(5)
+            companion.super_resource.gain(13)
+            companion.character_run_state.prepare_infusion(
+                InfusionKind.FIRE,
+                FIRE_INFUSION_REQUIREMENTS,
+            )
+        raise error_type("injected construction failure")
+
+    def fail_enemy_construction(*_args, **_kwargs):
+        raise error_type("injected construction failure")
+
+    session = OverworldSession(
+        game,
+        battle_factory=fail_battle_construction,
+        enemy_factory=(
+            fail_enemy_construction
+            if failure_point == "enemy"
+            else create_enemy_state
+        ),
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
+    session.submit(ChooseCompanion("zhaivra"))
+    party_members = (game.player_state, *game.party_state.companions)
+    checkpoints = tuple(
+        member.create_battle_checkpoint() for member in party_members
+    )
+
+    with pytest.raises(error_type, match="injected construction failure"):
+        session.submit(ChooseOverworldAction(OverworldAction.READY))
+
+    assert game.party_state.phase is DungeonPhase.PARTY_READY
+    assert session.active_battle is None
+    assert session._active_battle_context is None
+    assert tuple(
+        member.create_battle_checkpoint() for member in party_members
+    ) == checkpoints
+    assert any(
+        option.action is OverworldAction.READY and option.enabled
+        for option in session.current_view().options
+    )
+
+
+def test_ready_factory_returning_no_battle_does_not_leave_an_outing_or_context():
+    game = game_at_hub()
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *_args, **_kwargs: None,
+        enemy_factory=create_enemy_state,
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
+    session.submit(ChooseCompanion("azhvielle"))
+
+    view = session.submit(ChooseOverworldAction(OverworldAction.READY))
+
+    assert view.screen.value == "party_ready"
+    assert game.party_state.phase is DungeonPhase.PARTY_READY
+    assert session.active_battle is None
+    assert session._active_battle_context is None
+
+
+@pytest.mark.parametrize(
+    ("state_name", "expected_screen", "expected_location", "text_fragment"),
+    (
+        ("surface", "main", "Goblin Ambush", "road through Ketlyv"),
+        ("hub", "hub", "Floor 1 Hub", "Recruit one companion"),
+        ("party_ready", "hub", "Floor 1 Hub", "ready to set out"),
+        ("extraction", "extraction", "Floor 1 Hub", "Return to the hub"),
+        (
+            "completed_hub",
+            "hub",
+            "Floor 1 Hub",
+            "returned to the Floor 1 Hub",
+        ),
+    ),
+)
+def test_load_restores_phase_screen_narrative_and_load_notice(
+    tmp_path, state_name, expected_screen, expected_location, text_fragment
+):
+    if state_name == "surface":
+        saved_game = GameState(
+            PlayerState(catalog.get_drifter_spec("branoc").create_character())
+        )
+    else:
+        saved_game = game_at_hub()
+        if state_name in {"party_ready", "extraction", "completed_hub"}:
+            setup = OverworldSession(
+                saved_game,
+                battle_factory=lambda player, enemies, **kwargs: Battle(
+                    player, enemies, rng=StableRng(), **kwargs
+                ),
+                enemy_factory=lambda archetype_id, tier=0: create_enemy_state(
+                    archetype_id, tier=tier
+                ),
+            )
+            setup.submit(
+                ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
+            )
+            setup.submit(ChooseCompanion("azhvielle"))
+            if state_name in {"extraction", "completed_hub"}:
+                setup.submit(ChooseOverworldAction(OverworldAction.READY))
+                for enemy in setup.active_battle.enemies:
+                    enemy.health.take_damage(enemy.health.current)
+                setup.submit(ChooseAction(ActionIntent.DEFEND))
+                if state_name == "completed_hub":
+                    setup.submit(
+                        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+                    )
+
+    save_port = make_test_save_port(tmp_path / f"{state_name}.json")
+    assert save_port.save(saved_game).status is SaveLoadStatus.SAVED
+    session = OverworldSession(
+        GameState(PlayerState(catalog.get_drifter_spec("branoc").create_character())),
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=save_port,
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.OPTIONS))
+    session.submit(ChooseOverworldAction(OverworldAction.LOAD))
+    session.submit(ChooseOverworldAction(OverworldAction.CONFIRM))
+
+    view = session.current_view()
+
+    assert view.screen.value == expected_screen
+    assert view.location_label == expected_location
+    assert text_fragment in view.adventure_text
+    assert view.notice == "Saved session loaded."
+    if state_name == "party_ready":
+        assert any(
+            option.action is OverworldAction.READY and option.enabled
+            for option in view.options
+        )

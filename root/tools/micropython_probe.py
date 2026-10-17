@@ -171,11 +171,15 @@ class _RouteDeterministicResolver:
 
 class _RouteBattleFactory:
     def __init__(self):
-        self.battles = []
+        self.battle_compositions = []
+        self.completed_count = 0
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label):
+    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
         from app.combat.battle import Battle
 
+        self.battle_compositions.append(
+            tuple(enemy.archetype_id for enemy in enemies)
+        )
         battle = Battle(
             player_state,
             enemies,
@@ -183,9 +187,12 @@ class _RouteBattleFactory:
             resolver=_RouteDeterministicResolver(),
             rng=_DeterministicRng(),
             encounter_label=encounter_label,
+            party=party,
         )
-        self.battles.append(battle)
         return battle
+
+    def mark_completed(self):
+        self.completed_count += 1
 
 
 class _RouteEnemyFactory:
@@ -401,6 +408,7 @@ def _complete_route_battle(first_view):
             )
     if view.interaction_phase is not InteractionPhase.COMPLETE:
         raise AssertionError("route Battle did not complete within 100 inputs")
+    STATE["route_battle_factory"].mark_completed()
     return STATE["route_session"].current_view()
 
 
@@ -529,28 +537,21 @@ def _complete_surface_route():
 
 
 def _assert_route_final_state():
-    from app.presentation.battle_models import InteractionPhase
     from app.presentation.overworld_models import OverworldScreen
 
     game = STATE["route_game"]
     session = STATE["route_session"]
-    battles = STATE["route_battle_factory"].battles
+    battle_factory = STATE["route_battle_factory"]
     enemies = STATE["route_enemy_factory"].enemies
-    if len(battles) != len(_EXPECTED_ENCOUNTERS):
+    if len(battle_factory.battle_compositions) != len(_EXPECTED_ENCOUNTERS):
         raise AssertionError("unexpected route Battle count")
+    if battle_factory.completed_count != len(_EXPECTED_ENCOUNTERS):
+        raise AssertionError("a route Battle did not complete")
     if len(enemies) != _EXPECTED_ENEMY_COUNT:
         raise AssertionError("unexpected route EnemyState count")
     _assert_enemy_identity_is_fresh(enemies)
-    if tuple(
-        tuple(enemy.archetype_id for enemy in battle.enemies)
-        for battle in battles
-    ) != _EXPECTED_COMPOSITIONS:
+    if tuple(battle_factory.battle_compositions) != _EXPECTED_COMPOSITIONS:
         raise AssertionError("route Battle compositions changed")
-    if not all(
-        battle.interaction_phase is InteractionPhase.COMPLETE
-        for battle in battles
-    ):
-        raise AssertionError("a route Battle did not complete")
     if session.active_battle is not None:
         raise AssertionError("route session retained an active Battle")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
@@ -582,6 +583,19 @@ def _assert_route_final_state():
         raise AssertionError("route qualification materialized persistence")
 
 
+def _run_hub_tutorial():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_hub_probe
+
+        micropython_hub_probe.run(STATE, _complete_route_battle, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_hub_probe", None)
+    _emit_memory("HUB_PROBE_RELEASED")
+
+
 def _assert_route_live_state():
     from app.presentation.overworld_models import OverworldScreen
 
@@ -599,16 +613,22 @@ def _assert_route_live_state():
         raise AssertionError("defeated encounters changed during cleanup")
     if game.overworld_state.resolved_rest_node_ids != _EXPECTED_RESTS:
         raise AssertionError("resolved Rests changed during cleanup")
-    player = game.player_state
-    if (
-        player.level_state.current,
-        player.exp_state.current,
-        player.growth_points,
-        player.gold,
-    ) != _EXPECTED_PROGRESS:
-        raise AssertionError("player progression changed during cleanup")
-    if game.party_state.shared_gold != 75:
+    if game.party_state.shared_gold != 19:
         raise AssertionError("Hub shared gold changed during evidence cleanup")
+    if not game.party_state.tutorial_complete:
+        raise AssertionError("tutorial completion changed during evidence cleanup")
+    for member in (game.player_state,) + game.party_state.companions:
+        if member.exp_state.current != (
+            STATE["hub_tutorial_xp_before"][
+                0 if member is game.player_state else 1
+            ]
+            + 60
+        ):
+            raise AssertionError("tutorial EXP changed during evidence cleanup")
+        if member.health.current != member.health.maximum:
+            raise AssertionError("HP changed during evidence cleanup")
+        if member.mana_resource.current != member.mana_resource.maximum:
+            raise AssertionError("Mana changed during evidence cleanup")
     view = session.current_view()
     if view.screen is not OverworldScreen.HUB:
         raise AssertionError("live route view changed during evidence cleanup")
@@ -619,7 +639,7 @@ def _assert_route_live_state():
 
 
 def _release_route_evidence():
-    del STATE["route_battle_factory"].battles[:]
+    del STATE["route_battle_factory"].battle_compositions[:]
     del STATE["route_enemy_factory"].enemies[:]
     del STATE["route_initial_view"]
     _assert_route_live_state()
@@ -660,6 +680,7 @@ def main():
     _run_stage("ROUTE_INITIAL_VIEW", _obtain_route_initial_view)
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
+    _run_hub_tutorial()
     _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 

@@ -119,14 +119,7 @@ class OverworldPresenter:
             screen=screen,
             location_label=(
                 "Floor 1 Hub"
-                if screen
-                in {
-                    OverworldScreen.HUB,
-                    OverworldScreen.COMPANION_SELECTION,
-                    OverworldScreen.PARTY_READY,
-                    OverworldScreen.OUTING,
-                    OverworldScreen.EXTRACTION,
-                }
+                if game_state.party_state.phase is not DungeonPhase.OUTSIDE
                 else node.display_label
             ),
             adventure_text=adventure_text,
@@ -226,6 +219,8 @@ class OverworldPresenter:
             return "The Goblin trio is defeated. Return to the hub to secure your rewards."
         if game_state.party_state.phase is DungeonPhase.PARTY_READY:
             return "Your party is assembled and ready to set out."
+        if game_state.party_state.tutorial_complete:
+            return "Your party has returned to the Floor 1 Hub. Prepare for the next outing."
         return "You have reached the Floor 1 Hub. Recruit one companion to continue."
 
     @staticmethod

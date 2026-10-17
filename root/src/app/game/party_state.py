@@ -127,6 +127,13 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return True
 
+    def cancel_outing_start(self):
+        if self._phase is not DungeonPhase.OUTING:
+            return False
+        self._outing_rewards = OutingRewards()
+        self._phase = DungeonPhase.PARTY_READY
+        return True
+
     def begin_extraction(self, *, experience, gold, items=None):
         if self._phase is not DungeonPhase.OUTING:
             return False
@@ -186,6 +193,10 @@ class PartyState:
         state._outing_rewards = OutingRewards.from_snapshot(
             snapshot["outing_rewards"]
         )
+        if state._phase is DungeonPhase.EXTRACTION and (
+            state._outing_rewards.experience % (1 + len(state._companions))
+        ):
+            raise ValueError("outing experience must divide evenly across the party")
         return state
 
     def snapshot(self):

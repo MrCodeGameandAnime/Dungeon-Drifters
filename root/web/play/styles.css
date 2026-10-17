@@ -149,7 +149,7 @@ button:disabled {
   padding-bottom: .5rem;
 }
 
-.panel h2, .completion-panel h2 { margin: 0; }
+.panel h2 { margin: 0; }
 .header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .55rem; }
 .secondary-button { min-height: 2.4rem; padding: .4rem .7rem; white-space: nowrap; font-size: .85rem; }
 .secondary-button.icon-button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; padding: .35rem; }
@@ -223,7 +223,7 @@ button:disabled {
   font-weight: 400;
 }
 
-.panel, .completion-panel {
+.panel {
   border: 1px solid var(--line);
   border-radius: .7rem;
   background: rgb(23 43 39 / 94%);
@@ -250,9 +250,6 @@ button:disabled {
 .companion-summary { color: var(--ink); font-size: .9rem; font-weight: 400; }
 .extraction-rewards { padding: .5rem .65rem; border-block: 1px solid var(--line); }
 .extraction-rewards h3, .extraction-rewards p { margin: .2rem 0; }
-.completion-panel { max-width: 68rem; margin: 1rem auto 0; padding: .8rem 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
-.completion-panel h2 { font-size: 1.05rem; }
-.completion-panel p:not(.eyebrow) { margin: .45rem 0; }
 
 .overworld-detail-panel {
   max-width: 68rem;
@@ -372,7 +369,6 @@ button:disabled {
 .control-group h3 { margin: .3rem 0 0; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
 .control-group button { text-align: left; }
 
-.completion-panel p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
 .orientation-guidance { display: none; flex: 0 0 auto; }
 [hidden] { display: none !important; }
 

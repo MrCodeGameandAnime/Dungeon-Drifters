@@ -3,6 +3,9 @@ from pathlib import Path
 
 
 PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_probe.py"
+HUB_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_hub_probe.py"
+)
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -46,6 +49,14 @@ def _probe_tree():
     return ast.parse(_probe_source(), filename=str(PROBE_PATH))
 
 
+def _hub_probe_source():
+    return HUB_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _hub_probe_tree():
+    return ast.parse(_hub_probe_source(), filename=str(HUB_PROBE_PATH))
+
+
 def _assigned_literal(tree, name):
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -55,12 +66,12 @@ def _assigned_literal(tree, name):
     raise AssertionError(f"probe does not define {name}")
 
 
-def _stage_calls(tree):
+def _stage_calls(tree, function_name="_run_stage"):
     stages = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if not isinstance(node.func, ast.Name) or node.func.id != "_run_stage":
+        if not isinstance(node.func, ast.Name) or node.func.id != function_name:
             continue
         if not node.args or not isinstance(node.args[0], ast.Constant):
             continue
@@ -104,6 +115,39 @@ def test_probe_route_contract_contains_the_authored_surface_route():
     assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 0)
 
 
+def test_probe_runs_the_full_hub_tutorial_after_surface_route():
+    hub_stages = _stage_calls(_hub_probe_tree(), "run_stage")
+    assert tuple(hub_stages) == (
+        "HUB_RECRUITMENT",
+        "HUB_READY",
+        "HUB_TUTORIAL_BATTLE",
+        "HUB_EXTRACTION",
+        "HUB_RETURN",
+        "HUB_FINAL_STATE",
+    )
+
+    source = _probe_source()
+    route_final = source.index('_run_stage("ROUTE_FINAL_STATE"')
+    hub_run = source.index("_run_hub_tutorial()", route_final)
+    evidence_release = source.index('_run_stage("ROUTE_EVIDENCE_RELEASE"')
+    assert route_final < hub_run < evidence_release
+
+
+def test_probe_records_battle_summaries_without_retaining_completed_battles():
+    source = _probe_source()
+    factory = source[
+        source.index("class _RouteBattleFactory:") : source.index(
+            "class _RouteEnemyFactory:"
+        )
+    ]
+
+    assert "self.battle_compositions = []" in factory
+    assert "self.completed_count = 0" in factory
+    assert "self.battles.append(battle)" not in factory
+    assert "party=()" in factory
+    assert "party=party" in factory
+
+
 def test_probe_releases_route_evidence_only_after_final_state():
     source = _probe_source()
 
@@ -116,8 +160,8 @@ def test_probe_releases_route_evidence_only_after_final_state():
 
 
 def test_probe_excludes_host_persistence_and_test_dependencies():
-    source = _probe_source()
-    tree = _probe_tree()
+    source = _probe_source() + _hub_probe_source()
+    tree = ast.parse(source)
     imported_modules = {
         alias.name.split(".", 1)[0]
         for node in ast.walk(tree)

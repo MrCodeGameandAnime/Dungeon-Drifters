@@ -16,6 +16,7 @@ from app.presentation.battle_models import (
 from app.presentation.battle_presenter import BattlePresenter
 from app.presentation.battle_session import BattlePresentationSession
 from app.player.inventory_action import InventoryActionResolver
+from app.player.player_state import PlayerState
 from app.player.run_items import InventoryCommand
 from app.ui.battle_ui import (
     BattleInput,
@@ -63,6 +64,8 @@ class Battle:
         inventory_action_resolver=None,
         party=(),
     ):
+        if not isinstance(player_state, PlayerState):
+            raise TypeError("player_state must be a PlayerState")
         self.player_state = player_state
         if not isinstance(party, Sequence) or isinstance(
             party,
@@ -71,10 +74,11 @@ class Battle:
             raise TypeError("party must be an ordered player-state sequence")
         if party:
             party_members = (player_state,) + tuple(party)
-            if any(not hasattr(member, "character") for member in party_members):
-                raise TypeError("party must contain player states")
-            if len({id(member) for member in party_members}) != len(party_members):
-                raise ValueError("a Drifter cannot appear more than once in the party")
+            if not all(isinstance(member, PlayerState) for member in party_members):
+                raise TypeError("party must contain PlayerState values")
+            drifter_ids = tuple(self._drifter_id(member) for member in party_members)
+            if len(set(drifter_ids)) != len(drifter_ids):
+                raise ValueError("party Drifter IDs must be unique")
             self._party_members = party_members
             self._party_turn_queue = []
             self._party_dexterity_snapshot = {}
@@ -394,7 +398,17 @@ class Battle:
         profile = getattr(player_state.character, "profile", None)
         if profile is None:
             raise ValueError("party members require canonical Drifter profiles")
-        return profile.drifter_id
+        from app.content.catalog import get_drifter_spec
+
+        try:
+            canonical_profile = get_drifter_spec(profile.drifter_id)
+        except (AttributeError, ValueError) as error:
+            raise ValueError(
+                "party members require canonical Drifter profiles"
+            ) from error
+        if profile is not canonical_profile:
+            raise ValueError("party members require canonical Drifter profiles")
+        return canonical_profile.drifter_id
 
     def _finish(self, winner):
         if self.is_complete:

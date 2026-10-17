@@ -204,11 +204,26 @@ class OverworldSession:
                     return result
             return battle_view
         if session_input.action is OverworldAction.READY:
-            if not self.game_state.party_state.begin_outing():
+            party_state = self.game_state.party_state
+            party_members = (self.game_state.player_state,) + party_state.companions
+            checkpoints = tuple(
+                member.create_battle_checkpoint() for member in party_members
+            )
+            if not party_state.begin_outing():
                 self._notice = "Your party is not ready to set out."
                 return self._build_view()
-            battle = self._create_active_battle(ui=None, tutorial=True)
+            try:
+                battle = self._create_active_battle(ui=None, tutorial=True)
+            except Exception:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                party_state.cancel_outing_start()
+                raise
             if battle is None:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                self._active_battle_context = None
+                party_state.cancel_outing_start()
                 return self._build_view()
             battle_view = battle.current_view()
             if battle.is_complete:
@@ -551,11 +566,11 @@ class OverworldSession:
             self._adventure_text = None
             return
         self._game_state = result.game_state
-        self._screen = OverworldScreen.MAIN
+        self._screen = self._initial_screen(self.game_state)
         self._selected_item_key = None
         self._quit_return_screen = None
-        self._notice = None
-        self._adventure_text = "Saved session loaded."
+        self._notice = "Saved session loaded."
+        self._adventure_text = None
 
     def _navigate_back(self):
         if self._screen in {

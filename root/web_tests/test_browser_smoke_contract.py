@@ -67,7 +67,7 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         '"Recruitment cost: 65"',
         '"120 EXP | 9 gold"',
         "PYD7|BROWSER|HUB_OUTING|PASS",
-        "PYD7|BROWSER|COMPLETION_SIGNAL|PASS",
+        "PYD7|BROWSER|DEFEAT_RESELECT|PASS",
     ):
         assert required in source
 

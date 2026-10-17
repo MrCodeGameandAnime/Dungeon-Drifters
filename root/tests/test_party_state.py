@@ -79,3 +79,18 @@ def test_unaffordable_recruitment_does_not_partially_mutate_state():
     assert lead.gold == 0
     assert companion not in party.companions
 
+
+def test_from_snapshot_rejects_extraction_experience_not_divisible_by_party_size():
+    lead = _player("branoc", gold=75)
+    companion = _player("azhvielle")
+    party = PartyState()
+    party.arrive_at_hub(lead)
+    assert party.recruit_companion(lead, companion)
+    assert party.begin_outing()
+    assert party.begin_extraction(experience=120, gold=9)
+    snapshot = party.snapshot()
+    snapshot["outing_rewards"]["experience"] = 121
+
+    with pytest.raises(ValueError, match="divide evenly"):
+        PartyState.from_snapshot(snapshot, companions=(companion,))
+

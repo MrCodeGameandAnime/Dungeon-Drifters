@@ -1,6 +1,6 @@
 # Hub and First Dungeon Loop Plan
 
-**Status:** Design draft for review. No gameplay implementation is included here.
+**Status:** The first hub/recruitment/party-battle/extraction slice is implemented; see [hub-implementation.md](hub-implementation.md). Later-run loss and floor progression remain planned.
 
 ## Goal
 

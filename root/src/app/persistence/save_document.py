@@ -423,6 +423,10 @@ def _validate_party(party, player):
         rewards["experience"] or rewards["gold"] or rewards["items"]
     )
     has_companion = bool(party["companions"])
+    if phase is DungeonPhase.OUTING:
+        raise SaveStateValidationError(
+            "outing cannot be saved without a battle snapshot"
+        )
     if phase is DungeonPhase.OUTSIDE and (
         has_companion
         or party["shared_gold"]
@@ -439,6 +443,20 @@ def _validate_party(party, player):
         raise SaveStateValidationError("completed tutorial must be at the hub")
     if phase is DungeonPhase.COMPLETE and not party["tutorial_complete"]:
         raise SaveStateValidationError("complete phase requires a completed tutorial")
+    if phase is DungeonPhase.HUB and (
+        has_companion != party["tutorial_complete"]
+    ):
+        raise SaveStateValidationError(
+            "hub party membership must match tutorial completion"
+        )
+    if phase is DungeonPhase.COMPLETE and not has_companion:
+        raise SaveStateValidationError("complete phase requires a companion")
+    if phase is DungeonPhase.EXTRACTION and (
+        rewards["experience"] % (1 + len(party["companions"]))
+    ):
+        raise SaveStateValidationError(
+            "outing experience must divide evenly across the party"
+        )
 
 
 def _validate_item_stacks(items, path):
