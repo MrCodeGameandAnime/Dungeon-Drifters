@@ -323,6 +323,10 @@ def test_party_hub_and_pending_outing_snapshot_round_trip():
         ),
         lambda party: party.update(phase="hub", tutorial_complete=False),
         lambda party: party.update(
+            phase="complete",
+            tutorial_complete=True,
+        ),
+        lambda party: party.update(
             phase="extraction",
             outing_rewards={"experience": 121, "gold": 9, "items": {}},
         ),

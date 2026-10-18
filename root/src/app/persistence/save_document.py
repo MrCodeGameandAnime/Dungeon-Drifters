@@ -412,6 +412,10 @@ def _validate_party(party, player):
         phase = DungeonPhase(party["phase"])
     except (TypeError, ValueError) as error:
         raise SaveStateValidationError("party.phase is invalid") from error
+    if phase is DungeonPhase.COMPLETE:
+        raise SaveStateValidationError(
+            "complete party phase is not supported by this save schema"
+        )
 
     rewards = party["outing_rewards"]
     _require_mapping(rewards, "party.outing_rewards")
@@ -437,20 +441,16 @@ def _validate_party(party, player):
         raise SaveStateValidationError("outside party state contains dungeon progress")
     if phase in {DungeonPhase.PARTY_READY, DungeonPhase.OUTING, DungeonPhase.EXTRACTION} and not has_companion:
         raise SaveStateValidationError("active dungeon phase requires a companion")
-    if phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY, DungeonPhase.COMPLETE} and has_pending_rewards:
+    if phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY} and has_pending_rewards:
         raise SaveStateValidationError("pending rewards require an outing or extraction phase")
-    if party["tutorial_complete"] and phase not in {DungeonPhase.HUB, DungeonPhase.COMPLETE}:
+    if party["tutorial_complete"] and phase is not DungeonPhase.HUB:
         raise SaveStateValidationError("completed tutorial must be at the hub")
-    if phase is DungeonPhase.COMPLETE and not party["tutorial_complete"]:
-        raise SaveStateValidationError("complete phase requires a completed tutorial")
     if phase is DungeonPhase.HUB and (
         has_companion != party["tutorial_complete"]
     ):
         raise SaveStateValidationError(
             "hub party membership must match tutorial completion"
         )
-    if phase is DungeonPhase.COMPLETE and not has_companion:
-        raise SaveStateValidationError("complete phase requires a companion")
     if phase is DungeonPhase.EXTRACTION and (
         rewards["experience"] % (1 + len(party["companions"]))
     ):

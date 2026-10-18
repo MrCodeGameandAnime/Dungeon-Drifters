@@ -6,6 +6,14 @@ _TUTORIAL_REWARDS = (120, 9)
 
 
 def _recruit_companion(state):
+    if (
+        state["route_battle_factory"].battle_compositions
+        or state["route_enemy_factory"].enemies
+        or state["route_battle_factory"].completed_count
+        or "route_initial_view" in state
+    ):
+        raise AssertionError("surface route evidence was retained into the Hub probe")
+
     from app.game.party_state import DungeonPhase
     from app.presentation.overworld_models import OverworldAction, OverworldScreen
     from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction

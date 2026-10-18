@@ -62,12 +62,24 @@ def _emit_memory(label):
     print("MYP|MEMORY|%s|FREE|%s|ALLOC|%s" % (label, free, allocated))
 
 
+def _emit_heap_map_on_memory_error(error):
+    if not isinstance(error, MemoryError):
+        return
+    try:
+        import micropython
+
+        micropython.mem_info(1)
+    except Exception:
+        pass
+
+
 def _run_stage(name, operation):
     print("MYP|%s|BEGIN" % name)
     _emit_memory("%s|BEFORE" % name)
     try:
         operation()
     except Exception as error:
+        _emit_heap_map_on_memory_error(error)
         print(
             "MYP|%s|FAIL|%s|%s"
             % (name, type(error).__name__, str(error))
@@ -272,6 +284,15 @@ def _complete_first_battle():
         raise AssertionError("completed Battle did not produce an inactive view")
 
 
+def _release_first_battle_evidence():
+    STATE["battle_factory_type"] = STATE["battle"].__class__
+    del STATE["battle_view"]
+    del STATE["enemies"]
+    del STATE["battle"]
+    del STATE["game"]
+    gc.collect()
+
+
 def _import_overworld_session():
     from app.game.overworld_session import OverworldSession
 
@@ -279,13 +300,17 @@ def _import_overworld_session():
 
 
 def _construct_headless_session():
+    from app.game.new_game import create_new_game
+
+    game = create_new_game("branoc")
     session = STATE["overworld_session_type"](
-        STATE["game"],
-        battle_factory=STATE["battle"].__class__,
+        game,
+        battle_factory=STATE["battle_factory_type"],
         enemy_factory=STATE["catalog"].create_enemy_state,
         ui=None,
         battle_ui_factory=None,
     )
+    STATE["session_game"] = game
     STATE["session"] = session
 
 
@@ -335,7 +360,7 @@ def _complete_first_session_encounter():
     next_view = session.current_view()
     if next_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
         raise AssertionError("session did not return to the overworld")
-    if STATE["game"].world_state.defeated_encounters != (
+    if STATE["session_game"].world_state.defeated_encounters != (
         "surface_goblin_solo",
     ):
         raise AssertionError("session did not finalize the first encounter")
@@ -639,10 +664,11 @@ def _assert_route_live_state():
 
 
 def _release_route_evidence():
-    del STATE["route_battle_factory"].battle_compositions[:]
+    battle_factory = STATE["route_battle_factory"]
+    del battle_factory.battle_compositions[:]
+    battle_factory.completed_count = 0
     del STATE["route_enemy_factory"].enemies[:]
     del STATE["route_initial_view"]
-    _assert_route_live_state()
 
 
 def _teardown_route_session():
@@ -671,6 +697,7 @@ def main():
     _run_stage("BATTLE_VIEW", _obtain_first_battle_view)
     _run_stage("BATTLE_INPUT", _submit_semantic_battle_input)
     _run_stage("BATTLE_COMPLETE", _complete_first_battle)
+    _release_first_battle_evidence()
     _run_stage("SESSION_IMPORT", _import_overworld_session)
     _run_stage("SESSION_CONSTRUCTION", _construct_headless_session)
     _run_stage("SESSION_VIEW", _obtain_session_view)
@@ -680,8 +707,9 @@ def main():
     _run_stage("ROUTE_INITIAL_VIEW", _obtain_route_initial_view)
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
-    _run_hub_tutorial()
     _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
+    _run_hub_tutorial()
+    _assert_route_live_state()
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")

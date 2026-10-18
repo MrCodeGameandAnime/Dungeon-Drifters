@@ -96,6 +96,18 @@ def test_complete_output_extracts_expected_semantic_signature():
     )
 
 
+def test_expected_stages_release_route_evidence_before_hub_probe():
+    _load_tool()
+    stages = matrix.EXPECTED_STAGES
+
+    assert stages.index("ROUTE_FINAL_STATE") < stages.index(
+        "ROUTE_EVIDENCE_RELEASE"
+    ) < stages.index("HUB_RECRUITMENT")
+    assert stages.index("HUB_FINAL_STATE") < stages.index(
+        "ROUTE_SESSION_TEARDOWN"
+    )
+
+
 def test_memory_and_runtime_identity_lines_do_not_change_signature():
     _load_tool()
     first = _successful_output()

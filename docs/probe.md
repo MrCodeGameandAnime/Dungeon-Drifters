@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** exploratory run log. This is not a replacement for the Gate 6 qualification record or a claim that MicroPython is sealed.
+**Status:** supplemental run log. The exact pinned MicroPython v1.29.0 Gate 6 matrix for the Hub-enabled tree passed on 2026-10-17. The milestone checklist in `docs/current/hub/hub-implementation.md` remains the authoritative Gate 6 record; this is not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -54,19 +54,36 @@ The extended raw probe passed 27 semantic stages and all 12 surface-route nodes 
 
 The lowest reported free heap during this 512K run was about 80,096 bytes. The CPython native and forced-overlay raw probes also completed the route and Hub loop. These are exploratory results from the current probe work, not three-run MicroPython stability qualification.
 
-## Test Evidence and Limits
+After moving route-evidence release before the Hub probe, the local stock executable was rerun on 2026-10-17 at 512K. It completed the full route and Hub loop with `ROUTE_FINAL_STATE` → `ROUTE_EVIDENCE_RELEASE` → `HUB_RECRUITMENT`, and reported a lowest free heap of 87,168 bytes. This diagnostic used the 486,912-byte local binary with SHA-256 `E90AFC976ED7CB2EE530BE7F5D8C769C1F3B562DF4DDB04A6C589177ED912EFE`, not the pinned executable; it does not close Gate 6.
+
+## Interim Test Evidence and Limits
+
+The following records intermediate runs before the pinned Gate 6 rerun below; their open-gate status is superseded by the final qualification section.
 
 - Focused probe-contract, runtime-matrix, and Hub-extraction tests: 24 passed in the prior run.
 - A full root test run reported 1,618 passed and 5 failures in nested content-tooling cases. Those failures came from running with a repository-local pytest temporary directory, which caused nested pytest processes to discover the repository `pytest.ini` and import the repository `app` package instead of each generated project's package. Treat that run as an environment/configuration issue to rerun cleanly, not as a clean full-suite result.
 - The final spot rerun in the current shell could not start because the available Python runtime did not have pytest installed.
 - `git diff --check` passed after the probe edits.
-- For the Hub-extended tree, 448K three-run stability and the 416K frontier remain unqualified. The earlier R1 results above remain historical evidence for the R1 tree, not this new game loop. If actual gameplay needs more memory, investigate and revise the target based on measured runtime needs rather than treating the probe limit as a design constraint.
+- At this interim point, the Hub-extended tree's 448K stability and 416K frontier were unqualified. The earlier R1 results remain historical evidence for the R1 tree, not this new game loop. The 2026-10-17 follow-up below supersedes this interim status.
 
-## Next Qualification Steps
+## Final Gate 6 Verification (2026-10-17)
 
-1. Re-run the unchanged full-route-plus-Hub probe with the exact pinned MicroPython executable and record its path/version.
-2. Investigate the difference between the first Goblin Lord `BattleView` failure and the later local reproduction; keep probe overhead and runtime artifact identity in view.
-3. Once the executable and probe are stable, run the required 448K repeated qualification and the 416K lower frontier. Record exact outputs and minimum free-heap observations.
-4. Rerun the complete Python and web suites using a pytest temporary directory that does not alter nested project test discovery.
+The executable at `%LOCALAPPDATA%\DungeonDrifters\micropython\v1.29.0\source\ports\windows\build-standard\micropython.exe` matched the recorded pinned artifact exactly: 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`; it reported MicroPython v1.29.0 on `win32`.
+
+The first instrumented 448K retry failed during `SESSION_IMPORT`, requesting a 660-byte allocation. Before error formatting or collection, `micropython.mem_info(1)` showed 9,264 free GC bytes and a maximum free run of 11 blocks (176 bytes). This established fragmentation at that failure point, rather than relying on the later post-collection free count. The completed standalone Battle, view, enemy list, and game were probe-only state no longer needed after their assertions. Releasing those references before session import and constructing the session's independent game at `SESSION_CONSTRUCTION` allowed the same marker sequence and full scenario to run at 448K.
+
+The formal `runtime_qualification_matrix.py` run on the resulting tree reported:
+
+- CPython native, CPython forced overlay, and pinned MicroPython default: `PASS`.
+- Pinned MicroPython 448K and semantic parity: `PASS`.
+- 448K repeated stability: `STABLE_PASS`, 3/3.
+- 416K lower frontier: `MEMORY_LIMIT_CONFIRMED`, 3/3.
+- Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+A raw final-tree 448K run completed all 12 route nodes, Goblin Lord, Hub recruitment, the three-Goblin tutorial battle, extraction, and teardown. Its lowest reported free heap was 24,480 bytes. The 448K and 416K values qualify this Windows probe contract only; they are not gameplay-device limits.
+
+Final local checks on this working tree: 1,648 Python tests passed; 47 web tests passed; content validation passed (5 enemies, 4 weapons, 4 Drifters, 9 encounters, 1 route); compileall passed for the 285 accessible Python files outside generated pytest-cache fixtures; the 134-runtime-file browser build and full Playwright Hub outing/defeat-reselect route passed; and `git diff --check` passed. The profile-service suite, clean migration, and Alembic drift checks remain as previously recorded in the 2026-10-16 qualification; a local repeat was unavailable because the Docker engine pipe was not reachable in this shell.
+
+No Gate 6 MicroPython qualification step remains for this Hub probe. Future changes to shared gameplay/runtime behavior or the probe contract should rerun the pinned matrix and record a new observation rather than treating the measured heap as a product budget.
 
 The Hub stages are in `root/tools/micropython_hub_probe.py`; the route harness and lazy Hub-probe loader are in `root/tools/micropython_probe.py`; the stage contract is in `root/tools/runtime_qualification_matrix.py`.
