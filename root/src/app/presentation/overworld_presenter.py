@@ -407,10 +407,23 @@ class OverworldPresenter:
 
     @staticmethod
     def _map_view(game_state):
-        current_id = game_state.overworld_state.current_route_node_id
+        overworld = game_state.overworld_state
+        current_id = overworld.current_route_node_id
+        route = get_route_spec(overworld.active_route_id)
+        route_nodes = route.nodes
         defeated_encounters = set(game_state.world_state.defeated_encounters)
         resolved_rest_nodes = set(
-            game_state.overworld_state.resolved_rest_node_ids
+            overworld.resolved_rest_node_ids
+        )
+        floor_one_cursor = (
+            tuple(node.node_id for node in route_nodes).index(current_id)
+            if overworld.active_route_id == "floor_one"
+            else None
+        )
+        floor_one_node_indexes = (
+            {node.node_id: index for index, node in enumerate(route_nodes)}
+            if floor_one_cursor is not None
+            else None
         )
 
         def is_completed(node):
@@ -435,12 +448,17 @@ class OverworldPresenter:
                         if node.node_id == current_id
                         else (
                             MapNodeState.COMPLETED
-                            if is_completed(node)
+                            if (
+                                floor_one_node_indexes[node.node_id]
+                                < floor_one_cursor
+                                if floor_one_cursor is not None
+                                else is_completed(node)
+                            )
                             else MapNodeState.REMAINING
                         )
                     ),
                 )
-                for node in _SURFACE_ROUTE.nodes
+                for node in route_nodes
             )
         )
 

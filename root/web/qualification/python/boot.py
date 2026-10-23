@@ -6,8 +6,11 @@ from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_state
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
+from app.game.party_state import DungeonPhase
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.persistence.ports import SaveLoadResult
+from app.persistence.save_port_contract import SaveLoadStatus
 from app.player.progression import xp_required_for_next_level
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
@@ -128,20 +131,16 @@ class HeadlessEnemyFactory:
 class QualificationSavePort:
     def __init__(self):
         self.saved_states = []
-        self.status = "missing"
 
     def inspect(self):
-        self.status = "missing"
-        return self
+        return SaveLoadResult(SaveLoadStatus.MISSING)
 
     def save(self, game_state):
         self.saved_states.append(game_state)
-        self.status = "saved"
-        return self
+        return SaveLoadResult(SaveLoadStatus.SAVED)
 
     def load(self):
-        self.status = "missing"
-        return self
+        return SaveLoadResult(SaveLoadStatus.MISSING)
 
 
 def _first_enabled(options, label):
@@ -467,7 +466,18 @@ def _qualify_route():
         raise AssertionError("Floor 1 polluted Surface encounter history")
     if len(battle_factory.battles) - floor_one_battle_start != 10:
         raise AssertionError("Floor 1 did not complete exactly ten Battles")
-    if save_port.saved_states != [game]:
+    if len(save_port.saved_states) != 3:
+        raise AssertionError("Floor 1 did not persist both Rest fallbacks and its Hub outcome")
+    for fallback in save_port.saved_states[:2]:
+        if fallback is game:
+            raise AssertionError("Rest fallback aliased the live run")
+        if fallback.party_state.phase is not DungeonPhase.HUB:
+            raise AssertionError("Rest fallback did not forfeit the active run")
+        if fallback.overworld_state.current_route_node_id != "surface_dungeon_entrance":
+            raise AssertionError("Rest fallback did not return to the Surface entrance")
+        if fallback.party_state.outing_rewards.experience or fallback.party_state.outing_rewards.gold:
+            raise AssertionError("Rest fallback retained unsecured rewards")
+    if save_port.saved_states[2] is not game:
         raise AssertionError("Floor 1 clear did not persist its Hub outcome")
     for member in party_members:
         if member.health.current != member.health.maximum:
@@ -542,8 +552,17 @@ def _qualify_route():
         raise AssertionError("replay extraction did not secure its gold")
     if game.party_state.floor_one_runs_started_after_clear != 1:
         raise AssertionError("early extraction did not count the replay run")
-    if save_port.saved_states != [game, game]:
-        raise AssertionError("early extraction did not replace its Rest checkpoint")
+    if len(save_port.saved_states) != 5:
+        raise AssertionError("early extraction did not persist its fallback and Hub outcome")
+    extraction_fallback = save_port.saved_states[3]
+    if extraction_fallback is game:
+        raise AssertionError("extraction fallback aliased the live run")
+    if extraction_fallback.party_state.phase is not DungeonPhase.HUB:
+        raise AssertionError("extraction fallback did not bank the partial run")
+    if extraction_fallback.party_state.shared_gold != game.party_state.shared_gold:
+        raise AssertionError("extraction fallback did not bank partial gold")
+    if save_port.saved_states[4] is not game:
+        raise AssertionError("early extraction did not persist the final Hub outcome")
     for member in party_members:
         if member.health.current != member.health.maximum:
             raise AssertionError("early extraction did not restore HP")

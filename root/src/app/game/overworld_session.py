@@ -546,8 +546,12 @@ class OverworldSession:
             self.game_state.overworld_state.active_route_id != "floor_one"
             or self._screen is not OverworldScreen.REST
             or party_state.phase is not DungeonPhase.OUTING
-            or not party_state.begin_floor_one_extraction(partial=True)
         ):
+            self._notice = "Extraction is not available here."
+            return None
+        if not self._persist_floor_one_rest_fallback(extraction=True):
+            return None
+        if not party_state.begin_floor_one_extraction(partial=True):
             self._notice = "Extraction is not available here."
             return None
         self._screen = OverworldScreen.EXTRACTION
@@ -679,9 +683,34 @@ class OverworldSession:
             result = None
         if result is None or result.status is not SaveLoadStatus.SAVED:
             self._notice = (
-                "The Hub return could not be saved. The previous Rest save may "
-                "still be available."
+                "The Hub return could not be saved. The last committed save "
+                "remains available."
             )
+
+    def _persist_floor_one_rest_fallback(self, *, extraction=False):
+        fallback = self.game_state.clone()
+        party_state = fallback.party_state
+        party_members = (fallback.player_state,) + party_state.companions
+        if extraction:
+            if not party_state.begin_floor_one_extraction(partial=True):
+                self._notice = "The next step could not be saved. You remain at this Rest."
+                return False
+            if not party_state.complete_extraction(party_members):
+                self._notice = "The next step could not be saved. You remain at this Rest."
+                return False
+        elif not party_state.fail_floor_one_run(party_members):
+            self._notice = "The next step could not be saved. You remain at this Rest."
+            return False
+
+        fallback.overworld_state.return_to_surface_entrance()
+        try:
+            result = self._save_port_instance().save(fallback)
+        except (SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is not SaveLoadStatus.SAVED:
+            self._notice = "The next step could not be saved. You remain at this Rest."
+            return False
+        return True
 
     def _save_current_session(self):
         try:
@@ -1087,6 +1116,12 @@ class OverworldSession:
             return
         next_node = get_route_node_spec(next_node_id)
         next_phase = self._contextual_phase_for_node(next_node.kind)
+
+        if (
+            overworld.active_route_id == "floor_one"
+            and not self._persist_floor_one_rest_fallback()
+        ):
+            return
 
         if recover:
             members = (self.game_state.player_state,)

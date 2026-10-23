@@ -15,6 +15,8 @@ from app.content.catalog import (
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
+from app.persistence.ports import SaveLoadResult
+from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction, ChoosePermanentStatIncrease
 
@@ -24,6 +26,21 @@ BRIDGE_PATH = ROOT / "web" / "python" / "dd_bridge.py"
 SPEC = importlib.util.spec_from_file_location("dd_bridge_contract", BRIDGE_PATH)
 bridge = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bridge)
+
+
+class QualificationSavePort:
+    def __init__(self):
+        self.saved_states = []
+
+    def inspect(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def save(self, game_state):
+        self.saved_states.append(game_state)
+        return SaveLoadResult(SaveLoadStatus.SAVED)
+
+    def load(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
 
 
 def test_bridge_starts_the_canonical_headless_runtime():
@@ -268,6 +285,7 @@ def test_bridge_completes_floor_one_through_semantic_actions():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
     )
     runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
     runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
@@ -344,6 +362,15 @@ def test_bridge_completes_floor_one_through_semantic_actions():
     assert game.party_state.outing_rewards.gold == 0
     assert game.world_state.defeated_encounters == surface_history
     assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
+    saved_states = runtime._session._save_port.saved_states
+    assert len(saved_states) == 3
+    for fallback in saved_states[:2]:
+        assert fallback is not game
+        assert fallback.party_state.phase is DungeonPhase.HUB
+        assert fallback.overworld_state.current_route_node_id == "surface_dungeon_entrance"
+        assert fallback.party_state.outing_rewards.experience == 0
+        assert fallback.party_state.outing_rewards.gold == 0
+    assert saved_states[2] is game
     for member in (game.player_state, *game.party_state.companions):
         assert member.health.current == member.health.maximum
         assert member.mana_resource.current == member.mana_resource.maximum

@@ -121,3 +121,25 @@ Final cumulative checks on this working tree:
 - Python compilation and `git diff --check`: passed (generated pytest cache fixtures excluded from compilation).
 
 The temporary PostgreSQL qualification container and its databases were stopped and removed after the run. No production service, existing container, or migration was changed.
+
+## Rest-Exit Durability and Map Correction (2026-10-23)
+
+This corrective qualification is based on branch `hub` at commit `7c6449ec61cd20c08a262edf5bcbe979c2ad8ee7`, plus the uncommitted review corrections described here. It does not replace the earlier Floor One implementation record or claim a new commit SHA.
+
+The review findings are addressed as follows:
+
+- Before Recover or Continue leaves a Floor One Rest, an independent Hub fallback is saved with the run forfeited. Before Extract leaves a Rest, an independent Hub fallback is saved with the adjusted partial payout banked. A failed fallback write leaves the live session at the same Rest without changing its state.
+- The regression test saves at a dangerous Rest, continues, then injects failure into the final defeat save. Reload still returns to the already committed safe Hub fallback rather than restoring the Rest checkpoint.
+- The Map now projects the active route. During Floor One, route nodes before the cursor are complete, the cursor node is current, and following nodes remain; Surface encounter history no longer drives Floor One progress.
+- The save-document module description now identifies Schema 10, and the implementation checklist records the already completed location projection.
+
+Qualification on the corrected working tree:
+
+- Root Python suite: 1,696 passed.
+- Web suite: 48 passed.
+- Content validation: passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes).
+- Python compilation and `git diff --check`: passed.
+- Static browser build: 138 runtime files. The full Playwright browser smoke passed against the built site in system Chrome, including Floor One boss clear, replay extraction, and defeat/reselect flows. The bundled Playwright Chromium executable was unavailable in this environment, so the installed Chrome executable was used.
+- Exact pinned MicroPython v1.29.0 Windows artifact: 488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. CPython native, CPython forced overlay, and MicroPython default passed; pinned MicroPython 512K and semantic parity passed; 512K repeated stability passed 3/3; 480K reached the expected memory-limit classification 3/3; final marker was `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The profile-service/PostgreSQL suite was not rerun for this correction: no profile-service, API, database, or migration code changed. Its previously recorded 29-test result remains evidence for its recorded tree, not a new result on this working tree. These checks were run before committing; the correction remains uncommitted and unpushed.

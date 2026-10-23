@@ -69,7 +69,7 @@ def test_pyd2_uses_real_session_and_ephemeral_save_port():
         "ChooseCompanion",
         "class QualificationSavePort",
         "save_port=save_port",
-        "saved_states != [game, game]",
+        "save_port.saved_states[4] is not game",
         "InteractionPhase.COMPLETE",
         "dungeon_entrance_reached",
         "OverworldScreen.HUB",

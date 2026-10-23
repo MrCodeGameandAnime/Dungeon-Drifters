@@ -207,16 +207,22 @@ class _RouteBattleFactory:
         self.completed_count += 1
 
     def inspect(self):
-        self.status = "missing"
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        self.status = SaveLoadStatus.MISSING
         return self
 
     def save(self, game_state):
+        from app.persistence.save_port_contract import SaveLoadStatus
+
         self.saved_game_state = game_state
-        self.status = "saved"
+        self.status = SaveLoadStatus.SAVED
         return self
 
     def load(self):
-        self.status = "missing"
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        self.status = SaveLoadStatus.MISSING
         return self
 
 

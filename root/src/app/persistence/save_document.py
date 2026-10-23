@@ -1,4 +1,4 @@
-"""Schema-9 save documents and canonical in-memory reconstruction."""
+"""Schema-10 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 

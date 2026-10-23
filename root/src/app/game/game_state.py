@@ -47,6 +47,24 @@ class GameState:
     def set_metadata(self, key, value):
         self._metadata[key] = value
 
+    def clone(self):
+        player = self.player_state.clone()
+        companions = tuple(
+            companion.clone() for companion in self.party_state.companions
+        )
+        party = PartyState.from_snapshot(
+            self.party_state.snapshot(),
+            companions=companions,
+        )
+        return self.from_persistent_parts(
+            player,
+            StoryState.from_snapshot(self.story_state.snapshot()),
+            WorldState.from_snapshot(self.world_state.snapshot()),
+            OverworldState.from_snapshot(self.overworld_state.snapshot()),
+            to_plain_value(self.metadata, "game.metadata"),
+            party,
+        )
+
     @classmethod
     def from_persistent_parts(
         cls,

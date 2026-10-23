@@ -13,7 +13,12 @@ from app.persistence.local_store import LocalProfileStore
 from app.game.party_state import DungeonPhase, PartyState
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleView
-from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.presentation.overworld_models import (
+    MapNodeState,
+    OverworldAction,
+    OverworldScreen,
+)
+from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.battle_ui import ChooseAction, GoBack
 from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
 
@@ -46,6 +51,8 @@ class StableRng:
 class RecordingSavePort:
     def __init__(self):
         self.saved_states = []
+        self.save_attempts = []
+        self.fail_next_save = False
 
     def inspect(self):
         return SaveLoadResult(SaveLoadStatus.MISSING)
@@ -54,8 +61,36 @@ class RecordingSavePort:
         return SaveLoadResult(SaveLoadStatus.MISSING)
 
     def save(self, game_state):
+        self.save_attempts.append(game_state)
+        if self.fail_next_save:
+            self.fail_next_save = False
+            return SaveLoadResult(
+                SaveLoadStatus.INVALID,
+                error="The game could not be saved.",
+            )
         self.saved_states.append(game_state)
         return SaveLoadResult(SaveLoadStatus.SAVED)
+
+
+class FailNextSavePort:
+    def __init__(self, save_port):
+        self._save_port = save_port
+        self.fail_next_save = False
+
+    def inspect(self):
+        return self._save_port.inspect()
+
+    def load(self):
+        return self._save_port.load()
+
+    def save(self, game_state):
+        if self.fail_next_save:
+            self.fail_next_save = False
+            return SaveLoadResult(
+                SaveLoadStatus.INVALID,
+                error="The game could not be saved.",
+            )
+        return self._save_port.save(game_state)
 
 
 def game_at_completed_hub():
@@ -441,13 +476,14 @@ def test_floor_one_rest_offers_run_choices_and_saves_only_at_rest():
     assert session._save_port.saved_states == [game]
 
     session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
+    fallback = session._save_port.saved_states[1]
     options = session.submit(ChooseOverworldAction(OverworldAction.OPTIONS))
     save = next(
         option for option in options.options if option.action is OverworldAction.SAVE
     )
     assert not save.enabled
     session.submit(ChooseOverworldAction(OverworldAction.SAVE))
-    assert session._save_port.saved_states == [game]
+    assert session._save_port.saved_states == [game, fallback]
 
 
 def test_floor_one_recover_restores_both_drifters_and_continues_route():
@@ -593,6 +629,195 @@ def test_floor_one_rest_save_load_resumes_at_same_checkpoint(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    "action",
+    (
+        OverworldAction.REST,
+        OverworldAction.SKIP_REST,
+        OverworldAction.EXTRACT,
+    ),
+)
+def test_floor_one_rest_exit_stays_at_rest_when_fallback_save_fails(action):
+    game = game_at_completed_hub()
+    save = RecordingSavePort()
+    session = make_session(game, save)
+    reach_first_floor_one_rest(session)
+    before = game.snapshot()
+    save.fail_next_save = True
+
+    view = session.submit(ChooseOverworldAction(action))
+
+    assert view.screen is OverworldScreen.REST
+    assert view.notice == "The next step could not be saved. You remain at this Rest."
+    assert game.snapshot() == before
+    assert save.saved_states == []
+
+
+def test_floor_one_continue_persists_independent_safe_hub_before_advancing():
+    game = game_at_completed_hub()
+    save = RecordingSavePort()
+    session = make_session(game, save)
+    reach_first_floor_one_rest(session)
+    party_members = (game.player_state,) + game.party_state.companions
+    shared_gold = game.party_state.shared_gold
+    game.party_state.add_floor_one_rewards(
+        experience=20,
+        gold=9,
+        items={"herb": 1},
+    )
+    for member in party_members:
+        member.health.take_damage(11)
+        member.mana_resource.spend(min(member.mana_resource.current, 3))
+
+    continued = session.submit(
+        ChooseOverworldAction(OverworldAction.SKIP_REST)
+    )
+
+    fallback = save.saved_states[0]
+    assert continued.screen is OverworldScreen.MAIN
+    assert game.overworld_state.current_route_node_id == "floor_one_battle_06"
+    assert fallback is not game
+    assert fallback.party_state.phase is DungeonPhase.HUB
+    assert fallback.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert fallback.party_state.shared_gold == shared_gold
+    assert fallback.party_state.shared_items == {}
+    assert fallback.overworld_state.active_route_id == "surface"
+    assert fallback.overworld_state.current_route_node_id == (
+        "surface_dungeon_entrance"
+    )
+    for member in (fallback.player_state,) + fallback.party_state.companions:
+        assert member.health.current == member.health.maximum
+        assert member.mana_resource.current == member.mana_resource.maximum
+
+
+def test_floor_one_extract_persists_banked_rewards_before_leaving_rest():
+    game = game_at_completed_hub()
+    save = RecordingSavePort()
+    session = make_session(game, save)
+    reach_first_floor_one_rest(session)
+    game.party_state.add_floor_one_rewards(
+        experience=20,
+        gold=9,
+        items={"herb": 1},
+    )
+    secured_gold_before = game.party_state.shared_gold
+    secured_items_before = game.party_state.shared_items
+    rewards = game.party_state.outing_rewards.snapshot()
+    xp_each = (
+        rewards["experience"]
+        * game.party_state.outing_xp_multiplier_percent
+        // 400
+    )
+    expected_progression = []
+    for member in (game.player_state,) + game.party_state.companions:
+        expected_member = member.clone()
+        expected_member.gain_experience(xp_each)
+        expected_progression.append(
+            (expected_member.level_state.current, expected_member.exp_state.current)
+        )
+
+    extraction = session.submit(
+        ChooseOverworldAction(OverworldAction.EXTRACT)
+    )
+
+    fallback = save.saved_states[0]
+    assert extraction.screen is OverworldScreen.EXTRACTION
+    assert game.party_state.phase is DungeonPhase.EXTRACTION
+    assert game.party_state.shared_gold == 10
+    assert fallback is not game
+    assert fallback.party_state.phase is DungeonPhase.HUB
+    assert fallback.party_state.shared_gold == (
+        secured_gold_before + (rewards["gold"] + 1) // 2
+    )
+    assert fallback.party_state.shared_items == {
+        **secured_items_before,
+        "herb": secured_items_before.get("herb", 0) + 1,
+    }
+    assert tuple(
+        (member.level_state.current, member.exp_state.current)
+        for member in (fallback.player_state,) + fallback.party_state.companions
+    ) == tuple(expected_progression)
+    assert fallback.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert fallback.overworld_state.current_route_node_id == (
+        "surface_dungeon_entrance"
+    )
+
+
+def test_death_save_failure_cannot_restore_the_previous_rest_checkpoint(tmp_path):
+    game = game_at_completed_hub()
+    store = LocalProfileStore(tmp_path / "profiles")
+    coordinator = SaveCoordinator(
+        store,
+        UUID("00000000-0000-4000-8000-000000000023"),
+    )
+    save = FailNextSavePort(coordinator)
+    session = make_session(game, save)
+    reach_first_floor_one_rest(session)
+    assert session.submit(ChooseOverworldAction(OverworldAction.SAVE)).notice == (
+        "Game saved."
+    )
+
+    session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
+    session.submit(ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER))
+    for member in (game.player_state,) + game.party_state.companions:
+        member.health.take_damage(member.health.current)
+    session.active_battle._finish("enemy")
+    save.fail_next_save = True
+    session.submit(GoBack())
+    defeated = session.current_view()
+
+    loaded = coordinator.load()
+    assert defeated.screen is OverworldScreen.HUB
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.party_state.phase is DungeonPhase.HUB
+    assert loaded.game_state.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert loaded.game_state.overworld_state.active_route_id == "surface"
+    assert loaded.game_state.overworld_state.current_route_node_id == (
+        "surface_dungeon_entrance"
+    )
+    persisted = store.load(coordinator.profile_id).envelope
+    assert persisted.local_sequence == 2
+
+
+def test_floor_one_map_tracks_active_route_cursor_not_surface_defeats():
+    game = game_at_completed_hub()
+    route = get_route_spec("floor_one")
+    game.party_state.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    for index in range(1, 7):
+        previous = route.nodes[index - 1]
+        if previous.kind.value == "rest":
+            game.overworld_state.record_resolved_rest_node(previous.node_id)
+        game.overworld_state.advance_to(route.nodes[index].node_id)
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+
+    assert tuple(node.display_label for node in view.route_map.nodes) == tuple(
+        node.display_label for node in route.nodes
+    )
+    assert all(
+        node.state is MapNodeState.COMPLETED
+        for node in view.route_map.nodes[:6]
+    )
+    assert view.route_map.nodes[6].state is MapNodeState.CURRENT
+    assert all(
+        node.state is MapNodeState.REMAINING
+        for node in view.route_map.nodes[7:]
+    )
+
+
 def test_floor_one_death_supersedes_saved_rest_checkpoint(tmp_path):
     game = game_at_completed_hub()
     store = LocalProfileStore(tmp_path / "profiles")
@@ -629,7 +854,7 @@ def test_floor_one_death_supersedes_saved_rest_checkpoint(tmp_path):
     returned = make_session(loaded_after_death.game_state).current_view()
 
     assert defeated.screen is OverworldScreen.HUB
-    assert persisted.local_sequence == 2
+    assert persisted.local_sequence == 3
     assert persisted.payload["overworld"]["active_route_id"] == "surface"
     assert persisted.payload["overworld"]["current_route_node_id"] == (
         "surface_dungeon_entrance"

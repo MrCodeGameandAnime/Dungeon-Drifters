@@ -253,6 +253,18 @@ class PlayerState:
             checkpoint.character_run_state
         )
 
+    def clone(self):
+        profile = self.character.profile
+        if profile is None:
+            raise ValueError("player state cannot be cloned without a profile")
+        return self.from_persistent_snapshot(
+            profile.create_character(),
+            self.snapshot(),
+            inventory_items=self.inventory.items,
+            equipment_items=self.equipment,
+            run_checkpoint=self.character_run_state.create_checkpoint(),
+        )
+
     @classmethod
     def from_persistent_snapshot(
         cls,

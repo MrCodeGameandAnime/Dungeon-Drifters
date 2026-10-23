@@ -399,6 +399,7 @@ def _resolve_floor_one_midway_rest(state):
     session.submit(ChooseOverworldAction(OverworldAction.REST))
     if session.current_view().screen is not OverworldScreen.MAIN:
         raise AssertionError("Recover did not continue to battle six")
+    _assert_rest_fallback(game, state)
     for member in members:
         if member.health.current != member.health.maximum:
             raise AssertionError("midway Recover did not restore HP")
@@ -425,12 +426,33 @@ def _resolve_floor_one_pre_boss_rest(state):
     session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
     if session.current_view().screen is not OverworldScreen.MAIN:
         raise AssertionError("Continue Without Rest did not advance to the boss")
+    _assert_rest_fallback(game, state)
     after = tuple(
         (member.health.current, member.mana_resource.current)
         for member in (game.player_state,) + game.party_state.companions
     )
     if after != before:
         raise AssertionError("Continue Without Rest restored resources")
+
+
+def _assert_rest_fallback(game, state):
+    from app.game.party_state import DungeonPhase
+
+    fallback = state["route_battle_factory"].saved_game_state
+    if fallback is None or fallback is game:
+        raise AssertionError("Rest exit did not save an independent fallback")
+    if fallback.party_state.phase is not DungeonPhase.HUB:
+        raise AssertionError("Rest fallback did not return to the Hub")
+    if fallback.overworld_state.active_route_id != "surface":
+        raise AssertionError("Rest fallback retained the Floor 1 route")
+    if fallback.overworld_state.current_route_node_id != "surface_dungeon_entrance":
+        raise AssertionError("Rest fallback returned to the wrong location")
+    if (
+        fallback.party_state.outing_rewards.experience
+        or fallback.party_state.outing_rewards.gold
+        or fallback.party_state.outing_rewards.items
+    ):
+        raise AssertionError("Rest fallback retained unsecured rewards")
 
 
 def _assert_floor_one_final_state(state):
