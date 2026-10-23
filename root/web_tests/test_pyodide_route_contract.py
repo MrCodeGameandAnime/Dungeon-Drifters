@@ -53,7 +53,7 @@ def test_pyd2_contains_the_exact_authored_route_oracle():
     assert "Extraction: ${result.lead_tutorial_exp} EXP each" in qualification_js
 
 
-def test_pyd2_uses_real_session_and_probe_only_determinism():
+def test_pyd2_uses_real_session_and_ephemeral_save_port():
     boot = BOOT_PATH.read_text()
 
     for required in (
@@ -67,7 +67,9 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
         "ChooseMove",
         "ChooseTarget",
         "ChooseCompanion",
-        "save_port=None",
+        "class QualificationSavePort",
+        "save_port=save_port",
+        "saved_states != [game, game]",
         "InteractionPhase.COMPLETE",
         "dungeon_entrance_reached",
         "OverworldScreen.HUB",
@@ -80,7 +82,7 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
     assert "tempfile" not in boot
 
 
-def test_pyd2_qualification_executes_the_full_route_without_persistence():
+def test_pyd2_qualification_executes_floor_one_with_ephemeral_persistence():
     namespace = runpy.run_path(str(BOOT_PATH))
 
     result = json.loads(namespace["boot"]())
@@ -104,6 +106,15 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
             "secured_gold",
             "lead_tutorial_exp",
             "companion_tutorial_exp",
+            "floor_one_battles",
+            "floor_one_xp_each",
+            "floor_one_shared_gold",
+            "floor_one_cleared",
+            "floor_one_replay_rate",
+            "floor_one_replay_extract_xp",
+            "floor_one_replay_extract_gold",
+            "floor_one_replay_secured_gold",
+            "floor_one_replay_runs",
         )
     } == {
         "route_nodes": 12,
@@ -122,6 +133,15 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
         "secured_gold": 19,
         "lead_tutorial_exp": 60,
         "companion_tutorial_exp": 60,
+        "floor_one_battles": 10,
+        "floor_one_xp_each": 670,
+        "floor_one_shared_gold": 115,
+        "floor_one_cleared": True,
+        "floor_one_replay_rate": 50,
+        "floor_one_replay_extract_xp": 140,
+        "floor_one_replay_extract_gold": 21,
+        "floor_one_replay_secured_gold": 136,
+        "floor_one_replay_runs": 1,
     }
 
 

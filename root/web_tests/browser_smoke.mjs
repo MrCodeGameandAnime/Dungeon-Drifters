@@ -405,7 +405,80 @@ const securedHubProjection = {
   ...hubProjection,
   adventure_text: "You return to the Floor 1 Hub. The tutorial rewards are secured.",
   shared_gold: 19,
-  options: hubProjection.options.slice(1),
+  options: [
+    ...hubProjection.options.slice(1),
+    { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
+  ],
+};
+
+const floorOneWarningProjection = {
+  ...securedHubProjection,
+  screen: "floor_one_warning",
+  adventure_text: "Death means returning to the Hub. All unsecured XP, gold, and items are lost.",
+  options: [
+    { action: "set_out", label: "Set Out", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+};
+
+const floorOneMainProjection = {
+  ...hubProjection,
+  screen: "main",
+  location_label: "Goblin Patrol",
+  adventure_text: "The route continues deeper into Floor 1.",
+  contextual_route_option: { action: "enter_encounter", label: "Enter Encounter", enabled: true, disabled_reason: null },
+};
+
+const floorOneBattleProjection = {
+  ...partyBattleProjection,
+  encounter_label: "Floor 1 Goblins",
+  enemies: [1, 2, 3, 4].map((number) => ({
+    target_id: `floor_one_enemy_${number}`,
+    display_label: `Goblin ${number}`,
+    hp_current: 60,
+    hp_maximum: 60,
+    temporary_labels: [],
+    defeated: false,
+  })),
+};
+
+const floorOneRestProjection = {
+  ...hubProjection,
+  screen: "rest",
+  location_label: "Midway Rest",
+  adventure_text: "The party reaches the midway Rest.",
+  options: [
+    { action: "rest", label: "Recover", enabled: true, disabled_reason: null },
+    { action: "save", label: "Save", enabled: true, disabled_reason: null },
+    { action: "character", label: "Character", enabled: true, disabled_reason: null },
+    { action: "items", label: "Items", enabled: true, disabled_reason: null },
+    { action: "extract", label: "Extract", enabled: true, disabled_reason: null },
+  ],
+  contextual_route_option: { action: "skip_rest", label: "Continue Without Rest", enabled: true, disabled_reason: null },
+};
+
+const floorOnePreBossRestProjection = {
+  ...floorOneRestProjection,
+  location_label: "Pre-Boss Rest",
+  adventure_text: "The party reaches the Rest before the Goblin Lord.",
+};
+
+const floorOneExtractionProjection = {
+  ...extractionProjection,
+  adventure_text: "The midway extraction secures half of the adjusted rewards and all items.",
+  outing_rewards: { experience: 140, gold: 21, items: [] },
+};
+
+const floorOneClearedHubProjection = {
+  ...securedHubProjection,
+  adventure_text: "The Goblin Lord is defeated. Floor 1 is cleared.",
+  shared_gold: 115,
+};
+
+const floorOneReplayHubProjection = {
+  ...floorOneClearedHubProjection,
+  adventure_text: "The party extracts safely and returns to the Hub.",
+  shared_gold: 136,
 };
 
 function requireCondition(condition, message) {
@@ -1099,6 +1172,8 @@ try {
     window.__fixtureDefeatMode = false;
     window.__fixtureAwaitingReselect = false;
     window.__fixtureHubPhase = "hub";
+    window.__fixtureFloorOneRun = 0;
+    window.__fixtureFloorOneBattle = 0;
     window.__fixtureStartCalls = [];
     window.__fullscreenRequests = 0;
     window.__musicPlayRequests = 0;
@@ -1148,6 +1223,49 @@ try {
             const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
             window.__fixtureCommands.push(command);
             if (window.__fixtureHubMode) {
+              if (["securedHub", "floorOneClearedHub"].includes(window.__fixtureHubPhase) && command.action === "start_floor_one") {
+                window.__fixtureHubPhase = "floorOneWarning";
+                return JSON.stringify(views.floorOneWarning);
+              }
+              if (window.__fixtureHubPhase === "floorOneWarning" && command.action === "set_out") {
+                window.__fixtureFloorOneRun += 1;
+                window.__fixtureFloorOneBattle = 1;
+                window.__fixtureHubPhase = "floorOneBattle";
+                return JSON.stringify(views.floorOneBattle);
+              }
+              if (window.__fixtureHubPhase === "floorOneBattle" && command.intent === "defend") {
+                if (window.__fixtureFloorOneBattle === 10) {
+                  window.__fixtureHubPhase = "floorOneClearedHub";
+                } else if (window.__fixtureFloorOneBattle === 5) {
+                  window.__fixtureHubPhase = "floorOneMidwayRest";
+                } else if (window.__fixtureFloorOneBattle === 9) {
+                  window.__fixtureHubPhase = "floorOnePreBossRest";
+                } else {
+                  window.__fixtureHubPhase = "floorOneMain";
+                }
+                return JSON.stringify(views.complete);
+              }
+              if (window.__fixtureHubPhase === "floorOneMain" && command.action === "enter_encounter") {
+                window.__fixtureFloorOneBattle += 1;
+                window.__fixtureHubPhase = "floorOneBattle";
+                return JSON.stringify(views.floorOneBattle);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "rest") {
+                window.__fixtureHubPhase = "floorOneMain";
+                return JSON.stringify(views.floorOneMain);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "extract") {
+                window.__fixtureHubPhase = "floorOneExtraction";
+                return JSON.stringify(views.floorOneExtraction);
+              }
+              if (window.__fixtureHubPhase === "floorOnePreBossRest" && command.action === "skip_rest") {
+                window.__fixtureHubPhase = "floorOneMain";
+                return JSON.stringify(views.floorOneMain);
+              }
+              if (window.__fixtureHubPhase === "floorOneExtraction" && command.action === "return_to_hub") {
+                window.__fixtureHubPhase = "floorOneReplayHub";
+                return JSON.stringify(views.floorOneReplayHub);
+              }
               if (window.__fixtureHubPhase === "hub" && command.action === "recruit_companion") {
                 window.__fixtureHubPhase = "companion";
                 return JSON.stringify(views.companion);
@@ -1191,6 +1309,14 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    floorOneWarning: floorOneWarningProjection,
+    floorOneMain: floorOneMainProjection,
+    floorOneBattle: floorOneBattleProjection,
+    floorOneMidwayRest: floorOneRestProjection,
+    floorOnePreBossRest: floorOnePreBossRestProjection,
+    floorOneExtraction: floorOneExtractionProjection,
+    floorOneClearedHub: floorOneClearedHubProjection,
+    floorOneReplayHub: floorOneReplayHubProjection,
   });
   await targetPage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await targetPage.waitForFunction(() => typeof window.__resolvePyodide === "function");
@@ -1372,10 +1498,10 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 4 &&
+      await targetPage.locator("#overworld-options button").count() === 5 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
-    "returned Hub did not show secured currency or stop at the first extraction",
+    "returned Hub did not show secured currency or offer Floor 1",
   );
   const hubCommands = await targetPage.evaluate(() => window.__fixtureCommands);
   requireCondition(
@@ -1389,6 +1515,91 @@ try {
     `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
   );
   console.log("PYD7|BROWSER|HUB_OUTING|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
+  await targetPage.locator("#screen-badge").filter({ hasText: "FLOOR_ONE_WARNING" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#adventure-text").innerText()).includes("Death means returning to the Hub") &&
+      await targetPage.getByRole("button", { name: "Set Out" }).isVisible(),
+    "Floor 1 warning omitted its death consequence or explicit Set Out action",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-warning");
+  await clickVisibleOption(targetPage, "#overworld-options", "Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#party-members .party-member").count() === 2 &&
+      await targetPage.locator("#enemy-panel .enemy").count() === 4,
+    "Floor 1 Set Out did not open the four-Goblin party battle",
+  );
+
+  for (let battleNumber = 1; battleNumber <= 10; battleNumber += 1) {
+    if (battleNumber > 1) {
+      if (battleNumber === 6) {
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        await captureScreenshot(targetPage, "desktop-floor-one-midway-rest");
+        await clickVisibleOption(targetPage, "#overworld-options", "Recover");
+      } else if (battleNumber === 10) {
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        await clickVisibleOption(targetPage, "#route-actions", "Continue Without Rest");
+      }
+      await clickVisibleOption(targetPage, "#route-actions", "Enter Encounter");
+      await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clickVisibleOption(targetPage, "#actions", "Defend");
+    if (battleNumber === 5 || battleNumber === 9) {
+      await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 115" &&
+      (await targetPage.locator("#location-label").innerText()) === "Floor 1 Hub" &&
+      await targetPage.locator("#party-panel").isHidden(),
+    "Goblin Lord victory did not return the cleared party and secured rewards to the Hub",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-cleared-hub");
+  const firstClearCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    firstClearCommands.filter((command) => command.action === "enter_encounter").length === 9 &&
+      firstClearCommands.filter((command) => command.intent === "defend").length === 11 &&
+      firstClearCommands.some((command) => command.action === "rest") &&
+      firstClearCommands.some((command) => command.action === "skip_rest"),
+    `Floor 1 browser route omitted its ten Battles or two Rest choices: ${JSON.stringify(firstClearCommands)}`,
+  );
+  console.log("PYD7|BROWSER|FLOOR_ONE_BATTLE_10|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_BOSS_CLEAR|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
+  await clickVisibleOption(targetPage, "#overworld-options", "Set Out");
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(targetPage, "#route-actions", "Enter Encounter");
+      await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clickVisibleOption(targetPage, "#actions", "Defend");
+  }
+  await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Extract");
+  await targetPage.locator("#extraction-rewards").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#extraction-rewards").innerText()).includes("140 EXP | 21 gold"),
+    "midway replay extraction did not show the reduced 50% reward",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-extraction");
+  await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 136",
+    "safe early extraction did not secure its reduced gold at the Hub",
+  );
+  const fullFloorOneCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    fullFloorOneCommands.filter((command) => command.action === "start_floor_one").length === 2 &&
+      fullFloorOneCommands.filter((command) => command.action === "extract").length === 1 &&
+      fullFloorOneCommands.filter((command) => command.action === "return_to_hub").length === 2,
+    `Floor 1 browser replay did not use the expected semantic actions: ${JSON.stringify(fullFloorOneCommands)}`,
+  );
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_MIDWAY_REST|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_EXTRACT|PASS");
 
   await targetPage.evaluate(() => {
     window.__fixtureHubMode = true;
@@ -1447,6 +1658,10 @@ try {
   requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
   requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
   requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
+  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
+  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
+  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
+  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
   requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
 
   console.log("PYD7|PASS");
@@ -1455,6 +1670,8 @@ try {
   console.log("PYD7|BROWSER|MULTI_TARGET_PROJECTION|PASS");
   console.log("PYD7|BROWSER|RESULT_TO_OVERWORLD|PASS");
   console.log("PYD7|BROWSER|FULL_ROUTE|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_FULL_CLEAR|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_EXTRACTION|PASS");
 } finally {
   await browser.close();
 }

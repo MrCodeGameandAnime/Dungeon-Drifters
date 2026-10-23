@@ -1,7 +1,8 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec, get_route_spec
 from app.game.game_state import GameState
+from app.game.party_state import PartyState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
@@ -53,6 +54,33 @@ def create_rest_view(rest_node_id="surface_rest_after_warrior_solo"):
     for node_id in paths[rest_node_id]:
         game.overworld_state.advance_to(node_id)
     return OverworldPresenter().build(game, screen=OverworldScreen.REST)
+
+
+def create_floor_one_rest_view():
+    lead = PlayerState(
+        get_drifter_spec("branoc").create_character(),
+        gold=75,
+    )
+    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
+    party = PartyState()
+    assert party.arrive_at_hub(lead)
+    assert party.recruit_companion(lead, companion)
+    assert party.begin_outing()
+    assert party.begin_extraction(experience=0, gold=0)
+    assert party.complete_extraction((lead, companion))
+    assert party.start_floor_one_run() == 100
+
+    game = GameState(lead)
+    game._party_state = party
+    route = get_route_spec("floor_one")
+    game.overworld_state.begin_route("floor_one")
+    for node in route.nodes[1:6]:
+        game.overworld_state.advance_to(node.node_id)
+    return OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.REST,
+        save_available=True,
+    )
 
 
 def rendered(view, *, width=100, unicode_enabled=False, interactive=False):
@@ -301,6 +329,25 @@ def test_rest_screen_renders_and_translates_approved_controls():
 
     menu, _ = read(view, ["m"])
     assert menu == ChooseOverworldAction(OverworldAction.MENU)
+
+
+def test_floor_one_rest_renders_extract_and_unambiguous_continue_controls():
+    view = create_floor_one_rest_view()
+    text = "\n".join(rendered(view, width=120))
+
+    assert "Recover" in text
+    assert "Character" in text
+    assert "Items" in text
+    assert "Continue Without Rest" in text
+    assert "Extract" in text
+    assert "[N] Continue Without Rest" in text
+    assert "[X] Extract" in text
+
+    continue_action, _ = read(view, ["n"])
+    extract_action, _ = read(view, ["x"])
+
+    assert continue_action == ChooseOverworldAction(OverworldAction.SKIP_REST)
+    assert extract_action == ChooseOverworldAction(OverworldAction.EXTRACT)
 
 
 @pytest.mark.parametrize(

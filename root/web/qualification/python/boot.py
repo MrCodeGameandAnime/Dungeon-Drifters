@@ -125,6 +125,25 @@ class HeadlessEnemyFactory:
         return enemy
 
 
+class QualificationSavePort:
+    def __init__(self):
+        self.saved_states = []
+        self.status = "missing"
+
+    def inspect(self):
+        self.status = "missing"
+        return self
+
+    def save(self, game_state):
+        self.saved_states.append(game_state)
+        self.status = "saved"
+        return self
+
+    def load(self):
+        self.status = "missing"
+        return self
+
+
 def _first_enabled(options, label):
     for option in options:
         if option.enabled:
@@ -179,13 +198,14 @@ def _qualify_route():
     game = create_new_game("branoc")
     battle_factory = HeadlessBattleFactory()
     enemy_factory = HeadlessEnemyFactory()
+    save_port = QualificationSavePort()
     session = OverworldSession(
         game,
         ui=None,
         battle_factory=battle_factory,
         enemy_factory=enemy_factory,
         battle_ui_factory=None,
-        save_port=None,
+        save_port=save_port,
     )
 
     route_trace = []
@@ -297,8 +317,8 @@ def _qualify_route():
     surface_growth_points = game.player_state.growth_points
     if game.player_state.gold != 0:
         raise AssertionError("surface gold remained on the lead instead of the shared balance")
-    if session._save_port is not None:
-        raise AssertionError("route materialized persistence")
+    if session._save_port is not save_port:
+        raise AssertionError("route replaced the qualification save port")
 
     recruit_view = session.submit(
         ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
@@ -351,6 +371,185 @@ def _qualify_route():
     if session.active_battle is not None:
         raise AssertionError("active Battle remained after the first extraction")
 
+    floor_one_compositions = (
+        ("goblin", "goblin", "goblin", "goblin"),
+        ("goblin", "goblin", "goblin"),
+        ("goblin", "goblin"),
+        ("goblin",),
+        ("goblin", "goblin", "goblin", "goblin"),
+        ("goblin", "goblin"),
+        ("goblin", "goblin", "goblin"),
+        ("goblin", "goblin", "goblin", "goblin"),
+        ("goblin", "goblin", "goblin"),
+        ("goblin_lord", "goblin", "goblin_warrior"),
+    )
+    floor_one_battle_start = len(battle_factory.battles)
+    party_members = (game.player_state, companion)
+    floor_one_xp_before = tuple(_total_experience(member) for member in party_members)
+    floor_one_world_history = game.world_state.defeated_encounters
+    warning = session.submit(
+        ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    )
+    if warning.screen is not OverworldScreen.FLOOR_ONE_WARNING:
+        raise AssertionError("Floor 1 did not show its danger warning")
+    battle_view = session.submit(ChooseOverworldAction(OverworldAction.SET_OUT))
+
+    for battle_index, expected_composition in enumerate(floor_one_compositions):
+        if battle_index:
+            if battle_view.screen is OverworldScreen.REST:
+                if battle_index == 5:
+                    for member in party_members:
+                        member.health.take_damage(1)
+                        member.mana_resource.spend(1)
+                    battle_view = session.submit(
+                        ChooseOverworldAction(OverworldAction.REST)
+                    )
+                    if any(
+                        member.health.current != member.health.maximum
+                        or member.mana_resource.current != member.mana_resource.maximum
+                        for member in party_members
+                    ):
+                        raise AssertionError("midway Rest did not restore both Drifters")
+                elif battle_index == 9:
+                    for member in party_members:
+                        member.health.take_damage(1)
+                        member.mana_resource.spend(1)
+                    before_skip = tuple(
+                        (member.health.current, member.mana_resource.current)
+                        for member in party_members
+                    )
+                    battle_view = session.submit(
+                        ChooseOverworldAction(OverworldAction.SKIP_REST)
+                    )
+                    if tuple(
+                        (member.health.current, member.mana_resource.current)
+                        for member in party_members
+                    ) != before_skip:
+                        raise AssertionError("skipping the pre-boss Rest healed the party")
+                else:
+                    raise AssertionError("Floor 1 opened a Rest at the wrong battle")
+            if battle_view.screen is not OverworldScreen.MAIN:
+                raise AssertionError("Floor 1 did not return to the route after Rest")
+            battle_view = session.submit(
+                ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+            )
+
+        if battle_view.interaction_phase is not InteractionPhase.ACTIONS:
+            raise AssertionError("Floor 1 did not enter a Battle")
+        if len(battle_view.party_members) != 2:
+            raise AssertionError("Floor 1 Battle did not include both Drifters")
+        actual_composition = tuple(
+            enemy.archetype_id for enemy in session.active_battle.enemies
+        )
+        if actual_composition != expected_composition:
+            raise AssertionError("Floor 1 Goblin composition changed")
+        battle_view = _complete_battle(session, battle_view)
+        if battle_index in (4, 8):
+            if battle_view.screen is not OverworldScreen.REST:
+                raise AssertionError("Floor 1 did not stop at an authored Rest")
+        elif battle_index < 9 and battle_view.screen is not OverworldScreen.MAIN:
+            raise AssertionError("Floor 1 route advanced to the wrong screen")
+
+    floor_one_hub = battle_view
+    if floor_one_hub.screen is not OverworldScreen.HUB:
+        raise AssertionError("Goblin Lord victory did not return to the Hub")
+    if not game.party_state.floor_one_cleared:
+        raise AssertionError("Goblin Lord victory did not clear Floor 1")
+    if game.party_state.shared_gold != 115:
+        raise AssertionError("Floor 1 rewards did not secure 96 gold")
+    floor_one_xp_each = tuple(
+        _total_experience(member) - before
+        for member, before in zip(party_members, floor_one_xp_before)
+    )
+    if floor_one_xp_each != (670, 670):
+        raise AssertionError("Floor 1 did not split 1340 EXP evenly")
+    if game.world_state.defeated_encounters != floor_one_world_history:
+        raise AssertionError("Floor 1 polluted Surface encounter history")
+    if len(battle_factory.battles) - floor_one_battle_start != 10:
+        raise AssertionError("Floor 1 did not complete exactly ten Battles")
+    if save_port.saved_states != [game]:
+        raise AssertionError("Floor 1 clear did not persist its Hub outcome")
+    for member in party_members:
+        if member.health.current != member.health.maximum:
+            raise AssertionError("Floor 1 clear did not restore HP")
+        if member.mana_resource.current != member.mana_resource.maximum:
+            raise AssertionError("Floor 1 clear did not restore Mana")
+
+    replay_gold_before = game.party_state.shared_gold
+    replay_xp_before = tuple(_total_experience(member) for member in party_members)
+    replay_warning = session.submit(
+        ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    )
+    if replay_warning.screen is not OverworldScreen.FLOOR_ONE_WARNING:
+        raise AssertionError("Floor 1 replay did not show its warning")
+    replay_battle = session.submit(ChooseOverworldAction(OverworldAction.SET_OUT))
+    if game.party_state.outing_xp_multiplier_percent != 50:
+        raise AssertionError("first Floor 1 replay did not use 50% EXP")
+    for battle_index, expected_composition in enumerate(
+        floor_one_compositions[:5]
+    ):
+        if battle_index:
+            if replay_battle.screen is not OverworldScreen.MAIN:
+                raise AssertionError("replay left the route before the midway Rest")
+            replay_battle = session.submit(
+                ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+            )
+        actual_composition = tuple(
+            enemy.archetype_id for enemy in session.active_battle.enemies
+        )
+        if actual_composition != expected_composition:
+            raise AssertionError("Floor 1 replay encounter sequence changed")
+        replay_battle = _complete_battle(session, replay_battle)
+    if replay_battle.screen is not OverworldScreen.REST:
+        raise AssertionError("Floor 1 replay did not reach its midway Rest")
+
+    raw_replay_rewards = game.party_state.outing_rewards
+    expected_replay_xp = (
+        raw_replay_rewards.experience * 50 // 400
+    ) * 2
+    expected_replay_gold = (raw_replay_rewards.gold + 1) // 2
+    for member in party_members:
+        member.health.take_damage(1)
+        member.mana_resource.spend(1)
+    replay_extraction = session.submit(
+        ChooseOverworldAction(OverworldAction.EXTRACT)
+    )
+    if replay_extraction.screen is not OverworldScreen.EXTRACTION:
+        raise AssertionError("midway replay extraction did not open")
+    if replay_extraction.outing_rewards.experience != expected_replay_xp:
+        raise AssertionError(
+            "replay extraction EXP mismatch: raw=%s actual=%s expected=%s"
+            % (
+                raw_replay_rewards.experience,
+                replay_extraction.outing_rewards.experience,
+                expected_replay_xp,
+            )
+        )
+    if replay_extraction.outing_rewards.gold != expected_replay_gold:
+        raise AssertionError("replay extraction gold was not rounded up at half")
+    replay_hub = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+    if replay_hub.screen is not OverworldScreen.HUB:
+        raise AssertionError("early extraction did not return to the Hub")
+    replay_xp_each = tuple(
+        _total_experience(member) - before
+        for member, before in zip(party_members, replay_xp_before)
+    )
+    if replay_xp_each != (expected_replay_xp // 2,) * 2:
+        raise AssertionError("replay extraction EXP did not split evenly")
+    if game.party_state.shared_gold != replay_gold_before + expected_replay_gold:
+        raise AssertionError("replay extraction did not secure its gold")
+    if game.party_state.floor_one_runs_started_after_clear != 1:
+        raise AssertionError("early extraction did not count the replay run")
+    if save_port.saved_states != [game, game]:
+        raise AssertionError("early extraction did not replace its Rest checkpoint")
+    for member in party_members:
+        if member.health.current != member.health.maximum:
+            raise AssertionError("early extraction did not restore HP")
+        if member.mana_resource.current != member.mana_resource.maximum:
+            raise AssertionError("early extraction did not restore Mana")
+
     return {
         "route_nodes": len(route_trace),
         "encounters": len(encounter_ids),
@@ -369,6 +568,15 @@ def _qualify_route():
         "secured_gold": hub_view.shared_gold,
         "lead_tutorial_exp": lead_tutorial_exp,
         "companion_tutorial_exp": companion_tutorial_exp,
+        "floor_one_battles": 10,
+        "floor_one_xp_each": floor_one_xp_each[0],
+        "floor_one_shared_gold": floor_one_hub.shared_gold,
+        "floor_one_cleared": game.party_state.floor_one_cleared,
+        "floor_one_replay_rate": 50,
+        "floor_one_replay_extract_xp": replay_extraction.outing_rewards.experience,
+        "floor_one_replay_extract_gold": replay_extraction.outing_rewards.gold,
+        "floor_one_replay_secured_gold": replay_hub.shared_gold,
+        "floor_one_replay_runs": game.party_state.floor_one_runs_started_after_clear,
     }
 
 

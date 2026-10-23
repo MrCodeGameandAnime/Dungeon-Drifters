@@ -74,11 +74,11 @@ def test_build_command_uses_exact_runtime_argv_shapes_and_preserves_spaces():
         "MICROPYTHON_DEFAULT", python, micropython, probe, bootstrap, source
     ) == [str(micropython), str(bootstrap), str(source)]
     assert matrix.build_command(
-        "MICROPYTHON_448K", python, micropython, probe, bootstrap, source
+        "MICROPYTHON_512K", python, micropython, probe, bootstrap, source
     ) == [
         str(micropython),
         "-X",
-        "heapsize=448K",
+        "heapsize=512K",
         str(bootstrap),
         str(source),
     ]
@@ -104,6 +104,8 @@ def test_expected_stages_release_route_evidence_before_hub_probe():
         "ROUTE_EVIDENCE_RELEASE"
     ) < stages.index("HUB_RECRUITMENT")
     assert stages.index("HUB_FINAL_STATE") < stages.index(
+        "FLOOR_ONE_FINAL_STATE"
+    ) < stages.index(
         "ROUTE_SESSION_TEARDOWN"
     )
 
@@ -196,17 +198,17 @@ def test_first_signature_difference_reports_stage_or_route_position():
     assert difference == "route node 7: expected surface_shaman_pair, got surface_wrong"
 
 
-def test_448k_confirmation_requires_three_passes():
+def test_512k_confirmation_requires_three_passes():
     _load_tool()
     results = [matrix.PressureObservation("PASS") for _ in range(3)]
 
-    assert matrix.classify_pressure_confirmation(448, results) == (
+    assert matrix.classify_pressure_confirmation(512, results) == (
         "STABLE_PASS",
         "3/3",
     )
 
 
-def test_448k_instability_is_pressure_regression():
+def test_512k_instability_is_pressure_regression():
     _load_tool()
     results = [
         matrix.PressureObservation("PASS"),
@@ -214,23 +216,23 @@ def test_448k_instability_is_pressure_regression():
         matrix.PressureObservation("PASS"),
     ]
 
-    assert matrix.classify_pressure_confirmation(448, results) == (
+    assert matrix.classify_pressure_confirmation(512, results) == (
         "PRESSURE_REGRESSION",
         "2/3",
     )
 
 
-def test_416k_requires_three_memory_limits():
+def test_480k_requires_three_memory_limits():
     _load_tool()
     results = [matrix.PressureObservation("MEMORY_LIMIT") for _ in range(3)]
 
-    assert matrix.classify_pressure_confirmation(416, results) == (
+    assert matrix.classify_pressure_confirmation(480, results) == (
         "MEMORY_LIMIT_CONFIRMED",
         "3/3",
     )
 
 
-def test_416k_success_is_pressure_regression():
+def test_480k_success_is_pressure_regression():
     _load_tool()
     results = [
         matrix.PressureObservation("MEMORY_LIMIT"),
@@ -238,7 +240,7 @@ def test_416k_success_is_pressure_regression():
         matrix.PressureObservation("MEMORY_LIMIT"),
     ]
 
-    assert matrix.classify_pressure_confirmation(416, results) == (
+    assert matrix.classify_pressure_confirmation(480, results) == (
         "PRESSURE_REGRESSION",
         "2/3",
     )
@@ -249,12 +251,12 @@ def test_only_complete_matrix_can_emit_closure_result():
     assert matrix.closure_complete(
         runtime_passed=True,
         semantic_parity=True,
-        heap_448_status="STABLE_PASS",
-        heap_416_status="MEMORY_LIMIT_CONFIRMED",
+        heap_512_status="STABLE_PASS",
+        heap_480_status="MEMORY_LIMIT_CONFIRMED",
     ) is True
     assert matrix.closure_complete(
         runtime_passed=True,
         semantic_parity=False,
-        heap_448_status="STABLE_PASS",
-        heap_416_status="MEMORY_LIMIT_CONFIRMED",
+        heap_512_status="STABLE_PASS",
+        heap_480_status="MEMORY_LIMIT_CONFIRMED",
     ) is False

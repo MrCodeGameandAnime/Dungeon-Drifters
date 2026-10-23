@@ -97,6 +97,7 @@ def test_all_approved_screen_values_are_typed():
     assert tuple(screen.value for screen in OverworldScreen) == (
         "main",
         "hub",
+        "floor_one_warning",
         "companion_selection",
         "party_ready",
         "outing",

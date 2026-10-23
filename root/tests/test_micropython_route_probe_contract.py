@@ -121,7 +121,7 @@ def test_probe_route_contract_contains_the_authored_surface_route():
 
 def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     hub_stages = _stage_calls(_hub_probe_tree(), "run_stage")
-    assert tuple(hub_stages) == (
+    assert tuple(hub_stages[:6]) == (
         "HUB_RECRUITMENT",
         "HUB_READY",
         "HUB_TUTORIAL_BATTLE",
@@ -137,6 +137,52 @@ def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     assert route_final < evidence_release < hub_run
     live_state_assert = source.index("_assert_route_live_state()", hub_run)
     assert hub_run < live_state_assert
+
+
+def test_probe_continues_through_all_floor_one_battles_and_both_rests():
+    stages = tuple(_stage_calls(_hub_probe_tree(), "run_stage"))
+    expected_floor_one = (
+        "FLOOR_ONE_WARNING",
+        "FLOOR_ONE_SET_OUT",
+        "FLOOR_ONE_BATTLE_01",
+        "FLOOR_ONE_BATTLE_02",
+        "FLOOR_ONE_BATTLE_03",
+        "FLOOR_ONE_BATTLE_04",
+        "FLOOR_ONE_BATTLE_05",
+        "FLOOR_ONE_MIDWAY_REST",
+        "FLOOR_ONE_BATTLE_06",
+        "FLOOR_ONE_BATTLE_07",
+        "FLOOR_ONE_BATTLE_08",
+        "FLOOR_ONE_BATTLE_09",
+        "FLOOR_ONE_PRE_BOSS_REST",
+        "FLOOR_ONE_BATTLE_10",
+        "FLOOR_ONE_FINAL_STATE",
+    )
+    assert stages[-len(expected_floor_one) :] == expected_floor_one
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    floor_one_start = expected_stages.index("FLOOR_ONE_WARNING")
+    assert tuple(
+        expected_stages[floor_one_start : floor_one_start + len(expected_floor_one)]
+    ) == expected_floor_one
+
+    source = _hub_probe_source()
+    for required in (
+        'get_route_spec("floor_one")',
+        'OverworldAction.START_FLOOR_ONE',
+        'OverworldAction.SET_OUT',
+        'OverworldAction.SKIP_REST',
+        'OverworldAction.REST',
+        'OverworldAction.ENTER_ENCOUNTER',
+        'party.floor_one_cleared',
+        'party.shared_gold',
+        'member.health.maximum',
+        'member.mana_resource.maximum',
+        'del state["route_enemy_factory"].enemies[:]',
+    ):
+        assert required in source
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The exact pinned MicroPython v1.29.0 Gate 6 matrix for the Hub-enabled tree passed on 2026-10-17. The milestone checklist in `docs/current/hub/hub-implementation.md` remains the authoritative Gate 6 record; this is not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only probe passed its exact pinned MicroPython v1.29.0 Gate 6 matrix on 2026-10-17. The extended Floor One probe was separately requalified on 2026-10-22 at a measured 512K/480K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -84,6 +84,40 @@ A raw final-tree 448K run completed all 12 route nodes, Goblin Lord, Hub recruit
 
 Final local checks on this working tree: 1,648 Python tests passed; 47 web tests passed; content validation passed (5 enemies, 4 weapons, 4 Drifters, 9 encounters, 1 route); compileall passed for the 285 accessible Python files outside generated pytest-cache fixtures; the 134-runtime-file browser build and full Playwright Hub outing/defeat-reselect route passed; and `git diff --check` passed. The profile-service suite, clean migration, and Alembic drift checks remain as previously recorded in the 2026-10-16 qualification; a local repeat was unavailable because the Docker engine pipe was not reachable in this shell.
 
-No Gate 6 MicroPython qualification step remains for this Hub probe. Future changes to shared gameplay/runtime behavior or the probe contract should rerun the pinned matrix and record a new observation rather than treating the measured heap as a product budget.
+No Gate 6 MicroPython qualification step remained for the Hub-only probe represented by this section. The later Floor One extension has its own qualification record below. Future changes to shared gameplay/runtime behavior or the probe contract should rerun the pinned matrix and record a new observation rather than treating the measured heap as a product budget.
 
 The Hub stages are in `root/tools/micropython_hub_probe.py`; the route harness and lazy Hub-probe loader are in `root/tools/micropython_probe.py`; the stage contract is in `root/tools/runtime_qualification_matrix.py`.
+
+## Floor One Extension Qualification (2026-10-22)
+
+This qualification covers the Floor One dangerous run added after the Hub-only Gate 6 result. It was run on branch `hub`, with the working tree based on `25a2936dbe0ea22b6b82570283dd32b74773e77a`; the implementation was not committed during qualification.
+
+The exact pinned executable was re-identified before the run:
+
+- MicroPython v1.29.0, `win32`
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+
+The completed `runtime_qualification_matrix.py` run reported:
+
+- CPython native, CPython forced overlay, and pinned MicroPython default: `PASS`.
+- Pinned MicroPython at 512K: `PASS`; semantic parity: `PASS`.
+- 512K repeated full-loop stability: `STABLE_PASS`, 3/3.
+- 480K lower pressure point: `MEMORY_LIMIT_CONFIRMED`, 3/3.
+- Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The probe completed the existing Surface route and safe Hub tutorial/extraction, then verified the Floor One warning, all ten battles, both Rest transitions, Goblin Lord clear, secured rewards, equal XP award, full HP/Mana restoration, and run save replacement. It also started a post-clear replay at the 50% XP rate, exercised the midway Rest, and extracted there. Assertions include 670 XP per Drifter for the first clear, 115 shared gold after it, 140 EXP and 21 gold for the partial replay extraction, and 136 shared gold afterward. These are current authored placeholder encounter rewards, not a balance target.
+
+The earlier 448K target did not survive the expanded probe: the pinned executable failed before completing the route at that heap. It was not relabeled as a pass. Three independent full-loop runs at 512K passed, and three at 480K reached the expected `MemoryError` classification. This is a harness pressure boundary only; it does not set a memory limit for web, PC, mobile, PS5, or future hardware, and does not justify changing gameplay architecture to chase 448K.
+
+Final cumulative checks on this working tree:
+
+- Root Python suite: 1,689 passed.
+- Web test suite: 48 passed.
+- Profile service against isolated PostgreSQL 17: 29 passed.
+- Migration database upgraded from zero; `alembic check`: no new upgrade operations.
+- Content validation: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes.
+- Static browser build: 138 runtime files; built-site Playwright smoke passed through the Floor One clear, replay extraction, and existing selection/defeat flows.
+- Python compilation and `git diff --check`: passed (generated pytest cache fixtures excluded from compilation).
+
+The temporary PostgreSQL qualification container and its databases were stopped and removed after the run. No production service, existing container, or migration was changed.

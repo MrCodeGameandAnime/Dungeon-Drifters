@@ -68,6 +68,13 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         '"120 EXP | 9 gold"',
         "PYD7|BROWSER|HUB_OUTING|PASS",
         "PYD7|BROWSER|DEFEAT_RESELECT|PASS",
+        "floorOneWarningProjection",
+        "floorOneRestProjection",
+        "floorOneExtractionProjection",
+        "FLOOR_ONE_BATTLE_10",
+        "FLOOR_ONE_REPLAY_MIDWAY_REST",
+        "FLOOR_ONE_REPLAY_EXTRACT|PASS",
+        "FLOOR_ONE_BOSS_CLEAR|PASS",
     ):
         assert required in source
 

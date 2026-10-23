@@ -73,7 +73,7 @@ def test_profile_claim_listing_and_head_read_are_account_scoped(service, valid_p
     assert hidden.json()["error"]["code"] == "not_found"
 
 
-def test_schema8_remote_head_remains_readable_and_advances_to_schema9(
+def test_schema8_remote_head_remains_readable_and_advances_to_schema10(
     service, valid_payload
 ):
     client, session_factory = service
@@ -86,6 +86,7 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema9(
     legacy_payload = deepcopy(valid_payload)
     legacy_payload["schema_version"] = 8
     legacy_payload.pop("party")
+    legacy_payload["overworld"].pop("active_route_id")
     legacy_digest = payload_sha256(legacy_payload)
     with session_factory() as session:
         revision = session.get(ProfileRevision, (profile_id, 1))
@@ -115,7 +116,63 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema9(
     assert legacy_head.json()["head"]["payload_sha256"] == legacy_digest
     assert advanced.status_code == 200
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 9
+    assert advanced.json()["head"]["payload"]["schema_version"] == 10
+    with session_factory() as session:
+        historical = session.get(ProfileRevision, (profile_id, 1))
+        assert historical.payload == legacy_payload
+        assert historical.payload_sha256 == legacy_digest
+
+
+def test_schema9_remote_head_advances_to_schema10_without_rewriting_history(
+    service,
+    valid_payload,
+):
+    client, session_factory = service
+    account = create_account(client)
+    _, profile_id, _ = _create_profile(
+        client,
+        account["access_token"],
+        valid_payload,
+    )
+    legacy_payload = deepcopy(valid_payload)
+    legacy_payload["schema_version"] = 9
+    legacy_payload["overworld"].pop("active_route_id")
+    for field in (
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+    ):
+        legacy_payload["party"].pop(field)
+    legacy_digest = payload_sha256(legacy_payload)
+    with session_factory() as session:
+        revision = session.get(ProfileRevision, (profile_id, 1))
+        revision.payload = legacy_payload
+        revision.payload_sha256 = legacy_digest
+        session.commit()
+
+    historical_head = client.get(
+        f"/v1/profiles/{profile_id}",
+        headers=authorization(account["access_token"]),
+    )
+    next_payload = deepcopy(valid_payload)
+    next_payload["metadata"]["schema_migration"] = "10"
+    advanced = client.put(
+        f"/v1/profiles/{profile_id}/progression",
+        headers=authorization(account["access_token"]),
+        json={
+            "base_revision": 1,
+            "client_save_id": str(uuid4()),
+            "device_id": "00000000-0000-4000-8000-000000000003",
+            "payload": next_payload,
+        },
+    )
+
+    assert historical_head.status_code == 200
+    assert historical_head.json()["head"]["payload"] == legacy_payload
+    assert historical_head.json()["head"]["payload_sha256"] == legacy_digest
+    assert advanced.status_code == 200
+    assert advanced.json()["accepted_revision"] == 2
+    assert advanced.json()["head"]["payload"]["schema_version"] == 10
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == legacy_payload
@@ -361,7 +418,7 @@ def test_progression_replay_after_head_advances_returns_acceptance_ancestry(
         assert session.scalar(select(func.count()).select_from(ProfileRevision)) == 3
 
 
-@pytest.mark.parametrize("legacy_schema", (7, 8))
+@pytest.mark.parametrize("legacy_schema", (7, 8, 9))
 def test_invalid_payload_and_client_owned_fields_never_create_revision(
     service, valid_payload, legacy_schema
 ):

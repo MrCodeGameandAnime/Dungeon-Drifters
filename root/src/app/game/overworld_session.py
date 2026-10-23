@@ -12,8 +12,8 @@ from app.content.catalog import (
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
-from app.game.overworld_state import ContextualRoutePhase
-from app.game.party_state import DungeonPhase
+from app.game.overworld_state import ContextualRoutePhase, OverworldState
+from app.game.party_state import DungeonPhase, PartyState
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -69,9 +69,14 @@ _BATTLE_INPUT_TYPES = (
     ConfirmInventoryUse,
     GoBack,
 )
+_UNHANDLED_ACTION = object()
 
 
 class OverworldSession:
+    FLOOR_ONE_WARNING = (
+        "Death means returning to the Hub. All unsecured XP, gold, and items "
+        "are lost. No retry, rewind, or continue."
+    )
     DEFEAT_ADVENTURE_TEXT = (
         "The encounter drove you back. Your footing is restored; retry when ready."
     )
@@ -118,6 +123,7 @@ class OverworldSession:
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
+        self._rest_return_screen = None
         self._active_battle = None
         self._active_battle_context = None
         self._last_presented_view = None
@@ -234,6 +240,8 @@ class OverworldSession:
         result = self._dispatch(session_input.action)
         if result is OverworldSessionResult.QUIT:
             return result
+        if isinstance(result, BattleView):
+            return result
         return self._build_view()
 
     def run(self):
@@ -322,6 +330,18 @@ class OverworldSession:
         )
 
     def _save_available(self):
+        if self.game_state.overworld_state.active_route_id == "floor_one":
+            overworld = self.game_state.overworld_state
+            return bool(
+                self._screen is OverworldScreen.REST
+                and self.game_state.party_state.phase is DungeonPhase.OUTING
+                and get_route_node_spec(
+                    overworld.current_route_node_id
+                ).kind
+                is RouteNodeKind.REST
+                and overworld.current_route_node_id
+                not in overworld.resolved_rest_node_ids
+            )
         return self._screen in {
             OverworldScreen.OPTIONS,
             OverworldScreen.REST,
@@ -450,6 +470,34 @@ class OverworldSession:
 
     def _dispatch(self, action):
         self._notice = None
+        result = self._dispatch_overworld_navigation(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
+        result = self._dispatch_party_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
+        result = self._dispatch_floor_one_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
+        if action is OverworldAction.RETURN_TO_HUB:
+            self._return_to_hub()
+            return None
+        result = self._dispatch_menu_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
+        result = self._dispatch_rest_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
+        if action in (OverworldAction.ENTER_ENCOUNTER, OverworldAction.RETRY):
+            self._run_current_encounter()
+            return None
+        self._notice = self._unavailable_action_message(action)
+        return None
+
+    def _dispatch_overworld_navigation(self, action):
+        if action is OverworldAction.BACK:
+            self._navigate_back()
+            return None
         navigation = {
             OverworldAction.CHARACTER: OverworldScreen.CHARACTER,
             OverworldAction.ITEMS: OverworldScreen.ITEMS,
@@ -460,13 +508,21 @@ class OverworldSession:
             OverworldAction.EQUIPMENT: OverworldScreen.EQUIPMENT,
         }
         if action in navigation:
+            if (
+                self._screen is OverworldScreen.REST
+                and self.game_state.overworld_state.active_route_id
+                == "floor_one"
+                and navigation[action]
+                in {OverworldScreen.CHARACTER, OverworldScreen.ITEMS}
+            ):
+                self._rest_return_screen = OverworldScreen.REST
             self._screen = navigation[action]
             if self._screen is not OverworldScreen.ITEMS:
                 self._selected_item_key = None
             return None
-        if action is OverworldAction.BACK:
-            self._navigate_back()
-            return None
+        return _UNHANDLED_ACTION
+
+    def _dispatch_party_action(self, action):
         if action is OverworldAction.RECRUIT_COMPANION:
             self._screen = OverworldScreen.COMPANION_SELECTION
             self._adventure_text = "Choose one Drifter to join your party."
@@ -474,18 +530,56 @@ class OverworldSession:
         if action is OverworldAction.READY:
             self._notice = "That option is not available."
             return None
-        if action is OverworldAction.RETURN_TO_HUB:
-            if not self.game_state.party_state.complete_extraction(
-                (self.game_state.player_state,)
-                + self.game_state.party_state.companions
-            ):
-                self._notice = "Those rewards are no longer available."
-                return None
-            self._screen = OverworldScreen.HUB
-            self._adventure_text = (
-                "You return to the Floor 1 Hub. The tutorial rewards are secured."
-            )
+        return _UNHANDLED_ACTION
+
+    def _dispatch_floor_one_action(self, action):
+        if action is OverworldAction.START_FLOOR_ONE:
+            self._screen = OverworldScreen.FLOOR_ONE_WARNING
+            self._adventure_text = self.FLOOR_ONE_WARNING
             return None
+        if action is OverworldAction.SET_OUT:
+            return self._start_floor_one()
+        if action is not OverworldAction.EXTRACT:
+            return _UNHANDLED_ACTION
+        party_state = self.game_state.party_state
+        if (
+            self.game_state.overworld_state.active_route_id != "floor_one"
+            or self._screen is not OverworldScreen.REST
+            or party_state.phase is not DungeonPhase.OUTING
+            or not party_state.begin_floor_one_extraction(partial=True)
+        ):
+            self._notice = "Extraction is not available here."
+            return None
+        self._screen = OverworldScreen.EXTRACTION
+        self._adventure_text = (
+            "You extract from Floor 1 early. Half of adjusted XP and gold "
+            "are secured, and all run items are kept."
+        )
+        return None
+
+    def _return_to_hub(self):
+        party_state = self.game_state.party_state
+        floor_one_extraction = (
+            self.game_state.overworld_state.active_route_id == "floor_one"
+        )
+        if not party_state.complete_extraction(
+            (self.game_state.player_state,) + party_state.companions
+        ):
+            self._notice = "Those rewards are no longer available."
+            return
+        if floor_one_extraction:
+            self.game_state.overworld_state.return_to_surface_entrance()
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = (
+            "You extract to the Hub. Your run rewards are secured and both "
+            "Drifters are fully restored."
+            if floor_one_extraction
+            else "You return to the Floor 1 Hub. The tutorial rewards are secured."
+        )
+        if floor_one_extraction:
+            self._persist_floor_one_hub_outcome()
+
+    def _dispatch_menu_action(self, action):
         if action is OverworldAction.INSPECT:
             if self._screen is OverworldScreen.ITEMS:
                 self._screen = OverworldScreen.ITEM_INSPECT
@@ -519,26 +613,75 @@ class OverworldSession:
                 self._load_saved_session()
                 return None
             return OverworldSessionResult.QUIT
+        return _UNHANDLED_ACTION
+
+    def _dispatch_rest_action(self, action):
         if action is OverworldAction.REST:
             if self._screen is OverworldScreen.REST:
                 self._resolve_current_rest(recover=True)
             else:
                 self._open_current_rest()
-            return None
+            return
         if action is OverworldAction.SKIP_REST:
             self._resolve_current_rest(recover=False)
-            return None
+            return
         if action is OverworldAction.MENU:
             if self._screen is OverworldScreen.REST:
                 self._screen = OverworldScreen.MAIN
-                return None
+                return
             self._notice = "That option is not available."
+            return
+        return _UNHANDLED_ACTION
+
+    def _start_floor_one(self):
+        party_state = self.game_state.party_state
+        overworld = self.game_state.overworld_state
+        party_snapshot = party_state.snapshot()
+        overworld_snapshot = overworld.snapshot()
+        party_members = (self.game_state.player_state,) + party_state.companions
+        checkpoints = tuple(
+            member.create_battle_checkpoint() for member in party_members
+        )
+        try:
+            party_state.start_floor_one_run()
+            overworld.begin_route("floor_one")
+            self._screen = OverworldScreen.MAIN
+            self._adventure_text = "Your party sets out into Floor 1."
+            battle = self._create_active_battle(ui=None)
+            if battle is None:
+                raise RuntimeError("the first Floor 1 encounter is unavailable")
+        except Exception:
+            for member, checkpoint in zip(party_members, checkpoints):
+                member.restore_battle_checkpoint(checkpoint)
+            self.game_state._party_state = PartyState.from_snapshot(
+                party_snapshot,
+                companions=party_state.companions,
+            )
+            self.game_state._overworld_state = OverworldState.from_snapshot(
+                overworld_snapshot
+            )
+            self._active_battle = None
+            self._active_battle_context = None
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = None
+            self._notice = "The Floor 1 run could not be started."
             return None
-        if action in {OverworldAction.ENTER_ENCOUNTER, OverworldAction.RETRY}:
-            self._run_current_encounter()
-            return None
-        self._notice = self._unavailable_action_message(action)
-        return None
+
+        battle_view = battle.current_view()
+        if battle.is_complete:
+            self._finalize_active_battle()
+        return battle_view
+
+    def _persist_floor_one_hub_outcome(self):
+        try:
+            result = self._save_port_instance().save(self.game_state)
+        except (SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is not SaveLoadStatus.SAVED:
+            self._notice = (
+                "The Hub return could not be saved. The previous Rest save may "
+                "still be available."
+            )
 
     def _save_current_session(self):
         try:
@@ -569,6 +712,7 @@ class OverworldSession:
         self._screen = self._initial_screen(self.game_state)
         self._selected_item_key = None
         self._quit_return_screen = None
+        self._rest_return_screen = None
         self._notice = "Saved session loaded."
         self._adventure_text = None
 
@@ -593,6 +737,13 @@ class OverworldSession:
         if self._screen is OverworldScreen.MAP_INSPECT:
             self._screen = OverworldScreen.MAP
             return
+        if self._screen in {
+            OverworldScreen.CHARACTER,
+            OverworldScreen.ITEMS,
+        } and self._rest_return_screen is OverworldScreen.REST:
+            self._screen = OverworldScreen.REST
+            self._rest_return_screen = None
+            return
         self._screen = (
             OverworldScreen.HUB
             if self.game_state.party_state.phase
@@ -611,6 +762,17 @@ class OverworldSession:
         if game_state.party_state.phase is DungeonPhase.EXTRACTION:
             return OverworldScreen.EXTRACTION
         if game_state.party_state.phase is DungeonPhase.OUTING:
+            overworld = game_state.overworld_state
+            if overworld.active_route_id == "floor_one":
+                current_node = get_route_node_spec(
+                    overworld.current_route_node_id
+                )
+                if (
+                    current_node.kind is RouteNodeKind.REST
+                    and overworld.current_route_node_id
+                    not in overworld.resolved_rest_node_ids
+                ):
+                    return OverworldScreen.REST
             return OverworldScreen.OUTING
         return OverworldScreen.MAIN
 
@@ -675,8 +837,10 @@ class OverworldSession:
         encounter = get_encounter_spec(current_node.encounter_id)
         exp_reward, gold_reward = get_encounter_rewards(encounter.encounter_id)
 
+        is_floor_one = overworld.active_route_id == "floor_one"
         checkpoint = self.game_state.player_state.create_battle_checkpoint()
-        overworld.begin_surface_route()
+        if not is_floor_one:
+            overworld.begin_surface_route()
         enemies = tuple(
             self._enemy_factory(archetype_id, tier=0)
             for archetype_id in encounter.enemy_archetype_ids
@@ -689,11 +853,16 @@ class OverworldSession:
             checkpoint,
         )
         try:
+            battle_kwargs = {
+                "ui": ui,
+                "encounter_label": current_node.display_label,
+            }
+            if is_floor_one:
+                battle_kwargs["party"] = self.game_state.party_state.companions
             self._active_battle = self._battle_factory(
                 self.game_state.player_state,
                 enemies,
-                ui=ui,
-                encounter_label=current_node.display_label,
+                **battle_kwargs,
             )
         except Exception:
             self._active_battle_context = None
@@ -715,7 +884,7 @@ class OverworldSession:
         overworld = self.game_state.overworld_state
         if winner is None:
             winner = battle.winner
-        if encounter_id == "dungeon_goblin_trio":
+        if current_node_id is None and encounter_id == "dungeon_goblin_trio":
             selection_requested = False
             party_state = self.game_state.party_state
             if winner == "player":
@@ -748,6 +917,16 @@ class OverworldSession:
                 if selection_requested
                 else None
             )
+
+        if overworld.active_route_id == "floor_one":
+            self._finalize_floor_one_battle(
+                battle,
+                winner=winner,
+                current_node_id=current_node_id,
+                exp_reward=exp_reward,
+                gold_reward=gold_reward,
+            )
+            return None
 
         if winner == "player":
             if not self._battle_enemies_are_defeated(battle):
@@ -805,6 +984,81 @@ class OverworldSession:
         self._active_battle_context = None
         return None
 
+    def _finalize_floor_one_battle(
+        self,
+        battle,
+        *,
+        winner,
+        current_node_id,
+        exp_reward,
+        gold_reward,
+    ):
+        party_state = self.game_state.party_state
+        overworld = self.game_state.overworld_state
+        party_members = (self.game_state.player_state,) + party_state.companions
+        current_node = get_route_node_spec(current_node_id)
+
+        if winner == "player":
+            if not self._battle_enemies_are_defeated(battle):
+                raise RuntimeError(
+                    "Battle reported victory before every enemy was defeated"
+                )
+            if current_node.kind is RouteNodeKind.BOSS:
+                party_state.add_floor_one_rewards(
+                    experience=exp_reward,
+                    gold=gold_reward,
+                )
+                if not party_state.complete_floor_one_boss(party_members):
+                    raise RuntimeError("Floor 1 boss rewards could not be secured")
+                overworld.return_to_surface_entrance()
+                self._screen = OverworldScreen.HUB
+                self._adventure_text = (
+                    "The Goblin Lord is defeated. Floor 1 is cleared; all run "
+                    "rewards are secured and both Drifters return to the Hub."
+                )
+                self._persist_floor_one_hub_outcome()
+            else:
+                party_state.add_floor_one_rewards(
+                    experience=exp_reward,
+                    gold=gold_reward,
+                )
+                next_node_id = get_route_successor_id(current_node_id)
+                if next_node_id is None:
+                    raise RuntimeError(
+                        "a Floor 1 encounter must have an authored successor"
+                    )
+                next_node = get_route_node_spec(next_node_id)
+                overworld.advance_to(
+                    next_node_id,
+                    contextual_phase=self._contextual_phase_for_node(
+                        next_node.kind
+                    ),
+                )
+                self._screen = (
+                    OverworldScreen.REST
+                    if next_node.kind is RouteNodeKind.REST
+                    else OverworldScreen.MAIN
+                )
+                self._adventure_text = (
+                    f"{current_node.display_label} is defeated. Unsecured "
+                    f"rewards: {exp_reward} EXP and {gold_reward} gold. "
+                    f"The route continues toward {next_node.display_label}."
+                )
+        else:
+            if not party_state.fail_floor_one_run(party_members):
+                raise RuntimeError("the Floor 1 defeat could not be cleared")
+            overworld.return_to_surface_entrance()
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = (
+                "The party was defeated. All unsecured XP, gold, and items "
+                "were lost. Both Drifters return fully restored to the Hub."
+            )
+            self._persist_floor_one_hub_outcome()
+
+        self._selected_item_key = None
+        self._active_battle = None
+        self._active_battle_context = None
+
     def _open_current_rest(self):
         overworld = self.game_state.overworld_state
         node_id = overworld.current_route_node_id
@@ -835,9 +1089,12 @@ class OverworldSession:
         next_phase = self._contextual_phase_for_node(next_node.kind)
 
         if recover:
-            player = self.game_state.player_state
-            player.health.heal(player.health.maximum)
-            player.mana_resource.restore(player.mana_resource.maximum)
+            members = (self.game_state.player_state,)
+            if overworld.active_route_id == "floor_one":
+                members += self.game_state.party_state.companions
+            for member in members:
+                member.health.heal(member.health.maximum)
+                member.mana_resource.restore(member.mana_resource.maximum)
 
         overworld.record_resolved_rest_node(current_node_id)
         overworld.advance_to(next_node_id, contextual_phase=next_phase)

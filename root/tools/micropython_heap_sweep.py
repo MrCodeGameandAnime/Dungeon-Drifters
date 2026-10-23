@@ -116,6 +116,7 @@ def parse_probe_output(stdout, stderr="", *, requested_heap_kib=None, returncode
     required_stages = {
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
+        "FLOOR_ONE_FINAL_STATE",
         "ROUTE_SESSION_TEARDOWN",
     }
     complete = (

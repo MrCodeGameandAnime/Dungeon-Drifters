@@ -1,5 +1,6 @@
 import pytest
 
+from app.content.catalog import get_route_spec
 from app.content.route_spec import RouteNodeKind
 from tests.content_test_support import (
     DUNGEON_ENTRANCE_NODE_ID,
@@ -71,6 +72,7 @@ def test_overworld_snapshot_is_plain_deterministic_and_defensive():
 
     assert first == second
     assert first == {
+        "active_route_id": "surface",
         "current_route_node_id": FIRST_SURFACE_NODE_ID,
         "surface_route_begun": True,
         "dungeon_entrance_reached": False,
@@ -124,6 +126,62 @@ def test_route_advancement_accepts_only_the_immediate_authored_successor():
     with pytest.raises(ValueError, match="immediate authored successor"):
         state.advance_to("surface_goblin_solo")
     assert state.snapshot() == before_backward_move
+
+
+def test_begin_route_selects_first_node_and_resets_its_rest_tracking():
+    state = OverworldState()
+    floor_one = get_route_spec("floor_one")
+
+    state.begin_route("floor_one")
+
+    assert state.active_route_id == "floor_one"
+    assert state.current_route_node_id == floor_one.nodes[0].node_id
+    assert state.resolved_rest_node_ids == ()
+    assert state.snapshot()["active_route_id"] == "floor_one"
+
+    with pytest.raises(ValueError, match="immediate authored successor"):
+        state.advance_to(floor_one.nodes[2].node_id)
+
+    for node in floor_one.nodes[1:7]:
+        state.advance_to(node.node_id)
+        if node.kind is RouteNodeKind.REST:
+            state.record_resolved_rest_node(node.node_id)
+
+    assert state.resolved_rest_node_ids == ("floor_one_midway_rest",)
+    restored = OverworldState.from_snapshot(state.snapshot())
+    assert restored.snapshot() == state.snapshot()
+
+    state.begin_route("floor_one")
+    assert state.current_route_node_id == floor_one.nodes[0].node_id
+    assert state.resolved_rest_node_ids == ()
+
+
+def test_begin_route_rejects_unknown_route_without_mutating_state():
+    state = OverworldState()
+    before = state.snapshot()
+
+    with pytest.raises(ValueError, match="unknown route"):
+        state.begin_route("not_a_route")
+
+    assert state.snapshot() == before
+
+
+def test_return_to_surface_entrance_preserves_completed_surface_facts():
+    state = OverworldState()
+    state.begin_surface_route()
+    for node in SURFACE_ROUTE_NODES[1:]:
+        state.advance_to(node.node_id)
+    state.begin_route("floor_one")
+    state.advance_to("floor_one_battle_02")
+
+    state.return_to_surface_entrance()
+
+    assert state.active_route_id == "surface"
+    assert state.current_route_node_id == DUNGEON_ENTRANCE_NODE_ID
+    assert state.dungeon_entrance_reached is True
+    assert state.route_complete is True
+    assert state.resolved_rest_node_ids == SURFACE_REST_NODE_IDS
+    assert state.current_contextual_route_phase is ContextualRoutePhase.NONE
 
 
 def test_rejected_route_advancement_preserves_the_complete_initial_state():

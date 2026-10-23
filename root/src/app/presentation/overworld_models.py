@@ -7,6 +7,7 @@ from enum import StrEnum
 class OverworldScreen(StrEnum):
     MAIN = "main"
     HUB = "hub"
+    FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
     PARTY_READY = "party_ready"
     OUTING = "outing"
@@ -50,6 +51,9 @@ class OverworldAction(StrEnum):
     RECRUIT_COMPANION = "recruit_companion"
     READY = "ready"
     RETURN_TO_HUB = "return_to_hub"
+    START_FLOOR_ONE = "start_floor_one"
+    SET_OUT = "set_out"
+    EXTRACT = "extract"
 
 
 class OverworldAvailabilityReason(StrEnum):

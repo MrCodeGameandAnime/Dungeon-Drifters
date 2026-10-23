@@ -7,7 +7,11 @@ import pytest
 from app.presentation.battle_models import InteractionPhase
 from app.presentation.overworld_models import OverworldScreen
 from app.combat.battle import Battle
-from app.content.catalog import create_enemy_state, get_route_spec
+from app.content.catalog import (
+    create_enemy_state,
+    get_encounter_spec,
+    get_route_spec,
+)
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
@@ -235,6 +239,114 @@ def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
     assert updated["screen"] == OverworldScreen.SKILLS.value
     assert updated["skills"]["growth_points_available"] == 2
     assert strength["value"] == 16
+
+
+def test_bridge_completes_floor_one_through_semantic_actions():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    surface = get_route_spec("surface")
+    for node in surface.nodes[:-1]:
+        if node.encounter_id is not None:
+            game.world_state.mark_encounter_defeated(node.encounter_id)
+    game.player_state.add_gold(75)
+    surface_rests = tuple(
+        node.node_id for node in surface.nodes[:-1] if node.kind.value == "rest"
+    )
+    game._overworld_state = OverworldState.from_snapshot(
+        {
+            "current_route_node_id": surface.nodes[-1].node_id,
+            "surface_route_begun": True,
+            "dungeon_entrance_reached": True,
+            "route_complete": True,
+            "resolved_rest_node_ids": list(surface_rests),
+            "current_contextual_route_phase": "none",
+        }
+    )
+    assert game.party_state.arrive_at_hub(game.player_state)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+    runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
+    runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    runtime.submit({"kind": "overworld_action", "action": "ready"})
+    for enemy in runtime._session.active_battle.enemies:
+        enemy.health.take_damage(enemy.health.current)
+    runtime.submit({"kind": "action", "intent": "defend"})
+    assert runtime.current_view()["screen"] == OverworldScreen.EXTRACTION.value
+    runtime.submit({"kind": "overworld_action", "action": "return_to_hub"})
+    surface_history = game.world_state.defeated_encounters
+
+    warning = runtime.submit(
+        {"kind": "overworld_action", "action": "start_floor_one"}
+    )
+    assert warning["screen"] == OverworldScreen.FLOOR_ONE_WARNING.value
+    assert "Death means returning to the Hub" in warning["adventure_text"]
+    view = runtime.submit({"kind": "overworld_action", "action": "set_out"})
+    floor_route = get_route_spec("floor_one")
+    assert len(runtime._session.active_battle.enemies) == 4
+    completed_battles = 0
+    recovered_at_midway = False
+    skipped_pre_boss_rest = False
+
+    for node in floor_route.nodes:
+        if node.kind.value == "rest":
+            view = runtime.current_view()
+            assert view["screen"] == OverworldScreen.REST.value
+            if node.node_id == "floor_one_midway_rest":
+                actions = [option["action"] for option in view["options"]]
+                assert actions == ["rest", "save", "character", "items", "extract"]
+                view = runtime.submit(
+                    {"kind": "overworld_action", "action": "rest"}
+                )
+                recovered_at_midway = True
+            else:
+                view = runtime.submit(
+                    {"kind": "overworld_action", "action": "skip_rest"}
+                )
+                skipped_pre_boss_rest = True
+            assert view["screen"] == OverworldScreen.MAIN.value
+            continue
+
+        if completed_battles:
+            view = runtime.current_view()
+            assert view["contextual_route_option"]["action"] == "enter_encounter"
+            view = runtime.submit(
+                {"kind": "overworld_action", "action": "enter_encounter"}
+            )
+        battle = runtime._session.active_battle
+        assert battle.encounter_label == node.display_label
+        assert tuple(enemy.archetype_id for enemy in battle.enemies) == (
+            get_encounter_spec(node.encounter_id).enemy_archetype_ids
+        )
+        for enemy in battle.enemies:
+            enemy.health.take_damage(enemy.health.current)
+        runtime.submit({"kind": "action", "intent": "defend"})
+        completed_battles += 1
+        view = runtime.current_view()
+        if completed_battles < 10:
+            expected_screen = (
+                OverworldScreen.REST.value
+                if completed_battles in {5, 9}
+                else OverworldScreen.MAIN.value
+            )
+            assert view["screen"] == expected_screen
+        else:
+            assert view["screen"] == OverworldScreen.HUB.value
+
+    assert completed_battles == 10
+    assert recovered_at_midway and skipped_pre_boss_rest
+    assert game.party_state.floor_one_cleared is True
+    assert game.party_state.shared_gold == 115
+    assert game.party_state.outing_rewards.experience == 0
+    assert game.party_state.outing_rewards.gold == 0
+    assert game.world_state.defeated_encounters == surface_history
+    assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
+    for member in (game.player_state, *game.party_state.companions):
+        assert member.health.current == member.health.maximum
+        assert member.mana_resource.current == member.mana_resource.maximum
 
 
 def test_bridge_rejects_unknown_commands_and_restart_rebuilds_the_runtime():

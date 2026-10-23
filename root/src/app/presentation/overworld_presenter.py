@@ -90,6 +90,7 @@ class OverworldPresenter:
                 if screen
                 in {
                     OverworldScreen.HUB,
+                    OverworldScreen.FLOOR_ONE_WARNING,
                     OverworldScreen.COMPANION_SELECTION,
                     OverworldScreen.PARTY_READY,
                     OverworldScreen.OUTING,
@@ -118,9 +119,15 @@ class OverworldPresenter:
         return OverworldView(
             screen=screen,
             location_label=(
-                "Floor 1 Hub"
-                if game_state.party_state.phase is not DungeonPhase.OUTSIDE
-                else node.display_label
+                node.display_label
+                if game_state.overworld_state.active_route_id == "floor_one"
+                and game_state.party_state.phase
+                in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
+                else (
+                    "Floor 1 Hub"
+                    if game_state.party_state.phase is not DungeonPhase.OUTSIDE
+                    else node.display_label
+                )
             ),
             adventure_text=adventure_text,
             notice=notice,
@@ -211,6 +218,11 @@ class OverworldPresenter:
     def _hub_adventure_text(game_state, screen):
         if screen is OverworldScreen.COMPANION_SELECTION:
             return "Choose one Drifter to join your party."
+        if screen is OverworldScreen.FLOOR_ONE_WARNING:
+            return (
+                "Death means returning to the Hub. All unsecured XP, gold, "
+                "and items are lost. No retry, rewind, or continue."
+            )
         if screen is OverworldScreen.PARTY_READY:
             return "Your party is ready to set out."
         if screen is OverworldScreen.OUTING:
@@ -477,17 +489,26 @@ class OverworldPresenter:
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
         if screen is OverworldScreen.HUB:
-            party_actions = {
-                DungeonPhase.HUB: (
-                    enabled(
-                        OverworldAction.RECRUIT_COMPANION,
-                        "Recruit Companion",
-                    ),
-                ) if not game_state.party_state.tutorial_complete else (),
-                DungeonPhase.PARTY_READY: (
+            party_state = game_state.party_state
+            if party_state.phase is DungeonPhase.HUB:
+                party_actions = (
+                    (
+                        enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
+                    )
+                    if party_state.tutorial_complete
+                    else (
+                        enabled(
+                            OverworldAction.RECRUIT_COMPANION,
+                            "Recruit Companion",
+                        ),
+                    )
+                )
+            elif party_state.phase is DungeonPhase.PARTY_READY:
+                party_actions = (
                     enabled(OverworldAction.READY, "Ready / Set Out"),
-                ),
-            }.get(game_state.party_state.phase, ())
+                )
+            else:
+                party_actions = ()
             return party_actions + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
@@ -496,6 +517,11 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.COMPANION_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.FLOOR_ONE_WARNING:
+            return (
+                enabled(OverworldAction.SET_OUT, "Set Out"),
+                enabled(OverworldAction.BACK, "Back"),
+            )
         if screen is OverworldScreen.PARTY_READY:
             return (
                 enabled(OverworldAction.READY, "Ready / Set Out"),
@@ -594,6 +620,22 @@ class OverworldPresenter:
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
         if screen is OverworldScreen.REST:
+            if game_state.overworld_state.active_route_id == "floor_one":
+                return (
+                    enabled(OverworldAction.REST, "Recover"),
+                    (
+                        enabled(OverworldAction.SAVE, "Save")
+                        if save_available
+                        else disabled(
+                            OverworldAction.SAVE,
+                            "Save",
+                            OverworldAvailabilityReason.SAVE_UNAVAILABLE,
+                        )
+                    ),
+                    enabled(OverworldAction.CHARACTER, "Character"),
+                    enabled(OverworldAction.ITEMS, "Items"),
+                    enabled(OverworldAction.EXTRACT, "Extract"),
+                )
             return (
                 enabled(OverworldAction.REST, "Rest"),
                 (

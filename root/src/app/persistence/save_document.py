@@ -32,6 +32,7 @@ from app.snapshot import STATE_SCHEMA_VERSION, validate_plain_value
 
 
 _SURFACE_ROUTE = get_route_spec("surface")
+_FLOOR_ONE_ROUTE = get_route_spec("floor_one")
 _SURFACE_ROUTE_NODE_IDS = tuple(node.node_id for node in _SURFACE_ROUTE.nodes)
 _SURFACE_REST_NODE_IDS = tuple(
     node.node_id
@@ -45,11 +46,20 @@ _SURFACE_ENCOUNTER_NODES = {
 }
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[0]
 _DUNGEON_ENTRANCE_NODE_ID = _SURFACE_ROUTE_NODE_IDS[-1]
+_FLOOR_ONE_ROUTE_NODE_IDS = tuple(
+    node.node_id for node in _FLOOR_ONE_ROUTE.nodes
+)
+_FLOOR_ONE_REST_NODE_IDS = tuple(
+    node.node_id
+    for node in _FLOOR_ONE_ROUTE.nodes
+    if node.kind is RouteNodeKind.REST
+)
 
 
 _LEGACY_RUNTIME_SCHEMA_VERSION = 7
 _LEGACY_DISK_SCHEMA_VERSION = 8
-DISK_SCHEMA_VERSION = 9
+_PREVIOUS_DISK_SCHEMA_VERSION = 9
+DISK_SCHEMA_VERSION = 10
 
 
 class SaveStateValidationError(ValueError):
@@ -101,6 +111,8 @@ def migrate_schema_7(document):
     }.issubset(overworld)
     if missing_overworld:
         migrated["overworld"] = _opening_overworld_snapshot()
+    elif isinstance(migrated["overworld"], dict):
+        migrated["overworld"].setdefault("active_route_id", "surface")
     migrated.setdefault("metadata", {})
     migrated.setdefault("story", _empty_story_snapshot())
     migrated.setdefault("world", _empty_world_snapshot())
@@ -126,8 +138,21 @@ def migrate_schema_8(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_party_state(migrated)
+    migrated["overworld"].setdefault("active_route_id", "surface")
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
+
+
+def migrate_schema_9(document):
+    """Upgrade an original disk schema-9 payload without changing its input."""
+    _validate_legacy_current_document(document)
+    return _migrate_previous_current_document(document)
+
+
+def validate_legacy_schema9_document(document):
+    """Validate and copy an immutable schema-9 profile payload."""
+    _validate_legacy_current_document(document)
+    return deepcopy(document)
 
 
 def validate_legacy_schema8_document(document):
@@ -138,13 +163,18 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or an immutable legacy schema-8 payload."""
+    """Validate a current payload or immutable schema-8/schema-9 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
         and "party" not in document
     ):
         return validate_legacy_schema8_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PREVIOUS_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema9_document(document)
     normalized = validate_save_document(document)
     if normalized != document:
         raise SaveStateValidationError("profile payload is not canonical")
@@ -194,13 +224,13 @@ def validate_save_document(document):
     if schema_version == _LEGACY_DISK_SCHEMA_VERSION:
         if "party" not in document:
             return migrate_schema_8(document)
-        normalized = deepcopy(document)
-        normalized["schema_version"] = DISK_SCHEMA_VERSION
-        if isinstance(normalized.get("player"), dict):
-            normalized["player"].pop("combat", None)
-        _strip_companion_combat(normalized.get("party"))
-        _validate_document(normalized, schema_version=DISK_SCHEMA_VERSION)
-        return normalized
+        _validate_legacy_current_document(
+            document,
+            schema_version=_LEGACY_DISK_SCHEMA_VERSION,
+        )
+        return _migrate_previous_current_document(document)
+    if schema_version == _PREVIOUS_DISK_SCHEMA_VERSION:
+        return migrate_schema_9(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -344,8 +374,39 @@ def _validate_document(document, *, schema_version):
     _validate_player(document["player"])
     _validate_story(document["story"])
     _validate_world(document["world"])
-    _validate_overworld(document["overworld"], document["world"])
+    _validate_overworld(
+        document["overworld"],
+        document["world"],
+    )
     _validate_party(document["party"], document["player"])
+    _validate_route_party_relationship(document["overworld"], document["party"])
+    validate_plain_value(document["metadata"], "game.metadata")
+
+
+def _validate_legacy_current_document(
+    document,
+    *,
+    schema_version=_PREVIOUS_DISK_SCHEMA_VERSION,
+):
+    _validate_plain_document(document)
+    allowed_keys = {
+        "schema_version",
+        "player",
+        "story",
+        "world",
+        "overworld",
+        "party",
+        "metadata",
+    }
+    _require_mapping(document, "game")
+    _require_exact_keys(document, allowed_keys, "game")
+    if document["schema_version"] != schema_version:
+        raise SaveStateValidationError("save schema version mismatch")
+    _validate_player(document["player"])
+    _validate_story(document["story"])
+    _validate_world(document["world"])
+    _validate_legacy_overworld(document["overworld"], document["world"])
+    _validate_legacy_party(document["party"], document["player"])
     at_dungeon_entrance = (
         document["overworld"]["current_route_node_id"]
         == _DUNGEON_ENTRANCE_NODE_ID
@@ -357,6 +418,20 @@ def _validate_document(document, *, schema_version):
             "dungeon entrance and party phase are inconsistent"
         )
     validate_plain_value(document["metadata"], "game.metadata")
+
+
+def _migrate_previous_current_document(document):
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    migrated["overworld"].setdefault("active_route_id", "surface")
+    migrated["party"].setdefault("floor_one_cleared", False)
+    migrated["party"].setdefault("floor_one_runs_started_after_clear", 0)
+    migrated["party"].setdefault("outing_xp_multiplier_percent", 100)
+    if isinstance(migrated.get("player"), dict):
+        migrated["player"].pop("combat", None)
+    _strip_companion_combat(migrated.get("party"))
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
 
 
 def _validate_legacy_schema8_document(document):
@@ -375,11 +450,11 @@ def _validate_legacy_schema8_document(document):
     _validate_player(document["player"])
     _validate_story(document["story"])
     _validate_world(document["world"])
-    _validate_overworld(document["overworld"], document["world"])
+    _validate_legacy_overworld(document["overworld"], document["world"])
     validate_plain_value(document["metadata"], "game.metadata")
 
 
-def _validate_party(party, player):
+def _validate_legacy_party(party, player):
     _require_mapping(party, "party")
     _require_exact_keys(
         party,
@@ -459,6 +534,150 @@ def _validate_party(party, player):
         )
 
 
+def _validate_party(party, player):
+    _require_mapping(party, "party")
+    _require_exact_keys(
+        party,
+        {
+            "companions",
+            "shared_gold",
+            "shared_items",
+            "tutorial_complete",
+            "phase",
+            "outing_rewards",
+            "floor_one_cleared",
+            "floor_one_runs_started_after_clear",
+            "outing_xp_multiplier_percent",
+        },
+        "party",
+    )
+    companions = party["companions"]
+    if not isinstance(companions, list) or len(companions) > 1:
+        raise SaveStateValidationError(
+            "party.companions must contain at most one Drifter"
+        )
+    lead_profile = _canonical_profile(player)
+    companion_ids = set()
+    for companion in companions:
+        _validate_player(companion)
+        choice = _canonical_profile(companion).choice
+        if choice == lead_profile.choice or choice in companion_ids:
+            raise SaveStateValidationError("party contains a duplicate Drifter")
+        companion_ids.add(choice)
+
+    _require_int_min(party["shared_gold"], 0, "party.shared_gold")
+    _validate_item_stacks(party["shared_items"], "party.shared_items")
+    if not isinstance(party["tutorial_complete"], bool):
+        raise SaveStateValidationError(
+            "party.tutorial_complete must be a boolean"
+        )
+    try:
+        phase = DungeonPhase(party["phase"])
+    except (TypeError, ValueError) as error:
+        raise SaveStateValidationError("party.phase is invalid") from error
+    if phase is DungeonPhase.COMPLETE:
+        raise SaveStateValidationError(
+            "complete party phase is not supported by this save schema"
+        )
+
+    rewards = party["outing_rewards"]
+    _require_mapping(rewards, "party.outing_rewards")
+    _require_exact_keys(
+        rewards,
+        {"experience", "gold", "items"},
+        "party.outing_rewards",
+    )
+    _require_int_min(rewards["experience"], 0, "party.outing_rewards.experience")
+    _require_int_min(rewards["gold"], 0, "party.outing_rewards.gold")
+    _validate_item_stacks(rewards["items"], "party.outing_rewards.items")
+    has_pending_rewards = bool(
+        rewards["experience"] or rewards["gold"] or rewards["items"]
+    )
+    has_companion = bool(companions)
+    if phase is DungeonPhase.OUTSIDE and (
+        has_companion
+        or party["shared_gold"]
+        or party["shared_items"]
+        or party["tutorial_complete"]
+        or has_pending_rewards
+    ):
+        raise SaveStateValidationError(
+            "outside party state contains dungeon progress"
+        )
+    if phase in {
+        DungeonPhase.PARTY_READY,
+        DungeonPhase.OUTING,
+        DungeonPhase.EXTRACTION,
+    } and not has_companion:
+        raise SaveStateValidationError(
+            "active dungeon phase requires a companion"
+        )
+    if phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY} and has_pending_rewards:
+        raise SaveStateValidationError(
+            "pending rewards require an outing or extraction phase"
+        )
+    if phase is DungeonPhase.HUB and (
+        has_companion != party["tutorial_complete"]
+    ):
+        raise SaveStateValidationError(
+            "hub party membership must match tutorial completion"
+        )
+    if phase is DungeonPhase.EXTRACTION and (
+        rewards["experience"] % (1 + len(companions))
+    ):
+        raise SaveStateValidationError(
+            "outing experience must divide evenly across the party"
+        )
+
+    cleared = party["floor_one_cleared"]
+    if not isinstance(cleared, bool):
+        raise SaveStateValidationError("party.floor_one_cleared must be a boolean")
+    if cleared and not party["tutorial_complete"]:
+        raise SaveStateValidationError(
+            "Floor 1 cannot be cleared before the tutorial is complete"
+        )
+    _require_int_min(
+        party["floor_one_runs_started_after_clear"],
+        0,
+        "party.floor_one_runs_started_after_clear",
+    )
+    runs_started = party["floor_one_runs_started_after_clear"]
+    if runs_started and not cleared:
+        raise SaveStateValidationError(
+            "Floor 1 replay runs require a cleared floor"
+        )
+    _require_int_min(
+        party["outing_xp_multiplier_percent"],
+        0,
+        "party.outing_xp_multiplier_percent",
+    )
+    multiplier = party["outing_xp_multiplier_percent"]
+    if multiplier not in {20, 30, 40, 50, 100}:
+        raise SaveStateValidationError(
+            "party outing XP multiplier is not an authored rate"
+        )
+    active_floor_one = (
+        party["tutorial_complete"]
+        and phase is DungeonPhase.OUTING
+    )
+    if active_floor_one:
+        expected_rate = 100
+        if cleared:
+            if runs_started < 1:
+                raise SaveStateValidationError(
+                    "a Floor 1 replay requires a started replay count"
+                )
+            expected_rate = (50, 40, 30, 20)[min(runs_started - 1, 3)]
+        if multiplier != expected_rate:
+            raise SaveStateValidationError(
+                "active Floor 1 run has an inconsistent XP rate"
+            )
+    elif multiplier != 100:
+        raise SaveStateValidationError(
+            "inactive Floor 1 runs must use the default XP rate"
+        )
+
+
 def _validate_item_stacks(items, path):
     _require_mapping(items, path)
     for item_id, quantity in items.items():
@@ -489,6 +708,9 @@ def _add_legacy_party_state(document):
         "tutorial_complete": False,
         "phase": phase,
         "outing_rewards": {"experience": 0, "gold": 0, "items": {}},
+        "floor_one_cleared": False,
+        "floor_one_runs_started_after_clear": 0,
+        "outing_xp_multiplier_percent": 100,
     }
 
 
@@ -647,7 +869,7 @@ def _validate_world(world):
     validate_plain_value(world["dungeon_changes"], "world.dungeon_changes")
 
 
-def _validate_overworld(overworld, world):
+def _validate_legacy_overworld(overworld, world):
     _require_mapping(overworld, "overworld")
     _require_exact_keys(overworld, {"current_route_node_id", "surface_route_begun", "dungeon_entrance_reached", "route_complete", "resolved_rest_node_ids", "current_contextual_route_phase"}, "overworld")
     node_id = overworld["current_route_node_id"]
@@ -714,8 +936,135 @@ def _validate_overworld(overworld, world):
                 raise SaveStateValidationError("a future route encounter is already defeated")
 
 
+def _validate_overworld(overworld, world):
+    _require_mapping(overworld, "overworld")
+    _require_exact_keys(
+        overworld,
+        {
+            "active_route_id",
+            "current_route_node_id",
+            "surface_route_begun",
+            "dungeon_entrance_reached",
+            "route_complete",
+            "resolved_rest_node_ids",
+            "current_contextual_route_phase",
+        },
+        "overworld",
+    )
+    route_id = overworld["active_route_id"]
+    if route_id == "surface":
+        _validate_legacy_overworld(
+            {
+                key: value
+                for key, value in overworld.items()
+                if key != "active_route_id"
+            },
+            world,
+        )
+        return
+    if route_id != "floor_one":
+        raise SaveStateValidationError("overworld has an unknown active route")
+
+    node_id = overworld["current_route_node_id"]
+    if node_id not in _FLOOR_ONE_ROUTE_NODE_IDS:
+        raise SaveStateValidationError(
+            "Floor 1 cursor does not belong to the active route"
+        )
+    for name in ("surface_route_begun", "dungeon_entrance_reached", "route_complete"):
+        if not isinstance(overworld[name], bool):
+            raise SaveStateValidationError(f"overworld.{name} must be a boolean")
+    if (
+        not overworld["surface_route_begun"]
+        or not overworld["dungeon_entrance_reached"]
+        or overworld["route_complete"]
+    ):
+        raise SaveStateValidationError(
+            "Floor 1 requires a completed Surface entrance and active route"
+        )
+
+    route_index = _FLOOR_ONE_ROUTE_NODE_IDS.index(node_id)
+    node = get_route_node_spec(node_id)
+    rests = overworld["resolved_rest_node_ids"]
+    required_rests = [
+        route_node.node_id
+        for route_node in _FLOOR_ONE_ROUTE.nodes[:route_index]
+        if route_node.kind is RouteNodeKind.REST
+    ]
+    if not isinstance(rests, list) or rests != required_rests:
+        raise SaveStateValidationError(
+            "Floor 1 resolved Rest IDs must match the authored route prefix"
+        )
+    phase = overworld["current_contextual_route_phase"]
+    try:
+        phase = ContextualRoutePhase(phase)
+    except (TypeError, ValueError) as error:
+        raise SaveStateValidationError(
+            "overworld has an invalid contextual phase"
+        ) from error
+    if node.kind is RouteNodeKind.REST and phase is not ContextualRoutePhase.NONE:
+        raise SaveStateValidationError("Rest nodes cannot offer combat phases")
+    if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS} and phase not in {
+        ContextualRoutePhase.ENTER_ENCOUNTER,
+        ContextualRoutePhase.RETRY,
+    }:
+        raise SaveStateValidationError("combat nodes require an encounter phase")
+    if node.kind not in {
+        RouteNodeKind.REST,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.BOSS,
+    }:
+        raise SaveStateValidationError("Floor 1 contains an unsupported route node")
+
+    surface_progress = {
+        "current_route_node_id": _DUNGEON_ENTRANCE_NODE_ID,
+        "surface_route_begun": True,
+        "dungeon_entrance_reached": True,
+        "route_complete": True,
+        "resolved_rest_node_ids": list(_SURFACE_REST_NODE_IDS),
+        "current_contextual_route_phase": ContextualRoutePhase.NONE.value,
+    }
+    _validate_legacy_overworld(surface_progress, world)
+
+
+def _validate_route_party_relationship(overworld, party):
+    route_id = overworld["active_route_id"]
+    phase = DungeonPhase(party["phase"])
+    if route_id == "surface":
+        at_entrance = (
+            overworld["current_route_node_id"] == _DUNGEON_ENTRANCE_NODE_ID
+        )
+        if at_entrance != (phase is not DungeonPhase.OUTSIDE):
+            raise SaveStateValidationError(
+                "dungeon entrance and party phase are inconsistent"
+            )
+        if phase is DungeonPhase.OUTING:
+            raise SaveStateValidationError(
+                "outing cannot be saved without a battle snapshot"
+            )
+        return
+
+    if (
+        phase is not DungeonPhase.OUTING
+        or not party["tutorial_complete"]
+        or len(party["companions"]) != 1
+    ):
+        raise SaveStateValidationError(
+            "Floor 1 requires an active outing with the recruited party"
+        )
+    current_node = get_route_node_spec(overworld["current_route_node_id"])
+    if current_node.kind is not RouteNodeKind.REST:
+        raise SaveStateValidationError(
+            "only a Floor 1 Rest can be saved during an outing"
+        )
+    if current_node.node_id in overworld["resolved_rest_node_ids"]:
+        raise SaveStateValidationError(
+            "only an unresolved Floor 1 Rest can be saved"
+        )
+
+
 def _opening_overworld_snapshot():
     return {
+        "active_route_id": "surface",
         "current_route_node_id": _FIRST_SURFACE_NODE_ID,
         "surface_route_begun": False,
         "dungeon_entrance_reached": False,
@@ -795,8 +1144,10 @@ __all__ = [
     "SaveStateValidationError",
     "build_save_document",
     "migrate_schema_7",
+    "migrate_schema_9",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
+    "validate_legacy_schema9_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

@@ -32,6 +32,19 @@ def _payload():
     return build_save_document(GameState(PlayerState(character)))
 
 
+def _legacy_schema9_payload():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 9
+    payload["overworld"].pop("active_route_id")
+    for field in (
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+    ):
+        payload["party"].pop(field)
+    return payload
+
+
 def _envelope(**changes):
     options = {
         "profile_id": PROFILE_ID,
@@ -59,7 +72,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "b00f1da7aae94f885336690c2dc1b415470b4267444e095311a4aa65d3bcb65e"
+        "6693fafc241aceeffc2c708e9a9fd277464fa9a3e727172c46ce4d97feb1ddbe"
     )
 
 
@@ -134,6 +147,7 @@ def test_legacy_schema8_envelope_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 8
     legacy_payload.pop("party")
+    legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload
@@ -149,9 +163,23 @@ def test_legacy_schema8_payload_digest_is_checked_before_any_migration():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 8
     legacy_payload.pop("party")
+    legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     envelope_document["payload"] = legacy_payload
     envelope_document["payload_sha256"] = "0" * 64
 
     with pytest.raises(ProfileEnvelopeValidationError):
         validate_profile_envelope(envelope_document)
+
+
+def test_legacy_schema9_envelope_keeps_original_payload_and_digest():
+    legacy_payload = _legacy_schema9_payload()
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest

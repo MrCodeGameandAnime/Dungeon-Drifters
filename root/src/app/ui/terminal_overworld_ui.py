@@ -47,6 +47,7 @@ class TerminalOverworldUI:
         OverworldAction.RECRUIT_COMPANION: "R",
         OverworldAction.READY: "Y",
         OverworldAction.RETURN_TO_HUB: "H",
+        OverworldAction.EXTRACT: "X",
     }
 
     def __init__(
@@ -130,7 +131,7 @@ class TerminalOverworldUI:
                 return self._REJECTED
 
         for option in self._input_options(view):
-            key = self._ACTION_KEYS[option.action].lower()
+            key = self._option_key(option, view).lower()
             if choice != key:
                 continue
             if option.enabled:
@@ -190,7 +191,7 @@ class TerminalOverworldUI:
                 lines.extend(
                     (
                         "",
-                        self._option_label(view.contextual_route_option),
+                        self._option_label(view.contextual_route_option, view=view),
                     )
                 )
             if view.screen is OverworldScreen.QUIT_CONFIRMATION:
@@ -267,7 +268,15 @@ class TerminalOverworldUI:
                 "Super and all other persistent state are preserved.",
             ]
             if view.contextual_route_option is not None:
-                lines.extend(("", self._option_label(view.contextual_route_option)))
+                lines.extend(
+                    (
+                        "",
+                        self._option_label(
+                            view.contextual_route_option,
+                            view=view,
+                        ),
+                    )
+                )
         else:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
@@ -410,7 +419,7 @@ class TerminalOverworldUI:
         return tuple(lines)
 
     def _control_lines(self, view, width):
-        labels = [self._option_label(option) for option in view.options]
+        labels = [self._option_label(option, view=view) for option in view.options]
         if not labels:
             return ("",)
         if width < 60:
@@ -423,10 +432,23 @@ class TerminalOverworldUI:
             return view.options
         return tuple(view.options) + (view.contextual_route_option,)
 
-    def _option_label(self, option):
-        key = self._ACTION_KEYS[option.action]
+    def _option_label(self, option, *, view=None):
+        key = self._option_key(option, view)
         suffix = " [Unavailable]" if not option.enabled else ""
         return f"[{key}] {option.label}{suffix}"
+
+    def _option_key(self, option, view):
+        if (
+            view is not None
+            and view.screen is OverworldScreen.REST
+            and option.action is OverworldAction.SKIP_REST
+            and any(
+                candidate.action is OverworldAction.EXTRACT
+                for candidate in view.options
+            )
+        ):
+            return "N"
+        return self._ACTION_KEYS[option.action]
 
     @staticmethod
     def _two_column_values(values, width):

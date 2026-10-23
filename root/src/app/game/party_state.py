@@ -6,6 +6,8 @@ from app.player.player_state import PlayerState
 
 
 COMPANION_RECRUITMENT_COST = 65
+_FLOOR_ONE_REPLAY_XP_RATES = (50, 40, 30, 20)
+_FLOOR_ONE_MINIMUM_REPLAY_XP_RATE = 20
 
 
 class DungeonPhase(StrEnum):
@@ -59,6 +61,9 @@ class PartyState:
         self._tutorial_complete = False
         self._phase = DungeonPhase.OUTSIDE
         self._outing_rewards = OutingRewards()
+        self._floor_one_cleared = False
+        self._floor_one_runs_started_after_clear = 0
+        self._outing_xp_multiplier_percent = 100
 
     @property
     def companions(self):
@@ -83,6 +88,18 @@ class PartyState:
     @property
     def outing_rewards(self):
         return self._outing_rewards
+
+    @property
+    def floor_one_cleared(self):
+        return self._floor_one_cleared
+
+    @property
+    def floor_one_runs_started_after_clear(self):
+        return self._floor_one_runs_started_after_clear
+
+    @property
+    def outing_xp_multiplier_percent(self):
+        return self._outing_xp_multiplier_percent
 
     def arrive_at_hub(self, lead):
         _require_player_state(lead, "lead")
@@ -127,6 +144,93 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return True
 
+    def start_floor_one_run(self):
+        if not self.tutorial_complete:
+            raise ValueError("the tutorial must be complete before Floor 1")
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("a Floor 1 run can only start from the Hub")
+        if len(self._companions) != 1:
+            raise ValueError("a Floor 1 run requires the two-Drifter party")
+
+        rate = 100
+        if self.floor_one_cleared:
+            rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                min(
+                    self._floor_one_runs_started_after_clear,
+                    len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                )
+            ]
+            rate = max(rate, _FLOOR_ONE_MINIMUM_REPLAY_XP_RATE)
+            self._floor_one_runs_started_after_clear += 1
+
+        self._outing_rewards = OutingRewards()
+        self._outing_xp_multiplier_percent = rate
+        self._phase = DungeonPhase.OUTING
+        return rate
+
+    def add_floor_one_rewards(self, *, experience, gold, items=None):
+        if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
+            raise ValueError("Floor 1 rewards require an active dangerous run")
+        rewards = OutingRewards(experience, gold, items)
+        current = self._outing_rewards
+        combined_items = current.items
+        for item_id, quantity in rewards.items.items():
+            combined_items[item_id] = combined_items.get(item_id, 0) + quantity
+        self._outing_rewards = OutingRewards(
+            current.experience + rewards.experience,
+            current.gold + rewards.gold,
+            combined_items,
+        )
+
+    def begin_floor_one_extraction(self, *, partial):
+        if not isinstance(partial, bool):
+            raise TypeError("partial must be a boolean")
+        if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
+            return False
+
+        party_size = 1 + len(self._companions)
+        if party_size != 2:
+            raise ValueError("Floor 1 extraction requires the two-Drifter party")
+        denominator = 100 * party_size * (2 if partial else 1)
+        experience_each = (
+            self._outing_rewards.experience
+            * self.outing_xp_multiplier_percent
+            // denominator
+        )
+        experience = experience_each * party_size
+        gold = self._outing_rewards.gold
+        if partial:
+            gold = (gold + 1) // 2
+        self._outing_rewards = OutingRewards(
+            experience=experience,
+            gold=gold,
+            items=self._outing_rewards.items,
+        )
+        self._phase = DungeonPhase.EXTRACTION
+        return True
+
+    def complete_floor_one_boss(self, party_members):
+        if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
+            return False
+        self._validate_party_members(party_members)
+        rewards = self._floor_one_payout(partial=False)
+        self._bank_rewards(party_members, rewards)
+        self._floor_one_cleared = True
+        self._outing_rewards = OutingRewards()
+        self._outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def fail_floor_one_run(self, party_members):
+        if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
+            return False
+        self._validate_party_members(party_members)
+        self._outing_rewards = OutingRewards()
+        self._restore_party(party_members)
+        self._outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
     def cancel_outing_start(self):
         if self._phase is not DungeonPhase.OUTING:
             return False
@@ -147,27 +251,13 @@ class PartyState:
     def complete_extraction(self, party_members):
         if self._phase is not DungeonPhase.EXTRACTION:
             return False
-        if not isinstance(party_members, tuple) or len(party_members) != 2:
-            raise TypeError("extraction requires the two-member tutorial party")
-        if not all(isinstance(member, PlayerState) for member in party_members):
-            raise TypeError("party_members must contain PlayerState values")
-        if party_members[1] is not self._companions[0]:
-            raise ValueError("party_members do not match the recruited party")
+        self._validate_party_members(party_members)
 
         rewards = self._outing_rewards
-        experience_each = rewards.experience // len(party_members)
-        for member in party_members:
-            member.exp_state.validate_gain_amount(experience_each)
-        for member in party_members:
-            member.gain_experience(experience_each)
-            member.health.heal(member.health.maximum)
-            member.mana_resource.restore(member.mana_resource.maximum)
-
-        self._shared_gold += rewards.gold
-        for item_id, quantity in rewards.items.items():
-            self._shared_items[item_id] = self._shared_items.get(item_id, 0) + quantity
+        self._bank_rewards(party_members, rewards)
         self._tutorial_complete = True
         self._outing_rewards = OutingRewards()
+        self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
         return True
 
@@ -179,6 +269,9 @@ class PartyState:
         self._shared_items = {}
         self._tutorial_complete = False
         self._outing_rewards = OutingRewards()
+        self._floor_one_cleared = False
+        self._floor_one_runs_started_after_clear = 0
+        self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.OUTSIDE
         return True
 
@@ -193,6 +286,41 @@ class PartyState:
         state._outing_rewards = OutingRewards.from_snapshot(
             snapshot["outing_rewards"]
         )
+        state._floor_one_cleared = snapshot.get("floor_one_cleared", False)
+        if not isinstance(state._floor_one_cleared, bool):
+            raise ValueError("floor_one_cleared must be a boolean")
+        state._floor_one_runs_started_after_clear = _nonnegative(
+            "floor_one_runs_started_after_clear",
+            snapshot.get("floor_one_runs_started_after_clear", 0),
+        )
+        if (
+            state._floor_one_runs_started_after_clear
+            and not state._floor_one_cleared
+        ):
+            raise ValueError("Floor 1 replay runs require a cleared floor")
+        state._outing_xp_multiplier_percent = _nonnegative(
+            "outing_xp_multiplier_percent",
+            snapshot.get("outing_xp_multiplier_percent", 100),
+        )
+        if state._outing_xp_multiplier_percent not in {20, 30, 40, 50, 100}:
+            raise ValueError("outing XP multiplier is not an authored rate")
+        active_floor_one_run = (
+            state._tutorial_complete
+            and state._phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
+        )
+        if active_floor_one_run:
+            expected_rate = 100
+            if state._floor_one_cleared:
+                expected_rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                    min(
+                        max(state._floor_one_runs_started_after_clear - 1, 0),
+                        len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                    )
+                ]
+            if state._outing_xp_multiplier_percent != expected_rate:
+                raise ValueError("active Floor 1 run has an inconsistent XP rate")
+        elif state._outing_xp_multiplier_percent != 100:
+            raise ValueError("inactive Floor 1 runs must use the default XP rate")
         if state._phase is DungeonPhase.EXTRACTION and (
             state._outing_rewards.experience % (1 + len(state._companions))
         ):
@@ -200,14 +328,64 @@ class PartyState:
         return state
 
     def snapshot(self):
-        return {
+        snapshot = {
             "companions": [member.snapshot() for member in self.companions],
             "shared_gold": self.shared_gold,
             "shared_items": self.shared_items,
             "tutorial_complete": self.tutorial_complete,
             "phase": self.phase.value,
             "outing_rewards": self.outing_rewards.snapshot(),
+            "floor_one_cleared": self.floor_one_cleared,
+            "floor_one_runs_started_after_clear": (
+                self.floor_one_runs_started_after_clear
+            ),
+            "outing_xp_multiplier_percent": (
+                self.outing_xp_multiplier_percent
+            ),
         }
+        return snapshot
+
+    def _validate_party_members(self, party_members):
+        if not isinstance(party_members, tuple) or len(party_members) != 2:
+            raise TypeError("Floor 1 requires the two-member tutorial party")
+        if not all(isinstance(member, PlayerState) for member in party_members):
+            raise TypeError("party_members must contain PlayerState values")
+        if not self._companions or party_members[1] is not self._companions[0]:
+            raise ValueError("party_members do not match the recruited party")
+
+    def _floor_one_payout(self, *, partial):
+        party_size = 1 + len(self._companions)
+        denominator = 100 * party_size * (2 if partial else 1)
+        experience_each = (
+            self._outing_rewards.experience
+            * self.outing_xp_multiplier_percent
+            // denominator
+        )
+        gold = self._outing_rewards.gold
+        if partial:
+            gold = (gold + 1) // 2
+        return OutingRewards(
+            experience=experience_each * party_size,
+            gold=gold,
+            items=self._outing_rewards.items,
+        )
+
+    def _bank_rewards(self, party_members, rewards):
+        experience_each = rewards.experience // len(party_members)
+        for member in party_members:
+            member.exp_state.validate_gain_amount(experience_each)
+        for member in party_members:
+            member.gain_experience(experience_each)
+        self._restore_party(party_members)
+        self._shared_gold += rewards.gold
+        for item_id, quantity in rewards.items.items():
+            self._shared_items[item_id] = self._shared_items.get(item_id, 0) + quantity
+
+    @staticmethod
+    def _restore_party(party_members):
+        for member in party_members:
+            member.health.heal(member.health.maximum)
+            member.mana_resource.restore(member.mana_resource.maximum)
 
 
 def _require_player_state(value, name):

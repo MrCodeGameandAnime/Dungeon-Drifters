@@ -206,6 +206,19 @@ class _RouteBattleFactory:
     def mark_completed(self):
         self.completed_count += 1
 
+    def inspect(self):
+        self.status = "missing"
+        return self
+
+    def save(self, game_state):
+        self.saved_game_state = game_state
+        self.status = "saved"
+        return self
+
+    def load(self):
+        self.status = "missing"
+        return self
+
 
 class _RouteEnemyFactory:
     def __init__(self, factory):
@@ -379,7 +392,7 @@ def _construct_route_qualification():
         enemy_factory=enemy_factory,
         ui=None,
         battle_ui_factory=None,
-        save_port=None,
+        save_port=battle_factory,
     )
     STATE["route_game"] = game
     STATE["route_session"] = session
@@ -604,8 +617,8 @@ def _assert_route_final_state():
         raise AssertionError("final route view did not return to the Hub")
     if final_view.contextual_route_option is not None:
         raise AssertionError("final route view offered another action")
-    if session._save_port is not None:
-        raise AssertionError("route qualification materialized persistence")
+    if session._save_port is not battle_factory:
+        raise AssertionError("route qualification replaced its in-memory save port")
 
 
 def _run_hub_tutorial():
@@ -626,41 +639,37 @@ def _assert_route_live_state():
 
     game = STATE["route_game"]
     session = STATE["route_session"]
+    party = game.party_state
     if session.active_battle is not None:
         raise AssertionError("route session retained an active Battle")
+    if game.overworld_state.active_route_id != "surface":
+        raise AssertionError("Floor 1 clear did not return to the Surface route")
     if game.overworld_state.current_route_node_id != _EXPECTED_FINAL_NODE:
-        raise AssertionError("live route node changed during evidence cleanup")
+        raise AssertionError("Floor 1 clear returned to the wrong route node")
     if not game.overworld_state.route_complete:
-        raise AssertionError("live route became incomplete during cleanup")
+        raise AssertionError("live route became incomplete after Floor 1")
     if not game.overworld_state.dungeon_entrance_reached:
-        raise AssertionError("Dungeon Entrance state changed during cleanup")
+        raise AssertionError("Dungeon Entrance state changed after Floor 1")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
-        raise AssertionError("defeated encounters changed during cleanup")
-    if game.overworld_state.resolved_rest_node_ids != _EXPECTED_RESTS:
-        raise AssertionError("resolved Rests changed during cleanup")
-    if game.party_state.shared_gold != 19:
-        raise AssertionError("Hub shared gold changed during evidence cleanup")
-    if not game.party_state.tutorial_complete:
-        raise AssertionError("tutorial completion changed during evidence cleanup")
-    for member in (game.player_state,) + game.party_state.companions:
-        if member.exp_state.current != (
-            STATE["hub_tutorial_xp_before"][
-                0 if member is game.player_state else 1
-            ]
-            + 60
-        ):
-            raise AssertionError("tutorial EXP changed during evidence cleanup")
+        raise AssertionError("Floor 1 changed Surface defeat history")
+    if party.shared_gold != 115:
+        raise AssertionError("Floor 1 rewards were not secured in shared gold")
+    if not party.tutorial_complete or not party.floor_one_cleared:
+        raise AssertionError("Hub progression was incomplete after Floor 1")
+    if party.outing_rewards.experience or party.outing_rewards.gold:
+        raise AssertionError("Floor 1 rewards remained unsecured after the boss")
+    for member in (game.player_state,) + party.companions:
         if member.health.current != member.health.maximum:
-            raise AssertionError("HP changed during evidence cleanup")
+            raise AssertionError("HP was not restored after Floor 1")
         if member.mana_resource.current != member.mana_resource.maximum:
-            raise AssertionError("Mana changed during evidence cleanup")
+            raise AssertionError("Mana was not restored after Floor 1")
     view = session.current_view()
     if view.screen is not OverworldScreen.HUB:
         raise AssertionError("live route view changed during evidence cleanup")
     if view.contextual_route_option is not None:
         raise AssertionError("live route offered another action after cleanup")
-    if session._save_port is not None:
-        raise AssertionError("evidence cleanup materialized persistence")
+    if session._save_port is not STATE["route_battle_factory"]:
+        raise AssertionError("route qualification replaced its in-memory save port")
 
 
 def _release_route_evidence():
@@ -676,6 +685,15 @@ def _teardown_route_session():
     del STATE["route_session"]
     del STATE["route_battle_factory"]
     del STATE["route_enemy_factory"]
+    del STATE["floor_one_route"]
+    del STATE["floor_one_battle_compositions"]
+    del STATE["floor_one_world_history"]
+    del STATE["floor_one_xp_before"]
+    del STATE["floor_one_gold_before"]
+    del STATE["floor_one_route_rewards"]
+    del STATE["floor_one_pending_xp"]
+    del STATE["floor_one_pending_gold"]
+    gc.collect()
 
 
 def main():

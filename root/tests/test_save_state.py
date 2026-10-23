@@ -12,7 +12,7 @@ from app.persistence.save_document import (
     migrate_schema_7,
     reconstruct_game_state,
 )
-from app.content.catalog import create_weapon, get_route_spec
+from app.content.catalog import create_weapon, get_route_node_spec, get_route_spec
 from app.player.character_run_state import (
     InfusionKind,
     PreparedPayloadId,
@@ -81,7 +81,47 @@ def _move_game_to_dungeon_entrance(game):
     )
 
 
-def test_schema9_document_has_only_persistent_state_and_schema8_stays_runtime_only():
+def _game_at_floor_one_rest(rest_index=0):
+    game = _create_populated_game("1")
+    _move_game_to_dungeon_entrance(game)
+    game.player_state.add_gold(58)
+    assert game.party_state.arrive_at_hub(game.player_state)
+    companion_profile = next(
+        profile for profile in DRIFTER_SPECS if profile.choice == "2"
+    )
+    companion = PlayerState(companion_profile.create_character())
+    assert game.party_state.recruit_companion(game.player_state, companion)
+    party_members = (game.player_state, companion)
+    assert game.party_state.begin_outing()
+    assert game.party_state.begin_extraction(experience=0, gold=0)
+    assert game.party_state.complete_extraction(party_members)
+    game.party_state.start_floor_one_run()
+    game.party_state.add_floor_one_rewards(experience=70, gold=5)
+
+    route = get_route_spec("floor_one")
+    rest_nodes = tuple(
+        node for node in route.nodes if node.kind.value == "rest"
+    )
+    target = rest_nodes[rest_index]
+    game.overworld_state.begin_route("floor_one")
+    for node in route.nodes[1:]:
+        current = get_route_node_spec(
+            game.overworld_state.current_route_node_id
+        )
+        if current.kind.value == "rest":
+            game.overworld_state.record_resolved_rest_node(current.node_id)
+        phase = (
+            ContextualRoutePhase.ENTER_ENCOUNTER
+            if node.kind.value in {"combat", "boss"}
+            else ContextualRoutePhase.NONE
+        )
+        game.overworld_state.advance_to(node.node_id, contextual_phase=phase)
+        if node.node_id == target.node_id:
+            break
+    return game
+
+
+def test_schema10_document_has_only_persistent_state_and_schema9_stays_runtime_only():
     game = _create_populated_game("1")
 
     document = build_save_document(game)
@@ -100,6 +140,114 @@ def test_schema9_document_has_only_persistent_state_and_schema8_stays_runtime_on
     assert "combat" not in document["player"]
     assert game.snapshot()["schema_version"] == STATE_SCHEMA_VERSION
     assert "combat" in game.snapshot()["player"]
+
+
+def test_new_saves_use_runtime_schema9_and_disk_schema10():
+    game = GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
+
+    document = build_save_document(game)
+
+    assert STATE_SCHEMA_VERSION == 9
+    assert DISK_SCHEMA_VERSION == document["schema_version"] == 10
+    assert document["overworld"]["active_route_id"] == "surface"
+    assert document["party"]["floor_one_cleared"] is False
+    assert document["party"]["floor_one_runs_started_after_clear"] == 0
+    assert document["party"]["outing_xp_multiplier_percent"] == 100
+
+
+@pytest.mark.parametrize("rest_index", (0, 1))
+def test_schema10_floor_one_rest_checkpoint_round_trips(rest_index):
+    game = _game_at_floor_one_rest(rest_index)
+
+    document = build_save_document(game)
+    restored = reconstruct_game_state(document)
+
+    route = get_route_spec("floor_one")
+    rest_node = tuple(
+        node for node in route.nodes if node.kind.value == "rest"
+    )[rest_index]
+    assert document["schema_version"] == 10
+    assert document["overworld"]["active_route_id"] == "floor_one"
+    assert document["overworld"]["current_route_node_id"] == rest_node.node_id
+    assert document["party"]["phase"] == "outing"
+    assert document["party"]["outing_rewards"] == {
+        "experience": 70,
+        "gold": 5,
+        "items": {},
+    }
+    assert build_save_document(restored) == document
+
+
+def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
+    game = _create_populated_game("1")
+    old_payload = copy.deepcopy(build_save_document(game))
+    old_payload["schema_version"] = 9
+    old_payload["overworld"].pop("active_route_id", None)
+    for field in (
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+    ):
+        old_payload["party"].pop(field, None)
+    original = copy.deepcopy(old_payload)
+
+    restored = reconstruct_game_state(old_payload)
+    upgraded = build_save_document(restored)
+
+    assert old_payload == original
+    assert upgraded["schema_version"] == 10
+    assert upgraded["overworld"]["active_route_id"] == "surface"
+    assert upgraded["party"]["floor_one_cleared"] is False
+    assert upgraded["party"]["floor_one_runs_started_after_clear"] == 0
+    assert upgraded["party"]["outing_xp_multiplier_percent"] == 100
+
+
+def test_floor_one_save_is_rejected_away_from_an_unresolved_rest():
+    game = _game_at_floor_one_rest()
+    game.overworld_state.record_resolved_rest_node("floor_one_midway_rest")
+    route = get_route_spec("floor_one")
+    second_battle = next(
+        node for node in route.nodes if node.node_id == "floor_one_battle_06"
+    )
+    game.overworld_state.advance_to(
+        second_battle.node_id,
+        contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+    )
+
+    with pytest.raises(SaveStateValidationError, match="only a Floor 1 Rest"):
+        build_save_document(game)
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    (
+        lambda document: document["party"].update(
+            floor_one_runs_started_after_clear=1
+        ),
+        lambda document: document["party"].update(
+            floor_one_cleared=True,
+            floor_one_runs_started_after_clear=1,
+            outing_xp_multiplier_percent=40,
+        ),
+        lambda document: document["overworld"].update(
+            active_route_id="floor_one",
+            current_route_node_id="floor_one_battle_06",
+        ),
+        lambda document: document["overworld"].update(
+            resolved_rest_node_ids=["floor_one_midway_rest"],
+        ),
+        lambda document: document["party"].update(
+            floor_one_cleared=True,
+            tutorial_complete=False,
+        ),
+    ),
+)
+def test_invalid_floor_one_run_and_cursor_combinations_are_rejected(mutator):
+    document = build_save_document(_game_at_floor_one_rest())
+    mutator(document)
+
+    with pytest.raises(SaveStateValidationError):
+        reconstruct_game_state(document)
 
 
 @pytest.mark.parametrize("choice", ("1", "2", "3", "4"))
@@ -184,6 +332,7 @@ def _old_schema8_document(game, *, at_dungeon_entrance=False):
     document = copy.deepcopy(game.snapshot())
     document["schema_version"] = 8
     document.pop("party", None)
+    document["overworld"].pop("active_route_id", None)
     document["player"].pop("combat")
     if at_dungeon_entrance:
         route = get_route_spec("surface")
@@ -215,7 +364,7 @@ def test_old_schema8_disk_save_before_entrance_preserves_lead_gold():
     restored = reconstruct_game_state(document)
     upgraded = build_save_document(restored)
 
-    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 9
+    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 10
     assert restored.player_state.gold == 17
     assert restored.party_state.shared_gold == 0
     assert restored.party_state.phase is DungeonPhase.OUTSIDE
@@ -242,6 +391,12 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
     assert game.party_state.arrive_at_hub(game.player_state)
     document = _old_schema8_document(game, at_dungeon_entrance=True)
     document["party"] = game.party_state.snapshot()
+    for field in (
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+    ):
+        document["party"].pop(field)
     document["player"]["gold"] = 0
 
     restored = reconstruct_game_state(document)
@@ -251,7 +406,7 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
     assert restored.party_state.phase is DungeonPhase.HUB
 
 
-def test_party_state_and_companion_round_trip_in_schema9_document():
+def test_party_state_and_companion_round_trip_in_schema10_document():
     game = _create_populated_game("1")
     _move_game_to_dungeon_entrance(game)
     game.player_state.add_gold(58)
@@ -266,7 +421,7 @@ def test_party_state_and_companion_round_trip_in_schema9_document():
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == 9
+    assert document["schema_version"] == 10
     assert document["party"]["shared_gold"] == 17
     assert "combat" not in document["player"]
     assert all("combat" not in member for member in document["party"]["companions"])
@@ -356,7 +511,7 @@ def test_invalid_party_documents_are_rejected(mutator):
     "mutator",
     (
         lambda document: document.update(schema_version=6),
-        lambda document: document.update(schema_version=10),
+        lambda document: document.update(schema_version=11),
         lambda document: document["player"]["progression"].update(exp=True),
         lambda document: document["player"]["resources"]["health"].update(current=9999),
         lambda document: document["player"]["equipment"].update(
