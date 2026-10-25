@@ -59,24 +59,27 @@ utility parts of the weapon are used.
 
 Weapon progression should not be a single flat ladder.
 
-The current direction separates weapon growth into four interacting layers:
+The current direction separates weapon growth into distinct layers:
 
 ```text
-Overall refinement (+X)
+Overall refinement (separate; final cap unresolved)
 -> four modifiable weapon slots
--> improvement percentage and quality within each slot
+-> continuous improvement and quality milestones for each slot
 -> physical / mystical branch identity produced by the final configuration
 ```
 
 These layers should remain distinct.
 
-Overall refinement represents development of the signature weapon as a whole.
+Overall refinement, if retained, represents development of the signature
+weapon as a whole. It is separate from the 0-100 improvement progress tracked
+by each slot and from the shared 0-100 Crafting level.
 
 Slot improvement represents repeated material investment into one physical part
-of that weapon.
+of that weapon. Each slot tracks its own progress from 0 to 100.
 
-Slot quality represents a larger craftsmanship threshold reached only when the
-required improvement, materials, and crafting capability are present.
+Slot quality represents the shared craftsmanship milestones reached only when
+all four slots, the required materials, and shared Crafting level meet the
+matching threshold.
 
 Physical and mystical branches describe what the completed configuration has
 become. They should emerge from the four-slot build rather than requiring a
@@ -294,19 +297,21 @@ Goblin drops Iron Sword
 -> recover 1, 2, or 3 Iron depending on the dismantling result
 ```
 
-The maximum quantity belongs to the dropped item definition. The quantity actually
-recovered may be lower.
+The maximum quantity belongs to the dropped item definition. At least one
+matching material is always recovered; the actual yield may be lower than the
+authored maximum.
 
-Crafting level is intended to influence recovery quality and efficiency. A more
-skilled crafter should generally be better at extracting the useful material from
-an item rather than destroying or wasting part of it.
-
-The exact random formula, minimum guaranteed recovery, and whether sufficiently
-high Crafting can guarantee maximum recovery remain unresolved.
+Shared Crafting level shifts the random recovery result toward the authored
+maximum, but never guarantees maximum recovery, even at level 100. The exact
+random formula remains a tuning decision. Dismantling does not award Crafting
+progress.
 
 Most ordinary dropped weapons should primarily yield reusable materials rather
 than becoming finished replacement weapons or requiring a bespoke signature-
 weapon component for every drop.
+
+Dismantling is the main material source. Enemies and bosses may also directly
+drop rare materials, including cores.
 
 Rare drops may additionally provide:
 
@@ -321,118 +326,96 @@ Rare drops may additionally provide:
 This keeps ordinary loot scalable while allowing exceptional discoveries to
 change a build.
 
-## 4. Slot Improvement Percentage
+## 4. Slot Improvement Progress
 
-Recovered materials are spent on one of the four weapon slots.
+Each of the four slots tracks continuous improvement progress from 0 to 100.
+Completing an ordinary improvement recipe always succeeds and adds a random
+1-5 percentage points to its selected slot. Shared Crafting level shifts the
+odds toward higher results, while every result from 1 to 5 remains possible.
+The exact odds by Crafting level are data-driven tuning values.
 
-Each slot tracks its own improvement progress.
+Improvement directly raises the statistics governed by that slot. Improvement
+and quality bonuses are calculated from the weapon's original base statistics,
+not from already-modified values, so the two bonuses are additive rather than
+compounding.
 
-Conceptual example:
+The four material families are fixed by slot number:
 
-```text
-2 Iron
--> attempt to improve Sunder-Spire Blade
--> nominal improvement: +2%
-```
+| Slot | Material family |
+|---|---|
+| 1 | Metal |
+| 2 | Fiber |
+| 3 | Timber |
+| 4 | Cores |
 
-The nominal improvement is the value the material recipe can provide under the
-required crafting conditions.
+Each material family has grades aligned to the ordinary weapon tiers. The
+improvement that crosses a slot's next 25-point milestone requires material of
+the next grade for that slot's family. Grade II materials first appear on Floor
+II, Grade III on Floor III, and Grade IV on Floor IV, preventing a player from
+farming an earlier floor for later-tier improvement materials. Tier V uses
+Grade IV materials rather than introducing Grade V.
 
-Crafting level may reduce or preserve that value.
+Material quantities and recipe costs are authored per recipe; they do not follow
+a forced 1/2/3/4 quantity formula. Each actual crafting or improvement recipe
+also defines its own Crafting progress award. Numeric costs and awards remain
+data-driven tuning values.
 
-Example:
+Improvement progress does not reset when a tier milestone is reached. Progress
+from 75 to 100 continues to improve the Tier IV weapon.
 
-```text
-Nominal improvement: +2%
-Crafting level below the full-efficiency requirement
--> realized improvement: +1%
-```
+## 5. Quality Milestones And Tier V
 
-The exact numbers above establish system behavior only. Final material costs,
-improvement percentages, skill requirements, rounding, and efficiency curves
-remain unresolved.
+Tier I is the starting quality. The four ordinary quality tiers are reached at
+shared 25-point milestones:
 
-Improvement percentage is gradual progress. It is not the same thing as overall
-weapon refinement and it is not the same thing as slot quality.
+| Weapon tier | Required progress in every slot | Shared Crafting level |
+|---|---:|---:|
+| Tier I | Starting tier | Starting tier |
+| Tier II | 25/100 | 25/100 |
+| Tier III | 50/100 | 50/100 |
+| Tier IV | 75/100 | 75/100 |
 
-## 5. Slot Quality Breakthroughs
+Each slot has to reach each milestone; no single slot can carry the weapon into
+the next tier. The weapon's shared tier advances only when all four slots and the
+roster-wide Crafting level meet the matching checkpoint. The required next-grade
+material is used for each slot's improvement across that milestone.
 
-Each of the four slots also has a quality level.
+Quality adds a separate bonus to the base statistics governed by each slot. The
+first-pass schedule is a shared, linear +5% per ordinary breakthrough: Tier II
+adds +5%, Tier III is +10% cumulative, and Tier IV is +15% cumulative. These
+bonuses apply to base stats and add to continuous slot improvement; they do not
+compound from current modified stats. The schedule is data-driven and can be
+retuned without changing the progression rules.
 
-Quality does not increase merely because the player spends one more common
-material.
+Tier V is an optional god-tier capstone attempt. It requires all four slots at
+100/100 and shared Crafting at 100/100. It uses a significantly larger,
+authored quantity of Grade IV materials, has a fixed but non-guaranteed success
+chance, and does not introduce a new material grade. A failed attempt consumes
+its materials but preserves all existing progress and awards no Crafting
+progress. Success adds a separate +25% of base stats governed by the slots.
+Tier V cost, chance, and bonus are data-driven tuning values.
 
-A quality breakthrough should require a combination of conditions such as:
+All quality bonuses are based on original weapon stats. Progress remains
+continuous through ordinary breakthroughs; Tier IV progress from 75 to 100 is
+still useful even before attempting Tier V.
 
-- the slot reaching a required improvement percentage
-- materials of the required tier or better
-- the required Crafting level
-- or an authorized improvement item that can satisfy or substitute for a missing
-  crafting requirement
+## 6. Crafting Progression
 
-Conceptual flow:
+Crafting is a shared roster-wide skill with a 0-100 level. It is not owned by an
+individual Drifter. Its level affects dismantling yield odds, the distribution
+of 1-5 improvement rolls, and eligibility for the matching ordinary quality
+milestones.
 
-```text
-slot improvement reaches threshold
-+ required material tier is present
-+ Crafting requirement is met
-    or an appropriate improvement item is used
--> slot quality increases
-```
+Crafting progress is awarded only for successfully completed, actual crafting
+or weapon-improvement recipes. Each recipe authors its own progress award; there
+is no global award formula. Awards increase from lower- to higher-tier recipes
+to reflect their greater requirements. Dismantling awards none, and failed
+Tier V attempts award none.
 
-If the quality requirement is not met, additional ordinary improvement should not
-silently bypass it.
-
-When a slot's quality increases, all statistics governed by that slot receive the
-quality increase's percentage improvement.
-
-Conceptual example:
-
-```text
-Blade quality increases
--> Blade quality grants +X%
--> physical damage, stagger, Strength scaling, or other Blade-governed values
-   each receive the authored quality increase where applicable
-```
-
-The exact quality names, number of quality tiers, threshold percentages,
-material-tier requirements, and stat multipliers remain unresolved.
-
-It is also unresolved whether improvement progress resets, partially carries, or
-fully carries after a quality breakthrough.
-
-## 6. Crafting Skill Relationship
-
-Crafting level should matter at multiple points rather than acting as one flat
-bonus.
-
-Current intended relationships include:
-
-```text
-Crafting level
--> dismantling recovery efficiency
--> material yield quality
--> realized slot-improvement efficiency
--> eligibility for higher-quality breakthroughs
--> effectiveness or quality of crafted improvement items
-```
-
-A lower Crafting level may therefore recover fewer materials, realize less of a
-material's nominal improvement value, or be unable to perform a higher-quality
-breakthrough without assistance.
-
-A higher Crafting level should improve efficiency and access without creating
-materials from nothing or bypassing authored material requirements.
-
-Crafting and Alchemy should follow the same broad skill principle where useful:
-skill affects how effectively a recipe's inputs become a finished result.
-
-For Alchemy, that may include the potency, duration, efficiency, or quality of
-created alchemical items.
-
-The exact Crafting and Alchemy level curves, caps, experience rules, failure
-chances, and recipe requirements belong to their formal progression designs and
-remain unresolved here.
+Alchemy is a separate progression system and does not award Crafting progress.
+Alchemy can produce potions, arrows, and other items that may be ingredients in
+recipes for higher-tier weapon progression. Alchemy's own progression and
+recipe outcomes are defined by its separate design.
 
 ## 7. Physical Configuration Tree
 
@@ -496,7 +479,10 @@ A Great Sathren remains Sathren. It might become a reinforced, high-draw
 configuration with devastating projectile impact rather than becoming a different
 category of weapon.
 
-The exact branch requirements, thresholds, and ordering remain unresolved.
+Physical identity is derived from authored physical contribution points on the
+current slot components/configuration. Improvement or quality adds identity
+points only when explicitly authored. The physical identity with the highest
+valid total is selected when it meets its minimum threshold.
 
 ## 8. Mystical Development Tree
 
@@ -511,8 +497,14 @@ components, and attunements may push the completed weapon toward forms such as:
 These should also emerge from the four-slot configuration rather than requiring a
 second collection of mystical modification zones.
 
-They may represent progressive tiers, branching identities, or a combination of
-both. The exact topology remains unresolved.
+Mystical identity is calculated independently from authored mystical contribution
+points on the current slot components/configuration. Improvement or quality adds
+identity points only when explicitly authored. The mystical identity with the
+highest valid total is selected when it meets its minimum threshold. A weapon can
+have one physical and one mystical identity at the same time. If two identities
+on the same axis tie above threshold, that axis has no identity until one leads.
+Identity is derived from the current configuration and recalculates automatically
+when a component changes.
 
 ### Enchanted
 
@@ -559,6 +551,16 @@ Components, materials, and slot configurations should:
 - potentially alter how certain moves behave
 
 Components should not all be direct upgrades.
+
+Replacing an installed component consumes the old component; it does not return
+to inventory. This also applies to rare cores installed in slot four.
+
+Component effects on moves are data-driven. Initial modifiers may adjust an
+existing move's power, resource cost, accuracy, or damage type. They do not
+change its target or scaling. Rare cores may unlock a new data-authored
+technique; once learned, that technique remains learned if the core is later
+replaced. Direct modifiers from a component apply only while that component is
+installed.
 
 Example:
 
@@ -763,44 +765,65 @@ Do not freeze these yet:
 
 - final refinement cap
 - final player-facing names for each weapon's four slots
-- exact branch topology
-- exact branch thresholds and contribution formulas
-- whether Light, Refined, Heavy, and Great are exclusive branches or tiered states
-- whether Enchanted, Mystic, Attuned, and Legendary are branches or tiers
-- exact upgrade costs
-- exact dismantling recovery formulas and randomness
-- minimum guaranteed dismantling yields
-- Crafting level curve and cap
-- Alchemy level curve and cap
-- exact material tiers
-- exact slot-improvement percentages
-- exact quality names and number of quality tiers
-- quality-threshold percentages
-- whether improvement progress resets or carries after a quality breakthrough
-- exact quality stat multipliers
-- component-removal costs
+- which named physical and mystical identities are available, and their topology
+- exact branch contribution values and minimum thresholds
+- exact material recipes, quantities, and costs
+- exact dismantling yield tables and random distribution
+- Crafting progress-to-level curve
+- Alchemy progression and recipe rules (separate system)
+- full material catalogue and drop tables within the agreed grade/floor gates
+- exact improvement-roll odds at each Crafting level
+- player-facing quality labels
 - respec rules
 - special-component rarity
 - exact stat coefficients
 - exact visual implementation
+- exact per-component move-modifier values
 - exact affix-generation rules
-- exact move modifications
 - crafting interface
 - inventory limits
-- failure chances
+- save representation for installed components, slot progress/quality, learned
+  techniques, and shared Crafting progress
 - ~~final name of Azhvielle's weapon~~
 - final obtainable prefixes and suffixes
+
+## Data-Driven Tuning Values
+
+These values are intentionally authored per recipe, component, or shared
+configuration so they can be balanced without changing the progression rules:
+
+- material quantities and costs for each crafting/improvement recipe
+- Crafting progress awarded by each successful recipe
+- dismantling yield ranges and Crafting-weighted odds
+- the Crafting-level distribution for 1-5 improvement rolls
+- branch contribution points and minimum thresholds
+- ordinary quality bonus schedule (currently +5% per breakthrough)
+- Tier V Grade IV material cost, success chance, and +25% base-stat bonus
+- per-component move-modifier values
 
 The following are no longer unresolved:
 
 - every signature weapon has exactly four modifiable slots
 - the four-slot structure is three structural/body slots plus one signature/special slot
 - ordinary dismantleable drops author a maximum material yield and may recover less than that maximum
-- Crafting level influences recovery and improvement efficiency
-- slot improvement percentage and slot quality are separate progression layers
-- quality breakthroughs require authored thresholds rather than occurring automatically
-- quality improvement increases the statistics governed by the improved slot
-- physical and mystical branch identity should emerge from the four-slot configuration rather than add more modification zones
+- dismantling guarantees at least one matching material and never guarantees the authored maximum
+- material families map by slot as metal, fiber, timber, and cores
+- ordinary grades align to weapon tiers and first appear on their corresponding floors
+- per-slot improvement progress and shared Crafting level each use a 0-100 scale
+- ordinary improvement recipes always succeed and add 1-5 percentage points
+- all four slots and shared Crafting level must meet each 25-point checkpoint to reach Tiers II-IV
+- progress carries through ordinary tier breakthroughs
+- slot improvement and tier-quality bonuses are separate and both use original base stats
+- Tier II/III/IV quality bonuses are currently +5%/+10%/+15% cumulative
+- Tier V requires all slots and shared Crafting at 100, uses Grade IV materials, and is non-guaranteed
+- failed Tier V attempts consume materials but preserve progress and award no Crafting progress
+- Crafting is shared roster-wide and gains progress only from successful recipes with explicit awards
+- Alchemy is separate and does not award Crafting progress
+- physical and mystical identities can coexist and are derived from the four-slot configuration
+- ties on one identity axis produce no identity for that axis until one leads
+- identity recalculates automatically after component changes
+- replacing a component consumes the old one, including slot-four cores
+- component move effects use data-driven modifiers; unlocked techniques remain learned
 
 # Complete
 
