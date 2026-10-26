@@ -1,4 +1,4 @@
-"""Schema-10 save documents and canonical in-memory reconstruction."""
+"""Schema-11 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -7,8 +7,10 @@ from app.content.catalog import (
     get_drifter_spec_by_choice,
     get_route_node_spec,
     get_route_spec,
+    get_weapon_spec,
 )
 from app.content.route_spec import RouteNodeKind
+from app.content.weapon_progression_spec import MAX_CRAFTING_EXPERIENCE
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
@@ -59,7 +61,8 @@ _FLOOR_ONE_REST_NODE_IDS = tuple(
 _LEGACY_RUNTIME_SCHEMA_VERSION = 7
 _LEGACY_DISK_SCHEMA_VERSION = 8
 _PREVIOUS_DISK_SCHEMA_VERSION = 9
-DISK_SCHEMA_VERSION = 10
+_CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 10
+DISK_SCHEMA_VERSION = 11
 
 
 class SaveStateValidationError(ValueError):
@@ -127,6 +130,7 @@ def migrate_schema_7(document):
             if encounter_id not in _SURFACE_ENCOUNTER_NODES
         ]
     _add_legacy_party_state(migrated)
+    _add_signature_weapon_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -139,6 +143,7 @@ def migrate_schema_8(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_party_state(migrated)
     migrated["overworld"].setdefault("active_route_id", "surface")
+    _add_signature_weapon_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -149,9 +154,25 @@ def migrate_schema_9(document):
     return _migrate_previous_current_document(document)
 
 
+def migrate_schema_10(document):
+    """Upgrade the previous current save shape without changing its input."""
+    validate_legacy_schema10_document(document)
+    return _migrate_previous_current_document(document)
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
+    return deepcopy(document)
+
+
+def validate_legacy_schema10_document(document):
+    """Validate and copy an immutable schema-10 profile payload."""
+    _validate_document(
+        document,
+        schema_version=_CURRENT_PREVIOUS_DISK_SCHEMA_VERSION,
+        require_signature_weapon=False,
+    )
     return deepcopy(document)
 
 
@@ -163,7 +184,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or immutable schema-8/schema-9 history."""
+    """Validate a current payload or immutable schema-8/9/10 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -175,6 +196,12 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _PREVIOUS_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema9_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema10_document(document)
     normalized = validate_save_document(document)
     if normalized != document:
         raise SaveStateValidationError("profile payload is not canonical")
@@ -231,6 +258,8 @@ def validate_save_document(document):
         return _migrate_previous_current_document(document)
     if schema_version == _PREVIOUS_DISK_SCHEMA_VERSION:
         return migrate_schema_9(document)
+    if schema_version == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION:
+        return migrate_schema_10(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -357,7 +386,12 @@ def _weapon_payload(weapon):
     }
 
 
-def _validate_document(document, *, schema_version):
+def _validate_document(
+    document,
+    *,
+    schema_version,
+    require_signature_weapon=None,
+):
     allowed_keys = {
         "schema_version",
         "player",
@@ -371,14 +405,23 @@ def _validate_document(document, *, schema_version):
     _require_exact_keys(document, allowed_keys, "game")
     if document["schema_version"] != schema_version:
         raise SaveStateValidationError("save schema version mismatch")
-    _validate_player(document["player"])
+    if require_signature_weapon is None:
+        require_signature_weapon = schema_version == DISK_SCHEMA_VERSION
+    _validate_player(
+        document["player"],
+        require_signature_weapon=require_signature_weapon,
+    )
     _validate_story(document["story"])
     _validate_world(document["world"])
     _validate_overworld(
         document["overworld"],
         document["world"],
     )
-    _validate_party(document["party"], document["player"])
+    _validate_party(
+        document["party"],
+        document["player"],
+        require_signature_weapon=require_signature_weapon,
+    )
     _validate_route_party_relationship(document["overworld"], document["party"])
     validate_plain_value(document["metadata"], "game.metadata")
 
@@ -402,7 +445,7 @@ def _validate_legacy_current_document(
     _require_exact_keys(document, allowed_keys, "game")
     if document["schema_version"] != schema_version:
         raise SaveStateValidationError("save schema version mismatch")
-    _validate_player(document["player"])
+    _validate_player(document["player"], require_signature_weapon=False)
     _validate_story(document["story"])
     _validate_world(document["world"])
     _validate_legacy_overworld(document["overworld"], document["world"])
@@ -427,11 +470,52 @@ def _migrate_previous_current_document(document):
     migrated["party"].setdefault("floor_one_cleared", False)
     migrated["party"].setdefault("floor_one_runs_started_after_clear", 0)
     migrated["party"].setdefault("outing_xp_multiplier_percent", 100)
+    migrated["party"].setdefault("crafting_experience", 0)
     if isinstance(migrated.get("player"), dict):
         migrated["player"].pop("combat", None)
     _strip_companion_combat(migrated.get("party"))
+    _add_signature_weapon_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
+
+
+def _add_signature_weapon_defaults(document):
+    players = [document.get("player")]
+    party = document.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if not isinstance(player, dict) or "signature_weapon" in player:
+            continue
+        weapon_snapshot = player.get("equipment", {}).get("weapon")
+        if not isinstance(weapon_snapshot, dict):
+            raise SaveStateValidationError(
+                "legacy Drifter is missing its signature weapon"
+            )
+        try:
+            weapon = create_weapon_from_persistence_key(
+                weapon_snapshot["type"]
+            )
+            progression = get_weapon_spec(weapon.item_id).progression
+        except (KeyError, TypeError, ValueError) as error:
+            raise SaveStateValidationError(
+                "legacy Drifter has an invalid signature weapon"
+            ) from error
+        if progression is None:
+            raise SaveStateValidationError(
+                "legacy signature weapon progression is missing"
+            )
+        player["signature_weapon"] = {
+            "weapon_id": weapon.item_id,
+            "components": {
+                slot.slot_id: slot.starting_component_id
+                for slot in progression.slots
+            },
+            "slot_progress": {
+                slot.slot_id: 0 for slot in progression.slots
+            },
+            "learned_technique_ids": [],
+        }
 
 
 def _validate_legacy_schema8_document(document):
@@ -447,7 +531,7 @@ def _validate_legacy_schema8_document(document):
     _require_exact_keys(document, allowed_keys, "game")
     if document["schema_version"] != _LEGACY_DISK_SCHEMA_VERSION:
         raise SaveStateValidationError("save schema version mismatch")
-    _validate_player(document["player"])
+    _validate_player(document["player"], require_signature_weapon=False)
     _validate_story(document["story"])
     _validate_world(document["world"])
     _validate_legacy_overworld(document["overworld"], document["world"])
@@ -473,7 +557,7 @@ def _validate_legacy_party(party, player):
     lead_profile = _canonical_profile(player)
     companion_ids = set()
     for index, companion in enumerate(party["companions"]):
-        _validate_player(companion)
+        _validate_player(companion, require_signature_weapon=False)
         choice = _canonical_profile(companion).choice
         if choice == lead_profile.choice or choice in companion_ids:
             raise SaveStateValidationError("party contains a duplicate Drifter")
@@ -534,7 +618,7 @@ def _validate_legacy_party(party, player):
         )
 
 
-def _validate_party(party, player):
+def _validate_party(party, player, *, require_signature_weapon=True):
     _require_mapping(party, "party")
     _require_exact_keys(
         party,
@@ -548,6 +632,7 @@ def _validate_party(party, player):
             "floor_one_cleared",
             "floor_one_runs_started_after_clear",
             "outing_xp_multiplier_percent",
+            "crafting_experience",
         },
         "party",
     )
@@ -559,7 +644,10 @@ def _validate_party(party, player):
     lead_profile = _canonical_profile(player)
     companion_ids = set()
     for companion in companions:
-        _validate_player(companion)
+        _validate_player(
+            companion,
+            require_signature_weapon=require_signature_weapon,
+        )
         choice = _canonical_profile(companion).choice
         if choice == lead_profile.choice or choice in companion_ids:
             raise SaveStateValidationError("party contains a duplicate Drifter")
@@ -567,6 +655,12 @@ def _validate_party(party, player):
 
     _require_int_min(party["shared_gold"], 0, "party.shared_gold")
     _validate_item_stacks(party["shared_items"], "party.shared_items")
+    _require_int_range(
+        party["crafting_experience"],
+        0,
+        MAX_CRAFTING_EXPERIENCE,
+        "party.crafting_experience",
+    )
     if not isinstance(party["tutorial_complete"], bool):
         raise SaveStateValidationError(
             "party.tutorial_complete must be a boolean"
@@ -711,6 +805,7 @@ def _add_legacy_party_state(document):
         "floor_one_cleared": False,
         "floor_one_runs_started_after_clear": 0,
         "outing_xp_multiplier_percent": 100,
+        "crafting_experience": 0,
     }
 
 
@@ -724,7 +819,7 @@ def _strip_companion_combat(party):
                 companion.pop("combat", None)
 
 
-def _validate_player(player):
+def _validate_player(player, *, require_signature_weapon=True):
     _require_mapping(player, "player")
     allowed_keys = {
         "identity",
@@ -736,6 +831,8 @@ def _validate_player(player):
         "run_state",
         "equipment",
     }
+    if require_signature_weapon:
+        allowed_keys.add("signature_weapon")
     _require_exact_keys(
         {key for key in player if key != "combat"},
         allowed_keys,
@@ -771,6 +868,77 @@ def _validate_player(player):
     for slot, item in equipment.items():
         if item is not None:
             _validate_weapon(item, f"player.equipment.{slot}")
+    if require_signature_weapon:
+        _validate_signature_weapon(player["signature_weapon"], equipment)
+
+
+def _validate_signature_weapon(snapshot, equipment):
+    _require_mapping(snapshot, "player.signature_weapon")
+    _require_exact_keys(
+        snapshot,
+        {
+            "weapon_id",
+            "components",
+            "slot_progress",
+            "learned_technique_ids",
+        },
+        "player.signature_weapon",
+    )
+    weapon_id = snapshot["weapon_id"]
+    if not isinstance(weapon_id, str) or not weapon_id:
+        raise SaveStateValidationError(
+            "player.signature_weapon.weapon_id must be a non-empty string"
+        )
+    weapon_snapshot = equipment["weapon"]
+    if weapon_snapshot is None:
+        raise SaveStateValidationError("signature weapon is not equipped")
+    try:
+        weapon = create_weapon_from_persistence_key(weapon_snapshot["type"])
+        progression = get_weapon_spec(weapon.item_id).progression
+    except (KeyError, TypeError, ValueError) as error:
+        raise SaveStateValidationError("signature weapon is invalid") from error
+    if weapon_id != weapon.item_id:
+        raise SaveStateValidationError(
+            "signature weapon ID does not match equipped weapon"
+        )
+    if progression is None:
+        raise SaveStateValidationError("signature weapon progression is missing")
+    components = snapshot["components"]
+    _require_mapping(components, "player.signature_weapon.components")
+    expected_slots = {slot.slot_id for slot in progression.slots}
+    _require_exact_keys(
+        components,
+        expected_slots,
+        "player.signature_weapon.components",
+    )
+    for slot_id, component_id in components.items():
+        if not isinstance(component_id, str) or not component_id:
+            raise SaveStateValidationError(
+                f"player.signature_weapon.components.{slot_id} must be a non-empty string"
+            )
+    slots = snapshot["slot_progress"]
+    _require_mapping(slots, "player.signature_weapon.slot_progress")
+    _require_exact_keys(
+        slots,
+        expected_slots,
+        "player.signature_weapon.slot_progress",
+    )
+    for slot_id, value in slots.items():
+        _require_int_range(
+            value,
+            0,
+            100,
+            f"player.signature_weapon.slot_progress.{slot_id}",
+        )
+    techniques = snapshot["learned_technique_ids"]
+    if not isinstance(techniques, list):
+        raise SaveStateValidationError(
+            "player.signature_weapon.learned_technique_ids must be a list"
+        )
+    if any(not isinstance(technique_id, str) or not technique_id for technique_id in techniques):
+        raise SaveStateValidationError("learned technique IDs must be non-empty strings")
+    if len(techniques) != len(set(techniques)):
+        raise SaveStateValidationError("learned technique IDs must be unique")
 
 
 def _validate_stats(attributes):

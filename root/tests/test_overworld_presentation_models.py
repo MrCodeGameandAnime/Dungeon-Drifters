@@ -106,6 +106,7 @@ def test_all_approved_screen_values_are_typed():
         "skills",
         "weapon",
         "equipment",
+        "merchant",
         "items",
         "item_inspect",
         "map",

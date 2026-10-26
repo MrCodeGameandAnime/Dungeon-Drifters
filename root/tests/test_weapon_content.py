@@ -115,6 +115,64 @@ def test_all_signature_weapon_specs_match_the_independent_authored_contract():
 
 
 @pytest.mark.parametrize(
+    "item_id,expected_slots",
+    (
+        (
+            "sunder_spire",
+            (
+                ("blade_guard", "Blade / Guard assembly", "metal", "sunder_spire_blade"),
+                ("grip_binding", "Grip wrap / binding", "fiber", "sunder_spire_grip"),
+                ("hilt_handle", "Hilt core / handle", "timber", "sunder_spire_hilt"),
+                ("crest_core", "Crest / Core", "cores", "sunder_spire_crest"),
+            ),
+        ),
+        (
+            "sathren",
+            (
+                ("grip_mechanism", "Grip / fittings / mechanism", "metal", "sathren_grip"),
+                ("string", "String", "fiber", "sathren_string"),
+                ("limbs", "Limbs", "timber", "sathren_limbs"),
+                ("reservoir_catalyst", "Reservoir / Catalyst", "cores", "sathren_reservoir"),
+            ),
+        ),
+        (
+            "sky_needle",
+            (
+                ("striking_head", "Head / Striking Cap", "metal", "sky_needle_head"),
+                ("binding_grip", "Binding / Grip", "fiber", "sky_needle_binding"),
+                ("shaft", "Shaft", "timber", "sky_needle_shaft"),
+                ("focus_collar", "Focus / Collar", "cores", "sky_needle_focus"),
+            ),
+        ),
+        (
+            "needle_of_plain_iron",
+            (
+                ("focus_fittings", "Focus head / fittings", "metal", "needle_focus"),
+                ("binding", "Binding", "fiber", "needle_binding"),
+                ("haft", "Haft", "timber", "needle_haft"),
+                ("seal_catalyst", "Seal / Catalyst", "cores", "needle_seal"),
+            ),
+        ),
+    ),
+)
+def test_signature_weapon_progression_has_the_four_authored_slots(
+    item_id,
+    expected_slots,
+):
+    progression = get_weapon_spec(item_id).progression
+
+    assert tuple(
+        (
+            slot.slot_id,
+            slot.label,
+            slot.material_family,
+            slot.starting_component_id,
+        )
+        for slot in progression.slots
+    ) == expected_slots
+
+
+@pytest.mark.parametrize(
     "expected",
     EXPECTED_WEAPONS,
     ids=lambda expected: expected["item_id"],

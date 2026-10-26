@@ -197,7 +197,7 @@ def _walk_values(value):
 
 
 @pytest.mark.parametrize("profile_choice", ("1", "2", "3", "4"))
-def test_schema9_snapshot_contains_persistent_state_and_no_runtime_objects(
+def test_schema10_snapshot_contains_persistent_state_and_no_runtime_objects(
     profile_choice,
 ):
     game = _populated_game(profile_choice)
@@ -205,7 +205,7 @@ def test_schema9_snapshot_contains_persistent_state_and_no_runtime_objects(
 
     validate_plain_value(snapshot)
     json.dumps(snapshot, allow_nan=False)
-    assert snapshot["schema_version"] == 9
+    assert snapshot["schema_version"] == 10
     assert set(snapshot) == {
         "schema_version",
         "player",

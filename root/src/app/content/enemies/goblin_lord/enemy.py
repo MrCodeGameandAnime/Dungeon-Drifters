@@ -85,6 +85,7 @@ ENEMY = EnemySpec(
             description="The Goblin Lord combines raw physical force with unstable sorcery in one devastating assault.",
         ),
     ),
+    item_drops=(("goblin_scrap", 2), ("goblin_lord_core", 1)),
 )
 
 

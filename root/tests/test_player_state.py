@@ -71,6 +71,49 @@ def test_player_states_do_not_share_inventory_or_equipment():
     assert first_player.equipment["weapon"] is not second_player.equipment["weapon"]
 
 
+def test_signature_weapon_progress_is_initialized_and_owned_per_drifter():
+    first = PlayerState(create_drifter("branoc"))
+    second = PlayerState(create_drifter("branoc"))
+
+    assert first.signature_weapon_state.weapon_id == "sunder_spire"
+    assert first.signature_weapon_state.slot_progress == {
+        "blade_guard": 0,
+        "grip_binding": 0,
+        "hilt_handle": 0,
+        "crest_core": 0,
+    }
+    assert first.signature_weapon_state.components == {
+        "blade_guard": "sunder_spire_blade",
+        "grip_binding": "sunder_spire_grip",
+        "hilt_handle": "sunder_spire_hilt",
+        "crest_core": "sunder_spire_crest",
+    }
+    first.signature_weapon_state.set_slot_progress("blade_guard", 12)
+    assert second.signature_weapon_state.slot_progress["blade_guard"] == 0
+
+
+def test_signature_weapon_progress_is_included_in_player_snapshot():
+    player = PlayerState(create_drifter("joruun"))
+    player.signature_weapon_state.set_slot_progress("shaft", 25)
+
+    assert player.snapshot()["signature_weapon"] == {
+        "weapon_id": "sky_needle",
+        "slot_progress": {
+            "striking_head": 0,
+            "binding_grip": 0,
+            "shaft": 25,
+            "focus_collar": 0,
+        },
+        "learned_technique_ids": [],
+        "components": {
+            "striking_head": "sky_needle_head",
+            "binding_grip": "sky_needle_binding",
+            "shaft": "sky_needle_shaft",
+            "focus_collar": "sky_needle_focus",
+        },
+    }
+
+
 def test_invalid_character_raises_type_error():
     with pytest.raises(TypeError):
         PlayerState(object())

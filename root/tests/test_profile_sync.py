@@ -48,11 +48,13 @@ def _save_local(store, gold=0):
 def _legacy_schema9_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 9
+    payload["player"].pop("signature_weapon")
     payload["overworld"].pop("active_route_id")
     for field in (
         "floor_one_cleared",
         "floor_one_runs_started_after_clear",
         "outing_xp_multiplier_percent",
+        "crafting_experience",
     ):
         payload["party"].pop(field)
     return payload
@@ -75,7 +77,7 @@ def test_local_only_sync_never_contacts_the_remote_service(tmp_path):
     assert server.profiles == {}
 
 
-def test_schema8_remote_head_advances_to_schema10_without_rewriting_history(tmp_path):
+def test_schema8_remote_head_advances_to_schema11_without_rewriting_history(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles")
     server = MemoryRemoteProfileServer()
     old_payload = make_legacy_schema8_payload(gold=14)
@@ -115,15 +117,15 @@ def test_schema8_remote_head_advances_to_schema10_without_rewriting_history(tmp_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 10
+    assert local_pending.payload["schema_version"] == 11
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 10
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 11
 
 
-def test_schema9_cloud_head_advances_to_schema10_without_rewriting_history(
+def test_schema9_cloud_head_advances_to_schema11_without_rewriting_history(
     tmp_path,
 ):
     store = LocalProfileStore(tmp_path / "profiles")
@@ -165,12 +167,12 @@ def test_schema9_cloud_head_advances_to_schema10_without_rewriting_history(
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 10
+    assert local_pending.payload["schema_version"] == 11
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 10
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 11
 
 
 def test_offline_guest_claim_retries_without_changing_profile_identity(tmp_path):

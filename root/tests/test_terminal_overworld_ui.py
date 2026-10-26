@@ -10,6 +10,9 @@ from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -128,6 +131,39 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
     assert contextual_index < controls_index
     assert not any("[1/" in line for line in lines)
     assert lines[-1].startswith("+")
+
+
+def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    game.party_state.add_shared_items({"goblin_scrap": 2, "grade_i_metal": 1})
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    text = "\n".join(rendered(view))
+
+    assert "Crafting Level 1" in text
+    assert "Ser Branoc" in text
+    assert "Sunder-Spire" in text
+    assert "Blade / Guard" in text
+    assert "Grade I Metal" in text
+    assert "Goblin Scrap x2" in text
+
+
+def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    game.party_state.add_shared_items({"goblin_scrap": 1, "grade_i_metal": 1})
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    target, _ = read(view, ["t1"])
+    improve, _ = read(view, ["i1"])
+    dismantle, _ = read(view, ["d1"])
+
+    assert target == ChooseMerchantTarget("branoc")
+    assert improve == ChooseMerchantImprove("branoc", "blade_guard")
+    assert dismantle == ChooseMerchantDismantle("branoc", "goblin_scrap")
 
 
 def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():

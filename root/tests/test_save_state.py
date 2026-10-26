@@ -11,6 +11,8 @@ from app.persistence.save_document import (
     build_save_document,
     migrate_schema_7,
     reconstruct_game_state,
+    validate_profile_payload,
+    validate_save_document,
 )
 from app.content.catalog import create_weapon, get_route_node_spec, get_route_spec
 from app.player.character_run_state import (
@@ -121,7 +123,7 @@ def _game_at_floor_one_rest(rest_index=0):
     return game
 
 
-def test_schema10_document_has_only_persistent_state_and_schema9_stays_runtime_only():
+def test_schema11_document_has_only_persistent_state_and_schema10_stays_runtime_only():
     game = _create_populated_game("1")
 
     document = build_save_document(game)
@@ -142,13 +144,13 @@ def test_schema10_document_has_only_persistent_state_and_schema9_stays_runtime_o
     assert "combat" in game.snapshot()["player"]
 
 
-def test_new_saves_use_runtime_schema9_and_disk_schema10():
+def test_new_saves_use_runtime_schema10_and_disk_schema11():
     game = GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
 
     document = build_save_document(game)
 
-    assert STATE_SCHEMA_VERSION == 9
-    assert DISK_SCHEMA_VERSION == document["schema_version"] == 10
+    assert STATE_SCHEMA_VERSION == 10
+    assert DISK_SCHEMA_VERSION == document["schema_version"] == 11
     assert document["overworld"]["active_route_id"] == "surface"
     assert document["party"]["floor_one_cleared"] is False
     assert document["party"]["floor_one_runs_started_after_clear"] == 0
@@ -156,7 +158,7 @@ def test_new_saves_use_runtime_schema9_and_disk_schema10():
 
 
 @pytest.mark.parametrize("rest_index", (0, 1))
-def test_schema10_floor_one_rest_checkpoint_round_trips(rest_index):
+def test_schema11_floor_one_rest_checkpoint_round_trips(rest_index):
     game = _game_at_floor_one_rest(rest_index)
 
     document = build_save_document(game)
@@ -166,7 +168,7 @@ def test_schema10_floor_one_rest_checkpoint_round_trips(rest_index):
     rest_node = tuple(
         node for node in route.nodes if node.kind.value == "rest"
     )[rest_index]
-    assert document["schema_version"] == 10
+    assert document["schema_version"] == 11
     assert document["overworld"]["active_route_id"] == "floor_one"
     assert document["overworld"]["current_route_node_id"] == rest_node.node_id
     assert document["party"]["phase"] == "outing"
@@ -182,11 +184,13 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     game = _create_populated_game("1")
     old_payload = copy.deepcopy(build_save_document(game))
     old_payload["schema_version"] = 9
+    old_payload["player"].pop("signature_weapon")
     old_payload["overworld"].pop("active_route_id", None)
     for field in (
         "floor_one_cleared",
         "floor_one_runs_started_after_clear",
         "outing_xp_multiplier_percent",
+        "crafting_experience",
     ):
         old_payload["party"].pop(field, None)
     original = copy.deepcopy(old_payload)
@@ -195,11 +199,30 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     upgraded = build_save_document(restored)
 
     assert old_payload == original
-    assert upgraded["schema_version"] == 10
+    assert upgraded["schema_version"] == 11
     assert upgraded["overworld"]["active_route_id"] == "surface"
     assert upgraded["party"]["floor_one_cleared"] is False
     assert upgraded["party"]["floor_one_runs_started_after_clear"] == 0
     assert upgraded["party"]["outing_xp_multiplier_percent"] == 100
+
+
+def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema11():
+    historical = copy.deepcopy(
+        build_save_document(
+            GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
+        )
+    )
+    historical["schema_version"] = 10
+    historical["player"].pop("signature_weapon")
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    upgraded = validate_save_document(historical)
+
+    assert historical == original
+    assert upgraded["schema_version"] == 11
+    assert upgraded["player"]["signature_weapon"]["weapon_id"] == "sunder_spire"
+    assert set(upgraded["player"]["signature_weapon"]["slot_progress"].values()) == {0}
 
 
 def test_floor_one_save_is_rejected_away_from_an_unresolved_rest():
@@ -299,6 +322,7 @@ def test_schema7_migration_preserves_state_and_ignores_combat_payload():
     schema7 = copy.deepcopy(game.snapshot())
     schema7["schema_version"] = 7
     schema7.pop("party", None)
+    schema7["player"].pop("signature_weapon")
     schema7["player"]["combat"]["moves"][0]["name"] = "forged move"
     schema7["overworld"]["current_route_node_id"] = "surface_goblin_pair"
 
@@ -317,6 +341,7 @@ def test_schema7_migration_defaults_missing_overworld_fields_without_disk_io():
     schema7 = copy.deepcopy(game.snapshot())
     schema7["schema_version"] = 7
     schema7.pop("party", None)
+    schema7["player"].pop("signature_weapon")
     del schema7["overworld"]
 
     migrated = migrate_schema_7(schema7)
@@ -334,6 +359,7 @@ def _old_schema8_document(game, *, at_dungeon_entrance=False):
     document.pop("party", None)
     document["overworld"].pop("active_route_id", None)
     document["player"].pop("combat")
+    document["player"].pop("signature_weapon")
     if at_dungeon_entrance:
         route = get_route_spec("surface")
         entrance = route.nodes[-1]
@@ -364,7 +390,7 @@ def test_old_schema8_disk_save_before_entrance_preserves_lead_gold():
     restored = reconstruct_game_state(document)
     upgraded = build_save_document(restored)
 
-    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 10
+    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 11
     assert restored.player_state.gold == 17
     assert restored.party_state.shared_gold == 0
     assert restored.party_state.phase is DungeonPhase.OUTSIDE
@@ -395,6 +421,7 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
         "floor_one_cleared",
         "floor_one_runs_started_after_clear",
         "outing_xp_multiplier_percent",
+        "crafting_experience",
     ):
         document["party"].pop(field)
     document["player"]["gold"] = 0
@@ -406,7 +433,7 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
     assert restored.party_state.phase is DungeonPhase.HUB
 
 
-def test_party_state_and_companion_round_trip_in_schema10_document():
+def test_party_state_and_companion_round_trip_in_schema11_document():
     game = _create_populated_game("1")
     _move_game_to_dungeon_entrance(game)
     game.player_state.add_gold(58)
@@ -421,7 +448,7 @@ def test_party_state_and_companion_round_trip_in_schema10_document():
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == 10
+    assert document["schema_version"] == 11
     assert document["party"]["shared_gold"] == 17
     assert "combat" not in document["player"]
     assert all("combat" not in member for member in document["party"]["companions"])
@@ -511,7 +538,7 @@ def test_invalid_party_documents_are_rejected(mutator):
     "mutator",
     (
         lambda document: document.update(schema_version=6),
-        lambda document: document.update(schema_version=11),
+            lambda document: document.update(schema_version=12),
         lambda document: document["player"]["progression"].update(exp=True),
         lambda document: document["player"]["resources"]["health"].update(current=9999),
         lambda document: document["player"]["equipment"].update(

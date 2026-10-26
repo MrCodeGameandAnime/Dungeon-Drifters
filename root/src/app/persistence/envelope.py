@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 from app.persistence.save_document import (
     validate_legacy_schema8_document,
     validate_legacy_schema9_document,
+    validate_legacy_schema10_document,
     validate_save_document,
 )
 from app.snapshot import validate_plain_value
@@ -351,13 +352,15 @@ def parse_conflict_snapshot(encoded):
 def _validated_profile_payload(payload):
     if not isinstance(payload, dict) or type(payload.get("schema_version")) is not int:
         raise ProfileEnvelopeValidationError(
-            "payload must be a schema-8, schema-9, or schema-10 object"
+            "payload must be a schema-8, schema-9, schema-10, or schema-11 object"
         )
     try:
         if payload["schema_version"] == 8 and "party" not in payload:
             return validate_legacy_schema8_document(payload)
         if payload["schema_version"] == 9:
             return validate_legacy_schema9_document(payload)
+        if payload["schema_version"] == 10:
+            return validate_legacy_schema10_document(payload)
         normalized = validate_save_document(payload)
     except (TypeError, ValueError) as error:
         raise ProfileEnvelopeValidationError("payload is not a valid game-state document") from error

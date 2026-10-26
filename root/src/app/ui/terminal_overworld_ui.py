@@ -14,6 +14,9 @@ from app.presentation.overworld_models import (
 )
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -30,6 +33,7 @@ class TerminalOverworldUI:
         OverworldAction.SKILLS: "S",
         OverworldAction.WEAPON: "W",
         OverworldAction.EQUIPMENT: "E",
+        OverworldAction.MERCHANT: "T",
         OverworldAction.CRAFT: "C",
         OverworldAction.INSPECT: "I",
         OverworldAction.USE: "U",
@@ -104,6 +108,34 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
+            merchant = view.merchant
+            if choice.startswith("t") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.targets):
+                    return ChooseMerchantTarget(
+                        merchant.targets[index].drifter_id
+                    )
+            if choice.startswith("i") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.slots):
+                    slot = merchant.slots[index]
+                    if slot.can_improve:
+                        return ChooseMerchantImprove(
+                            merchant.selected_target_id,
+                            slot.slot_id,
+                        )
+                    self._output(self._merchant_blocked_message(slot.blocked_reason))
+                    return self._REJECTED
+            if choice.startswith("d") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.dismantle_items):
+                    item = merchant.dismantle_items[index]
+                    return ChooseMerchantDismantle(
+                        merchant.selected_target_id,
+                        item.item_id,
+                    )
+
         if view.screen is OverworldScreen.ITEMS and view.inventory is not None:
             for number, item in enumerate(view.inventory.items, start=1):
                 if choice == str(number):
@@ -252,6 +284,8 @@ class TerminalOverworldUI:
             lines = list(self._skills_lines(view, width))
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
+        elif view.screen is OverworldScreen.MERCHANT:
+            lines = list(self._merchant_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT:
             lines = list(self._equipment_lines(view))
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
@@ -359,6 +393,55 @@ class TerminalOverworldUI:
         lines.extend(("", "DESCRIPTION"))
         lines.extend(self._wrapped(weapon.description, width))
         return tuple(lines)
+
+    @staticmethod
+    def _merchant_lines(view):
+        merchant = view.merchant
+        lines = [
+            f"Crafting Level {merchant.crafting_level} | "
+            f"Crafting XP {merchant.crafting_experience}",
+            "",
+            "CHOOSE DRIFTER",
+        ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(merchant.targets, start=1)
+        )
+        lines.extend(("", merchant.weapon_name, "WEAPON SLOTS"))
+        for index, slot in enumerate(merchant.slots, start=1):
+            availability = (
+                f"Grade material: {slot.material_quantity}/{slot.material_cost}"
+                if slot.can_improve
+                else TerminalOverworldUI._merchant_blocked_message(
+                    slot.blocked_reason
+                )
+            )
+            lines.append(
+                f"I{index}. {slot.label} {slot.progress}/100 | "
+                f"{slot.material_name} x{slot.material_cost} | {availability}"
+            )
+        lines.extend(("", "SHARED MATERIALS"))
+        lines.extend(
+            f"{material.display_name}: {material.quantity}"
+            for material in merchant.materials
+        )
+        lines.extend(("", "DISMANTLE"))
+        if merchant.dismantle_items:
+            lines.extend(
+                f"D{index}. {item.display_name} x{item.quantity}"
+                for index, item in enumerate(merchant.dismantle_items, start=1)
+            )
+        else:
+            lines.append("No dismantlable items.")
+        return tuple(lines)
+
+    @staticmethod
+    def _merchant_blocked_message(reason):
+        return {
+            "tier_locked": "Tier gate locked",
+            "insufficient_materials": "Not enough material",
+            "maximum_progress": "Maximum progress",
+        }.get(reason, "Unavailable")
 
     @staticmethod
     def _equipment_lines(view):
@@ -548,6 +631,7 @@ class TerminalOverworldUI:
             OverworldScreen.SKILLS: "SKILLS",
             OverworldScreen.WEAPON: "WEAPON",
             OverworldScreen.EQUIPMENT: "EQUIPMENT",
+            OverworldScreen.MERCHANT: "MERCHANT",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
             OverworldScreen.MAP: "MAP",

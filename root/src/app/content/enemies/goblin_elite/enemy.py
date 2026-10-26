@@ -70,6 +70,7 @@ ENEMY = EnemySpec(
             description="A brutal descending strike that sacrifices accuracy for overwhelming force.",
         ),
     ),
+    item_drops=(("goblin_scrap", 1),),
 )
 
 

@@ -5,6 +5,7 @@ from typing import TypeAlias, Union
 
 from app.content.catalog import (
     get_encounter_spec,
+    get_encounter_item_rewards,
     get_encounter_rewards,
     get_drifter_spec,
     get_route_node_spec,
@@ -12,6 +13,7 @@ from app.content.catalog import (
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
+from app.game.weapon_progression import WeaponProgressionService
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.persistence.save_port_contract import (
@@ -31,6 +33,9 @@ from app.presentation.battle_models import BattleView, InteractionPhase
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -120,6 +125,7 @@ class OverworldSession:
         self._save_port = save_port
         self._screen = self._initial_screen(game_state)
         self._selected_item_key = None
+        self._selected_merchant_target_id = None
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
@@ -176,6 +182,12 @@ class OverworldSession:
             return self._build_view()
         if isinstance(session_input, ChooseCompanion):
             self._select_companion(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseMerchantTarget):
+            self._select_merchant_target(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, (ChooseMerchantImprove, ChooseMerchantDismantle)):
+            self._perform_merchant_action(view, session_input)
             return self._build_view()
         if not isinstance(session_input, ChooseOverworldAction):
             self._notice = "That option is not available."
@@ -323,6 +335,7 @@ class OverworldSession:
             self.game_state,
             screen=self._screen,
             selected_item_key=self._selected_item_key,
+            selected_merchant_target_id=self._selected_merchant_target_id,
             adventure_text=self._adventure_text,
             notice=self._notice,
             save_available=self._save_available(),
@@ -416,6 +429,85 @@ class OverworldSession:
         )
         self._notice = None
 
+    def _select_merchant_target(self, view, session_input):
+        merchant = view.merchant
+        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
+            self._notice = "That Drifter is not available."
+            return
+        if not any(
+            target.drifter_id == session_input.drifter_id
+            for target in merchant.targets
+        ):
+            self._notice = "That Drifter is not available."
+            return
+        self._selected_merchant_target_id = session_input.drifter_id
+        self._notice = None
+
+    def _perform_merchant_action(self, view, session_input):
+        merchant = view.merchant
+        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
+            self._notice = "That merchant action is not available."
+            return
+        target_id = session_input.target_drifter_id
+        if target_id != merchant.selected_target_id or not any(
+            target.drifter_id == target_id for target in merchant.targets
+        ):
+            self._notice = "Choose that Drifter before using the merchant."
+            return
+
+        service = WeaponProgressionService(self.game_state)
+        if isinstance(session_input, ChooseMerchantImprove):
+            slot = first_or_none(
+                candidate
+                for candidate in merchant.slots
+                if candidate.slot_id == session_input.slot_id
+            )
+            if slot is None or not slot.can_improve:
+                self._notice = "That weapon improvement is not available."
+                return
+            result = service.improve_slot(
+                target_drifter_id=target_id,
+                slot_id=slot.slot_id,
+            )
+            if result.success:
+                self._notice = (
+                    f"{slot.label} improved to {result.slot_progress}/100. "
+                    f"Crafting Level {result.crafting_level}."
+                )
+            else:
+                self._notice = self._merchant_failure_message(result.reason)
+            return
+
+        dismantle = first_or_none(
+            candidate
+            for candidate in merchant.dismantle_items
+            if candidate.item_id == session_input.item_id
+        )
+        if dismantle is None or session_input.quantity > dismantle.quantity:
+            self._notice = "That dismantling action is not available."
+            return
+        result = service.dismantle(
+            target_drifter_id=target_id,
+            item_id=dismantle.item_id,
+            quantity=session_input.quantity,
+        )
+        if result.success:
+            outputs = ", ".join(
+                f"{quantity} {item_id.replace('_', ' ')}"
+                for item_id, quantity in sorted(result.materials.items())
+            )
+            self._notice = f"Dismantled {dismantle.display_name}: {outputs}."
+        else:
+            self._notice = "That item is no longer available to dismantle."
+
+    @staticmethod
+    def _merchant_failure_message(reason):
+        return {
+            "tier_locked": "All weapon slots and Crafting must reach the current tier gate first.",
+            "insufficient_materials": "You do not have enough of the required material.",
+            "maximum_progress": "That weapon slot is fully improved.",
+        }.get(reason, "That weapon improvement is not available.")
+
     def _increase_permanent_stat(self, view, overworld_input):
         if view.screen is not OverworldScreen.SKILLS or view.skills is None:
             self._notice = "That stat is not available."
@@ -506,6 +598,7 @@ class OverworldSession:
             OverworldAction.SKILLS: OverworldScreen.SKILLS,
             OverworldAction.WEAPON: OverworldScreen.WEAPON,
             OverworldAction.EQUIPMENT: OverworldScreen.EQUIPMENT,
+            OverworldAction.MERCHANT: OverworldScreen.MERCHANT,
         }
         if action in navigation:
             if (
@@ -759,6 +852,9 @@ class OverworldSession:
             OverworldScreen.EQUIPMENT,
         }:
             self._screen = OverworldScreen.CHARACTER
+            return
+        if self._screen is OverworldScreen.MERCHANT:
+            self._screen = OverworldScreen.HUB
             return
         if self._screen is OverworldScreen.ITEM_INSPECT:
             self._screen = OverworldScreen.ITEMS
@@ -1036,6 +1132,7 @@ class OverworldSession:
                 party_state.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,
+                    items=dict(get_encounter_item_rewards(current_node.encounter_id)),
                 )
                 if not party_state.complete_floor_one_boss(party_members):
                     raise RuntimeError("Floor 1 boss rewards could not be secured")
@@ -1050,6 +1147,7 @@ class OverworldSession:
                 party_state.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,
+                    items=dict(get_encounter_item_rewards(current_node.encounter_id)),
                 )
                 next_node_id = get_route_successor_id(current_node_id)
                 if next_node_id is None:

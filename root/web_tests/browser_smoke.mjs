@@ -332,6 +332,7 @@ const hubProjection = {
   location_label: "Floor 1 Hub",
   adventure_text: "You have reached the Floor 1 Hub. Recruit one companion to continue.",
   options: [
+    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
     { action: "recruit_companion", label: "Recruit Companion", enabled: true, disabled_reason: null },
     { action: "character", label: "Character", enabled: true, disabled_reason: null },
     { action: "items", label: "Items", enabled: true, disabled_reason: null },
@@ -365,7 +366,6 @@ const partyReadyProjection = {
   options: [
     { action: "ready", label: "Ready / Set Out", enabled: true, disabled_reason: null },
     { action: "back", label: "Back", enabled: true, disabled_reason: null },
-    ...hubProjection.options.slice(1),
   ],
 };
 
@@ -406,9 +406,84 @@ const securedHubProjection = {
   adventure_text: "You return to the Floor 1 Hub. The tutorial rewards are secured.",
   shared_gold: 19,
   options: [
-    ...hubProjection.options.slice(1),
+    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
+    ...hubProjection.options.slice(2),
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
   ],
+};
+
+const merchantProjection = {
+  ...securedHubProjection,
+  screen: "merchant",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  merchant: {
+    crafting_level: 1,
+    crafting_experience: 12,
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+    weapon_name: "Sunder-Spire",
+    slots: [
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Grade I Metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Grade I Fiber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", material_family: "timber", progress: 0, material_id: "grade_i_timber", material_name: "Grade I Timber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "crest_core", label: "Crest / Core", material_family: "cores", progress: 0, material_id: "grade_i_cores", material_name: "Grade I Cores", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+    ],
+    materials: [
+      { item_id: "grade_i_metal", display_name: "Grade I Metal", quantity: 3 },
+      { item_id: "grade_i_fiber", display_name: "Grade I Fiber", quantity: 0 },
+      { item_id: "grade_i_timber", display_name: "Grade I Timber", quantity: 0 },
+      { item_id: "grade_i_cores", display_name: "Grade I Cores", quantity: 0 },
+    ],
+    dismantle_items: [
+      { item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3, output_material_names: ["Grade I Metal", "Grade I Fiber", "Grade I Timber"], maximum_yield: 2 },
+    ],
+  },
+};
+
+const merchantAzhvielleProjection = {
+  ...merchantProjection,
+  merchant: {
+    ...merchantProjection.merchant,
+    selected_target_id: "azhvielle",
+    weapon_name: "Needle of Plain Iron",
+    targets: merchantProjection.merchant.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    slots: [
+      { slot_id: "focus_fittings", label: "Focus head / fittings", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Grade I Metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "binding", label: "Binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Grade I Fiber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      ...merchantProjection.merchant.slots.slice(2),
+    ],
+  },
+};
+
+const merchantImprovedProjection = {
+  ...merchantAzhvielleProjection,
+  merchant: {
+    ...merchantAzhvielleProjection.merchant,
+    crafting_experience: 20,
+    slots: merchantAzhvielleProjection.merchant.slots.map((slot, index) => index === 0
+      ? { ...slot, progress: 3, material_quantity: 2 }
+      : slot),
+    materials: merchantProjection.merchant.materials.map((material, index) => index === 0
+      ? { ...material, quantity: 2 }
+      : material),
+  },
+};
+
+const merchantDismantledProjection = {
+  ...merchantImprovedProjection,
+  merchant: {
+    ...merchantImprovedProjection.merchant,
+    materials: merchantImprovedProjection.merchant.materials.map((material, index) => index === 1
+      ? { ...material, quantity: 1 }
+      : material),
+    dismantle_items: [{ ...merchantProjection.merchant.dismantle_items[0], quantity: 2 }],
+  },
 };
 
 const floorOneWarningProjection = {
@@ -1223,6 +1298,23 @@ try {
             const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
             window.__fixtureCommands.push(command);
             if (window.__fixtureHubMode) {
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "merchant") {
+                window.__fixtureHubPhase = "merchant";
+                return JSON.stringify(views.merchant);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_target" && command.drifter_id === "azhvielle") {
+                return JSON.stringify(views.merchantAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_improve") {
+                return JSON.stringify(views.merchantImproved);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_dismantle") {
+                return JSON.stringify(views.merchantDismantled);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
               if (["securedHub", "floorOneClearedHub"].includes(window.__fixtureHubPhase) && command.action === "start_floor_one") {
                 window.__fixtureHubPhase = "floorOneWarning";
                 return JSON.stringify(views.floorOneWarning);
@@ -1309,6 +1401,10 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    merchant: merchantProjection,
+    merchantAzhvielle: merchantAzhvielleProjection,
+    merchantImproved: merchantImprovedProjection,
+    merchantDismantled: merchantDismantledProjection,
     floorOneWarning: floorOneWarningProjection,
     floorOneMain: floorOneMainProjection,
     floorOneBattle: floorOneBattleProjection,
@@ -1498,7 +1594,7 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 5 &&
+      await targetPage.locator("#overworld-options button").count() === 6 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
     "returned Hub did not show secured currency or offer Floor 1",
@@ -1515,6 +1611,49 @@ try {
     `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
   );
   console.log("PYD7|BROWSER|HUB_OUTING|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Merchant");
+  await targetPage.locator("#merchant-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#merchant-weapon-name").innerText()) === "Sunder-Spire" &&
+      await targetPage.locator("#merchant-targets button").count() === 2 &&
+      await targetPage.locator("#merchant-slots .merchant-row").count() === 4 &&
+      await targetPage.locator("#merchant-slots button:enabled").count() === 1 &&
+      (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x3"),
+    "Hub Merchant omitted the selected weapon, four slots, authoritative availability, or dismantle offer",
+  );
+  await clickVisibleOption(targetPage, "#merchant-targets", "Azhvielle");
+  requireCondition(
+    (await targetPage.locator("#merchant-weapon-name").innerText()) === "Needle of Plain Iron" &&
+      (await targetPage.locator("#merchant-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
+    "Merchant target selection did not switch to the chosen companion's weapon",
+  );
+  await clickVisibleOption(targetPage, "#merchant-slots", "Improve");
+  requireCondition(
+    (await targetPage.locator("#merchant-slots .merchant-row").first().innerText()).includes("3/100") &&
+      (await targetPage.locator("#merchant-crafting").innerText()).includes("20 XP"),
+    "Merchant improvement did not render the authoritative slot and Crafting updates",
+  );
+  await clickVisibleOption(targetPage, "#merchant-dismantle", "Dismantle");
+  requireCondition(
+    (await targetPage.locator("#merchant-materials").innerText()).includes("Grade I Fiber: 1") &&
+      (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x2"),
+    "Merchant dismantling did not render the authoritative materials and remaining loot",
+  );
+  await clickVisibleOption(targetPage, "#merchant-options", "Back");
+  await targetPage.locator("#merchant-panel").waitFor({ state: "hidden" });
+  const merchantCommands = await targetPage.evaluate(() => window.__fixtureCommands.slice(5));
+  requireCondition(
+    JSON.stringify(merchantCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "merchant" },
+      { kind: "merchant_target", drifter_id: "azhvielle" },
+      { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
+      { kind: "merchant_dismantle", target_drifter_id: "azhvielle", item_id: "goblin_scrap" },
+      { kind: "overworld_action", action: "back" },
+    ]),
+    `Hub Merchant did not submit the exact selected Drifter and offered actions: ${JSON.stringify(merchantCommands)}`,
+  );
+  console.log("PYD8|BROWSER|HUB_MERCHANT|PASS");
 
   await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
   await targetPage.locator("#screen-badge").filter({ hasText: "FLOOR_ONE_WARNING" }).waitFor({ state: "visible" });

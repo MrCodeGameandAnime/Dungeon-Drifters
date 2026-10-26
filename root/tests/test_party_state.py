@@ -26,6 +26,49 @@ def test_hub_entry_transfers_route_gold_once():
     assert lead.gold == 0
 
 
+def test_crafting_progress_is_shared_and_levels_up_from_authored_points():
+    party = PartyState()
+
+    assert party.crafting_level == 1
+    assert party.crafting_experience == 0
+    assert party.add_crafting_experience(20) == 2
+    assert party.crafting_level == 3
+    assert party.snapshot()["crafting_experience"] == 20
+
+
+def test_crafting_progress_survives_party_snapshot_round_trip():
+    party = PartyState()
+    party.add_crafting_experience(245)
+
+    restored = PartyState.from_snapshot(party.snapshot(), companions=())
+
+    assert restored.crafting_experience == 245
+    assert restored.crafting_level == 25
+
+
+def test_shared_material_spending_is_atomic_and_removes_empty_stacks():
+    party = PartyState()
+    party.add_shared_items({"grade_i_metal": 2, "grade_i_fiber": 1})
+
+    assert party.spend_shared_items({"grade_i_metal": 1}) is True
+    assert party.shared_items == {"grade_i_metal": 1, "grade_i_fiber": 1}
+    before = party.shared_items
+
+    assert party.spend_shared_items({"grade_i_metal": 2}) is False
+    assert party.shared_items == before
+    assert party.spend_shared_items({"grade_i_fiber": 1}) is True
+    assert party.shared_items == {"grade_i_metal": 1}
+
+
+@pytest.mark.parametrize("invalid", (-1, 991, True, "10"))
+def test_party_snapshot_rejects_invalid_crafting_experience(invalid):
+    snapshot = PartyState().snapshot()
+    snapshot["crafting_experience"] = invalid
+
+    with pytest.raises((TypeError, ValueError)):
+        PartyState.from_snapshot(snapshot, companions=())
+
+
 def test_recruiting_companion_spends_65_shared_gold_once():
     lead = _player("branoc", gold=75)
     companion = _player("azhvielle")

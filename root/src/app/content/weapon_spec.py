@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.items.weapon import Weapon
 from app.readonly_mapping import readonly_mapping
+from app.content.weapon_progression_spec import WeaponProgressionSpec
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class WeaponSpec:
     stat_bonuses: Mapping[str, int]
     value: int
     description: str
+    progression: WeaponProgressionSpec | None = None
 
     def __post_init__(self):
         weapon = self._create_weapon()
@@ -35,6 +37,11 @@ class WeaponSpec:
             "stat_bonuses",
             readonly_mapping(weapon.stat_bonuses),
         )
+        if self.progression is not None and not isinstance(
+            self.progression,
+            WeaponProgressionSpec,
+        ):
+            raise TypeError("progression must be a WeaponProgressionSpec")
 
     def _create_weapon(self):
         return Weapon(

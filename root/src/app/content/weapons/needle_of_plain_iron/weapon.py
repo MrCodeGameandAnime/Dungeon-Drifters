@@ -1,4 +1,8 @@
 from app.content.weapon_spec import WeaponSpec
+from app.content.weapon_progression_spec import (
+    WeaponProgressionSpec,
+    WeaponSlotSpec,
+)
 
 
 WEAPON = WeaponSpec(
@@ -12,6 +16,18 @@ WEAPON = WeaponSpec(
     description=(
         "A long, unadorned iron needle used as both a weapon and a precise "
         "ritual focus."
+    ),
+    progression=WeaponProgressionSpec(
+        slots=(
+            WeaponSlotSpec(
+                "focus_fittings", "Focus head / fittings", "metal", "needle_focus"
+            ),
+            WeaponSlotSpec("binding", "Binding", "fiber", "needle_binding"),
+            WeaponSlotSpec("haft", "Haft", "timber", "needle_haft"),
+            WeaponSlotSpec(
+                "seal_catalyst", "Seal / Catalyst", "cores", "needle_seal"
+            ),
+        ),
     ),
 )
 

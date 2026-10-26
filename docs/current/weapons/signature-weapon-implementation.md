@@ -10,14 +10,20 @@
 
 **Spec:** [signature-weapon-progression.md](signature-weapon-progression.md).
 
+This plan is the implementation contract where it resolves an ambiguity in the
+broader design spec. Unresolved questions not explicitly settled here remain
+open; do not infer additional mechanics from the implementation details.
+
 ## Global Constraints
 
 - Every signature weapon has exactly four slots: three body/structural slots and one signature/special slot.
 - Slot material families are fixed by slot number: 1 Metal, 2 Fiber, 3 Timber, 4 Cores.
 - Slot progress and shared roster-wide Crafting level each use a 0-100 scale.
+- Each slot-progress point adds 0.25% of the governed original base stat; at 100 progress this is +25%. Add the cumulative quality bonus from the same original base stat, then round once to the nearest integer with exact halves rounded up.
 - A successful ordinary improvement always adds a random 1-5 percentage points; Crafting shifts odds upward, but every result remains possible.
-- Tier II, III, and IV require all four slots and shared Crafting to reach 25, 50, and 75 respectively; progress carries through each breakthrough.
-- Ordinary quality bonuses are separate, cumulative +5%, +10%, and +15% of original base stats at Tiers II-IV. Tier V requires all slots and Crafting at 100, uses Grade IV materials, and has a non-guaranteed attempt; failure consumes materials but preserves progress and awards no Crafting progress, while success adds +25% of governed original base stats.
+- Tier II, III, IV, and the Tier V attempt gate are 25, 50, 75, and 100. Every slot and shared Crafting must meet the same gate.
+- Slot progress cannot overshoot its next gate. A roll that crosses a gate clamps exactly to it with no overflow; that slot remains capped until all four slots and shared Crafting unlock the next tier.
+- Ordinary quality bonuses are separate, cumulative +5%, +10%, and +15% of original base stats at Tiers II-IV. Tier V requires all slots and Crafting at 100, uses Grade IV materials, and has a non-guaranteed attempt; failure consumes materials but preserves progress and awards no Crafting progress, while success adds another +25% for +40% cumulative quality bonus.
 - Dismantling yields at least one matching material and no more than the source item's authored maximum; Crafting can improve odds but never guarantee the maximum. Dismantling awards no Crafting progress.
 - Only successful actual crafting/improvement recipes award Crafting progress, with an explicit authored award per recipe. Alchemy remains separate and does not award Crafting progress.
 - Component replacement consumes the old component. Installed component effects are data-driven; learned techniques remain learned after a component is replaced.
@@ -28,7 +34,7 @@
 
 ## Review Focus
 
-- Invalid or incomplete weapon-state snapshots must fail validation without partially mutating a save; test in Task 2 with malformed slot counts, IDs, progress ranges, and learned-technique references.
+- Invalid or incomplete weapon-state snapshots and absent/unknown `target_drifter_id` values must be rejected without partial mutation or fallback to the lead; test in Tasks 2, 3, and 5.
 - An improvement with insufficient/wrong-family materials or an ineligible grade must consume nothing and change no progress; test in Task 3 with each rejection path.
 - RNG extremes must preserve the authored guarantees: ordinary improvement remains 1-5, salvage remains at least 1 and at most its authored maximum, and Tier V failure preserves progression; test in Task 3 with deterministic RNG.
 - A component configuration that ties two identities, drops below threshold, or changes after replacement must derive the documented identity state immediately; test in Task 4.
@@ -41,22 +47,34 @@
 - `root/src/app/content/weapon_spec.py` and the generated weapon catalog are the existing authored-weapon boundary. Extend that pattern rather than introducing a second runtime weapon catalog.
 - `root/src/app/player/player_state.py` owns per-Drifter equipment and snapshots. Store that Drifter's signature-weapon progression there; do not duplicate the lead's progression in `PartyState`.
 - `root/src/app/game/party_state.py` already owns shared gold, shared item stacks, and dungeon state. Extend it for shared Crafting progression and use its shared item stacks for materials.
-- `root/src/app/game/overworld_session.py`, its presenter/models, and existing `WeaponView` / Items-Craft entry points are the action and presentation boundary. JavaScript only renders offered actions and submits semantic inputs.
+- `root/src/app/game/overworld_session.py` and its presenter/models are the action and presentation boundary. Use a dedicated Hub merchant as the crafting entry point; JavaScript only renders offered actions and submits semantic inputs.
+- Every weapon-progression semantic action carries a stable `target_drifter_id`; resolve it against the currently instantiated game roster (lead plus recruited companions), never by assuming lead or party-array position. All four Drifters are targetable when instantiated as the lead or a recruited companion. Do not add a separate dormant-roster persistence model in this plan.
 - Existing ordinary weapon bonuses must remain unchanged until the new authored slot data explicitly reproduces them.
 - This first implementation does not add an overall refinement-level progression: its cap and effects remain unresolved in the spec. Preserve existing weapon behavior and leave overall refinement for a separately approved balance/design pass.
 - This plan adds no Alchemy system, inventory-capacity system, respec flow, visual weapon rendering, new stats/scaling rules, or target/scaling changes to moves.
 
-## Gate 0: Freeze Implementation Inputs
+## Gate 0: Start With A Playable Baseline
 
-- [ ] Record the starting SHA, branch, worktree status, and current focused test results; preserve unrelated working changes.
-- [ ] Approve the initial balance/configuration data before implementation. The signed-off table must give: each introduced material/component ID and floor/tier availability; recipe input quantities and explicit Crafting awards (with higher-tier recipe awards greater than lower-tier awards); improvement-roll weights for Crafting levels; the starting shared Crafting progress and cumulative-progress-to-level thresholds; dismantle yield weights by Crafting level; Tier V material cost and chance; identity points and thresholds; and each initial component's stat/move effects.
-- [ ] Approve the stat conversion rule for 0-100 slot improvement and the deterministic integer rounding rule for improvement and quality bonuses. The spec establishes that both are based on original governed base stats but does not yet define the conversion or rounding.
-- [ ] Confirm the proposed interface placement: `Character > Weapon` for inspecting/configuring/improving the signature weapon, and `Items > Craft` for crafting and dismantling. Both remain Hub-only unless a later design explicitly expands access.
-- [ ] Confirm the initial release covers all four signature weapons with authored four-slot definitions, while leaving unresolved names, branch topology, affixes, and overall refinement mechanics out of scope.
-- [ ] Run the current focused baseline: weapon/content, player/party state, Overworld session/presenter/UI, save migration/document/envelope, browser bridge, and content tooling tests.
-- [ ] Verify the generated catalog is current with `python tools/generate_content_catalog.py --check` from `root/`.
+- [x] Record the starting SHA `266e504f28c15998ef30ab5576a3b50b58bd1216`, branch `hub`, and the two existing weapon-doc modifications; preserve those changes.
+- [x] Freeze the gameplay rules already recorded in this plan; use clearly identified first-pass tuning values for the initial implementation rather than requiring a complete balance sign-off.
+- [x] Build the playable Floor I progression loop: shared materials and Crafting, one Grade-I improvement recipe for each slot family, Goblin salvage, and the Hub merchant. Tuning values are centralized and data-driven.
+- [x] Give the Floor I loop authored Grade-I sources for all four families. Dismantlable Goblin loot supplies Metal, Fiber, and Timber; every Goblin Lord defeat, including replays, guarantees enough Cores for one slot-four improvement.
+- [x] Use the recorded Gate 0 first-pass defaults for recipe costs/awards, Crafting thresholds and weights, and salvage odds. These are provisional and will be balanced after playtesting. Component effects, identity scoring, and Tier V remain for their later implementation gates.
+- [x] Approve the Floor I source approach: dismantlable Goblin loot supplies Grade-I Metal, Fiber, and Timber; every Goblin Lord defeat, including Floor I replays, guarantees enough Grade-I Cores for one valid slot-four improvement. Exact item IDs, yields, and recipe quantities remain in the balance table.
+- [x] Approve the stat conversion and rounding rule: each slot-progress point adds 0.25% of the governed original base stat; improvement and cumulative quality bonuses are combined against that original value and rounded once to the nearest integer, with exact halves rounded up.
+- [x] Confirm tier gates of 25/50/75/100. Grade I improves progress up to 25; after a gate is unlocked, the next grade funds progress toward the following gate. A slot cannot improve past a locked gate.
+- [x] Use a dedicated Hub merchant as the crafting entry point instead of `Items > Craft`.
+- [x] Confirm the Hub merchant handles crafting, weapon improvement recipes, and dismantling. `Character > Weapon` is reserved for inspecting/configuring a signature weapon. Keep these progression interactions Hub-only.
+- [x] Set shared Crafting to start at Level 1 with zero progress toward Level 2; later thresholds are first-pass tuning values.
+- [x] Set the pacing target that Crafting Level 25 is reachable after about three Hub-returning Floor I runs, before replay XP reaches its 20% minimum, while Grade II materials remain exclusive to Floor II.
+- [x] Preserve the starting baseline at the recorded SHA: 239 game tests and 10 browser bridge tests passed before implementation.
+- [x] Verify the Gate 0 tree: 1,779 game/web tests passed; the built-site Playwright smoke passed through the Hub Merchant and full Floor I route; content/catalog checks, dataclass-manifest check, and compileall passed.
+- [x] Run the profile-service SQLite/unit suite: 24 passed. Five PostgreSQL-only tests were skipped because the Docker engine/test database was not reachable from this execution environment.
+- [x] Verify the generated catalog is current with `python tools/generate_content_catalog.py --check` from `root/`.
+- [x] Verify the portable dataclass manifest is current with `python tools/generate_dataclass_manifest.py --check` from `root/`.
+- [x] Verify baseline authored content with `python -m tools.validate_content`: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, and 2 routes.
 
-**Gate 0 stop condition:** Do not implement recipes or progression math until the balance table and stat conversion/rounding rule are approved. Those values are intentionally not inferred by this plan.
+**Gate 0 exit:** The approved mechanics and Floor I source approach are sufficient to begin implementation. Provisional tuning values do not block the playable baseline and must remain easy to adjust.
 
 ## File Map
 
@@ -65,7 +83,7 @@
 - `root/src/app/content/catalog.py`, `root/src/app/content/_generated_catalog.py`, `root/tools/generate_content_catalog.py`, `root/tools/validate_content.py`: catalog lookup, deterministic generation, and cross-reference validation for progression data.
 - `root/src/app/player/signature_weapon_state.py` (new), `root/src/app/player/player_state.py`: per-Drifter installed slot components, 0-100 slot progress, and persistent learned techniques; quality and identity remain derived.
 - `root/src/app/game/party_state.py`: shared Crafting progression and material stock using the existing shared inventory boundary.
-- `root/src/app/game/weapon_progression.py` (new): validated, atomic domain actions for recipe crafting, slot improvement, dismantling, component replacement, and Tier V attempts. Inject RNG through the existing game randomness convention.
+- `root/src/app/game/weapon_progression.py` (new): validated, atomic domain actions for recipe crafting, slot improvement, dismantling, component replacement, and Tier V attempts. Every action accepts `target_drifter_id`; validate it against the current game roster and inject RNG through the existing game randomness convention.
 - `root/src/app/game/overworld_session.py`, `root/src/app/presentation/overworld_models.py`, `root/src/app/presentation/overworld_presenter.py`: authoritative offered choices, Hub-only action validation, and renderer-neutral progression views.
 - `root/src/app/ui/overworld_ui.py`, `root/src/app/ui/terminal_overworld_ui.py`, `root/web/python/dd_bridge.py`, `root/web/play/js/pyd4.js`: terminal and browser presentation/input parity; no progression formulas in JavaScript.
 - `root/src/app/content/enemy_spec.py`, `root/src/app/content/encounter_spec.py`, `root/src/app/content/catalog.py`, and the existing reward path: authored eligible loot/material drops where needed for the first progression slice.
@@ -76,12 +94,13 @@
 
 ## Gate 1: Authored Progression Content
 
-- [ ] **Red:** Add tests for four weapon records with exactly four distinct ordered slots; slot-family mapping; valid component/material references; recipe costs and Crafting awards; valid modifier targets; and rejection of unknown IDs, negative quantities, duplicate slots, invalid grades, and move target/scaling modifiers.
+- [ ] **Red:** Add tests for all four exact weapon-specific slot-label sequences; four distinct ordered slots; slot-family mapping; valid component/material references; recipe costs and Crafting awards; valid modifier targets; and rejection of unknown IDs, negative quantities, duplicate slots, invalid grades, and move target/scaling modifiers.
 - [ ] Run the focused content tests and confirm they fail for missing progression content/validation.
 - [ ] Add immutable progression definitions in `weapon_progression_spec.py`; attach them to the existing four `WeaponSpec` records without changing item IDs, persistence keys, intended wielders, or current base bonuses.
 - [ ] Extend generation and validation to include progression references. Keep authored records in the existing weapon directories unless the generator requires a focused new content directory; do not reorganize the catalog.
 - [ ] Author the Gate 0-approved starting components, material grades, recipes, salvage sources, identity contributions, and move modifiers for all four weapons. Do not add unresolved branch names, final affixes, or overall refinement behavior.
-- [ ] **Verify:** `python tools/generate_content_catalog.py --check`, `python tools/validate_content.py`, and focused weapon/content tests pass from `root/`.
+- [ ] Author Floor I route-available Grade-I sources for all four material families. Validate that each family can fund at least one valid first improvement; do not require equal drop rates or amounts.
+- [ ] **Verify:** `python tools/generate_content_catalog.py --check`, `python -m tools.validate_content`, and focused weapon/content tests pass from `root/`.
 
 ## Gate 2: Persistent State and Schema Migration
 
@@ -99,11 +118,14 @@
 
 - [ ] **Red:** Add deterministic tests for valid/invalid recipes, insufficient stock, wrong slot family, wrong material grade, exact resource consumption, explicit per-recipe Crafting awards, and no mutation after rejected actions.
 - [ ] Add improvement-roll tests at Crafting 0, intermediate values, and 100. Inject a controlled RNG and prove results are 1-5, configured weights shift upward, and each result remains possible at every Crafting level.
-- [ ] Add tier-checkpoint tests: each of four slots and shared Crafting must meet 25/50/75; a single lagging slot or Crafting level blocks the tier; using the next grade to cross a checkpoint does not reset slot progress.
+- [ ] Validate the authored Crafting curve and Floor I recipe awards: Level 25 is reached after about three Hub-returning Floor I runs, before replay XP reaches its 20% minimum, while Grade II materials remain unavailable until Floor II.
+- [ ] Add stat-projection tests for 0/100 slot progress, each ordinary quality tier, successful Tier V's cumulative +40% quality bonus, additive non-compounding behavior, and exact half-up rounding boundaries.
+- [ ] Add gate tests at 25/50/75/100: every slot and shared Crafting must meet the gate; a lagging slot or Crafting level blocks the tier; the next grade is used after the prior gate unlocks and progress does not reset.
+- [ ] Add clamping and material tests for each gate, including Grade I reaching 25, Grade II being required for progress beyond 25 after Tier II unlocks, no retained overflow, no improvement while the next tier is locked, and later progress continuing from the gate.
 - [ ] Add Tier V tests for all requirements, configured material consumption on both outcomes, no progress/Crafting award on failure, and separate +25% base-stat bonus on success.
 - [ ] Implement the minimal domain action service in `app/game/weapon_progression.py` using authored recipes and injected RNG. Validate all costs and eligibility before mutation; apply resource/progression changes as one action so exceptions or rejected inputs cannot partially spend materials.
 - [ ] Implement quality/tier and stat projection using the Gate 0-approved formula and rounding rule. Keep improvement and quality additive from original governed base stats; do not scale an already-modified value.
-- [ ] Add tests proving lower-tier recipes cannot consume next-tier gating materials incorrectly and higher-tier material availability follows authored floor/tier data.
+- [ ] Add tests proving lower-tier recipes cannot consume next-tier gating materials incorrectly, Grade-I sources cover all four Floor I families, and higher-tier material availability follows authored floor/tier data.
 - [ ] **Verify:** focused progression and content tests pass, including deterministic boundary cases and unchanged current weapon behavior when all new progress is at its starting values.
 
 ## Gate 4: Salvage, Components, Identities, and Combat Projection
@@ -118,10 +140,11 @@
 
 ## Gate 5: Hub Actions and Terminal/Browser Parity
 
-- [ ] **Red:** Add Overworld session/presenter tests for opening the proposed Weapon and Items-Craft views, receiving only currently legal offered choices, invalid/stale semantic input rejection, and Hub-only access.
+- [ ] **Red:** Add Overworld session/presenter tests for opening `Character > Weapon` and the Hub merchant views, receiving only currently legal offered choices, invalid/stale semantic input rejection, and Hub-only access.
+- [ ] Add target-resolution tests for each action with `target_drifter_id` set to the lead and recruited companion, including reversed party order; missing, forged, stale, and non-roster IDs must be rejected, never redirected to the lead.
 - [ ] Add terminal tests for inspecting slots/progress/tier/Crafting/materials, crafting or improving an offered recipe, dismantling an eligible item, replacing a component, and returning to the previous view.
 - [ ] Add browser bridge contract tests that send the same semantic actions and receive the same Python-projected data; verify JavaScript does not calculate costs, probabilities, identity, quality, or stat results.
-- [ ] Implement progression view models and actions through the existing `OverworldSession` and presenter. Keep the chosen placement at Character > Weapon for weapon management and Items > Craft for recipes/dismantling, subject to Gate 0 approval.
+- [ ] Implement progression view models and actions through the existing `OverworldSession` and presenter. Require `target_drifter_id` in every progression semantic input and resolve the exact current-roster Drifter. Put crafting, weapon improvement recipes, and dismantling at the Hub merchant; reserve `Character > Weapon` for inspection/configuration.
 - [ ] Update terminal rendering and browser rendering to display the same offers, resource costs, results, and validation messages. Preserve desktop/mobile layout conventions and do not add an independent progression state machine in the browser.
 - [ ] Extend the Playwright full-route smoke from Hub access through at least one dismantle, one successful improvement, one rejected insufficient-resource action, and a save/reload round trip showing the same progression.
 - [ ] **Verify:** focused session/presenter/terminal/browser bridge suites pass; build the static browser site and run the pinned Playwright smoke.
@@ -137,23 +160,24 @@
 
 ## Acceptance Criteria
 
-- All four signature weapons have exactly four authored slots, use the fixed slot-family mapping, and preserve their current base behavior at initial progression state.
+- All four signature weapons have the exact authored four-slot label map, use the fixed slot-family mapping, and preserve their current base behavior at initial progression state. Material family denotes dominant modification material, not total part composition.
+- Floor I provides Grade-I sources for Metal, Fiber, Timber, and Cores in quantities sufficient to demonstrate at least one valid improvement in each slot family.
 - Each Drifter's weapon configuration and learned techniques persist independently; shared Crafting and materials persist once at party scope.
 - Successful ordinary recipe/improvement actions spend exactly their authored costs and award only their authored Crafting progress. Improvement always yields 1-5 slot points according to the approved Crafting-weighted distribution.
-- Tier II-IV eligibility checks all four slot checkpoints plus shared Crafting at 25/50/75, preserving progress and using the next grade to cross each checkpoint. Tier V uses the agreed all-100 requirements and failure/success semantics.
+- Tier II-IV eligibility checks all four slot gates plus shared Crafting at 25/50/75; Tier V attempts require all values at 100. Improvement rolls clamp at 25/50/75/100 without overflow and remain there until the shared gate unlocks the next tier.
+- Every weapon-progression action includes a stable `target_drifter_id` and changes the exact targeted lead/recruited Drifter regardless of party order; invalid targets never fall back to the lead.
 - Dismantling is bounded by authored yields, never grants Crafting progress, and never guarantees the maximum. Component changes consume the old component, recompute identities, apply only supported direct move modifiers, and preserve learned techniques.
 - Terminal and browser offer equivalent progression actions and results from Python-authoritative state.
 - Runtime schema 10 and disk schema 11 migrate existing supported saves without data loss or digest mutation; envelope v1, API `/v1`, and database schema remain unchanged.
 - The final tree passes the complete Python/web/profile-service/browser/content checks and the actual pinned MicroPython qualification; exact evidence is recorded in `docs/probe.md`.
 
-## Decisions Still Required Before Gate 1
+## Post-Baseline Tuning Review
 
-The progression rules are settled, but the spec intentionally leaves several values/behaviors open. Gate 0 must record approvals for these before recipes or math are implemented:
+The following values are deliberately first-pass tuning, not implementation blockers. Review them after the Floor I loop is playable:
 
-- Slot-progress-to-stat conversion and integer rounding.
-- Crafting progress-to-level thresholds and starting level representation.
-- Initial material/component catalog and floor availability, plus exact recipe costs and Crafting awards.
-- Crafting-weighted improvement-roll and dismantle-yield tables.
-- Initial Tier V cost/chance, identity names/points/thresholds, and component effects.
-- Hub-only access and the proposed `Character > Weapon` / `Items > Craft` placement.
+- Crafting progress-to-level thresholds and recipe Crafting awards.
+- Material quantities, improvement-roll and dismantle-yield weights.
+- Tier V cost/chance, identity point thresholds, and component stat/move effects.
+
+Keep all of these values centralized in authored data so playtest tuning does not require changing progression rules or save contracts.
 - Whether ordinary overall refinement remains untouched and deferred; this plan recommends deferring its mechanics because its cap/effects are unresolved.

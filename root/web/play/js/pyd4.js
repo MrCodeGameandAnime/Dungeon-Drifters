@@ -529,6 +529,94 @@
     renderDetailOptions("equipment-options", view.options);
   }
 
+  function renderMerchant(view) {
+    const merchant = view.merchant;
+    if (!merchant) return;
+    setText(
+      "merchant-crafting",
+      `Crafting Level ${merchant.crafting_level} | ${merchant.crafting_experience} XP`,
+    );
+    setText("merchant-weapon-name", merchant.weapon_name);
+
+    const targets = $("merchant-targets");
+    clear(targets);
+    for (const target of merchant.targets || []) {
+      const button = makeButton(
+        target.display_name,
+        { kind: "merchant_target", drifter_id: target.drifter_id },
+        true,
+        null,
+        target.selected ? "merchant-target selected" : "merchant-target",
+      );
+      button.setAttribute("aria-pressed", String(target.selected));
+      targets.append(button);
+    }
+
+    const slots = $("merchant-slots");
+    clear(slots);
+    for (const [index, slot] of (merchant.slots || []).entries()) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = `${index + 1}. ${slot.label} ${slot.progress}/100`;
+      const requirement = document.createElement("span");
+      requirement.textContent = `${slot.material_name} x${slot.material_cost} | Have ${slot.material_quantity}`;
+      description.append(title, requirement);
+      row.append(description, makeButton(
+        "Improve",
+        {
+          kind: "merchant_improve",
+          target_drifter_id: merchant.selected_target_id,
+          slot_id: slot.slot_id,
+        },
+        slot.can_improve,
+        slot.blocked_reason,
+        "merchant-action",
+      ));
+      slots.append(row);
+    }
+
+    const materials = $("merchant-materials");
+    clear(materials);
+    for (const material of merchant.materials || []) {
+      const line = document.createElement("div");
+      line.className = "merchant-material";
+      line.textContent = `${material.display_name}: ${material.quantity}`;
+      materials.append(line);
+    }
+
+    const dismantle = $("merchant-dismantle");
+    clear(dismantle);
+    const items = merchant.dismantle_items || [];
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No dismantlable items.";
+      dismantle.append(empty);
+    }
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("span");
+      description.textContent = `${item.display_name} x${item.quantity}`;
+      row.append(description, makeButton(
+        "Dismantle",
+        {
+          kind: "merchant_dismantle",
+          target_drifter_id: merchant.selected_target_id,
+          item_id: item.item_id,
+        },
+        true,
+        null,
+        "merchant-action",
+      ));
+      dismantle.append(row);
+    }
+    renderDetailOptions("merchant-options", view.options);
+  }
+
   function renderDetailOptions(containerId, options) {
     renderOptions(
       $(containerId),
@@ -589,7 +677,7 @@
   }
 
   function renderOverworld(view) {
-    const characterMenuScreens = ["character", "skills", "weapon", "equipment"];
+    const characterMenuScreens = ["character", "skills", "weapon", "equipment", "merchant"];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
     if (characterMenuActive) {
@@ -639,10 +727,12 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("weapon-panel").hidden = view.screen !== "weapon";
     $("equipment-panel").hidden = view.screen !== "equipment";
+    $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "weapon") renderWeapon(view);
     else if (view.screen === "equipment") renderEquipment(view);
+    else if (view.screen === "merchant") renderMerchant(view);
 
     renderInventory($("inventory"), view);
     clear($("actions"));

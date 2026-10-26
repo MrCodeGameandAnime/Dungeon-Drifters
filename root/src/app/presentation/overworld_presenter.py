@@ -2,11 +2,19 @@
 
 from app.content.catalog import (
     DRIFTER_SPECS,
+    get_drifter_spec_by_choice,
     get_encounter_spec,
     get_enemy_spec,
     get_inspectable_route_node_spec,
     get_route_node_spec,
     get_route_spec,
+    get_weapon_spec,
+)
+from app.content.weapon_progression_spec import (
+    DISMANTLE_SPECS,
+    MATERIAL_SPECS,
+    get_improvement_recipe,
+    get_material_spec,
 )
 from app.game.party_state import (
     COMPANION_RECRUITMENT_COST,
@@ -28,6 +36,11 @@ from app.presentation.overworld_models import (
     MapNodeView,
     MapView,
     MapEncounterInspectionView,
+    MerchantDismantleView,
+    MerchantMaterialView,
+    MerchantSlotView,
+    MerchantTargetView,
+    MerchantView,
     OverworldAction,
     OverworldAvailabilityReason,
     OverworldItemView,
@@ -75,6 +88,7 @@ class OverworldPresenter:
         *,
         screen=OverworldScreen.MAIN,
         selected_item_key=None,
+        selected_merchant_target_id=None,
         adventure_text=None,
         notice=None,
         save_available=False,
@@ -95,6 +109,7 @@ class OverworldPresenter:
                     OverworldScreen.PARTY_READY,
                     OverworldScreen.OUTING,
                     OverworldScreen.EXTRACTION,
+                    OverworldScreen.MERCHANT,
                 }
                 else self._default_adventure_text(game_state)
             )
@@ -146,6 +161,11 @@ class OverworldPresenter:
             weapon=(
                 self._weapon_view(game_state)
                 if screen is OverworldScreen.WEAPON
+                else None
+            ),
+            merchant=(
+                self._merchant_view(game_state, selected_merchant_target_id)
+                if screen is OverworldScreen.MERCHANT
                 else None
             ),
             equipment=(
@@ -229,6 +249,8 @@ class OverworldPresenter:
             return "Your party has set out from the Floor 1 Hub."
         if screen is OverworldScreen.EXTRACTION:
             return "The Goblin trio is defeated. Return to the hub to secure your rewards."
+        if screen is OverworldScreen.MERCHANT:
+            return "Improve a party Drifter's signature weapon with shared supplies."
         if game_state.party_state.phase is DungeonPhase.PARTY_READY:
             return "Your party is assembled and ready to set out."
         if game_state.party_state.tutorial_complete:
@@ -371,6 +393,122 @@ class OverworldPresenter:
         )
 
     @staticmethod
+    def _merchant_view(game_state, selected_target_id):
+        party = game_state.party_state
+        members = (game_state.player_state,) + party.companions
+        target_specs = tuple(
+            (
+                member,
+                get_drifter_spec_by_choice(member.character.profile.choice),
+            )
+            for member in members
+            if member.character.profile is not None
+        )
+        target_ids = {spec.drifter_id for _member, spec in target_specs}
+        if selected_target_id not in target_ids:
+            selected_target_id = target_specs[0][1].drifter_id
+        target_member = next(
+            member
+            for member, spec in target_specs
+            if spec.drifter_id == selected_target_id
+        )
+        weapon_state = target_member.signature_weapon_state
+        weapon_spec = get_weapon_spec(weapon_state.weapon_id)
+        target_views = tuple(
+            MerchantTargetView(
+                drifter_id=spec.drifter_id,
+                display_name=member.character.full_display_name,
+                selected=spec.drifter_id == selected_target_id,
+            )
+            for member, spec in target_specs
+        )
+
+        slots = []
+        for slot in weapon_spec.progression.slots:
+            current = weapon_state.slot_progress[slot.slot_id]
+            grade = min(4, current // 25 + 1)
+            material_id = f"grade_{('i', 'ii', 'iii', 'iv')[grade - 1]}_{slot.material_family}"
+            recipe = get_improvement_recipe(material_id)
+            quantity = party.shared_items.get(material_id, 0)
+            gate = current // 25 * 25
+            tier_locked = bool(
+                gate
+                and (
+                    not all(
+                        value >= gate
+                        for value in weapon_state.slot_progress.values()
+                    )
+                    or party.crafting_level < gate
+                )
+            )
+            blocked_reason = (
+                "maximum_progress"
+                if current >= 100
+                else (
+                    "tier_locked"
+                    if tier_locked
+                    else "insufficient_materials"
+                    if quantity < recipe.material_cost
+                    else None
+                )
+            )
+            slots.append(
+                MerchantSlotView(
+                    slot_id=slot.slot_id,
+                    label=slot.label,
+                    material_family=slot.material_family,
+                    progress=current,
+                    material_id=material_id,
+                    material_name=get_material_spec(material_id).display_name,
+                    material_cost=recipe.material_cost,
+                    material_quantity=quantity,
+                    can_improve=blocked_reason is None,
+                    blocked_reason=blocked_reason,
+                )
+            )
+
+        stock_by_id = dict(party.shared_items)
+        material_ids = {
+            spec.item_id for spec in MATERIAL_SPECS if spec.grade == 1
+        }
+        known_material_ids = {spec.item_id for spec in MATERIAL_SPECS}
+        material_ids.update(
+            item_id for item_id in stock_by_id if item_id in known_material_ids
+        )
+        materials = tuple(
+            MerchantMaterialView(
+                item_id=item_id,
+                display_name=get_material_spec(item_id).display_name,
+                quantity=stock_by_id.get(item_id, 0),
+            )
+            for item_id in sorted(material_ids)
+        )
+        dismantle_items = tuple(
+            MerchantDismantleView(
+                item_id=spec.item_id,
+                display_name=spec.item_id.replace("_", " ").title(),
+                quantity=stock_by_id[spec.item_id],
+                output_material_names=tuple(
+                    get_material_spec(item_id).display_name
+                    for item_id in spec.output_material_ids
+                ),
+                maximum_yield=spec.maximum_yield,
+            )
+            for spec in DISMANTLE_SPECS
+            if stock_by_id.get(spec.item_id, 0) > 0
+        )
+        return MerchantView(
+            crafting_level=party.crafting_level,
+            crafting_experience=party.crafting_experience,
+            targets=target_views,
+            selected_target_id=selected_target_id,
+            weapon_name=weapon_spec.name,
+            slots=tuple(slots),
+            materials=materials,
+            dismantle_items=dismantle_items,
+        )
+
+    @staticmethod
     def _equipment_view():
         return EquipmentView(
             necklace=AccessorySlotView("Necklace", "Empty"),
@@ -508,7 +646,9 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.HUB:
             party_state = game_state.party_state
+            merchant_action = ()
             if party_state.phase is DungeonPhase.HUB:
+                merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
                 party_actions = (
                     (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
@@ -527,7 +667,7 @@ class OverworldPresenter:
                 )
             else:
                 party_actions = ()
-            return party_actions + (
+            return merchant_action + party_actions + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
@@ -560,6 +700,7 @@ class OverworldPresenter:
             OverworldScreen.SKILLS,
             OverworldScreen.WEAPON,
             OverworldScreen.EQUIPMENT,
+            OverworldScreen.MERCHANT,
             OverworldScreen.ITEM_INSPECT,
         }:
             return (enabled(OverworldAction.BACK, "Back"),)

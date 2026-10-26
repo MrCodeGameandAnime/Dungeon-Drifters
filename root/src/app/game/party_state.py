@@ -2,6 +2,10 @@
 
 from enum import StrEnum
 
+from app.content.weapon_progression_spec import (
+    MAX_CRAFTING_EXPERIENCE,
+    crafting_level_for_experience,
+)
 from app.player.player_state import PlayerState
 
 
@@ -58,6 +62,7 @@ class PartyState:
         self._companions = ()
         self._shared_gold = 0
         self._shared_items = {}
+        self._crafting_experience = 0
         self._tutorial_complete = False
         self._phase = DungeonPhase.OUTSIDE
         self._outing_rewards = OutingRewards()
@@ -76,6 +81,23 @@ class PartyState:
     @property
     def shared_items(self):
         return dict(self._shared_items)
+
+    @property
+    def crafting_experience(self):
+        return self._crafting_experience
+
+    @property
+    def crafting_level(self):
+        return crafting_level_for_experience(self.crafting_experience)
+
+    def add_crafting_experience(self, amount):
+        amount = _nonnegative("crafting experience", amount)
+        old_level = self.crafting_level
+        self._crafting_experience = min(
+            MAX_CRAFTING_EXPERIENCE,
+            self._crafting_experience + amount,
+        )
+        return self.crafting_level - old_level
 
     @property
     def tutorial_complete(self):
@@ -136,6 +158,30 @@ class PartyState:
 
     def add_shared_gold(self, amount):
         self._shared_gold += _nonnegative("gold amount", amount)
+
+    def add_shared_items(self, items):
+        additions = _item_stacks(items)
+        for item_id, quantity in additions.items():
+            self._shared_items[item_id] = (
+                self._shared_items.get(item_id, 0) + quantity
+            )
+
+    def spend_shared_items(self, costs):
+        costs = _item_stacks(costs)
+        if any(
+            self._shared_items.get(item_id, 0) < quantity
+            for item_id, quantity in costs.items()
+        ):
+            return False
+        remaining = dict(self._shared_items)
+        for item_id, quantity in costs.items():
+            balance = remaining[item_id] - quantity
+            if balance:
+                remaining[item_id] = balance
+            else:
+                del remaining[item_id]
+        self._shared_items = remaining
+        return True
 
     def begin_outing(self):
         if self._phase is not DungeonPhase.PARTY_READY:
@@ -281,6 +327,12 @@ class PartyState:
         state._companions = tuple(companions)
         state._shared_gold = _nonnegative("shared_gold", snapshot["shared_gold"])
         state._shared_items = _item_stacks(snapshot["shared_items"])
+        state._crafting_experience = _nonnegative(
+            "crafting_experience",
+            snapshot.get("crafting_experience", 0),
+        )
+        if state._crafting_experience > MAX_CRAFTING_EXPERIENCE:
+            raise ValueError("crafting experience exceeds the level-100 cap")
         state._tutorial_complete = snapshot["tutorial_complete"]
         state._phase = DungeonPhase(snapshot["phase"])
         state._outing_rewards = OutingRewards.from_snapshot(
@@ -332,6 +384,7 @@ class PartyState:
             "companions": [member.snapshot() for member in self.companions],
             "shared_gold": self.shared_gold,
             "shared_items": self.shared_items,
+            "crafting_experience": self.crafting_experience,
             "tutorial_complete": self.tutorial_complete,
             "phase": self.phase.value,
             "outing_rewards": self.outing_rewards.snapshot(),

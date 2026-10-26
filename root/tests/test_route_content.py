@@ -16,6 +16,7 @@ from app.content.catalog import (
     get_route_spec,
     get_route_successor_id,
 )
+from app.content import catalog
 from app.content.encounter_spec import EncounterSpec
 from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
 from app.game.game_state import GameState
@@ -194,6 +195,16 @@ def test_rewards_and_boss_state_are_derived_from_canonical_content():
         for node in route.nodes
         if node.kind is RouteNodeKind.BOSS
     ) == ("surface_goblin_lord",)
+
+
+def test_floor_one_encounters_offer_goblin_salvage_and_lord_core():
+    assert hasattr(catalog, "get_encounter_item_rewards")
+    assert catalog.get_encounter_item_rewards("surface_goblin_solo") == (
+        ("goblin_scrap", 1),
+    )
+    assert dict(catalog.get_encounter_item_rewards("surface_goblin_lord"))[
+        "goblin_lord_core"
+    ] == 1
 
 
 def test_route_specs_and_nested_records_are_immutable():
@@ -385,7 +396,7 @@ def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 10
+    assert rebuilt["schema_version"] == 11
     assert rebuilt["overworld"] == {
         "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",

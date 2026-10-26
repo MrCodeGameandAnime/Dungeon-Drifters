@@ -3,6 +3,11 @@
 This document records the current authored design direction for a permanent
 signature-weapon system. Open decisions remain listed below.
 
+For implementation, [signature-weapon-implementation.md](signature-weapon-implementation.md)
+is the more specific contract where it deliberately resolves an ambiguity in
+this broader design. Decisions not resolved there remain open as indicated
+below.
+
 ## Core Philosophy
 
 Each Drifter permanently retains their signature weapon.
@@ -134,7 +139,7 @@ The purpose of the fixed count is to preserve meaningful customization without
 turning every signature weapon into a large collection of independently managed
 subparts.
 
-The current structure is:
+The structure is:
 
 ```text
 three structural / body pieces
@@ -142,20 +147,20 @@ three structural / body pieces
 = four total modifiable slots
 ```
 
-The four slots are a shared system boundary, but their names and mechanical
-meaning are authored for each signature weapon.
-
-The exact player-facing labels may still change as the weapons are finalized.
-The current working slot map is:
+The material family identifies the slot's dominant modification material; it
+does not imply that the entire physical part is made from that material. The
+following player-facing slot map is the implementation contract.
 
 ### Sunder-Spire
 
-1. Blade
-2. Guard
-3. Hilt / Grip
+1. Blade / Guard assembly
+2. Grip wrap / binding
+3. Hilt core / handle
 4. Crest / Core
 
-The first three slots govern the physical body and handling of Sunder-Spire. The
+The first three slots govern the physical body and handling of Sunder-Spire.
+Metal is the dominant modification family for the blade and guard hardware;
+Fiber for grip wrapping and binding; Timber for the hilt/handle structure. The
 fourth slot carries the weapon's defensive, Deep-Iron, crest, or other
 character-specific development.
 
@@ -172,12 +177,14 @@ Possible effects include:
 
 ### Sathren
 
-1. Limbs
+1. Grip / fittings / mechanism
 2. String
-3. Grip
+3. Limbs
 4. Reservoir / Catalyst
 
-The first three slots govern the physical bow. The fourth slot carries Sathren's
+The first three slots govern the physical bow. Metal is the dominant
+modification family for grip hardware, fittings, and mechanism; Fiber for the
+string; Timber for the limbs. The fourth slot carries Sathren's
 compound-delivery, reservoir, catalyst, and other alchemical development.
 
 Possible effects include:
@@ -195,13 +202,14 @@ Possible effects include:
 ### Sky-Needle
 
 1. Head / Striking Cap
-2. Shaft
-3. Binding / Grip
+2. Binding / Grip
+3. Shaft
 4. Focus / Collar
 
-The first three slots govern Sky-Needle's physical staff construction. The fourth
-slot carries its elemental focus, conduction, attunement, and other
-character-specific development.
+The first three slots govern Sky-Needle's physical staff construction. Metal is
+the dominant modification family for the striking head; Fiber for binding and
+grip; Timber for the shaft. The fourth slot carries its elemental focus,
+conduction, attunement, and other character-specific development.
 
 Possible effects include:
 
@@ -254,14 +262,16 @@ Possible costs:
 
 ### Azhvielle's Signature Staff Or Focus
 
-1. Focus / Head
-2. Haft
-3. Binding
+1. Focus head / fittings
+2. Binding
+3. Haft
 4. Seal / Catalyst
 
-The first three slots govern the physical construction and channeling body. The
-fourth slot carries instability, causal structure, magical specialization, and
-other character-specific development.
+The first three slots govern the physical construction and channeling body.
+Metal is the dominant modification family for focus-head fittings; Fiber for
+magical bindings; Timber for the haft. The fourth slot carries instability,
+causal structure, magical specialization, and other character-specific
+development.
 
 Possible effects include:
 
@@ -328,16 +338,30 @@ change a build.
 
 ## 4. Slot Improvement Progress
 
-Each of the four slots tracks continuous improvement progress from 0 to 100.
-Completing an ordinary improvement recipe always succeeds and adds a random
-1-5 percentage points to its selected slot. Shared Crafting level shifts the
+Each of the four slots tracks improvement progress from 0 to 100. The quality
+gates are 25, 50, 75, and 100. An ordinary improvement recipe always succeeds
+and rolls 1-5 points for its selected slot. Shared Crafting level shifts the
 odds toward higher results, while every result from 1 to 5 remains possible.
 The exact odds by Crafting level are data-driven tuning values.
+
+Slot progress cannot overshoot its next quality gate. If a roll would cross the
+gate, progress settles exactly at that gate and no overflow is retained. The
+slot remains capped there until all four slots and shared Crafting meet that
+gate and unlock its next tier. For example, a slot at 23 that rolls 4 settles
+at 25, not 27. Once the tier is unlocked, the next improvement starts from 25.
 
 Improvement directly raises the statistics governed by that slot. Improvement
 and quality bonuses are calculated from the weapon's original base statistics,
 not from already-modified values, so the two bonuses are additive rather than
-compounding.
+compounding. Each slot-progress point adds 0.25% of the governed original base
+stat, so 100 progress contributes +25%. Combine that with the applicable
+cumulative quality bonus, then round the final projected stat once to the
+nearest integer, with exact halves rounded up. For a nonnegative base stat `B`,
+slot progress `P`, and cumulative quality bonus `Q` expressed as a fraction:
+
+```text
+projected_stat = round_half_up(B * (1 + 0.0025 * P + Q))
+```
 
 The four material families are fixed by slot number:
 
@@ -348,25 +372,38 @@ The four material families are fixed by slot number:
 | 3 | Timber |
 | 4 | Cores |
 
-Each material family has grades aligned to the ordinary weapon tiers. The
-improvement that crosses a slot's next 25-point milestone requires material of
-the next grade for that slot's family. Grade II materials first appear on Floor
-II, Grade III on Floor III, and Grade IV on Floor IV, preventing a player from
-farming an earlier floor for later-tier improvement materials. Tier V uses
-Grade IV materials rather than introducing Grade V.
+Each material family has grades aligned to the ordinary weapon tiers. Grade I
+improves a slot from 0 through 25. Once every slot and shared Crafting meet 25,
+Tier II unlocks and Grade II is required for further progress toward 50. Grade
+III is used after Tier III unlocks at 50, and Grade IV after Tier IV unlocks at
+75. Material grade is determined by the slot's current progress band before the
+roll; reaching a gate uses the grade for the band being completed. A slot at a
+locked gate cannot be improved. Grade II materials first appear on Floor II,
+Grade III on Floor III, and Grade IV on Floor IV, preventing a player from
+farming an earlier floor for later-tier improvement materials. Floor I must
+provide legitimate Grade-I sources for all four families, in quantities
+sufficient to demonstrate at least one valid improvement for each slot family;
+abundance need not be equal. Tier V uses Grade IV materials rather than
+introducing Grade V.
+
+The Floor I source approach is set: dismantlable Goblin loot supplies Grade-I
+Metal, Fiber, and Timber, while every Goblin Lord defeat, including Floor I
+replays, guarantees enough Grade-I Cores for one valid slot-four improvement.
+Exact source item IDs, yields, and recipe quantities remain part of the balance
+table.
 
 Material quantities and recipe costs are authored per recipe; they do not follow
 a forced 1/2/3/4 quantity formula. Each actual crafting or improvement recipe
 also defines its own Crafting progress award. Numeric costs and awards remain
 data-driven tuning values.
 
-Improvement progress does not reset when a tier milestone is reached. Progress
-from 75 to 100 continues to improve the Tier IV weapon.
+Improvement progress does not reset when a tier gate is unlocked. After Tier IV
+unlocks at 75, progress from 75 to 100 continues to improve the Tier IV weapon.
 
 ## 5. Quality Milestones And Tier V
 
-Tier I is the starting quality. The four ordinary quality tiers are reached at
-shared 25-point milestones:
+Tier I is the starting quality. Tier II-IV unlock at the first three gates; 100
+is the Tier V capstone-attempt gate:
 
 | Weapon tier | Required progress in every slot | Shared Crafting level |
 |---|---:|---:|
@@ -374,11 +411,15 @@ shared 25-point milestones:
 | Tier II | 25/100 | 25/100 |
 | Tier III | 50/100 | 50/100 |
 | Tier IV | 75/100 | 75/100 |
+| Tier V attempt | 100/100 | 100/100 |
 
-Each slot has to reach each milestone; no single slot can carry the weapon into
-the next tier. The weapon's shared tier advances only when all four slots and the
-roster-wide Crafting level meet the matching checkpoint. The required next-grade
-material is used for each slot's improvement across that milestone.
+Each slot has to reach each gate; no single slot can carry the weapon into the
+next tier. A slot's progress is capped at its next gate until all four slots and
+the roster-wide Crafting level meet it. The shared tier advances only after all
+five values meet the matching checkpoint. The material grade changes after the
+gate is unlocked: Grade I can reach 25, Grade II is used to progress beyond 25,
+Grade III beyond 50, and Grade IV beyond 75. At 100, the weapon becomes eligible
+for a non-guaranteed Tier V attempt; reaching 100 alone does not grant Tier V.
 
 Quality adds a separate bonus to the base statistics governed by each slot. The
 first-pass schedule is a shared, linear +5% per ordinary breakthrough: Tier II
@@ -393,18 +434,30 @@ authored quantity of Grade IV materials, has a fixed but non-guaranteed success
 chance, and does not introduce a new material grade. A failed attempt consumes
 its materials but preserves all existing progress and awards no Crafting
 progress. Success adds a separate +25% of base stats governed by the slots.
-Tier V cost, chance, and bonus are data-driven tuning values.
+This stacks additively with the Tier IV +15% quality bonus, for +40% cumulative
+quality bonus after Tier V success. Tier V cost, chance, and bonus are
+data-driven tuning values.
 
-All quality bonuses are based on original weapon stats. Progress remains
-continuous through ordinary breakthroughs; Tier IV progress from 75 to 100 is
-still useful even before attempting Tier V.
+All quality bonuses are based on original weapon stats. Progress resumes from
+each gate after the shared tier unlocks; Tier IV progress from 75 to 100 is
+useful before attempting Tier V.
 
 ## 6. Crafting Progression
 
 Crafting is a shared roster-wide skill with a 0-100 level. It is not owned by an
 individual Drifter. Its level affects dismantling yield odds, the distribution
 of 1-5 improvement rolls, and eligibility for the matching ordinary quality
-milestones.
+milestones. The roster begins at Crafting Level 1 with zero progress toward
+Level 2; the cumulative progress thresholds for later levels remain a tuning
+decision. The balance target is for the roster to reach Crafting Level 25 after
+about three Hub-returning Floor I runs, not a single clear. This should happen
+before replay XP reaches its 20% minimum. Grade II materials remain exclusive to
+Floor II, so reaching Crafting 25 on Floor I does not bypass the material gate
+for Tier II weapon progression.
+
+The Hub merchant handles crafting, weapon-improvement recipes, and dismantling.
+`Character > Weapon` is for inspecting and configuring a signature weapon.
+These progression interactions are Hub-only.
 
 Crafting progress is awarded only for successfully completed, actual crafting
 or weapon-improvement recipes. Each recipe authors its own progress award; there
@@ -761,29 +814,22 @@ materials, crafting progression, quality growth, and rare build-defining unlocks
 
 ## Explicitly Unresolved
 
-Do not freeze these yet:
+These details are not final balance. Use the Gate 0 first-pass defaults below
+for the initial playable loop; unresolved systems outside that loop remain
+deferred rather than blocking implementation.
 
 - final refinement cap
-- final player-facing names for each weapon's four slots
 - which named physical and mystical identities are available, and their topology
 - exact branch contribution values and minimum thresholds
-- exact material recipes, quantities, and costs
-- exact dismantling yield tables and random distribution
-- Crafting progress-to-level curve
+- later-grade material recipes, quantities, and floor drop tables
 - Alchemy progression and recipe rules (separate system)
-- full material catalogue and drop tables within the agreed grade/floor gates
-- exact improvement-roll odds at each Crafting level
 - player-facing quality labels
 - respec rules
 - special-component rarity
-- exact stat coefficients
+- component stat and move effects beyond the playable baseline
 - exact visual implementation
-- exact per-component move-modifier values
 - exact affix-generation rules
-- crafting interface
 - inventory limits
-- save representation for installed components, slot progress/quality, learned
-  techniques, and shared Crafting progress
 - ~~final name of Azhvielle's weapon~~
 - final obtainable prefixes and suffixes
 
@@ -801,6 +847,37 @@ configuration so they can be balanced without changing the progression rules:
 - Tier V Grade IV material cost, success chance, and +25% base-stat bonus
 - per-component move-modifier values
 
+### Gate 0 First-Pass Defaults
+
+These are implementation defaults for the first playable loop, not a balance
+lock. They are centralized in `app.content.weapon_progression_spec` and can be
+retuned after playtesting.
+
+| Material grade | Improvement cost | Crafting XP award |
+|---|---:|---:|
+| I | 1 | 20 |
+| II | 2 | 30 |
+| III | 3 | 40 |
+| IV | 4 | 50 |
+
+Crafting starts at Level 1 with 0 XP. Each level after the first costs 10
+cumulative XP, so Level 25 begins at 240 XP. Improvement roll weights are
+`1/2/3/4/5 points`:
+
+| Crafting level | Roll weights (%) |
+|---:|---|
+| 1 | 40 / 25 / 18 / 12 / 5 |
+| 25 | 32 / 24 / 19 / 15 / 10 |
+| 50 | 24 / 22 / 20 / 18 / 16 |
+| 75 | 16 / 19 / 21 / 22 / 22 |
+| 100 | 10 / 15 / 20 / 25 / 30 |
+
+Goblin Scrap dismantling yields one matching Grade-I Metal, Fiber, or Timber,
+with a chance for a second based on Crafting level. Goblin Lord Cores dismantle
+into one Grade-I Core. The double-yield chance is 20%, 35%, 50%, 65%, and 80%
+at Crafting levels 1, 25, 50, 75, and 100 respectively. These values are
+first-pass defaults; Floor I boss Core drops remain guaranteed.
+
 The following are no longer unresolved:
 
 - every signature weapon has exactly four modifiable slots
@@ -808,22 +885,31 @@ The following are no longer unresolved:
 - ordinary dismantleable drops author a maximum material yield and may recover less than that maximum
 - dismantling guarantees at least one matching material and never guarantees the authored maximum
 - material families map by slot as metal, fiber, timber, and cores
+- weapon-specific slot names are fixed by the four-slot table above; material family describes the dominant modification material, not the entire part's composition
 - ordinary grades align to weapon tiers and first appear on their corresponding floors
+- Floor I provides Grade-I sources for all four families, sufficient to demonstrate one valid improvement per family
+- Floor I dismantlable Goblin loot supplies Grade-I Metal, Fiber, and Timber; every Goblin Lord defeat, including Floor I replays, guarantees Grade-I Cores for one slot-four improvement
 - per-slot improvement progress and shared Crafting level each use a 0-100 scale
+- each slot-progress point adds 0.25% of its governed original base stats; 100 progress adds +25%
+- combine improvement and cumulative quality bonuses from original base stats, then round once, nearest integer with halves up
 - ordinary improvement recipes always succeed and add 1-5 percentage points
-- all four slots and shared Crafting level must meet each 25-point checkpoint to reach Tiers II-IV
-- progress carries through ordinary tier breakthroughs
+- Tier II/III/IV/V gates are 25/50/75/100 for every slot and shared Crafting
+- slot improvements cannot overshoot the next gate; progress clamps at the gate until the shared requirements unlock the next tier
+- progress carries through ordinary tier breakthroughs without overflow from the triggering roll
 - slot improvement and tier-quality bonuses are separate and both use original base stats
+- Tier V success adds +25 percentage points to Tier IV's +15%, for +40% cumulative quality bonus
 - Tier II/III/IV quality bonuses are currently +5%/+10%/+15% cumulative
 - Tier V requires all slots and shared Crafting at 100, uses Grade IV materials, and is non-guaranteed
 - failed Tier V attempts consume materials but preserve progress and award no Crafting progress
 - Crafting is shared roster-wide and gains progress only from successful recipes with explicit awards
+- the roster starts at Crafting Level 1 with zero progress toward Level 2; crafting, weapon improvement, and dismantling use a Hub merchant
 - Alchemy is separate and does not award Crafting progress
 - physical and mystical identities can coexist and are derived from the four-slot configuration
 - ties on one identity axis produce no identity for that axis until one leads
 - identity recalculates automatically after component changes
 - replacing a component consumes the old one, including slot-four cores
 - component move effects use data-driven modifiers; unlocked techniques remain learned
+- every weapon-progression action explicitly targets a Drifter by stable ID rather than relying on lead/party order
 
 # Complete
 

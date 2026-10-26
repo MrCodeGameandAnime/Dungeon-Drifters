@@ -21,6 +21,9 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
@@ -69,6 +72,19 @@ def _command_to_input(command):
         return ChooseCompanion(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
+    if kind == "merchant_target":
+        return ChooseMerchantTarget(_required(command, "drifter_id"))
+    if kind == "merchant_improve":
+        return ChooseMerchantImprove(
+            _required(command, "target_drifter_id"),
+            _required(command, "slot_id"),
+        )
+    if kind == "merchant_dismantle":
+        return ChooseMerchantDismantle(
+            _required(command, "target_drifter_id"),
+            _required(command, "item_id"),
+            command.get("quantity", 1),
+        )
     if kind == "action":
         return ChooseAction(_required(command, "intent"))
     if kind == "move":

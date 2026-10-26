@@ -16,6 +16,7 @@ class OverworldScreen(StrEnum):
     SKILLS = "skills"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    MERCHANT = "merchant"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     MAP = "map"
@@ -34,6 +35,7 @@ class OverworldAction(StrEnum):
     SKILLS = "skills"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    MERCHANT = "merchant"
     CRAFT = "craft"
     INSPECT = "inspect"
     USE = "use"
@@ -243,6 +245,121 @@ class WeaponView:
 
 
 @dataclass(frozen=True)
+class MerchantTargetView:
+    drifter_id: str
+    display_name: str
+    selected: bool
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("selected", self.selected)
+
+
+@dataclass(frozen=True)
+class MerchantMaterialView:
+    item_id: str
+    display_name: str
+    quantity: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("quantity", self.quantity)
+
+
+@dataclass(frozen=True)
+class MerchantSlotView:
+    slot_id: str
+    label: str
+    material_family: str
+    progress: int
+    material_id: str
+    material_name: str
+    material_cost: int
+    material_quantity: int
+    can_improve: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        for name in (
+            "slot_id",
+            "label",
+            "material_family",
+            "material_id",
+            "material_name",
+        ):
+            _validate_text(name, getattr(self, name))
+        for name in ("progress", "material_cost", "material_quantity"):
+            _validate_nonnegative(name, getattr(self, name))
+        if self.progress > 100:
+            raise ValueError("progress must not exceed 100")
+        _validate_bool("can_improve", self.can_improve)
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.can_improve == (self.blocked_reason is not None):
+            raise ValueError("improvement availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class MerchantDismantleView:
+    item_id: str
+    display_name: str
+    quantity: int
+    output_material_names: tuple[str, ...]
+    maximum_yield: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("quantity", self.quantity)
+        if self.quantity <= 0:
+            raise ValueError("dismantle quantity must be positive")
+        _validate_text_tuple("output_material_names", self.output_material_names)
+        _validate_nonnegative("maximum_yield", self.maximum_yield)
+        if self.maximum_yield <= 0:
+            raise ValueError("maximum_yield must be positive")
+
+
+@dataclass(frozen=True)
+class MerchantView:
+    crafting_level: int
+    crafting_experience: int
+    targets: tuple[MerchantTargetView, ...]
+    selected_target_id: str
+    weapon_name: str
+    slots: tuple[MerchantSlotView, ...]
+    materials: tuple[MerchantMaterialView, ...]
+    dismantle_items: tuple[MerchantDismantleView, ...]
+
+    def __post_init__(self):
+        _validate_nonnegative("crafting_level", self.crafting_level)
+        _validate_nonnegative("crafting_experience", self.crafting_experience)
+        _validate_text("selected_target_id", self.selected_target_id)
+        _validate_text("weapon_name", self.weapon_name)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_instance_tuple("slots", self.slots, MerchantSlotView)
+        _validate_instance_tuple("materials", self.materials, MerchantMaterialView)
+        _validate_instance_tuple(
+            "dismantle_items",
+            self.dismantle_items,
+            MerchantDismantleView,
+        )
+        if not any(
+            target.drifter_id == self.selected_target_id and target.selected
+            for target in self.targets
+        ):
+            raise ValueError("selected target must be present and selected")
+        if any(
+            target.selected != (target.drifter_id == self.selected_target_id)
+            for target in self.targets
+        ):
+            raise ValueError("exactly the selected target must be marked selected")
+        if len(self.slots) != 4:
+            raise ValueError("merchant weapon view must contain four slots")
+
+
+@dataclass(frozen=True)
 class AccessorySlotView:
     label: str
     item_name: str
@@ -369,6 +486,7 @@ class OverworldView:
     character: CharacterOverviewView | None = None
     skills: SkillsView | None = None
     weapon: WeaponView | None = None
+    merchant: MerchantView | None = None
     equipment: EquipmentView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
@@ -432,6 +550,8 @@ class OverworldView:
             self.outing_rewards is not None
         ):
             raise ValueError("pending outing rewards belong only to Extraction")
+        if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
+            raise ValueError("merchant data belongs only to the Merchant screen")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
             if len(self.companion_choices) != 3:
                 raise ValueError("companion selection must offer three choices")
@@ -443,6 +563,7 @@ class OverworldView:
             ("character", CharacterOverviewView),
             ("skills", SkillsView),
             ("weapon", WeaponView),
+            ("merchant", MerchantView),
             ("equipment", EquipmentView),
             ("inventory", InventoryView),
             ("route_map", MapView),

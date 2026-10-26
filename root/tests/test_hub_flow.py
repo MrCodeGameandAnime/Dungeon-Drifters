@@ -1,7 +1,12 @@
 import pytest
 
 from app.combat.battle import Battle
-from app.content.catalog import DRIFTER_SPECS, create_enemy_state, get_route_spec
+from app.content.catalog import (
+    DRIFTER_SPECS,
+    create_enemy_state,
+    get_drifter_spec,
+    get_route_spec,
+)
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import OverworldState
@@ -15,7 +20,13 @@ from app.presentation.overworld_models import (
     OverworldScreen,
 )
 from app.presentation.overworld_presenter import OverworldPresenter
-from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
+from app.ui.overworld_ui import (
+    ChooseCompanion,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
+    ChooseOverworldAction,
+)
 from app.ui.battle_ui import ChooseAction
 
 
@@ -68,6 +79,77 @@ def test_hub_offers_recruitment_without_surface_route_actions():
     assert view.contextual_route_option is None
     assert OverworldAction.ENTER_ENCOUNTER not in enabled_actions(view)
     assert OverworldAction.RETRY not in enabled_actions(view)
+
+
+def test_hub_offers_merchant_navigation():
+    session = make_session(game_at_hub())
+    view = session.current_view()
+
+    assert any(
+        option.label == "Merchant" and option.enabled
+        for option in view.options
+    )
+
+    merchant = session.submit(
+        ChooseOverworldAction(OverworldAction.MERCHANT)
+    )
+
+    assert merchant.screen is OverworldScreen.MERCHANT
+    assert getattr(merchant, "merchant", None) is not None
+
+
+def test_merchant_dismantle_and_improvement_spend_shared_materials():
+    game = game_at_hub()
+    session = make_session(game)
+    game.party_state.add_shared_items({"goblin_scrap": 1})
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+
+    dismantled = session.submit(
+        ChooseMerchantDismantle("branoc", "goblin_scrap")
+    )
+
+    assert dismantled.screen is OverworldScreen.MERCHANT
+    assert "goblin_scrap" not in game.party_state.shared_items
+    assert sum(
+        game.party_state.shared_items.get(item_id, 0)
+        for item_id in (
+            "grade_i_metal",
+            "grade_i_fiber",
+            "grade_i_timber",
+        )
+    ) in (1, 2)
+    assert game.party_state.crafting_experience == 0
+
+    metal_before = game.party_state.shared_items.get("grade_i_metal", 0)
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    improved = session.submit(
+        ChooseMerchantImprove("branoc", "blade_guard")
+    )
+
+    assert improved.merchant.slots[0].progress > 0
+    assert game.party_state.shared_items.get("grade_i_metal", 0) == metal_before
+    assert game.party_state.crafting_experience == 20
+
+
+def test_merchant_target_selection_is_reflected_and_stale_targets_are_rejected():
+    game = game_at_hub()
+    lead = game.player_state
+    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
+    assert game.party_state.recruit_companion(lead, companion)
+    assert game.party_state.begin_outing()
+    assert game.party_state.begin_extraction(experience=0, gold=0)
+    assert game.party_state.complete_extraction((lead, companion))
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    session = make_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+
+    selected = session.submit(ChooseMerchantTarget("azhvielle"))
+    rejected = session.submit(ChooseMerchantImprove("branoc", "blade_guard"))
+
+    assert selected.merchant.selected_target_id == "azhvielle"
+    assert rejected.notice == "Choose that Drifter before using the merchant."
+    assert game.party_state.shared_items == {"grade_i_metal": 1}
+    assert game.player_state.signature_weapon_state.slot_progress["blade_guard"] == 0
 
 
 def test_recruitment_lists_the_three_other_authored_drifters_and_fixed_cost():

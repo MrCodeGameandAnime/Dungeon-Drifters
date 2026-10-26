@@ -13,6 +13,7 @@ from app.player.character_run_state import (
     CharacterRunState,
 )
 from app.player.inventory import Inventory
+from app.player.signature_weapon_state import SignatureWeaponState
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,16 @@ class PlayerState:
         for slot, item in getattr(character, "starting_equipment", {}).items():
             self._validate_equipment_slot(slot)
             self._equipment[slot] = item
+        signature_weapon = self._equipment["weapon"]
+        if not isinstance(signature_weapon, Weapon):
+            raise ValueError("a Drifter must start with a signature weapon")
+        from app.content.catalog import get_weapon_spec
+
+        weapon_spec = get_weapon_spec(signature_weapon.item_id)
+        self._signature_weapon_state = SignatureWeaponState(
+            signature_weapon.item_id,
+            weapon_spec.progression,
+        )
 
     @property
     def character(self):
@@ -60,6 +71,10 @@ class PlayerState:
     @property
     def inventory(self):
         return self._inventory
+
+    @property
+    def signature_weapon_state(self):
+        return self._signature_weapon_state
 
     @property
     def character_run_state(self):
@@ -287,6 +302,15 @@ class PlayerState:
         player_state.super_resource.current = snapshot["resources"]["super"]["current"]
         player_state._inventory._items = list(inventory_items)
         player_state._equipment = dict(equipment_items)
+        signature_snapshot = snapshot.get("signature_weapon")
+        if signature_snapshot is not None:
+            from app.content.catalog import get_weapon_spec
+
+            weapon_spec = get_weapon_spec(signature_snapshot["weapon_id"])
+            player_state._signature_weapon_state = SignatureWeaponState.from_snapshot(
+                signature_snapshot,
+                weapon_spec.progression,
+            )
         player_state.character_run_state.restore_checkpoint(run_checkpoint)
         return player_state
 
@@ -320,6 +344,7 @@ class PlayerState:
                 "growth_points": self.growth_points,
             },
             "gold": self.gold,
+            "signature_weapon": self.signature_weapon_state.snapshot(),
             "inventory": [
                 self._snapshot_item(item, f"player.inventory[{index}]")
                 for index, item in enumerate(self.inventory.items)

@@ -18,7 +18,14 @@ from app.game.party_state import DungeonPhase
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
-from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction, ChoosePermanentStatIncrease
+from app.ui.overworld_ui import (
+    ChooseCompanion,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
+    ChooseOverworldAction,
+    ChoosePermanentStatIncrease,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -98,11 +105,77 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
     assert runtime._session.active_battle is not None
 
 
+def test_bridge_projects_and_submits_hub_merchant_actions():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    game.party_state.add_shared_items(
+        {"grade_i_metal": 1, "goblin_scrap": 1}
+    )
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    merchant = runtime.submit(
+        {"kind": "overworld_action", "action": "merchant"}
+    )
+
+    assert merchant["screen"] == OverworldScreen.MERCHANT.value
+    assert merchant["merchant"]["selected_target_id"] == "branoc"
+    assert merchant["merchant"]["weapon_name"] == "Sunder-Spire"
+    assert len(merchant["merchant"]["slots"]) == 4
+    assert merchant["merchant"]["slots"][0]["can_improve"] is True
+
+    improved = runtime.submit(
+        {
+            "kind": "merchant_improve",
+            "target_drifter_id": "branoc",
+            "slot_id": "blade_guard",
+        }
+    )
+
+    assert 1 <= improved["merchant"]["slots"][0]["progress"] <= 5
+    assert improved["merchant"]["crafting_experience"] == 20
+    dismantled = runtime.submit(
+        {
+            "kind": "merchant_dismantle",
+            "target_drifter_id": "branoc",
+            "item_id": "goblin_scrap",
+        }
+    )
+    assert all(
+        material["quantity"] >= 0
+        for material in dismantled["merchant"]["materials"]
+    )
+    assert game.party_state.shared_items.get("goblin_scrap", 0) == 0
+    assert game.party_state.crafting_experience == 20
+
+
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
         ({"kind": "companion", "drifter_id": "azhvielle"}, ChooseCompanion),
         ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
+        ({"kind": "merchant_target", "drifter_id": "branoc"}, ChooseMerchantTarget),
+        (
+            {
+                "kind": "merchant_improve",
+                "target_drifter_id": "branoc",
+                "slot_id": "blade_guard",
+            },
+            ChooseMerchantImprove,
+        ),
+        (
+            {
+                "kind": "merchant_dismantle",
+                "target_drifter_id": "branoc",
+                "item_id": "goblin_scrap",
+            },
+            ChooseMerchantDismantle,
+        ),
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
         ({"kind": "target", "target_id": "enemy-1"}, ChooseTarget),

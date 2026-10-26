@@ -2,7 +2,13 @@ import pytest
 from uuid import UUID
 
 from app.combat.battle import Battle
-from app.content.catalog import create_enemy_state, get_drifter_spec, get_route_spec
+from app.content.catalog import (
+    create_enemy_state,
+    get_drifter_spec,
+    get_encounter_item_rewards,
+    get_route_node_spec,
+    get_route_spec,
+)
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
@@ -185,6 +191,20 @@ def test_floor_one_replay_rates_advance_for_every_started_run_and_clamp():
         assert party.fail_floor_one_run(party_members)
 
     assert party.snapshot()["floor_one_cleared"] is True
+
+
+def test_floor_one_victory_places_authored_enemy_drops_in_pending_rewards():
+    game = game_at_completed_hub()
+    session = make_session(game)
+    set_out(session)
+    current_node = get_route_node_spec(
+        game.overworld_state.current_route_node_id
+    )
+    expected_items = dict(get_encounter_item_rewards(current_node.encounter_id))
+
+    win_current_battle(session)
+
+    assert game.party_state.outing_rewards.items == expected_items
 
 
 def test_floor_one_failure_discards_unsecured_rewards_and_restores_the_party():
@@ -725,6 +745,9 @@ def test_floor_one_extract_persists_banked_rewards_before_leaving_rest():
     )
 
     fallback = save.saved_states[0]
+    expected_items = dict(secured_items_before)
+    for item_id, quantity in rewards["items"].items():
+        expected_items[item_id] = expected_items.get(item_id, 0) + quantity
     assert extraction.screen is OverworldScreen.EXTRACTION
     assert game.party_state.phase is DungeonPhase.EXTRACTION
     assert game.party_state.shared_gold == 10
@@ -733,10 +756,7 @@ def test_floor_one_extract_persists_banked_rewards_before_leaving_rest():
     assert fallback.party_state.shared_gold == (
         secured_gold_before + (rewards["gold"] + 1) // 2
     )
-    assert fallback.party_state.shared_items == {
-        **secured_items_before,
-        "herb": secured_items_before.get("herb", 0) + 1,
-    }
+    assert fallback.party_state.shared_items == expected_items
     assert tuple(
         (member.level_state.current, member.exp_state.current)
         for member in (fallback.player_state,) + fallback.party_state.companions
