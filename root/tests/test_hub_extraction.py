@@ -90,7 +90,9 @@ def test_ready_starts_the_authored_party_encounter_and_victory_opens_extraction(
     assert extraction.adventure_text
     assert extraction.outing_rewards.experience == 120
     assert extraction.outing_rewards.gold == 9
-    assert extraction.outing_rewards.items == ()
+    assert tuple(
+        (item.item_id, item.quantity) for item in extraction.outing_rewards.items
+    ) == (("goblin_scrap", 3),)
     assert tuple(option.action.value for option in extraction.options) == (
         "return_to_hub",
     )
@@ -123,6 +125,7 @@ def test_extraction_delays_rewards_then_banks_once_and_restores_both_drifters():
     assert game.party_state.phase is DungeonPhase.HUB
     assert game.party_state.tutorial_complete is True
     assert game.party_state.shared_gold == 19
+    assert game.party_state.shared_items == {"goblin_scrap": 3}
     assert lead.exp_state.current - player_xp_before == 60
     assert companion.exp_state.current - companion_xp_before == 60
     assert lead.health.current == lead.health.maximum
@@ -164,6 +167,9 @@ def test_pending_extraction_round_trips_without_banking_rewards():
     assert view.screen.value == "extraction"
     assert reloaded.party_state.phase is DungeonPhase.EXTRACTION
     assert view.outing_rewards.experience == 120
+    assert tuple(
+        (item.item_id, item.quantity) for item in view.outing_rewards.items
+    ) == (("goblin_scrap", 3),)
     assert reloaded.party_state.shared_gold == 10
     assert reloaded.player_state.exp_state.current == 0
 

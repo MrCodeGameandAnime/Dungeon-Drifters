@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec
 from app.game.game_state import GameState
 from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -18,9 +18,12 @@ from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseMerchantCraftComponent,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponComponent,
+    ChooseWeaponTarget,
 )
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 
@@ -306,7 +309,7 @@ def test_rest_fully_recovers_without_changing_unrelated_player_state():
 
 
 def test_skip_rest_consumes_node_without_recovery():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     player.health.take_damage(12)
     player.mana_resource.spend(4)
     game = GameState(player)
@@ -820,6 +823,91 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
     assert enemies.calls == []
 
 
+def test_hub_component_craft_install_updates_combat_and_persists():
+    player = PlayerState(get_drifter_spec("branoc").create_character())
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+    )
+
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    crafted = session.submit(
+        ChooseMerchantCraftComponent(
+            "branoc",
+            "sunder_spire_blade_reinforced",
+        )
+    )
+    assert crafted.merchant.component_recipes[0].can_craft is False
+    assert game.party_state.shared_items["sunder_spire_blade_reinforced"] == 1
+    assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
+
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.WEAPON))
+    weapon_view = session.current_view()
+    assert weapon_view.weapon.components[0].available_components[0].component_id == (
+        "sunder_spire_blade_reinforced"
+    )
+    installed = session.submit(
+        ChooseWeaponComponent(
+            "branoc",
+            "blade_guard",
+            "sunder_spire_blade_reinforced",
+        )
+    )
+
+    assert "Installed Reinforced Blade and Guard." in installed.notice
+    assert "Crestgrave Reaping: Power +2, Accuracy -2" in installed.notice
+    assert installed.weapon.components[0].installed_effect_summary == (
+        "Crestgrave Reaping: Power +2, Accuracy -2",
+        "Heavy identity +1",
+    )
+
+    reloaded = player.clone()
+    move = next(
+        move for move in reloaded.combat_moves if move.name == "Crestgrave Reaping"
+    )
+    assert move.power == 11
+    assert move.accuracy == 90
+    assert reloaded.signature_weapon_state.components["blade_guard"] == (
+        "sunder_spire_blade_reinforced"
+    )
+
+
+def test_weapon_target_selection_is_explicit_before_component_install():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    assert game.party_state.recruit_companion(lead, companion)
+    game.party_state.add_shared_items({"needle_focus_fitted": 1})
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+    )
+
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.WEAPON))
+    session.submit(ChooseWeaponTarget("azhvielle"))
+    session.submit(
+        ChooseWeaponComponent(
+            "azhvielle",
+            "focus_fittings",
+            "needle_focus_fitted",
+        )
+    )
+
+    assert companion.signature_weapon_state.components["focus_fittings"] == (
+        "needle_focus_fitted"
+    )
+    assert lead.signature_weapon_state.components["blade_guard"] == "sunder_spire_blade"
+
+
 def test_item_selection_and_inspection_are_transient_and_non_consuming():
     game = GameState(PlayerState(create_drifter("zhaivra")))
     initial_view = OverworldPresenter().build(
@@ -1034,8 +1122,10 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     assert post_victory.contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
     assert post_victory.adventure_text == (
         "Goblin Ambush is defeated. Rewards: 40 EXP and 3 gold. "
+        "Items: 1 Goblin Scrap. "
         "The route continues toward Goblin Pair."
     )
+    assert game.party_state.shared_items == {"goblin_scrap": 1}
     assert player.exp_state.current == 40
     assert player.gold == 3
     assert identities == (

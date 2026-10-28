@@ -13,8 +13,10 @@ from app.content.catalog import (
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
+    derive_weapon_identities,
     get_improvement_recipe,
     get_material_spec,
+    get_weapon_component_spec,
 )
 from app.game.party_state import (
     COMPANION_RECRUITMENT_COST,
@@ -37,6 +39,7 @@ from app.presentation.overworld_models import (
     MapView,
     MapEncounterInspectionView,
     MerchantDismantleView,
+    MerchantComponentRecipeView,
     MerchantMaterialView,
     MerchantSlotView,
     MerchantTargetView,
@@ -54,6 +57,8 @@ from app.presentation.overworld_models import (
     StatBonusView,
     StatRowView,
     WeaponView,
+    WeaponComponentOptionView,
+    WeaponComponentSlotView,
 )
 
 
@@ -81,6 +86,19 @@ def _adjacent_run_counts(values):
     return tuple(groups)
 
 
+def _member_drifter_spec(member):
+    profile = member.character.profile
+    if profile is not None:
+        return get_drifter_spec_by_choice(profile.choice)
+    weapon = member.get_equipped("weapon")
+    weapon_id = weapon.item_id if isinstance(weapon, Weapon) else None
+    return next(
+        spec
+        for spec in DRIFTER_SPECS
+        if spec.starting_weapon_id == weapon_id
+    )
+
+
 class OverworldPresenter:
     def build(
         self,
@@ -88,7 +106,9 @@ class OverworldPresenter:
         *,
         screen=OverworldScreen.MAIN,
         selected_item_key=None,
+        selected_character_target_id=None,
         selected_merchant_target_id=None,
+        selected_weapon_target_id=None,
         adventure_text=None,
         notice=None,
         save_available=False,
@@ -149,17 +169,17 @@ class OverworldPresenter:
             options=options,
             contextual_route_option=contextual_route_option,
             character=(
-                self._character_view(game_state)
+                self._character_view(game_state, selected_character_target_id)
                 if screen is OverworldScreen.CHARACTER
                 else None
             ),
             skills=(
-                self._skills_view(game_state)
+                self._skills_view(game_state, selected_character_target_id)
                 if screen is OverworldScreen.SKILLS
                 else None
             ),
             weapon=(
-                self._weapon_view(game_state)
+                self._weapon_view(game_state, selected_weapon_target_id)
                 if screen is OverworldScreen.WEAPON
                 else None
             ),
@@ -169,7 +189,7 @@ class OverworldPresenter:
                 else None
             ),
             equipment=(
-                self._equipment_view()
+                self._equipment_view(game_state, selected_character_target_id)
                 if screen is OverworldScreen.EQUIPMENT
                 else None
             ),
@@ -223,7 +243,11 @@ class OverworldPresenter:
                     experience=game_state.party_state.outing_rewards.experience,
                     gold=game_state.party_state.outing_rewards.gold,
                     items=tuple(
-                        OutingItemRewardView(item_id=item_id, quantity=quantity)
+                        OutingItemRewardView(
+                            item_id=item_id,
+                            quantity=quantity,
+                            display_name=self._shared_item_display_name(item_id),
+                        )
                         for item_id, quantity in sorted(
                             game_state.party_state.outing_rewards.items.items()
                         )
@@ -300,8 +324,11 @@ class OverworldPresenter:
             return "The road through Ketlyv begins at the edge of the Goblin horde."
         return f"{current_label} awaits along the surface route."
 
-    def _character_view(self, game_state):
-        player = game_state.player_state
+    def _character_view(self, game_state, selected_target_id):
+        player, selected_target_id, targets = self._selected_party_member(
+            game_state,
+            selected_target_id,
+        )
         level = player.level_state
         exp = player.exp_state
         threshold = level.next_threshold
@@ -324,10 +351,15 @@ class OverworldPresenter:
             mana_maximum=player.mana_resource.maximum,
             super_current=player.super_resource.current,
             super_maximum=player.super_resource.maximum,
+            targets=targets,
+            selected_target_id=selected_target_id,
         )
 
-    def _skills_view(self, game_state):
-        player = game_state.player_state
+    def _skills_view(self, game_state, selected_target_id):
+        player, selected_target_id, targets = self._selected_party_member(
+            game_state,
+            selected_target_id,
+        )
         growth_points = player.growth_points
         return SkillsView(
             growth_points_available=growth_points,
@@ -338,10 +370,42 @@ class OverworldPresenter:
             ),
             stats=self._stats(player, increase_controls=True),
             moves=tuple(
-                SkillMoveView(move.name, move.description)
+                SkillMoveView(
+                    name=move.name,
+                    description=move.description,
+                    power=move.power,
+                    accuracy=move.accuracy,
+                    resource_type=move.resource_type.value,
+                    resource_cost=move.resource_cost,
+                    damage_type=move.damage_type.value,
+                )
                 for move in player.combat_moves
             ),
+            targets=targets,
+            selected_target_id=selected_target_id,
         )
+
+    @staticmethod
+    def _selected_party_member(game_state, selected_target_id):
+        members = (game_state.player_state,) + game_state.party_state.companions
+        member_specs = tuple((member, _member_drifter_spec(member)) for member in members)
+        target_ids = {spec.drifter_id for _member, spec in member_specs}
+        if selected_target_id not in target_ids:
+            selected_target_id = member_specs[0][1].drifter_id
+        targets = tuple(
+            MerchantTargetView(
+                drifter_id=spec.drifter_id,
+                display_name=member.character.full_display_name,
+                selected=spec.drifter_id == selected_target_id,
+            )
+            for member, spec in member_specs
+        )
+        member = next(
+            member
+            for member, spec in member_specs
+            if spec.drifter_id == selected_target_id
+        )
+        return member, selected_target_id, targets
 
     @staticmethod
     def _stats(player, *, increase_controls=False):
@@ -375,14 +439,70 @@ class OverworldPresenter:
         )
 
     @staticmethod
-    def _weapon_view(game_state):
-        weapon = game_state.player_state.get_equipped("weapon")
+    def _weapon_view(game_state, selected_target_id):
+        members = (game_state.player_state,) + game_state.party_state.companions
+        target_specs = tuple(
+            (member, _member_drifter_spec(member))
+            for member in members
+        )
+        target_ids = {spec.drifter_id for _member, spec in target_specs}
+        if selected_target_id not in target_ids:
+            selected_target_id = target_specs[0][1].drifter_id
+        target_member = next(
+            member
+            for member, spec in target_specs
+            if spec.drifter_id == selected_target_id
+        )
+        weapon = target_member.get_equipped("weapon")
         if not isinstance(weapon, Weapon):
             raise ValueError("the selected Drifter has no equipped signature weapon")
+        weapon_spec = get_weapon_spec(weapon.item_id)
+        progression = weapon_spec.progression
+        component_state = target_member.signature_weapon_state
+        shared_items = game_state.party_state.shared_items
         bonuses = tuple(
             StatBonusView(label, weapon.stat_bonuses[name])
             for name, label in STAT_ORDER
             if name in weapon.stat_bonuses
+        )
+        targets = tuple(
+            MerchantTargetView(
+                drifter_id=spec.drifter_id,
+                display_name=member.character.full_display_name,
+                selected=spec.drifter_id == selected_target_id,
+            )
+            for member, spec in target_specs
+        )
+        component_slots = []
+        for slot in progression.slots:
+            installed_id = component_state.components[slot.slot_id]
+            installed = get_weapon_component_spec(progression, installed_id)
+            choices = tuple(
+                WeaponComponentOptionView(
+                    component_id=component.component_id,
+                    display_name=component.display_name,
+                    quantity=shared_items[component.component_id],
+                    effect_summary=OverworldPresenter._component_effect_summary(component),
+                )
+                for component in progression.components
+                if component.slot_id == slot.slot_id
+                and not component.is_starting
+                and component.component_id != installed_id
+                and shared_items.get(component.component_id, 0) > 0
+            )
+            component_slots.append(
+                WeaponComponentSlotView(
+                    slot_id=slot.slot_id,
+                    label=slot.label,
+                    installed_component_id=installed_id,
+                    installed_component_name=installed.display_name,
+                    available_components=choices,
+                    installed_effect_summary=OverworldPresenter._component_effect_summary(installed),
+                )
+            )
+        physical_identity, mystical_identity = derive_weapon_identities(
+            progression,
+            component_state.components,
         )
         return WeaponView(
             name=weapon.name,
@@ -390,6 +510,11 @@ class OverworldPresenter:
             intended_wielder=weapon.intended_wielder,
             bonuses=bonuses,
             description=weapon.description,
+            targets=targets,
+            selected_target_id=selected_target_id,
+            components=tuple(component_slots),
+            physical_identity=physical_identity,
+            mystical_identity=mystical_identity,
         )
 
     @staticmethod
@@ -399,10 +524,9 @@ class OverworldPresenter:
         target_specs = tuple(
             (
                 member,
-                get_drifter_spec_by_choice(member.character.profile.choice),
+                _member_drifter_spec(member),
             )
             for member in members
-            if member.character.profile is not None
         )
         target_ids = {spec.drifter_id for _member, spec in target_specs}
         if selected_target_id not in target_ids:
@@ -497,6 +621,28 @@ class OverworldPresenter:
             for spec in DISMANTLE_SPECS
             if stock_by_id.get(spec.item_id, 0) > 0
         )
+        component_recipes = tuple(
+            MerchantComponentRecipeView(
+                component_id=component.component_id,
+                display_name=component.display_name,
+                slot_id=component.slot_id,
+                slot_label=next(
+                    slot.label
+                    for slot in weapon_spec.progression.slots
+                    if slot.slot_id == component.slot_id
+                ),
+                material_name=get_material_spec(component.recipe_material_id).display_name,
+                material_cost=component.recipe_cost,
+                material_quantity=stock_by_id.get(component.recipe_material_id, 0),
+                crafting_award=component.crafting_award,
+                can_craft=(
+                    stock_by_id.get(component.recipe_material_id, 0)
+                    >= component.recipe_cost
+                ),
+            )
+            for component in weapon_spec.progression.components
+            if not component.is_starting
+        )
         return MerchantView(
             crafting_level=party.crafting_level,
             crafting_experience=party.crafting_experience,
@@ -506,15 +652,59 @@ class OverworldPresenter:
             slots=tuple(slots),
             materials=materials,
             dismantle_items=dismantle_items,
+            component_recipes=component_recipes,
         )
 
     @staticmethod
-    def _equipment_view():
+    def _component_effect_summary(component):
+        effects = []
+        for modifier in component.move_modifiers:
+            changes = []
+            if modifier.power_delta:
+                changes.append(f"Power {modifier.power_delta:+d}")
+            if modifier.accuracy_delta:
+                changes.append(f"Accuracy {modifier.accuracy_delta:+d}")
+            if modifier.resource_cost_delta:
+                changes.append(f"Resource cost {modifier.resource_cost_delta:+d}")
+            if modifier.damage_type is not None:
+                changes.append(f"Damage type {modifier.damage_type.title()}")
+            effects.append(f"{modifier.move_name}: {', '.join(changes)}")
+        if component.physical_identity is not None:
+            effects.append(
+                f"{component.physical_identity} identity +{component.physical_points}"
+            )
+        if component.mystical_identity is not None:
+            effects.append(
+                f"{component.mystical_identity} identity +{component.mystical_points}"
+            )
+        return tuple(effects)
+
+    @staticmethod
+    def _equipment_view(game_state, selected_target_id):
+        _member, selected_target_id, targets = OverworldPresenter._selected_party_member(
+            game_state,
+            selected_target_id,
+        )
         return EquipmentView(
             necklace=AccessorySlotView("Necklace", "Empty"),
             ring=AccessorySlotView("Ring", "Empty"),
             benefits=("None",),
+            targets=targets,
+            selected_target_id=selected_target_id,
         )
+
+    @staticmethod
+    def _shared_item_display_name(item_id):
+        try:
+            return get_material_spec(item_id).display_name
+        except ValueError:
+            pass
+        for drifter in DRIFTER_SPECS:
+            progression = get_weapon_spec(drifter.starting_weapon_id).progression
+            for component in progression.components:
+                if component.component_id == item_id:
+                    return component.display_name
+        return " ".join(part.capitalize() for part in item_id.split("_"))
 
     @staticmethod
     def _inventory_items(game_state):
@@ -539,6 +729,19 @@ class OverworldPresenter:
                         definition.item_id
                     ),
                     description=definition.description,
+                )
+            )
+        shared_items = game_state.party_state.shared_items
+        for item_id, quantity in sorted(
+            shared_items.items(),
+            key=lambda item: OverworldPresenter._shared_item_display_name(item[0]),
+        ):
+            items.append(
+                OverworldItemView(
+                    selection_key=f"shared-item:{item_id}",
+                    display_name=OverworldPresenter._shared_item_display_name(item_id),
+                    quantity=quantity,
+                    description="Shared crafting material or weapon component.",
                 )
             )
         return tuple(items)

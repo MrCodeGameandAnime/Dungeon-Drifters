@@ -10,12 +10,15 @@ from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponComponent,
+    ChooseWeaponTarget,
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 
@@ -146,7 +149,7 @@ def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
     assert "Ser Branoc" in text
     assert "Sunder-Spire" in text
     assert "Blade / Guard" in text
-    assert "Grade I Metal" in text
+    assert "Scrap metal" in text
     assert "Goblin Scrap x2" in text
 
 
@@ -164,6 +167,49 @@ def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
     assert target == ChooseMerchantTarget("branoc")
     assert improve == ChooseMerchantImprove("branoc", "blade_guard")
     assert dismantle == ChooseMerchantDismantle("branoc", "goblin_scrap")
+
+
+def test_merchant_terminal_offers_grade_one_component_recipes():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+    ui = TerminalOverworldUI(output_func=lambda _message: None)
+
+    text = "\n".join(rendered(view))
+    command = ui._translate_choice(view, "c1")
+
+    assert "COMPONENT RECIPES" in text
+    assert "Reinforced Blade and Guard" in text
+    assert "C1. Reinforced Blade and Guard" in text
+    assert command == ChooseMerchantCraftComponent(
+        "branoc",
+        "sunder_spire_blade_reinforced",
+    )
+
+
+def test_weapon_terminal_inspects_components_and_targets_exact_drifter():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    game.party_state.add_shared_items({"sunder_spire_blade_reinforced": 1})
+    view = OverworldPresenter().build(game, screen=OverworldScreen.WEAPON)
+    ui = TerminalOverworldUI(output_func=lambda _message: None)
+
+    text = "\n".join(rendered(view))
+
+    assert "Physical identity: None" in text
+    assert "Mystical identity: None" in text
+    assert "T1. > Ser Branoc" in text
+    assert "1. Blade / Guard assembly: Deep-Iron Blade and Guard" in text
+    assert "C1.1 Reinforced Blade and Guard x1" in text
+    assert ui._translate_choice(view, "t1") == ChooseWeaponTarget("branoc")
+    assert ui._translate_choice(view, "c1.1") == ChooseWeaponComponent(
+        "branoc",
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
 
 
 def test_main_contextual_action_tracks_enter_retry_and_paused_route_states():

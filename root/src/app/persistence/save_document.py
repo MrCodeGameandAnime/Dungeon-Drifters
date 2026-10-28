@@ -593,7 +593,6 @@ def _validate_legacy_party(party, player):
     if phase is DungeonPhase.OUTSIDE and (
         has_companion
         or party["shared_gold"]
-        or party["shared_items"]
         or party["tutorial_complete"]
         or has_pending_rewards
     ):
@@ -691,7 +690,6 @@ def _validate_party(party, player, *, require_signature_weapon=True):
     if phase is DungeonPhase.OUTSIDE and (
         has_companion
         or party["shared_gold"]
-        or party["shared_items"]
         or party["tutorial_complete"]
         or has_pending_rewards
     ):

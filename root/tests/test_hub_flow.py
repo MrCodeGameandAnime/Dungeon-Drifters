@@ -22,10 +22,12 @@ from app.presentation.overworld_models import (
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseCharacterTarget,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
+    ChoosePermanentStatIncrease,
 )
 from app.ui.battle_ui import ChooseAction
 
@@ -150,6 +152,45 @@ def test_merchant_target_selection_is_reflected_and_stale_targets_are_rejected()
     assert rejected.notice == "Choose that Drifter before using the merchant."
     assert game.party_state.shared_items == {"grade_i_metal": 1}
     assert game.player_state.signature_weapon_state.slot_progress["blade_guard"] == 0
+
+
+def test_character_and_skills_can_inspect_and_grow_the_selected_companion():
+    game = game_at_hub()
+    lead = game.player_state
+    companion = PlayerState(get_drifter_spec("joruun").create_character())
+    assert game.party_state.recruit_companion(lead, companion)
+    assert game.party_state.begin_outing()
+    assert game.party_state.begin_extraction(experience=0, gold=0)
+    assert game.party_state.complete_extraction((lead, companion))
+    companion.gain_experience(100)
+    session = make_session(game)
+
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    selected = session.submit(ChooseCharacterTarget("joruun"))
+
+    assert selected.character.selected_target_id == "joruun"
+    assert selected.character.display_name == companion.character.full_display_name
+    assert tuple(row.value for row in selected.character.stats) == tuple(
+        companion.character.permanent_stats.as_dict()[name]
+        for name in (
+            "strength",
+            "constitution",
+            "intelligence",
+            "spirit",
+            "dexterity",
+            "intuition",
+        )
+    )
+
+    skills = session.submit(ChooseOverworldAction(OverworldAction.SKILLS))
+    assert skills.skills.selected_target_id == "joruun"
+    strength_before = companion.character.permanent_stats.strength
+    lead_strength_before = lead.character.permanent_stats.strength
+    changed = session.submit(ChoosePermanentStatIncrease("strength"))
+
+    assert companion.character.permanent_stats.strength == strength_before + 1
+    assert lead.character.permanent_stats.strength == lead_strength_before
+    assert changed.skills.selected_target_id == "joruun"
 
 
 def test_recruitment_lists_the_three_other_authored_drifters_and_fixed_cost():

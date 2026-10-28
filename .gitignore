@@ -20,6 +20,7 @@ root/pages-dist/
 # Test and coverage output
 .pytest_cache/
 .pytest-tmp-*/
+/root/.pytest-windows-temp/
 .coverage
 coverage.xml
 htmlcov/

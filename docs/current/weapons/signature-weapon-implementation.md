@@ -14,7 +14,7 @@ This plan is the implementation contract where it resolves an ambiguity in the
 broader design spec. Unresolved questions not explicitly settled here remain
 open; do not infer additional mechanics from the implementation details.
 
-## Audited Current Status (2026-10-27)
+## Audited Current Status (2026-10-28)
 
 This snapshot distinguishes implemented foundations from accepted gates. A gate
 remains open until all of its required behavior and verification are complete;
@@ -23,18 +23,18 @@ an unchecked task does not mean that no related code exists.
 | Gate | Status | Present in the current tree | Still open |
 |---|---|---|---|
 | 0. Playable baseline | Complete, as recorded below | Shared Crafting/material inventory, Grade-I-IV material and improvement-recipe definitions, Goblin Scrap/Core salvage, basic slot improvement, and Hub merchant actions for improvement and dismantling. | No Gate 0 work identified in this audit. |
-| 1. Authored content | Partial | All four weapons have ordered slot labels/families and starting component IDs. The [component reference](component.md) now names a Grade I-IV material ladder; runtime material/improvement-recipe definitions and two Grade-I salvage sources exist, and tests assert the four slot maps. | The named material ladder is not yet mapped to authored runtime item IDs, higher-floor drop sources, or component-crafting recipes. Weapon-specific component definitions/effects, identity contributions, move modifiers, and comprehensive content-reference validation remain open. |
-| 2. Persistent state | Implementation present; gate verification open | Per-Drifter signature-weapon state and shared Crafting/material state are serialized. Runtime schema is 10 and disk schema is 11; round-trip and legacy-migration tests exist, and the profile service validates current schema 11. | This audit did not rerun the focused suite or required PostgreSQL/service verification. Learned-technique and malformed-progression-state coverage should be checked against the Gate 2 cases before acceptance. |
+| 1. Authored content | Partial | All four weapons have ordered slots, neutral starting parts, and one Grade-I craftable part per slot using its matching material family. The Grade-I material families have Floor I salvage sources; the recipe awards 10 Crafting XP, and components author identity contributions and move modifiers. Tests cover slot/family mapping and verify each modifier names a move on its wielder. | Higher-floor sources and components remain unauthored. Broader validation of malformed/duplicate component definitions and effect values remains open. |
+| 2. Persistent state | Implementation present; gate verification open | Per-Drifter signature-weapon state and shared Crafting/material state are serialized. Runtime schema is 10 and disk schema is 11; round-trip and legacy-migration tests passed in the full client suite, including an installed-component save-document round trip. | Required PostgreSQL/service verification was not run in this pass. Learned-technique and malformed-progression-state coverage should be checked against the Gate 2 cases before acceptance. |
 | 3. Progression rules | Partial | Basic improvement spends the matching grade/family material, awards authored Crafting XP, applies a 1-5 roll, and enforces shared tier gates. Basic dismantling is atomic. | Full weighted-roll coverage, all gate boundaries, stat/quality projection, and Tier V behavior/tests are absent. |
-| 4. Components and combat projection | Partial | Goblin Scrap and Goblin Lord Core have bounded Grade-I salvage definitions and basic dismantle actions. | General salvage coverage, component crafting/replacement, identity calculation, move projection, and learned-technique acquisition/replacement behavior are absent. |
-| 5. Hub and client parity | Partial | The Hub merchant can select a current party Drifter, show slot/material state, improve a slot, and dismantle eligible loot. Terminal and browser bridge contract tests cover these actions. | Component inspection/configuration and replacement are not implemented. The full built-site progression-to-save/reload smoke required by this plan has not been reverified. |
+| 4. Components and combat projection | Partial | Component changes update per-Drifter installed state; identities are derived from installed parts, and authored move modifiers project onto actual combat moves. Tests cover crafting, installation, identity ties, move effects, and save round-trip. | Broader replacement/salvage edge coverage and learned-technique acquisition/replacement behavior remain open. |
+| 5. Hub and client parity | Partial | The Hub merchant offers Grade-I component recipes; Character > Weapon selects a current party Drifter and installs an owned compatible part. Terminal and browser bridge paths use explicit target IDs. The built-site smoke passed the craft/install flow and full existing route smoke. | The broader progression-to-save/reload browser smoke required by this plan has not been run. |
 | 6. Cumulative qualification | Open | Broader game/browser qualification evidence is recorded in `docs/probe.md`. | The pinned MicroPython probe has not been extended with weapon progression, and final weapon-progression qualification is not recorded. |
 
-This was a source-and-test-artifact audit, not a fresh test run. The system
-Windows Python launcher could not start in this shell, and the configured
-workspace Python does not include `pytest`; therefore no current test pass is
-claimed here. The focused and cumulative verification tasks below remain open
-until rerun in the project's test environment.
+Fresh verification on 2026-10-28: 1,745 root Python tests and 51 web tests
+passed; content catalog check, content validation, compileall, the 141-file
+static browser build, and the full Playwright browser smoke passed. PostgreSQL
+service verification and the actual pinned MicroPython matrix were not run;
+those qualification requirements remain open.
 
 ## Global Constraints
 

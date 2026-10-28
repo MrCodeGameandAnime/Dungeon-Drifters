@@ -11,6 +11,7 @@ from app.content.weapon_progression_spec import (
     get_improvement_recipe,
     improvement_roll,
     salvage_double_yield_chance,
+    get_weapon_component_spec,
 )
 from app.game.party_state import DungeonPhase
 from app.game.game_state import GameState
@@ -24,6 +25,8 @@ class WeaponProgressionResult:
     slot_progress: int | None = None
     roll: int | None = None
     material_id: str | None = None
+    component_id: str | None = None
+    slot_id: str | None = None
     crafting_level: int = 1
     _materials: tuple[tuple[str, int], ...] = ()
 
@@ -117,11 +120,65 @@ class WeaponProgressionService:
             _materials=tuple(sorted(outputs.items())),
         )
 
+    def craft_component(self, *, target_drifter_id, component_id):
+        player = self._target_at_hub(target_drifter_id)
+        progression = get_weapon_spec(
+            player.signature_weapon_state.weapon_id
+        ).progression
+        try:
+            component = get_weapon_component_spec(progression, component_id)
+        except ValueError:
+            return self._failure("unknown_component")
+        if component.is_starting or component.recipe_material_id is None:
+            return self._failure("not_craftable")
+
+        party = self._game_state.party_state
+        if party.shared_items.get(component.recipe_material_id, 0) < component.recipe_cost:
+            return self._failure("insufficient_materials")
+        if not party.spend_shared_items(
+            {component.recipe_material_id: component.recipe_cost}
+        ):
+            return self._failure("insufficient_materials")
+        party.add_shared_items({component.component_id: 1})
+        party.add_crafting_experience(component.crafting_award)
+        return WeaponProgressionResult(
+            success=True,
+            material_id=component.recipe_material_id,
+            component_id=component.component_id,
+            slot_id=component.slot_id,
+            crafting_level=party.crafting_level,
+        )
+
+    def install_component(self, *, target_drifter_id, slot_id, component_id):
+        player = self._target_at_hub(target_drifter_id)
+        state = player.signature_weapon_state
+        progression = get_weapon_spec(state.weapon_id).progression
+        try:
+            component = get_weapon_component_spec(progression, component_id)
+        except ValueError:
+            return self._failure("unknown_component")
+        if component.slot_id != slot_id:
+            return self._failure("wrong_slot")
+        if state.components[slot_id] == component_id:
+            return self._failure("already_installed")
+        party = self._game_state.party_state
+        if party.shared_items.get(component_id, 0) < 1:
+            return self._failure("insufficient_components")
+        if not party.spend_shared_items({component_id: 1}):
+            return self._failure("insufficient_components")
+        state.install_component(slot_id, component_id)
+        return WeaponProgressionResult(
+            success=True,
+            component_id=component_id,
+            slot_id=slot_id,
+            crafting_level=party.crafting_level,
+        )
+
     def _target_at_hub(self, target_drifter_id):
         if not isinstance(target_drifter_id, str) or not target_drifter_id:
             raise ValueError("target_drifter_id must identify a current party member")
         party = self._game_state.party_state
-        if party.phase is not DungeonPhase.HUB:
+        if party.phase not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
             raise ValueError("weapon progression is only available at the Hub")
         members = (self._game_state.player_state,) + party.companions
         for member in members:

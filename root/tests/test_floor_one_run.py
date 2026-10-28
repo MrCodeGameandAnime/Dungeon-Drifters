@@ -202,9 +202,10 @@ def test_floor_one_victory_places_authored_enemy_drops_in_pending_rewards():
     )
     expected_items = dict(get_encounter_item_rewards(current_node.encounter_id))
 
-    win_current_battle(session)
+    result = win_current_battle(session)
 
     assert game.party_state.outing_rewards.items == expected_items
+    assert "Items: 4 Goblin Scrap." in result.adventure_text
 
 
 def test_floor_one_failure_discards_unsecured_rewards_and_restores_the_party():
@@ -506,7 +507,7 @@ def test_floor_one_rest_offers_run_choices_and_saves_only_at_rest():
     assert session._save_port.saved_states == [game, fallback]
 
 
-def test_floor_one_recover_restores_both_drifters_and_continues_route():
+def test_floor_one_recover_keeps_the_party_at_rest_until_explicit_continue():
     game = game_at_completed_hub()
     session = make_session(game)
     reach_first_floor_one_rest(session)
@@ -515,13 +516,22 @@ def test_floor_one_recover_restores_both_drifters_and_continues_route():
         member.health.take_damage(11)
         member.mana_resource.spend(min(member.mana_resource.current, 3))
 
-    continued = session.submit(ChooseOverworldAction(OverworldAction.REST))
+    recovered = session.submit(ChooseOverworldAction(OverworldAction.REST))
 
-    assert continued.screen is OverworldScreen.MAIN
-    assert game.overworld_state.current_route_node_id == "floor_one_battle_06"
+    assert recovered.screen is OverworldScreen.REST
+    assert game.overworld_state.current_route_node_id == "floor_one_midway_rest"
+    assert "floor_one_midway_rest" not in game.overworld_state.resolved_rest_node_ids
+    assert any(
+        option.action is OverworldAction.EXTRACT and option.enabled
+        for option in recovered.options
+    )
     for member in party_members:
         assert member.health.current == member.health.maximum
         assert member.mana_resource.current == member.mana_resource.maximum
+
+    continued = session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
+    assert continued.screen is OverworldScreen.MAIN
+    assert game.overworld_state.current_route_node_id == "floor_one_battle_06"
 
 
 def test_floor_one_continue_without_rest_does_not_heal_either_drifter():
@@ -567,6 +577,35 @@ def test_floor_one_rest_can_extract_for_partial_rewards_and_return_to_hub():
     assert hub.screen is OverworldScreen.HUB
     assert hub.location_label == "Floor 1 Hub"
     assert game.party_state.phase is DungeonPhase.HUB
+
+
+def test_floor_one_recovered_party_can_still_extract_and_keep_items():
+    game = game_at_completed_hub()
+    session = make_session(game)
+    reach_first_floor_one_rest(session)
+    party_members = (game.player_state,) + game.party_state.companions
+    expected_items = game.party_state.outing_rewards.items
+    for member in party_members:
+        member.health.take_damage(11)
+        member.mana_resource.spend(min(member.mana_resource.current, 3))
+
+    recovered = session.submit(ChooseOverworldAction(OverworldAction.REST))
+    assert recovered.screen is OverworldScreen.REST
+
+    extraction = session.submit(ChooseOverworldAction(OverworldAction.EXTRACT))
+    assert extraction.screen is OverworldScreen.EXTRACTION
+    assert {
+        item.item_id: item.quantity for item in extraction.outing_rewards.items
+    } == expected_items
+
+    hub = session.submit(ChooseOverworldAction(OverworldAction.RETURN_TO_HUB))
+    assert hub.screen is OverworldScreen.HUB
+    assert game.party_state.shared_items == expected_items
+    assert all(
+        member.health.current == member.health.maximum
+        and member.mana_resource.current == member.mana_resource.maximum
+        for member in party_members
+    )
 
 
 @pytest.mark.parametrize(
@@ -652,7 +691,6 @@ def test_floor_one_rest_save_load_resumes_at_same_checkpoint(tmp_path):
 @pytest.mark.parametrize(
     "action",
     (
-        OverworldAction.REST,
         OverworldAction.SKIP_REST,
         OverworldAction.EXTRACT,
     ),

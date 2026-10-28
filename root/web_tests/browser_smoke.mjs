@@ -398,7 +398,11 @@ const extractionProjection = {
   contextual_route_option: null,
   character: null,
   notice: null,
-  outing_rewards: { experience: 120, gold: 9, items: [] },
+  outing_rewards: {
+    experience: 120,
+    gold: 9,
+    items: [{ item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3 }],
+  },
 };
 
 const securedHubProjection = {
@@ -410,6 +414,39 @@ const securedHubProjection = {
     ...hubProjection.options.slice(2),
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
   ],
+};
+
+const itemsProjection = {
+  ...securedHubProjection,
+  screen: "items",
+  options: [
+    { action: "inspect", label: "Inspect", enabled: false, disabled_reason: "no_item_selected" },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  inventory: {
+    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false }],
+    selected_item_key: null,
+    inspected_item: null,
+  },
+};
+
+const itemsSelectedProjection = {
+  ...itemsProjection,
+  options: [
+    { action: "inspect", label: "Inspect", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  inventory: { ...itemsProjection.inventory, selected_item_key: "shared-item:goblin_scrap" },
+};
+
+const itemInspectionProjection = {
+  ...itemsProjection,
+  screen: "item_inspect",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  inventory: {
+    ...itemsSelectedProjection.inventory,
+    inspected_item: itemsProjection.inventory.items[0],
+  },
 };
 
 const merchantProjection = {
@@ -426,19 +463,22 @@ const merchantProjection = {
     selected_target_id: "branoc",
     weapon_name: "Sunder-Spire",
     slots: [
-      { slot_id: "blade_guard", label: "Blade / Guard assembly", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Grade I Metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
-      { slot_id: "grip_binding", label: "Grip wrap / binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Grade I Fiber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
-      { slot_id: "hilt_handle", label: "Hilt core / handle", material_family: "timber", progress: 0, material_id: "grade_i_timber", material_name: "Grade I Timber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
-      { slot_id: "crest_core", label: "Crest / Core", material_family: "cores", progress: 0, material_id: "grade_i_cores", material_name: "Grade I Cores", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Cord", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", material_family: "timber", progress: 0, material_id: "grade_i_timber", material_name: "Softwood", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "crest_core", label: "Crest / Core", material_family: "cores", progress: 0, material_id: "grade_i_cores", material_name: "Faded Core", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
     ],
     materials: [
-      { item_id: "grade_i_metal", display_name: "Grade I Metal", quantity: 3 },
-      { item_id: "grade_i_fiber", display_name: "Grade I Fiber", quantity: 0 },
-      { item_id: "grade_i_timber", display_name: "Grade I Timber", quantity: 0 },
-      { item_id: "grade_i_cores", display_name: "Grade I Cores", quantity: 0 },
+      { item_id: "grade_i_metal", display_name: "Scrap metal", quantity: 3 },
+      { item_id: "grade_i_fiber", display_name: "Cord", quantity: 0 },
+      { item_id: "grade_i_timber", display_name: "Softwood", quantity: 0 },
+      { item_id: "grade_i_cores", display_name: "Faded Core", quantity: 0 },
     ],
     dismantle_items: [
-      { item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3, output_material_names: ["Grade I Metal", "Grade I Fiber", "Grade I Timber"], maximum_yield: 2 },
+      { item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3, output_material_names: ["Scrap metal", "Cord", "Softwood"], maximum_yield: 2 },
+    ],
+    component_recipes: [
+      { component_id: "sunder_spire_blade_reinforced", display_name: "Reinforced Blade and Guard", slot_id: "blade_guard", slot_label: "Blade / Guard assembly", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true },
     ],
   },
 };
@@ -454,9 +494,12 @@ const merchantAzhvielleProjection = {
       selected: target.drifter_id === "azhvielle",
     })),
     slots: [
-      { slot_id: "focus_fittings", label: "Focus head / fittings", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Grade I Metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
-      { slot_id: "binding", label: "Binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Grade I Fiber", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "focus_fittings", label: "Focus head / fittings", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "binding", label: "Binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Cord", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
       ...merchantProjection.merchant.slots.slice(2),
+    ],
+    component_recipes: [
+      { component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", slot_id: "focus_fittings", slot_label: "Focus head / fittings", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true },
     ],
   },
 };
@@ -483,6 +526,124 @@ const merchantDismantledProjection = {
       ? { ...material, quantity: 1 }
       : material),
     dismantle_items: [{ ...merchantProjection.merchant.dismantle_items[0], quantity: 2 }],
+  },
+};
+
+const merchantCraftedProjection = {
+  ...merchantDismantledProjection,
+  merchant: {
+    ...merchantDismantledProjection.merchant,
+    materials: merchantDismantledProjection.merchant.materials.map((material, index) => index === 0
+      ? { ...material, quantity: 1 }
+      : material),
+    component_recipes: merchantDismantledProjection.merchant.component_recipes.map((recipe) => ({
+      ...recipe,
+      material_quantity: 1,
+      can_craft: false,
+    })),
+  },
+};
+
+const hubCharacterProjection = {
+  ...securedHubProjection,
+  screen: "character",
+  options: [
+    { action: "skills", label: "Skills", enabled: true, disabled_reason: null },
+    { action: "weapon", label: "Weapon", enabled: true, disabled_reason: null },
+    { action: "equipment", label: "Equipment", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  character: {
+    display_name: "Ser Branoc, the Unbroken Crest",
+    archetype_label: "Brawler",
+    stats: [],
+    level: 1,
+    hp_current: 116,
+    hp_maximum: 116,
+    mana_current: 46,
+    mana_maximum: 46,
+    super_current: 0,
+    super_maximum: 100,
+    exp_current: 0,
+    exp_threshold: 100,
+    exp_fill_bps: 0,
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+  },
+};
+
+const hubCharacterAzhvielleProjection = {
+  ...hubCharacterProjection,
+  character: {
+    ...hubCharacterProjection.character,
+    display_name: "Azhvielle",
+    archetype_label: "Black Mage",
+    targets: hubCharacterProjection.character.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    selected_target_id: "azhvielle",
+  },
+};
+
+const weaponProjection = {
+  ...hubCharacterProjection,
+  screen: "weapon",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  character: null,
+  weapon: {
+    name: "Sunder-Spire",
+    weapon_type: "Great Flamberge",
+    intended_wielder: "Branoc",
+    bonuses: [],
+    description: "A massive Deep-Iron flamberge.",
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+    components: [
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", installed_component_id: "sunder_spire_blade", installed_component_name: "Deep-Iron Blade and Guard", available_components: [] },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", installed_component_id: "sunder_spire_grip", installed_component_name: "Bound Grip Wrap", available_components: [] },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", installed_component_id: "sunder_spire_hilt", installed_component_name: "Ashwood Hilt Core", available_components: [] },
+      { slot_id: "crest_core", label: "Crest / Core", installed_component_id: "sunder_spire_crest", installed_component_name: "Deep-Iron Crest", available_components: [] },
+    ],
+    physical_identity: null,
+    mystical_identity: null,
+  },
+};
+
+const weaponAzhvielleProjection = {
+  ...weaponProjection,
+  weapon: {
+    ...weaponProjection.weapon,
+    name: "Needle of Plain Iron",
+    weapon_type: "Ritual Needle",
+    intended_wielder: "Azhvielle",
+    targets: weaponProjection.weapon.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    selected_target_id: "azhvielle",
+    components: [
+      { slot_id: "focus_fittings", label: "Focus head / fittings", installed_component_id: "needle_focus", installed_component_name: "Unadorned Iron Focus Fittings", available_components: [{ component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", quantity: 1 }] },
+      { slot_id: "binding", label: "Binding", installed_component_id: "needle_binding", installed_component_name: "Plain Binding", available_components: [] },
+      { slot_id: "haft", label: "Haft", installed_component_id: "needle_haft", installed_component_name: "Ritual Needle Haft", available_components: [] },
+      { slot_id: "seal_catalyst", label: "Seal / Catalyst", installed_component_id: "needle_seal", installed_component_name: "Unawakened Seal", available_components: [] },
+    ],
+  },
+};
+
+const weaponInstalledProjection = {
+  ...weaponAzhvielleProjection,
+  weapon: {
+    ...weaponAzhvielleProjection.weapon,
+    components: weaponAzhvielleProjection.weapon.components.map((slot, index) => index === 0
+      ? { ...slot, installed_component_id: "needle_focus_fitted", installed_component_name: "Obsidian Focus Fittings", available_components: [] }
+      : slot),
   },
 };
 
@@ -608,6 +769,9 @@ try {
     if (message.type() === "error") errors.push(message.text());
   });
 
+  await page.route("**/favicon.ico", (route) =>
+    route.fulfill({ status: 204, body: "" }),
+  );
   await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 30000,
@@ -1298,6 +1462,25 @@ try {
             const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
             window.__fixtureCommands.push(command);
             if (window.__fixtureHubMode) {
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "items") {
+                window.__fixtureHubPhase = "items";
+                return JSON.stringify(views.items);
+              }
+              if (window.__fixtureHubPhase === "items" && command.kind === "overworld_item") {
+                return JSON.stringify(views.itemsSelected);
+              }
+              if (window.__fixtureHubPhase === "items" && command.action === "inspect") {
+                window.__fixtureHubPhase = "itemInspection";
+                return JSON.stringify(views.itemInspection);
+              }
+              if (window.__fixtureHubPhase === "itemInspection" && command.action === "back") {
+                window.__fixtureHubPhase = "items";
+                return JSON.stringify(views.itemsSelected);
+              }
+              if (window.__fixtureHubPhase === "items" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
               if (window.__fixtureHubPhase === "securedHub" && command.action === "merchant") {
                 window.__fixtureHubPhase = "merchant";
                 return JSON.stringify(views.merchant);
@@ -1311,7 +1494,44 @@ try {
               if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_dismantle") {
                 return JSON.stringify(views.merchantDismantled);
               }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_craft_component") {
+                return JSON.stringify(views.merchantCrafted);
+              }
               if (window.__fixtureHubPhase === "merchant" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "character") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.kind === "character_target" && command.drifter_id === "azhvielle") {
+                window.__fixtureHubPhase = "characterAzhvielle";
+                return JSON.stringify(views.hubCharacterAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "characterAzhvielle" && command.kind === "character_target" && command.drifter_id === "branoc") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.action === "weapon") {
+                window.__fixtureHubPhase = "weapon";
+                return JSON.stringify(views.weapon);
+              }
+              if (window.__fixtureHubPhase === "characterAzhvielle" && command.action === "weapon") {
+                window.__fixtureHubPhase = "weapon";
+                return JSON.stringify(views.weaponAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "weapon" && command.kind === "weapon_target" && command.drifter_id === "azhvielle") {
+                return JSON.stringify(views.weaponAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "weapon" && command.kind === "weapon_component") {
+                return JSON.stringify(views.weaponInstalled);
+              }
+              if (window.__fixtureHubPhase === "weapon" && command.action === "back") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.action === "back") {
                 window.__fixtureHubPhase = "securedHub";
                 return JSON.stringify(views.securedHub);
               }
@@ -1343,6 +1563,9 @@ try {
                 return JSON.stringify(views.floorOneBattle);
               }
               if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "rest") {
+                return JSON.stringify(views.floorOneMidwayRest);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "skip_rest") {
                 window.__fixtureHubPhase = "floorOneMain";
                 return JSON.stringify(views.floorOneMain);
               }
@@ -1401,10 +1624,19 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    items: itemsProjection,
+    itemsSelected: itemsSelectedProjection,
+    itemInspection: itemInspectionProjection,
     merchant: merchantProjection,
     merchantAzhvielle: merchantAzhvielleProjection,
     merchantImproved: merchantImprovedProjection,
     merchantDismantled: merchantDismantledProjection,
+    merchantCrafted: merchantCraftedProjection,
+    hubCharacter: hubCharacterProjection,
+    hubCharacterAzhvielle: hubCharacterAzhvielleProjection,
+    weapon: weaponProjection,
+    weaponAzhvielle: weaponAzhvielleProjection,
+    weaponInstalled: weaponInstalledProjection,
     floorOneWarning: floorOneWarningProjection,
     floorOneMain: floorOneMainProjection,
     floorOneBattle: floorOneBattleProjection,
@@ -1587,8 +1819,9 @@ try {
   await targetPage.locator("#extraction-rewards").waitFor({ state: "visible" });
   requireCondition(
     (await targetPage.locator("#extraction-rewards").innerText()).includes("120 EXP | 9 gold") &&
+      (await targetPage.locator("#extraction-rewards").innerText()).includes("3 x Goblin Scrap") &&
       await targetPage.getByRole("button", { name: "Return to Hub" }).isVisible(),
-    "Extraction projection omitted pending tutorial totals or its explicit return action",
+    "Extraction projection omitted pending tutorial totals, item rewards, or its explicit return action",
   );
   await captureScreenshot(targetPage, "desktop-hub-extraction");
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
@@ -1622,6 +1855,7 @@ try {
       (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x3"),
     "Hub Merchant omitted the selected weapon, four slots, authoritative availability, or dismantle offer",
   );
+  console.log("PYD8|BROWSER|HUB_MERCHANT|PASS");
   await clickVisibleOption(targetPage, "#merchant-targets", "Azhvielle");
   requireCondition(
     (await targetPage.locator("#merchant-weapon-name").innerText()) === "Needle of Plain Iron" &&
@@ -1636,12 +1870,54 @@ try {
   );
   await clickVisibleOption(targetPage, "#merchant-dismantle", "Dismantle");
   requireCondition(
-    (await targetPage.locator("#merchant-materials").innerText()).includes("Grade I Fiber: 1") &&
+    (await targetPage.locator("#merchant-materials").innerText()).includes("Cord: 1") &&
       (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x2"),
     "Merchant dismantling did not render the authoritative materials and remaining loot",
   );
+  requireCondition(
+    (await targetPage.locator("#merchant-component-recipes").innerText()).includes("Obsidian Focus Fittings") &&
+      await targetPage.locator("#merchant-component-recipes button:enabled").count() === 1,
+    "Merchant did not show the available Grade-I component recipe",
+  );
+  await clickVisibleOption(targetPage, "#merchant-component-recipes", "Craft");
+  requireCondition(
+    (await targetPage.locator("#merchant-component-recipes").innerText()).includes("Scrap metal x1") &&
+      await targetPage.locator("#merchant-component-recipes button:disabled").count() === 1,
+    "Crafting a component did not update the recipe's authoritative material availability",
+  );
   await clickVisibleOption(targetPage, "#merchant-options", "Back");
   await targetPage.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Character");
+  await targetPage.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#character-targets button").count() === 2,
+    "Character page omitted the party Drifter selector",
+  );
+  await clickVisibleOption(targetPage, "#character-targets", "Azhvielle");
+  requireCondition(
+    (await targetPage.locator("#character-name").innerText()) === "Azhvielle" &&
+      (await targetPage.locator("#character-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
+    "Character page did not switch its profile to the selected companion",
+  );
+  await clickVisibleOption(targetPage, "#character-targets", "Ser Branoc");
+  await clickVisibleOption(targetPage, "#character-options", "Weapon");
+  await targetPage.locator("#weapon-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#weapon-targets button").count() === 2 &&
+      await targetPage.locator("#weapon-components .weapon-component-slot").count() === 4,
+    "Weapon page omitted the party Drifter picker or four component slots",
+  );
+  await clickVisibleOption(targetPage, "#weapon-targets", "Azhvielle");
+  await clickVisibleOption(targetPage, "#weapon-components", "Install");
+  requireCondition(
+    (await targetPage.locator("#weapon-components").innerText()).includes("Obsidian Focus Fittings") &&
+      (await targetPage.locator("#weapon-components .weapon-component-slot").first().innerText()).includes("Installed"),
+    "Weapon component installation did not update the selected Drifter's installed part",
+  );
+  await clickVisibleOption(targetPage, "#weapon-options", "Back");
+  await targetPage.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#character-options", "Back");
+  await targetPage.locator("#character-panel").waitFor({ state: "hidden" });
   const merchantCommands = await targetPage.evaluate(() => window.__fixtureCommands.slice(5));
   requireCondition(
     JSON.stringify(merchantCommands) === JSON.stringify([
@@ -1649,11 +1925,39 @@ try {
       { kind: "merchant_target", drifter_id: "azhvielle" },
       { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
       { kind: "merchant_dismantle", target_drifter_id: "azhvielle", item_id: "goblin_scrap" },
+      { kind: "merchant_craft_component", target_drifter_id: "azhvielle", component_id: "needle_focus_fitted" },
+      { kind: "overworld_action", action: "back" },
+      { kind: "overworld_action", action: "character" },
+      { kind: "character_target", drifter_id: "azhvielle" },
+      { kind: "character_target", drifter_id: "branoc" },
+      { kind: "overworld_action", action: "weapon" },
+      { kind: "weapon_target", drifter_id: "azhvielle" },
+      { kind: "weapon_component", target_drifter_id: "azhvielle", slot_id: "focus_fittings", component_id: "needle_focus_fitted" },
+      { kind: "overworld_action", action: "back" },
       { kind: "overworld_action", action: "back" },
     ]),
-    `Hub Merchant did not submit the exact selected Drifter and offered actions: ${JSON.stringify(merchantCommands)}`,
+    `Hub component flow did not submit the exact selected Drifter and offered actions: ${JSON.stringify(merchantCommands)}`,
   );
-  console.log("PYD8|BROWSER|HUB_MERCHANT|PASS");
+  console.log("PYD8|BROWSER|HUB_WEAPON_COMPONENTS|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Items");
+  await targetPage.locator("#items-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3"),
+    "Items page did not show the secured Goblin Scrap stack",
+  );
+  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3");
+  await clickVisibleOption(targetPage, "#items-options", "Inspect");
+  await targetPage.locator("#items-inspection").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#items-inspection").innerText()).includes("Quantity: 3") &&
+      (await targetPage.locator("#items-inspection").innerText()).includes("dismantling"),
+    "Item inspection did not show the secured stack quantity and description",
+  );
+  await clickVisibleOption(targetPage, "#items-options", "Back");
+  await clickVisibleOption(targetPage, "#items-options", "Back");
+  await targetPage.locator("#items-panel").waitFor({ state: "hidden" });
+  console.log("PYD9|BROWSER|SHARED_ITEMS_INSPECT|PASS");
 
   await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
   await targetPage.locator("#screen-badge").filter({ hasText: "FLOOR_ONE_WARNING" }).waitFor({ state: "visible" });
@@ -1677,6 +1981,12 @@ try {
         await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
         await captureScreenshot(targetPage, "desktop-floor-one-midway-rest");
         await clickVisibleOption(targetPage, "#overworld-options", "Recover");
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        requireCondition(
+          await targetPage.getByRole("button", { name: "Extract" }).isVisible(),
+          "Recover removed the option to extract from the midway Rest",
+        );
+        await clickVisibleOption(targetPage, "#route-actions", "Continue Without Rest");
       } else if (battleNumber === 10) {
         await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
         await clickVisibleOption(targetPage, "#route-actions", "Continue Without Rest");

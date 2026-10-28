@@ -403,12 +403,34 @@ def _qualify_route():
                     battle_view = session.submit(
                         ChooseOverworldAction(OverworldAction.REST)
                     )
+                    if battle_view.screen is not OverworldScreen.REST:
+                        raise AssertionError(
+                            "Floor 1 recovery must leave the party at Rest"
+                        )
+                    if game.overworld_state.current_route_node_id != "floor_one_midway_rest":
+                        raise AssertionError(
+                            "Floor 1 recovery advanced before the player chose"
+                        )
+                    if "floor_one_midway_rest" in game.overworld_state.resolved_rest_node_ids:
+                        raise AssertionError(
+                            "Floor 1 recovery resolved the Rest prematurely"
+                        )
+                    if not any(
+                        option.action is OverworldAction.EXTRACT and option.enabled
+                        for option in battle_view.options
+                    ):
+                        raise AssertionError(
+                            "Extract must remain available after Floor 1 recovery"
+                        )
                     if any(
                         member.health.current != member.health.maximum
                         or member.mana_resource.current != member.mana_resource.maximum
                         for member in party_members
                     ):
                         raise AssertionError("midway Rest did not restore both Drifters")
+                    battle_view = session.submit(
+                        ChooseOverworldAction(OverworldAction.SKIP_REST)
+                    )
                 elif battle_index == 9:
                     for member in party_members:
                         member.health.take_damage(1)

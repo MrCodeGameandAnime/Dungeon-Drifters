@@ -21,12 +21,16 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseCharacterTarget,
+    ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponComponent,
+    ChooseWeaponTarget,
 )
 
 
@@ -70,6 +74,8 @@ def _command_to_input(command):
         return ChooseOverworldItem(_required(command, "selection_key"))
     if kind == "companion":
         return ChooseCompanion(_required(command, "drifter_id"))
+    if kind == "character_target":
+        return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
     if kind == "merchant_target":
@@ -84,6 +90,19 @@ def _command_to_input(command):
             _required(command, "target_drifter_id"),
             _required(command, "item_id"),
             command.get("quantity", 1),
+        )
+    if kind == "merchant_craft_component":
+        return ChooseMerchantCraftComponent(
+            _required(command, "target_drifter_id"),
+            _required(command, "component_id"),
+        )
+    if kind == "weapon_target":
+        return ChooseWeaponTarget(_required(command, "drifter_id"))
+    if kind == "weapon_component":
+        return ChooseWeaponComponent(
+            _required(command, "target_drifter_id"),
+            _required(command, "slot_id"),
+            _required(command, "component_id"),
         )
     if kind == "action":
         return ChooseAction(_required(command, "intent"))

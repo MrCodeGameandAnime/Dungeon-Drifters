@@ -76,6 +76,8 @@
           <div class="detail-page-content">
             <h2 id="character-name" class="character-name"></h2>
             <p id="character-archetype" class="character-archetype"></p>
+            <p class="eyebrow detail-heading character-target-heading">DRIFTER</p>
+            <div id="character-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">STATS</p>
             <div id="character-stats" class="character-stats"></div>
             <div id="character-progression" class="character-progression">
@@ -94,6 +96,8 @@
         <section id="skills-panel" class="overworld-detail-panel" hidden aria-labelledby="skills-title">
           <div class="detail-page-content">
             <h2 id="skills-title" class="visually-hidden">Skills</h2>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="skills-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">LEVEL UP</p>
             <div id="growth-summary" class="growth-summary"></div>
             <p id="growth-message" class="growth-message"></p>
@@ -109,6 +113,11 @@
             <h2 id="weapon-name" class="detail-title"></h2>
             <p id="weapon-type" class="detail-subtitle"></p>
             <p id="weapon-wielder" class="detail-line"></p>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="weapon-targets" class="merchant-targets"></div>
+            <p id="weapon-identities" class="detail-line"></p>
+            <p class="eyebrow detail-heading">COMPONENTS</p>
+            <div id="weapon-components" class="merchant-list"></div>
             <p class="eyebrow detail-heading">BONUSES</p>
             <div id="weapon-bonuses" class="detail-list"></div>
             <p class="eyebrow detail-heading">DESCRIPTION</p>
@@ -120,12 +129,27 @@
         <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
           <div class="detail-page-content">
             <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="equipment-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">ACCESSORIES</p>
             <div id="equipment-slots" class="detail-list"></div>
             <p class="eyebrow detail-heading">BENEFITS</p>
             <div id="equipment-benefits" class="detail-list"></div>
           </div>
           <div id="equipment-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="items-panel" class="overworld-detail-panel" hidden aria-labelledby="items-title">
+          <div class="detail-page-content">
+            <h2 id="items-title" class="detail-title">Items</h2>
+            <div id="items-list" class="detail-list"></div>
+            <section id="items-inspection" class="items-inspection" hidden aria-label="Item details">
+              <h3 id="items-inspection-name" class="detail-title"></h3>
+              <p id="items-inspection-quantity" class="detail-line"></p>
+              <p id="items-inspection-description" class="detail-copy"></p>
+            </section>
+          </div>
+          <div id="items-options" class="button-grid detail-options"></div>
         </section>
 
         <section id="merchant-panel" class="overworld-detail-panel" hidden aria-labelledby="merchant-title">
@@ -141,6 +165,8 @@
             <div id="merchant-materials" class="merchant-materials"></div>
             <p class="eyebrow detail-heading">DISMANTLE</p>
             <div id="merchant-dismantle" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">COMPONENT RECIPES</p>
+            <div id="merchant-component-recipes" class="merchant-list"></div>
           </div>
           <div id="merchant-options" class="button-grid detail-options"></div>
         </section>

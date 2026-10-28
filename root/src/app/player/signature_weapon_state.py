@@ -1,6 +1,9 @@
 """Persistent per-Drifter source state for a signature weapon."""
 
-from app.content.weapon_progression_spec import WeaponProgressionSpec
+from app.content.weapon_progression_spec import (
+    WeaponProgressionSpec,
+    get_weapon_component_spec,
+)
 
 
 class SignatureWeaponState:
@@ -10,6 +13,7 @@ class SignatureWeaponState:
         if not isinstance(progression, WeaponProgressionSpec):
             raise TypeError("progression must be a WeaponProgressionSpec")
         self._weapon_id = weapon_id
+        self._progression = progression
         self._slot_ids = tuple(slot.slot_id for slot in progression.slots)
         self._components = {
             slot.slot_id: slot.starting_component_id
@@ -49,6 +53,9 @@ class SignatureWeaponState:
             raise ValueError(f"unknown signature weapon slot: {slot_id}")
         if not isinstance(component_id, str) or not component_id:
             raise ValueError("component_id must be a non-empty string")
+        component = get_weapon_component_spec(self._progression, component_id)
+        if component.slot_id != slot_id:
+            raise ValueError("component is not compatible with this weapon slot")
         self._components[slot_id] = component_id
         return component_id
 

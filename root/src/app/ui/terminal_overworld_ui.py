@@ -14,12 +14,16 @@ from app.presentation.overworld_models import (
 )
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseCharacterTarget,
+    ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponComponent,
+    ChooseWeaponTarget,
 )
 
 
@@ -108,6 +112,39 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        party_targets = None
+        if view.screen is OverworldScreen.CHARACTER and view.character is not None:
+            party_targets = view.character.targets
+        elif view.screen is OverworldScreen.SKILLS and view.skills is not None:
+            party_targets = view.skills.targets
+        elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
+            party_targets = view.equipment.targets
+        if party_targets is not None and choice.startswith("t") and choice[1:].isdigit():
+            index = int(choice[1:]) - 1
+            if 0 <= index < len(party_targets):
+                return ChooseCharacterTarget(party_targets[index].drifter_id)
+
+        if view.screen is OverworldScreen.WEAPON and view.weapon is not None:
+            weapon = view.weapon
+            if choice.startswith("t") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(weapon.targets):
+                    return ChooseWeaponTarget(weapon.targets[index].drifter_id)
+            if choice.startswith("c") and "." in choice:
+                slot_choice, component_choice = choice[1:].split(".", 1)
+                if slot_choice.isdigit() and component_choice.isdigit():
+                    slot_index = int(slot_choice) - 1
+                    component_index = int(component_choice) - 1
+                    if 0 <= slot_index < len(weapon.components):
+                        slot = weapon.components[slot_index]
+                        if 0 <= component_index < len(slot.available_components):
+                            component = slot.available_components[component_index]
+                            return ChooseWeaponComponent(
+                                weapon.selected_target_id,
+                                slot.slot_id,
+                                component.component_id,
+                            )
+
         if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
             merchant = view.merchant
             if choice.startswith("t") and choice[1:].isdigit():
@@ -116,6 +153,17 @@ class TerminalOverworldUI:
                     return ChooseMerchantTarget(
                         merchant.targets[index].drifter_id
                     )
+            if choice.startswith("c") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.component_recipes):
+                    recipe = merchant.component_recipes[index]
+                    if recipe.can_craft:
+                        return ChooseMerchantCraftComponent(
+                            merchant.selected_target_id,
+                            recipe.component_id,
+                        )
+                    self._output("Not enough material to craft that component.")
+                    return self._REJECTED
             if choice.startswith("i") and choice[1:].isdigit():
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(merchant.slots):
@@ -273,7 +321,7 @@ class TerminalOverworldUI:
             )
             if rewards.items:
                 lines.extend(
-                    f"{item.quantity} x {item.item_id}"
+                    f"{item.quantity} x {item.display_name or item.item_id}"
                     for item in rewards.items
                 )
             else:
@@ -323,8 +371,13 @@ class TerminalOverworldUI:
             f"[ {character.display_name} ]",
             character.archetype_label,
             "",
-            "STATS",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(character.targets, start=1)
+        )
+        lines.extend(("", "STATS"))
         stat_pairs = [
             f"{row.label}: {row.value}"
             for row in character.stats
@@ -363,7 +416,13 @@ class TerminalOverworldUI:
             f"Growth Points: {skills.growth_points_available}",
             skills.growth_message,
             "",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(skills.targets, start=1)
+        )
+        lines.append("")
         for number, row in enumerate(skills.stats, start=1):
             if row.increase_enabled:
                 control = "[+1]"
@@ -377,7 +436,13 @@ class TerminalOverworldUI:
                 f"{number}. {row.label:<14} {row.value:>3}  {control}"
             )
         lines.extend(("", "ATTACKS"))
-        lines.extend(move.name for move in skills.moves)
+        for move in skills.moves:
+            lines.append(
+                f"{move.name} | Power {move.power} | Accuracy {move.accuracy}% | "
+                f"{(move.resource_type or 'none').title()} {move.resource_cost} | "
+                f"{(move.damage_type or 'none').title()}"
+            )
+            lines.extend(self._wrapped(move.description, width))
         return tuple(lines)
 
     def _weapon_lines(self, view, width):
@@ -387,8 +452,43 @@ class TerminalOverworldUI:
             weapon.weapon_type,
             f"Wielder: {weapon.intended_wielder}",
             "",
-            "BONUSES",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(weapon.targets, start=1)
+        )
+        lines.extend(
+            (
+                "",
+                f"Physical identity: {weapon.physical_identity or 'None'}",
+                f"Mystical identity: {weapon.mystical_identity or 'None'}",
+                "",
+                "COMPONENTS",
+            )
+        )
+        for slot_index, slot in enumerate(weapon.components, start=1):
+            lines.append(
+                f"{slot_index}. {slot.label}: {slot.installed_component_name}"
+            )
+            lines.extend(
+                f"   Effect: {effect}"
+                for effect in slot.installed_effect_summary
+            )
+            lines.extend(
+                f"C{slot_index}.{choice_index} {component.display_name} x{component.quantity}"
+                + (f" | {'; '.join(component.effect_summary)}" if component.effect_summary else "")
+                for choice_index, component in enumerate(
+                    slot.available_components,
+                    start=1,
+                )
+            )
+        lines.extend(
+            (
+                "",
+                "BONUSES",
+            )
+        )
         lines.extend(f"{bonus.label} +{bonus.amount}" for bonus in weapon.bonuses)
         lines.extend(("", "DESCRIPTION"))
         lines.extend(self._wrapped(weapon.description, width))
@@ -433,6 +533,17 @@ class TerminalOverworldUI:
             )
         else:
             lines.append("No dismantlable items.")
+        lines.extend(("", "COMPONENT RECIPES"))
+        if merchant.component_recipes:
+            lines.extend(
+                f"C{index}. {recipe.display_name} ({recipe.slot_label}) | "
+                f"{recipe.material_name} x{recipe.material_cost} | "
+                f"Crafting +{recipe.crafting_award}"
+                f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                for index, recipe in enumerate(merchant.component_recipes, start=1)
+            )
+        else:
+            lines.append("No component recipes for this weapon.")
         return tuple(lines)
 
     @staticmethod
@@ -446,14 +557,26 @@ class TerminalOverworldUI:
     @staticmethod
     def _equipment_lines(view):
         equipment = view.equipment
-        return (
+        lines = [
             "ACCESSORIES",
             "",
-            f"[ Necklace ]  {equipment.necklace.item_name}",
-            f"[ Ring     ]  {equipment.ring.item_name}",
-            "",
-            "BENEFITS",
-        ) + tuple(equipment.benefits)
+            "CHOOSE DRIFTER",
+        ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(equipment.targets, start=1)
+        )
+        lines.extend(
+            (
+                "",
+                f"[ Necklace ]  {equipment.necklace.item_name}",
+                f"[ Ring     ]  {equipment.ring.item_name}",
+                "",
+                "BENEFITS",
+            )
+        )
+        lines.extend(equipment.benefits)
+        return tuple(lines)
 
     def _inventory_lines(self, view, width):
         inventory = view.inventory

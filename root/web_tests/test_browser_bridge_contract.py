@@ -20,11 +20,15 @@ from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
     ChooseCompanion,
+    ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
+    ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponComponent,
+    ChooseWeaponTarget,
 )
 
 
@@ -154,9 +158,99 @@ def test_bridge_projects_and_submits_hub_merchant_actions():
     assert game.party_state.crafting_experience == 20
 
 
+def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    merchant = runtime.submit(
+        {"kind": "overworld_action", "action": "merchant"}
+    )
+    assert merchant["merchant"]["component_recipes"][0]["can_craft"] is True
+    crafted = runtime.submit(
+        {
+            "kind": "merchant_craft_component",
+            "target_drifter_id": "branoc",
+            "component_id": "sunder_spire_blade_reinforced",
+        }
+    )
+    assert crafted["merchant"]["component_recipes"][0]["can_craft"] is False
+    assert game.party_state.shared_items["sunder_spire_blade_reinforced"] == 1
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    weapon = runtime.submit(
+        {"kind": "overworld_action", "action": "weapon"}
+    )
+    assert weapon["weapon"]["components"][0]["available_components"] == [
+        {
+            "component_id": "sunder_spire_blade_reinforced",
+            "display_name": "Reinforced Blade and Guard",
+            "quantity": 1,
+            "effect_summary": [
+                "Crestgrave Reaping: Power +2, Accuracy -2",
+                "Heavy identity +1",
+            ],
+        }
+    ]
+    installed = runtime.submit(
+        {
+            "kind": "weapon_component",
+            "target_drifter_id": "branoc",
+            "slot_id": "blade_guard",
+            "component_id": "sunder_spire_blade_reinforced",
+        }
+    )
+    assert installed["weapon"]["components"][0]["installed_component_id"] == (
+        "sunder_spire_blade_reinforced"
+    )
+    assert game.player_state.combat_moves[0].power == 11
+    assert game.player_state.combat_moves[0].accuracy == 90
+
+
+def test_bridge_exposes_shared_loot_in_items_and_item_inspection():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    game.party_state.add_shared_items({"goblin_scrap": 3})
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    items = runtime.submit({"kind": "overworld_action", "action": "items"})
+    assert items["screen"] == OverworldScreen.ITEMS.value
+    scrap = next(
+        item for item in items["inventory"]["items"]
+        if item["display_name"] == "Goblin Scrap"
+    )
+    assert scrap["quantity"] == 3
+
+    selected = runtime.submit(
+        {"kind": "overworld_item", "selection_key": scrap["selection_key"]}
+    )
+    assert selected["inventory"]["selected_item_key"] == scrap["selection_key"]
+    inspected = runtime.submit(
+        {"kind": "overworld_action", "action": "inspect"}
+    )
+    assert inspected["screen"] == OverworldScreen.ITEM_INSPECT.value
+    assert inspected["inventory"]["inspected_item"]["display_name"] == "Goblin Scrap"
+    assert inspected["inventory"]["inspected_item"]["quantity"] == 3
+
+
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
+        ({"kind": "overworld_item", "selection_key": "shared-item:goblin_scrap"}, ChooseOverworldItem),
         ({"kind": "companion", "drifter_id": "azhvielle"}, ChooseCompanion),
         ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
         ({"kind": "merchant_target", "drifter_id": "branoc"}, ChooseMerchantTarget),
@@ -175,6 +269,27 @@ def test_bridge_command_decoder_returns_existing_input_types():
                 "item_id": "goblin_scrap",
             },
             ChooseMerchantDismantle,
+        ),
+        (
+            {
+                "kind": "merchant_craft_component",
+                "target_drifter_id": "branoc",
+                "component_id": "sunder_spire_blade_reinforced",
+            },
+            ChooseMerchantCraftComponent,
+        ),
+        (
+            {"kind": "weapon_target", "drifter_id": "azhvielle"},
+            ChooseWeaponTarget,
+        ),
+        (
+            {
+                "kind": "weapon_component",
+                "target_drifter_id": "azhvielle",
+                "slot_id": "focus_fittings",
+                "component_id": "needle_focus_fitted",
+            },
+            ChooseWeaponComponent,
         ),
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
@@ -241,7 +356,9 @@ def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
     assert extraction["outing_rewards"] == {
         "experience": 120,
         "gold": 9,
-        "items": [],
+        "items": [
+            {"item_id": "goblin_scrap", "quantity": 3, "display_name": "Goblin Scrap"}
+        ],
     }
     returned = runtime.submit(
         {"kind": "overworld_action", "action": "return_to_hub"}
@@ -392,7 +509,14 @@ def test_bridge_completes_floor_one_through_semantic_actions():
                 view = runtime.submit(
                     {"kind": "overworld_action", "action": "rest"}
                 )
+                assert view["screen"] == OverworldScreen.REST.value
+                assert runtime._game.overworld_state.current_route_node_id == node.node_id
+                assert node.node_id not in runtime._game.overworld_state.resolved_rest_node_ids
+                assert "extract" in [option["action"] for option in view["options"]]
                 recovered_at_midway = True
+                view = runtime.submit(
+                    {"kind": "overworld_action", "action": "skip_rest"}
+                )
             else:
                 view = runtime.submit(
                     {"kind": "overworld_action", "action": "skip_rest"}

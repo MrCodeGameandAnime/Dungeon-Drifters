@@ -1,6 +1,12 @@
 import pytest
 
-from app.content.catalog import get_drifter_spec
+from app.content.catalog import get_drifter_spec, get_weapon_spec
+from app.content.weapon_progression_spec import (
+    WeaponComponentSpec,
+    WeaponProgressionSpec,
+    WeaponSlotSpec,
+    derive_weapon_identities,
+)
 from app.game.game_state import GameState
 from app.game.weapon_progression import WeaponProgressionService
 from app.player.player_state import PlayerState
@@ -196,3 +202,127 @@ def test_dismantling_insufficient_loot_is_atomic():
     assert result.reason == "insufficient_items"
     assert game.party_state.shared_items == {}
     assert game.party_state.crafting_experience == 0
+
+
+def test_crafting_a_floor_one_component_spends_its_material_and_awards_crafting():
+    game, service = _game(items={"grade_i_metal": 1})
+
+    result = service.craft_component(
+        target_drifter_id="branoc",
+        component_id="sunder_spire_blade_reinforced",
+    )
+
+    assert result.success is True
+    assert game.party_state.shared_items == {
+        "sunder_spire_blade_reinforced": 1,
+    }
+    assert game.party_state.crafting_experience == 10
+
+
+def test_installing_component_consumes_new_part_and_projects_its_move_effect():
+    game, service = _game(items={
+        "sunder_spire_blade_reinforced": 1,
+    })
+    original_moves = tuple(game.player_state.combat_moves)
+    original_components = game.player_state.signature_weapon_state.components
+
+    result = service.install_component(
+        target_drifter_id="branoc",
+        slot_id="blade_guard",
+        component_id="sunder_spire_blade_reinforced",
+    )
+
+    assert result.success is True
+    assert game.player_state.signature_weapon_state.components["blade_guard"] == (
+        "sunder_spire_blade_reinforced"
+    )
+    assert game.party_state.shared_items == {}
+    assert game.player_state.combat_moves[0].power == original_moves[0].power + 2
+    assert game.player_state.combat_moves[0].accuracy == original_moves[0].accuracy - 2
+    assert game.player_state.combat_moves[0].target == original_moves[0].target
+    assert game.player_state.combat_moves[0].scales_with == original_moves[0].scales_with
+    assert game.player_state.signature_weapon_state.components["blade_guard"] != (
+        original_components["blade_guard"]
+    )
+
+
+def test_component_identity_uses_threshold_and_returns_none_for_a_tie():
+    families = ("metal", "fiber", "timber", "cores")
+    slots = tuple(
+        WeaponSlotSpec(f"slot_{index}", f"Slot {index}", family, f"starter_{index}")
+        for index, family in enumerate(families, start=1)
+    )
+    components = tuple(
+        WeaponComponentSpec(
+            f"starter_{index}",
+            f"Starter {index}",
+            f"slot_{index}",
+            is_starting=True,
+        )
+        for index in range(1, 5)
+    ) + (
+        WeaponComponentSpec(
+            "fast_part",
+            "Fast part",
+            "slot_1",
+            recipe_material_id="grade_i_metal",
+            recipe_cost=1,
+            crafting_award=1,
+            physical_identity="Fast",
+            physical_points=2,
+        ),
+        WeaponComponentSpec(
+            "heavy_part",
+            "Heavy part",
+            "slot_2",
+            recipe_material_id="grade_i_fiber",
+            recipe_cost=1,
+            crafting_award=1,
+            physical_identity="Heavy",
+            physical_points=2,
+        ),
+        WeaponComponentSpec(
+            "more_fast",
+            "More Fast",
+            "slot_3",
+            recipe_material_id="grade_i_timber",
+            recipe_cost=1,
+            crafting_award=1,
+            physical_identity="Fast",
+            physical_points=1,
+        ),
+        WeaponComponentSpec(
+            "untagged_part",
+            "Untagged part",
+            "slot_4",
+            recipe_material_id="grade_i_cores",
+            recipe_cost=1,
+            crafting_award=1,
+        ),
+    )
+    progression = WeaponProgressionSpec(slots, components)
+    installed = {slot.slot_id: slot.starting_component_id for slot in slots}
+
+    installed["slot_1"] = "fast_part"
+    assert derive_weapon_identities(progression, installed) == ("Fast", None)
+
+    installed["slot_2"] = "heavy_part"
+    assert derive_weapon_identities(progression, installed) == (None, None)
+
+    installed["slot_3"] = "more_fast"
+    assert derive_weapon_identities(progression, installed) == ("Fast", None)
+
+
+def test_installing_unknown_slot_returns_failure_without_spending_component():
+    component_id = "sunder_spire_blade_reinforced"
+    game, service = _game(items={component_id: 1})
+
+    result = service.install_component(
+        target_drifter_id="branoc",
+        slot_id="not_a_weapon_slot",
+        component_id=component_id,
+    )
+
+    assert result.success is False
+    assert result.reason == "wrong_slot"
+    assert game.party_state.shared_items == {component_id: 1}

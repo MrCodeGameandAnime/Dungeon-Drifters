@@ -54,6 +54,16 @@ def test_equipment_slots_exist_and_start_empty():
     )
 
 
+def test_foreign_equipped_weapon_keeps_moves_unmodified_by_signature_components():
+    player_state = PlayerState(create_drifter("branoc"))
+    baseline_moves = player_state.character.combat_moves
+    foreign_weapon = create_weapon("sky_needle")
+    player_state.inventory.add_item(foreign_weapon)
+    player_state.equip("weapon", foreign_weapon)
+
+    assert player_state.combat_moves == baseline_moves
+
+
 def test_player_states_do_not_share_inventory_or_equipment():
     first_player = PlayerState(create_drifter("branoc"))
     second_player = PlayerState(create_drifter("branoc"))

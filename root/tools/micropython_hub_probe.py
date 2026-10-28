@@ -140,8 +140,10 @@ def _assert_extraction_pending(state):
         view.outing_rewards.gold,
     ) != _TUTORIAL_REWARDS:
         raise AssertionError("tutorial Extraction rewards changed")
-    if view.outing_rewards.items != ():
-        raise AssertionError("tutorial unexpectedly offered item rewards")
+    if tuple(
+        (item.item_id, item.quantity) for item in view.outing_rewards.items
+    ) != (("goblin_scrap", 3),):
+        raise AssertionError("tutorial Goblin Scrap rewards changed")
     if game.party_state.shared_gold != 10:
         raise AssertionError("tutorial gold was banked before extraction")
     members = (game.player_state,) + game.party_state.companions
@@ -181,8 +183,11 @@ def _assert_final_state(state):
         raise AssertionError("tutorial extraction changed party membership")
     if party.shared_gold != 19:
         raise AssertionError("tutorial gold was not secured exactly once")
-    if party.shared_items != {}:
-        raise AssertionError("tutorial unexpectedly secured items")
+    if party.shared_items != {
+        "goblin_lord_core": 1,
+        "goblin_scrap": 18,
+    }:
+        raise AssertionError("tutorial items were not secured exactly once")
     if (party.outing_rewards.experience, party.outing_rewards.gold) != (0, 0):
         raise AssertionError("tutorial rewards remained pending after extraction")
     if tuple(
@@ -396,15 +401,27 @@ def _resolve_floor_one_midway_rest(state):
             member.health.take_damage(1)
         if member.mana_resource.current == member.mana_resource.maximum:
             member.mana_resource.spend(1)
-    session.submit(ChooseOverworldAction(OverworldAction.REST))
-    if session.current_view().screen is not OverworldScreen.MAIN:
-        raise AssertionError("Recover did not continue to battle six")
-    _assert_rest_fallback(game, state)
+    recovered = session.submit(ChooseOverworldAction(OverworldAction.REST))
+    if recovered.screen is not OverworldScreen.REST:
+        raise AssertionError("Recover did not leave the party at the Rest")
+    if game.overworld_state.current_route_node_id != "floor_one_midway_rest":
+        raise AssertionError("Recover advanced before the player chose")
+    if "floor_one_midway_rest" in game.overworld_state.resolved_rest_node_ids:
+        raise AssertionError("Recover resolved the Rest prematurely")
+    if not any(
+        option.action is OverworldAction.EXTRACT and option.enabled
+        for option in recovered.options
+    ):
+        raise AssertionError("Extract was not available after Recover")
     for member in members:
         if member.health.current != member.health.maximum:
             raise AssertionError("midway Recover did not restore HP")
         if member.mana_resource.current != member.mana_resource.maximum:
             raise AssertionError("midway Recover did not restore Mana")
+    session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
+    if session.current_view().screen is not OverworldScreen.MAIN:
+        raise AssertionError("Continue Without Rest did not advance to battle six")
+    _assert_rest_fallback(game, state)
 
 
 def _resolve_floor_one_pre_boss_rest(state):

@@ -154,6 +154,22 @@
     }
   }
 
+  function renderPartyTargets(containerId, targets) {
+    const container = $(containerId);
+    clear(container);
+    for (const target of targets || []) {
+      const button = makeButton(
+        target.display_name,
+        { kind: "character_target", drifter_id: target.drifter_id },
+        true,
+        null,
+        target.selected ? "merchant-target selected" : "merchant-target",
+      );
+      button.setAttribute("aria-pressed", String(target.selected));
+      container.append(button);
+    }
+  }
+
   function renderPlayer(player) {
     const stats = $("player-status");
     const details = $("player-details");
@@ -403,6 +419,7 @@
     if (!character) return;
     setText("character-name", character.display_name);
     setText("character-archetype", character.archetype_label);
+    renderPartyTargets("character-targets", character.targets);
 
     const stats = $("character-stats");
     clear(stats);
@@ -445,6 +462,7 @@
   function renderSkills(view) {
     const skills = view.skills;
     if (!skills) return;
+    renderPartyTargets("skills-targets", skills.targets);
     setText("growth-summary", `Growth Points: ${skills.growth_points_available}`);
     setText("growth-message", skills.growth_message);
 
@@ -478,9 +496,19 @@
     const attacks = $("skill-attacks");
     clear(attacks);
     for (const move of skills.moves || []) {
-      const line = document.createElement("div");
+      const line = document.createElement("article");
       line.className = "skill-attack";
-      line.textContent = move.name;
+      const name = document.createElement("strong");
+      name.textContent = move.name;
+      const description = document.createElement("p");
+      description.textContent = move.description;
+      const resource = move.resource_type === "none" || !move.resource_cost
+        ? "No resource cost"
+        : `${String(move.resource_type).toUpperCase()} ${move.resource_cost}`;
+      const values = document.createElement("p");
+      values.className = "skill-attack-values";
+      values.textContent = `Power ${move.power} | ${move.accuracy}% accuracy | ${resource} | ${move.damage_type}`;
+      line.append(name, description, values);
       attacks.append(line);
     }
     renderOptions(
@@ -498,6 +526,76 @@
     setText("weapon-name", weapon.name);
     setText("weapon-type", weapon.weapon_type);
     setText("weapon-wielder", `Wielder: ${weapon.intended_wielder}`);
+
+    const targets = $("weapon-targets");
+    clear(targets);
+    for (const target of weapon.targets || []) {
+      const button = makeButton(
+        target.display_name,
+        { kind: "weapon_target", drifter_id: target.drifter_id },
+        true,
+        null,
+        target.selected ? "merchant-target selected" : "merchant-target",
+      );
+      button.setAttribute("aria-pressed", String(target.selected));
+      targets.append(button);
+    }
+    setText(
+      "weapon-identities",
+      `Physical identity: ${weapon.physical_identity || "None"} | Mystical identity: ${weapon.mystical_identity || "None"}`,
+    );
+
+    const components = $("weapon-components");
+    clear(components);
+    for (const slot of weapon.components || []) {
+      const row = document.createElement("div");
+      row.className = "weapon-component-slot merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = slot.label;
+      const installed = document.createElement("span");
+      installed.className = "weapon-component-installed";
+      installed.textContent = `Installed: ${slot.installed_component_name}`;
+      description.append(title, installed);
+      for (const effect of slot.installed_effect_summary || []) {
+        const summary = document.createElement("span");
+        summary.className = "weapon-effect-summary";
+        summary.textContent = `Effect: ${effect}`;
+        description.append(summary);
+      }
+      const choices = document.createElement("div");
+      choices.className = "weapon-component-choices";
+      for (const component of slot.available_components || []) {
+        const option = document.createElement("div");
+        option.className = "weapon-component-option";
+        const name = document.createElement("span");
+        name.textContent = `${component.display_name} x${component.quantity}`;
+        option.append(name);
+        if (component.effect_summary && component.effect_summary.length) {
+          const summary = document.createElement("span");
+          summary.className = "weapon-effect-summary";
+          summary.textContent = `Effect: ${component.effect_summary.join("; ")}`;
+          option.append(summary);
+        }
+        option.append(makeButton(
+          "Install",
+          {
+            kind: "weapon_component",
+            target_drifter_id: weapon.selected_target_id,
+            slot_id: slot.slot_id,
+            component_id: component.component_id,
+          },
+          true,
+          null,
+          "merchant-action",
+        ));
+        choices.append(option);
+      }
+      row.append(description, choices);
+      components.append(row);
+    }
+
     const bonuses = $("weapon-bonuses");
     clear(bonuses);
     for (const bonus of weapon.bonuses || []) {
@@ -512,6 +610,7 @@
   function renderEquipment(view) {
     const equipment = view.equipment;
     if (!equipment) return;
+    renderPartyTargets("equipment-targets", equipment.targets);
     const slots = $("equipment-slots");
     clear(slots);
     for (const slot of [equipment.necklace, equipment.ring]) {
@@ -614,6 +713,38 @@
       ));
       dismantle.append(row);
     }
+
+    const componentRecipes = $("merchant-component-recipes");
+    clear(componentRecipes);
+    for (const recipe of merchant.component_recipes || []) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = `${recipe.display_name} | ${recipe.slot_label}`;
+      const requirement = document.createElement("span");
+      requirement.textContent = `${recipe.material_name} x${recipe.material_cost} | Crafting +${recipe.crafting_award}`;
+      description.append(title, requirement);
+      row.append(description, makeButton(
+        "Craft",
+        {
+          kind: "merchant_craft_component",
+          target_drifter_id: merchant.selected_target_id,
+          component_id: recipe.component_id,
+        },
+        recipe.can_craft,
+        "insufficient_materials",
+        "merchant-action",
+      ));
+      componentRecipes.append(row);
+    }
+    if (!(merchant.component_recipes || []).length) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No component recipes for this weapon.";
+      componentRecipes.append(empty);
+    }
     renderDetailOptions("merchant-options", view.options);
   }
 
@@ -666,7 +797,7 @@
     section.append(heading, summary);
     for (const item of rewards.items || []) {
       const line = document.createElement("p");
-      line.textContent = `${item.quantity} x ${item.item_id}`;
+      line.textContent = `${item.quantity} x ${item.display_name || item.item_id}`;
       section.append(line);
     }
     if (!rewards.items || rewards.items.length === 0) {
@@ -676,8 +807,54 @@
     }
   }
 
+  function renderOverworldItems(view) {
+    const inventory = view.inventory;
+    const inspecting = view.screen === "item_inspect";
+    const list = $("items-list");
+    const details = $("items-inspection");
+    clear(list);
+    details.hidden = !inspecting;
+
+    if (inspecting) {
+      const item = inventory && inventory.inspected_item;
+      setText("items-inspection-name", item ? item.display_name : "Item");
+      setText(
+        "items-inspection-quantity",
+        item ? `Quantity: ${item.quantity}` : "",
+      );
+      setText("items-inspection-description", item ? item.description : "");
+    } else {
+      for (const item of (inventory && inventory.items) || []) {
+        const button = makeButton(
+          `${item.display_name} x${item.quantity}`,
+          { kind: "overworld_item", selection_key: item.selection_key },
+          true,
+          null,
+          inventory.selected_item_key === item.selection_key
+            ? "inventory-item-choice selected"
+            : "inventory-item-choice",
+        );
+        button.setAttribute(
+          "aria-pressed",
+          String(inventory.selected_item_key === item.selection_key),
+        );
+        list.append(button);
+      }
+      if (!list.childElementCount) {
+        const empty = document.createElement("p");
+        empty.className = "merchant-empty";
+        empty.textContent = "Your shared inventory is empty.";
+        list.append(empty);
+      }
+    }
+
+    renderDetailOptions("items-options", view.options);
+  }
+
   function renderOverworld(view) {
-    const characterMenuScreens = ["character", "skills", "weapon", "equipment", "merchant"];
+    const characterMenuScreens = [
+      "character", "skills", "weapon", "equipment", "merchant", "items", "item_inspect",
+    ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
     if (characterMenuActive) {
@@ -727,11 +904,13 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("weapon-panel").hidden = view.screen !== "weapon";
     $("equipment-panel").hidden = view.screen !== "equipment";
+    $("items-panel").hidden = !["items", "item_inspect"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "weapon") renderWeapon(view);
     else if (view.screen === "equipment") renderEquipment(view);
+    else if (["items", "item_inspect"].includes(view.screen)) renderOverworldItems(view);
     else if (view.screen === "merchant") renderMerchant(view);
 
     renderInventory($("inventory"), view);

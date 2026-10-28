@@ -134,6 +134,7 @@ def test_pair_route_uses_authored_tuple_advances_once_and_applies_rewards():
     assert player.gold == 23
     assert ui.views[1].adventure_text == (
         "Goblin Pair is defeated. Rewards: 80 EXP and 6 gold. "
+        "Items: 2 Goblin Scrap. "
         "Level up! Reached Level 2 and gained 3 Growth Points. "
         "The route continues toward Goblin Warrior."
     )
@@ -200,6 +201,7 @@ def test_victory_at_combat_before_rest_pauses_without_consuming_rest():
     assert ui.views[1].contextual_route_option.action is OverworldAction.SKIP_REST
     assert ui.views[1].adventure_text == (
         "Goblin Warrior is defeated. Rewards: 60 EXP and 5 gold. "
+        "Items: 1 Goblin Scrap. "
         "The route continues toward Woodland Rest."
     )
     assert player.exp_state.current == 79
@@ -296,6 +298,7 @@ def test_goblin_lord_victory_reaches_dungeon_with_rewards_and_without_continuati
     assert ui.views[1].contextual_route_option is None
     assert ui.views[1].adventure_text == (
         "Goblin Lord is defeated. Rewards: 300 EXP and 18 gold. "
+        "Items: 1 Goblin Lord Core, 4 Goblin Scrap. "
         "Level up! Gained 3 levels, reached Level 4, and gained 9 Growth Points. "
         "The route continues toward Dungeon Entrance."
     )

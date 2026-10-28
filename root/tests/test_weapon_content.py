@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.content.catalog import (
+    DRIFTER_SPECS,
     WEAPON_SPECS,
     _build_weapon_catalog,
     create_weapon,
@@ -13,6 +14,7 @@ from app.content.catalog import (
     get_weapon_spec_by_persistence_key,
 )
 from app.content.weapon_spec import WeaponSpec
+from app.content.weapon_progression_spec import MATERIAL_SPECS
 from app.items.weapon import Weapon
 from tools.generate_content_catalog import discover_weapon_ids
 
@@ -301,3 +303,66 @@ def test_obsolete_signature_weapon_subclasses_are_removed():
     assert set(vars(weapon_module)).isdisjoint(
         {"SunderSpire", "SkyNeedle", "Sathren", "NeedleOfPlainIron"}
     )
+
+
+def test_material_display_names_match_the_final_component_reference():
+    assert tuple(
+        (material.grade, material.family, material.display_name)
+        for material in MATERIAL_SPECS
+    ) == (
+        (1, "metal", "Scrap metal"),
+        (1, "fiber", "Cord"),
+        (1, "timber", "Softwood"),
+        (1, "cores", "Faded Core"),
+        (2, "metal", "Iron"),
+        (2, "fiber", "Cotton"),
+        (2, "timber", "Hardwood"),
+        (2, "cores", "Elemental core"),
+        (3, "metal", "Steel"),
+        (3, "fiber", "Silk"),
+        (3, "timber", "Ironwood"),
+        (3, "cores", "Overcharged core"),
+        (4, "metal", "Etheral Alloy"),
+        (4, "fiber", "Carbon"),
+        (4, "timber", "Elderwood"),
+        (4, "cores", "Singularity Core"),
+    )
+
+
+def test_every_floor_one_weapon_slot_has_a_starter_and_matching_craftable_part():
+    for weapon in WEAPON_SPECS:
+        progression = weapon.progression
+        assert len(progression.components) == 8
+        for slot in progression.slots:
+            matching = tuple(
+                component
+                for component in progression.components
+                if component.slot_id == slot.slot_id
+            )
+            starters = tuple(component for component in matching if component.is_starting)
+            craftable = tuple(component for component in matching if not component.is_starting)
+
+            assert len(starters) == 1
+            assert starters[0].component_id == slot.starting_component_id
+            assert starters[0].recipe_material_id is None
+            assert len(craftable) == 1
+            assert craftable[0].recipe_material_id == f"grade_i_{slot.material_family}"
+            assert craftable[0].recipe_cost == 1
+            assert craftable[0].crafting_award == 10
+            assert craftable[0].move_modifiers
+
+
+def test_component_move_modifiers_target_moves_of_their_weapon_wielder():
+    drifter_by_weapon = {
+        drifter.starting_weapon_id: drifter
+        for drifter in DRIFTER_SPECS
+    }
+
+    for weapon in WEAPON_SPECS:
+        drifter = drifter_by_weapon[weapon.item_id]
+        move_names = {move.name for move in drifter.combat_moves}
+        for component in weapon.progression.components:
+            assert all(
+                modifier.move_name in move_names
+                for modifier in component.move_modifiers
+            ), (weapon.item_id, component.component_id)

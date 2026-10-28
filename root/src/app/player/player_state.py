@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
+from app.content.weapon_progression_spec import project_component_move_effects
 from app.player import resources
 from app.player import progression
 from app.snapshot import to_plain_value
@@ -126,7 +127,19 @@ class PlayerState:
 
     @property
     def combat_moves(self):
-        return self.character.combat_moves
+        weapon = self.get_equipped("weapon")
+        if not isinstance(weapon, Weapon):
+            return self.character.combat_moves
+        if weapon.item_id != self.signature_weapon_state.weapon_id:
+            return self.character.combat_moves
+        from app.content.catalog import get_weapon_spec
+
+        progression = get_weapon_spec(weapon.item_id).progression
+        return project_component_move_effects(
+            progression,
+            self.signature_weapon_state.components,
+            self.character.combat_moves,
+        )
 
     @property
     def class_mechanic(self):
