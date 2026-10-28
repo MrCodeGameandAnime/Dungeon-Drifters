@@ -19,8 +19,7 @@ identities:
 - ~~Branoc carries Sunder-Spire.~~
 - ~~Zhaivra carries Sathren.~~
 - ~~Joruun carries Sky-Needle.~~
-- ~~Azhvielle carries her signature staff or magical focus; its final name remains
-  unresolved.~~
+- ~~Azhvielle carries Needle of Plain Iron.~~
 
 The governing principle is:
 
@@ -260,7 +259,7 @@ Possible costs:
 - reduced accuracy
 - reduced dodge interaction
 
-### Azhvielle's Signature Staff Or Focus
+### Azhvielle's Signature Weapon: Needle of Plain Iron
 
 1. Focus head / fittings
 2. Binding
@@ -284,7 +283,8 @@ Possible effects include:
 - critical magic
 - spell behavior
 
-Its final weapon name and exact construction remain unresolved.
+The weapon's name is Needle of Plain Iron. Its exact physical construction
+beyond this slot model may be refined as content is authored.
 
 ## 3. Material Dismantling And Recovery
 
@@ -718,7 +718,7 @@ Additional examples:
 Refined Sathren of Venomous Glass +9
 Attuned Sathren of the Burning Vein +16
 Great Sunder-Spire of the Unbroken Gate +18
-Mystic [Azhvielle Weapon Name] of Severed Causality +13
+Mystic Needle of Plain Iron +13
 ```
 
 These examples establish naming intent only. They do not freeze actual
@@ -830,7 +830,6 @@ deferred rather than blocking implementation.
 - exact visual implementation
 - exact affix-generation rules
 - inventory limits
-- ~~final name of Azhvielle's weapon~~
 - final obtainable prefixes and suffixes
 
 ## Data-Driven Tuning Values

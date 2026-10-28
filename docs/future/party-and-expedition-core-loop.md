@@ -1,4 +1,11 @@
-# Dungeon Drifters Party and Expedition Core Loop
+# Party And Expedition Core Loop
+
+This is the canonical design authority for the four-Drifter roster, active and
+expedition assignments, expedition categories, experience distribution, and
+reuniting the party. Dungeon risk, extraction, and economy are defined in
+[Dungeon Progression, Difficulty, and Economy](dungeon-progression-difficulty-and-economy.md).
+Individual character advancement is defined in
+[Character Growth and Stat Scaling](character-growth-and-stat-scaling.md).
 
 ## Core Premise
 
@@ -178,6 +185,11 @@ Expeditions occur alongside the active dungeon run.
 
 They should not rely on real-world timers.
 
+Expedition energy determines whether an assignment can be launched. Once
+launched, expedition completion advances through gameplay events rather than a
+real-world countdown. The Dungeon Progression, Difficulty, and Economy document
+owns energy regeneration, costs, and monetization boundaries.
+
 Instead, expeditions advance through gameplay events such as:
 
 * completing dungeon rooms
@@ -186,7 +198,10 @@ Instead, expeditions advance through gameplay events such as:
 * returning to the hub
 * completing the entire run
 
-## Expedition Types
+## Common Expedition Objectives
+
+Expedition categories describe the primary reward focus. Objectives describe
+the specific work assigned to the pair.
 
 Possible expeditions include:
 
@@ -201,6 +216,45 @@ Possible expeditions include:
 * searching for rare crafting components
 * assisting settlements
 * mapping dangerous regions
+
+## Expedition Categories
+
+Expeditions should let the player target current progression needs.
+
+### Training Expedition
+
+Primary reward: experience. Training helps inactive or underleveled Drifters
+remain viable.
+
+### Material Expedition
+
+Primary reward: crafting components and materials for weapons, armor,
+consumables, and resistance gear.
+
+### Equipment Expedition
+
+Primary reward: weapons, armor, relics, or upgrade components. Higher-level
+versions may require more energy and carry more risk.
+
+### Scouting Expedition
+
+Primary reward: dungeon information, such as enemy types, weaknesses, hazards,
+hidden paths, boss mechanics, or treasure locations.
+
+### Recovery Expedition
+
+Primary reward: consumables and supplies. These can help prepare for demanding
+dungeon runs or boss encounters.
+
+### Story Expedition
+
+Primary rewards: narrative progress, character events, hidden lore, and new
+locations. Story completion should not require payment.
+
+### Elite Expedition
+
+Primary reward: rare or endgame resources. These assignments consume more energy
+and may require specific character combinations or roster strength.
 
 ## Expedition Character Strengths
 

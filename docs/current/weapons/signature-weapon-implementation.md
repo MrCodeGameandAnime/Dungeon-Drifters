@@ -1,6 +1,6 @@
 # Signature Weapon Progression Implementation Plan
 
-> **For agentic workers:** Implement this plan in order. Use `superpowers:test-driven-development` for each behavior change. Do not begin implementation until this plan and its Gate 0 decisions are reviewed and approved.
+> **For implementation:** Continue through the open gates in order. Use `superpowers:test-driven-development` for each behavior change. Gate 0 decisions are approved and recorded below; do not reopen them without approval.
 
 **Goal:** Add persistent, data-driven signature-weapon progression that lets the roster dismantle eligible loot, improve each Drifter's four weapon slots, cross quality tiers, and configure components through the existing game interfaces.
 
@@ -13,6 +13,28 @@
 This plan is the implementation contract where it resolves an ambiguity in the
 broader design spec. Unresolved questions not explicitly settled here remain
 open; do not infer additional mechanics from the implementation details.
+
+## Audited Current Status (2026-10-27)
+
+This snapshot distinguishes implemented foundations from accepted gates. A gate
+remains open until all of its required behavior and verification are complete;
+an unchecked task does not mean that no related code exists.
+
+| Gate | Status | Present in the current tree | Still open |
+|---|---|---|---|
+| 0. Playable baseline | Complete, as recorded below | Shared Crafting/material inventory, Grade-I-IV material and improvement-recipe definitions, Goblin Scrap/Core salvage, basic slot improvement, and Hub merchant actions for improvement and dismantling. | No Gate 0 work identified in this audit. |
+| 1. Authored content | Partial | All four weapons have ordered slot labels/families and starting component IDs. The [component reference](component.md) now names a Grade I-IV material ladder; runtime material/improvement-recipe definitions and two Grade-I salvage sources exist, and tests assert the four slot maps. | The named material ladder is not yet mapped to authored runtime item IDs, higher-floor drop sources, or component-crafting recipes. Weapon-specific component definitions/effects, identity contributions, move modifiers, and comprehensive content-reference validation remain open. |
+| 2. Persistent state | Implementation present; gate verification open | Per-Drifter signature-weapon state and shared Crafting/material state are serialized. Runtime schema is 10 and disk schema is 11; round-trip and legacy-migration tests exist, and the profile service validates current schema 11. | This audit did not rerun the focused suite or required PostgreSQL/service verification. Learned-technique and malformed-progression-state coverage should be checked against the Gate 2 cases before acceptance. |
+| 3. Progression rules | Partial | Basic improvement spends the matching grade/family material, awards authored Crafting XP, applies a 1-5 roll, and enforces shared tier gates. Basic dismantling is atomic. | Full weighted-roll coverage, all gate boundaries, stat/quality projection, and Tier V behavior/tests are absent. |
+| 4. Components and combat projection | Partial | Goblin Scrap and Goblin Lord Core have bounded Grade-I salvage definitions and basic dismantle actions. | General salvage coverage, component crafting/replacement, identity calculation, move projection, and learned-technique acquisition/replacement behavior are absent. |
+| 5. Hub and client parity | Partial | The Hub merchant can select a current party Drifter, show slot/material state, improve a slot, and dismantle eligible loot. Terminal and browser bridge contract tests cover these actions. | Component inspection/configuration and replacement are not implemented. The full built-site progression-to-save/reload smoke required by this plan has not been reverified. |
+| 6. Cumulative qualification | Open | Broader game/browser qualification evidence is recorded in `docs/probe.md`. | The pinned MicroPython probe has not been extended with weapon progression, and final weapon-progression qualification is not recorded. |
+
+This was a source-and-test-artifact audit, not a fresh test run. The system
+Windows Python launcher could not start in this shell, and the configured
+workspace Python does not include `pytest`; therefore no current test pass is
+claimed here. The focused and cumulative verification tasks below remain open
+until rerun in the project's test environment.
 
 ## Global Constraints
 
@@ -29,7 +51,7 @@ open; do not infer additional mechanics from the implementation details.
 - Component replacement consumes the old component. Installed component effects are data-driven; learned techniques remain learned after a component is replaced.
 - Physical and mystical identities are derived independently; ties above threshold produce no identity on that axis, and identities recalculate after component changes.
 - No browser-owned progression rules, automatic field merging, new persistence provider, Firebase SDK, database migration, or API/envelope version change.
-- Preserve old save/profile digests and immutable remote revisions. Current versions observed in this tree are runtime schema 9, disk schema 10, envelope v1, and API `/v1`; the proposed save change is runtime schema 10 and disk schema 11, with old runtime/disk schemas still readable.
+- Preserve old save/profile digests and immutable remote revisions. Current versions observed in this tree are runtime schema 10, disk schema 11, envelope v1, and API `/v1`. Weapon progression uses those current schemas; no additional schema/API/database version change is planned, and supported legacy schemas remain readable.
 - Keep new gameplay code inside the existing runtime boundary and run the actual pinned MicroPython qualification for the final tree; do not treat a synthetic parser test as runtime evidence.
 
 ## Review Focus

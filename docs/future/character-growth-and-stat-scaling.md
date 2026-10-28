@@ -1,25 +1,15 @@
 # Character Growth And Stat Scaling
 
-This note records future authored design direction for character growth,
-progression, and stat scaling.
+This is the canonical design authority for individual Drifter growth,
+progression, and stat scaling. Character Growth consumes secured experience only;
+the rules for securing or losing run experience are owned by
+[Dungeon Progression, Difficulty, and Economy](dungeon-progression-difficulty-and-economy.md).
 
 ## Core Progression Loop
 
-Experience earned during a dungeon run is unsecured.
-
-```text
-Earn experience in the dungeon
--> successfully extract or preserve it through an authorized escape
--> experience becomes secured
--> gain levels
--> receive Growth Points
--> spend or save those points at the hub
-```
-
-Death before extraction removes unsecured experience.
-
-Previously secured levels, spent Growth Points, unspent Growth Points, and
-permanent progression remain safe.
+Once experience is secured, it contributes to levels and Growth Points.
+Previously secured levels, spent or unspent Growth Points, and permanent
+progression remain safe during later dungeon runs.
 
 ## Level Rewards
 
