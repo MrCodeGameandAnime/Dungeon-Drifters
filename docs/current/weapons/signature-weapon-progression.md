@@ -559,6 +559,10 @@ on the same axis tie above threshold, that axis has no identity until one leads.
 Identity is derived from the current configuration and recalculates automatically
 when a component changes.
 
+The current Floor I implementation uses a minimum threshold of 2 points for both
+physical and mystical identity. These are provisional tuning defaults, not final
+progression rules.
+
 ### Enchanted
 
 The weapon develops a reliable supernatural property.
@@ -820,7 +824,8 @@ deferred rather than blocking implementation.
 
 - final refinement cap
 - which named physical and mystical identities are available, and their topology
-- exact branch contribution values and minimum thresholds
+- final branch contribution values and thresholds beyond the provisional Floor I
+  2/2 defaults
 - later-grade material recipes, quantities, and floor drop tables
 - Alchemy progression and recipe rules (separate system)
 - player-facing quality labels

@@ -24,17 +24,22 @@ an unchecked task does not mean that no related code exists.
 |---|---|---|---|
 | 0. Playable baseline | Complete, as recorded below | Shared Crafting/material inventory, Grade-I-IV material and improvement-recipe definitions, Goblin Scrap/Core salvage, basic slot improvement, and Hub merchant actions for improvement and dismantling. | No Gate 0 work identified in this audit. |
 | 1. Authored content | Partial | All four weapons have ordered slots, neutral starting parts, and one Grade-I craftable part per slot using its matching material family. The Grade-I material families have Floor I salvage sources; the recipe awards 10 Crafting XP, and components author identity contributions and move modifiers. Tests cover slot/family mapping and verify each modifier names a move on its wielder. | Higher-floor sources and components remain unauthored. Broader validation of malformed/duplicate component definitions and effect values remains open. |
-| 2. Persistent state | Implementation present; gate verification open | Per-Drifter signature-weapon state and shared Crafting/material state are serialized. Runtime schema is 10 and disk schema is 11; round-trip and legacy-migration tests passed in the full client suite, including an installed-component save-document round trip. | Required PostgreSQL/service verification was not run in this pass. Learned-technique and malformed-progression-state coverage should be checked against the Gate 2 cases before acceptance. |
+| 2. Persistent state | Implementation present; corrective revision awaiting cumulative verification | Per-Drifter signature-weapon state and shared Crafting/material state are serialized. Runtime schema is 10 and disk schema is 11. The current local revision validates installed component IDs and slot compatibility for lead and companion profiles; four focused regression cases pass. | Run hosted checks on the corrective revision. Learned-technique ID validation remains deferred until eligible techniques are authored. |
 | 3. Progression rules | Partial | Basic improvement spends the matching grade/family material, awards authored Crafting XP, applies a 1-5 roll, and enforces shared tier gates. Basic dismantling is atomic. | Full weighted-roll coverage, all gate boundaries, stat/quality projection, and Tier V behavior/tests are absent. |
 | 4. Components and combat projection | Partial | Component changes update per-Drifter installed state; identities are derived from installed parts, and authored move modifiers project onto actual combat moves. Tests cover crafting, installation, identity ties, move effects, and save round-trip. | Broader replacement/salvage edge coverage and learned-technique acquisition/replacement behavior remain open. |
 | 5. Hub and client parity | Partial | The Hub merchant offers Grade-I component recipes; Character > Weapon selects a current party Drifter and installs an owned compatible part. Terminal and browser bridge paths use explicit target IDs. The built-site smoke passed the craft/install flow and full existing route smoke. | The broader progression-to-save/reload browser smoke required by this plan has not been run. |
 | 6. Cumulative qualification | Open | Broader game/browser qualification evidence is recorded in `docs/probe.md`. | The pinned MicroPython probe has not been extended with weapon progression, and final weapon-progression qualification is not recorded. |
 
-Fresh verification on 2026-10-28: 1,745 root Python tests and 51 web tests
-passed; content catalog check, content validation, compileall, the 141-file
-static browser build, and the full Playwright browser smoke passed. PostgreSQL
-service verification and the actual pinned MicroPython matrix were not run;
-those qualification requirements remain open.
+Hosted verification for reviewed pushed SHA `64f28601efc951002d4d5a80bb6acf69f1343e67`:
+1,750 root Python tests, 53 web tests, and 29 PostgreSQL service tests passed;
+content validation, compileall, the 141-file browser build, Playwright smoke,
+migrations from zero, and `alembic check` also passed. These results predate the
+current local save-validator correction. On this working tree, all four focused
+component-validation regressions pass. The full local root run reported 1,737
+passed and 17 failures caused by the bundled Python 3.12 test environment
+(nested pytest processes could not import pytest, and portability probes could
+not import `annotationlib`); hosted checks must be rerun on the corrective
+revision. The actual pinned MicroPython matrix remains open.
 
 ## Global Constraints
 

@@ -457,6 +457,42 @@ def test_party_state_and_companion_round_trip_in_schema11_document():
     assert build_save_document(restored) == document
 
 
+@pytest.mark.parametrize("member", ("lead", "companion"))
+@pytest.mark.parametrize("invalid_component", ("unknown", "wrong_slot"))
+def test_profile_payload_rejects_invalid_signature_weapon_components(
+    member,
+    invalid_component,
+):
+    game = _create_populated_game("1")
+    if member == "companion":
+        _move_game_to_dungeon_entrance(game)
+        game.player_state.add_gold(58)
+        assert game.party_state.arrive_at_hub(game.player_state)
+        companion_profile = next(
+            profile for profile in DRIFTER_SPECS if profile.choice == "2"
+        )
+        assert game.party_state.recruit_companion(
+            game.player_state,
+            PlayerState(companion_profile.create_character()),
+        )
+
+    document = build_save_document(game)
+    player = (
+        document["player"]
+        if member == "lead"
+        else document["party"]["companions"][0]
+    )
+    components = player["signature_weapon"]["components"]
+    slot_ids = tuple(components)
+    if invalid_component == "unknown":
+        components[slot_ids[0]] = "definitely_not_a_component"
+    else:
+        components[slot_ids[0]] = components[slot_ids[1]]
+
+    with pytest.raises(SaveStateValidationError, match="component"):
+        validate_profile_payload(document)
+
+
 def test_party_hub_and_pending_outing_snapshot_round_trip():
     game = _create_populated_game("1")
     _move_game_to_dungeon_entrance(game)

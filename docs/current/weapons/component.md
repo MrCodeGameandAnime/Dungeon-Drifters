@@ -1,9 +1,10 @@
 # Weapon Components
 
 This document defines the finalized names for the material families used to
-make signature-weapon components. Exact in-game IDs, drop sources, abundance,
-recipes, weapon-specific component names, and gameplay effects remain to be
-authored as dungeon content is added.
+make signature-weapon components. The playable Floor I baseline now has generic
+material IDs, sources, recipes, weapon-specific component names, and gameplay
+effects authored in game content. Exact balance remains tunable; higher-grade
+sources, recipes, and components will be authored alongside later floors.
 
 ## Materials And Components
 

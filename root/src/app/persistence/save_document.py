@@ -10,7 +10,10 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.route_spec import RouteNodeKind
-from app.content.weapon_progression_spec import MAX_CRAFTING_EXPERIENCE
+from app.content.weapon_progression_spec import (
+    MAX_CRAFTING_EXPERIENCE,
+    get_weapon_component_spec,
+)
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
@@ -913,6 +916,16 @@ def _validate_signature_weapon(snapshot, equipment):
         if not isinstance(component_id, str) or not component_id:
             raise SaveStateValidationError(
                 f"player.signature_weapon.components.{slot_id} must be a non-empty string"
+            )
+        try:
+            component = get_weapon_component_spec(progression, component_id)
+        except ValueError as error:
+            raise SaveStateValidationError(
+                f"player.signature_weapon.components.{slot_id} is unknown"
+            ) from error
+        if component.slot_id != slot_id:
+            raise SaveStateValidationError(
+                f"player.signature_weapon.components.{slot_id} is incompatible with its slot"
             )
     slots = snapshot["slot_progress"]
     _require_mapping(slots, "player.signature_weapon.slot_progress")
