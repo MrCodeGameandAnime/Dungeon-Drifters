@@ -21,6 +21,7 @@ class SignatureWeaponState:
         }
         self._slot_progress = {slot_id: 0 for slot_id in self._slot_ids}
         self._learned_technique_ids = []
+        self._tier_v_success = False
 
     @property
     def weapon_id(self):
@@ -37,6 +38,13 @@ class SignatureWeaponState:
     @property
     def learned_technique_ids(self):
         return tuple(self._learned_technique_ids)
+
+    @property
+    def tier_v_success(self):
+        return self._tier_v_success
+
+    def mark_tier_v_success(self):
+        self._tier_v_success = True
 
     def set_slot_progress(self, slot_id, value):
         if slot_id not in self._slot_progress:
@@ -65,6 +73,7 @@ class SignatureWeaponState:
             "components": self.components,
             "slot_progress": self.slot_progress,
             "learned_technique_ids": list(self.learned_technique_ids),
+            "tier_v_success": self.tier_v_success,
         }
 
     @classmethod
@@ -76,9 +85,12 @@ class SignatureWeaponState:
             "components",
             "slot_progress",
             "learned_technique_ids",
+            "tier_v_success",
         }
         if set(snapshot) != expected_keys:
             raise ValueError("signature weapon snapshot has invalid fields")
+        if not isinstance(snapshot["tier_v_success"], bool):
+            raise ValueError("tier_v_success must be a boolean")
         state = cls(snapshot["weapon_id"], progression)
         components = snapshot["components"]
         if not isinstance(components, dict) or set(components) != set(state._slot_ids):
@@ -98,6 +110,7 @@ class SignatureWeaponState:
         if len(set(techniques)) != len(techniques):
             raise ValueError("learned technique IDs must be unique")
         state._learned_technique_ids = list(techniques)
+        state._tier_v_success = snapshot["tier_v_success"]
         return state
 
 

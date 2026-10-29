@@ -90,6 +90,12 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         '"120 EXP | 9 gold"',
         "PYD7|BROWSER|HUB_OUTING|PASS",
         "PYD7|BROWSER|DEFEAT_RESELECT|PASS",
+        "PYD7|BROWSER|SAVE_RELOAD|PASS",
+        "PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS",
+        "Crafted Reinforced Blade and Guard",
+        "Installed: Reinforced Blade and Guard",
+        "browser reload and Load did not restore Branoc's weapon progression",
+        "browser reload and Load did not restore the saved Drifter and route",
         "floorOneWarningProjection",
         "floorOneRestProjection",
         "floorOneExtractionProjection",
@@ -121,18 +127,21 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
     assert "route_complete =" not in source
 
 
-def test_browser_shell_wires_component_crafting_and_weapon_configuration():
+def test_browser_shell_wires_craft_and_install_and_component_inspection():
     shell = SHELL_PATH.read_text()
     script = SCRIPT_PATH.read_text()
     smoke = SMOKE_PATH.read_text()
 
     assert 'id="merchant-component-recipes"' in shell
+    assert 'id="merchant-tier-v"' in shell
     assert 'id="weapon-targets"' in shell
     assert 'id="weapon-identities"' in shell
     assert 'id="weapon-components"' in shell
     assert 'kind: "merchant_craft_component"' in script
+    assert 'kind: "merchant_tier_v"' in script
     assert 'kind: "weapon_target"' in script
-    assert 'kind: "weapon_component"' in script
+    assert '"Craft & Install"' in script
+    assert 'kind: "weapon_component"' not in script
     assert 'targetPage.locator("#weapon-components .weapon-component-slot")' in smoke
     assert "PYD8|BROWSER|HUB_WEAPON_COMPONENTS|PASS" in smoke
 

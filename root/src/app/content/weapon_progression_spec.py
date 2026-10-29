@@ -1,6 +1,7 @@
 """Immutable authored data for signature-weapon progression slots."""
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 
 
 SLOT_MATERIAL_FAMILIES = ("metal", "fiber", "timber", "cores")
@@ -33,6 +34,14 @@ PHYSICAL_IDENTITY_THRESHOLD = 2
 MYSTICAL_IDENTITY_THRESHOLD = 2
 PHYSICAL_IDENTITIES = ("Fast", "Refined", "Heavy", "Great")
 MYSTICAL_IDENTITIES = ("Enchanted", "Mystic", "Attuned", "Legendary")
+_STAT_NAMES = (
+    "constitution",
+    "spirit",
+    "intelligence",
+    "strength",
+    "dexterity",
+    "intuition",
+)
 
 
 @dataclass(frozen=True)
@@ -69,7 +78,7 @@ class WeaponImprovementRecipeSpec:
             value = getattr(self, field)
             if not isinstance(value, str):
                 raise TypeError(f"{field} must be a string")
-            if not value:
+            if not value.strip():
                 raise ValueError(f"{field} must not be empty")
         for field in ("material_cost", "crafting_award"):
             value = getattr(self, field)
@@ -86,12 +95,13 @@ class DismantleSpec:
     maximum_yield: int
 
     def __post_init__(self):
-        if not isinstance(self.item_id, str) or not self.item_id:
+        if not isinstance(self.item_id, str) or not self.item_id.strip():
             raise ValueError("item_id must be a non-empty string")
         if not isinstance(self.output_material_ids, tuple):
             raise TypeError("output_material_ids must be a tuple")
         if not self.output_material_ids or not all(
-            isinstance(item_id, str) and item_id for item_id in self.output_material_ids
+            isinstance(item_id, str) and item_id.strip()
+            for item_id in self.output_material_ids
         ):
             raise ValueError("dismantle outputs must contain material IDs")
         if isinstance(self.maximum_yield, bool) or not isinstance(
@@ -101,6 +111,50 @@ class DismantleSpec:
             raise TypeError("maximum_yield must be an integer")
         if self.maximum_yield < 1 or self.maximum_yield > 5:
             raise ValueError("maximum_yield must be between 1 and 5")
+
+
+@dataclass(frozen=True)
+class TierVAttemptSpec:
+    material_costs: tuple[tuple[str, int], ...]
+    success_chance_percent: int
+    stat_bonus_percent: int = 25
+
+    def __post_init__(self):
+        if not isinstance(self.material_costs, tuple):
+            raise TypeError("material_costs must be a tuple")
+        if not all(
+            isinstance(entry, tuple) and len(entry) == 2
+            for entry in self.material_costs
+        ):
+            raise TypeError("material costs must be (material_id, quantity) pairs")
+        material_ids = []
+        for material_id, quantity in self.material_costs:
+            material = get_material_spec(material_id)
+            if material.grade != 4:
+                raise ValueError("Tier V costs must use Grade-IV materials")
+            if isinstance(quantity, bool) or not isinstance(quantity, int):
+                raise TypeError("Tier V material quantities must be integers")
+            if quantity < 1:
+                raise ValueError("Tier V material quantities must be positive")
+            material_ids.append(material_id)
+        if set(material_ids) != {
+            f"grade_iv_{family}" for family in SLOT_MATERIAL_FAMILIES
+        } or len(material_ids) != len(SLOT_MATERIAL_FAMILIES):
+            raise ValueError("Tier V requires one cost for every Grade-IV family")
+        if isinstance(self.success_chance_percent, bool) or not isinstance(
+            self.success_chance_percent,
+            int,
+        ):
+            raise TypeError("Tier V success chance must be an integer")
+        if not 1 <= self.success_chance_percent <= 99:
+            raise ValueError("Tier V success chance must be between 1 and 99")
+        if isinstance(self.stat_bonus_percent, bool) or not isinstance(
+            self.stat_bonus_percent,
+            int,
+        ):
+            raise TypeError("Tier V stat bonus must be an integer")
+        if self.stat_bonus_percent < 1:
+            raise ValueError("Tier V stat bonus must be positive")
 
 
 @dataclass(frozen=True)
@@ -264,6 +318,17 @@ def get_dismantle_spec(item_id):
         raise ValueError(f"item cannot be dismantled: {item_id}") from error
 
 
+TIER_V_ATTEMPT_SPEC = TierVAttemptSpec(
+    material_costs=(
+        ("grade_iv_metal", 12),
+        ("grade_iv_fiber", 12),
+        ("grade_iv_timber", 12),
+        ("grade_iv_cores", 12),
+    ),
+    success_chance_percent=20,
+)
+
+
 def improvement_roll(crafting_level, rng):
     if isinstance(crafting_level, bool) or not isinstance(crafting_level, int):
         raise TypeError("crafting level must be an integer")
@@ -313,6 +378,7 @@ class WeaponSlotSpec:
     label: str
     material_family: str
     starting_component_id: str
+    governed_stats: tuple[str, ...] = ()
 
     def __post_init__(self):
         for field in (
@@ -324,10 +390,19 @@ class WeaponSlotSpec:
             value = getattr(self, field)
             if not isinstance(value, str):
                 raise TypeError(f"{field} must be a string")
-            if not value:
+            if not value.strip():
                 raise ValueError(f"{field} must not be empty")
         if self.material_family not in SLOT_MATERIAL_FAMILIES:
             raise ValueError("unknown slot material family")
+        if not isinstance(self.governed_stats, tuple):
+            raise TypeError("governed_stats must be a tuple")
+        if not all(
+            isinstance(name, str) and name in _STAT_NAMES
+            for name in self.governed_stats
+        ):
+            raise ValueError("governed_stats contains an invalid stat")
+        if len(set(self.governed_stats)) != len(self.governed_stats):
+            raise ValueError("governed_stats must be unique")
 
 
 @dataclass(frozen=True)
@@ -462,6 +537,55 @@ def project_component_move_effects(progression, installed_components, moves):
     return tuple(projected)
 
 
+def project_weapon_stat_bonuses(
+    progression,
+    base_bonuses,
+    slot_progress,
+    *,
+    tier_v_success,
+):
+    if not isinstance(progression, WeaponProgressionSpec):
+        raise TypeError("progression must be a WeaponProgressionSpec")
+    if not isinstance(base_bonuses, Mapping):
+        raise TypeError("base_bonuses must be a mapping")
+    if not isinstance(slot_progress, Mapping):
+        raise TypeError("slot_progress must be a mapping")
+    if not isinstance(tier_v_success, bool):
+        raise TypeError("tier_v_success must be a boolean")
+    slot_ids = {slot.slot_id for slot in progression.slots}
+    if set(slot_progress) != slot_ids:
+        raise ValueError("slot_progress must match the progression slots")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100
+        for value in slot_progress.values()
+    ):
+        raise ValueError("slot progress must be integers between 0 and 100")
+
+    quality_gates_met = min(slot_progress.values()) // 25
+    ordinary_quality_percent = min(15, quality_gates_met * 5)
+    quality_percent = ordinary_quality_percent + (
+        25 if tier_v_success else 0
+    )
+    projected = {}
+    for stat_name, base_value in base_bonuses.items():
+        if stat_name not in _STAT_NAMES:
+            raise ValueError(f"invalid weapon stat: {stat_name}")
+        if isinstance(base_value, bool) or not isinstance(base_value, int):
+            raise TypeError("base weapon stat bonuses must be integers")
+        if base_value < 0:
+            raise ValueError("base weapon stat bonuses must not be negative")
+        progress_basis_points = sum(
+            slot_progress[slot.slot_id] * 25
+            for slot in progression.slots
+            if stat_name in slot.governed_stats
+        )
+        factor_basis_points = progress_basis_points + quality_percent * 100
+        projected[stat_name] = (
+            base_value * (10_000 + factor_basis_points) + 5_000
+        ) // 10_000
+    return projected
+
+
 def _winning_identity(scores, threshold):
     if not scores:
         return None
@@ -489,6 +613,8 @@ __all__ = (
     "QUALITY_GATES",
     "SLOT_MATERIAL_FAMILIES",
     "SALVAGE_DOUBLE_YIELD_CHANCE_BANDS",
+    "TIER_V_ATTEMPT_SPEC",
+    "TierVAttemptSpec",
     "WeaponProgressionSpec",
     "WeaponImprovementRecipeSpec",
     "WeaponComponentSpec",
@@ -501,5 +627,6 @@ __all__ = (
     "improvement_roll",
     "get_weapon_component_spec",
     "project_component_move_effects",
+    "project_weapon_stat_bonuses",
     "salvage_double_yield_chance",
 )

@@ -22,14 +22,20 @@ WEAPON = WeaponSpec(
     progression=WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
-                "striking_head", "Head / Striking Cap", "metal", "sky_needle_head"
+                "striking_head", "Head / Striking Cap", "metal", "sky_needle_head",
+                governed_stats=("dexterity",),
             ),
             WeaponSlotSpec(
-                "binding_grip", "Binding / Grip", "fiber", "sky_needle_binding"
+                "binding_grip", "Binding / Grip", "fiber", "sky_needle_binding",
+                governed_stats=("dexterity",),
             ),
-            WeaponSlotSpec("shaft", "Shaft", "timber", "sky_needle_shaft"),
             WeaponSlotSpec(
-                "focus_collar", "Focus / Collar", "cores", "sky_needle_focus"
+                "shaft", "Shaft", "timber", "sky_needle_shaft",
+                governed_stats=("dexterity",),
+            ),
+            WeaponSlotSpec(
+                "focus_collar", "Focus / Collar", "cores", "sky_needle_focus",
+                governed_stats=("spirit", "intuition"),
             ),
         ),
         components=(

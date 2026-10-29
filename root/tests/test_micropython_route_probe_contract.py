@@ -157,6 +157,11 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         "FLOOR_ONE_PRE_BOSS_REST",
         "FLOOR_ONE_BATTLE_10",
         "FLOOR_ONE_FINAL_STATE",
+        "WEAPON_PROGRESSION_DISMANTLE",
+        "WEAPON_PROGRESSION_CRAFT",
+        "WEAPON_PROGRESSION_IMPROVE",
+        "WEAPON_PROGRESSION_SAVE_ROUNDTRIP",
+        "WEAPON_PROGRESSION_FINAL_STATE",
     )
     assert stages[-len(expected_floor_one) :] == expected_floor_one
 
@@ -180,6 +185,17 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         'party.shared_gold',
         'member.health.maximum',
         'member.mana_resource.maximum',
+        'WeaponProgressionService(game, rng=ProbeRng())',
+        'service.dismantle(',
+        'state["weapon_progression_service"].craft_component(',
+        'state["weapon_progression_service"].improve_slot(',
+        'component crafting did not install the crafted part',
+        'crafted component was added to shared inventory',
+        'target_drifter_id="branoc"',
+        'item_id="goblin_scrap"',
+        'snapshot = game.snapshot()',
+        'restored = game.clone()',
+        'restored.snapshot() != snapshot',
         'del state["route_enemy_factory"].enemies[:]',
     ):
         assert required in source

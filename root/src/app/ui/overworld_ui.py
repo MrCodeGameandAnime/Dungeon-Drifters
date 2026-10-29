@@ -102,25 +102,21 @@ class ChooseMerchantCraftComponent:
 
 
 @dataclass(frozen=True)
+class ChooseMerchantTierV:
+    target_drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.target_drifter_id, str) or not self.target_drifter_id.strip():
+            raise ValueError("target_drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChooseWeaponTarget:
     drifter_id: str
 
     def __post_init__(self):
         if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
             raise ValueError("drifter_id must be a nonempty string")
-
-
-@dataclass(frozen=True)
-class ChooseWeaponComponent:
-    target_drifter_id: str
-    slot_id: str
-    component_id: str
-
-    def __post_init__(self):
-        for name in ("target_drifter_id", "slot_id", "component_id"):
-            value = getattr(self, name)
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"{name} must be a nonempty string")
 
 
 OverworldInput: TypeAlias = Union[
@@ -133,8 +129,8 @@ OverworldInput: TypeAlias = Union[
     ChooseMerchantImprove,
     ChooseMerchantDismantle,
     ChooseMerchantCraftComponent,
+    ChooseMerchantTierV,
     ChooseWeaponTarget,
-    ChooseWeaponComponent,
 ]
 
 

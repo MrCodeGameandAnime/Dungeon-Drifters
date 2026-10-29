@@ -4,6 +4,7 @@ import pytest
 
 from app.content.catalog import create_drifter, get_drifter_spec
 from app.game.game_state import GameState
+from app.game.weapon_progression import WeaponProgressionService
 from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from tests.persistence_test_support import make_test_save_port
@@ -22,8 +23,6 @@ from app.ui.overworld_ui import (
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
-    ChooseWeaponComponent,
-    ChooseWeaponTarget,
 )
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 
@@ -538,7 +537,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 10
+    assert snapshot["schema_version"] == 11
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
@@ -823,7 +822,7 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
     assert enemies.calls == []
 
 
-def test_hub_component_craft_install_updates_combat_and_persists():
+def test_hub_component_craft_installs_updates_combat_and_persists():
     player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
@@ -841,28 +840,36 @@ def test_hub_component_craft_install_updates_combat_and_persists():
             "sunder_spire_blade_reinforced",
         )
     )
-    assert crafted.merchant.component_recipes[0].can_craft is False
-    assert game.party_state.shared_items["sunder_spire_blade_reinforced"] == 1
+    assert all(
+        recipe.component_id != "sunder_spire_blade_reinforced"
+        for recipe in crafted.merchant.component_recipes
+    )
+    assert game.player_state.signature_weapon_state.components["blade_guard"] == (
+        "sunder_spire_blade_reinforced"
+    )
+    assert game.player_state.signature_weapon_state.slot_progress["blade_guard"] == 0
+    assert game.party_state.shared_items.get("sunder_spire_blade_reinforced", 0) == 0
     assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
+    assert game.party_state.crafting_experience == 10
+    assert "Crafted and installed Reinforced Blade and Guard" in crafted.notice
+    after_craft = game.snapshot()
+    duplicate = session.submit(
+        ChooseMerchantCraftComponent(
+            "branoc",
+            "sunder_spire_blade_reinforced",
+        )
+    )
+    assert "recipe is not available" in duplicate.notice
+    assert game.snapshot() == after_craft
 
     session.submit(ChooseOverworldAction(OverworldAction.BACK))
     session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
     session.submit(ChooseOverworldAction(OverworldAction.WEAPON))
     weapon_view = session.current_view()
-    assert weapon_view.weapon.components[0].available_components[0].component_id == (
+    assert weapon_view.weapon.components[0].installed_component_id == (
         "sunder_spire_blade_reinforced"
     )
-    installed = session.submit(
-        ChooseWeaponComponent(
-            "branoc",
-            "blade_guard",
-            "sunder_spire_blade_reinforced",
-        )
-    )
-
-    assert "Installed Reinforced Blade and Guard." in installed.notice
-    assert "Crestgrave Reaping: Power +2, Accuracy -2" in installed.notice
-    assert installed.weapon.components[0].installed_effect_summary == (
+    assert weapon_view.weapon.components[0].installed_effect_summary == (
         "Crestgrave Reaping: Power +2, Accuracy -2",
         "Heavy identity +1",
     )
@@ -878,34 +885,26 @@ def test_hub_component_craft_install_updates_combat_and_persists():
     )
 
 
-def test_weapon_target_selection_is_explicit_before_component_install():
+def test_component_craft_targets_the_requested_companion_not_lead():
     lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
     companion = PlayerState(get_drifter_spec("azhvielle").create_character())
     game = GameState(lead)
     assert game.party_state.arrive_at_hub(lead)
     assert game.party_state.recruit_companion(lead, companion)
-    game.party_state.add_shared_items({"needle_focus_fitted": 1})
-    session = OverworldSession(
-        game,
-        battle_factory=lambda *args, **kwargs: None,
-        enemy_factory=lambda *args, **kwargs: None,
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    result = WeaponProgressionService(game).craft_component(
+        target_drifter_id="azhvielle",
+        component_id="needle_focus_fitted",
     )
 
-    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
-    session.submit(ChooseOverworldAction(OverworldAction.WEAPON))
-    session.submit(ChooseWeaponTarget("azhvielle"))
-    session.submit(
-        ChooseWeaponComponent(
-            "azhvielle",
-            "focus_fittings",
-            "needle_focus_fitted",
-        )
-    )
-
+    assert result.success is True
     assert companion.signature_weapon_state.components["focus_fittings"] == (
         "needle_focus_fitted"
     )
     assert lead.signature_weapon_state.components["blade_guard"] == "sunder_spire_blade"
+    assert game.party_state.shared_items.get("needle_focus_fitted", 0) == 0
+    assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
+    assert game.party_state.crafting_experience == 10
 
 
 def test_item_selection_and_inspection_are_transient_and_non_consuming():

@@ -13,6 +13,7 @@ from app.content.catalog import (
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
+    TIER_V_ATTEMPT_SPEC,
     derive_weapon_identities,
     get_improvement_recipe,
     get_material_spec,
@@ -42,6 +43,8 @@ from app.presentation.overworld_models import (
     MerchantComponentRecipeView,
     MerchantMaterialView,
     MerchantSlotView,
+    MerchantTierVMaterialView,
+    MerchantTierVView,
     MerchantTargetView,
     MerchantView,
     OverworldAction,
@@ -57,7 +60,6 @@ from app.presentation.overworld_models import (
     StatBonusView,
     StatRowView,
     WeaponView,
-    WeaponComponentOptionView,
     WeaponComponentSlotView,
 )
 
@@ -459,7 +461,6 @@ class OverworldPresenter:
         weapon_spec = get_weapon_spec(weapon.item_id)
         progression = weapon_spec.progression
         component_state = target_member.signature_weapon_state
-        shared_items = game_state.party_state.shared_items
         bonuses = tuple(
             StatBonusView(label, weapon.stat_bonuses[name])
             for name, label in STAT_ORDER
@@ -477,26 +478,12 @@ class OverworldPresenter:
         for slot in progression.slots:
             installed_id = component_state.components[slot.slot_id]
             installed = get_weapon_component_spec(progression, installed_id)
-            choices = tuple(
-                WeaponComponentOptionView(
-                    component_id=component.component_id,
-                    display_name=component.display_name,
-                    quantity=shared_items[component.component_id],
-                    effect_summary=OverworldPresenter._component_effect_summary(component),
-                )
-                for component in progression.components
-                if component.slot_id == slot.slot_id
-                and not component.is_starting
-                and component.component_id != installed_id
-                and shared_items.get(component.component_id, 0) > 0
-            )
             component_slots.append(
                 WeaponComponentSlotView(
                     slot_id=slot.slot_id,
                     label=slot.label,
                     installed_component_id=installed_id,
                     installed_component_name=installed.display_name,
-                    available_components=choices,
                     installed_effect_summary=OverworldPresenter._component_effect_summary(installed),
                 )
             )
@@ -639,9 +626,47 @@ class OverworldPresenter:
                     stock_by_id.get(component.recipe_material_id, 0)
                     >= component.recipe_cost
                 ),
+                effect_summary=OverworldPresenter._component_effect_summary(component),
             )
             for component in weapon_spec.progression.components
             if not component.is_starting
+            and weapon_state.components[component.slot_id] != component.component_id
+        )
+        tier_v_materials = tuple(
+            MerchantTierVMaterialView(
+                item_id=material_id,
+                display_name=get_material_spec(material_id).display_name,
+                required=quantity,
+                available=stock_by_id.get(material_id, 0),
+            )
+            for material_id, quantity in TIER_V_ATTEMPT_SPEC.material_costs
+        )
+        tier_v_completed = weapon_state.tier_v_success
+        tier_v_locked = (
+            any(value < 100 for value in weapon_state.slot_progress.values())
+            or party.crafting_level < 100
+        )
+        tier_v_materials_missing = any(
+            material.available < material.required
+            for material in tier_v_materials
+        )
+        tier_v_blocked_reason = (
+            None
+            if tier_v_completed
+            else "tier_locked"
+            if tier_v_locked
+            else "insufficient_materials"
+            if tier_v_materials_missing
+            else None
+        )
+        tier_v = MerchantTierVView(
+            success_chance_percent=TIER_V_ATTEMPT_SPEC.success_chance_percent,
+            materials=tier_v_materials,
+            can_attempt=(
+                not tier_v_completed and tier_v_blocked_reason is None
+            ),
+            completed=tier_v_completed,
+            blocked_reason=tier_v_blocked_reason,
         )
         return MerchantView(
             crafting_level=party.crafting_level,
@@ -653,6 +678,7 @@ class OverworldPresenter:
             materials=materials,
             dismantle_items=dismantle_items,
             component_recipes=component_recipes,
+            tier_v=tier_v,
         )
 
     @staticmethod
@@ -704,7 +730,10 @@ class OverworldPresenter:
             for component in progression.components:
                 if component.component_id == item_id:
                     return component.display_name
-        return " ".join(part.capitalize() for part in item_id.split("_"))
+        return " ".join(
+            part[:1].upper() + part[1:]
+            for part in item_id.split("_")
+        )
 
     @staticmethod
     def _inventory_items(game_state):

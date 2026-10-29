@@ -478,8 +478,20 @@ const merchantProjection = {
       { item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3, output_material_names: ["Scrap metal", "Cord", "Softwood"], maximum_yield: 2 },
     ],
     component_recipes: [
-      { component_id: "sunder_spire_blade_reinforced", display_name: "Reinforced Blade and Guard", slot_id: "blade_guard", slot_label: "Blade / Guard assembly", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true },
+      { component_id: "sunder_spire_blade_reinforced", display_name: "Reinforced Blade and Guard", slot_id: "blade_guard", slot_label: "Blade / Guard assembly", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true, effect_summary: ["Crestgrave Reaping: Power +2, Accuracy -2", "Heavy identity +1"] },
     ],
+    tier_v: {
+      success_chance_percent: 20,
+      materials: [
+        { item_id: "grade_iv_metal", display_name: "Etheral Alloy", required: 12, available: 0 },
+        { item_id: "grade_iv_fiber", display_name: "Carbon", required: 12, available: 0 },
+        { item_id: "grade_iv_timber", display_name: "Elderwood", required: 12, available: 0 },
+        { item_id: "grade_iv_cores", display_name: "Singularity Core", required: 12, available: 0 },
+      ],
+      can_attempt: false,
+      completed: false,
+      blocked_reason: "tier_locked",
+    },
   },
 };
 
@@ -499,7 +511,7 @@ const merchantAzhvielleProjection = {
       ...merchantProjection.merchant.slots.slice(2),
     ],
     component_recipes: [
-      { component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", slot_id: "focus_fittings", slot_label: "Focus head / fittings", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true },
+      { component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", slot_id: "focus_fittings", slot_label: "Focus head / fittings", material_name: "Scrap metal", material_cost: 1, crafting_award: 10, material_quantity: 3, can_craft: true, effect_summary: ["Scepter Sweep: Power +2, Resource cost -2", "Refined identity +1"] },
     ],
   },
 };
@@ -536,11 +548,7 @@ const merchantCraftedProjection = {
     materials: merchantDismantledProjection.merchant.materials.map((material, index) => index === 0
       ? { ...material, quantity: 1 }
       : material),
-    component_recipes: merchantDismantledProjection.merchant.component_recipes.map((recipe) => ({
-      ...recipe,
-      material_quantity: 1,
-      can_craft: false,
-    })),
+    component_recipes: [],
   },
 };
 
@@ -606,10 +614,10 @@ const weaponProjection = {
     ],
     selected_target_id: "branoc",
     components: [
-      { slot_id: "blade_guard", label: "Blade / Guard assembly", installed_component_id: "sunder_spire_blade", installed_component_name: "Deep-Iron Blade and Guard", available_components: [] },
-      { slot_id: "grip_binding", label: "Grip wrap / binding", installed_component_id: "sunder_spire_grip", installed_component_name: "Bound Grip Wrap", available_components: [] },
-      { slot_id: "hilt_handle", label: "Hilt core / handle", installed_component_id: "sunder_spire_hilt", installed_component_name: "Ashwood Hilt Core", available_components: [] },
-      { slot_id: "crest_core", label: "Crest / Core", installed_component_id: "sunder_spire_crest", installed_component_name: "Deep-Iron Crest", available_components: [] },
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", installed_component_id: "sunder_spire_blade", installed_component_name: "Deep-Iron Blade and Guard" },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", installed_component_id: "sunder_spire_grip", installed_component_name: "Bound Grip Wrap" },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", installed_component_id: "sunder_spire_hilt", installed_component_name: "Ashwood Hilt Core" },
+      { slot_id: "crest_core", label: "Crest / Core", installed_component_id: "sunder_spire_crest", installed_component_name: "Deep-Iron Crest" },
     ],
     physical_identity: null,
     mystical_identity: null,
@@ -629,21 +637,11 @@ const weaponAzhvielleProjection = {
     })),
     selected_target_id: "azhvielle",
     components: [
-      { slot_id: "focus_fittings", label: "Focus head / fittings", installed_component_id: "needle_focus", installed_component_name: "Unadorned Iron Focus Fittings", available_components: [{ component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", quantity: 1 }] },
-      { slot_id: "binding", label: "Binding", installed_component_id: "needle_binding", installed_component_name: "Plain Binding", available_components: [] },
-      { slot_id: "haft", label: "Haft", installed_component_id: "needle_haft", installed_component_name: "Ritual Needle Haft", available_components: [] },
-      { slot_id: "seal_catalyst", label: "Seal / Catalyst", installed_component_id: "needle_seal", installed_component_name: "Unawakened Seal", available_components: [] },
+      { slot_id: "focus_fittings", label: "Focus head / fittings", installed_component_id: "needle_focus_fitted", installed_component_name: "Obsidian Focus Fittings", installed_effect_summary: ["Scepter Sweep: Power +2, Resource cost -2", "Refined identity +1"] },
+      { slot_id: "binding", label: "Binding", installed_component_id: "needle_binding", installed_component_name: "Plain Binding" },
+      { slot_id: "haft", label: "Haft", installed_component_id: "needle_haft", installed_component_name: "Ritual Needle Haft" },
+      { slot_id: "seal_catalyst", label: "Seal / Catalyst", installed_component_id: "needle_seal", installed_component_name: "Unawakened Seal" },
     ],
-  },
-};
-
-const weaponInstalledProjection = {
-  ...weaponAzhvielleProjection,
-  weapon: {
-    ...weaponAzhvielleProjection.weapon,
-    components: weaponAzhvielleProjection.weapon.components.map((slot, index) => index === 0
-      ? { ...slot, installed_component_id: "needle_focus_fitted", installed_component_name: "Obsidian Focus Fittings", available_components: [] }
-      : slot),
   },
 };
 
@@ -1570,9 +1568,6 @@ try {
               if (window.__fixtureHubPhase === "weapon" && command.kind === "weapon_target" && command.drifter_id === "azhvielle") {
                 return JSON.stringify(views.weaponAzhvielle);
               }
-              if (window.__fixtureHubPhase === "weapon" && command.kind === "weapon_component") {
-                return JSON.stringify(views.weaponInstalled);
-              }
               if (window.__fixtureHubPhase === "weapon" && command.action === "back") {
                 window.__fixtureHubPhase = "character";
                 return JSON.stringify(views.hubCharacter);
@@ -1682,7 +1677,6 @@ try {
     hubCharacterAzhvielle: hubCharacterAzhvielleProjection,
     weapon: weaponProjection,
     weaponAzhvielle: weaponAzhvielleProjection,
-    weaponInstalled: weaponInstalledProjection,
     floorOneWarning: floorOneWarningProjection,
     floorOneMain: floorOneMainProjection,
     floorOneBattle: floorOneBattleProjection,
@@ -1925,11 +1919,11 @@ try {
       await targetPage.locator("#merchant-component-recipes button:enabled").count() === 1,
     "Merchant did not show the available Grade-I component recipe",
   );
-  await clickVisibleOption(targetPage, "#merchant-component-recipes", "Craft");
+  await clickVisibleOption(targetPage, "#merchant-component-recipes", "Craft & Install");
   requireCondition(
-    (await targetPage.locator("#merchant-component-recipes").innerText()).includes("Scrap metal x1") &&
-      await targetPage.locator("#merchant-component-recipes button:disabled").count() === 1,
-    "Crafting a component did not update the recipe's authoritative material availability",
+    !(await targetPage.locator("#merchant-component-recipes").innerText()).includes("Obsidian Focus Fittings") &&
+      (await targetPage.locator("#merchant-materials").innerText()).includes("Scrap metal: 1"),
+    "Crafting and installing did not consume material and remove the installed recipe",
   );
   await clickVisibleOption(targetPage, "#merchant-options", "Back");
   await targetPage.locator("#merchant-panel").waitFor({ state: "hidden" });
@@ -1954,11 +1948,10 @@ try {
     "Weapon page omitted the party Drifter picker or four component slots",
   );
   await clickVisibleOption(targetPage, "#weapon-targets", "Azhvielle");
-  await clickVisibleOption(targetPage, "#weapon-components", "Install");
   requireCondition(
     (await targetPage.locator("#weapon-components").innerText()).includes("Obsidian Focus Fittings") &&
       (await targetPage.locator("#weapon-components .weapon-component-slot").first().innerText()).includes("Installed"),
-    "Weapon component installation did not update the selected Drifter's installed part",
+    "Crafting and installing did not update the selected Drifter's installed part",
   );
   await clickVisibleOption(targetPage, "#weapon-options", "Back");
   await targetPage.locator("#character-panel").waitFor({ state: "visible" });
@@ -1978,7 +1971,6 @@ try {
       { kind: "character_target", drifter_id: "branoc" },
       { kind: "overworld_action", action: "weapon" },
       { kind: "weapon_target", drifter_id: "azhvielle" },
-      { kind: "weapon_component", target_drifter_id: "azhvielle", slot_id: "focus_fittings", component_id: "needle_focus_fitted" },
       { kind: "overworld_action", action: "back" },
       { kind: "overworld_action", action: "back" },
     ]),
@@ -2158,6 +2150,182 @@ try {
   requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
   requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
   requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
+
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 30000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#character-name").innerText()).includes("Ser Branoc") &&
+      await page.locator("#location-label").innerText() === "Goblin Ambush",
+    "browser reload and Load did not restore the saved Drifter and route",
+  );
+  requireCondition(errors.length === 0, `browser page errors after save/reload: ${errors.join("; ")}`);
+  console.log("PYD7|BROWSER|SAVE_RELOAD|PASS");
+
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("F01BA");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
+  await branocMerchantTarget.click();
+
+  const scrapMetalCount = async () => {
+    const text = await page.locator("#merchant-materials").innerText();
+    return Number(text.match(/Scrap metal:\s*(\d+)/i)?.[1] || 0);
+  };
+  const scrapRow = page.locator("#merchant-dismantle .merchant-row").filter({ hasText: "Goblin Scrap" });
+  requireCondition(await scrapRow.count() === 1, "weapon save/reload scenario did not provide Goblin Scrap");
+  for (let attempt = 0; attempt < 30 && await scrapMetalCount() < 2; attempt += 1) {
+    const previous = await page.locator("#merchant-dismantle").innerText();
+    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
+    await page.waitForFunction((prior) =>
+      document.getElementById("merchant-dismantle").innerText !== prior,
+    previous);
+  }
+  requireCondition(await scrapMetalCount() >= 2, "Goblin Scrap did not yield enough metal to craft and improve Branoc's weapon");
+
+  const bladeRecipe = page.locator("#merchant-component-recipes .merchant-row")
+    .filter({ hasText: "Reinforced Blade and Guard" });
+  const craftingBeforeRecipe = await page.locator("#merchant-crafting").innerText();
+  const materialsBeforeRecipe = await page.locator("#merchant-materials").innerText();
+  await bladeRecipe.getByRole("button", { name: "Craft & Install" }).click();
+  await page.waitForFunction(({ crafting, materials }) =>
+    document.getElementById("merchant-crafting").innerText !== crafting &&
+      document.getElementById("merchant-materials").innerText !== materials &&
+      !document.getElementById("merchant-component-recipes").innerText.includes("Reinforced Blade and Guard"),
+  { crafting: craftingBeforeRecipe, materials: materialsBeforeRecipe });
+  requireCondition(
+    (await page.locator("#merchant-crafting").innerText()) !== craftingBeforeRecipe,
+    "Crafted Reinforced Blade and Guard did not award Crafting experience",
+  );
+  const bladeSlot = page.locator("#merchant-slots .merchant-row").first();
+  const slotBeforeImprovement = await bladeSlot.innerText();
+  await bladeSlot.getByRole("button", { name: "Improve" }).click();
+  await page.waitForFunction((previous) =>
+    document.querySelector("#merchant-slots .merchant-row").innerText !== previous,
+  slotBeforeImprovement);
+
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  const bladeComponent = page.locator("#weapon-components .weapon-component-slot").first();
+  const installedBladeState = await bladeComponent.innerText();
+  requireCondition(
+    installedBladeState.includes("Installed: Reinforced Blade and Guard"),
+    "Branoc's crafted component was not installed before saving",
+  );
+
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const savedWeaponProgression = {
+    crafting: await page.locator("#merchant-crafting").innerText(),
+    slot: await page.locator("#merchant-slots .merchant-row").first().innerText(),
+    materials: await page.locator("#merchant-materials").innerText(),
+  };
+  requireCondition(
+    /\d+\/100/.test(savedWeaponProgression.slot) &&
+      /\d+ XP/.test(savedWeaponProgression.crafting) &&
+      savedWeaponProgression.materials.includes("Scrap metal:"),
+    `weapon progression state was incomplete before saving: ${JSON.stringify(savedWeaponProgression)}`,
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 30000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  const restoredHubState = {
+    location: await page.locator("#location-label").innerText(),
+    adventure: await page.locator("#adventure-text").innerText(),
+    badge: await page.locator("#screen-badge").innerText(),
+    notice: await page.locator("#notice").innerText(),
+  };
+  requireCondition(
+    restoredHubState.location === "Floor 1 Hub",
+    `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  const loadedWeaponTarget = page.locator("#weapon-targets button").filter({ hasText: "Ser Branoc" });
+  await loadedWeaponTarget.click();
+  const loadedBladeState = await page.locator("#weapon-components .weapon-component-slot").first().innerText();
+  requireCondition(
+    loadedBladeState.includes("Installed: Reinforced Blade and Guard") &&
+      loadedBladeState === installedBladeState,
+    "browser reload and Load did not restore Branoc's weapon progression: installed component changed",
+  );
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const loadedWeaponProgression = {
+    crafting: await page.locator("#merchant-crafting").innerText(),
+    slot: await page.locator("#merchant-slots .merchant-row").first().innerText(),
+    materials: await page.locator("#merchant-materials").innerText(),
+  };
+  requireCondition(
+    JSON.stringify(loadedWeaponProgression) === JSON.stringify(savedWeaponProgression),
+    `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify({ savedWeaponProgression, loadedWeaponProgression })}`,
+  );
+  requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
+  console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
 
   console.log("PYD7|PASS");
   console.log("PYD7|BROWSER|INITIAL_SESSION|PASS");

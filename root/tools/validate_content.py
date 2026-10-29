@@ -137,9 +137,33 @@ def _validate_references_and_factories(records, errors):
     enemies = {spec.archetype_id: spec for _, spec, _ in records["enemy"]}
     weapons = {spec.item_id: spec for _, spec, _ in records["weapon"]}
     encounters = {spec.encounter_id: spec for _, spec, _ in records["encounter"]}
+    drifter_moves_by_id = {
+        spec.drifter_id.casefold(): {move.name for move in spec.combat_moves}
+        for _, spec, _ in records["drifter"]
+    }
     node_paths = {}
 
     for _, spec, path in records["weapon"]:
+        if spec.progression is None:
+            _error(errors, path, "signature weapon requires authored progression")
+        else:
+            move_names = drifter_moves_by_id.get(spec.intended_wielder.casefold())
+            if move_names is None:
+                _error(
+                    errors,
+                    path,
+                    f"signature weapon has no authored wielder {spec.intended_wielder!r}",
+                )
+            else:
+                for component in spec.progression.components:
+                    for modifier in component.move_modifiers:
+                        if modifier.move_name not in move_names:
+                            _error(
+                                errors,
+                                path,
+                                f"component {component.component_id!r} references "
+                                f"unknown move {modifier.move_name!r} for its wielder",
+                            )
         try:
             first = spec.create_weapon()
             second = spec.create_weapon()

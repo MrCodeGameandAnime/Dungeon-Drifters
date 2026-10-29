@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
-from app.content.weapon_progression_spec import project_component_move_effects
+from app.content.weapon_progression_spec import (
+    project_component_move_effects,
+    project_weapon_stat_bonuses,
+)
 from app.player import resources
 from app.player import progression
 from app.snapshot import to_plain_value
@@ -153,6 +156,18 @@ class PlayerState:
         base_value = self.stats.effective_stat(name)
         weapon = self.get_equipped("weapon")
         if isinstance(weapon, Weapon):
+            if weapon.item_id == self.signature_weapon_state.weapon_id:
+                from app.content.catalog import get_weapon_spec
+
+                progression = get_weapon_spec(weapon.item_id).progression
+                if progression is not None:
+                    bonuses = project_weapon_stat_bonuses(
+                        progression,
+                        weapon.stat_bonuses,
+                        self.signature_weapon_state.slot_progress,
+                        tier_v_success=self.signature_weapon_state.tier_v_success,
+                    )
+                    return base_value + bonuses.get(name, 0)
             return base_value + weapon.stat_bonuses.get(name, 0)
 
         return base_value

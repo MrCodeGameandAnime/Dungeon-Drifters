@@ -22,12 +22,20 @@ WEAPON = WeaponSpec(
     progression=WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
-                "focus_fittings", "Focus head / fittings", "metal", "needle_focus"
+                "focus_fittings", "Focus head / fittings", "metal", "needle_focus",
+                governed_stats=("intelligence",),
             ),
-            WeaponSlotSpec("binding", "Binding", "fiber", "needle_binding"),
-            WeaponSlotSpec("haft", "Haft", "timber", "needle_haft"),
             WeaponSlotSpec(
-                "seal_catalyst", "Seal / Catalyst", "cores", "needle_seal"
+                "binding", "Binding", "fiber", "needle_binding",
+                governed_stats=("intelligence",),
+            ),
+            WeaponSlotSpec(
+                "haft", "Haft", "timber", "needle_haft",
+                governed_stats=("intelligence",),
+            ),
+            WeaponSlotSpec(
+                "seal_catalyst", "Seal / Catalyst", "cores", "needle_seal",
+                governed_stats=("spirit",),
             ),
         ),
         components=(

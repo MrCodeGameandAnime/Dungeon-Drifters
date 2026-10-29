@@ -50,11 +50,14 @@ their floor content.
   follow a fixed quantity pattern.
 - Only successful crafting or improvement recipes award their authored
   Crafting progress. Dismantling does not award Crafting progress.
-- Planned component flow: craft and replace components through the Hub Merchant.
-  Replacing one consumes the installed component, including a slot-four core;
-  installing the replacement consumes it from inventory.
+- Crafting a component at the Hub Merchant consumes its authored materials and
+  directly installs it on the explicitly selected Drifter. The installed recipe
+  is no longer offered for that Drifter. Component parts do not enter shared
+  inventory, and alternate-part storage is deferred.
+- Crafting and slot improvement are separate actions. Crafting does not change
+  the slot's 0-100 improvement progress.
 - Component identity and combat effects are authored separately from the
-  material names. This reference does not define those effects.
+  material names in weapon content.
 
 ## Current Floor I Sources
 

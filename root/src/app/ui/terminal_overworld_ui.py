@@ -19,10 +19,10 @@ from app.ui.overworld_ui import (
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
+    ChooseMerchantTierV,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
-    ChooseWeaponComponent,
     ChooseWeaponTarget,
 )
 
@@ -130,21 +130,6 @@ class TerminalOverworldUI:
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(weapon.targets):
                     return ChooseWeaponTarget(weapon.targets[index].drifter_id)
-            if choice.startswith("c") and "." in choice:
-                slot_choice, component_choice = choice[1:].split(".", 1)
-                if slot_choice.isdigit() and component_choice.isdigit():
-                    slot_index = int(slot_choice) - 1
-                    component_index = int(component_choice) - 1
-                    if 0 <= slot_index < len(weapon.components):
-                        slot = weapon.components[slot_index]
-                        if 0 <= component_index < len(slot.available_components):
-                            component = slot.available_components[component_index]
-                            return ChooseWeaponComponent(
-                                weapon.selected_target_id,
-                                slot.slot_id,
-                                component.component_id,
-                            )
-
         if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
             merchant = view.merchant
             if choice.startswith("t") and choice[1:].isdigit():
@@ -183,6 +168,11 @@ class TerminalOverworldUI:
                         merchant.selected_target_id,
                         item.item_id,
                     )
+            if choice.lower() == "v":
+                if merchant.tier_v.can_attempt:
+                    return ChooseMerchantTierV(merchant.selected_target_id)
+                self._output("Tier V attempt is unavailable.")
+                return self._REJECTED
 
         if view.screen is OverworldScreen.ITEMS and view.inventory is not None:
             for number, item in enumerate(view.inventory.items, start=1):
@@ -475,14 +465,6 @@ class TerminalOverworldUI:
                 f"   Effect: {effect}"
                 for effect in slot.installed_effect_summary
             )
-            lines.extend(
-                f"C{slot_index}.{choice_index} {component.display_name} x{component.quantity}"
-                + (f" | {'; '.join(component.effect_summary)}" if component.effect_summary else "")
-                for choice_index, component in enumerate(
-                    slot.available_components,
-                    start=1,
-                )
-            )
         lines.extend(
             (
                 "",
@@ -536,14 +518,32 @@ class TerminalOverworldUI:
         lines.extend(("", "COMPONENT RECIPES"))
         if merchant.component_recipes:
             lines.extend(
-                f"C{index}. {recipe.display_name} ({recipe.slot_label}) | "
+                f"C{index}. Craft & install {recipe.display_name} ({recipe.slot_label}) | "
                 f"{recipe.material_name} x{recipe.material_cost} | "
                 f"Crafting +{recipe.crafting_award}"
                 f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                + (f" | {'; '.join(recipe.effect_summary)}" if recipe.effect_summary else "")
                 for index, recipe in enumerate(merchant.component_recipes, start=1)
             )
         else:
             lines.append("No component recipes for this weapon.")
+        tier_v = merchant.tier_v
+        tier_v_status = (
+            "Complete"
+            if tier_v.completed
+            else "Available"
+            if tier_v.can_attempt
+            else f"Unavailable: {tier_v.blocked_reason}"
+        )
+        lines.extend(("", f"TIER V | {tier_v_status}"))
+        lines.extend(
+            f"{material.display_name}: {material.available}/{material.required}"
+            for material in tier_v.materials
+        )
+        if tier_v.can_attempt:
+            lines.append(
+                f"V. Attempt Tier V ({tier_v.success_chance_percent}% chance)"
+            )
         return tuple(lines)
 
     @staticmethod

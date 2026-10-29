@@ -531,6 +531,97 @@ def _assert_floor_one_final_state(state):
             raise AssertionError("Floor 1 boss clear did not restore Mana")
 
 
+def _dismantle_weapon_materials(state):
+    from app.game.weapon_progression import WeaponProgressionService
+
+    game = state["route_game"]
+    if game.party_state.phase.value != "hub":
+        raise AssertionError("weapon progression did not begin at the Hub")
+    if game.party_state.shared_items.get("goblin_scrap", 0) < 2:
+        raise AssertionError("Floor 1 did not secure enough Goblin Scrap")
+
+    class ProbeRng:
+        def randint(self, start, end):
+            return end
+
+        def choice(self, values):
+            return values[0]
+
+    service = WeaponProgressionService(game, rng=ProbeRng())
+    result = service.dismantle(
+        target_drifter_id="branoc",
+        item_id="goblin_scrap",
+        quantity=2,
+    )
+    if not result.success or result.materials != {"grade_i_metal": 2}:
+        raise AssertionError("Goblin Scrap did not yield Grade-I Metal")
+    state["weapon_progression_service"] = service
+
+
+def _craft_weapon_component(state):
+    result = state["weapon_progression_service"].craft_component(
+        target_drifter_id="branoc",
+        component_id="sunder_spire_blade_reinforced",
+    )
+    if not result.success or result.slot_id != "blade_guard":
+        raise AssertionError("the Grade-I weapon component could not be crafted")
+    if state["route_game"].party_state.shared_items.get("grade_i_metal", 0) != 1:
+        raise AssertionError("component crafting spent an unexpected material cost")
+    if state["route_game"].player_state.signature_weapon_state.components[
+        "blade_guard"
+    ] != "sunder_spire_blade_reinforced":
+        raise AssertionError("component crafting did not install the crafted part")
+    if state["route_game"].party_state.shared_items.get(
+        "sunder_spire_blade_reinforced", 0
+    ):
+        raise AssertionError("crafted component was added to shared inventory")
+
+
+def _improve_weapon_slot(state):
+    result = state["weapon_progression_service"].improve_slot(
+        target_drifter_id="branoc",
+        slot_id="blade_guard",
+    )
+    if not result.success or result.slot_progress != 5:
+        raise AssertionError("Grade-I weapon improvement did not resolve")
+    if result.material_id != "grade_i_metal":
+        raise AssertionError("weapon improvement used the wrong material family")
+
+
+def _roundtrip_weapon_progression(state):
+    game = state["route_game"]
+    snapshot = game.snapshot()
+    restored = game.clone()
+    if restored.snapshot() != snapshot:
+        raise AssertionError("weapon progression save round-trip changed its payload")
+    state["weapon_progression_saved_snapshot"] = snapshot
+    state["weapon_progression_restored_game"] = restored
+
+
+def _assert_weapon_progression_final_state(state):
+    game = state["route_game"]
+    restored = state["weapon_progression_restored_game"]
+    original_weapon = game.player_state.signature_weapon_state
+    restored_weapon = restored.player_state.signature_weapon_state
+    if original_weapon.components != restored_weapon.components:
+        raise AssertionError("installed weapon component did not persist")
+    if original_weapon.slot_progress != restored_weapon.slot_progress:
+        raise AssertionError("weapon slot progress did not persist")
+    if original_weapon.tier_v_success != restored_weapon.tier_v_success:
+        raise AssertionError("Tier V state changed during save round-trip")
+    if game.party_state.crafting_experience != restored.party_state.crafting_experience:
+        raise AssertionError("shared Crafting progression did not persist")
+    if game.party_state.shared_items != restored.party_state.shared_items:
+        raise AssertionError("shared material inventory did not persist")
+    if len(restored.party_state.companions) != 1:
+        raise AssertionError("save round-trip lost the recruited Drifter")
+    if (
+        restored.party_state.companions[0].signature_weapon_state.weapon_id
+        != game.party_state.companions[0].signature_weapon_state.weapon_id
+    ):
+        raise AssertionError("companion weapon state changed during save round-trip")
+
+
 def run(state, complete_battle, run_stage):
     run_stage("HUB_RECRUITMENT", lambda: _recruit_companion(state))
     run_stage("HUB_READY", lambda: _ready_party(state))
@@ -594,4 +685,24 @@ def run(state, complete_battle, run_stage):
     run_stage(
         "FLOOR_ONE_FINAL_STATE",
         lambda: _assert_floor_one_final_state(state),
+    )
+    run_stage(
+        "WEAPON_PROGRESSION_DISMANTLE",
+        lambda: _dismantle_weapon_materials(state),
+    )
+    run_stage(
+        "WEAPON_PROGRESSION_CRAFT",
+        lambda: _craft_weapon_component(state),
+    )
+    run_stage(
+        "WEAPON_PROGRESSION_IMPROVE",
+        lambda: _improve_weapon_slot(state),
+    )
+    run_stage(
+        "WEAPON_PROGRESSION_SAVE_ROUNDTRIP",
+        lambda: _roundtrip_weapon_progression(state),
+    )
+    run_stage(
+        "WEAPON_PROGRESSION_FINAL_STATE",
+        lambda: _assert_weapon_progression_final_state(state),
     )

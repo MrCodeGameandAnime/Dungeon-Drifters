@@ -19,16 +19,20 @@ WEAPON = WeaponSpec(
     progression=WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
-                "blade_guard", "Blade / Guard assembly", "metal", "sunder_spire_blade"
+                "blade_guard", "Blade / Guard assembly", "metal", "sunder_spire_blade",
+                governed_stats=("strength",),
             ),
             WeaponSlotSpec(
-                "grip_binding", "Grip wrap / binding", "fiber", "sunder_spire_grip"
+                "grip_binding", "Grip wrap / binding", "fiber", "sunder_spire_grip",
+                governed_stats=("strength",),
             ),
             WeaponSlotSpec(
-                "hilt_handle", "Hilt core / handle", "timber", "sunder_spire_hilt"
+                "hilt_handle", "Hilt core / handle", "timber", "sunder_spire_hilt",
+                governed_stats=("strength",),
             ),
             WeaponSlotSpec(
-                "crest_core", "Crest / Core", "cores", "sunder_spire_crest"
+                "crest_core", "Crest / Core", "cores", "sunder_spire_crest",
+                governed_stats=("constitution",),
             ),
         ),
         components=(

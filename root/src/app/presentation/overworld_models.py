@@ -287,28 +287,11 @@ class WeaponView:
 
 
 @dataclass(frozen=True)
-class WeaponComponentOptionView:
-    component_id: str
-    display_name: str
-    quantity: int
-    effect_summary: tuple[str, ...] = ()
-
-    def __post_init__(self):
-        _validate_text("component_id", self.component_id)
-        _validate_text("display_name", self.display_name)
-        _validate_nonnegative("quantity", self.quantity)
-        _validate_text_tuple("effect_summary", self.effect_summary)
-        if self.quantity <= 0:
-            raise ValueError("available component quantity must be positive")
-
-
-@dataclass(frozen=True)
 class WeaponComponentSlotView:
     slot_id: str
     label: str
     installed_component_id: str
     installed_component_name: str
-    available_components: tuple[WeaponComponentOptionView, ...]
     installed_effect_summary: tuple[str, ...] = ()
 
     def __post_init__(self):
@@ -319,11 +302,6 @@ class WeaponComponentSlotView:
             "installed_component_name",
         ):
             _validate_text(name, getattr(self, name))
-        _validate_instance_tuple(
-            "available_components",
-            self.available_components,
-            WeaponComponentOptionView,
-        )
         _validate_text_tuple("installed_effect_summary", self.installed_effect_summary)
 
 
@@ -415,6 +393,7 @@ class MerchantComponentRecipeView:
     material_quantity: int
     crafting_award: int
     can_craft: bool
+    effect_summary: tuple[str, ...] = ()
 
     def __post_init__(self):
         for name in (
@@ -430,8 +409,54 @@ class MerchantComponentRecipeView:
         if not self.material_cost or not self.crafting_award:
             raise ValueError("component recipes require positive costs and awards")
         _validate_bool("can_craft", self.can_craft)
+        _validate_text_tuple("effect_summary", self.effect_summary)
         if self.can_craft != (self.material_quantity >= self.material_cost):
             raise ValueError("component recipe availability disagrees with stock")
+
+
+@dataclass(frozen=True)
+class MerchantTierVMaterialView:
+    item_id: str
+    display_name: str
+    required: int
+    available: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("required", self.required)
+        _validate_nonnegative("available", self.available)
+        if self.required < 1:
+            raise ValueError("Tier V material requirements must be positive")
+
+
+@dataclass(frozen=True)
+class MerchantTierVView:
+    success_chance_percent: int
+    materials: tuple[MerchantTierVMaterialView, ...]
+    can_attempt: bool
+    completed: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        _validate_nonnegative("success_chance_percent", self.success_chance_percent)
+        if not 1 <= self.success_chance_percent <= 99:
+            raise ValueError("Tier V chance must be between 1 and 99")
+        _validate_instance_tuple(
+            "materials",
+            self.materials,
+            MerchantTierVMaterialView,
+        )
+        _validate_bool("can_attempt", self.can_attempt)
+        _validate_bool("completed", self.completed)
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.completed and (self.can_attempt or self.blocked_reason is not None):
+            raise ValueError("completed Tier V cannot be attempted or blocked")
+        if self.can_attempt and (self.completed or self.blocked_reason is not None):
+            raise ValueError("Tier V availability and status disagree")
+        if not self.completed and not self.can_attempt and self.blocked_reason is None:
+            raise ValueError("unavailable Tier V requires a reason")
 
 
 @dataclass(frozen=True)
@@ -445,6 +470,7 @@ class MerchantView:
     materials: tuple[MerchantMaterialView, ...]
     dismantle_items: tuple[MerchantDismantleView, ...]
     component_recipes: tuple[MerchantComponentRecipeView, ...]
+    tier_v: MerchantTierVView
 
     def __post_init__(self):
         _validate_nonnegative("crafting_level", self.crafting_level)
@@ -464,6 +490,8 @@ class MerchantView:
             self.component_recipes,
             MerchantComponentRecipeView,
         )
+        if not isinstance(self.tier_v, MerchantTierVView):
+            raise TypeError("tier_v must be a MerchantTierVView")
         if not any(
             target.drifter_id == self.selected_target_id and target.selected
             for target in self.targets

@@ -262,14 +262,14 @@ def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp
 
     assert loaded.status is SaveLoadStatus.LOADED
     assert loaded.game_state.player_state.gold == 12
-    assert upgraded.payload["schema_version"] == 11
+    assert upgraded.payload["schema_version"] == 12
     assert upgraded.sync_state is SyncState.LOCAL_ONLY
     assert upgraded.account_id is None
     assert upgraded.local_sequence == 2
     assert upgraded.client_save_id == NEW_SAVE_ID
 
 
-def test_loading_schema9_local_envelope_verifies_then_persists_schema10(tmp_path):
+def test_loading_schema9_local_envelope_verifies_then_persists_schema12(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     legacy_payload = _old_schema9_payload(gold=21)
     legacy_envelope = build_profile_envelope(
@@ -294,7 +294,7 @@ def test_loading_schema9_local_envelope_verifies_then_persists_schema10(tmp_path
     assert loaded.status is SaveLoadStatus.LOADED
     assert loaded.game_state.player_state.gold == 21
     assert legacy_envelope.payload == legacy_payload
-    assert upgraded.payload["schema_version"] == 11
+    assert upgraded.payload["schema_version"] == 12
     assert upgraded.local_sequence == 2
     assert upgraded.client_save_id == NEW_SAVE_ID
     assert upgraded.sync_state is SyncState.LOCAL_ONLY
@@ -319,7 +319,7 @@ def test_loading_schema8_linked_clean_profile_marks_schema9_pending(tmp_path):
     upgraded = store.load(PROFILE_ID).envelope
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert upgraded.payload["schema_version"] == 11
+    assert upgraded.payload["schema_version"] == 12
     assert upgraded.account_id == ACCOUNT_ID
     assert upgraded.remote_revision == 3
     assert upgraded.sync_state is SyncState.PENDING
@@ -365,7 +365,7 @@ def test_loading_schema8_conflict_profile_preserves_conflict_evidence(tmp_path):
     upgraded = store.load(PROFILE_ID).envelope
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert upgraded.payload["schema_version"] == 11
+    assert upgraded.payload["schema_version"] == 12
     assert upgraded.sync_state is SyncState.CONFLICT
     assert conflict_path.read_bytes() == conflict_bytes
     assert conflict_path.read_bytes() == serialize_conflict_snapshot(conflict)

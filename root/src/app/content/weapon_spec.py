@@ -42,6 +42,19 @@ class WeaponSpec:
             WeaponProgressionSpec,
         ):
             raise TypeError("progression must be a WeaponProgressionSpec")
+        if self.progression is not None:
+            governed_stats = set()
+            for slot in self.progression.slots:
+                if not slot.governed_stats:
+                    raise ValueError("each weapon slot must govern at least one stat")
+                unknown = set(slot.governed_stats) - set(self.stat_bonuses)
+                if unknown:
+                    raise ValueError(
+                        "weapon slots cannot govern stats absent from base bonuses"
+                    )
+                governed_stats.update(slot.governed_stats)
+            if governed_stats != set(self.stat_bonuses):
+                raise ValueError("every weapon base stat must be governed by a slot")
 
     def _create_weapon(self):
         return Weapon(

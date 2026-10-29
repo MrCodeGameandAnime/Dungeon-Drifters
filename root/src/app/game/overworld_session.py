@@ -13,7 +13,6 @@ from app.content.catalog import (
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
-from app.game.weapon_progression import WeaponProgressionService
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.persistence.save_port_contract import (
@@ -30,7 +29,6 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.presentation.battle_models import BattleView, InteractionPhase
-from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseCompanion,
     ChooseCharacterTarget,
@@ -38,7 +36,7 @@ from app.ui.overworld_ui import (
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
-    ChooseWeaponComponent,
+    ChooseMerchantTierV,
     ChooseWeaponTarget,
     ChooseOverworldAction,
     ChooseOverworldItem,
@@ -113,6 +111,8 @@ class OverworldSession:
                 raise TypeError(f"{name} must be callable")
         if battle_ui_factory is not None and not callable(battle_ui_factory):
             raise TypeError("battle_ui_factory must be callable")
+        from app.presentation.overworld_presenter import OverworldPresenter
+
         if presenter is None:
             presenter = OverworldPresenter()
         if not isinstance(presenter, OverworldPresenter):
@@ -198,15 +198,13 @@ class OverworldSession:
         if isinstance(session_input, ChooseWeaponTarget):
             self._select_weapon_target(view, session_input)
             return self._build_view()
-        if isinstance(session_input, ChooseWeaponComponent):
-            self._perform_weapon_component(view, session_input)
-            return self._build_view()
         if isinstance(
             session_input,
             (
                 ChooseMerchantImprove,
                 ChooseMerchantDismantle,
                 ChooseMerchantCraftComponent,
+                ChooseMerchantTierV,
             ),
         ):
             self._perform_merchant_action(view, session_input)
@@ -509,48 +507,9 @@ class OverworldSession:
         self._selected_merchant_target_id = session_input.drifter_id
         self._notice = None
 
-    def _perform_weapon_component(self, view, session_input):
-        weapon = view.weapon
-        if view.screen is not OverworldScreen.WEAPON or weapon is None:
-            self._notice = "That component action is not available."
-            return
-        target_id = session_input.target_drifter_id
-        if (
-            target_id != weapon.selected_target_id
-            or not any(target.drifter_id == target_id for target in weapon.targets)
-        ):
-            self._notice = "Choose that Drifter before configuring the weapon."
-            return
-        slot = first_or_none(
-            candidate
-            for candidate in weapon.components
-            if candidate.slot_id == session_input.slot_id
-        )
-        if slot is None or not any(
-            component.component_id == session_input.component_id
-            for component in slot.available_components
-        ):
-            self._notice = "That component is not available to install."
-            return
-        result = WeaponProgressionService(self.game_state).install_component(
-            target_drifter_id=target_id,
-            slot_id=slot.slot_id,
-            component_id=session_input.component_id,
-        )
-        if result.success:
-            component = next(
-                choice
-                for choice in slot.available_components
-                if choice.component_id == session_input.component_id
-            )
-            effect_summary = "; ".join(component.effect_summary)
-            self._notice = f"Installed {component.display_name}."
-            if effect_summary:
-                self._notice += f" Effects: {effect_summary}."
-        else:
-            self._notice = self._component_failure_message(result.reason)
-
     def _perform_merchant_action(self, view, session_input):
+        from app.game.weapon_progression import WeaponProgressionService
+
         merchant = view.merchant
         if view.screen is not OverworldScreen.MERCHANT or merchant is None:
             self._notice = "That merchant action is not available."
@@ -563,6 +522,24 @@ class OverworldSession:
             return
 
         service = WeaponProgressionService(self.game_state)
+        if isinstance(session_input, ChooseMerchantTierV):
+            if merchant.tier_v.completed or not merchant.tier_v.can_attempt:
+                self._notice = (
+                    "The Tier V attempt is not available: "
+                    f"{merchant.tier_v.blocked_reason or 'already complete'}."
+                )
+                return
+            result = service.attempt_tier_v(target_drifter_id=target_id)
+            if result.success:
+                self._notice = "Tier V succeeded. Grade-IV materials were consumed."
+            elif result.attempted:
+                self._notice = (
+                    "Tier V attempt failed. Grade-IV materials were consumed; "
+                    "weapon progress was preserved."
+                )
+            else:
+                self._notice = self._merchant_failure_message(result.reason)
+            return
         if isinstance(session_input, ChooseMerchantCraftComponent):
             recipe = first_or_none(
                 candidate
@@ -577,10 +554,14 @@ class OverworldSession:
                 component_id=recipe.component_id,
             )
             if result.success:
+                effect_summary = "; ".join(recipe.effect_summary)
                 self._notice = (
-                    f"Crafted {recipe.display_name}. "
+                    f"Crafted and installed {recipe.display_name} in "
+                    f"{recipe.slot_label}. "
                     f"Crafting Level {result.crafting_level}."
                 )
+                if effect_summary:
+                    self._notice += f" Effects: {effect_summary}."
             else:
                 self._notice = self._merchant_failure_message(result.reason)
             return
@@ -634,15 +615,8 @@ class OverworldSession:
             "tier_locked": "All weapon slots and Crafting must reach the current tier gate first.",
             "insufficient_materials": "You do not have enough of the required material.",
             "maximum_progress": "That weapon slot is fully improved.",
-        }.get(reason, "That weapon improvement is not available.")
-
-    @staticmethod
-    def _component_failure_message(reason):
-        return {
-            "wrong_slot": "That component does not fit this slot.",
             "already_installed": "That component is already installed.",
-            "insufficient_components": "That component is no longer available.",
-        }.get(reason, "That component action is not available.")
+        }.get(reason, "That weapon improvement is not available.")
 
     def _increase_permanent_stat(self, view, overworld_input):
         if view.screen is not OverworldScreen.SKILLS or view.skills is None:
@@ -818,16 +792,17 @@ class OverworldSession:
         if floor_one_extraction:
             self.game_state.overworld_state.return_to_surface_entrance()
         self._screen = OverworldScreen.HUB
-        self._adventure_text = (
-            "You extract to the Hub. Your run rewards are secured and both "
-            "Drifters are fully restored. "
-            f"{_item_reward_text(secured_items, prefix='Items secured:')}"
-            if floor_one_extraction
-            else (
-                "You return to the Floor 1 Hub. The tutorial rewards are secured. "
-                f"{_item_reward_text(secured_items, prefix='Items secured:')}"
+        if floor_one_extraction:
+            self._adventure_text = (
+                "You extract to the Hub. Your run rewards are secured and both "
+                + "Drifters are fully restored. "
+                + _item_reward_text(secured_items, prefix="Items secured:")
             )
-        )
+        else:
+            self._adventure_text = (
+                "You return to the Floor 1 Hub. The tutorial rewards are secured. "
+                + _item_reward_text(secured_items, prefix="Items secured:")
+            )
         if floor_one_extraction:
             self._persist_floor_one_hub_outcome()
 
@@ -1304,8 +1279,8 @@ class OverworldSession:
                 self._screen = OverworldScreen.HUB
                 self._adventure_text = (
                     "The Goblin Lord is defeated. Floor 1 is cleared; all run "
-                    "rewards are secured and both Drifters return to the Hub. "
-                    f"{_item_reward_text(secured_items, prefix='Items secured:')}"
+                    + "rewards are secured and both Drifters return to the Hub. "
+                    + _item_reward_text(secured_items, prefix="Items secured:")
                 )
                 self._persist_floor_one_hub_outcome()
             else:
@@ -1500,10 +1475,17 @@ class OverworldSession:
         return "That option is not available."
 
 
+def _display_item_name(item_id):
+    return " ".join(
+        word[:1].upper() + word[1:]
+        for word in item_id.split("_")
+    )
+
+
 def _item_reward_text(items, *, prefix="Items:"):
     pairs = items.items() if isinstance(items, dict) else items
     readable = tuple(
-        f"{quantity} {' '.join(item_id.split('_')).title()}"
+        f"{quantity} {_display_item_name(item_id)}"
         for item_id, quantity in sorted(pairs)
         if quantity
     )

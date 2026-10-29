@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec
 from app.game.game_state import GameState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -203,20 +203,16 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
         character.character.super_current = 0
 
 
-def test_weapon_and_merchant_views_offer_inventory_components_and_grade_one_recipes():
+def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recipes():
     player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
-    game.party_state.add_shared_items({
-        "sunder_spire_grip_braided": 1,
-        "grade_i_metal": 1,
-    })
+    game.party_state.add_shared_items({"grade_i_metal": 1})
     presenter = OverworldPresenter()
 
     weapon = presenter.build(game, screen=OverworldScreen.WEAPON).weapon
     grip = next(slot for slot in weapon.components if slot.slot_id == "grip_binding")
     assert grip.installed_component_id == "sunder_spire_grip"
-    assert grip.available_components[0].component_id == "sunder_spire_grip_braided"
 
     merchant = presenter.build(game, screen=OverworldScreen.MERCHANT).merchant
     blade_recipe = next(
@@ -227,31 +223,89 @@ def test_weapon_and_merchant_views_offer_inventory_components_and_grade_one_reci
     assert blade_recipe.material_name == "Scrap metal"
     assert blade_recipe.material_cost == 1
     assert blade_recipe.can_craft is True
+    assert blade_recipe.effect_summary == (
+        "Crestgrave Reaping: Power +2, Accuracy -2",
+        "Heavy identity +1",
+    )
 
 
-def test_weapon_view_does_not_offer_installing_the_already_installed_component():
+def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
+    player = PlayerState(create_drifter("branoc"))
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    game.party_state.add_crafting_experience(990)
+    for slot_id in player.signature_weapon_state.slot_progress:
+        player.signature_weapon_state.set_slot_progress(slot_id, 100)
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game.party_state.add_shared_items(costs)
+
+    merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.MERCHANT,
+    ).merchant
+
+    assert merchant.tier_v.can_attempt is True
+    assert merchant.tier_v.completed is False
+    assert merchant.tier_v.success_chance_percent == 20
+    assert {
+        material.item_id: (material.available, material.required)
+        for material in merchant.tier_v.materials
+    } == {item_id: (quantity, quantity) for item_id, quantity in costs.items()}
+
+
+def test_installed_component_recipe_is_hidden_for_that_drifter():
     player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     installed_id = "sunder_spire_grip_braided"
     player.signature_weapon_state.install_component("grip_binding", installed_id)
-    game.party_state.add_shared_items({installed_id: 1})
-
-    weapon = OverworldPresenter().build(
+    merchant = OverworldPresenter().build(
         game,
-        screen=OverworldScreen.WEAPON,
-    ).weapon
-    grip = next(slot for slot in weapon.components if slot.slot_id == "grip_binding")
+        screen=OverworldScreen.MERCHANT,
+    ).merchant
 
-    assert grip.installed_component_id == installed_id
-    assert grip.available_components == ()
+    assert installed_id not in {
+        recipe.component_id for recipe in merchant.component_recipes
+    }
+
+
+def test_component_recipe_visibility_is_independent_for_each_drifter():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    assert game.party_state.recruit_companion(lead, companion)
+    lead.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+
+    companion_merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.MERCHANT,
+        selected_merchant_target_id="azhvielle",
+    ).merchant
+
+    assert companion_merchant.selected_target_id == "azhvielle"
+    assert "needle_focus_fitted" in {
+        recipe.component_id for recipe in companion_merchant.component_recipes
+    }
 
 
 def test_weapon_component_view_explains_its_combat_and_identity_effects():
     player = PlayerState(create_drifter("branoc"))
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
-    game.party_state.add_shared_items({"sunder_spire_blade_reinforced": 1})
+    player.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
 
     weapon = OverworldPresenter().build(
         game,
@@ -259,7 +313,8 @@ def test_weapon_component_view_explains_its_combat_and_identity_effects():
     ).weapon
     blade = next(slot for slot in weapon.components if slot.slot_id == "blade_guard")
 
-    assert blade.available_components[0].effect_summary == (
+    assert blade.installed_component_id == "sunder_spire_blade_reinforced"
+    assert blade.installed_effect_summary == (
         "Crestgrave Reaping: Power +2, Accuracy -2",
         "Heavy identity +1",
     )

@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only probe passed its exact pinned MicroPython v1.29.0 Gate 6 matrix on 2026-10-17. The extended Floor One probe was separately requalified on 2026-10-22 at a measured 512K/480K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only and Floor One qualifications below remain historical records. The latest signature-weapon progression extension passed the pinned MicroPython matrix on 2026-10-29 at a 608K/576K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -143,3 +143,95 @@ Qualification on the corrected working tree:
 - Exact pinned MicroPython v1.29.0 Windows artifact: 488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. CPython native, CPython forced overlay, and MicroPython default passed; pinned MicroPython 512K and semantic parity passed; 512K repeated stability passed 3/3; 480K reached the expected memory-limit classification 3/3; final marker was `MYP20|RESULT|CLOSURE_COMPLETE`.
 
 The profile-service/PostgreSQL suite was not rerun for this correction: no profile-service, API, database, or migration code changed. Its previously recorded 29-test result remains evidence for its recorded tree, not a new result on this working tree. These checks were run before committing; the correction remains uncommitted and unpushed.
+
+## Signature Weapon Progression Qualification (2026-10-29)
+
+This qualification covers the Hub signature-weapon progression extension on
+branch `hub`, based at `888f1228f1f2d29ceea1a3183fd9b81e466c2916`, with the
+working changes uncommitted and unpushed. Runtime schema 11 and disk schema 12
+persist per-Drifter Tier V success. The save envelope remains v1, the profile
+API remains `/v1`, and PostgreSQL schema/migrations are unchanged.
+
+The actual pinned executable was re-identified for this run:
+
+- MicroPython v1.29.0, `win32`
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+
+The final `runtime_qualification_matrix.py` markers reported:
+
+- CPython native, CPython forced overlay, pinned MicroPython default, and pinned MicroPython 608K: `PASS`.
+- Semantic parity: `PASS`.
+- 608K repeated stability: `STABLE_PASS`, 3/3.
+- 576K lower pressure point: `MEMORY_LIMIT_CONFIRMED`, 3/3.
+- Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The probe traversed the existing surface and Floor One Hub flow, then exercised
+the reusable weapon-progression path: dismantle Floor One loot, craft a Branoc
+component, improve its slot, install the component, snapshot/clone round-trip,
+and verify the Tier V flag, installed component, slot progress, Crafting state,
+shared materials, and recruited companion remain consistent. The snapshot/clone
+stage is an in-memory runtime-state round-trip; disk save/load is separately
+covered by the browser flow and CPython persistence tests.
+
+Heap observations from the pinned run:
+
+- At 608K, the post-correction run passed with 52,416 bytes as the lowest observed free heap; the final and teardown readings were 81,360 and 53,312 bytes.
+- At 576K, the expected memory-limit classification occurred; the lowest free-heap reading before failure was 77,216 bytes.
+
+The 608K pass and 576K failure bracket this exact Windows probe configuration.
+They are not device memory limits or a reason to constrain the web, PC, mobile,
+or future console builds.
+
+After this matrix run, a focused Tier V atomicity regression exposed and fixed
+the ordering of the random roll and material spend: an RNG failure now leaves
+the attempt materials untouched, while either actual outcome still consumes
+them. The combined Python/web suite, browser smoke, and pinned matrix were
+rerun after this game-only correction. Profile-service, API, and database code
+were unchanged; the PostgreSQL/migration qualification below was completed
+immediately before this correction rather than rerun afterward.
+
+Final cumulative verification:
+
+- Combined root Python and web pytest suites after the Tier V correction: 1,866 passed.
+- Profile service against disposable PostgreSQL 17: 31 passed before the game-only Tier V correction. Migration from zero succeeded and `alembic check` reported no schema drift; no profile-service, API, or database files changed afterward.
+- Content validation passed: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, and 2 routes. Generated content catalog and 116-entry dataclass manifest checks passed.
+- Python compilation and `git diff --check` passed.
+- Static browser build produced 142 files. Full Playwright smoke passed, including the real Hub merchant progression flow and browser save/reload comparison of Branoc's installed component, slot progress, Crafting XP, and shared materials; browser smoke was rerun after the Tier V correction.
+
+The temporary PostgreSQL container was stopped after qualification. No production
+database or existing container was changed. The working tree remains uncommitted
+and unpushed for user review.
+
+## Component Craft-and-Install Correction (2026-10-29)
+
+This follow-up changes component crafting from a shared-inventory item followed
+by a separate install action into one atomic craft-and-install action. The
+merchant requires an explicit Drifter target, validates the authored component
+and slot, rejects an already-installed recipe, consumes its material, installs
+the component directly, and awards its authored Crafting XP once. Crafting does
+not change slot improvement progress and does not create a component stack.
+The installed recipe is omitted for that Drifter; another Drifter's offer is
+independent. Weapon inspection remains read-only. Owned alternate components
+are deferred. This correction adds no persistence or service/API schema change.
+
+Verification on the corrected, uncommitted `hub` working tree:
+
+- Combined root Python and web suites: 1,869 passed.
+- Static browser build: 142 runtime files. Full Playwright smoke passed,
+  including `PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS`: craft-and-install, separate
+  improvement, save, reload, and exact comparison of installed part, slot
+  progress, Crafting XP, and shared materials.
+- Content validation passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters,
+  and 2 routes); generated content catalog and 114-entry dataclass manifest
+  checks passed; Python compilation and `git diff --check` passed.
+- The actual pinned MicroPython v1.29.0 Windows executable matched the recorded
+  488,960-byte SHA-256 artifact. Native/overlay CPython, default MicroPython,
+  608K MicroPython, and semantic parity passed. The 608K pressure confirmation
+  was stable 3/3; 576K produced the expected memory-limit classification 3/3;
+  final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+- The 31-test PostgreSQL service suite and migration checks were not rerun for
+  this correction; no service, API, or database code was changed by it. Those
+  results remain the preceding qualification evidence, not a new run here.
+
+The working tree remains uncommitted and unpushed for review.

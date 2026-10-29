@@ -50,7 +50,7 @@ def test_all_encounter_completion_ids_remain_world_owned_and_schema_eight():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == EXPECTED_ENCOUNTER_IDS
-    assert snapshot["schema_version"] == 10
+    assert snapshot["schema_version"] == 11
     assert snapshot["world"]["defeated_encounters"] == list(
         EXPECTED_ENCOUNTER_IDS
     )

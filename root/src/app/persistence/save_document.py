@@ -1,4 +1,4 @@
-"""Schema-11 save documents and canonical in-memory reconstruction."""
+"""Schema-12 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -64,8 +64,9 @@ _FLOOR_ONE_REST_NODE_IDS = tuple(
 _LEGACY_RUNTIME_SCHEMA_VERSION = 7
 _LEGACY_DISK_SCHEMA_VERSION = 8
 _PREVIOUS_DISK_SCHEMA_VERSION = 9
-_CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 10
-DISK_SCHEMA_VERSION = 11
+_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION = 10
+_CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 11
+DISK_SCHEMA_VERSION = 12
 
 
 class SaveStateValidationError(ValueError):
@@ -158,9 +159,19 @@ def migrate_schema_9(document):
 
 
 def migrate_schema_10(document):
-    """Upgrade the previous current save shape without changing its input."""
+    """Upgrade a schema-10 save without changing its input."""
     validate_legacy_schema10_document(document)
     return _migrate_previous_current_document(document)
+
+
+def migrate_schema_11(document):
+    """Upgrade a schema-11 save without changing its input."""
+    validate_legacy_schema11_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_tier_v_success_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
 
 
 def validate_legacy_schema9_document(document):
@@ -173,9 +184,32 @@ def validate_legacy_schema10_document(document):
     """Validate and copy an immutable schema-10 profile payload."""
     _validate_document(
         document,
-        schema_version=_CURRENT_PREVIOUS_DISK_SCHEMA_VERSION,
+        schema_version=_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION,
         require_signature_weapon=False,
     )
+    return deepcopy(document)
+
+
+def validate_legacy_schema11_document(document):
+    """Validate and copy an immutable schema-11 profile payload."""
+    _validate_plain_document(document)
+    _require_mapping(document, "game")
+    if document.get("schema_version") != _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION:
+        raise SaveStateValidationError("save schema version mismatch")
+    historical = deepcopy(document)
+    players = [historical.get("player")]
+    party = historical.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        weapon = player.get("signature_weapon") if isinstance(player, dict) else None
+        if isinstance(weapon, dict) and "tier_v_success" in weapon:
+            raise SaveStateValidationError(
+                "schema-11 signature weapon cannot contain tier_v_success"
+            )
+    historical["schema_version"] = DISK_SCHEMA_VERSION
+    _add_tier_v_success_defaults(historical)
+    _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
 
@@ -187,7 +221,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or immutable schema-8/9/10 history."""
+    """Validate a current payload or immutable schema-8/9/10/11 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -203,6 +237,11 @@ def validate_profile_payload(document):
         isinstance(document, dict)
         and document.get("schema_version")
         == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema11_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema10_document(document)
     normalized = validate_save_document(document)
@@ -261,8 +300,10 @@ def validate_save_document(document):
         return _migrate_previous_current_document(document)
     if schema_version == _PREVIOUS_DISK_SCHEMA_VERSION:
         return migrate_schema_9(document)
-    if schema_version == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION:
+    if schema_version == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION:
         return migrate_schema_10(document)
+    if schema_version == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION:
+        return migrate_schema_11(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -478,6 +519,7 @@ def _migrate_previous_current_document(document):
         migrated["player"].pop("combat", None)
     _strip_companion_combat(migrated.get("party"))
     _add_signature_weapon_defaults(migrated)
+    _add_tier_v_success_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -518,7 +560,21 @@ def _add_signature_weapon_defaults(document):
                 slot.slot_id: 0 for slot in progression.slots
             },
             "learned_technique_ids": [],
+            "tier_v_success": False,
         }
+
+
+def _add_tier_v_success_defaults(document):
+    players = [document.get("player")]
+    party = document.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if not isinstance(player, dict):
+            continue
+        weapon = player.get("signature_weapon")
+        if isinstance(weapon, dict):
+            weapon.setdefault("tier_v_success", False)
 
 
 def _validate_legacy_schema8_document(document):
@@ -882,6 +938,7 @@ def _validate_signature_weapon(snapshot, equipment):
             "components",
             "slot_progress",
             "learned_technique_ids",
+            "tier_v_success",
         },
         "player.signature_weapon",
     )
@@ -950,6 +1007,10 @@ def _validate_signature_weapon(snapshot, equipment):
         raise SaveStateValidationError("learned technique IDs must be non-empty strings")
     if len(techniques) != len(set(techniques)):
         raise SaveStateValidationError("learned technique IDs must be unique")
+    if not isinstance(snapshot["tier_v_success"], bool):
+        raise SaveStateValidationError(
+            "player.signature_weapon.tier_v_success must be a boolean"
+        )
 
 
 def _validate_stats(attributes):

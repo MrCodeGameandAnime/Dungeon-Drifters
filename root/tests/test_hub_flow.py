@@ -26,6 +26,7 @@ from app.ui.overworld_ui import (
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
+    ChooseMerchantTierV,
     ChooseOverworldAction,
     ChoosePermanentStatIncrease,
 )
@@ -131,6 +132,34 @@ def test_merchant_dismantle_and_improvement_spend_shared_materials():
     assert improved.merchant.slots[0].progress > 0
     assert game.party_state.shared_items.get("grade_i_metal", 0) == metal_before
     assert game.party_state.crafting_experience == 20
+
+
+def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
+    monkeypatch,
+):
+    import app.randomness
+
+    game = game_at_hub()
+    player = game.player_state
+    game.party_state.add_crafting_experience(990)
+    for slot_id in player.signature_weapon_state.slot_progress:
+        player.signature_weapon_state.set_slot_progress(slot_id, 100)
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game.party_state.add_shared_items(costs)
+    monkeypatch.setattr(app.randomness, "randint", lambda _start, _end: 1)
+    session = make_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+
+    result = session.submit(ChooseMerchantTierV("branoc"))
+
+    assert player.signature_weapon_state.tier_v_success is True
+    assert game.party_state.shared_items == {}
+    assert "succeeded" in result.notice
 
 
 def test_merchant_target_selection_is_reflected_and_stale_targets_are_rejected():

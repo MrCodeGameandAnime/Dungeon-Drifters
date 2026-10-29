@@ -565,35 +565,7 @@
         summary.textContent = `Effect: ${effect}`;
         description.append(summary);
       }
-      const choices = document.createElement("div");
-      choices.className = "weapon-component-choices";
-      for (const component of slot.available_components || []) {
-        const option = document.createElement("div");
-        option.className = "weapon-component-option";
-        const name = document.createElement("span");
-        name.textContent = `${component.display_name} x${component.quantity}`;
-        option.append(name);
-        if (component.effect_summary && component.effect_summary.length) {
-          const summary = document.createElement("span");
-          summary.className = "weapon-effect-summary";
-          summary.textContent = `Effect: ${component.effect_summary.join("; ")}`;
-          option.append(summary);
-        }
-        option.append(makeButton(
-          "Install",
-          {
-            kind: "weapon_component",
-            target_drifter_id: weapon.selected_target_id,
-            slot_id: slot.slot_id,
-            component_id: component.component_id,
-          },
-          true,
-          null,
-          "merchant-action",
-        ));
-        choices.append(option);
-      }
-      row.append(description, choices);
+      row.append(description);
       components.append(row);
     }
 
@@ -727,8 +699,14 @@
       const requirement = document.createElement("span");
       requirement.textContent = `${recipe.material_name} x${recipe.material_cost} | Crafting +${recipe.crafting_award}`;
       description.append(title, requirement);
+      if (recipe.effect_summary && recipe.effect_summary.length) {
+        const effect = document.createElement("span");
+        effect.className = "weapon-effect-summary";
+        effect.textContent = `Effect: ${recipe.effect_summary.join("; ")}`;
+        description.append(effect);
+      }
       row.append(description, makeButton(
-        "Craft",
+        "Craft & Install",
         {
           kind: "merchant_craft_component",
           target_drifter_id: merchant.selected_target_id,
@@ -746,6 +724,33 @@
       empty.textContent = "No component recipes for this weapon.";
       componentRecipes.append(empty);
     }
+    const tierV = merchant.tier_v;
+    const tierVPanel = $("merchant-tier-v");
+    clear(tierVPanel);
+    const tierVStatus = document.createElement("p");
+    tierVStatus.className = "merchant-empty";
+    tierVStatus.textContent = tierV.completed
+      ? "Tier V complete."
+      : tierV.can_attempt
+        ? `Attempt chance: ${tierV.success_chance_percent}%.`
+        : `Unavailable: ${String(tierV.blocked_reason).replace(/_/g, " ")}.`;
+    tierVPanel.append(tierVStatus);
+    for (const material of tierV.materials || []) {
+      const line = document.createElement("p");
+      line.className = "merchant-material";
+      line.textContent = `${material.display_name}: ${material.available}/${material.required}`;
+      tierVPanel.append(line);
+    }
+    tierVPanel.append(makeButton(
+      "Attempt Tier V",
+      {
+        kind: "merchant_tier_v",
+        target_drifter_id: merchant.selected_target_id,
+      },
+      tierV.can_attempt,
+      tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
+      "merchant-action",
+    ));
     renderDetailOptions("merchant-options", view.options);
   }
 

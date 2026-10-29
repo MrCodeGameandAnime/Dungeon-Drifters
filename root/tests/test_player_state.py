@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_weapon_spec
 from app.content.catalog import create_weapon
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
@@ -98,6 +98,7 @@ def test_signature_weapon_progress_is_initialized_and_owned_per_drifter():
         "hilt_handle": "sunder_spire_hilt",
         "crest_core": "sunder_spire_crest",
     }
+    assert first.signature_weapon_state.tier_v_success is False
     first.signature_weapon_state.set_slot_progress("blade_guard", 12)
     assert second.signature_weapon_state.slot_progress["blade_guard"] == 0
 
@@ -121,7 +122,28 @@ def test_signature_weapon_progress_is_included_in_player_snapshot():
             "shaft": "sky_needle_shaft",
             "focus_collar": "sky_needle_focus",
         },
+        "tier_v_success": False,
     }
+
+
+def test_signature_weapon_tier_five_success_is_source_state():
+    player = PlayerState(create_drifter("branoc"))
+    player.signature_weapon_state.mark_tier_v_success()
+
+    assert player.signature_weapon_state.tier_v_success is True
+    assert player.snapshot()["signature_weapon"]["tier_v_success"] is True
+
+
+def test_signature_weapon_snapshot_rejects_non_boolean_tier_five_state():
+    player = PlayerState(create_drifter("branoc"))
+    snapshot = player.snapshot()["signature_weapon"]
+    snapshot["tier_v_success"] = 1
+
+    with pytest.raises(ValueError, match="tier_v_success"):
+        type(player.signature_weapon_state).from_snapshot(
+            snapshot,
+            get_weapon_spec("sunder_spire").progression,
+        )
 
 
 def test_invalid_character_raises_type_error():

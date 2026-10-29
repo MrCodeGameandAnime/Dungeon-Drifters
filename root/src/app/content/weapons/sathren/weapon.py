@@ -22,12 +22,20 @@ WEAPON = WeaponSpec(
     progression=WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
-                "grip_mechanism", "Grip / fittings / mechanism", "metal", "sathren_grip"
+                "grip_mechanism", "Grip / fittings / mechanism", "metal", "sathren_grip",
+                governed_stats=("dexterity",),
             ),
-            WeaponSlotSpec("string", "String", "fiber", "sathren_string"),
-            WeaponSlotSpec("limbs", "Limbs", "timber", "sathren_limbs"),
             WeaponSlotSpec(
-                "reservoir_catalyst", "Reservoir / Catalyst", "cores", "sathren_reservoir"
+                "string", "String", "fiber", "sathren_string",
+                governed_stats=("dexterity",),
+            ),
+            WeaponSlotSpec(
+                "limbs", "Limbs", "timber", "sathren_limbs",
+                governed_stats=("dexterity",),
+            ),
+            WeaponSlotSpec(
+                "reservoir_catalyst", "Reservoir / Catalyst", "cores", "sathren_reservoir",
+                governed_stats=("intuition",),
             ),
         ),
         components=(

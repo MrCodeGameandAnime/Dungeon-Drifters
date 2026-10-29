@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -27,7 +29,6 @@ from app.ui.overworld_ui import (
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
-    ChooseWeaponComponent,
     ChooseWeaponTarget,
 )
 
@@ -53,6 +54,87 @@ class QualificationSavePort:
     def load(self):
         return SaveLoadResult(SaveLoadStatus.MISSING)
 
+
+class MemoryBrowserStorage:
+    def __init__(self):
+        self.values = {}
+
+    def getItem(self, key):
+        return self.values.get(key)
+
+    def setItem(self, key, value):
+        self.values[key] = value
+
+
+def test_browser_store_treats_pyodide_jsnull_as_a_missing_profile(monkeypatch):
+    class JsNull:
+        def __str__(self):
+            return "null"
+
+    jsnull = JsNull()
+    ffi = types.ModuleType("pyodide.ffi")
+    ffi.jsnull = jsnull
+    pyodide = types.ModuleType("pyodide")
+    pyodide.ffi = ffi
+    monkeypatch.setitem(sys.modules, "pyodide", pyodide)
+    monkeypatch.setitem(sys.modules, "pyodide.ffi", ffi)
+
+    class EmptyStorage:
+        def getItem(self, key):
+            return jsnull
+
+    result = bridge.BrowserLocalProfileStore(EmptyStorage()).load(
+        bridge._BROWSER_PROFILE_ID
+    )
+
+    assert result.status is bridge.ProfileStoreStatus.MISSING
+
+
+def test_browser_save_survives_runtime_reload_and_restores_weapon_progression():
+    storage = MemoryBrowserStorage()
+    first_runtime = bridge.BrowserRuntime(storage=storage)
+    first_runtime.start_game("branoc")
+    first_runtime._game.player_state.signature_weapon_state.set_slot_progress(
+        "blade_guard", 25
+    )
+    first_runtime._game.party_state.add_shared_items({"scrap_metal": 3})
+
+    options = first_runtime.submit(
+        {"kind": "overworld_action", "action": "options"}
+    )
+    assert any(
+        item["action"] == "save" and item["enabled"]
+        for item in options["options"]
+    )
+    saved = first_runtime.submit(
+        {"kind": "overworld_action", "action": "save"}
+    )
+    assert saved["notice"] == "Game saved."
+
+    reloaded_runtime = bridge.BrowserRuntime(storage=storage)
+    reloaded_runtime.start_game("joruun")
+    options = reloaded_runtime.submit(
+        {"kind": "overworld_action", "action": "options"}
+    )
+    assert any(
+        item["action"] == "load" and item["enabled"]
+        for item in options["options"]
+    )
+    confirmation = reloaded_runtime.submit(
+        {"kind": "overworld_action", "action": "load"}
+    )
+    assert confirmation["screen"] == OverworldScreen.LOAD_CONFIRMATION.value
+    restored = reloaded_runtime.submit(
+        {"kind": "overworld_action", "action": "confirm"}
+    )
+
+    assert restored["screen"] == OverworldScreen.MAIN.value
+    restored_game = reloaded_runtime._session.game_state
+    assert restored_game.player_state.character.profile.drifter_id == "branoc"
+    assert restored_game.player_state.signature_weapon_state.slot_progress[
+        "blade_guard"
+    ] == 25
+    assert restored_game.party_state.shared_items == {"scrap_metal": 3}
 
 def test_bridge_starts_the_canonical_headless_runtime():
     runtime = bridge.BrowserRuntime()
@@ -207,6 +289,40 @@ def test_bridge_projects_and_submits_hub_merchant_actions():
     assert game.party_state.crafting_experience == 20
 
 
+def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    game.party_state.add_crafting_experience(990)
+    for slot_id in game.player_state.signature_weapon_state.slot_progress:
+        game.player_state.signature_weapon_state.set_slot_progress(slot_id, 100)
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game.party_state.add_shared_items(costs)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    merchant = runtime.submit({"kind": "overworld_action", "action": "merchant"})
+    tier_v_view = merchant["merchant"]["tier_v"]
+    assert tier_v_view["can_attempt"] is True
+    assert tier_v_view["success_chance_percent"] == 20
+    attempted = runtime.submit(
+        {"kind": "merchant_tier_v", "target_drifter_id": "branoc"}
+    )
+
+    assert attempted["screen"] == OverworldScreen.MERCHANT.value
+    assert attempted["merchant"]["tier_v"]["completed"] in (True, False)
+    assert game.party_state.shared_items == {}
+
+
 def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
@@ -230,38 +346,40 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
             "component_id": "sunder_spire_blade_reinforced",
         }
     )
-    assert crafted["merchant"]["component_recipes"][0]["can_craft"] is False
-    assert game.party_state.shared_items["sunder_spire_blade_reinforced"] == 1
+    assert "Crafted and installed Reinforced Blade and Guard" in crafted["notice"]
+    assert all(
+        recipe["component_id"] != "sunder_spire_blade_reinforced"
+        for recipe in crafted["merchant"]["component_recipes"]
+    )
+    assert game.player_state.signature_weapon_state.components["blade_guard"] == (
+        "sunder_spire_blade_reinforced"
+    )
+    assert game.party_state.shared_items.get("sunder_spire_blade_reinforced", 0) == 0
+    assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
+    assert game.party_state.crafting_experience == 10
 
     runtime.submit({"kind": "overworld_action", "action": "back"})
     runtime.submit({"kind": "overworld_action", "action": "character"})
     weapon = runtime.submit(
         {"kind": "overworld_action", "action": "weapon"}
     )
-    assert weapon["weapon"]["components"][0]["available_components"] == [
-        {
-            "component_id": "sunder_spire_blade_reinforced",
-            "display_name": "Reinforced Blade and Guard",
-            "quantity": 1,
-            "effect_summary": [
-                "Crestgrave Reaping: Power +2, Accuracy -2",
-                "Heavy identity +1",
-            ],
-        }
-    ]
-    installed = runtime.submit(
-        {
-            "kind": "weapon_component",
-            "target_drifter_id": "branoc",
-            "slot_id": "blade_guard",
-            "component_id": "sunder_spire_blade_reinforced",
-        }
-    )
-    assert installed["weapon"]["components"][0]["installed_component_id"] == (
+    assert weapon["weapon"]["components"][0]["installed_component_id"] == (
         "sunder_spire_blade_reinforced"
     )
     assert game.player_state.combat_moves[0].power == 11
     assert game.player_state.combat_moves[0].accuracy == 90
+
+
+def test_bridge_rejects_the_removed_inventory_component_install_command():
+    with pytest.raises(ValueError, match="unknown browser command"):
+        bridge._command_to_input(
+            {
+                "kind": "weapon_component",
+                "target_drifter_id": "branoc",
+                "slot_id": "blade_guard",
+                "component_id": "sunder_spire_blade_reinforced",
+            }
+        )
 
 
 def test_bridge_exposes_shared_loot_in_items_and_item_inspection():
@@ -330,15 +448,6 @@ def test_bridge_command_decoder_returns_existing_input_types():
         (
             {"kind": "weapon_target", "drifter_id": "azhvielle"},
             ChooseWeaponTarget,
-        ),
-        (
-            {
-                "kind": "weapon_component",
-                "target_drifter_id": "azhvielle",
-                "slot_id": "focus_fittings",
-                "component_id": "needle_focus_fitted",
-            },
-            ChooseWeaponComponent,
         ),
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),

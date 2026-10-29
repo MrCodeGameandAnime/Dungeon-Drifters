@@ -2,14 +2,18 @@ import pytest
 
 from app.content.catalog import get_drifter_spec, get_weapon_spec
 from app.content.weapon_progression_spec import (
+    IMPROVEMENT_ROLL_WEIGHT_BANDS,
     WeaponComponentSpec,
     WeaponProgressionSpec,
     WeaponSlotSpec,
     derive_weapon_identities,
+    improvement_roll,
+    project_weapon_stat_bonuses,
 )
 from app.game.game_state import GameState
 from app.game.weapon_progression import WeaponProgressionService
 from app.player.player_state import PlayerState
+from app.player.signature_weapon_state import SignatureWeaponState
 
 
 class FixedRng:
@@ -106,6 +110,126 @@ def test_improvement_uses_next_grade_after_all_slots_unlock_the_tier():
     assert game.party_state.shared_items == {}
 
 
+@pytest.mark.parametrize(
+    "gate,crafting_experience,material_id,cost",
+    (
+        (25, 0, "grade_i_metal", 1),
+        (50, 240, "grade_ii_metal", 2),
+        (75, 490, "grade_iii_metal", 3),
+        (100, 740, "grade_iv_metal", 4),
+    ),
+)
+def test_improvement_clamps_at_each_quality_gate_without_overflow(
+    gate,
+    crafting_experience,
+    material_id,
+    cost,
+):
+    game, service = _game(
+        crafting_experience=crafting_experience,
+        items={material_id: cost},
+        rng_values=(100,),
+    )
+    state = game.player_state.signature_weapon_state
+    previous_gate = gate - 25
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, previous_gate)
+    state.set_slot_progress("blade_guard", gate - 2)
+
+    result = service.improve_slot(
+        target_drifter_id="branoc",
+        slot_id="blade_guard",
+    )
+
+    assert result.success is True
+    assert result.roll == 5
+    assert result.slot_progress == gate
+    assert state.slot_progress["blade_guard"] == gate
+    assert result.material_id == material_id
+    assert game.party_state.shared_items == {}
+
+
+@pytest.mark.parametrize("gate", (25, 50, 75))
+@pytest.mark.parametrize("blocker", ("lagging_slot", "crafting_level"))
+def test_next_grade_remains_locked_until_every_slot_and_crafting_meet_gate(
+    gate,
+    blocker,
+):
+    grade = gate // 25 + 1
+    material_id = f"grade_{('i', 'ii', 'iii', 'iv')[grade - 1]}_metal"
+    cost = grade
+    required_experience = {25: 240, 50: 490, 75: 740}[gate]
+    game, service = _game(
+        crafting_experience=required_experience,
+        items={material_id: cost},
+        rng_values=(),
+    )
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, gate)
+    if blocker == "lagging_slot":
+        state.set_slot_progress("crest_core", gate - 1)
+    else:
+        game.party_state._crafting_experience = required_experience - 10
+
+    result = service.improve_slot(
+        target_drifter_id="branoc",
+        slot_id="blade_guard",
+    )
+
+    assert result.success is False
+    assert result.reason == "tier_locked"
+    assert result.attempted is False
+    assert game.party_state.shared_items == {material_id: cost}
+    assert state.slot_progress["blade_guard"] == gate
+
+
+@pytest.mark.parametrize(
+    "gate,expected_strength",
+    ((0, 3), (25, 4), (50, 4), (75, 5), (100, 6)),
+)
+def test_quality_projection_uses_each_unlocked_tier_from_original_bonus(
+    gate,
+    expected_strength,
+):
+    progression = get_weapon_spec("sunder_spire").progression
+    progress = {slot.slot_id: gate for slot in progression.slots}
+
+    projected = project_weapon_stat_bonuses(
+        progression,
+        {"strength": 3},
+        progress,
+        tier_v_success=False,
+    )
+
+    assert projected == {"strength": expected_strength}
+
+
+@pytest.mark.parametrize(
+    "level,weights",
+    IMPROVEMENT_ROLL_WEIGHT_BANDS,
+)
+def test_every_improvement_result_is_reachable_at_each_crafting_band(level, weights):
+    cumulative = 0
+    observed = []
+    for weight in weights:
+        cumulative += weight
+        if weight:
+            observed.append(improvement_roll(level, FixedRng((cumulative,))))
+
+    assert observed == [1, 2, 3, 4, 5]
+
+
+def test_average_improvement_roll_rises_with_crafting_level():
+    expected_values = tuple(
+        sum(points * weight for points, weight in enumerate(weights, start=1))
+        for _, weights in IMPROVEMENT_ROLL_WEIGHT_BANDS
+    )
+
+    assert expected_values == tuple(sorted(expected_values))
+    assert len(set(expected_values)) == len(expected_values)
+
+
 def test_rejected_improvements_do_not_spend_or_change_progress():
     game, service = _game(items={"grade_i_fiber": 2}, rng_values=(100,))
 
@@ -150,6 +274,155 @@ def test_tier_gate_blocks_further_progress_until_all_slots_and_crafting_meet_it(
     assert game.party_state.crafting_experience == 240
 
 
+def test_slot_improvement_projects_from_original_weapon_bonuses():
+    game, _ = _game()
+    player = game.player_state
+    initial_strength = player.effective_stat("strength")
+    initial_constitution = player.effective_stat("constitution")
+    state = player.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    assert player.effective_stat("strength") == initial_strength + 3
+    assert player.effective_stat("constitution") == initial_constitution
+
+
+def test_tier_quality_and_tier_five_bonus_are_additive_and_round_half_up():
+    game, _ = _game()
+    player = game.player_state
+    state = player.signature_weapon_state
+    initial_constitution = player.effective_stat("constitution")
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    assert player.effective_stat("strength") == 21
+    state.mark_tier_v_success()
+    assert player.effective_stat("constitution") == initial_constitution + 1
+
+
+def test_stat_projection_rounds_exact_halves_up_once():
+    progression = get_weapon_spec("sunder_spire").progression
+
+    projected = project_weapon_stat_bonuses(
+        progression,
+        {"strength": 2},
+        {
+            "blade_guard": 100,
+            "grip_binding": 0,
+            "hilt_handle": 0,
+            "crest_core": 0,
+        },
+        tier_v_success=False,
+    )
+
+    assert projected == {"strength": 3}
+
+
+def test_tier_five_attempt_spends_configured_grade_four_materials_on_success():
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game, service = _game(crafting_experience=990, items=costs, rng_values=(20,))
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    result = service.attempt_tier_v(target_drifter_id="branoc")
+
+    assert result.success is True
+    assert result.attempted is True
+    assert state.tier_v_success is True
+    assert game.party_state.shared_items == {}
+    assert game.party_state.crafting_experience == 990
+
+
+def test_tier_five_failure_consumes_materials_without_progress_or_crafting_award():
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game, service = _game(crafting_experience=990, items=costs, rng_values=(21,))
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    result = service.attempt_tier_v(target_drifter_id="branoc")
+
+    assert result.success is False
+    assert result.reason == "tier_v_failed"
+    assert result.attempted is True
+    assert state.tier_v_success is False
+    assert state.slot_progress == {slot_id: 100 for slot_id in state.slot_progress}
+    assert game.party_state.shared_items == {}
+    assert game.party_state.crafting_experience == 990
+
+
+def test_tier_five_rejects_incomplete_requirements_without_spending_or_rolling():
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game, service = _game(items=costs, rng_values=())
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    result = service.attempt_tier_v(target_drifter_id="branoc")
+
+    assert result.success is False
+    assert result.reason == "tier_locked"
+    assert result.attempted is False
+    assert state.tier_v_success is False
+    assert game.party_state.shared_items == costs
+
+
+def test_tier_five_rejects_insufficient_cost_atomically():
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 11,
+    }
+    game, service = _game(crafting_experience=990, items=costs, rng_values=())
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    result = service.attempt_tier_v(target_drifter_id="branoc")
+
+    assert result.success is False
+    assert result.reason == "insufficient_materials"
+    assert result.attempted is False
+    assert game.party_state.shared_items == costs
+    assert state.tier_v_success is False
+
+
+def test_tier_five_rng_failure_does_not_consume_attempt_materials():
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game, service = _game(crafting_experience=990, items=costs, rng_values=())
+    state = game.player_state.signature_weapon_state
+    for slot_id in state.slot_progress:
+        state.set_slot_progress(slot_id, 100)
+
+    with pytest.raises(IndexError):
+        service.attempt_tier_v(target_drifter_id="branoc")
+
+    assert game.party_state.shared_items == costs
+    assert state.tier_v_success is False
+
+
 def test_improvement_requires_an_exact_current_roster_target():
     _, service = _game(items={"grade_i_metal": 1}, rng_values=(100,))
 
@@ -172,6 +445,32 @@ def test_goblin_scrap_dismantles_into_grade_one_material_without_crafting_xp():
     assert result.materials == {"grade_i_metal": 1}
     assert game.party_state.shared_items == {"grade_i_metal": 1}
     assert game.party_state.crafting_experience == 0
+
+
+@pytest.mark.parametrize(
+    "crafting_experience,roll,expected_yield",
+    ((0, 100, 1), (990, 1, 2)),
+)
+def test_dismantle_yield_stays_between_one_and_authored_maximum(
+    crafting_experience,
+    roll,
+    expected_yield,
+):
+    game, service = _game(
+        crafting_experience=crafting_experience,
+        items={"goblin_scrap": 1},
+        rng_values=(roll,),
+    )
+
+    result = service.dismantle(
+        target_drifter_id="branoc",
+        item_id="goblin_scrap",
+    )
+
+    assert result.success is True
+    assert result.materials == {"grade_i_metal": expected_yield}
+    assert 1 <= sum(result.materials.values()) <= 2
+    assert game.party_state.crafting_experience == crafting_experience
 
 
 def test_goblin_lord_core_always_dismantles_into_one_grade_one_core():
@@ -204,8 +503,11 @@ def test_dismantling_insufficient_loot_is_atomic():
     assert game.party_state.crafting_experience == 0
 
 
-def test_crafting_a_floor_one_component_spends_its_material_and_awards_crafting():
+def test_crafting_installs_component_spends_material_and_awards_crafting_once():
     game, service = _game(items={"grade_i_metal": 1})
+    state = game.player_state.signature_weapon_state
+    state.set_slot_progress("blade_guard", 25)
+    original_moves = tuple(game.player_state.combat_moves)
 
     result = service.craft_component(
         target_drifter_id="branoc",
@@ -213,37 +515,79 @@ def test_crafting_a_floor_one_component_spends_its_material_and_awards_crafting(
     )
 
     assert result.success is True
-    assert game.party_state.shared_items == {
-        "sunder_spire_blade_reinforced": 1,
-    }
+    assert result.slot_id == "blade_guard"
+    assert state.components["blade_guard"] == "sunder_spire_blade_reinforced"
+    assert state.slot_progress["blade_guard"] == 25
+    assert game.party_state.shared_items == {}
     assert game.party_state.crafting_experience == 10
+    assert game.player_state.combat_moves[0].power == original_moves[0].power + 2
+    assert game.player_state.combat_moves[0].accuracy == original_moves[0].accuracy - 2
 
 
-def test_installing_component_consumes_new_part_and_projects_its_move_effect():
-    game, service = _game(items={
-        "sunder_spire_blade_reinforced": 1,
-    })
-    original_moves = tuple(game.player_state.combat_moves)
-    original_components = game.player_state.signature_weapon_state.components
+def test_crafting_an_already_installed_component_is_rejected_without_mutation():
+    game, service = _game(items={"grade_i_metal": 1})
+    state = game.player_state.signature_weapon_state
+    state.install_component("blade_guard", "sunder_spire_blade_reinforced")
+    before_snapshot = game.snapshot()
 
-    result = service.install_component(
+    result = service.craft_component(
         target_drifter_id="branoc",
-        slot_id="blade_guard",
         component_id="sunder_spire_blade_reinforced",
     )
 
-    assert result.success is True
-    assert game.player_state.signature_weapon_state.components["blade_guard"] == (
-        "sunder_spire_blade_reinforced"
+    assert result.success is False
+    assert result.reason == "already_installed"
+    assert game.snapshot() == before_snapshot
+
+
+def test_crafting_a_wrong_weapon_component_is_rejected_without_mutation():
+    game, service = _game(items={"grade_i_metal": 1})
+    before_snapshot = game.snapshot()
+
+    result = service.craft_component(
+        target_drifter_id="branoc",
+        component_id="needle_focus_fitted",
+    )
+
+    assert result.success is False
+    assert result.reason == "unknown_component"
+    assert game.snapshot() == before_snapshot
+
+
+def test_replacing_component_removes_direct_effect_and_keeps_learned_technique():
+    game, _service = _game()
+    player = game.player_state
+    state_snapshot = player.signature_weapon_state.snapshot()
+    state_snapshot["components"]["blade_guard"] = "sunder_spire_blade_reinforced"
+    state_snapshot["learned_technique_ids"] = ["controlled_test_technique"]
+    progression = get_weapon_spec("sunder_spire").progression
+    player._signature_weapon_state = SignatureWeaponState.from_snapshot(
+        state_snapshot,
+        progression,
+    )
+    reinforced_power = next(
+        move.power for move in player.combat_moves
+        if move.name == "Crestgrave Reaping"
+    )
+    baseline_player = PlayerState(get_drifter_spec("branoc").create_character())
+    baseline_power = next(
+        move.power for move in baseline_player.combat_moves
+        if move.name == "Crestgrave Reaping"
+    )
+
+    player.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade",
+    )
+    assert reinforced_power == baseline_power + 2
+    assert next(
+        move.power for move in player.combat_moves
+        if move.name == "Crestgrave Reaping"
+    ) == baseline_power
+    assert player.signature_weapon_state.learned_technique_ids == (
+        "controlled_test_technique",
     )
     assert game.party_state.shared_items == {}
-    assert game.player_state.combat_moves[0].power == original_moves[0].power + 2
-    assert game.player_state.combat_moves[0].accuracy == original_moves[0].accuracy - 2
-    assert game.player_state.combat_moves[0].target == original_moves[0].target
-    assert game.player_state.combat_moves[0].scales_with == original_moves[0].scales_with
-    assert game.player_state.signature_weapon_state.components["blade_guard"] != (
-        original_components["blade_guard"]
-    )
 
 
 def test_component_identity_uses_threshold_and_returns_none_for_a_tie():
@@ -313,16 +657,15 @@ def test_component_identity_uses_threshold_and_returns_none_for_a_tie():
     assert derive_weapon_identities(progression, installed) == ("Fast", None)
 
 
-def test_installing_unknown_slot_returns_failure_without_spending_component():
-    component_id = "sunder_spire_blade_reinforced"
-    game, service = _game(items={component_id: 1})
+def test_crafting_without_required_material_is_atomic():
+    game, service = _game()
+    before_snapshot = game.snapshot()
 
-    result = service.install_component(
+    result = service.craft_component(
         target_drifter_id="branoc",
-        slot_id="not_a_weapon_slot",
-        component_id=component_id,
+        component_id="sunder_spire_blade_reinforced",
     )
 
     assert result.success is False
-    assert result.reason == "wrong_slot"
-    assert game.party_state.shared_items == {component_id: 1}
+    assert result.reason == "insufficient_materials"
+    assert game.snapshot() == before_snapshot
