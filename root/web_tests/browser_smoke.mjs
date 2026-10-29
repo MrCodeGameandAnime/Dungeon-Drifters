@@ -2203,6 +2203,9 @@ try {
   await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
   await clickVisibleOption(page, "#overworld-options", "Load");
   await page.waitForFunction(
     () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
