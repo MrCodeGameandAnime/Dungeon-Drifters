@@ -842,6 +842,7 @@ try {
   await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
   await page.locator("#shortcut-code").fill("invalid");
   await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#shortcut-error").waitFor({ state: "visible" });
   requireCondition(
     await page.locator("#shortcut-dialog").isVisible() &&
       (await page.locator("#shortcut-error").innerText()).includes("did not match"),
