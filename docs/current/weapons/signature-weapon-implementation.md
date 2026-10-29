@@ -1,6 +1,6 @@
 # Signature Weapon Progression Implementation Plan
 
-> **Status (2026-10-29):** Gates 0-6 are complete on the current `hub` working tree. The final evidence is recorded below and in `docs/probe.md`. Remaining items are explicitly deferred; stop for user review before committing or pushing.
+> **Status (2026-10-29):** Gates 0-6 are complete on `hub` at `8099b895f0d6f2e7d0415909d3d98e83216a2f0f`. Hosted cumulative CI and the recorded pinned MicroPython qualification passed. The Hub signature-weapon scope is sealed; future-floor content and balance tuning remain deferred.
 
 **Goal:** Add persistent, data-driven signature-weapon progression that lets the roster dismantle eligible loot, improve each Drifter's four weapon slots, cross quality tiers, and craft-and-install weapon components through the existing game interfaces.
 
@@ -48,13 +48,26 @@ an unchecked task does not mean that no related code exists.
 | 3. Progression rules | Complete | Weighted 1-5 improvement rolls, all quality gates and clamping, grade/material eligibility, stat projection and half-up rounding, atomic rejection, and Tier V success/failure behavior are tested. | Balance tuning is deferred to playtesting. |
 | 4. Components and combat projection | Complete | Dismantling bounds/atomicity, direct craft-and-install, identity ties/recalculation, direct move effects, and learned-technique retention after a component change are covered. Alternate-part storage is deferred. | No Hub-closure blocker remains. |
 | 5. Hub and client parity | Complete | Terminal and browser use explicit Drifter targets and Python-projected offers. Built-site Playwright smoke performs real dismantle, craft-and-install, improve, save, reload, and exact state comparison for Branoc. | No Hub-closure blocker remains. |
-| 6. Cumulative qualification | Complete | Corrected craft-and-install tree passed 1,869 Python/web tests, the 142-runtime-file browser build and full Playwright smoke, content/catalog checks, compilation, and the pinned MicroPython 608K/576K matrix. The 31 PostgreSQL service tests passed in the preceding qualification and were not rerun for this game-only correction. Detailed evidence is in `docs/probe.md`. | No Hub-closure blocker remains. |
+| 6. Cumulative qualification | Complete | Final hosted run on `8099b895` passed 1,809 Python tests, 60 web tests, 31 PostgreSQL tests, content validation, compilation, the 142-file browser build, full Playwright smoke, migration-from-zero, and Alembic drift check. The pinned MicroPython 608K/576K matrix is recorded in `docs/probe.md`; game/runtime sources were unchanged afterward. | No Hub-closure blocker remains; deferred work is listed in Hub Closure Scope. |
 
 Historical hosted verification for corrective SHA `4475b11152cc9e02cfa7f665acfaab2ff14368e5`
 on `hub` passed 1,754 root Python tests, 53 web tests, and 29 PostgreSQL service
 tests, plus the 141-file browser build, Playwright smoke, migrations from zero,
 and `alembic check`. That run predates the current schema-11/12 and Tier V
-closure; the current working-tree qualification below supersedes it.
+closure; the final hosted qualification below supersedes it.
+
+## Final Hosted Qualification (2026-10-29)
+
+GitHub Actions [run 40914215425](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/40914215425)
+passed on `hub` at exact SHA `8099b895f0d6f2e7d0415909d3d98e83216a2f0f`.
+It reports 1,809 root Python tests, 60 web tests, and 31 PostgreSQL service
+tests passed. Content validation, compilation, the 142-file browser build, and
+full Playwright smoke passed, including weapon craft-and-install, improvement,
+save/reload state comparison, Floor One clear/replay extraction, and the full
+route. The PostgreSQL job also applied migrations from zero and `alembic check`
+reported no new upgrade operations. The pinned MicroPython 608K/576K matrix and
+heap observations are recorded in `docs/probe.md`; final game/runtime sources
+were unchanged after that qualification.
 
 ## Global Constraints
 
@@ -200,7 +213,7 @@ closure; the current working-tree qualification below supersedes it.
 - [x] Run the browser build and full Playwright flow against the built site; verify the browser remains a renderer/input adapter over Python-authoritative progression state.
 - [x] Extend the real pinned MicroPython probe with progression state initialization, one recipe/improvement, one dismantle/component change, save snapshot round-trip, and teardown. Preserve the existing probe marker protocol and stage ordering; add progression markers before the final closure marker and update its contract test and `docs/probe.md`.
 - [x] Run the actual pinned MicroPython matrix on the final tree, including semantic parity and the established heap-frontier checks. Record exact executable identity, observed results, and memory figures; do not treat the 448K diagnostic target as a product-device memory requirement.
-- [x] Review the cumulative diff for changed default combat behavior, duplicated derived save fields, invalid legacy-digest handling, unintended architecture changes, and browser-owned rules. Current exact test totals and qualification evidence are recorded in `docs/probe.md`. Stop for user review before committing or pushing.
+- [x] Review the cumulative diff for changed default combat behavior, duplicated derived save fields, invalid legacy-digest handling, unintended architecture changes, and browser-owned rules. Record final qualification evidence in `docs/probe.md`; the reviewed implementation was committed and pushed as `8099b895`.
 
 ## Acceptance Criteria
 

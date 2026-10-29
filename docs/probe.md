@@ -200,8 +200,8 @@ Final cumulative verification:
 - Static browser build produced 142 files. Full Playwright smoke passed, including the real Hub merchant progression flow and browser save/reload comparison of Branoc's installed component, slot progress, Crafting XP, and shared materials; browser smoke was rerun after the Tier V correction.
 
 The temporary PostgreSQL container was stopped after qualification. No production
-database or existing container was changed. The working tree remains uncommitted
-and unpushed for user review.
+database or existing container was changed. At this checkpoint the working tree
+was uncommitted and unpushed; the later hosted qualification is recorded below.
 
 ## Component Craft-and-Install Correction (2026-10-29)
 
@@ -234,4 +234,29 @@ Verification on the corrected, uncommitted `hub` working tree:
   this correction; no service, API, or database code was changed by it. Those
   results remain the preceding qualification evidence, not a new run here.
 
-The working tree remains uncommitted and unpushed for review.
+At this correction checkpoint the working tree was uncommitted and unpushed. The
+later hosted qualification is recorded below.
+
+## Final Hosted Qualification (2026-10-29)
+
+GitHub Actions run [40914215425](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/40914215425)
+completed successfully for the pushed `hub` SHA
+`8099b895f0d6f2e7d0415909d3d98e83216a2f0f`.
+
+- Root Python suite: 1,809 passed; web pytest suite: 60 passed.
+- Authored-content validation passed (5 enemies, 4 weapons, 4 Drifters,
+  10 encounters, 2 routes); Python compilation passed.
+- Browser build produced 142 files. Full Playwright smoke passed, including
+  `PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS`, Hub merchant progression, Floor One
+  clear/replay extraction, and the full route.
+- Profile service against PostgreSQL: 31 passed. Migration from zero succeeded
+  and `alembic check` reported no new upgrade operations.
+- The pinned MicroPython result remains the 2026-10-29 qualification above:
+  608K passed with stable 3/3 runs and semantic parity; 576K reached the
+  expected memory-limit classification 3/3. The final pushed follow-up changed
+  browser-smoke synchronization and documentation only; game/runtime sources
+  were unchanged from that pinned run.
+
+This is the cumulative closure evidence for the Hub signature-weapon scope.
+Future-floor content, balance tuning, and other explicitly deferred systems
+remain outside this qualification.
