@@ -17,8 +17,8 @@ This plan establishes the eventual direction for:
 - isolated world economies
 - Drifter recruitment and account ownership
 - Android, PC, and possible console clients
-- a future portable C++ engine core
-- automated Python-to-C++ change assistance
+- Android integration through Chaquopy with the Python engine remaining authoritative
+- portable client contracts and platform integration boundaries
 - competitive modes such as leaderboards and PvP
 
 ---
@@ -116,11 +116,11 @@ Create one obvious supported path for every common task.
 
 # Guiding Principles
 
-## 1. Python Remains the Prototype and Discovery Language
+## 1. Python Remains the Authoritative Engine Language
 
-Python is the correct language for discovering the complete Dungeon Drifters engine.
+Python is the authoritative implementation language for the Dungeon Drifters engine.
 
-It allows the project to move rapidly through:
+It supports the full development cycle:
 
 ```text
 design
@@ -128,11 +128,12 @@ design
 -> testing
 -> revision
 -> architectural discovery
+-> production gameplay
 ```
 
-The game still needs major systems, including the primary extraction loop. Converting to C++ before those systems exist would lock unstable assumptions into a more expensive development environment.
+The engine is not a temporary prototype waiting to be rewritten in another language. The long-term architecture should preserve Python ownership of game rules while allowing different platform clients to embed or call the engine through narrow, explicit boundaries.
 
-Python should remain authoritative while the game is still discovering:
+Python remains authoritative for:
 
 - dungeon exploration
 - extraction
@@ -146,13 +147,14 @@ Python should remain authoritative while the game is still discovering:
 - endgame progression
 - competitive rules
 - final combat architecture
+- save semantics
+- validation
+- available actions
+- semantic outcomes
 
-Python is not disposable work.
+Python also remains the natural home for:
 
-Even after a future C++ conversion, Python can remain valuable for:
-
-- the reference engine
-- rapid feature prototyping
+- rapid feature development
 - balance probes
 - validators
 - save inspectors
@@ -160,12 +162,12 @@ Even after a future C++ conversion, Python can remain valuable for:
 - content scaffolders
 - dungeon-generation analysis
 - simulation
-- parity testing
-- automated port assistance
+- deterministic fixtures
+- platform-boundary qualification
 
-## 2. Complete the Engine Before Porting It
+## 2. Complete the Engine Before Expanding Platform Integrations
 
-A future C++ conversion must not begin merely because the current vertical slice is stable.
+Platform expansion must not interrupt completion of the actual Dungeon Drifters identity merely because the current vertical slice is stable.
 
 The engine should first contain and prove the actual Dungeon Drifters identity:
 
@@ -209,11 +211,14 @@ For Android:
 
 ```text
 Android application
-├── local Dungeon Drifters engine
+├── Kotlin / Jetpack Compose presentation
+├── Chaquopy integration boundary
+├── embedded local Dungeon Drifters Python engine
 ├── local authored content
-├── Android presentation layer
 └── local save storage
 ```
+
+Chaquopy is the canonical Android bridge. Kotlin and Jetpack Compose own Android presentation and platform integration; Python continues to own authoritative game behavior.
 
 No internet connection should be required for ordinary gameplay.
 
@@ -290,7 +295,7 @@ All clients ask the engine what is true, what happened, and what actions are cur
 
 ## Objective
 
-Complete and prove the actual game before attempting a native-engine conversion.
+Complete and prove the actual game before broadening the production client surface.
 
 ## Required Major Systems
 
@@ -324,7 +329,7 @@ The exact milestone structure will be planned later, but the Python engine shoul
 
 ## Exit Condition
 
-Do not consider C++ until Dungeon Drifters has a complete, playable, mechanically representative engine.
+Do not let platform expansion displace engine completion. Dungeon Drifters should first have a complete, playable, mechanically representative Python engine.
 
 The goal is not necessarily to finish every piece of content first.
 
@@ -654,7 +659,7 @@ This foundation supports:
 - leaderboard verification
 - daily challenges
 - cross-platform consistency
-- automated C++ conversion validation
+- cross-client contract validation
 
 ---
 
@@ -1308,171 +1313,123 @@ Live PvP should be considered only after the single-player engine and determinis
 
 ---
 
-# Phase 9: Future C++ Native Engine Core
+# Phase 9: Android Client and Chaquopy Integration
 
 ## Objective
 
-After the Python engine is complete, streamlined, and behaviorally locked, evaluate a portable C++ production core.
+Build Android as the first major graphical client while keeping the Python engine authoritative and local.
 
-## Reason for C++
+The Android client should embed the existing Dungeon Drifters engine through Chaquopy rather than reimplementing game rules in Kotlin.
 
-Performance alone is not the main reason.
-
-Dungeon Drifters is turn-based, and Python is likely fast enough for ordinary gameplay.
-
-The primary benefits would be:
-
-- one portable native engine
-- local Android execution
-- PC support
-- possible console support
-- native packaging
-- strong cross-platform boundaries
-- long-term production stability
-- reduced dependence on embedded Python runtimes
-- compatibility with multiple graphical technologies
-
-## Proposed Structure
+## Canonical Android Structure
 
 ```text
-Dungeon Drifters C++ Core
-├── commands
-├── state
-├── combat
-├── progression
-├── loot
-├── recruitment
-├── dungeon generation
-├── extraction
-├── world progression
-├── persistence
-├── validation
-└── semantic results
+Kotlin / Jetpack Compose
+-> screens
+-> touch and controller input
+-> animation
+-> accessibility
+-> Android lifecycle
+-> platform services
+
+Chaquopy boundary
+-> starts and hosts the local Python runtime
+-> sends structured commands into Dungeon Drifters
+-> receives structured views and semantic results
+-> translates platform storage access where needed
+
+Dungeon Drifters Python engine
+-> game rules
+-> state
+-> combat
+-> progression
+-> loot
+-> recruitment
+-> dungeon generation
+-> extraction
+-> persistence semantics
+-> validation
+-> available actions
+-> semantic outcomes
 ```
 
-Clients:
+The Python engine is bundled with the application.
 
-```text
-Python Terminal Client
--> Python bindings to C++ core
+Ordinary Android gameplay must remain fully local and must not require a remote server.
 
-Android Client
--> Kotlin interface to local C++ core
+## Android Ownership Boundary
 
-PC Client
--> native or engine-specific adapter to C++ core
+Kotlin and Jetpack Compose own:
 
-Possible Console Client
--> platform adapter to C++ core
-```
+- application lifecycle
+- Android navigation
+- screen layout
+- touch input
+- controller input
+- animation
+- sound and music playback
+- accessibility
+- notifications where appropriate
+- Android storage integration
+- platform achievements or billing integrations if later required
 
-## Android Structure
+Python owns:
 
-The preferred Android structure is:
+- legal actions
+- combat resolution
+- progression
+- rewards
+- dungeon generation
+- recruitment
+- extraction
+- state transitions
+- save-document semantics
+- deterministic outcomes
 
-```text
-Kotlin and Jetpack Compose
--> screens, input, animation, accessibility, Android integration
-
-C++ core
--> game rules, state, generation, persistence semantics
-```
-
-The C++ engine is bundled inside the application.
-
-Android gameplay does not require a remote server.
-
-## PC and Console Potential
-
-A portable C++ core could support graphical clients built through technologies such as:
-
-- SDL
-- Unreal integration
-- Godot native extensions
-- a custom native desktop client
-- platform-specific console shells
-
-C++ does not automatically guarantee console release.
-
-Console development still requires platform agreements, SDK access, certification, platform integration, and production resources.
-
-The C++ core would make the engine technically portable enough for those clients to become realistic options.
+The Android client must never duplicate authoritative rules simply to avoid crossing the Chaquopy boundary.
 
 ## Narrow Interoperability Boundary
 
-Do not expose hundreds of C++ classes directly across Kotlin, Python, or platform boundaries.
-
-Prefer a narrow interface:
+Prefer a small application-facing surface:
 
 ```text
-create engine
+create or load session
 dispatch command
 query structured view
 create save document
 load save document
-destroy engine
+close session
 ```
 
-Cross-language calls should happen at meaningful transaction boundaries.
+Cross-boundary calls should happen at meaningful transaction boundaries rather than exposing domain internals directly to Kotlin.
 
-A turn-based game can afford structured serialization at this boundary.
+A turn-based game can afford structured command and result translation at this boundary. Clarity and testability matter more than minimizing every bridge call.
 
-Clarity and testability matter more than micro-optimizing every call.
+## Qualification
 
-## Conversion Order
+Android qualification should prove:
 
-Do not translate the current Python repository file by file.
+- the same authoritative Python engine rules run under Chaquopy
+- representative command sequences match existing Python fixtures
+- save/load preserves state across Android lifecycle events
+- backgrounding and process recreation do not create divergent state
+- platform storage failures fail closed
+- no Android-only rule implementation changes gameplay outcomes
+- offline Story Mode and Dungeoneering remain functional
 
-That would preserve current complexity in a more expensive language.
+## Native Platform Glue
 
-The correct sequence is:
+A specific platform or device may eventually require narrowly scoped native integration for an SDK, runtime bridge, hardware API, or measured performance bottleneck.
 
-```text
-1. Complete the Python engine.
-
-2. Streamline content and public workflows.
-
-3. Establish the command, result, event, view, and persistence contracts.
-
-4. Lock deterministic behavioral fixtures.
-
-5. Implement one narrow C++ vertical slice.
-
-6. Run Python and C++ against identical fixtures.
-
-7. Expand C++ incrementally.
-
-8. Replace Python engine responsibilities only after exact parity.
-
-9. Preserve Python tooling and reference behavior where useful.
-```
-
-## First C++ Proof
-
-The first proof should be intentionally small.
-
-Example:
-
-```text
-create one Drifter
-create one enemy
-resolve one encounter
-award deterministic rewards
-produce structured events
-serialize state
-reconstruct state
-match Python output exactly
-```
-
-Only after that vertical slice succeeds should the C++ scope expand.
+Such native code is an adapter or extension around the Python engine. It is not a plan to rewrite the Dungeon Drifters codebase or replace Python as the authoritative engine.
 
 ---
 
 # Phase 10: Shared Portable Contracts and Content
 
-The strongest long-term design avoids duplicating ordinary content across Python, C++, and Kotlin.
+The strongest long-term design avoids duplicating ordinary content or game contracts across Python and platform presentation layers.
 
-Where practical, portable definitions should be language neutral or generated from one source.
+Where practical, portable definitions should come from one authoritative source.
 
 Potential shared contracts include:
 
@@ -1490,16 +1447,15 @@ Conceptually:
 
 ```text
 one authoritative contract
--> generate Python representation
--> generate C++ representation
--> generate Kotlin representation
--> generate serialization support
--> generate fixture skeletons
+-> Python engine representation
+-> Kotlin-facing representation where needed
+-> serialization support
+-> deterministic fixture skeletons
 ```
 
-Built-in game content may remain authored through typed Python specifications during early development.
+Built-in game content may remain authored through typed Python specifications.
 
-Before C++ conversion, the project should evaluate whether finalized content is best represented through:
+As platform clients mature, the project should evaluate whether any finalized interchange data is best represented through:
 
 - generated portable documents
 - compiled content bundles
@@ -1508,173 +1464,13 @@ Before C++ conversion, the project should evaluate whether finalized content is 
 
 Do not create a general modding or plugin framework unless the product explicitly requires one.
 
-The immediate goal is internal portability and reliable authoring.
+The immediate goal is reliable authoring, stable platform boundaries, and zero duplication of authoritative game rules.
 
----
+## Platform Contract Validation
 
-# Phase 11: Automated Diff-Driven Port Assistance
+Portable fixtures should verify that every client is observing the same Python authority.
 
-## Objective
-
-Build a Dungeon Drifters-aware tool that assists with synchronizing Python engine changes into the C++ engine.
-
-This should not be marketed internally as a universal Python-to-C++ transpiler.
-
-The tool understands Dungeon Drifters contracts, content formats, state rules, and testing expectations.
-
-## Core Principle
-
-```text
-Do not translate changed lines mechanically.
-
-Interpret the semantic change represented by the diff.
-```
-
-## Proposed Workflow
-
-```text
-Python engine commit
--> Git diff
--> changed-symbol analysis
--> semantic classification
--> shared-contract regeneration
--> C++ patch candidate
--> C++ compilation
--> cross-engine parity fixtures
--> human review
-```
-
-## Analysis Layers
-
-The tool should use:
-
-```text
-Git diff
--> defines the change boundary
-
-Python AST
--> identifies changed functions, classes, fields, and expressions
-
-Portable contracts
--> identify schema and content changes
-
-C++ syntax model
--> identifies corresponding native symbols
-
-Behavioral fixtures
--> prove whether the result is actually correct
-```
-
-The Git diff is the trigger.
-
-It is not sufficient evidence by itself.
-
-## Change Categories
-
-Every changed area should be classified into categories such as:
-
-```text
-SHARED_CONTENT
-ENGINE_CONTRACT
-ENGINE_LOGIC
-PERSISTENCE_SCHEMA
-GENERATION_RULE
-TEST_FIXTURE
-PYTHON_PRESENTATION
-PYTHON_TOOLING
-PLATFORM_SPECIFIC
-UNSUPPORTED
-```
-
-## Automated Policies
-
-```text
-SHARED_CONTENT
--> validate or regenerate
--> no manual C++ translation when both engines consume the same content
-
-ENGINE_CONTRACT
--> regenerate Python, C++, and Kotlin records where supported
-
-ENGINE_LOGIC
--> produce a reviewed C++ patch candidate
-
-PERSISTENCE_SCHEMA
--> regenerate structures and produce a migration checklist
-
-GENERATION_RULE
--> generate native rule changes only when the pattern is supported
--> rerun deterministic seed fixtures
-
-TEST_FIXTURE
--> execute against both engines
-
-PYTHON_PRESENTATION
--> no C++ engine change
-
-PYTHON_TOOLING
--> no production-engine change unless explicitly mapped
-
-PLATFORM_SPECIFIC
--> route to the relevant client
-
-UNSUPPORTED
--> stop and require manual implementation
-```
-
-## Highly Automatable Changes
-
-Likely high-confidence areas:
-
-- ordinary content additions
-- reward value changes
-- stat changes
-- new validated records
-- command definitions
-- event definitions
-- view-model definitions
-- serialization field generation
-- simple schema structure
-- deterministic fixture generation
-- stable enum additions
-
-## Assisted Changes
-
-Potentially automatable with mandatory review:
-
-- simple formulas
-- deterministic conditional logic
-- resource-cost changes
-- threshold changes
-- small state transitions
-- simple validation additions
-- known generation-rule patterns
-
-## Manual Stop Conditions
-
-The tool should refuse to silently translate:
-
-- ownership redesigns
-- lifecycle changes
-- concurrency
-- memory-management changes
-- major polymorphism changes
-- new resource architectures
-- new targeting models
-- major combat-resolution redesigns
-- JNI or platform integration
-- new networking models
-- unsupported persistence migrations
-
-A clear refusal is better than a convincing incorrect patch.
-
-## Parity as Acceptance Authority
-
-A generated C++ patch is not accepted because it compiles.
-
-It is accepted because Python and C++ produce the same observable behavior.
-
-Parity comparison should include:
+Comparison should include:
 
 - resulting state
 - semantic events
@@ -1690,26 +1486,11 @@ Parity comparison should include:
 - extraction settlement
 - session isolation
 
-## Python as Reference Laboratory
-
-The long-term workflow may become:
-
-```text
-prototype feature in Python
--> prove it with tests and fixtures
--> classify the semantic diff
--> regenerate shared contracts
--> generate or assist with C++ implementation
--> run both engines against identical fixtures
--> reject behavioral drift
--> review and merge
-```
-
-This preserves Python's development speed while allowing C++ to become the production engine.
+The acceptance question is not whether two engines agree. There is one authoritative engine. The question is whether each platform adapter faithfully submits commands to it and renders its results without inventing rules.
 
 ---
 
-# Phase 12: Client Expansion
+# Phase 11: Client Expansion
 
 ## Android
 
@@ -1717,7 +1498,9 @@ Android should be the first major graphical portability target if product priori
 
 It should provide:
 
-- fully local gameplay
+- fully local gameplay through the embedded Python engine
+- Chaquopy integration
+- Kotlin / Jetpack Compose presentation
 - touch-first controls
 - graphical combat presentation
 - local saves
@@ -1740,16 +1523,20 @@ A PC client could expand presentation through:
 - replay viewing
 - mod support only if deliberately planned later
 
+The PC client should continue to consume the Python engine through the same command, result, view, and persistence contracts rather than owning a separate implementation of gameplay rules.
+
 ## Console
 
 Console becomes a possible future business direction after:
 
-- the native engine is stable
+- the Python engine and platform boundary are stable
 - the PC or Android graphical client proves the presentation
 - controls are fully gamepad-compatible
 - save and suspend behavior are reliable
 - certification requirements are understood
 - platform access is secured
+
+A console target may require platform-specific adapters or native integration around the engine boundary. Any such work should remain as narrow as the target allows and must not create a second authoritative rules implementation.
 
 Console support is a ceiling enabled by the architecture, not an immediate commitment.
 
@@ -1832,43 +1619,38 @@ World settlement
 Complete representative runs
 ```
 
-## Stage 7: Evaluate and Prove C++
+## Stage 7: Prove Android Integration
 
 ```text
-Small C++ vertical slice
-Python bindings
-Android interoperability proof
-Cross-engine parity
-Build and packaging proof
+Kotlin / Jetpack Compose client shell
+Chaquopy integration
+Embedded Python engine
+Command and view bridge
+Android local saves
+Lifecycle and process-recreation proof
+Offline gameplay proof
+Representative parity fixtures against canonical Python behavior
 ```
 
-## Stage 8: Build Diff-Driven Port Assistance
-
-```text
-Diff classifier
-AST analysis
-Contract generation
-C++ patch generation
-Parity runner
-Manual stop conditions
-```
-
-## Stage 9: Expand the Native Core
-
-```text
-Incremental system migration
-Continuous parity
-No file-by-file blind translation
-Python reference retained
-```
-
-## Stage 10: Build Production Clients
+## Stage 8: Build Production Clients
 
 ```text
 Android
 PC
 possible console
 optional online competitive services
+```
+
+## Stage 9: Add Platform-Specific Integration Only Where Required
+
+```text
+SDK bridges
+platform storage adapters
+hardware or device integration
+measured performance extensions
+certification-specific hooks
+no duplicated authoritative game rules
+no wholesale engine rewrite
 ```
 
 ---
@@ -1901,7 +1683,7 @@ The long-term effort succeeds only if the following remain true.
 - seed derivation is explicit.
 - generated dungeons remain stable after save and load.
 - competitive submissions can be replayed.
-- Python and C++ can be compared through shared fixtures.
+- platform clients can be compared through shared fixtures against the authoritative Python engine.
 
 ## Economy Isolation
 
@@ -1923,7 +1705,7 @@ The long-term effort succeeds only if the following remain true.
 
 # Final Direction
 
-Dungeon Drifters should continue using Python to discover and complete the game.
+Dungeon Drifters should continue using Python as its authoritative engine language while the game is completed and as production clients expand.
 
 The immediate mission is still to build the actual Dungeon Drifters engine, especially the primary extraction loop.
 
@@ -1939,9 +1721,9 @@ complete Python engine
 -> local recruitment and extraction
 -> formal engine command API
 -> portable behavioral fixtures
--> optional C++ production core
--> automated diff-driven port assistance
+-> Chaquopy Android integration
 -> Android, PC, and possible console clients
+-> narrow platform-specific glue only where required
 ```
 
 The central product structure is:
@@ -1951,11 +1733,13 @@ Story Mode gives Dungeon Drifters its canon.
 
 Dungeoneering gives Dungeon Drifters its longevity.
 
-Python discovers the complete engine.
+Python is the Dungeon Drifters engine.
 
-C++ may eventually carry that engine across platforms.
+Chaquopy carries that engine into the Android application.
 
-The clients display the game.
+Platform clients display and control the game without owning its rules.
+
+Native platform glue may connect required device or SDK boundaries without replacing the engine.
 
 The engine remains the game.
 ```

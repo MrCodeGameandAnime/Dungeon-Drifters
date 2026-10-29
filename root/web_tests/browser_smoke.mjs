@@ -261,7 +261,40 @@ async function clickVisibleOption(page, containerSelector, label) {
       return;
     }
   }
-  throw new Error(`offered control not found: ${label} in ${containerSelector}`);
+  const state = await page.evaluate(({ selector }) => {
+    const buttons = [...document.querySelectorAll(`${selector} button`)].map((button) => ({
+      label: button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim(),
+      disabled: button.disabled,
+      reason: button.querySelector(".option-reason")?.textContent?.trim() || "",
+    }));
+    const profileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+    let save = { available: false };
+    try {
+      const raw = localStorage.getItem(profileKey);
+      if (raw !== null) {
+        const envelope = JSON.parse(raw);
+        save = {
+          available: true,
+          length: raw.length,
+          localSequence: envelope.local_sequence ?? null,
+          syncState: envelope.sync_state ?? null,
+          payloadSchema: envelope.payload?.schema_version ?? null,
+        };
+      }
+    } catch (error) {
+      save = { available: false, error: String(error) };
+    }
+    return {
+      url: location.href,
+      badge: document.getElementById("screen-badge")?.textContent?.trim() || "",
+      notice: document.getElementById("notice")?.textContent?.trim() || "",
+      buttons,
+      save,
+    };
+  }, { selector: containerSelector });
+  throw new Error(
+    `offered control not found: ${label} in ${containerSelector}; state=${JSON.stringify(state)}`,
+  );
 }
 
 const targetProjection = {
