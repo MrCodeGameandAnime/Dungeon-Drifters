@@ -69,6 +69,7 @@ class EnemySpec:
     capabilities: frozenset[EnemyCapability]
     moves: tuple[Move, ...]
     supported_tiers: tuple[int, ...] = (0,)
+    item_drops: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self):
         archetype_id = _validate_nonempty_string("archetype_id", self.archetype_id)
@@ -127,6 +128,23 @@ class EnemySpec:
             raise TypeError("supported_tiers must contain only integers")
         if self.supported_tiers != (0,):
             raise ValueError("content enemy specifications support only tier 0")
+
+        if not isinstance(self.item_drops, tuple):
+            raise TypeError("item_drops must be a tuple")
+        drop_ids = []
+        for drop in self.item_drops:
+            if not isinstance(drop, tuple) or len(drop) != 2:
+                raise TypeError("each item drop must be an (item_id, quantity) tuple")
+            item_id, quantity = drop
+            if (
+                not isinstance(item_id, str)
+                or _ARCHETYPE_ID_PATTERN.fullmatch(item_id) is None
+            ):
+                raise ValueError("item drop IDs must be lowercase snake case")
+            _validate_integer("item drop quantity", quantity, minimum=1)
+            drop_ids.append(item_id)
+        if len(set(drop_ids)) != len(drop_ids):
+            raise ValueError("item drop IDs must be unique")
 
     def create_definition(self, tier=0):
         tier = validate_enemy_tier(tier)

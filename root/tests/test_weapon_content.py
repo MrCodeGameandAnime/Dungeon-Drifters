@@ -1,9 +1,10 @@
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
 
 from app.content.catalog import (
+    DRIFTER_SPECS,
     WEAPON_SPECS,
     _build_weapon_catalog,
     create_weapon,
@@ -13,6 +14,16 @@ from app.content.catalog import (
     get_weapon_spec_by_persistence_key,
 )
 from app.content.weapon_spec import WeaponSpec
+from app.content.weapon_progression_spec import (
+    MATERIAL_SPECS,
+    ComponentMoveModifierSpec,
+    DismantleSpec,
+    MaterialSpec,
+    WeaponComponentSpec,
+    WeaponImprovementRecipeSpec,
+    WeaponProgressionSpec,
+    WeaponSlotSpec,
+)
 from app.items.weapon import Weapon
 from tools.generate_content_catalog import discover_weapon_ids
 
@@ -112,6 +123,94 @@ def test_all_signature_weapon_specs_match_the_independent_authored_contract():
         assert dict(spec.stat_bonuses) == expected["stat_bonuses"]
         assert weapon.stat_bonuses == expected["stat_bonuses"]
         assert sum(weapon.stat_bonuses.values()) == 4
+
+
+@pytest.mark.parametrize(
+    "item_id,expected_slots",
+    (
+        (
+            "sunder_spire",
+            (
+                ("blade_guard", "Blade / Guard assembly", "metal", "sunder_spire_blade"),
+                ("grip_binding", "Grip wrap / binding", "fiber", "sunder_spire_grip"),
+                ("hilt_handle", "Hilt core / handle", "timber", "sunder_spire_hilt"),
+                ("crest_core", "Crest / Core", "cores", "sunder_spire_crest"),
+            ),
+        ),
+        (
+            "sathren",
+            (
+                ("grip_mechanism", "Grip / fittings / mechanism", "metal", "sathren_grip"),
+                ("string", "String", "fiber", "sathren_string"),
+                ("limbs", "Limbs", "timber", "sathren_limbs"),
+                ("reservoir_catalyst", "Reservoir / Catalyst", "cores", "sathren_reservoir"),
+            ),
+        ),
+        (
+            "sky_needle",
+            (
+                ("striking_head", "Head / Striking Cap", "metal", "sky_needle_head"),
+                ("binding_grip", "Binding / Grip", "fiber", "sky_needle_binding"),
+                ("shaft", "Shaft", "timber", "sky_needle_shaft"),
+                ("focus_collar", "Focus / Collar", "cores", "sky_needle_focus"),
+            ),
+        ),
+        (
+            "needle_of_plain_iron",
+            (
+                ("focus_fittings", "Focus head / fittings", "metal", "needle_focus"),
+                ("binding", "Binding", "fiber", "needle_binding"),
+                ("haft", "Haft", "timber", "needle_haft"),
+                ("seal_catalyst", "Seal / Catalyst", "cores", "needle_seal"),
+            ),
+        ),
+    ),
+)
+def test_signature_weapon_progression_has_the_four_authored_slots(
+    item_id,
+    expected_slots,
+):
+    progression = get_weapon_spec(item_id).progression
+
+    assert tuple(
+        (
+            slot.slot_id,
+            slot.label,
+            slot.material_family,
+            slot.starting_component_id,
+        )
+        for slot in progression.slots
+    ) == expected_slots
+
+
+@pytest.mark.parametrize(
+    "item_id,expected",
+    (
+        ("sunder_spire", ("strength", "strength", "strength", "constitution")),
+        ("sathren", ("dexterity", "dexterity", "dexterity", "intuition")),
+        (
+            "sky_needle",
+            ("dexterity", "dexterity", "dexterity", "spirit", "intuition"),
+        ),
+        (
+            "needle_of_plain_iron",
+            ("intelligence", "intelligence", "intelligence", "spirit"),
+        ),
+    ),
+)
+def test_weapon_progression_slots_explicitly_govern_base_weapon_stats(
+    item_id,
+    expected,
+):
+    spec = get_weapon_spec(item_id)
+    actual = tuple(
+        stat
+        for slot in spec.progression.slots
+        for stat in slot.governed_stats
+    )
+
+    assert actual == expected
+    assert set(actual) == set(spec.stat_bonuses)
 
 
 @pytest.mark.parametrize(
@@ -243,3 +342,194 @@ def test_obsolete_signature_weapon_subclasses_are_removed():
     assert set(vars(weapon_module)).isdisjoint(
         {"SunderSpire", "SkyNeedle", "Sathren", "NeedleOfPlainIron"}
     )
+
+
+def test_material_display_names_match_the_final_component_reference():
+    assert tuple(
+        (material.grade, material.family, material.display_name)
+        for material in MATERIAL_SPECS
+    ) == (
+        (1, "metal", "Scrap metal"),
+        (1, "fiber", "Cord"),
+        (1, "timber", "Softwood"),
+        (1, "cores", "Faded Core"),
+        (2, "metal", "Iron"),
+        (2, "fiber", "Cotton"),
+        (2, "timber", "Hardwood"),
+        (2, "cores", "Elemental core"),
+        (3, "metal", "Steel"),
+        (3, "fiber", "Silk"),
+        (3, "timber", "Ironwood"),
+        (3, "cores", "Overcharged core"),
+        (4, "metal", "Etheral Alloy"),
+        (4, "fiber", "Carbon"),
+        (4, "timber", "Elderwood"),
+        (4, "cores", "Singularity Core"),
+    )
+
+
+def test_every_floor_one_weapon_slot_has_a_starter_and_matching_craftable_part():
+    for weapon in WEAPON_SPECS:
+        progression = weapon.progression
+        assert len(progression.components) == 8
+        for slot in progression.slots:
+            matching = tuple(
+                component
+                for component in progression.components
+                if component.slot_id == slot.slot_id
+            )
+            starters = tuple(component for component in matching if component.is_starting)
+            craftable = tuple(component for component in matching if not component.is_starting)
+
+            assert len(starters) == 1
+            assert starters[0].component_id == slot.starting_component_id
+            assert starters[0].recipe_material_id is None
+            assert len(craftable) == 1
+            assert craftable[0].recipe_material_id == f"grade_i_{slot.material_family}"
+            assert craftable[0].recipe_cost == 1
+            assert craftable[0].crafting_award == 10
+            assert craftable[0].move_modifiers
+
+
+def test_component_move_modifiers_target_moves_of_their_weapon_wielder():
+    drifter_by_weapon = {
+        drifter.starting_weapon_id: drifter
+        for drifter in DRIFTER_SPECS
+    }
+
+    for weapon in WEAPON_SPECS:
+        drifter = drifter_by_weapon[weapon.item_id]
+        move_names = {move.name for move in drifter.combat_moves}
+        for component in weapon.progression.components:
+            assert all(
+                modifier.move_name in move_names
+                for modifier in component.move_modifiers
+            ), (weapon.item_id, component.component_id)
+
+
+def test_progression_authored_identifiers_reject_whitespace_only_values():
+    with pytest.raises(ValueError, match="slot_id"):
+        WeaponSlotSpec(" ", "Blade", "metal", "starter")
+    with pytest.raises(ValueError, match="label"):
+        WeaponSlotSpec("blade", "  ", "metal", "starter")
+    with pytest.raises(ValueError, match="recipe_id"):
+        WeaponImprovementRecipeSpec(" ", "grade_i_metal", 1, 1)
+    with pytest.raises(ValueError, match="material_id"):
+        WeaponImprovementRecipeSpec("improve", " ", 1, 1)
+    with pytest.raises(ValueError, match="item_id"):
+        DismantleSpec(" ", ("grade_i_metal",), 1)
+    with pytest.raises(ValueError, match="outputs"):
+        DismantleSpec("goblin_scrap", (" ",), 1)
+
+
+def test_progression_authored_grades_and_costs_reject_out_of_range_values():
+    with pytest.raises(ValueError, match="grade"):
+        MaterialSpec("grade_v_metal", "Impossible Metal", "metal", 5)
+    with pytest.raises(TypeError, match="grade"):
+        MaterialSpec("grade_i_metal", "Scrap metal", "metal", True)
+    with pytest.raises(ValueError, match="positive"):
+        WeaponImprovementRecipeSpec("improve", "grade_i_metal", 0, 1)
+    with pytest.raises(ValueError, match="positive"):
+        WeaponImprovementRecipeSpec("improve", "grade_i_metal", 1, 0)
+
+
+def test_progression_spec_rejects_duplicate_and_unknown_references():
+    progression = get_weapon_spec("sunder_spire").progression
+    duplicate_slot = replace(
+        progression.slots[1],
+        slot_id=progression.slots[0].slot_id,
+    )
+    with pytest.raises(ValueError, match="slot IDs must be unique"):
+        WeaponProgressionSpec(
+            slots=(progression.slots[0], duplicate_slot, *progression.slots[2:]),
+            components=progression.components,
+        )
+
+    missing_starter = replace(
+        progression.slots[0],
+        starting_component_id="missing_component",
+    )
+    with pytest.raises(ValueError, match="starting component"):
+        WeaponProgressionSpec(
+            slots=(missing_starter, *progression.slots[1:]),
+            components=progression.components,
+        )
+
+    duplicate_component = replace(
+        progression.components[1],
+        component_id=progression.components[0].component_id,
+    )
+    with pytest.raises(ValueError, match="component IDs must be unique"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=(progression.components[0], duplicate_component, *progression.components[2:]),
+        )
+
+    orphan = replace(
+        progression.components[4],
+        component_id="orphaned_component",
+        slot_id="missing_slot",
+    )
+    with pytest.raises(ValueError, match="unknown weapon slot"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=(*progression.components, orphan),
+        )
+
+
+def test_progression_spec_rejects_wrong_grade_or_family_recipe_materials():
+    progression = get_weapon_spec("sunder_spire").progression
+    craftable = progression.components[4]
+
+    with pytest.raises(ValueError, match="unknown progression material"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=(
+                *progression.components[:4],
+                replace(craftable, recipe_material_id="missing_material"),
+                *progression.components[5:],
+            ),
+        )
+
+    with pytest.raises(ValueError, match="matching Grade-I materials"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=(
+                *progression.components[:4],
+                replace(craftable, recipe_material_id="grade_i_fiber"),
+                *progression.components[5:],
+            ),
+        )
+
+
+def test_component_definitions_reject_invalid_costs_identities_and_modifiers():
+    progression = get_weapon_spec("sunder_spire").progression
+    craftable = progression.components[4]
+
+    with pytest.raises(ValueError, match="must not be negative"):
+        replace(craftable, recipe_cost=-1)
+    with pytest.raises(ValueError, match="physical identity contribution"):
+        replace(craftable, physical_identity="Unknown")
+    with pytest.raises(TypeError, match="move_modifiers"):
+        replace(craftable, move_modifiers=(object(),))
+    with pytest.raises(TypeError, match="power_delta"):
+        ComponentMoveModifierSpec("Crestgrave Reaping", power_delta=True)
+    with pytest.raises(ValueError, match="damage_type"):
+        ComponentMoveModifierSpec(
+            "Crestgrave Reaping",
+            power_delta=1,
+            damage_type="lightning",
+        )
+    with pytest.raises(ValueError, match="must change a move"):
+        ComponentMoveModifierSpec("Crestgrave Reaping")
+
+
+def test_material_and_dismantle_definitions_reject_malformed_quantities():
+    with pytest.raises(ValueError, match="grade must be between"):
+        MaterialSpec("grade_zero_metal", "Invalid Metal", "metal", 0)
+    with pytest.raises(ValueError, match="maximum_yield"):
+        DismantleSpec("goblin_scrap", ("grade_i_metal",), 0)
+    with pytest.raises(ValueError, match="maximum_yield"):
+        DismantleSpec("goblin_scrap", ("grade_i_metal",), 6)
+    with pytest.raises(TypeError, match="maximum_yield"):
+        DismantleSpec("goblin_scrap", ("grade_i_metal",), True)

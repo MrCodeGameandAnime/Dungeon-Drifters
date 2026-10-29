@@ -173,12 +173,17 @@ def _enemy_template(content_id):
     )
 
 
-def _weapon_template(content_id):
+def _weapon_template(content_id, *, wielder_id):
     return dedent(
         f'''\
         """Authored {_title(content_id)} weapon content."""
 
         from app.content.weapon_spec import WeaponSpec
+        from app.content.weapon_progression_spec import (
+            WeaponComponentSpec,
+            WeaponProgressionSpec,
+            WeaponSlotSpec,
+        )
 
 
         WEAPON = WeaponSpec(
@@ -186,10 +191,33 @@ def _weapon_template(content_id):
             persistence_key="{_persistence_key(content_id)}",  # {TODO_MARKER}
             name="{_title(content_id)}",  # {TODO_MARKER}
             weapon_type="Placeholder Weapon",  # {TODO_MARKER}
-            intended_wielder="Unassigned",  # {TODO_MARKER}
-            stat_bonuses={{}},  # {TODO_MARKER}
+            intended_wielder="{_title(wielder_id)}",  # {TODO_MARKER}
+            stat_bonuses={{
+                "strength": 0,
+                "constitution": 0,
+                "dexterity": 0,
+                "intuition": 0,
+            }},  # {TODO_MARKER}
             value=0,  # {TODO_MARKER}
             description="Replace this placeholder weapon description.",  # {TODO_MARKER}
+            progression=WeaponProgressionSpec(
+                slots=(
+                    WeaponSlotSpec("metal", "Metal part", "metal", "{content_id}_metal", governed_stats=("strength",)),
+                    WeaponSlotSpec("fiber", "Fiber part", "fiber", "{content_id}_fiber", governed_stats=("constitution",)),
+                    WeaponSlotSpec("timber", "Timber part", "timber", "{content_id}_timber", governed_stats=("dexterity",)),
+                    WeaponSlotSpec("cores", "Core", "cores", "{content_id}_core", governed_stats=("intuition",)),
+                ),
+                components=(
+                    WeaponComponentSpec("{content_id}_metal", "Starting metal part", "metal", is_starting=True),
+                    WeaponComponentSpec("{content_id}_metal_recipe", "Crafted metal part", "metal", recipe_material_id="grade_i_metal", recipe_cost=1, crafting_award=10),
+                    WeaponComponentSpec("{content_id}_fiber", "Starting fiber part", "fiber", is_starting=True),
+                    WeaponComponentSpec("{content_id}_fiber_recipe", "Crafted fiber part", "fiber", recipe_material_id="grade_i_fiber", recipe_cost=1, crafting_award=10),
+                    WeaponComponentSpec("{content_id}_timber", "Starting timber part", "timber", is_starting=True),
+                    WeaponComponentSpec("{content_id}_timber_recipe", "Crafted timber part", "timber", recipe_material_id="grade_i_timber", recipe_cost=1, crafting_award=10),
+                    WeaponComponentSpec("{content_id}_core", "Starting core", "cores", is_starting=True),
+                    WeaponComponentSpec("{content_id}_core_recipe", "Crafted core", "cores", recipe_material_id="grade_i_cores", recipe_cost=1, crafting_award=10),
+                ),
+            ),
         )
 
 
@@ -394,7 +422,10 @@ def scaffold_content(content_type, content_id, *, root=ROOT):
     if content_type == "enemy":
         source = _enemy_template(content_id)
     elif content_type == "weapon":
-        source = _weapon_template(content_id)
+        source = _weapon_template(
+            content_id,
+            wielder_id=_first_existing_id(root, "drifter", "drifter_id"),
+        )
     elif content_type == "drifter":
         source = _drifter_template(
             content_id,

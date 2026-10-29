@@ -91,10 +91,30 @@ def test_shell_contains_operational_view_regions_and_controls():
         "moves",
         "targets",
         "inventory",
-        "completion",
         "restart",
     ):
         assert f'id="{element_id}"' in html
+    assert 'id="completion"' not in html
+
+
+def test_hub_renderer_exposes_shared_balance_and_authoritative_party_phases():
+    html = _read("index.html")
+    javascript = _read("js/pyd4.js")
+
+    for element_id in (
+        "hub-shared-gold",
+        "companion-selection",
+        "companion-funds",
+        "companion-choices",
+        "party-panel",
+        "party-members",
+        "extraction-rewards",
+    ):
+        assert f'id="{element_id}"' in html
+
+    assert "view.shared_gold" in javascript
+    assert 'view.screen === "extraction"' in javascript
+    assert 'kind: "companion"' in javascript
 
 
 def test_battle_shell_uses_terminal_information_order():

@@ -11,10 +11,15 @@ import pytest
 
 from app.combat.move import MoveKind
 from app.combat.resolver import authored_move_rejection_reason
-from app.content.catalog import DRIFTER_SPECS, ENEMY_SPECS
+from app.content.catalog import DRIFTER_SPECS, ENEMY_SPECS, WEAPON_SPECS
+from app.content.weapon_progression_spec import ComponentMoveModifierSpec
 from tools import scaffold_content as scaffolder
 from tools.generate_content_catalog import render_discovered_catalog
-from tools.validate_content import TODO_MARKER, validate_content
+from tools.validate_content import (
+    TODO_MARKER,
+    _validate_references_and_factories,
+    validate_content,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -207,9 +212,47 @@ def test_builtin_validation_is_read_only_and_has_no_todo_markers():
         "enemy": 5,
         "weapon": 4,
         "drifter": 4,
-        "encounter": 8,
-        "route": 1,
+        "encounter": 10,
+        "route": 2,
     }
+
+
+def test_weapon_progression_content_validation_rejects_unknown_wielder_move():
+    weapon = next(spec for spec in WEAPON_SPECS if spec.item_id == "sunder_spire")
+    component = weapon.progression.components[4]
+    bad_component = replace(
+        component,
+        move_modifiers=(ComponentMoveModifierSpec("Not a Branoc move", 1),),
+    )
+    progression = replace(
+        weapon.progression,
+        components=tuple(
+            bad_component if candidate is component else candidate
+            for candidate in weapon.progression.components
+        ),
+    )
+    records = {
+        "enemy": [],
+        "weapon": [
+            (
+                "sunder_spire",
+                replace(weapon, progression=progression),
+                Path("sunder_spire/weapon.py"),
+            )
+        ],
+        "drifter": [
+            ("branoc", spec, Path("branoc/drifter.py"))
+            for spec in DRIFTER_SPECS
+            if spec.starting_weapon_id == "sunder_spire"
+        ],
+        "encounter": [],
+        "route": [],
+    }
+    errors = []
+
+    _validate_references_and_factories(records, errors)
+
+    assert any("Not a Branoc move" in error for error in errors)
 
 
 def test_todo_marker_is_actionable_and_removed_content_is_clear(tmp_path):

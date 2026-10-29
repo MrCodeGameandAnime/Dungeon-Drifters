@@ -46,6 +46,8 @@ EXPECTED_WEAPON_IDS = (
 )
 EXPECTED_DRIFTER_IDS = ("azhvielle", "branoc", "joruun", "zhaivra")
 EXPECTED_ENCOUNTER_IDS = (
+    "dungeon_goblin_quad",
+    "dungeon_goblin_trio",
     "surface_elite_patrol",
     "surface_goblin_lord",
     "surface_goblin_pair",
@@ -55,7 +57,7 @@ EXPECTED_ENCOUNTER_IDS = (
     "surface_warrior_pair",
     "surface_warrior_solo",
 )
-EXPECTED_ROUTE_IDS = ("surface",)
+EXPECTED_ROUTE_IDS = ("floor_one", "surface")
 
 
 def sample_move(name="Test Strike"):

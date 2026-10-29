@@ -134,6 +134,8 @@ def _state_at_node(profile_choice, target_node_id, *, begin_route=True):
             next_node.node_id,
             contextual_phase=_phase_for(next_node.kind),
         )
+    if target_node_id == "surface_dungeon_entrance":
+        assert game.party_state.arrive_at_hub(game.player_state)
     return game
 
 
@@ -212,6 +214,7 @@ def test_all_drifters_round_trip_complete_persistent_session(profile, tmp_path):
         "_story_state",
         "_world_state",
         "_overworld_state",
+        "_party_state",
         "_metadata",
     }
     assert all(
@@ -409,7 +412,9 @@ def test_split_campaign_saves_quits_restarts_loads_and_finishes_route(tmp_path, 
     assert final_game.player_state.level_state.current == 9
     assert final_game.player_state.exp_state.current == 68
     assert final_game.player_state.growth_points == 24
-    assert final_game.player_state.gold == 75
+    assert final_game.player_state.gold == 0
+    assert final_game.party_state.shared_gold == 75
+    assert final_game.party_state.phase.value == "hub"
     assert final_game.world_state.defeated_encounters == (
         "surface_goblin_solo",
         "surface_goblin_pair",

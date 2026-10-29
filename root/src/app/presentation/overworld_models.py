@@ -6,10 +6,17 @@ from enum import StrEnum
 
 class OverworldScreen(StrEnum):
     MAIN = "main"
+    HUB = "hub"
+    FLOOR_ONE_WARNING = "floor_one_warning"
+    COMPANION_SELECTION = "companion_selection"
+    PARTY_READY = "party_ready"
+    OUTING = "outing"
+    EXTRACTION = "extraction"
     CHARACTER = "character"
     SKILLS = "skills"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    MERCHANT = "merchant"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     MAP = "map"
@@ -28,6 +35,7 @@ class OverworldAction(StrEnum):
     SKILLS = "skills"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    MERCHANT = "merchant"
     CRAFT = "craft"
     INSPECT = "inspect"
     USE = "use"
@@ -42,6 +50,12 @@ class OverworldAction(StrEnum):
     REST = "rest"
     SKIP_REST = "skip_rest"
     MENU = "menu"
+    RECRUIT_COMPANION = "recruit_companion"
+    READY = "ready"
+    RETURN_TO_HUB = "return_to_hub"
+    START_FLOOR_ONE = "start_floor_one"
+    SET_OUT = "set_out"
+    EXTRACT = "extract"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -54,6 +68,32 @@ class OverworldAvailabilityReason(StrEnum):
     ENCOUNTER_INSPECTION_UNAVAILABLE = "encounter_inspection_unavailable"
     SAVE_UNAVAILABLE = "save_unavailable"
     LOAD_UNAVAILABLE = "load_unavailable"
+    INSUFFICIENT_SHARED_GOLD = "insufficient_shared_gold"
+
+
+@dataclass(frozen=True)
+class CompanionChoiceView:
+    drifter_id: str
+    display_name: str
+    archetype_label: str
+    summary: str
+    cost: int
+    enabled: bool
+    disabled_reason: OverworldAvailabilityReason | None = None
+
+    def __post_init__(self):
+        for name in ("drifter_id", "display_name", "archetype_label", "summary"):
+            _validate_text(name, getattr(self, name))
+        _validate_nonnegative("cost", self.cost)
+        _validate_bool("enabled", self.enabled)
+        if self.disabled_reason is not None:
+            object.__setattr__(
+                self,
+                "disabled_reason",
+                OverworldAvailabilityReason(self.disabled_reason),
+            )
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("companion availability and disabled reason disagree")
 
 
 class MapNodeState(StrEnum):
@@ -129,11 +169,16 @@ class CharacterOverviewView:
     mana_maximum: int
     super_current: int
     super_maximum: int
+    targets: tuple = ()
+    selected_target_id: str | None = None
 
     def __post_init__(self):
         _validate_text("display_name", self.display_name)
         _validate_text("archetype_label", self.archetype_label)
         _validate_instance_tuple("stats", self.stats, StatRowView)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        if self.targets:
+            _validate_selected_target(self.targets, self.selected_target_id)
         for name in (
             "level",
             "exp_current",
@@ -156,10 +201,23 @@ class CharacterOverviewView:
 class SkillMoveView:
     name: str
     description: str
+    power: int | None = None
+    accuracy: int | None = None
+    resource_type: str | None = None
+    resource_cost: int | None = None
+    damage_type: str | None = None
 
     def __post_init__(self):
         _validate_text("name", self.name)
         _validate_text("description", self.description)
+        for name in ("power", "accuracy", "resource_cost"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_nonnegative(name, value)
+        for name in ("resource_type", "damage_type"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
 
 
 @dataclass(frozen=True)
@@ -168,6 +226,8 @@ class SkillsView:
     growth_message: str
     stats: tuple[StatRowView, ...]
     moves: tuple[SkillMoveView, ...]
+    targets: tuple = ()
+    selected_target_id: str | None = None
 
     def __post_init__(self):
         if self.growth_points_available is not None:
@@ -178,6 +238,9 @@ class SkillsView:
         _validate_text("growth_message", self.growth_message)
         _validate_instance_tuple("stats", self.stats, StatRowView)
         _validate_instance_tuple("moves", self.moves, SkillMoveView)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        if self.targets:
+            _validate_selected_target(self.targets, self.selected_target_id)
 
 
 @dataclass(frozen=True)
@@ -197,11 +260,250 @@ class WeaponView:
     intended_wielder: str
     bonuses: tuple[StatBonusView, ...]
     description: str
+    targets: tuple
+    selected_target_id: str
+    components: tuple
+    physical_identity: str | None
+    mystical_identity: str | None
 
     def __post_init__(self):
         for name in ("name", "weapon_type", "intended_wielder", "description"):
             _validate_text(name, getattr(self, name))
         _validate_instance_tuple("bonuses", self.bonuses, StatBonusView)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_text("selected_target_id", self.selected_target_id)
+        _validate_instance_tuple("components", self.components, WeaponComponentSlotView)
+        if len(self.components) != 4:
+            raise ValueError("weapon view must contain four component slots")
+        for name in ("physical_identity", "mystical_identity"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
+        if not any(
+            target.drifter_id == self.selected_target_id and target.selected
+            for target in self.targets
+        ):
+            raise ValueError("weapon target must be present and selected")
+
+
+@dataclass(frozen=True)
+class WeaponComponentSlotView:
+    slot_id: str
+    label: str
+    installed_component_id: str
+    installed_component_name: str
+    installed_effect_summary: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        for name in (
+            "slot_id",
+            "label",
+            "installed_component_id",
+            "installed_component_name",
+        ):
+            _validate_text(name, getattr(self, name))
+        _validate_text_tuple("installed_effect_summary", self.installed_effect_summary)
+
+
+@dataclass(frozen=True)
+class MerchantTargetView:
+    drifter_id: str
+    display_name: str
+    selected: bool
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("selected", self.selected)
+
+
+@dataclass(frozen=True)
+class MerchantMaterialView:
+    item_id: str
+    display_name: str
+    quantity: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("quantity", self.quantity)
+
+
+@dataclass(frozen=True)
+class MerchantSlotView:
+    slot_id: str
+    label: str
+    material_family: str
+    progress: int
+    material_id: str
+    material_name: str
+    material_cost: int
+    material_quantity: int
+    can_improve: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        for name in (
+            "slot_id",
+            "label",
+            "material_family",
+            "material_id",
+            "material_name",
+        ):
+            _validate_text(name, getattr(self, name))
+        for name in ("progress", "material_cost", "material_quantity"):
+            _validate_nonnegative(name, getattr(self, name))
+        if self.progress > 100:
+            raise ValueError("progress must not exceed 100")
+        _validate_bool("can_improve", self.can_improve)
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.can_improve == (self.blocked_reason is not None):
+            raise ValueError("improvement availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class MerchantDismantleView:
+    item_id: str
+    display_name: str
+    quantity: int
+    output_material_names: tuple[str, ...]
+    maximum_yield: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("quantity", self.quantity)
+        if self.quantity <= 0:
+            raise ValueError("dismantle quantity must be positive")
+        _validate_text_tuple("output_material_names", self.output_material_names)
+        _validate_nonnegative("maximum_yield", self.maximum_yield)
+        if self.maximum_yield <= 0:
+            raise ValueError("maximum_yield must be positive")
+
+
+@dataclass(frozen=True)
+class MerchantComponentRecipeView:
+    component_id: str
+    display_name: str
+    slot_id: str
+    slot_label: str
+    material_name: str
+    material_cost: int
+    material_quantity: int
+    crafting_award: int
+    can_craft: bool
+    effect_summary: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        for name in (
+            "component_id",
+            "display_name",
+            "slot_id",
+            "slot_label",
+            "material_name",
+        ):
+            _validate_text(name, getattr(self, name))
+        for name in ("material_cost", "material_quantity", "crafting_award"):
+            _validate_nonnegative(name, getattr(self, name))
+        if not self.material_cost or not self.crafting_award:
+            raise ValueError("component recipes require positive costs and awards")
+        _validate_bool("can_craft", self.can_craft)
+        _validate_text_tuple("effect_summary", self.effect_summary)
+        if self.can_craft != (self.material_quantity >= self.material_cost):
+            raise ValueError("component recipe availability disagrees with stock")
+
+
+@dataclass(frozen=True)
+class MerchantTierVMaterialView:
+    item_id: str
+    display_name: str
+    required: int
+    available: int
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("required", self.required)
+        _validate_nonnegative("available", self.available)
+        if self.required < 1:
+            raise ValueError("Tier V material requirements must be positive")
+
+
+@dataclass(frozen=True)
+class MerchantTierVView:
+    success_chance_percent: int
+    materials: tuple[MerchantTierVMaterialView, ...]
+    can_attempt: bool
+    completed: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        _validate_nonnegative("success_chance_percent", self.success_chance_percent)
+        if not 1 <= self.success_chance_percent <= 99:
+            raise ValueError("Tier V chance must be between 1 and 99")
+        _validate_instance_tuple(
+            "materials",
+            self.materials,
+            MerchantTierVMaterialView,
+        )
+        _validate_bool("can_attempt", self.can_attempt)
+        _validate_bool("completed", self.completed)
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.completed and (self.can_attempt or self.blocked_reason is not None):
+            raise ValueError("completed Tier V cannot be attempted or blocked")
+        if self.can_attempt and (self.completed or self.blocked_reason is not None):
+            raise ValueError("Tier V availability and status disagree")
+        if not self.completed and not self.can_attempt and self.blocked_reason is None:
+            raise ValueError("unavailable Tier V requires a reason")
+
+
+@dataclass(frozen=True)
+class MerchantView:
+    crafting_level: int
+    crafting_experience: int
+    targets: tuple[MerchantTargetView, ...]
+    selected_target_id: str
+    weapon_name: str
+    slots: tuple[MerchantSlotView, ...]
+    materials: tuple[MerchantMaterialView, ...]
+    dismantle_items: tuple[MerchantDismantleView, ...]
+    component_recipes: tuple[MerchantComponentRecipeView, ...]
+    tier_v: MerchantTierVView
+
+    def __post_init__(self):
+        _validate_nonnegative("crafting_level", self.crafting_level)
+        _validate_nonnegative("crafting_experience", self.crafting_experience)
+        _validate_text("selected_target_id", self.selected_target_id)
+        _validate_text("weapon_name", self.weapon_name)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_instance_tuple("slots", self.slots, MerchantSlotView)
+        _validate_instance_tuple("materials", self.materials, MerchantMaterialView)
+        _validate_instance_tuple(
+            "dismantle_items",
+            self.dismantle_items,
+            MerchantDismantleView,
+        )
+        _validate_instance_tuple(
+            "component_recipes",
+            self.component_recipes,
+            MerchantComponentRecipeView,
+        )
+        if not isinstance(self.tier_v, MerchantTierVView):
+            raise TypeError("tier_v must be a MerchantTierVView")
+        if not any(
+            target.drifter_id == self.selected_target_id and target.selected
+            for target in self.targets
+        ):
+            raise ValueError("selected target must be present and selected")
+        if any(
+            target.selected != (target.drifter_id == self.selected_target_id)
+            for target in self.targets
+        ):
+            raise ValueError("exactly the selected target must be marked selected")
+        if len(self.slots) != 4:
+            raise ValueError("merchant weapon view must contain four slots")
 
 
 @dataclass(frozen=True)
@@ -219,6 +521,8 @@ class EquipmentView:
     necklace: AccessorySlotView
     ring: AccessorySlotView
     benefits: tuple[str, ...]
+    targets: tuple = ()
+    selected_target_id: str | None = None
 
     def __post_init__(self):
         if not isinstance(self.necklace, AccessorySlotView):
@@ -226,6 +530,9 @@ class EquipmentView:
         if not isinstance(self.ring, AccessorySlotView):
             raise TypeError("ring must be an AccessorySlotView")
         _validate_text_tuple("benefits", self.benefits)
+        _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        if self.targets:
+            _validate_selected_target(self.targets, self.selected_target_id)
 
 
 @dataclass(frozen=True)
@@ -259,6 +566,34 @@ class InventoryView:
             OverworldItemView,
         ):
             raise TypeError("inspected_item must be an OverworldItemView")
+
+
+@dataclass(frozen=True)
+class OutingItemRewardView:
+    item_id: str
+    quantity: int
+    display_name: str | None = None
+
+    def __post_init__(self):
+        _validate_text("item_id", self.item_id)
+        if self.display_name is not None:
+            _validate_text("display_name", self.display_name)
+        if isinstance(self.quantity, bool) or not isinstance(self.quantity, int):
+            raise TypeError("quantity must be an integer")
+        if self.quantity <= 0:
+            raise ValueError("quantity must be positive")
+
+
+@dataclass(frozen=True)
+class OutingRewardsView:
+    experience: int
+    gold: int
+    items: tuple[OutingItemRewardView, ...] = ()
+
+    def __post_init__(self):
+        _validate_nonnegative("experience", self.experience)
+        _validate_nonnegative("gold", self.gold)
+        _validate_instance_tuple("items", self.items, OutingItemRewardView)
 
 
 @dataclass(frozen=True)
@@ -306,16 +641,26 @@ class OverworldView:
     character: CharacterOverviewView | None = None
     skills: SkillsView | None = None
     weapon: WeaponView | None = None
+    merchant: MerchantView | None = None
     equipment: EquipmentView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
+    companion_choices: tuple[CompanionChoiceView, ...] = ()
+    shared_gold: int | None = None
+    recruitment_cost: int | None = None
+    outing_rewards: OutingRewardsView | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
         _validate_text("location_label", self.location_label)
         _validate_text("adventure_text", self.adventure_text)
         _validate_instance_tuple("options", self.options, OverworldOptionView)
+        _validate_instance_tuple(
+            "companion_choices",
+            self.companion_choices,
+            CompanionChoiceView,
+        )
         if any(
             option.action in {
                 OverworldAction.ENTER_ENCOUNTER,
@@ -347,10 +692,33 @@ class OverworldView:
                 raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)
+        if self.shared_gold is not None:
+            _validate_nonnegative("shared_gold", self.shared_gold)
+        if self.recruitment_cost is not None:
+            _validate_nonnegative("recruitment_cost", self.recruitment_cost)
+        if self.outing_rewards is not None and not isinstance(
+            self.outing_rewards,
+            OutingRewardsView,
+        ):
+            raise TypeError("outing_rewards must be an OutingRewardsView")
+        if (self.screen is OverworldScreen.EXTRACTION) != (
+            self.outing_rewards is not None
+        ):
+            raise ValueError("pending outing rewards belong only to Extraction")
+        if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
+            raise ValueError("merchant data belongs only to the Merchant screen")
+        if self.screen is OverworldScreen.COMPANION_SELECTION:
+            if len(self.companion_choices) != 3:
+                raise ValueError("companion selection must offer three choices")
+            if self.shared_gold is None or self.recruitment_cost is None:
+                raise ValueError("companion selection must show shared gold and cost")
+        elif self.companion_choices:
+            raise ValueError("companion choices are only valid on their selection screen")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),
             ("weapon", WeaponView),
+            ("merchant", MerchantView),
             ("equipment", EquipmentView),
             ("inventory", InventoryView),
             ("route_map", MapView),
@@ -383,6 +751,14 @@ def _validate_instance_tuple(name, values, expected_type):
         raise TypeError(f"{name} must be a tuple")
     if not all(isinstance(value, expected_type) for value in values):
         raise TypeError(f"{name} must contain {expected_type.__name__} values")
+
+
+def _validate_selected_target(targets, selected_target_id):
+    _validate_text("selected_target_id", selected_target_id)
+    if not any(target.drifter_id == selected_target_id for target in targets):
+        raise ValueError("selected target must be present")
+    if any(target.selected != (target.drifter_id == selected_target_id) for target in targets):
+        raise ValueError("exactly the selected target must be marked selected")
 
 
 def _validate_text_tuple(name, values):

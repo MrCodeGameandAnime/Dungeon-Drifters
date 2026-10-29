@@ -25,6 +25,10 @@ def restart_game_json():
     return _json(dd_bridge.restart_game())
 
 
+def load_scenario_json(code):
+    return _json(dd_bridge.load_scenario(code))
+
+
 def drifter_roster_json():
     return _json(dd_bridge.drifter_roster())
 

@@ -47,9 +47,13 @@ def test_pyd2_contains_the_exact_authored_route_oracle():
     assert "EXPECTED_BATTLE_COUNT = 8" in boot
     assert "EXPECTED_ENEMY_COUNT = 14" in boot
     assert '"surface_dungeon_entrance"' in boot
+    qualification_js = (ROOT / "web" / "qualification" / "js" / "pyd2.js").read_text()
+    assert "Hub: ${result.hub_screen}" in qualification_js
+    assert "Tutorial: ${result.tutorial_party_size} Drifters" in qualification_js
+    assert "Extraction: ${result.lead_tutorial_exp} EXP each" in qualification_js
 
 
-def test_pyd2_uses_real_session_and_probe_only_determinism():
+def test_pyd2_uses_real_session_and_ephemeral_save_port():
     boot = BOOT_PATH.read_text()
 
     for required in (
@@ -62,9 +66,14 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
         "ChooseAction",
         "ChooseMove",
         "ChooseTarget",
-        "save_port=None",
+        "ChooseCompanion",
+        "class QualificationSavePort",
+        "save_port=save_port",
+        "save_port.saved_states[4] is not game",
         "InteractionPhase.COMPLETE",
         "dungeon_entrance_reached",
+        "OverworldScreen.HUB",
+        "OverworldAction.RETURN_TO_HUB",
     ):
         assert required in boot
 
@@ -73,7 +82,7 @@ def test_pyd2_uses_real_session_and_probe_only_determinism():
     assert "tempfile" not in boot
 
 
-def test_pyd2_qualification_executes_the_full_route_without_persistence():
+def test_pyd2_qualification_executes_floor_one_with_ephemeral_persistence():
     namespace = runpy.run_path(str(BOOT_PATH))
 
     result = json.loads(namespace["boot"]())
@@ -91,6 +100,21 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
             "exp",
             "growth_points",
             "gold",
+            "hub_screen",
+            "tutorial_party_size",
+            "tutorial_enemy_count",
+            "secured_gold",
+            "lead_tutorial_exp",
+            "companion_tutorial_exp",
+            "floor_one_battles",
+            "floor_one_xp_each",
+            "floor_one_shared_gold",
+            "floor_one_cleared",
+            "floor_one_replay_rate",
+            "floor_one_replay_extract_xp",
+            "floor_one_replay_extract_gold",
+            "floor_one_replay_secured_gold",
+            "floor_one_replay_runs",
         )
     } == {
         "route_nodes": 12,
@@ -103,6 +127,21 @@ def test_pyd2_qualification_executes_the_full_route_without_persistence():
         "exp": 68,
         "growth_points": 24,
         "gold": 75,
+        "hub_screen": "hub",
+        "tutorial_party_size": 2,
+        "tutorial_enemy_count": 3,
+        "secured_gold": 19,
+        "lead_tutorial_exp": 60,
+        "companion_tutorial_exp": 60,
+        "floor_one_battles": 10,
+        "floor_one_xp_each": 670,
+        "floor_one_shared_gold": 115,
+        "floor_one_cleared": True,
+        "floor_one_replay_rate": 50,
+        "floor_one_replay_extract_xp": 140,
+        "floor_one_replay_extract_gold": 21,
+        "floor_one_replay_secured_gold": 136,
+        "floor_one_replay_runs": 1,
     }
 
 

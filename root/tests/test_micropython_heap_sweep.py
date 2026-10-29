@@ -35,6 +35,7 @@ def _successful_output():
     lines.extend("MYP|ROUTE|%s|PASS" % node for node in ROUTE_NODES)
     lines.extend(
         (
+            "MYP|FLOOR_ONE_FINAL_STATE|PASS",
             "MYP|ROUTE_FINAL_STATE|PASS",
             "MYP|MEMORY|ROUTE_FINAL_STATE|AFTER|FREE|620512|ALLOC|404000",
             "MYP|ROUTE_EVIDENCE_RELEASE|PASS",
@@ -91,6 +92,22 @@ def test_successful_output_parses_route_and_memory_evidence():
     assert result.evidence_release_alloc == 300000
     assert result.teardown_free == 710000
     assert result.teardown_alloc == 200000
+
+
+def test_output_without_floor_one_final_state_is_not_a_complete_probe():
+    _load_tool()
+
+    output = _successful_output().replace(
+        "MYP|FLOOR_ONE_FINAL_STATE|PASS\n", ""
+    )
+    result = heap_sweep.parse_probe_output(
+        output,
+        requested_heap_kib=1024,
+        returncode=0,
+    )
+
+    assert result.classification == "UNEXPECTED_FAILURE"
+    assert result.complete is False
 
 
 def test_route_memory_error_is_classified_and_preserves_frontier():

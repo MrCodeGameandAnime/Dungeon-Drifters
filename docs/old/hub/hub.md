@@ -1,6 +1,6 @@
 # Hub and First Dungeon Loop Plan
 
-**Status:** Design draft for review. No gameplay implementation is included here.
+**Status: Complete for the first Hub and Floor I loop.** The safe tutorial outing and the dangerous, repeatable Floor I run are implemented; see [hub-implementation.md](hub-implementation.md) and [floor-one-implementation.md](floor-one-implementation.md). Floor II content and starting runs from Floor II remain future work.
 
 ## Goal
 
@@ -47,38 +47,26 @@ When Dexterity changes mid-round, immediately recalculate the relative order of 
 
 The first outing is the safe introduction: a successful return to the hub secures the outing's rewards.
 
-Before a later outing begins, show a warning that death forfeits that outing's unbanked gold, items, and XP. Death returns the player to the hub with the party's HP and Mana fully restored; it does not offer a retry, rewind, or continuation of the failed outing. Rewards already secured at the hub remain available. The player can prepare and start another outing from there.
+Before a dangerous Floor I outing begins, the game displays: "Death means returning to the Hub. All unsecured XP, gold, and items are lost. No retry, rewind, or continue." Defeat returns the party to the Hub with HP and Mana fully restored, discards unsecured rewards, and preserves rewards already secured at the Hub. The player can prepare and start another outing from there.
 
-The first slice should make the successful return, fully restored HP and Mana, and retained rewards clear. If the party loses the first safe tutorial fight, return to Drifter selection and let the player start the tutorial again; this tutorial reset is the exception to the later-outing death return to hub. Exact warning copy remains to be written.
+The safe tutorial outing secures rewards when the party returns to the Hub. If the party loses the first tutorial fight, it returns to Drifter selection so the player can try again; this tutorial reset is the exception to the dangerous-run death return to the Hub.
 
 On successful return, XP is awarded as normal and split 50/50 between the two Drifters. Gold and items are retained in a shared general inventory, available for use, procurement, crafting, and assignment as the player chooses.
 
-## Follow-On Progression Rules
+## Floor I Follow-On Rules
 
-These are agreed direction for later dungeon progression, but are not required to complete the first three-Goblin extraction slice:
+The dangerous Floor I extension is specified in [floor-one.md](floor-one.md) and implemented in [floor-one-implementation.md](floor-one-implementation.md). Its rest, extraction, death, boss-clear, and replay rules are part of the completed Floor I scope. The following boundary remains:
 
-- Progress to the next floor only by clearing the current floor's boss.
-- After clearing Floor 1's boss, the player may start a later run from Floor 1 or Floor 2.
-- On repeat runs of a previously cleared floor, XP is reduced per run: 50%, 40%, 30%, then 20% for subsequent runs. This reduction applies to XP; no equivalent reduction to gold or items has been decided.
-- Rests can appear along the route, as they do above ground.
+- A Floor 1 boss clear is recorded. Using it to unlock the future Floor II route remains future work; Floor II content and the option to start a run from Floor II are not implemented yet.
+- Floor I replay XP uses the implemented 50%, 40%, 30%, then 20% rates. Replay gold is not reduced, and rest extraction retains all run items while paying half of adjusted XP and gold.
+- Floor I has two Rest nodes, each supporting recovery, inspection, saving, continuing, and extraction.
 
 ## Scope Boundaries
 
-This plan covers the first hub visit, first companion recruitment, two-Drifter party combat, one three-Goblin encounter, and the successful return that secures rewards. It does not design the complete shop or supply economy, all hub services, a floor boss, Floor 2 content, four-character expedition assignments, or the full long-term extraction economy.
+The original tutorial scope here covers the first Hub visit, first companion recruitment, two-Drifter party combat, one three-Goblin encounter, and the successful return that secures rewards. The dangerous Floor I extension is documented separately. Floor II content, full-roster management, four-character expedition assignments, and the complete long-term Hub economy remain outside this completed scope.
 
 Core gameplay state and rules remain owned by the game, not by a browser presentation layer. Preserve the existing save architecture; add only the versioned save data and migration needed to retain the recruited party and secured progression. Do not redesign persistence or change unrelated platform architecture.
 
-## Proposed Delivery Order
+## Completion
 
-1. Define the hub arrival, recruitment, ready-up, and return choices using the existing game/session boundaries.
-2. Represent the two-Drifter active party and resolve an encounter with three Goblins.
-3. Implement shared Dexterity-based turn ordering, immediately reordering unacted combatants after Dexterity changes and using a 50/50 random tie-break for equal Dexterity.
-4. Add the successful fallback transition and secure the first outing's rewards at the hub.
-5. Add the pre-outing risk warning and death-to-hub loss behavior for subsequent outings.
-6. Add focused tests for the tutorial loop, turn order, reward retention, and subsequent-run failure behavior before qualifying the broader suite.
-
-This is a feature sequence, not yet a file-by-file implementation plan. Implementation planning should follow once the open combat and onboarding decisions are resolved and this design is approved.
-
-## Remaining Decisions Before Implementation
-
-- What exact copy explains the later-run extraction risk?
+The first Hub tutorial loop and the dangerous Floor I run described by this document and its linked Floor I design are implemented. Their implementation plans record the completed work and verification. Floor II progression, roster expansion, expeditions, and the broader Hub economy remain future work and are not blockers for this scope.

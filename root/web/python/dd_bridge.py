@@ -3,12 +3,26 @@
 import json
 from dataclasses import fields, is_dataclass
 from enum import Enum
+from uuid import UUID
 
 from app.combat.battle import Battle
 from app.content.catalog import DRIFTER_SPECS, create_enemy_state
+from app.game.browser_test_scenarios import build_browser_test_scenario
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.player.run_items import InventoryCommand
+from app.persistence.coordinator import SaveCoordinator
+from app.persistence.envelope import (
+    ProfileEnvelope,
+    SyncState,
+    parse_profile_envelope,
+    serialize_profile_envelope,
+)
+from app.persistence.ports import (
+    ProfileStoreError,
+    ProfileStoreResult,
+    ProfileStoreStatus,
+)
 from app.ui.battle_ui import (
     ChooseAction,
     ChooseInventoryCommand,
@@ -20,9 +34,17 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.overworld_ui import (
+    ChooseCompanion,
+    ChooseCharacterTarget,
+    ChooseMerchantCraftComponent,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
+    ChooseMerchantTierV,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponTarget,
 )
 
 
@@ -32,6 +54,120 @@ _DRIFTER_SPRITE_URLS = {
     "zhaivra": "assets/drifters/zhaivra.png",
     "joruun": "assets/drifters/joruun.png",
 }
+_BROWSER_PROFILE_ID = UUID("d4d4d4d4-0000-4000-8000-000000000001")
+_BROWSER_PROFILE_KEY = "dungeon-drifters.profile.v1." + str(_BROWSER_PROFILE_ID)
+
+
+def _is_missing_storage_value(value):
+    if value is None:
+        return True
+    try:
+        from pyodide.ffi import jsnull
+    except ImportError:
+        return False
+    return value is jsnull
+
+
+class BrowserLocalProfileStore:
+    """Store the canonical local profile envelope in browser localStorage."""
+
+    def __init__(self, storage):
+        self._storage = storage
+
+    def inspect(self, profile_id):
+        result = self.load(profile_id)
+        if result.status is ProfileStoreStatus.VALID:
+            return ProfileStoreResult(status=ProfileStoreStatus.VALID)
+        return result
+
+    def load(self, profile_id):
+        if profile_id != _BROWSER_PROFILE_ID:
+            return ProfileStoreResult(status=ProfileStoreStatus.MISSING)
+        try:
+            encoded = self._storage.getItem(_BROWSER_PROFILE_KEY)
+        except Exception:
+            return ProfileStoreResult(
+                status=ProfileStoreStatus.INVALID,
+                error="The browser save could not be read.",
+            )
+        if _is_missing_storage_value(encoded):
+            return ProfileStoreResult(status=ProfileStoreStatus.MISSING)
+        try:
+            envelope = parse_profile_envelope(str(encoded).encode("utf-8"))
+        except (TypeError, ValueError):
+            return ProfileStoreResult(
+                status=ProfileStoreStatus.INVALID,
+                error="The browser save is invalid and was not loaded.",
+            )
+        if (
+            envelope.profile_id != _BROWSER_PROFILE_ID
+            or envelope.account_id is not None
+            or envelope.remote_revision is not None
+            or envelope.sync_state is not SyncState.LOCAL_ONLY
+        ):
+            return ProfileStoreResult(
+                status=ProfileStoreStatus.INVALID,
+                error="The browser save has an unsupported profile state.",
+            )
+        return ProfileStoreResult(
+            status=ProfileStoreStatus.VALID,
+            envelope=envelope,
+        )
+
+    def save(self, envelope):
+        if not isinstance(envelope, ProfileEnvelope):
+            raise TypeError("envelope must be a ProfileEnvelope")
+        if (
+            envelope.profile_id != _BROWSER_PROFILE_ID
+            or envelope.account_id is not None
+            or envelope.remote_revision is not None
+            or envelope.sync_state is not SyncState.LOCAL_ONLY
+        ):
+            raise ProfileStoreError("browser storage accepts local-only profiles")
+        encoded = serialize_profile_envelope(envelope).decode("utf-8")
+        current = self.load(_BROWSER_PROFILE_ID)
+        if current.status is ProfileStoreStatus.INVALID:
+            raise ProfileStoreError("existing browser profile is invalid")
+        if current.status is ProfileStoreStatus.VALID:
+            previous = current.envelope
+            if envelope.local_sequence < previous.local_sequence:
+                raise ProfileStoreError("local profile sequence cannot go backwards")
+            if envelope.local_sequence == previous.local_sequence and (
+                envelope.client_save_id != previous.client_save_id
+                or envelope.payload_sha256 != previous.payload_sha256
+            ):
+                raise ProfileStoreError(
+                    "a changed local payload requires a new sequence and save ID"
+                )
+            if (
+                envelope.local_sequence > previous.local_sequence
+                and envelope.client_save_id == previous.client_save_id
+            ):
+                raise ProfileStoreError("a new local sequence requires a new save ID")
+        try:
+            self._storage.setItem(_BROWSER_PROFILE_KEY, encoded)
+        except Exception as error:
+            raise ProfileStoreError("browser profile could not be saved") from error
+        committed = self.load(_BROWSER_PROFILE_ID)
+        if (
+            committed.status is not ProfileStoreStatus.VALID
+            or committed.envelope != envelope
+        ):
+            raise ProfileStoreError("saved browser profile did not validate after commit")
+
+    def list_profiles(self):
+        result = self.load(_BROWSER_PROFILE_ID)
+        if result.status is ProfileStoreStatus.VALID:
+            return (_BROWSER_PROFILE_ID,)
+        return ()
+
+
+def _get_browser_storage():
+    try:
+        from js import localStorage
+    except ImportError:
+        return None
+    return localStorage
 
 
 def _project(value):
@@ -64,8 +200,34 @@ def _command_to_input(command):
         return ChooseOverworldAction(_required(command, "action"))
     if kind == "overworld_item":
         return ChooseOverworldItem(_required(command, "selection_key"))
+    if kind == "companion":
+        return ChooseCompanion(_required(command, "drifter_id"))
+    if kind == "character_target":
+        return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
+    if kind == "merchant_target":
+        return ChooseMerchantTarget(_required(command, "drifter_id"))
+    if kind == "merchant_improve":
+        return ChooseMerchantImprove(
+            _required(command, "target_drifter_id"),
+            _required(command, "slot_id"),
+        )
+    if kind == "merchant_dismantle":
+        return ChooseMerchantDismantle(
+            _required(command, "target_drifter_id"),
+            _required(command, "item_id"),
+            command.get("quantity", 1),
+        )
+    if kind == "merchant_craft_component":
+        return ChooseMerchantCraftComponent(
+            _required(command, "target_drifter_id"),
+            _required(command, "component_id"),
+        )
+    if kind == "merchant_tier_v":
+        return ChooseMerchantTierV(_required(command, "target_drifter_id"))
+    if kind == "weapon_target":
+        return ChooseWeaponTarget(_required(command, "drifter_id"))
     if kind == "action":
         return ChooseAction(_required(command, "intent"))
     if kind == "move":
@@ -100,23 +262,43 @@ def drifter_roster():
     ]
 
 
+def _activate_session(runtime, game, drifter_id, adventure_text=None):
+    runtime._game = game
+    save_port = (
+        None
+        if runtime._storage is None
+        else SaveCoordinator(
+            BrowserLocalProfileStore(runtime._storage),
+            _BROWSER_PROFILE_ID,
+        )
+    )
+    runtime._session = OverworldSession(
+        game,
+        ui=None,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        battle_ui_factory=None,
+        save_port=save_port,
+    )
+    runtime._session._adventure_text = adventure_text
+    runtime._drifter_id = drifter_id
+
+
 class BrowserRuntime:
-    def __init__(self):
+    def __init__(self, storage=None):
         self._game = None
         self._session = None
         self._drifter_id = None
+        self._storage = _get_browser_storage() if storage is None else storage
 
     def start_game(self, drifter_id="branoc"):
-        self._game = create_new_game(drifter_id)
-        self._session = OverworldSession(
-            self._game,
-            ui=None,
-            battle_factory=Battle,
-            enemy_factory=create_enemy_state,
-            battle_ui_factory=None,
-            save_port=None,
-        )
-        self._drifter_id = drifter_id
+        game = create_new_game(drifter_id)
+        _activate_session(self, game, drifter_id)
+        return self.current_view()
+
+    def load_scenario(self, code):
+        game, drifter_id, adventure_text = build_browser_test_scenario(code)
+        _activate_session(self, game, drifter_id, adventure_text)
         return self.current_view()
 
     def current_view(self):
@@ -156,3 +338,7 @@ def submit(command):
 
 def restart_game():
     return _runtime.restart_game()
+
+
+def load_scenario(code):
+    return _runtime.load_scenario(code)

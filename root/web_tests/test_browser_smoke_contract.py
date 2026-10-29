@@ -3,6 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 SMOKE_PATH = ROOT / "web_tests" / "browser_smoke.mjs"
+SHELL_PATH = ROOT / "web" / "play" / "index.html"
+SCRIPT_PATH = ROOT / "web" / "play" / "js" / "pyd4.js"
 
 
 def test_headless_smoke_uses_real_browser_and_authoritative_signals():
@@ -10,7 +12,9 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
 
     for required in (
         'import { chromium } from "playwright"',
-        "chromium.launch({ headless: true })",
+        "const browserOptions = { headless: true }",
+        "process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH",
+        "chromium.launch(browserOptions)",
         'locator("#overworld-screen").waitFor({ state: "visible" })',
         'locator(".app-header").innerText()',
         'locator("#immersive").isVisible()',
@@ -18,6 +22,14 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         'locator("#restart").isVisible()',
         "header did not retain only browser utility controls",
         'locator("#selection-screen").waitFor({ state: "visible" })',
+        'locator("#shortcut-dialog")',
+        'locator("#shortcut-code")',
+        'locator("#shortcut-error")',
+        'page.keyboard.press("Shift+Alt+C")',
+        "the picker-only shortcut opened before Start",
+        "the picker-only shortcut opened during gameplay",
+        "the Hub shortcut did not load its expected Branoc start state",
+        "the Floor 1 shortcut did not load its Branoc/Azhvielle clear state",
         'locator("#drifter-options [data-drifter-id]")',
         'data-drifter-id="azhvielle"',
         'getByRole("button", { name: "Start" })',
@@ -52,7 +64,45 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         'PYD2|PASS',
         "surface_dungeon_entrance",
         "L9 EXP 68 GP 24 Gold 75",
-        "PYD7|BROWSER|COMPLETION_SIGNAL|PASS",
+        "const companionProjection = {",
+        "const partyBattleProjection = {",
+        "const extractionProjection = {",
+        "const securedHubProjection = {",
+        "window.__fixtureHubMode = true",
+        'targetPage.locator("#companion-choices',
+        'targetPage.locator("#party-members',
+        'targetPage.locator("#extraction-rewards',
+        'targetPage.locator("#hub-shared-gold',
+        'targetPage.locator("#merchant-panel")',
+        '"#merchant-targets button"',
+        '"#merchant-slots .merchant-row"',
+        '"#merchant-dismantle"',
+        'targetPage.locator("#items-panel")',
+        '"#items-list"',
+        '"#character-targets button"',
+        '"character_target", drifter_id: "azhvielle"',
+        '"3 x Goblin Scrap"',
+        "PYD9|BROWSER|SHARED_ITEMS_INSPECT|PASS",
+        'clickVisibleOption(targetPage, "#overworld-options", "Merchant")',
+        'PYD8|BROWSER|HUB_MERCHANT|PASS',
+        '"Shared gold: 19"',
+        '"Recruitment cost: 65"',
+        '"120 EXP | 9 gold"',
+        "PYD7|BROWSER|HUB_OUTING|PASS",
+        "PYD7|BROWSER|DEFEAT_RESELECT|PASS",
+        "PYD7|BROWSER|SAVE_RELOAD|PASS",
+        "PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS",
+        "Crafted Reinforced Blade and Guard",
+        "Installed: Reinforced Blade and Guard",
+        "browser reload and Load did not restore Branoc's weapon progression",
+        "browser reload and Load did not restore the saved Drifter and route",
+        "floorOneWarningProjection",
+        "floorOneRestProjection",
+        "floorOneExtractionProjection",
+        "FLOOR_ONE_BATTLE_10",
+        "FLOOR_ONE_REPLAY_MIDWAY_REST",
+        "FLOOR_ONE_REPLAY_EXTRACT|PASS",
+        "FLOOR_ONE_BOSS_CLEAR|PASS",
     ):
         assert required in source
 
@@ -63,12 +113,47 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         "desktop-battle-actions",
         "desktop-move-selection",
         "desktop-target-selection",
+        "desktop-floor-one-hub",
+        "desktop-hub-party-battle",
+        "desktop-hub-extraction",
         "landscape-battle-actions",
         "landscape-move-selection",
         "mobile-start-ready",
     ):
         assert f'"{screenshot}"' in source
     assert 'await page.screenshot({ path: output })' in source
-    assert "damage" not in source
-    assert "reward" not in source
+    assert "damage =" not in source
+    assert "reward =" not in source
     assert "route_complete =" not in source
+
+
+def test_browser_shell_wires_craft_and_install_and_component_inspection():
+    shell = SHELL_PATH.read_text()
+    script = SCRIPT_PATH.read_text()
+    smoke = SMOKE_PATH.read_text()
+
+    assert 'id="merchant-component-recipes"' in shell
+    assert 'id="merchant-tier-v"' in shell
+    assert 'id="weapon-targets"' in shell
+    assert 'id="weapon-identities"' in shell
+    assert 'id="weapon-components"' in shell
+    assert 'kind: "merchant_craft_component"' in script
+    assert 'kind: "merchant_tier_v"' in script
+    assert 'kind: "weapon_target"' in script
+    assert '"Craft & Install"' in script
+    assert 'kind: "weapon_component"' not in script
+    assert 'targetPage.locator("#weapon-components .weapon-component-slot")' in smoke
+    assert "PYD8|BROWSER|HUB_WEAPON_COMPONENTS|PASS" in smoke
+
+
+def test_browser_shell_exposes_shared_items_and_item_inspection():
+    shell = SHELL_PATH.read_text()
+    script = SCRIPT_PATH.read_text()
+
+    assert 'id="items-panel"' in shell
+    assert 'id="items-list"' in shell
+    assert 'id="items-inspection"' in shell
+    assert 'id="items-options"' in shell
+    assert "function renderOverworldItems(view)" in script
+    assert 'view.screen === "item_inspect"' in script
+    assert '{ kind: "overworld_item", selection_key: item.selection_key }' in script

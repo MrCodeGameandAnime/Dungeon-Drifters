@@ -72,6 +72,7 @@ ENEMY = EnemySpec(
             description="The Shaman compresses unstable ritual energy into a violent magical discharge.",
         ),
     ),
+    item_drops=(("goblin_scrap", 1),),
 )
 
 

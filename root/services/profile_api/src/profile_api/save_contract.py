@@ -17,7 +17,9 @@ def normalize_and_digest(payload):
         raise InvalidPayload("payload must be an object")
     version = payload.get("schema_version")
     if isinstance(version, bool) or version != DISK_SCHEMA_VERSION:
-        raise InvalidPayload("remote progression requires game-state schema 8")
+        raise InvalidPayload(
+            f"remote progression requires game-state schema {DISK_SCHEMA_VERSION}"
+        )
     try:
         normalized = validate_save_document(payload)
         encoded = json.dumps(
@@ -28,7 +30,11 @@ def normalize_and_digest(payload):
             separators=(",", ":"),
         ).encode("utf-8")
     except (SaveStateValidationError, TypeError, ValueError, UnicodeError) as error:
-        raise InvalidPayload("progression payload failed schema-8 validation") from error
+        raise InvalidPayload(
+            f"progression payload failed schema-{DISK_SCHEMA_VERSION} validation"
+        ) from error
     if normalized.get("schema_version") != DISK_SCHEMA_VERSION:
-        raise InvalidPayload("remote progression requires game-state schema 8")
+        raise InvalidPayload(
+            f"remote progression requires game-state schema {DISK_SCHEMA_VERSION}"
+        )
     return normalized, hashlib.sha256(encoded).hexdigest()

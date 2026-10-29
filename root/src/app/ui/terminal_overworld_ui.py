@@ -13,9 +13,17 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.ui.overworld_ui import (
+    ChooseCompanion,
+    ChooseCharacterTarget,
+    ChooseMerchantCraftComponent,
+    ChooseMerchantDismantle,
+    ChooseMerchantImprove,
+    ChooseMerchantTarget,
+    ChooseMerchantTierV,
     ChooseOverworldAction,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
+    ChooseWeaponTarget,
 )
 
 
@@ -29,6 +37,7 @@ class TerminalOverworldUI:
         OverworldAction.SKILLS: "S",
         OverworldAction.WEAPON: "W",
         OverworldAction.EQUIPMENT: "E",
+        OverworldAction.MERCHANT: "T",
         OverworldAction.CRAFT: "C",
         OverworldAction.INSPECT: "I",
         OverworldAction.USE: "U",
@@ -43,6 +52,10 @@ class TerminalOverworldUI:
         OverworldAction.REST: "R",
         OverworldAction.SKIP_REST: "C",
         OverworldAction.MENU: "M",
+        OverworldAction.RECRUIT_COMPANION: "R",
+        OverworldAction.READY: "Y",
+        OverworldAction.RETURN_TO_HUB: "H",
+        OverworldAction.EXTRACT: "X",
     }
 
     def __init__(
@@ -99,6 +112,68 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        party_targets = None
+        if view.screen is OverworldScreen.CHARACTER and view.character is not None:
+            party_targets = view.character.targets
+        elif view.screen is OverworldScreen.SKILLS and view.skills is not None:
+            party_targets = view.skills.targets
+        elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
+            party_targets = view.equipment.targets
+        if party_targets is not None and choice.startswith("t") and choice[1:].isdigit():
+            index = int(choice[1:]) - 1
+            if 0 <= index < len(party_targets):
+                return ChooseCharacterTarget(party_targets[index].drifter_id)
+
+        if view.screen is OverworldScreen.WEAPON and view.weapon is not None:
+            weapon = view.weapon
+            if choice.startswith("t") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(weapon.targets):
+                    return ChooseWeaponTarget(weapon.targets[index].drifter_id)
+        if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
+            merchant = view.merchant
+            if choice.startswith("t") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.targets):
+                    return ChooseMerchantTarget(
+                        merchant.targets[index].drifter_id
+                    )
+            if choice.startswith("c") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.component_recipes):
+                    recipe = merchant.component_recipes[index]
+                    if recipe.can_craft:
+                        return ChooseMerchantCraftComponent(
+                            merchant.selected_target_id,
+                            recipe.component_id,
+                        )
+                    self._output("Not enough material to craft that component.")
+                    return self._REJECTED
+            if choice.startswith("i") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.slots):
+                    slot = merchant.slots[index]
+                    if slot.can_improve:
+                        return ChooseMerchantImprove(
+                            merchant.selected_target_id,
+                            slot.slot_id,
+                        )
+                    self._output(self._merchant_blocked_message(slot.blocked_reason))
+                    return self._REJECTED
+            if choice.startswith("d") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(merchant.dismantle_items):
+                    item = merchant.dismantle_items[index]
+                    return ChooseMerchantDismantle(
+                        merchant.selected_target_id,
+                        item.item_id,
+                    )
+            if choice.lower() == "v":
+                if merchant.tier_v.can_attempt:
+                    return ChooseMerchantTierV(merchant.selected_target_id)
+                self._output("Tier V attempt is unavailable.")
+                return self._REJECTED
+
         if view.screen is OverworldScreen.ITEMS and view.inventory is not None:
             for number, item in enumerate(view.inventory.items, start=1):
                 if choice == str(number):
@@ -113,8 +188,20 @@ class TerminalOverworldUI:
                 self._output(self._disabled_message(row.disabled_reason))
                 return self._REJECTED
 
+        if (
+            view.screen is OverworldScreen.COMPANION_SELECTION
+            and view.companion_choices
+        ):
+            for number, candidate in enumerate(view.companion_choices, start=1):
+                if choice != str(number):
+                    continue
+                if candidate.enabled:
+                    return ChooseCompanion(candidate.drifter_id)
+                self._output(self._disabled_message(candidate.disabled_reason))
+                return self._REJECTED
+
         for option in self._input_options(view):
-            key = self._ACTION_KEYS[option.action].lower()
+            key = self._option_key(option, view).lower()
             if choice != key:
                 continue
             if option.enabled:
@@ -174,7 +261,7 @@ class TerminalOverworldUI:
                 lines.extend(
                     (
                         "",
-                        self._option_label(view.contextual_route_option),
+                        self._option_label(view.contextual_route_option, view=view),
                     )
                 )
             if view.screen is OverworldScreen.QUIT_CONFIRMATION:
@@ -185,12 +272,58 @@ class TerminalOverworldUI:
                 )
                 if view.adventure_text != load_prompt:
                     lines.extend(("", load_prompt))
+        elif view.screen is OverworldScreen.HUB:
+            lines = ["ADVENTURE", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.COMPANION_SELECTION:
+            lines = [
+                "RECRUIT A COMPANION",
+                f"Shared gold: {view.shared_gold}",
+                f"Recruitment cost: {view.recruitment_cost}",
+                "",
+            ]
+            for number, candidate in enumerate(view.companion_choices, start=1):
+                availability = "" if candidate.enabled else " [Unavailable]"
+                lines.append(
+                    f"{number}. {candidate.display_name} | "
+                    f"{candidate.archetype_label} | {candidate.cost} gold"
+                    f"{availability}"
+                )
+                lines.extend(self._wrapped(candidate.summary, width))
+        elif view.screen is OverworldScreen.PARTY_READY:
+            lines = ["PARTY READY", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.OUTING:
+            lines = ["OUTING", ""] + list(
+                self._wrapped(view.adventure_text, width)
+            )
+        elif view.screen is OverworldScreen.EXTRACTION:
+            rewards = view.outing_rewards
+            lines = ["EXTRACTION", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
+            lines.extend(
+                (
+                    "",
+                    f"Pending rewards: {rewards.experience} EXP, {rewards.gold} gold",
+                )
+            )
+            if rewards.items:
+                lines.extend(
+                    f"{item.quantity} x {item.display_name or item.item_id}"
+                    for item in rewards.items
+                )
+            else:
+                lines.append("Items: none")
         elif view.screen is OverworldScreen.CHARACTER:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:
             lines = list(self._skills_lines(view, width))
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
+        elif view.screen is OverworldScreen.MERCHANT:
+            lines = list(self._merchant_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT:
             lines = list(self._equipment_lines(view))
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
@@ -207,7 +340,15 @@ class TerminalOverworldUI:
                 "Super and all other persistent state are preserved.",
             ]
             if view.contextual_route_option is not None:
-                lines.extend(("", self._option_label(view.contextual_route_option)))
+                lines.extend(
+                    (
+                        "",
+                        self._option_label(
+                            view.contextual_route_option,
+                            view=view,
+                        ),
+                    )
+                )
         else:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
@@ -220,8 +361,13 @@ class TerminalOverworldUI:
             f"[ {character.display_name} ]",
             character.archetype_label,
             "",
-            "STATS",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(character.targets, start=1)
+        )
+        lines.extend(("", "STATS"))
         stat_pairs = [
             f"{row.label}: {row.value}"
             for row in character.stats
@@ -260,7 +406,13 @@ class TerminalOverworldUI:
             f"Growth Points: {skills.growth_points_available}",
             skills.growth_message,
             "",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(skills.targets, start=1)
+        )
+        lines.append("")
         for number, row in enumerate(skills.stats, start=1):
             if row.increase_enabled:
                 control = "[+1]"
@@ -274,7 +426,13 @@ class TerminalOverworldUI:
                 f"{number}. {row.label:<14} {row.value:>3}  {control}"
             )
         lines.extend(("", "ATTACKS"))
-        lines.extend(move.name for move in skills.moves)
+        for move in skills.moves:
+            lines.append(
+                f"{move.name} | Power {move.power} | Accuracy {move.accuracy}% | "
+                f"{(move.resource_type or 'none').title()} {move.resource_cost} | "
+                f"{(move.damage_type or 'none').title()}"
+            )
+            lines.extend(self._wrapped(move.description, width))
         return tuple(lines)
 
     def _weapon_lines(self, view, width):
@@ -284,24 +442,141 @@ class TerminalOverworldUI:
             weapon.weapon_type,
             f"Wielder: {weapon.intended_wielder}",
             "",
-            "BONUSES",
+            "CHOOSE DRIFTER",
         ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(weapon.targets, start=1)
+        )
+        lines.extend(
+            (
+                "",
+                f"Physical identity: {weapon.physical_identity or 'None'}",
+                f"Mystical identity: {weapon.mystical_identity or 'None'}",
+                "",
+                "COMPONENTS",
+            )
+        )
+        for slot_index, slot in enumerate(weapon.components, start=1):
+            lines.append(
+                f"{slot_index}. {slot.label}: {slot.installed_component_name}"
+            )
+            lines.extend(
+                f"   Effect: {effect}"
+                for effect in slot.installed_effect_summary
+            )
+        lines.extend(
+            (
+                "",
+                "BONUSES",
+            )
+        )
         lines.extend(f"{bonus.label} +{bonus.amount}" for bonus in weapon.bonuses)
         lines.extend(("", "DESCRIPTION"))
         lines.extend(self._wrapped(weapon.description, width))
         return tuple(lines)
 
     @staticmethod
+    def _merchant_lines(view):
+        merchant = view.merchant
+        lines = [
+            f"Crafting Level {merchant.crafting_level} | "
+            f"Crafting XP {merchant.crafting_experience}",
+            "",
+            "CHOOSE DRIFTER",
+        ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(merchant.targets, start=1)
+        )
+        lines.extend(("", merchant.weapon_name, "WEAPON SLOTS"))
+        for index, slot in enumerate(merchant.slots, start=1):
+            availability = (
+                f"Grade material: {slot.material_quantity}/{slot.material_cost}"
+                if slot.can_improve
+                else TerminalOverworldUI._merchant_blocked_message(
+                    slot.blocked_reason
+                )
+            )
+            lines.append(
+                f"I{index}. {slot.label} {slot.progress}/100 | "
+                f"{slot.material_name} x{slot.material_cost} | {availability}"
+            )
+        lines.extend(("", "SHARED MATERIALS"))
+        lines.extend(
+            f"{material.display_name}: {material.quantity}"
+            for material in merchant.materials
+        )
+        lines.extend(("", "DISMANTLE"))
+        if merchant.dismantle_items:
+            lines.extend(
+                f"D{index}. {item.display_name} x{item.quantity}"
+                for index, item in enumerate(merchant.dismantle_items, start=1)
+            )
+        else:
+            lines.append("No dismantlable items.")
+        lines.extend(("", "COMPONENT RECIPES"))
+        if merchant.component_recipes:
+            lines.extend(
+                f"C{index}. Craft & install {recipe.display_name} ({recipe.slot_label}) | "
+                f"{recipe.material_name} x{recipe.material_cost} | "
+                f"Crafting +{recipe.crafting_award}"
+                f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                + (f" | {'; '.join(recipe.effect_summary)}" if recipe.effect_summary else "")
+                for index, recipe in enumerate(merchant.component_recipes, start=1)
+            )
+        else:
+            lines.append("No component recipes for this weapon.")
+        tier_v = merchant.tier_v
+        tier_v_status = (
+            "Complete"
+            if tier_v.completed
+            else "Available"
+            if tier_v.can_attempt
+            else f"Unavailable: {tier_v.blocked_reason}"
+        )
+        lines.extend(("", f"TIER V | {tier_v_status}"))
+        lines.extend(
+            f"{material.display_name}: {material.available}/{material.required}"
+            for material in tier_v.materials
+        )
+        if tier_v.can_attempt:
+            lines.append(
+                f"V. Attempt Tier V ({tier_v.success_chance_percent}% chance)"
+            )
+        return tuple(lines)
+
+    @staticmethod
+    def _merchant_blocked_message(reason):
+        return {
+            "tier_locked": "Tier gate locked",
+            "insufficient_materials": "Not enough material",
+            "maximum_progress": "Maximum progress",
+        }.get(reason, "Unavailable")
+
+    @staticmethod
     def _equipment_lines(view):
         equipment = view.equipment
-        return (
+        lines = [
             "ACCESSORIES",
             "",
-            f"[ Necklace ]  {equipment.necklace.item_name}",
-            f"[ Ring     ]  {equipment.ring.item_name}",
-            "",
-            "BENEFITS",
-        ) + tuple(equipment.benefits)
+            "CHOOSE DRIFTER",
+        ]
+        lines.extend(
+            f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
+            for index, target in enumerate(equipment.targets, start=1)
+        )
+        lines.extend(
+            (
+                "",
+                f"[ Necklace ]  {equipment.necklace.item_name}",
+                f"[ Ring     ]  {equipment.ring.item_name}",
+                "",
+                "BENEFITS",
+            )
+        )
+        lines.extend(equipment.benefits)
+        return tuple(lines)
 
     def _inventory_lines(self, view, width):
         inventory = view.inventory
@@ -350,7 +625,7 @@ class TerminalOverworldUI:
         return tuple(lines)
 
     def _control_lines(self, view, width):
-        labels = [self._option_label(option) for option in view.options]
+        labels = [self._option_label(option, view=view) for option in view.options]
         if not labels:
             return ("",)
         if width < 60:
@@ -363,10 +638,23 @@ class TerminalOverworldUI:
             return view.options
         return tuple(view.options) + (view.contextual_route_option,)
 
-    def _option_label(self, option):
-        key = self._ACTION_KEYS[option.action]
+    def _option_label(self, option, *, view=None):
+        key = self._option_key(option, view)
         suffix = " [Unavailable]" if not option.enabled else ""
         return f"[{key}] {option.label}{suffix}"
+
+    def _option_key(self, option, view):
+        if (
+            view is not None
+            and view.screen is OverworldScreen.REST
+            and option.action is OverworldAction.SKIP_REST
+            and any(
+                candidate.action is OverworldAction.EXTRACT
+                for candidate in view.options
+            )
+        ):
+            return "N"
+        return self._ACTION_KEYS[option.action]
 
     @staticmethod
     def _two_column_values(values, width):
@@ -457,10 +745,16 @@ class TerminalOverworldUI:
     def _screen_title(screen):
         return {
             OverworldScreen.MAIN: "OVERWORLD",
+            OverworldScreen.HUB: "HUB",
+            OverworldScreen.COMPANION_SELECTION: "RECRUITMENT",
+            OverworldScreen.PARTY_READY: "PARTY READY",
+            OverworldScreen.OUTING: "OUTING",
+            OverworldScreen.EXTRACTION: "EXTRACTION",
             OverworldScreen.CHARACTER: "CHARACTER",
             OverworldScreen.SKILLS: "SKILLS",
             OverworldScreen.WEAPON: "WEAPON",
             OverworldScreen.EQUIPMENT: "EQUIPMENT",
+            OverworldScreen.MERCHANT: "MERCHANT",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
             OverworldScreen.MAP: "MAP",
@@ -500,5 +794,8 @@ class TerminalOverworldUI:
             ),
             OverworldAvailabilityReason.LOAD_UNAVAILABLE: (
                 "Loading is not yet available."
+            ),
+            OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD: (
+                "You need 65 shared gold to recruit a Drifter."
             ),
         }[reason]

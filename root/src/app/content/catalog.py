@@ -275,6 +275,15 @@ def get_encounter_rewards(encounter_id):
     )
 
 
+def get_encounter_item_rewards(encounter_id):
+    encounter = get_encounter_spec(encounter_id)
+    item_totals = {}
+    for archetype_id in encounter.enemy_archetype_ids:
+        for item_id, quantity in get_enemy_spec(archetype_id).item_drops:
+            item_totals[item_id] = item_totals.get(item_id, 0) + quantity
+    return tuple(sorted(item_totals.items()))
+
+
 def get_route_node_spec(node_id):
     try:
         return _ROUTE_NODE_CATALOG[node_id]
@@ -322,6 +331,7 @@ __all__ = [
     "get_enemy_spec",
     "get_encounter_spec",
     "get_encounter_rewards",
+    "get_encounter_item_rewards",
     "get_inspectable_encounter_spec",
     "get_inspectable_route_node_spec",
     "get_drifter_spec",

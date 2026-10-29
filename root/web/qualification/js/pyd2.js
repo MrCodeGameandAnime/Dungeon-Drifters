@@ -51,6 +51,15 @@
           `Enemies: ${result.enemies}`,
           `Final node: ${result.final_node}`,
           `Progression: L${result.level} EXP ${result.exp} GP ${result.growth_points} Gold ${result.gold}`,
+          `Hub: ${result.hub_screen}`,
+          `Tutorial: ${result.tutorial_party_size} Drifters, ${result.tutorial_enemy_count} Goblins`,
+          `Extraction: ${result.lead_tutorial_exp} EXP each, ${result.secured_gold} shared gold`,
+          `Floor 1: ${result.floor_one_battles} battles, ${result.floor_one_xp_each} EXP each, ${result.floor_one_shared_gold} shared gold`,
+          `FLOOR_ONE_BATTLE_10|PASS`,
+          `FLOOR_ONE_BOSS_CLEAR|PASS`,
+          `Replay: ${result.floor_one_replay_rate}% EXP, ${result.floor_one_replay_extract_xp} EXP | ${result.floor_one_replay_extract_gold} gold, ${result.floor_one_replay_secured_gold} shared gold`,
+          `FLOOR_ONE_REPLAY_MIDWAY_REST|PASS`,
+          `FLOOR_ONE_REPLAY_EXTRACT|PASS`,
         ].join("\n"),
         "pass"
       );

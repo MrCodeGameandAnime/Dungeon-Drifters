@@ -251,6 +251,52 @@ async function controlSignature(page) {
   })));
 }
 
+async function clickVisibleOption(page, containerSelector, label) {
+  const buttons = page.locator(`${containerSelector} button`);
+  for (let index = 0; index < await buttons.count(); index += 1) {
+    const button = buttons.nth(index);
+    const text = await button.locator(".choice-label").textContent().catch(() => null);
+    if (text?.trim() === label && await button.isEnabled()) {
+      await button.click();
+      return;
+    }
+  }
+  const state = await page.evaluate(({ selector }) => {
+    const buttons = [...document.querySelectorAll(`${selector} button`)].map((button) => ({
+      label: button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim(),
+      disabled: button.disabled,
+      reason: button.querySelector(".option-reason")?.textContent?.trim() || "",
+    }));
+    const profileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+    let save = { available: false };
+    try {
+      const raw = localStorage.getItem(profileKey);
+      if (raw !== null) {
+        const envelope = JSON.parse(raw);
+        save = {
+          available: true,
+          length: raw.length,
+          localSequence: envelope.local_sequence ?? null,
+          syncState: envelope.sync_state ?? null,
+          payloadSchema: envelope.payload?.schema_version ?? null,
+        };
+      }
+    } catch (error) {
+      save = { available: false, error: String(error) };
+    }
+    return {
+      url: location.href,
+      badge: document.getElementById("screen-badge")?.textContent?.trim() || "",
+      notice: document.getElementById("notice")?.textContent?.trim() || "",
+      buttons,
+      save,
+    };
+  }, { selector: containerSelector });
+  throw new Error(
+    `offered control not found: ${label} in ${containerSelector}; state=${JSON.stringify(state)}`,
+  );
+}
+
 const targetProjection = {
   interaction_phase: "targets",
   player: {
@@ -314,11 +360,403 @@ const resultOverworldProjection = {
   },
 };
 
+const hubProjection = {
+  screen: "hub",
+  location_label: "Floor 1 Hub",
+  adventure_text: "You have reached the Floor 1 Hub. Recruit one companion to continue.",
+  options: [
+    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
+    { action: "recruit_companion", label: "Recruit Companion", enabled: true, disabled_reason: null },
+    { action: "character", label: "Character", enabled: true, disabled_reason: null },
+    { action: "items", label: "Items", enabled: true, disabled_reason: null },
+    { action: "map", label: "Map", enabled: true, disabled_reason: null },
+    { action: "options", label: "Options", enabled: true, disabled_reason: null },
+  ],
+  contextual_route_option: null,
+  character: null,
+  notice: null,
+  shared_gold: 75,
+};
+
+const companionProjection = {
+  ...hubProjection,
+  screen: "companion_selection",
+  adventure_text: "Choose one Drifter to join your party.",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  companion_choices: [
+    { drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
+    { drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
+    { drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
+  ],
+  recruitment_cost: 65,
+};
+
+const partyReadyProjection = {
+  ...hubProjection,
+  screen: "party_ready",
+  adventure_text: "Your party is assembled and ready to set out.",
+  shared_gold: 10,
+  options: [
+    { action: "ready", label: "Ready / Set Out", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+};
+
+const partyBattleProjection = {
+  ...targetProjection,
+  interaction_phase: "actions",
+  encounter_label: "Goblin Trio",
+  enemies: [1, 2, 3].map((number) => ({
+    target_id: `enemy_${number}`,
+    display_label: `Goblin ${number}`,
+    hp_current: 60,
+    hp_maximum: 60,
+    temporary_labels: [],
+    defeated: false,
+  })),
+  party_members: [
+    { target_id: "drifter_branoc", display_name: "Ser Branoc", hp_current: 116, hp_maximum: 116, mana_current: 46, mana_maximum: 46, super_current: 0, super_maximum: 100, defending: false, temporary_labels: [], active: true },
+    { target_id: "drifter_azhvielle", display_name: "Azhvielle", hp_current: 92, hp_maximum: 92, mana_current: 70, mana_maximum: 70, super_current: 0, super_maximum: 100, defending: false, temporary_labels: [], active: false },
+  ],
+  action_options: [{ intent: "defend", label: "Defend", enabled: true, disabled_reason: null }],
+  target_options: [],
+  log_entries: [],
+};
+
+const extractionProjection = {
+  screen: "extraction",
+  location_label: "Floor 1 Hub",
+  adventure_text: "The Goblin trio is defeated. Return to the hub to secure your rewards.",
+  options: [{ action: "return_to_hub", label: "Return to Hub", enabled: true, disabled_reason: null }],
+  contextual_route_option: null,
+  character: null,
+  notice: null,
+  outing_rewards: {
+    experience: 120,
+    gold: 9,
+    items: [{ item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3 }],
+  },
+};
+
+const securedHubProjection = {
+  ...hubProjection,
+  adventure_text: "You return to the Floor 1 Hub. The tutorial rewards are secured.",
+  shared_gold: 19,
+  options: [
+    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
+    ...hubProjection.options.slice(2),
+    { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
+  ],
+};
+
+const itemsProjection = {
+  ...securedHubProjection,
+  screen: "items",
+  options: [
+    { action: "inspect", label: "Inspect", enabled: false, disabled_reason: "no_item_selected" },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  inventory: {
+    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false }],
+    selected_item_key: null,
+    inspected_item: null,
+  },
+};
+
+const itemsSelectedProjection = {
+  ...itemsProjection,
+  options: [
+    { action: "inspect", label: "Inspect", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  inventory: { ...itemsProjection.inventory, selected_item_key: "shared-item:goblin_scrap" },
+};
+
+const itemInspectionProjection = {
+  ...itemsProjection,
+  screen: "item_inspect",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  inventory: {
+    ...itemsSelectedProjection.inventory,
+    inspected_item: itemsProjection.inventory.items[0],
+  },
+};
+
+const merchantProjection = {
+  ...securedHubProjection,
+  screen: "merchant",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  merchant: {
+    crafting_level: 1,
+    crafting_experience: 12,
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+    weapon_name: "Sunder-Spire",
+    slots: [
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Cord", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", material_family: "timber", progress: 0, material_id: "grade_i_timber", material_name: "Softwood", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      { slot_id: "crest_core", label: "Crest / Core", material_family: "cores", progress: 0, material_id: "grade_i_cores", material_name: "Faded Core", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+    ],
+    materials: [
+      { item_id: "grade_i_metal", display_name: "Scrap metal", quantity: 3 },
+      { item_id: "grade_i_fiber", display_name: "Cord", quantity: 0 },
+      { item_id: "grade_i_timber", display_name: "Softwood", quantity: 0 },
+      { item_id: "grade_i_cores", display_name: "Faded Core", quantity: 0 },
+    ],
+    dismantle_items: [
+      { item_id: "goblin_scrap", display_name: "Goblin Scrap", quantity: 3, output_material_names: ["Scrap metal", "Cord", "Softwood"], maximum_yield: 2 },
+    ],
+    component_recipes: [
+      { component_id: "sunder_spire_blade_reinforced", display_name: "Reinforced Blade and Guard", slot_id: "blade_guard", slot_label: "Blade / Guard assembly", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, crafting_award: 10, can_craft: true, effect_summary: ["Crestgrave Reaping: Power +2, Accuracy -2", "Heavy identity +1"] },
+    ],
+    tier_v: {
+      success_chance_percent: 20,
+      materials: [
+        { item_id: "grade_iv_metal", display_name: "Etheral Alloy", required: 12, available: 0 },
+        { item_id: "grade_iv_fiber", display_name: "Carbon", required: 12, available: 0 },
+        { item_id: "grade_iv_timber", display_name: "Elderwood", required: 12, available: 0 },
+        { item_id: "grade_iv_cores", display_name: "Singularity Core", required: 12, available: 0 },
+      ],
+      can_attempt: false,
+      completed: false,
+      blocked_reason: "tier_locked",
+    },
+  },
+};
+
+const merchantAzhvielleProjection = {
+  ...merchantProjection,
+  merchant: {
+    ...merchantProjection.merchant,
+    selected_target_id: "azhvielle",
+    weapon_name: "Needle of Plain Iron",
+    targets: merchantProjection.merchant.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    slots: [
+      { slot_id: "focus_fittings", label: "Focus head / fittings", material_family: "metal", progress: 0, material_id: "grade_i_metal", material_name: "Scrap metal", material_cost: 1, material_quantity: 3, can_improve: true, blocked_reason: null },
+      { slot_id: "binding", label: "Binding", material_family: "fiber", progress: 0, material_id: "grade_i_fiber", material_name: "Cord", material_cost: 1, material_quantity: 0, can_improve: false, blocked_reason: "insufficient_materials" },
+      ...merchantProjection.merchant.slots.slice(2),
+    ],
+    component_recipes: [
+      { component_id: "needle_focus_fitted", display_name: "Obsidian Focus Fittings", slot_id: "focus_fittings", slot_label: "Focus head / fittings", material_name: "Scrap metal", material_cost: 1, crafting_award: 10, material_quantity: 3, can_craft: true, effect_summary: ["Scepter Sweep: Power +2, Resource cost -2", "Refined identity +1"] },
+    ],
+  },
+};
+
+const merchantImprovedProjection = {
+  ...merchantAzhvielleProjection,
+  merchant: {
+    ...merchantAzhvielleProjection.merchant,
+    crafting_experience: 20,
+    slots: merchantAzhvielleProjection.merchant.slots.map((slot, index) => index === 0
+      ? { ...slot, progress: 3, material_quantity: 2 }
+      : slot),
+    materials: merchantProjection.merchant.materials.map((material, index) => index === 0
+      ? { ...material, quantity: 2 }
+      : material),
+  },
+};
+
+const merchantDismantledProjection = {
+  ...merchantImprovedProjection,
+  merchant: {
+    ...merchantImprovedProjection.merchant,
+    materials: merchantImprovedProjection.merchant.materials.map((material, index) => index === 1
+      ? { ...material, quantity: 1 }
+      : material),
+    dismantle_items: [{ ...merchantProjection.merchant.dismantle_items[0], quantity: 2 }],
+  },
+};
+
+const merchantCraftedProjection = {
+  ...merchantDismantledProjection,
+  merchant: {
+    ...merchantDismantledProjection.merchant,
+    materials: merchantDismantledProjection.merchant.materials.map((material, index) => index === 0
+      ? { ...material, quantity: 1 }
+      : material),
+    component_recipes: [],
+  },
+};
+
+const hubCharacterProjection = {
+  ...securedHubProjection,
+  screen: "character",
+  options: [
+    { action: "skills", label: "Skills", enabled: true, disabled_reason: null },
+    { action: "weapon", label: "Weapon", enabled: true, disabled_reason: null },
+    { action: "equipment", label: "Equipment", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+  character: {
+    display_name: "Ser Branoc, the Unbroken Crest",
+    archetype_label: "Brawler",
+    stats: [],
+    level: 1,
+    hp_current: 116,
+    hp_maximum: 116,
+    mana_current: 46,
+    mana_maximum: 46,
+    super_current: 0,
+    super_maximum: 100,
+    exp_current: 0,
+    exp_threshold: 100,
+    exp_fill_bps: 0,
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+  },
+};
+
+const hubCharacterAzhvielleProjection = {
+  ...hubCharacterProjection,
+  character: {
+    ...hubCharacterProjection.character,
+    display_name: "Azhvielle",
+    archetype_label: "Black Mage",
+    targets: hubCharacterProjection.character.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    selected_target_id: "azhvielle",
+  },
+};
+
+const weaponProjection = {
+  ...hubCharacterProjection,
+  screen: "weapon",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  character: null,
+  weapon: {
+    name: "Sunder-Spire",
+    weapon_type: "Great Flamberge",
+    intended_wielder: "Branoc",
+    bonuses: [],
+    description: "A massive Deep-Iron flamberge.",
+    targets: [
+      { drifter_id: "branoc", display_name: "Ser Branoc", selected: true },
+      { drifter_id: "azhvielle", display_name: "Azhvielle", selected: false },
+    ],
+    selected_target_id: "branoc",
+    components: [
+      { slot_id: "blade_guard", label: "Blade / Guard assembly", installed_component_id: "sunder_spire_blade", installed_component_name: "Deep-Iron Blade and Guard" },
+      { slot_id: "grip_binding", label: "Grip wrap / binding", installed_component_id: "sunder_spire_grip", installed_component_name: "Bound Grip Wrap" },
+      { slot_id: "hilt_handle", label: "Hilt core / handle", installed_component_id: "sunder_spire_hilt", installed_component_name: "Ashwood Hilt Core" },
+      { slot_id: "crest_core", label: "Crest / Core", installed_component_id: "sunder_spire_crest", installed_component_name: "Deep-Iron Crest" },
+    ],
+    physical_identity: null,
+    mystical_identity: null,
+  },
+};
+
+const weaponAzhvielleProjection = {
+  ...weaponProjection,
+  weapon: {
+    ...weaponProjection.weapon,
+    name: "Needle of Plain Iron",
+    weapon_type: "Ritual Needle",
+    intended_wielder: "Azhvielle",
+    targets: weaponProjection.weapon.targets.map((target) => ({
+      ...target,
+      selected: target.drifter_id === "azhvielle",
+    })),
+    selected_target_id: "azhvielle",
+    components: [
+      { slot_id: "focus_fittings", label: "Focus head / fittings", installed_component_id: "needle_focus_fitted", installed_component_name: "Obsidian Focus Fittings", installed_effect_summary: ["Scepter Sweep: Power +2, Resource cost -2", "Refined identity +1"] },
+      { slot_id: "binding", label: "Binding", installed_component_id: "needle_binding", installed_component_name: "Plain Binding" },
+      { slot_id: "haft", label: "Haft", installed_component_id: "needle_haft", installed_component_name: "Ritual Needle Haft" },
+      { slot_id: "seal_catalyst", label: "Seal / Catalyst", installed_component_id: "needle_seal", installed_component_name: "Unawakened Seal" },
+    ],
+  },
+};
+
+const floorOneWarningProjection = {
+  ...securedHubProjection,
+  screen: "floor_one_warning",
+  adventure_text: "Death means returning to the Hub. All unsecured XP, gold, and items are lost.",
+  options: [
+    { action: "set_out", label: "Set Out", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
+  ],
+};
+
+const floorOneMainProjection = {
+  ...hubProjection,
+  screen: "main",
+  location_label: "Goblin Patrol",
+  adventure_text: "The route continues deeper into Floor 1.",
+  contextual_route_option: { action: "enter_encounter", label: "Enter Encounter", enabled: true, disabled_reason: null },
+};
+
+const floorOneBattleProjection = {
+  ...partyBattleProjection,
+  encounter_label: "Floor 1 Goblins",
+  enemies: [1, 2, 3, 4].map((number) => ({
+    target_id: `floor_one_enemy_${number}`,
+    display_label: `Goblin ${number}`,
+    hp_current: 60,
+    hp_maximum: 60,
+    temporary_labels: [],
+    defeated: false,
+  })),
+};
+
+const floorOneRestProjection = {
+  ...hubProjection,
+  screen: "rest",
+  location_label: "Midway Rest",
+  adventure_text: "The party reaches the midway Rest.",
+  options: [
+    { action: "rest", label: "Recover", enabled: true, disabled_reason: null },
+    { action: "save", label: "Save", enabled: true, disabled_reason: null },
+    { action: "character", label: "Character", enabled: true, disabled_reason: null },
+    { action: "items", label: "Items", enabled: true, disabled_reason: null },
+    { action: "extract", label: "Extract", enabled: true, disabled_reason: null },
+  ],
+  contextual_route_option: { action: "skip_rest", label: "Continue Without Rest", enabled: true, disabled_reason: null },
+};
+
+const floorOnePreBossRestProjection = {
+  ...floorOneRestProjection,
+  location_label: "Pre-Boss Rest",
+  adventure_text: "The party reaches the Rest before the Goblin Lord.",
+};
+
+const floorOneExtractionProjection = {
+  ...extractionProjection,
+  adventure_text: "The midway extraction secures half of the adjusted rewards and all items.",
+  outing_rewards: { experience: 140, gold: 21, items: [] },
+};
+
+const floorOneClearedHubProjection = {
+  ...securedHubProjection,
+  adventure_text: "The Goblin Lord is defeated. Floor 1 is cleared.",
+  shared_gold: 115,
+};
+
+const floorOneReplayHubProjection = {
+  ...floorOneClearedHubProjection,
+  adventure_text: "The party extracts safely and returns to the Hub.",
+  shared_gold: 136,
+};
+
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const browser = await chromium.launch({ headless: true });
+const browserOptions = { headless: true };
+if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+  browserOptions.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+}
+const browser = await chromium.launch(browserOptions);
 try {
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -362,6 +800,9 @@ try {
     if (message.type() === "error") errors.push(message.text());
   });
 
+  await page.route("**/favicon.ico", (route) =>
+    route.fulfill({ status: 204, body: "" }),
+  );
   await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 30000,
@@ -379,6 +820,11 @@ try {
     "ready browser launch did not show Start without autoplaying the looped theme",
   );
   await captureScreenshot(page, "desktop-start-ready");
+  await page.keyboard.press("Shift+Alt+C");
+  requireCondition(
+    await page.locator("#shortcut-dialog").isHidden(),
+    "the picker-only shortcut opened before Start",
+  );
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
   const startTransition = await page.evaluate(() => ({
@@ -422,6 +868,47 @@ try {
     `Drifter picker did not show loaded sprites with authored text below: ${JSON.stringify(rosterCards)}`,
   );
   await captureScreenshot(page, "desktop-drifter-selection");
+
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("invalid");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#shortcut-error").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#shortcut-dialog").isVisible() &&
+      (await page.locator("#shortcut-error").innerText()).includes("did not match"),
+    "an unrecognized shortcut was not rejected in the picker",
+  );
+  await page.locator("#shortcut-cancel").click();
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("H01B");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#hub-shared-gold").innerText()).includes("75"),
+    "the Hub shortcut did not load its expected Branoc start state",
+  );
+  await page.keyboard.press("Shift+Alt+C");
+  requireCondition(
+    await page.locator("#shortcut-dialog").isHidden(),
+    "the picker-only shortcut opened during gameplay",
+  );
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("F01BA");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("Floor 1 is cleared") &&
+      (await page.locator("#hub-shared-gold").innerText()).includes("106"),
+    "the Floor 1 shortcut did not load its Branoc/Azhvielle clear state",
+  );
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   const utilityIcons = await page.locator(".header-actions img").evaluateAll((images) => images.map((image) => {
@@ -739,8 +1226,7 @@ try {
     "Battle status region is not visible",
   );
   requireCondition(
-    !(await page.locator("#route-panel").isVisible()) &&
-      !(await page.locator("#completion").isVisible()),
+    !(await page.locator("#route-panel").isVisible()),
     "Overworld content remains visible during Battle",
   );
   requireCondition(
@@ -998,6 +1484,13 @@ try {
     window.__fixtureCommands = [];
     window.__fixtureGlobals = {};
     window.__fixtureTransitionComplete = false;
+    window.__fixtureHubMode = false;
+    window.__fixtureDefeatMode = false;
+    window.__fixtureAwaitingReselect = false;
+    window.__fixtureHubPhase = "hub";
+    window.__fixtureFloorOneRun = 0;
+    window.__fixtureFloorOneBattle = 0;
+    window.__fixtureStartCalls = [];
     window.__fullscreenRequests = 0;
     window.__musicPlayRequests = 0;
     window.__musicPlayedBeforeFullscreen = false;
@@ -1028,14 +1521,166 @@ try {
           ]);
           if (source === "start_game_json(_selected_drifter_id)") {
             window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
-            return JSON.stringify(views.targets);
+            window.__fixtureStartCalls.push(window.__fixtureSelectedDrifter);
+            if (window.__fixtureAwaitingReselect) {
+              window.__fixtureDefeatMode = false;
+              window.__fixtureAwaitingReselect = false;
+              window.__fixtureHubMode = false;
+              return JSON.stringify(views.overworld);
+            }
+            return JSON.stringify(window.__fixtureHubMode ? views.hub : views.targets);
           }
           if (source === "current_view_json()") {
+            if (window.__fixtureHubMode) return JSON.stringify(views[window.__fixtureHubPhase]);
             return JSON.stringify(window.__fixtureTransitionComplete ? views.overworld : views.targets);
           }
           if (source === "restart_game_json()") return JSON.stringify(views.targets);
           if (source === "submit_json(_browser_command_json)") {
-            window.__fixtureCommands.push(JSON.parse(window.__fixtureGlobals._browser_command_json));
+            const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
+            window.__fixtureCommands.push(command);
+            if (window.__fixtureHubMode) {
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "items") {
+                window.__fixtureHubPhase = "items";
+                return JSON.stringify(views.items);
+              }
+              if (window.__fixtureHubPhase === "items" && command.kind === "overworld_item") {
+                return JSON.stringify(views.itemsSelected);
+              }
+              if (window.__fixtureHubPhase === "items" && command.action === "inspect") {
+                window.__fixtureHubPhase = "itemInspection";
+                return JSON.stringify(views.itemInspection);
+              }
+              if (window.__fixtureHubPhase === "itemInspection" && command.action === "back") {
+                window.__fixtureHubPhase = "items";
+                return JSON.stringify(views.itemsSelected);
+              }
+              if (window.__fixtureHubPhase === "items" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "merchant") {
+                window.__fixtureHubPhase = "merchant";
+                return JSON.stringify(views.merchant);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_target" && command.drifter_id === "azhvielle") {
+                return JSON.stringify(views.merchantAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_improve") {
+                return JSON.stringify(views.merchantImproved);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_dismantle") {
+                return JSON.stringify(views.merchantDismantled);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_craft_component") {
+                return JSON.stringify(views.merchantCrafted);
+              }
+              if (window.__fixtureHubPhase === "merchant" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "character") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.kind === "character_target" && command.drifter_id === "azhvielle") {
+                window.__fixtureHubPhase = "characterAzhvielle";
+                return JSON.stringify(views.hubCharacterAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "characterAzhvielle" && command.kind === "character_target" && command.drifter_id === "branoc") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.action === "weapon") {
+                window.__fixtureHubPhase = "weapon";
+                return JSON.stringify(views.weapon);
+              }
+              if (window.__fixtureHubPhase === "characterAzhvielle" && command.action === "weapon") {
+                window.__fixtureHubPhase = "weapon";
+                return JSON.stringify(views.weaponAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "weapon" && command.kind === "weapon_target" && command.drifter_id === "azhvielle") {
+                return JSON.stringify(views.weaponAzhvielle);
+              }
+              if (window.__fixtureHubPhase === "weapon" && command.action === "back") {
+                window.__fixtureHubPhase = "character";
+                return JSON.stringify(views.hubCharacter);
+              }
+              if (window.__fixtureHubPhase === "character" && command.action === "back") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              if (["securedHub", "floorOneClearedHub"].includes(window.__fixtureHubPhase) && command.action === "start_floor_one") {
+                window.__fixtureHubPhase = "floorOneWarning";
+                return JSON.stringify(views.floorOneWarning);
+              }
+              if (window.__fixtureHubPhase === "floorOneWarning" && command.action === "set_out") {
+                window.__fixtureFloorOneRun += 1;
+                window.__fixtureFloorOneBattle = 1;
+                window.__fixtureHubPhase = "floorOneBattle";
+                return JSON.stringify(views.floorOneBattle);
+              }
+              if (window.__fixtureHubPhase === "floorOneBattle" && command.intent === "defend") {
+                if (window.__fixtureFloorOneBattle === 10) {
+                  window.__fixtureHubPhase = "floorOneClearedHub";
+                } else if (window.__fixtureFloorOneBattle === 5) {
+                  window.__fixtureHubPhase = "floorOneMidwayRest";
+                } else if (window.__fixtureFloorOneBattle === 9) {
+                  window.__fixtureHubPhase = "floorOnePreBossRest";
+                } else {
+                  window.__fixtureHubPhase = "floorOneMain";
+                }
+                return JSON.stringify(views.complete);
+              }
+              if (window.__fixtureHubPhase === "floorOneMain" && command.action === "enter_encounter") {
+                window.__fixtureFloorOneBattle += 1;
+                window.__fixtureHubPhase = "floorOneBattle";
+                return JSON.stringify(views.floorOneBattle);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "rest") {
+                return JSON.stringify(views.floorOneMidwayRest);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "skip_rest") {
+                window.__fixtureHubPhase = "floorOneMain";
+                return JSON.stringify(views.floorOneMain);
+              }
+              if (window.__fixtureHubPhase === "floorOneMidwayRest" && command.action === "extract") {
+                window.__fixtureHubPhase = "floorOneExtraction";
+                return JSON.stringify(views.floorOneExtraction);
+              }
+              if (window.__fixtureHubPhase === "floorOnePreBossRest" && command.action === "skip_rest") {
+                window.__fixtureHubPhase = "floorOneMain";
+                return JSON.stringify(views.floorOneMain);
+              }
+              if (window.__fixtureHubPhase === "floorOneExtraction" && command.action === "return_to_hub") {
+                window.__fixtureHubPhase = "floorOneReplayHub";
+                return JSON.stringify(views.floorOneReplayHub);
+              }
+              if (window.__fixtureHubPhase === "hub" && command.action === "recruit_companion") {
+                window.__fixtureHubPhase = "companion";
+                return JSON.stringify(views.companion);
+              }
+              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle") {
+                window.__fixtureHubPhase = "partyReady";
+                return JSON.stringify(views.partyReady);
+              }
+              if (window.__fixtureHubPhase === "partyReady" && command.action === "ready") {
+                window.__fixtureHubPhase = "battle";
+                return JSON.stringify(views.partyBattle);
+              }
+              if (window.__fixtureHubPhase === "battle" && command.intent === "defend") {
+                if (window.__fixtureDefeatMode) {
+                  window.__fixtureAwaitingReselect = true;
+                  return JSON.stringify("select_drifter");
+                }
+                window.__fixtureHubPhase = "extraction";
+                return JSON.stringify(views.complete);
+              }
+              if (window.__fixtureHubPhase === "extraction" && command.action === "return_to_hub") {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.securedHub);
+              }
+              throw new Error(`unexpected hub fixture command at ${window.__fixtureHubPhase}`);
+            }
             window.__fixtureTransitionComplete = true;
             return JSON.stringify(views.complete);
           }
@@ -1047,6 +1692,32 @@ try {
     targets: targetProjection,
     complete: completeProjection,
     overworld: resultOverworldProjection,
+    hub: hubProjection,
+    companion: companionProjection,
+    partyReady: partyReadyProjection,
+    partyBattle: partyBattleProjection,
+    extraction: extractionProjection,
+    securedHub: securedHubProjection,
+    items: itemsProjection,
+    itemsSelected: itemsSelectedProjection,
+    itemInspection: itemInspectionProjection,
+    merchant: merchantProjection,
+    merchantAzhvielle: merchantAzhvielleProjection,
+    merchantImproved: merchantImprovedProjection,
+    merchantDismantled: merchantDismantledProjection,
+    merchantCrafted: merchantCraftedProjection,
+    hubCharacter: hubCharacterProjection,
+    hubCharacterAzhvielle: hubCharacterAzhvielleProjection,
+    weapon: weaponProjection,
+    weaponAzhvielle: weaponAzhvielleProjection,
+    floorOneWarning: floorOneWarningProjection,
+    floorOneMain: floorOneMainProjection,
+    floorOneBattle: floorOneBattleProjection,
+    floorOneMidwayRest: floorOneRestProjection,
+    floorOnePreBossRest: floorOnePreBossRestProjection,
+    floorOneExtraction: floorOneExtractionProjection,
+    floorOneClearedHub: floorOneClearedHubProjection,
+    floorOneReplayHub: floorOneReplayHubProjection,
   });
   await targetPage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await targetPage.waitForFunction(() => typeof window.__resolvePyodide === "function");
@@ -1176,6 +1847,314 @@ try {
     "completed Battle did not return to the authoritative Overworld result projection",
   );
 
+  await targetPage.evaluate(() => {
+    window.__fixtureHubMode = true;
+    window.__fixtureHubPhase = "hub";
+    window.__fixtureCommands = [];
+  });
+  await targetPage.locator("#restart").click();
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#location-label").innerText()) === "Floor 1 Hub" &&
+      (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 75" &&
+      await targetPage.getByRole("button", { name: "Recruit Companion" }).isVisible(),
+    "Hub projection omitted the shared balance or authoritative recruitment action",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-hub");
+  await clickVisibleOption(targetPage, "#overworld-options", "Recruit Companion");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "RECRUITMENT");
+  requireCondition(
+    await targetPage.locator("#companion-choices button:enabled").count() === 3 &&
+      (await targetPage.locator("#companion-funds").innerText()).includes("Shared gold: 75") &&
+      (await targetPage.locator("#companion-funds").innerText()).includes("Recruitment cost: 65"),
+    "companion projection omitted the three candidates or authoritative price/balance",
+  );
+  await clickVisibleOption(targetPage, "#companion-choices", "Azhvielle");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "PARTY READY");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 10" &&
+      await targetPage.getByRole("button", { name: "Ready / Set Out" }).isVisible(),
+    "Party Ready projection omitted the post-recruitment balance or explicit action",
+  );
+  await clickVisibleOption(targetPage, "#overworld-options", "Ready / Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#party-members .party-member").count() === 2 &&
+      (await targetPage.locator("#party-members").innerText()).includes("Ser Branoc") &&
+      (await targetPage.locator("#party-members").innerText()).includes("Azhvielle") &&
+      await targetPage.locator("#enemy-panel .enemy").count() === 3,
+    "party Battle projection omitted a Drifter or one of the three Goblins",
+  );
+  await captureScreenshot(targetPage, "desktop-hub-party-battle");
+  await clickVisibleOption(targetPage, "#actions", "Defend");
+  await targetPage.locator("#extraction-rewards").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#extraction-rewards").innerText()).includes("120 EXP | 9 gold") &&
+      (await targetPage.locator("#extraction-rewards").innerText()).includes("3 x Goblin Scrap") &&
+      await targetPage.getByRole("button", { name: "Return to Hub" }).isVisible(),
+    "Extraction projection omitted pending tutorial totals, item rewards, or its explicit return action",
+  );
+  await captureScreenshot(targetPage, "desktop-hub-extraction");
+  await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
+      await targetPage.locator("#overworld-options button").count() === 6 &&
+      !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
+      !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
+    "returned Hub did not show secured currency or offer Floor 1",
+  );
+  const hubCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    JSON.stringify(hubCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "recruit_companion" },
+      { kind: "companion", drifter_id: "azhvielle" },
+      { kind: "overworld_action", action: "ready" },
+      { kind: "action", intent: "defend" },
+      { kind: "overworld_action", action: "return_to_hub" },
+    ]),
+    `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
+  );
+  console.log("PYD7|BROWSER|HUB_OUTING|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Merchant");
+  await targetPage.locator("#merchant-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#merchant-weapon-name").innerText()) === "Sunder-Spire" &&
+      await targetPage.locator("#merchant-targets button").count() === 2 &&
+      await targetPage.locator("#merchant-slots .merchant-row").count() === 4 &&
+      await targetPage.locator("#merchant-slots button:enabled").count() === 1 &&
+      (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x3"),
+    "Hub Merchant omitted the selected weapon, four slots, authoritative availability, or dismantle offer",
+  );
+  console.log("PYD8|BROWSER|HUB_MERCHANT|PASS");
+  await clickVisibleOption(targetPage, "#merchant-targets", "Azhvielle");
+  requireCondition(
+    (await targetPage.locator("#merchant-weapon-name").innerText()) === "Needle of Plain Iron" &&
+      (await targetPage.locator("#merchant-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
+    "Merchant target selection did not switch to the chosen companion's weapon",
+  );
+  await clickVisibleOption(targetPage, "#merchant-slots", "Improve");
+  requireCondition(
+    (await targetPage.locator("#merchant-slots .merchant-row").first().innerText()).includes("3/100") &&
+      (await targetPage.locator("#merchant-crafting").innerText()).includes("20 XP"),
+    "Merchant improvement did not render the authoritative slot and Crafting updates",
+  );
+  await clickVisibleOption(targetPage, "#merchant-dismantle", "Dismantle");
+  requireCondition(
+    (await targetPage.locator("#merchant-materials").innerText()).includes("Cord: 1") &&
+      (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x2"),
+    "Merchant dismantling did not render the authoritative materials and remaining loot",
+  );
+  requireCondition(
+    (await targetPage.locator("#merchant-component-recipes").innerText()).includes("Obsidian Focus Fittings") &&
+      await targetPage.locator("#merchant-component-recipes button:enabled").count() === 1,
+    "Merchant did not show the available Grade-I component recipe",
+  );
+  await clickVisibleOption(targetPage, "#merchant-component-recipes", "Craft & Install");
+  requireCondition(
+    !(await targetPage.locator("#merchant-component-recipes").innerText()).includes("Obsidian Focus Fittings") &&
+      (await targetPage.locator("#merchant-materials").innerText()).includes("Scrap metal: 1"),
+    "Crafting and installing did not consume material and remove the installed recipe",
+  );
+  await clickVisibleOption(targetPage, "#merchant-options", "Back");
+  await targetPage.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Character");
+  await targetPage.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#character-targets button").count() === 2,
+    "Character page omitted the party Drifter selector",
+  );
+  await clickVisibleOption(targetPage, "#character-targets", "Azhvielle");
+  requireCondition(
+    (await targetPage.locator("#character-name").innerText()) === "Azhvielle" &&
+      (await targetPage.locator("#character-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
+    "Character page did not switch its profile to the selected companion",
+  );
+  await clickVisibleOption(targetPage, "#character-targets", "Ser Branoc");
+  await clickVisibleOption(targetPage, "#character-options", "Weapon");
+  await targetPage.locator("#weapon-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#weapon-targets button").count() === 2 &&
+      await targetPage.locator("#weapon-components .weapon-component-slot").count() === 4,
+    "Weapon page omitted the party Drifter picker or four component slots",
+  );
+  await clickVisibleOption(targetPage, "#weapon-targets", "Azhvielle");
+  requireCondition(
+    (await targetPage.locator("#weapon-components").innerText()).includes("Obsidian Focus Fittings") &&
+      (await targetPage.locator("#weapon-components .weapon-component-slot").first().innerText()).includes("Installed"),
+    "Crafting and installing did not update the selected Drifter's installed part",
+  );
+  await clickVisibleOption(targetPage, "#weapon-options", "Back");
+  await targetPage.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#character-options", "Back");
+  await targetPage.locator("#character-panel").waitFor({ state: "hidden" });
+  const merchantCommands = await targetPage.evaluate(() => window.__fixtureCommands.slice(5));
+  requireCondition(
+    JSON.stringify(merchantCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "merchant" },
+      { kind: "merchant_target", drifter_id: "azhvielle" },
+      { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
+      { kind: "merchant_dismantle", target_drifter_id: "azhvielle", item_id: "goblin_scrap" },
+      { kind: "merchant_craft_component", target_drifter_id: "azhvielle", component_id: "needle_focus_fitted" },
+      { kind: "overworld_action", action: "back" },
+      { kind: "overworld_action", action: "character" },
+      { kind: "character_target", drifter_id: "azhvielle" },
+      { kind: "character_target", drifter_id: "branoc" },
+      { kind: "overworld_action", action: "weapon" },
+      { kind: "weapon_target", drifter_id: "azhvielle" },
+      { kind: "overworld_action", action: "back" },
+      { kind: "overworld_action", action: "back" },
+    ]),
+    `Hub component flow did not submit the exact selected Drifter and offered actions: ${JSON.stringify(merchantCommands)}`,
+  );
+  console.log("PYD8|BROWSER|HUB_WEAPON_COMPONENTS|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Items");
+  await targetPage.locator("#items-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3"),
+    "Items page did not show the secured Goblin Scrap stack",
+  );
+  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3");
+  await clickVisibleOption(targetPage, "#items-options", "Inspect");
+  await targetPage.locator("#items-inspection").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#items-inspection").innerText()).includes("Quantity: 3") &&
+      (await targetPage.locator("#items-inspection").innerText()).includes("dismantling"),
+    "Item inspection did not show the secured stack quantity and description",
+  );
+  await clickVisibleOption(targetPage, "#items-options", "Back");
+  await clickVisibleOption(targetPage, "#items-options", "Back");
+  await targetPage.locator("#items-panel").waitFor({ state: "hidden" });
+  console.log("PYD9|BROWSER|SHARED_ITEMS_INSPECT|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
+  await targetPage.locator("#screen-badge").filter({ hasText: "FLOOR_ONE_WARNING" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#adventure-text").innerText()).includes("Death means returning to the Hub") &&
+      await targetPage.getByRole("button", { name: "Set Out" }).isVisible(),
+    "Floor 1 warning omitted its death consequence or explicit Set Out action",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-warning");
+  await clickVisibleOption(targetPage, "#overworld-options", "Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#party-members .party-member").count() === 2 &&
+      await targetPage.locator("#enemy-panel .enemy").count() === 4,
+    "Floor 1 Set Out did not open the four-Goblin party battle",
+  );
+
+  for (let battleNumber = 1; battleNumber <= 10; battleNumber += 1) {
+    if (battleNumber > 1) {
+      if (battleNumber === 6) {
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        await captureScreenshot(targetPage, "desktop-floor-one-midway-rest");
+        await clickVisibleOption(targetPage, "#overworld-options", "Recover");
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        requireCondition(
+          await targetPage.getByRole("button", { name: "Extract" }).isVisible(),
+          "Recover removed the option to extract from the midway Rest",
+        );
+        await clickVisibleOption(targetPage, "#route-actions", "Continue Without Rest");
+      } else if (battleNumber === 10) {
+        await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+        await clickVisibleOption(targetPage, "#route-actions", "Continue Without Rest");
+      }
+      await clickVisibleOption(targetPage, "#route-actions", "Enter Encounter");
+      await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clickVisibleOption(targetPage, "#actions", "Defend");
+    if (battleNumber === 5 || battleNumber === 9) {
+      await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 115" &&
+      (await targetPage.locator("#location-label").innerText()) === "Floor 1 Hub" &&
+      await targetPage.locator("#party-panel").isHidden(),
+    "Goblin Lord victory did not return the cleared party and secured rewards to the Hub",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-cleared-hub");
+  const firstClearCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    firstClearCommands.filter((command) => command.action === "enter_encounter").length === 9 &&
+      firstClearCommands.filter((command) => command.intent === "defend").length === 11 &&
+      firstClearCommands.some((command) => command.action === "rest") &&
+      firstClearCommands.some((command) => command.action === "skip_rest"),
+    `Floor 1 browser route omitted its ten Battles or two Rest choices: ${JSON.stringify(firstClearCommands)}`,
+  );
+  console.log("PYD7|BROWSER|FLOOR_ONE_BATTLE_10|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_BOSS_CLEAR|PASS");
+
+  await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
+  await clickVisibleOption(targetPage, "#overworld-options", "Set Out");
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(targetPage, "#route-actions", "Enter Encounter");
+      await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clickVisibleOption(targetPage, "#actions", "Defend");
+  }
+  await targetPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Extract");
+  await targetPage.locator("#extraction-rewards").waitFor({ state: "visible" });
+  requireCondition(
+    (await targetPage.locator("#extraction-rewards").innerText()).includes("140 EXP | 21 gold"),
+    "midway replay extraction did not show the reduced 50% reward",
+  );
+  await captureScreenshot(targetPage, "desktop-floor-one-extraction");
+  await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
+  requireCondition(
+    (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 136",
+    "safe early extraction did not secure its reduced gold at the Hub",
+  );
+  const fullFloorOneCommands = await targetPage.evaluate(() => window.__fixtureCommands);
+  requireCondition(
+    fullFloorOneCommands.filter((command) => command.action === "start_floor_one").length === 2 &&
+      fullFloorOneCommands.filter((command) => command.action === "extract").length === 1 &&
+      fullFloorOneCommands.filter((command) => command.action === "return_to_hub").length === 2,
+    `Floor 1 browser replay did not use the expected semantic actions: ${JSON.stringify(fullFloorOneCommands)}`,
+  );
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_MIDWAY_REST|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_EXTRACT|PASS");
+
+  await targetPage.evaluate(() => {
+    window.__fixtureHubMode = true;
+    window.__fixtureDefeatMode = true;
+    window.__fixtureHubPhase = "hub";
+    window.__fixtureCommands = [];
+  });
+  await targetPage.locator("#restart").click();
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#overworld-options", "Recruit Companion");
+  await clickVisibleOption(targetPage, "#companion-choices", "Azhvielle");
+  await clickVisibleOption(targetPage, "#overworld-options", "Ready / Set Out");
+  await targetPage.locator("#party-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#actions", "Defend");
+  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.locator("#battle-screen").isHidden() &&
+      await targetPage.locator("#drifter-options [data-drifter-id]").count() === 4,
+    "Python defeat result did not return the browser to Drifter selection",
+  );
+  await targetPage.locator('#drifter-options [data-drifter-id="zhaivra"]').click();
+  await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await targetPage.evaluate(() =>
+      window.__fixtureStartCalls.slice(-2).join(",") === "branoc,zhaivra" &&
+        window.__fixtureSelectedDrifter === "zhaivra" &&
+        window.__fixtureCommands.at(-1).intent === "defend") &&
+      (await targetPage.locator("#screen-badge").innerText()) === "OVERWORLD" &&
+      (await targetPage.locator("#location-label").innerText()) === "The road ahead",
+    "defeat did not allow a new Drifter selection and fresh Overworld session",
+  );
+  console.log("PYD7|BROWSER|DEFEAT_RESELECT|PASS");
+
   const qualification = await browser.newPage();
   qualification.on("pageerror", (error) => errors.push(error.message));
   qualification.on("console", (message) => {
@@ -1185,14 +2164,207 @@ try {
     waitUntil: "domcontentloaded",
   });
   await qualification.waitForFunction(
-    () => document.getElementById("status").textContent.includes("PYD2|PASS"),
+    () => {
+      const output = document.getElementById("status").textContent;
+      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
+    },
     null,
     { timeout: 120000 },
   );
   const result = await qualification.locator("#status").innerText();
+  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
   requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
   requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
+  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
+  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
+  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
+  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
+  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
+  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
+  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
   requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
+
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 30000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#character-name").innerText()).includes("Ser Branoc") &&
+      await page.locator("#location-label").innerText() === "Goblin Ambush",
+    "browser reload and Load did not restore the saved Drifter and route",
+  );
+  requireCondition(errors.length === 0, `browser page errors after save/reload: ${errors.join("; ")}`);
+  console.log("PYD7|BROWSER|SAVE_RELOAD|PASS");
+
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("F01BA");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
+  await branocMerchantTarget.click();
+
+  const scrapMetalCount = async () => {
+    const text = await page.locator("#merchant-materials").innerText();
+    return Number(text.match(/Scrap metal:\s*(\d+)/i)?.[1] || 0);
+  };
+  const scrapRow = page.locator("#merchant-dismantle .merchant-row").filter({ hasText: "Goblin Scrap" });
+  requireCondition(await scrapRow.count() === 1, "weapon save/reload scenario did not provide Goblin Scrap");
+  for (let attempt = 0; attempt < 30 && await scrapMetalCount() < 2; attempt += 1) {
+    const previous = await page.locator("#merchant-dismantle").innerText();
+    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
+    await page.waitForFunction((prior) =>
+      document.getElementById("merchant-dismantle").innerText !== prior,
+    previous);
+  }
+  requireCondition(await scrapMetalCount() >= 2, "Goblin Scrap did not yield enough metal to craft and improve Branoc's weapon");
+
+  const bladeRecipe = page.locator("#merchant-component-recipes .merchant-row")
+    .filter({ hasText: "Reinforced Blade and Guard" });
+  const craftingBeforeRecipe = await page.locator("#merchant-crafting").innerText();
+  const materialsBeforeRecipe = await page.locator("#merchant-materials").innerText();
+  await bladeRecipe.getByRole("button", { name: "Craft & Install" }).click();
+  await page.waitForFunction(({ crafting, materials }) =>
+    document.getElementById("merchant-crafting").innerText !== crafting &&
+      document.getElementById("merchant-materials").innerText !== materials &&
+      !document.getElementById("merchant-component-recipes").innerText.includes("Reinforced Blade and Guard"),
+  { crafting: craftingBeforeRecipe, materials: materialsBeforeRecipe });
+  requireCondition(
+    (await page.locator("#merchant-crafting").innerText()) !== craftingBeforeRecipe,
+    "Crafted Reinforced Blade and Guard did not award Crafting experience",
+  );
+  const bladeSlot = page.locator("#merchant-slots .merchant-row").first();
+  const slotBeforeImprovement = await bladeSlot.innerText();
+  await bladeSlot.getByRole("button", { name: "Improve" }).click();
+  await page.waitForFunction((previous) =>
+    document.querySelector("#merchant-slots .merchant-row").innerText !== previous,
+  slotBeforeImprovement);
+
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  const bladeComponent = page.locator("#weapon-components .weapon-component-slot").first();
+  const installedBladeState = await bladeComponent.innerText();
+  requireCondition(
+    installedBladeState.includes("Installed: Reinforced Blade and Guard"),
+    "Branoc's crafted component was not installed before saving",
+  );
+
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const savedWeaponProgression = {
+    crafting: await page.locator("#merchant-crafting").innerText(),
+    slot: await page.locator("#merchant-slots .merchant-row").first().innerText(),
+    materials: await page.locator("#merchant-materials").innerText(),
+  };
+  requireCondition(
+    /\d+\/100/.test(savedWeaponProgression.slot) &&
+      /\d+ XP/.test(savedWeaponProgression.crafting) &&
+      savedWeaponProgression.materials.includes("Scrap metal:"),
+    `weapon progression state was incomplete before saving: ${JSON.stringify(savedWeaponProgression)}`,
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 30000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  const restoredHubState = {
+    location: await page.locator("#location-label").innerText(),
+    adventure: await page.locator("#adventure-text").innerText(),
+    badge: await page.locator("#screen-badge").innerText(),
+    notice: await page.locator("#notice").innerText(),
+  };
+  requireCondition(
+    restoredHubState.location === "Floor 1 Hub",
+    `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  const loadedWeaponTarget = page.locator("#weapon-targets button").filter({ hasText: "Ser Branoc" });
+  await loadedWeaponTarget.click();
+  const loadedBladeState = await page.locator("#weapon-components .weapon-component-slot").first().innerText();
+  requireCondition(
+    loadedBladeState.includes("Installed: Reinforced Blade and Guard") &&
+      loadedBladeState === installedBladeState,
+    "browser reload and Load did not restore Branoc's weapon progression: installed component changed",
+  );
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  const loadedWeaponProgression = {
+    crafting: await page.locator("#merchant-crafting").innerText(),
+    slot: await page.locator("#merchant-slots .merchant-row").first().innerText(),
+    materials: await page.locator("#merchant-materials").innerText(),
+  };
+  requireCondition(
+    JSON.stringify(loadedWeaponProgression) === JSON.stringify(savedWeaponProgression),
+    `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify({ savedWeaponProgression, loadedWeaponProgression })}`,
+  );
+  requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
+  console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
 
   console.log("PYD7|PASS");
   console.log("PYD7|BROWSER|INITIAL_SESSION|PASS");
@@ -1200,7 +2372,8 @@ try {
   console.log("PYD7|BROWSER|MULTI_TARGET_PROJECTION|PASS");
   console.log("PYD7|BROWSER|RESULT_TO_OVERWORLD|PASS");
   console.log("PYD7|BROWSER|FULL_ROUTE|PASS");
-  console.log("PYD7|BROWSER|COMPLETION_SIGNAL|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_FULL_CLEAR|PASS");
+  console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_EXTRACTION|PASS");
 } finally {
   await browser.close();
 }

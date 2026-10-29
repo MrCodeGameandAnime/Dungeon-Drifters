@@ -57,6 +57,7 @@ ENEMY = EnemySpec(
             description="A committed overhead chop intended to break through a defended position.",
         ),
     ),
+    item_drops=(("goblin_scrap", 1),),
 )
 
 

@@ -1,3 +1,5 @@
+from dataclasses import fields
+
 import pytest
 
 from app.content.catalog import create_drifter
@@ -21,6 +23,8 @@ from app.presentation.battle_models import (
     ActionIntent,
     BattleEventType,
     BattleLogEntry,
+    BattleView,
+    CombatantView,
     InteractionPhase,
     MoveAvailabilityReason,
 )
@@ -68,6 +72,20 @@ def test_presenter_rejects_mismatched_enemy_target_ids_before_zipping():
             enemy_target_ids=("enemy_1",),
             combat_state=combat_state,
         )
+
+
+def test_single_player_battle_models_do_not_allocate_party_projection_fields():
+    view, _, _, _ = _build()
+
+    assert {field.name for field in fields(CombatantView)}.isdisjoint(
+        {"target_id", "active"}
+    )
+    battle_fields = {field.name for field in fields(BattleView)}
+    assert "party_members" in battle_fields
+    assert "active_player_id" not in battle_fields
+    assert view.player.target_id is None
+    assert view.party_members == ()
+    assert view.active_player_id is None
 
 
 def test_presenter_rejects_mismatched_enemy_display_labels_before_zipping():

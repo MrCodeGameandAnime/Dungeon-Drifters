@@ -12,7 +12,12 @@ from app.persistence.bootstrap import (
     default_profile_root,
 )
 from app.persistence.coordinator import SaveCoordinator
-from app.persistence.envelope import SyncState
+from app.persistence.envelope import (
+    SyncState,
+    build_conflict_snapshot,
+    build_profile_envelope,
+    serialize_conflict_snapshot,
+)
 from app.persistence.local_store import LocalProfileStore
 from app.persistence.ports import ProfileStoreError, SaveLoadStatus
 from app.persistence.save_document import build_save_document
@@ -21,6 +26,9 @@ from app.player.player_state import PlayerState
 
 PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
 SAVED_AT = datetime(2026, 10, 12, 12, 0, tzinfo=timezone.utc)
+ACCOUNT_ID = UUID("00000000-0000-4000-8000-000000000004")
+OLD_SAVE_ID = UUID("00000000-0000-4000-8000-000000000003")
+NEW_SAVE_ID = UUID("00000000-0000-4000-8000-000000000005")
 
 
 def _game_state(gold=0):
@@ -34,6 +42,47 @@ def _coordinator(root):
         PROFILE_ID,
         now_factory=lambda: SAVED_AT,
     )
+
+
+def _old_schema8_payload(gold=12):
+    document = build_save_document(_game_state(gold=gold))
+    document["schema_version"] = 8
+    document.pop("party")
+    document["player"].pop("signature_weapon")
+    document["overworld"].pop("active_route_id")
+    return document
+
+
+def _old_schema9_payload(gold=12):
+    document = build_save_document(_game_state(gold=gold))
+    document["schema_version"] = 9
+    document["player"].pop("signature_weapon")
+    document["overworld"].pop("active_route_id")
+    for field in (
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+        "crafting_experience",
+    ):
+        document["party"].pop(field)
+    return document
+
+
+def _save_old_envelope(store, *, account_id=None, remote_revision=None, sync_state=None):
+    if sync_state is None:
+        sync_state = SyncState.LOCAL_ONLY if account_id is None else SyncState.CLEAN
+    envelope = build_profile_envelope(
+        _old_schema8_payload(),
+        profile_id=PROFILE_ID,
+        account_id=account_id,
+        remote_revision=remote_revision,
+        local_sequence=1,
+        sync_state=sync_state,
+        client_save_id=OLD_SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    store.save(envelope)
+    return envelope
 
 
 def test_local_save_creates_profile_envelope_without_mutating_game_state(tmp_path):
@@ -196,3 +245,127 @@ def test_bootstrap_migrates_legacy_save_before_selecting_default_profile(tmp_pat
     assert loaded.status is SaveLoadStatus.LOADED
     assert loaded.game_state.player_state.gold == 33
     assert legacy_path.is_file()
+
+
+def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    _save_old_envelope(store)
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    loaded = coordinator.load()
+    upgraded = store.load(PROFILE_ID).envelope
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.player_state.gold == 12
+    assert upgraded.payload["schema_version"] == 12
+    assert upgraded.sync_state is SyncState.LOCAL_ONLY
+    assert upgraded.account_id is None
+    assert upgraded.local_sequence == 2
+    assert upgraded.client_save_id == NEW_SAVE_ID
+
+
+def test_loading_schema9_local_envelope_verifies_then_persists_schema12(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    legacy_payload = _old_schema9_payload(gold=21)
+    legacy_envelope = build_profile_envelope(
+        legacy_payload,
+        profile_id=PROFILE_ID,
+        local_sequence=1,
+        sync_state=SyncState.LOCAL_ONLY,
+        client_save_id=OLD_SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    store.save(legacy_envelope)
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    loaded = coordinator.load()
+    upgraded = store.load(PROFILE_ID).envelope
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.player_state.gold == 21
+    assert legacy_envelope.payload == legacy_payload
+    assert upgraded.payload["schema_version"] == 12
+    assert upgraded.local_sequence == 2
+    assert upgraded.client_save_id == NEW_SAVE_ID
+    assert upgraded.sync_state is SyncState.LOCAL_ONLY
+
+
+def test_loading_schema8_linked_clean_profile_marks_schema9_pending(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    _save_old_envelope(
+        store,
+        account_id=ACCOUNT_ID,
+        remote_revision=3,
+        sync_state=SyncState.CLEAN,
+    )
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    loaded = coordinator.load()
+    upgraded = store.load(PROFILE_ID).envelope
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert upgraded.payload["schema_version"] == 12
+    assert upgraded.account_id == ACCOUNT_ID
+    assert upgraded.remote_revision == 3
+    assert upgraded.sync_state is SyncState.PENDING
+    assert upgraded.local_sequence == 2
+    assert upgraded.client_save_id == NEW_SAVE_ID
+
+
+def test_loading_schema8_conflict_profile_preserves_conflict_evidence(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    local_payload = _old_schema8_payload(gold=12)
+    remote_payload = _old_schema8_payload(gold=99)
+    envelope = build_profile_envelope(
+        local_payload,
+        profile_id=PROFILE_ID,
+        account_id=ACCOUNT_ID,
+        remote_revision=3,
+        local_sequence=1,
+        sync_state=SyncState.CONFLICT,
+        client_save_id=OLD_SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    store.save(envelope)
+    conflict = build_conflict_snapshot(
+        profile_id=PROFILE_ID,
+        local_client_save_id=OLD_SAVE_ID,
+        local_payload=local_payload,
+        base_remote_revision=3,
+        remote_current_revision=4,
+        remote_payload=remote_payload,
+        detected_at=SAVED_AT,
+    )
+    store.save_conflict(conflict)
+    conflict_path = store.root / "conflicts" / f"{PROFILE_ID}.json"
+    conflict_bytes = conflict_path.read_bytes()
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    loaded = coordinator.load()
+    upgraded = store.load(PROFILE_ID).envelope
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert upgraded.payload["schema_version"] == 12
+    assert upgraded.sync_state is SyncState.CONFLICT
+    assert conflict_path.read_bytes() == conflict_bytes
+    assert conflict_path.read_bytes() == serialize_conflict_snapshot(conflict)

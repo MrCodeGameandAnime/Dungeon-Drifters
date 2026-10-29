@@ -57,6 +57,7 @@ ENEMY = EnemySpec(
             description="A committed leaping slash.",
         ),
     ),
+    item_drops=(("goblin_scrap", 1),),
 )
 
 

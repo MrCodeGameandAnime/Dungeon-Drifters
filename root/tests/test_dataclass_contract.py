@@ -1,3 +1,4 @@
+import ast
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
@@ -112,11 +113,11 @@ def test_production_dataclass_surface_is_exactly_audited():
     )
     texts = tuple(path.read_text(encoding="utf-8") for path in files)
 
-    assert len(import_files) == 28
-    assert sum(text.count("@dataclass") for text in texts) == 84
-    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 81
+    assert len(import_files) == 30
+    assert sum(text.count("@dataclass") for text in texts) == 114
+    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 111
     assert sum(text.count("@dataclass\n") for text in texts) == 3
-    assert sum(text.count("def __post_init__(self)") for text in texts) == 61
+    assert sum(text.count("def __post_init__(self)") for text in texts) == 90
     assert sum(text.count("field(default_factory=") for text in texts) == 1
 
     forbidden = (
@@ -130,11 +131,28 @@ def test_production_dataclass_surface_is_exactly_audited():
         "KW_ONLY",
         "order=",
         "unsafe_hash=",
-        "slots=",
         "kw_only=",
         "metadata=",
     )
     assert not any(token in text for text in texts for token in forbidden)
+
+    dataclass_options = {"order", "unsafe_hash", "slots", "kw_only"}
+    for text in texts:
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            is_dataclass_call = (
+                isinstance(function, ast.Name) and function.id == "dataclass"
+            ) or (
+                isinstance(function, ast.Attribute)
+                and function.attr == "dataclass"
+            )
+            if is_dataclass_call:
+                assert not dataclass_options.intersection(
+                    keyword.arg for keyword in node.keywords
+                )
 
     metadata_files = tuple(
         path

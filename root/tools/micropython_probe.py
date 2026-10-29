@@ -48,7 +48,7 @@ _EXPECTED_COMPOSITIONS = (
 )
 _EXPECTED_ENEMY_COUNT = 14
 _EXPECTED_FINAL_NODE = "surface_dungeon_entrance"
-_EXPECTED_PROGRESS = (9, 68, 24, 75)
+_EXPECTED_PROGRESS = (9, 68, 24, 0)
 
 
 def _emit_memory(label):
@@ -62,12 +62,24 @@ def _emit_memory(label):
     print("MYP|MEMORY|%s|FREE|%s|ALLOC|%s" % (label, free, allocated))
 
 
+def _emit_heap_map_on_memory_error(error):
+    if not isinstance(error, MemoryError):
+        return
+    try:
+        import micropython
+
+        micropython.mem_info(1)
+    except Exception:
+        pass
+
+
 def _run_stage(name, operation):
     print("MYP|%s|BEGIN" % name)
     _emit_memory("%s|BEFORE" % name)
     try:
         operation()
     except Exception as error:
+        _emit_heap_map_on_memory_error(error)
         print(
             "MYP|%s|FAIL|%s|%s"
             % (name, type(error).__name__, str(error))
@@ -171,11 +183,15 @@ class _RouteDeterministicResolver:
 
 class _RouteBattleFactory:
     def __init__(self):
-        self.battles = []
+        self.battle_compositions = []
+        self.completed_count = 0
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label):
+    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
         from app.combat.battle import Battle
 
+        self.battle_compositions.append(
+            tuple(enemy.archetype_id for enemy in enemies)
+        )
         battle = Battle(
             player_state,
             enemies,
@@ -183,9 +199,31 @@ class _RouteBattleFactory:
             resolver=_RouteDeterministicResolver(),
             rng=_DeterministicRng(),
             encounter_label=encounter_label,
+            party=party,
         )
-        self.battles.append(battle)
         return battle
+
+    def mark_completed(self):
+        self.completed_count += 1
+
+    def inspect(self):
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        self.status = SaveLoadStatus.MISSING
+        return self
+
+    def save(self, game_state):
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        self.saved_game_state = game_state
+        self.status = SaveLoadStatus.SAVED
+        return self
+
+    def load(self):
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        self.status = SaveLoadStatus.MISSING
+        return self
 
 
 class _RouteEnemyFactory:
@@ -265,6 +303,15 @@ def _complete_first_battle():
         raise AssertionError("completed Battle did not produce an inactive view")
 
 
+def _release_first_battle_evidence():
+    STATE["battle_factory_type"] = STATE["battle"].__class__
+    del STATE["battle_view"]
+    del STATE["enemies"]
+    del STATE["battle"]
+    del STATE["game"]
+    gc.collect()
+
+
 def _import_overworld_session():
     from app.game.overworld_session import OverworldSession
 
@@ -272,13 +319,17 @@ def _import_overworld_session():
 
 
 def _construct_headless_session():
+    from app.game.new_game import create_new_game
+
+    game = create_new_game("branoc")
     session = STATE["overworld_session_type"](
-        STATE["game"],
-        battle_factory=STATE["battle"].__class__,
+        game,
+        battle_factory=STATE["battle_factory_type"],
         enemy_factory=STATE["catalog"].create_enemy_state,
         ui=None,
         battle_ui_factory=None,
     )
+    STATE["session_game"] = game
     STATE["session"] = session
 
 
@@ -328,7 +379,7 @@ def _complete_first_session_encounter():
     next_view = session.current_view()
     if next_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
         raise AssertionError("session did not return to the overworld")
-    if STATE["game"].world_state.defeated_encounters != (
+    if STATE["session_game"].world_state.defeated_encounters != (
         "surface_goblin_solo",
     ):
         raise AssertionError("session did not finalize the first encounter")
@@ -347,7 +398,7 @@ def _construct_route_qualification():
         enemy_factory=enemy_factory,
         ui=None,
         battle_ui_factory=None,
-        save_port=None,
+        save_port=battle_factory,
     )
     STATE["route_game"] = game
     STATE["route_session"] = session
@@ -401,6 +452,7 @@ def _complete_route_battle(first_view):
             )
     if view.interaction_phase is not InteractionPhase.COMPLETE:
         raise AssertionError("route Battle did not complete within 100 inputs")
+    STATE["route_battle_factory"].mark_completed()
     return STATE["route_session"].current_view()
 
 
@@ -456,7 +508,10 @@ def _drive_route_encounter(node_id, encounter_index):
     expected_next = _ROUTE_NODE_IDS[_ROUTE_NODE_IDS.index(node_id) + 1]
     if game.overworld_state.current_route_node_id != expected_next:
         raise AssertionError("route did not advance to its immediate successor")
-    if final_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
+    if node_id == _EXPECTED_ENCOUNTERS[-1]:
+        if final_view.screen is not OverworldScreen.HUB:
+            raise AssertionError("the completed route did not return to the Hub")
+    elif final_view.screen not in (OverworldScreen.MAIN, OverworldScreen.REST):
         raise AssertionError("completed encounter returned an invalid screen")
 
 
@@ -491,14 +546,16 @@ def _complete_surface_route():
                 from app.presentation.overworld_models import OverworldScreen
 
                 view = STATE["route_session"].current_view()
-                if view.screen is not OverworldScreen.MAIN:
-                    raise AssertionError("Dungeon Entrance did not present MAIN")
+                if view.screen is not OverworldScreen.HUB:
+                    raise AssertionError("Dungeon Entrance did not present the Hub")
                 if STATE["route_game"].overworld_state.current_route_node_id != node_id:
                     raise AssertionError("route ended at the wrong node")
                 if not STATE["route_game"].overworld_state.route_complete:
                     raise AssertionError("route did not complete at Dungeon Entrance")
                 if view.contextual_route_option is not None:
                     raise AssertionError("Dungeon Entrance offered another action")
+                if STATE["route_game"].party_state.shared_gold != 75:
+                    raise AssertionError("route gold was not transferred to the Hub")
 
             _run_route_node(node_id, verify_final_node)
             continue
@@ -524,28 +581,21 @@ def _complete_surface_route():
 
 
 def _assert_route_final_state():
-    from app.presentation.battle_models import InteractionPhase
     from app.presentation.overworld_models import OverworldScreen
 
     game = STATE["route_game"]
     session = STATE["route_session"]
-    battles = STATE["route_battle_factory"].battles
+    battle_factory = STATE["route_battle_factory"]
     enemies = STATE["route_enemy_factory"].enemies
-    if len(battles) != len(_EXPECTED_ENCOUNTERS):
+    if len(battle_factory.battle_compositions) != len(_EXPECTED_ENCOUNTERS):
         raise AssertionError("unexpected route Battle count")
+    if battle_factory.completed_count != len(_EXPECTED_ENCOUNTERS):
+        raise AssertionError("a route Battle did not complete")
     if len(enemies) != _EXPECTED_ENEMY_COUNT:
         raise AssertionError("unexpected route EnemyState count")
     _assert_enemy_identity_is_fresh(enemies)
-    if tuple(
-        tuple(enemy.archetype_id for enemy in battle.enemies)
-        for battle in battles
-    ) != _EXPECTED_COMPOSITIONS:
+    if tuple(battle_factory.battle_compositions) != _EXPECTED_COMPOSITIONS:
         raise AssertionError("route Battle compositions changed")
-    if not all(
-        battle.interaction_phase is InteractionPhase.COMPLETE
-        for battle in battles
-    ):
-        raise AssertionError("a route Battle did not complete")
     if session.active_battle is not None:
         raise AssertionError("route session retained an active Battle")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
@@ -566,13 +616,28 @@ def _assert_route_final_state():
         player.gold,
     ) != _EXPECTED_PROGRESS:
         raise AssertionError("final player progression changed")
+    if game.party_state.shared_gold != 75:
+        raise AssertionError("Hub shared gold changed after route completion")
     final_view = session.current_view()
-    if final_view.screen is not OverworldScreen.MAIN:
-        raise AssertionError("final route view did not return MAIN")
+    if final_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("final route view did not return to the Hub")
     if final_view.contextual_route_option is not None:
         raise AssertionError("final route view offered another action")
-    if session._save_port is not None:
-        raise AssertionError("route qualification materialized persistence")
+    if session._save_port is not battle_factory:
+        raise AssertionError("route qualification replaced its in-memory save port")
+
+
+def _run_hub_tutorial():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_hub_probe
+
+        micropython_hub_probe.run(STATE, _complete_route_battle, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_hub_probe", None)
+    _emit_memory("HUB_PROBE_RELEASED")
 
 
 def _assert_route_live_state():
@@ -580,40 +645,45 @@ def _assert_route_live_state():
 
     game = STATE["route_game"]
     session = STATE["route_session"]
+    party = game.party_state
     if session.active_battle is not None:
         raise AssertionError("route session retained an active Battle")
+    if game.overworld_state.active_route_id != "surface":
+        raise AssertionError("Floor 1 clear did not return to the Surface route")
     if game.overworld_state.current_route_node_id != _EXPECTED_FINAL_NODE:
-        raise AssertionError("live route node changed during evidence cleanup")
+        raise AssertionError("Floor 1 clear returned to the wrong route node")
     if not game.overworld_state.route_complete:
-        raise AssertionError("live route became incomplete during cleanup")
+        raise AssertionError("live route became incomplete after Floor 1")
     if not game.overworld_state.dungeon_entrance_reached:
-        raise AssertionError("Dungeon Entrance state changed during cleanup")
+        raise AssertionError("Dungeon Entrance state changed after Floor 1")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
-        raise AssertionError("defeated encounters changed during cleanup")
-    if game.overworld_state.resolved_rest_node_ids != _EXPECTED_RESTS:
-        raise AssertionError("resolved Rests changed during cleanup")
-    player = game.player_state
-    if (
-        player.level_state.current,
-        player.exp_state.current,
-        player.growth_points,
-        player.gold,
-    ) != _EXPECTED_PROGRESS:
-        raise AssertionError("player progression changed during cleanup")
+        raise AssertionError("Floor 1 changed Surface defeat history")
+    if party.shared_gold != 115:
+        raise AssertionError("Floor 1 rewards were not secured in shared gold")
+    if not party.tutorial_complete or not party.floor_one_cleared:
+        raise AssertionError("Hub progression was incomplete after Floor 1")
+    if party.outing_rewards.experience or party.outing_rewards.gold:
+        raise AssertionError("Floor 1 rewards remained unsecured after the boss")
+    for member in (game.player_state,) + party.companions:
+        if member.health.current != member.health.maximum:
+            raise AssertionError("HP was not restored after Floor 1")
+        if member.mana_resource.current != member.mana_resource.maximum:
+            raise AssertionError("Mana was not restored after Floor 1")
     view = session.current_view()
-    if view.screen is not OverworldScreen.MAIN:
+    if view.screen is not OverworldScreen.HUB:
         raise AssertionError("live route view changed during evidence cleanup")
     if view.contextual_route_option is not None:
         raise AssertionError("live route offered another action after cleanup")
-    if session._save_port is not None:
-        raise AssertionError("evidence cleanup materialized persistence")
+    if session._save_port is not STATE["route_battle_factory"]:
+        raise AssertionError("route qualification replaced its in-memory save port")
 
 
 def _release_route_evidence():
-    del STATE["route_battle_factory"].battles[:]
+    battle_factory = STATE["route_battle_factory"]
+    del battle_factory.battle_compositions[:]
+    battle_factory.completed_count = 0
     del STATE["route_enemy_factory"].enemies[:]
     del STATE["route_initial_view"]
-    _assert_route_live_state()
 
 
 def _teardown_route_session():
@@ -621,6 +691,15 @@ def _teardown_route_session():
     del STATE["route_session"]
     del STATE["route_battle_factory"]
     del STATE["route_enemy_factory"]
+    del STATE["floor_one_route"]
+    del STATE["floor_one_battle_compositions"]
+    del STATE["floor_one_world_history"]
+    del STATE["floor_one_xp_before"]
+    del STATE["floor_one_gold_before"]
+    del STATE["floor_one_route_rewards"]
+    del STATE["floor_one_pending_xp"]
+    del STATE["floor_one_pending_gold"]
+    gc.collect()
 
 
 def main():
@@ -642,6 +721,7 @@ def main():
     _run_stage("BATTLE_VIEW", _obtain_first_battle_view)
     _run_stage("BATTLE_INPUT", _submit_semantic_battle_input)
     _run_stage("BATTLE_COMPLETE", _complete_first_battle)
+    _release_first_battle_evidence()
     _run_stage("SESSION_IMPORT", _import_overworld_session)
     _run_stage("SESSION_CONSTRUCTION", _construct_headless_session)
     _run_stage("SESSION_VIEW", _obtain_session_view)
@@ -652,6 +732,8 @@ def main():
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
     _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
+    _run_hub_tutorial()
+    _assert_route_live_state()
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")

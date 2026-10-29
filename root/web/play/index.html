@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#10241f">
     <title>Dungeon Drifters | Browser Playtest</title>
+    <link rel="icon" href="assets/dungeon-drifters-logo.png" type="image/png">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
   </head>
@@ -49,6 +50,18 @@
           <h1 id="selection-title">Choose your Drifter</h1>
           <div id="drifter-options" class="drifter-options"></div>
         </div>
+        <dialog id="shortcut-dialog" class="shortcut-dialog">
+          <form id="shortcut-form">
+            <h2>Enter code</h2>
+            <label for="shortcut-code">Code</label>
+            <input id="shortcut-code" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <p id="shortcut-error" class="shortcut-error" role="status" hidden></p>
+            <div class="shortcut-actions">
+              <button id="shortcut-cancel" type="button">Cancel</button>
+              <button type="submit">Enter</button>
+            </div>
+          </form>
+        </dialog>
       </section>
 
       <section id="overworld-screen" class="phase-screen overworld-screen" aria-label="Overworld" hidden>
@@ -61,6 +74,12 @@
           <p class="eyebrow adventure-heading">ADVENTURE</p>
           <p id="adventure-text" class="adventure-text"></p>
           <div id="route-actions" class="button-grid"></div>
+          <p id="hub-shared-gold" class="hub-shared-gold" hidden></p>
+          <section id="companion-selection" class="companion-selection" hidden aria-label="Choose a companion">
+            <p id="companion-funds" class="companion-funds"></p>
+            <div id="companion-choices" class="companion-choices"></div>
+          </section>
+          <section id="extraction-rewards" class="extraction-rewards" hidden aria-label="Pending extraction rewards"></section>
           <div id="overworld-options" class="button-grid"></div>
           <p id="notice" class="notice" hidden></p>
         </section>
@@ -69,6 +88,8 @@
           <div class="detail-page-content">
             <h2 id="character-name" class="character-name"></h2>
             <p id="character-archetype" class="character-archetype"></p>
+            <p class="eyebrow detail-heading character-target-heading">DRIFTER</p>
+            <div id="character-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">STATS</p>
             <div id="character-stats" class="character-stats"></div>
             <div id="character-progression" class="character-progression">
@@ -87,6 +108,8 @@
         <section id="skills-panel" class="overworld-detail-panel" hidden aria-labelledby="skills-title">
           <div class="detail-page-content">
             <h2 id="skills-title" class="visually-hidden">Skills</h2>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="skills-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">LEVEL UP</p>
             <div id="growth-summary" class="growth-summary"></div>
             <p id="growth-message" class="growth-message"></p>
@@ -102,6 +125,11 @@
             <h2 id="weapon-name" class="detail-title"></h2>
             <p id="weapon-type" class="detail-subtitle"></p>
             <p id="weapon-wielder" class="detail-line"></p>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="weapon-targets" class="merchant-targets"></div>
+            <p id="weapon-identities" class="detail-line"></p>
+            <p class="eyebrow detail-heading">COMPONENTS</p>
+            <div id="weapon-components" class="merchant-list"></div>
             <p class="eyebrow detail-heading">BONUSES</p>
             <div id="weapon-bonuses" class="detail-list"></div>
             <p class="eyebrow detail-heading">DESCRIPTION</p>
@@ -113,6 +141,8 @@
         <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
           <div class="detail-page-content">
             <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="equipment-targets" class="merchant-targets"></div>
             <p class="eyebrow detail-heading">ACCESSORIES</p>
             <div id="equipment-slots" class="detail-list"></div>
             <p class="eyebrow detail-heading">BENEFITS</p>
@@ -121,12 +151,40 @@
           <div id="equipment-options" class="button-grid detail-options"></div>
         </section>
 
-        <section id="completion" class="completion-panel" hidden aria-live="polite">
-          <p class="eyebrow">SURFACE ROUTE COMPLETE</p>
-          <h2>You reached the Dungeon Entrance.</h2>
-          <p>The current playtest route is complete. Start again whenever you want another run.</p>
-          <button id="completion-restart" type="button">Restart the route</button>
+        <section id="items-panel" class="overworld-detail-panel" hidden aria-labelledby="items-title">
+          <div class="detail-page-content">
+            <h2 id="items-title" class="detail-title">Items</h2>
+            <div id="items-list" class="detail-list"></div>
+            <section id="items-inspection" class="items-inspection" hidden aria-label="Item details">
+              <h3 id="items-inspection-name" class="detail-title"></h3>
+              <p id="items-inspection-quantity" class="detail-line"></p>
+              <p id="items-inspection-description" class="detail-copy"></p>
+            </section>
+          </div>
+          <div id="items-options" class="button-grid detail-options"></div>
         </section>
+
+        <section id="merchant-panel" class="overworld-detail-panel" hidden aria-labelledby="merchant-title">
+          <div class="detail-page-content merchant-content">
+            <h2 id="merchant-title" class="detail-title">Hub Merchant</h2>
+            <p id="merchant-crafting" class="detail-line"></p>
+            <p class="eyebrow detail-heading">DRIFTER</p>
+            <div id="merchant-targets" class="merchant-targets"></div>
+            <p id="merchant-weapon-name" class="merchant-weapon-name"></p>
+            <p class="eyebrow detail-heading">WEAPON SLOTS</p>
+            <div id="merchant-slots" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">SHARED MATERIALS</p>
+            <div id="merchant-materials" class="merchant-materials"></div>
+            <p class="eyebrow detail-heading">DISMANTLE</p>
+            <div id="merchant-dismantle" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">COMPONENT RECIPES</p>
+            <div id="merchant-component-recipes" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">TIER V</p>
+            <div id="merchant-tier-v" class="merchant-list"></div>
+          </div>
+          <div id="merchant-options" class="button-grid detail-options"></div>
+        </section>
+
       </section>
 
       <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
@@ -135,6 +193,10 @@
             <h2 id="player-title">Branoc</h2>
             <div id="player-status" class="combatant-lines"></div>
             <div id="player-details" class="combatant-lines"></div>
+          </section>
+
+          <section id="party-panel" class="combatant-status party-panel" aria-label="Drifter party" hidden>
+            <div id="party-members" class="party-members"></div>
           </section>
 
           <section id="enemy-panel" class="combatant-status enemy-panel" aria-label="Enemies">

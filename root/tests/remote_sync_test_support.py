@@ -33,6 +33,15 @@ def make_payload(gold=0):
     return build_save_document(GameState(PlayerState(character, gold=gold)))
 
 
+def make_legacy_schema8_payload(gold=0):
+    payload = make_payload(gold)
+    payload["schema_version"] = 8
+    payload.pop("party")
+    payload["player"].pop("signature_weapon")
+    payload["overworld"].pop("active_route_id")
+    return payload
+
+
 class MemoryRemoteProfileServer:
     def __init__(self):
         self.available = True

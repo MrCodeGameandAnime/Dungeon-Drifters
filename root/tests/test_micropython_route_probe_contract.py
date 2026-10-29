@@ -1,8 +1,15 @@
 import ast
+from runpy import run_path
+from types import SimpleNamespace
 from pathlib import Path
+
+import pytest
 
 
 PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_probe.py"
+HUB_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_hub_probe.py"
+)
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -46,6 +53,14 @@ def _probe_tree():
     return ast.parse(_probe_source(), filename=str(PROBE_PATH))
 
 
+def _hub_probe_source():
+    return HUB_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _hub_probe_tree():
+    return ast.parse(_hub_probe_source(), filename=str(HUB_PROBE_PATH))
+
+
 def _assigned_literal(tree, name):
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -55,12 +70,12 @@ def _assigned_literal(tree, name):
     raise AssertionError(f"probe does not define {name}")
 
 
-def _stage_calls(tree):
+def _stage_calls(tree, function_name="_run_stage"):
     stages = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if not isinstance(node.func, ast.Name) or node.func.id != "_run_stage":
+        if not isinstance(node.func, ast.Name) or node.func.id != function_name:
             continue
         if not node.args or not isinstance(node.args[0], ast.Constant):
             continue
@@ -101,7 +116,132 @@ def test_probe_route_contract_contains_the_authored_surface_route():
     assert _assigned_literal(tree, "_EXPECTED_FINAL_NODE") == (
         "surface_dungeon_entrance"
     )
-    assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 75)
+    assert _assigned_literal(tree, "_EXPECTED_PROGRESS") == (9, 68, 24, 0)
+
+
+def test_probe_runs_the_full_hub_tutorial_after_surface_route():
+    hub_stages = _stage_calls(_hub_probe_tree(), "run_stage")
+    assert tuple(hub_stages[:6]) == (
+        "HUB_RECRUITMENT",
+        "HUB_READY",
+        "HUB_TUTORIAL_BATTLE",
+        "HUB_EXTRACTION",
+        "HUB_RETURN",
+        "HUB_FINAL_STATE",
+    )
+
+    source = _probe_source()
+    route_final = source.index('_run_stage("ROUTE_FINAL_STATE"')
+    hub_run = source.index("_run_hub_tutorial()", route_final)
+    evidence_release = source.index('_run_stage("ROUTE_EVIDENCE_RELEASE"')
+    assert route_final < evidence_release < hub_run
+    live_state_assert = source.index("_assert_route_live_state()", hub_run)
+    assert hub_run < live_state_assert
+
+
+def test_probe_continues_through_all_floor_one_battles_and_both_rests():
+    stages = tuple(_stage_calls(_hub_probe_tree(), "run_stage"))
+    expected_floor_one = (
+        "FLOOR_ONE_WARNING",
+        "FLOOR_ONE_SET_OUT",
+        "FLOOR_ONE_BATTLE_01",
+        "FLOOR_ONE_BATTLE_02",
+        "FLOOR_ONE_BATTLE_03",
+        "FLOOR_ONE_BATTLE_04",
+        "FLOOR_ONE_BATTLE_05",
+        "FLOOR_ONE_MIDWAY_REST",
+        "FLOOR_ONE_BATTLE_06",
+        "FLOOR_ONE_BATTLE_07",
+        "FLOOR_ONE_BATTLE_08",
+        "FLOOR_ONE_BATTLE_09",
+        "FLOOR_ONE_PRE_BOSS_REST",
+        "FLOOR_ONE_BATTLE_10",
+        "FLOOR_ONE_FINAL_STATE",
+        "WEAPON_PROGRESSION_DISMANTLE",
+        "WEAPON_PROGRESSION_CRAFT",
+        "WEAPON_PROGRESSION_IMPROVE",
+        "WEAPON_PROGRESSION_SAVE_ROUNDTRIP",
+        "WEAPON_PROGRESSION_FINAL_STATE",
+    )
+    assert stages[-len(expected_floor_one) :] == expected_floor_one
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    floor_one_start = expected_stages.index("FLOOR_ONE_WARNING")
+    assert tuple(
+        expected_stages[floor_one_start : floor_one_start + len(expected_floor_one)]
+    ) == expected_floor_one
+
+    source = _hub_probe_source()
+    for required in (
+        'get_route_spec("floor_one")',
+        'OverworldAction.START_FLOOR_ONE',
+        'OverworldAction.SET_OUT',
+        'OverworldAction.SKIP_REST',
+        'OverworldAction.REST',
+        'OverworldAction.ENTER_ENCOUNTER',
+        'party.floor_one_cleared',
+        'party.shared_gold',
+        'member.health.maximum',
+        'member.mana_resource.maximum',
+        'WeaponProgressionService(game, rng=ProbeRng())',
+        'service.dismantle(',
+        'state["weapon_progression_service"].craft_component(',
+        'state["weapon_progression_service"].improve_slot(',
+        'component crafting did not install the crafted part',
+        'crafted component was added to shared inventory',
+        'target_drifter_id="branoc"',
+        'item_id="goblin_scrap"',
+        'snapshot = game.snapshot()',
+        'restored = game.clone()',
+        'restored.snapshot() != snapshot',
+        'del state["route_enemy_factory"].enemies[:]',
+    ):
+        assert required in source
+
+
+@pytest.mark.parametrize(
+    "retained_evidence",
+    ("compositions", "enemies", "initial_view", "completion_count"),
+)
+def test_hub_probe_rejects_retained_surface_route_evidence(retained_evidence):
+    recruit_companion = run_path(str(HUB_PROBE_PATH))[
+        "_recruit_companion"
+    ]
+    state = {
+        "route_battle_factory": SimpleNamespace(
+            battle_compositions=[],
+            completed_count=0,
+        ),
+        "route_enemy_factory": SimpleNamespace(enemies=[]),
+    }
+    if retained_evidence == "compositions":
+        state["route_battle_factory"].battle_compositions.append(("goblin",))
+    elif retained_evidence == "enemies":
+        state["route_enemy_factory"].enemies.append(object())
+    elif retained_evidence == "initial_view":
+        state["route_initial_view"] = object()
+    else:
+        state["route_battle_factory"].completed_count = 8
+
+    with pytest.raises(AssertionError, match="route evidence.*retained"):
+        recruit_companion(state)
+
+
+def test_probe_records_battle_summaries_without_retaining_completed_battles():
+    source = _probe_source()
+    factory = source[
+        source.index("class _RouteBattleFactory:") : source.index(
+            "class _RouteEnemyFactory:"
+        )
+    ]
+
+    assert "self.battle_compositions = []" in factory
+    assert "self.completed_count = 0" in factory
+    assert "self.battles.append(battle)" not in factory
+    assert "party=()" in factory
+    assert "party=party" in factory
 
 
 def test_probe_releases_route_evidence_only_after_final_state():
@@ -115,9 +255,85 @@ def test_probe_releases_route_evidence_only_after_final_state():
     )
 
 
-def test_probe_excludes_host_persistence_and_test_dependencies():
-    source = _probe_source()
+def test_memory_error_dumps_heap_map_before_logging_or_collection():
     tree = _probe_tree()
+    runner = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_run_stage"
+    )
+    error_handler = next(
+        handler
+        for node in ast.walk(runner)
+        if isinstance(node, ast.Try)
+        for handler in node.handlers
+    )
+    first_statement = error_handler.body[0]
+
+    assert isinstance(first_statement, ast.Expr)
+    assert isinstance(first_statement.value, ast.Call)
+    assert isinstance(first_statement.value.func, ast.Name)
+    assert first_statement.value.func.id == "_emit_heap_map_on_memory_error"
+    assert isinstance(first_statement.value.args[0], ast.Name)
+    assert first_statement.value.args[0].id == "error"
+
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_emit_heap_map_on_memory_error"
+    )
+    heap_map_call = next(
+        node
+        for node in ast.walk(helper)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "mem_info"
+    )
+    assert ast.literal_eval(heap_map_call.args[0]) == 1
+
+
+def test_completed_first_battle_evidence_is_released_before_session_import():
+    source = _probe_source()
+    main_body = source[source.index("def main():") : source.rindex("main()")]
+    helper_start = source.index("def _release_first_battle_evidence():")
+    helper_end = source.index("\ndef _import_overworld_session():", helper_start)
+    helper = source[helper_start:helper_end]
+    session_constructor_start = source.index("def _construct_headless_session():")
+    session_constructor_end = source.index(
+        "\ndef _obtain_session_view():", session_constructor_start
+    )
+    session_constructor = source[session_constructor_start:session_constructor_end]
+    session_completion_start = source.index(
+        "def _complete_first_session_encounter():"
+    )
+    session_completion_end = source.index(
+        "\ndef _construct_route_qualification():", session_completion_start
+    )
+    session_completion = source[session_completion_start:session_completion_end]
+
+    assert main_body.index('"BATTLE_COMPLETE"') < main_body.index(
+        "_release_first_battle_evidence()"
+    ) < main_body.index('"SESSION_IMPORT"')
+    assert 'STATE["battle_factory_type"] = STATE["battle"].__class__' in helper
+    assert 'del STATE["battle_view"]' in helper
+    assert 'del STATE["enemies"]' in helper
+    assert 'del STATE["battle"]' in helper
+    assert 'del STATE["game"]' in helper
+    assert "gc.collect()" in helper
+    assert 'STATE["battle_factory_type"]' in session_constructor
+    assert 'from app.game.new_game import create_new_game' in session_constructor
+    assert 'game = create_new_game("branoc")' in session_constructor
+    assert 'STATE["session_game"] = game' in session_constructor
+    assert 'STATE["battle"]' not in session_constructor
+    assert 'STATE["session_game"].world_state.defeated_encounters' in (
+        session_completion
+    )
+
+
+def test_probe_excludes_host_persistence_and_test_dependencies():
+    source = _probe_source() + _hub_probe_source()
+    tree = ast.parse(source)
     imported_modules = {
         alias.name.split(".", 1)[0]
         for node in ast.walk(tree)

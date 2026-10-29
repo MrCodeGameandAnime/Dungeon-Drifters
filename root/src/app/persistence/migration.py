@@ -63,7 +63,7 @@ def migrate_legacy_save(
         source_schema = document.get("schema_version")
         payload = validate_save_document(document)
         if payload["schema_version"] != DISK_SCHEMA_VERSION:
-            raise ValueError("legacy save did not normalize to schema 8")
+            raise ValueError("legacy save did not normalize to the current schema")
         reconstruct_game_state(payload)
     except (OSError, UnicodeDecodeError):
         return LegacyMigrationResult(

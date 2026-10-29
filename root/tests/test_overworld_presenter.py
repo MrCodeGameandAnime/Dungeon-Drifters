@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec
 from app.game.game_state import GameState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -14,7 +14,7 @@ from app.presentation.overworld_models import (
     OverworldScreen,
 )
 from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
-from app.content.catalog import DRIFTER_SPECS
+from app.content.catalog import DRIFTER_SPECS, get_weapon_spec
 
 
 def get_character_profiles():
@@ -73,6 +73,29 @@ def test_main_view_uses_authored_labels_and_only_the_valid_contextual_action():
     assert rest_screen.options[1].enabled is False
     assert "surface_" not in repr(initial)
     assert "surface_" not in repr(paused)
+
+
+def test_hub_location_label_is_preserved_in_secondary_menus():
+    game = create_game()
+    assert game.party_state.arrive_at_hub(game.player_state)
+    presenter = OverworldPresenter()
+
+    views = tuple(
+        presenter.build(game, screen=screen)
+        for screen in (
+            OverworldScreen.CHARACTER,
+            OverworldScreen.ITEMS,
+            OverworldScreen.MAP,
+            OverworldScreen.OPTIONS,
+        )
+    )
+
+    assert tuple(view.location_label for view in views) == (
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+        "Floor 1 Hub",
+    )
 
 
 @pytest.mark.parametrize("profile", get_character_profiles())
@@ -146,6 +169,16 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
         if name in signature_weapon.stat_bonuses
     )
     assert weapon.weapon.description == signature_weapon.description
+    assert len(weapon.weapon.components) == 4
+    assert tuple(
+        component.installed_component_id
+        for component in weapon.weapon.components
+    ) == tuple(
+        slot.starting_component_id
+        for slot in get_weapon_spec(signature_weapon.item_id).progression.slots
+    )
+    assert weapon.weapon.physical_identity is None
+    assert weapon.weapon.mystical_identity is None
 
     expected_items = [
         (signature_weapon.name, 1, signature_weapon.description),
@@ -168,6 +201,162 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     assert game.snapshot() == before
     with pytest.raises(AttributeError):
         character.character.super_current = 0
+
+
+def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recipes():
+    player = PlayerState(create_drifter("branoc"))
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+    presenter = OverworldPresenter()
+
+    weapon = presenter.build(game, screen=OverworldScreen.WEAPON).weapon
+    grip = next(slot for slot in weapon.components if slot.slot_id == "grip_binding")
+    assert grip.installed_component_id == "sunder_spire_grip"
+
+    merchant = presenter.build(game, screen=OverworldScreen.MERCHANT).merchant
+    blade_recipe = next(
+        recipe
+        for recipe in merchant.component_recipes
+        if recipe.component_id == "sunder_spire_blade_reinforced"
+    )
+    assert blade_recipe.material_name == "Scrap metal"
+    assert blade_recipe.material_cost == 1
+    assert blade_recipe.can_craft is True
+    assert blade_recipe.effect_summary == (
+        "Crestgrave Reaping: Power +2, Accuracy -2",
+        "Heavy identity +1",
+    )
+
+
+def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
+    player = PlayerState(create_drifter("branoc"))
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    game.party_state.add_crafting_experience(990)
+    for slot_id in player.signature_weapon_state.slot_progress:
+        player.signature_weapon_state.set_slot_progress(slot_id, 100)
+    costs = {
+        "grade_iv_metal": 12,
+        "grade_iv_fiber": 12,
+        "grade_iv_timber": 12,
+        "grade_iv_cores": 12,
+    }
+    game.party_state.add_shared_items(costs)
+
+    merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.MERCHANT,
+    ).merchant
+
+    assert merchant.tier_v.can_attempt is True
+    assert merchant.tier_v.completed is False
+    assert merchant.tier_v.success_chance_percent == 20
+    assert {
+        material.item_id: (material.available, material.required)
+        for material in merchant.tier_v.materials
+    } == {item_id: (quantity, quantity) for item_id, quantity in costs.items()}
+
+
+def test_installed_component_recipe_is_hidden_for_that_drifter():
+    player = PlayerState(create_drifter("branoc"))
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    installed_id = "sunder_spire_grip_braided"
+    player.signature_weapon_state.install_component("grip_binding", installed_id)
+    merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.MERCHANT,
+    ).merchant
+
+    assert installed_id not in {
+        recipe.component_id for recipe in merchant.component_recipes
+    }
+
+
+def test_component_recipe_visibility_is_independent_for_each_drifter():
+    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
+    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
+    game = GameState(lead)
+    assert game.party_state.arrive_at_hub(lead)
+    assert game.party_state.recruit_companion(lead, companion)
+    lead.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
+    game.party_state.add_shared_items({"grade_i_metal": 1})
+
+    companion_merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.MERCHANT,
+        selected_merchant_target_id="azhvielle",
+    ).merchant
+
+    assert companion_merchant.selected_target_id == "azhvielle"
+    assert "needle_focus_fitted" in {
+        recipe.component_id for recipe in companion_merchant.component_recipes
+    }
+
+
+def test_weapon_component_view_explains_its_combat_and_identity_effects():
+    player = PlayerState(create_drifter("branoc"))
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    player.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
+
+    weapon = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.WEAPON,
+    ).weapon
+    blade = next(slot for slot in weapon.components if slot.slot_id == "blade_guard")
+
+    assert blade.installed_component_id == "sunder_spire_blade_reinforced"
+    assert blade.installed_effect_summary == (
+        "Crestgrave Reaping: Power +2, Accuracy -2",
+        "Heavy identity +1",
+    )
+
+
+def test_skills_view_reports_effective_move_values_after_component_install():
+    player = PlayerState(create_drifter("branoc"))
+    player.signature_weapon_state.install_component(
+        "blade_guard",
+        "sunder_spire_blade_reinforced",
+    )
+    game = GameState(player)
+
+    skills = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.SKILLS,
+    ).skills
+    move = next(
+        move for move in skills.moves if move.name == "Crestgrave Reaping"
+    )
+
+    assert move.power == 11
+    assert move.accuracy == 90
+
+
+def test_items_view_includes_shared_dropped_and_crafting_items():
+    game = create_game()
+    game.party_state.add_shared_items({"goblin_scrap": 3, "grade_i_metal": 1})
+
+    inventory = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.ITEMS,
+    ).inventory
+
+    assert tuple(
+        (item.selection_key, item.display_name, item.quantity)
+        for item in inventory.items
+        if item.selection_key.startswith("shared-item:")
+    ) == (
+        ("shared-item:goblin_scrap", "Goblin Scrap", 3),
+        ("shared-item:grade_i_metal", "Scrap metal", 1),
+    )
 
 
 def test_character_progression_presents_zero_and_partial_exp_without_mutation():

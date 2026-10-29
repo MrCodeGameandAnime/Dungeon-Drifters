@@ -661,7 +661,8 @@ def test_goblin_lord_defeat_retry_reaches_dungeon_and_pays_once(tmp_path):
         player.mana_resource.maximum - before["resources"]["mana"]["maximum"]
     )
     assert player.character.permanent_stats.as_dict() == before["attributes"]
-    assert player.gold == before["gold"] + 18
+    assert player.gold == 0
+    assert game.party_state.shared_gold == before["gold"] + 18
     assert game.world_state.defeated_encounters.count("surface_goblin_lord") == 1
     assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
     assert game.overworld_state.route_complete is True

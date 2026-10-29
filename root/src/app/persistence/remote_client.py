@@ -8,7 +8,7 @@ from typing import Protocol, Union
 from uuid import UUID
 
 from app.persistence.envelope import payload_sha256
-from app.persistence.save_document import validate_save_document
+from app.persistence.save_document import validate_profile_payload
 
 
 _DIGEST_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
@@ -102,12 +102,12 @@ class RemoteProfileHead:
         if not isinstance(self.payload, dict):
             raise RemoteProtocolError("remote payload is invalid")
         try:
-            normalized = validate_save_document(self.payload)
+            normalized = validate_profile_payload(self.payload)
             actual_digest = payload_sha256(normalized)
         except (TypeError, ValueError) as error:
             raise RemoteProtocolError("remote payload is invalid") from error
         if normalized != self.payload:
-            raise RemoteProtocolError("remote payload is not canonical schema 8")
+            raise RemoteProtocolError("remote payload is not canonical schema 8 or 9")
         if actual_digest != self.payload_sha256:
             raise RemoteProtocolError("remote payload digest does not match payload")
         object.__setattr__(self, "payload", deepcopy(normalized))

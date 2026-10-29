@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_weapon_spec
 from app.content.catalog import create_weapon
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
@@ -54,6 +54,16 @@ def test_equipment_slots_exist_and_start_empty():
     )
 
 
+def test_foreign_equipped_weapon_keeps_moves_unmodified_by_signature_components():
+    player_state = PlayerState(create_drifter("branoc"))
+    baseline_moves = player_state.character.combat_moves
+    foreign_weapon = create_weapon("sky_needle")
+    player_state.inventory.add_item(foreign_weapon)
+    player_state.equip("weapon", foreign_weapon)
+
+    assert player_state.combat_moves == baseline_moves
+
+
 def test_player_states_do_not_share_inventory_or_equipment():
     first_player = PlayerState(create_drifter("branoc"))
     second_player = PlayerState(create_drifter("branoc"))
@@ -69,6 +79,71 @@ def test_player_states_do_not_share_inventory_or_equipment():
     assert first_player.equipment["weapon"].item_id == "sunder_spire"
     assert second_player.equipment["weapon"].item_id == "sunder_spire"
     assert first_player.equipment["weapon"] is not second_player.equipment["weapon"]
+
+
+def test_signature_weapon_progress_is_initialized_and_owned_per_drifter():
+    first = PlayerState(create_drifter("branoc"))
+    second = PlayerState(create_drifter("branoc"))
+
+    assert first.signature_weapon_state.weapon_id == "sunder_spire"
+    assert first.signature_weapon_state.slot_progress == {
+        "blade_guard": 0,
+        "grip_binding": 0,
+        "hilt_handle": 0,
+        "crest_core": 0,
+    }
+    assert first.signature_weapon_state.components == {
+        "blade_guard": "sunder_spire_blade",
+        "grip_binding": "sunder_spire_grip",
+        "hilt_handle": "sunder_spire_hilt",
+        "crest_core": "sunder_spire_crest",
+    }
+    assert first.signature_weapon_state.tier_v_success is False
+    first.signature_weapon_state.set_slot_progress("blade_guard", 12)
+    assert second.signature_weapon_state.slot_progress["blade_guard"] == 0
+
+
+def test_signature_weapon_progress_is_included_in_player_snapshot():
+    player = PlayerState(create_drifter("joruun"))
+    player.signature_weapon_state.set_slot_progress("shaft", 25)
+
+    assert player.snapshot()["signature_weapon"] == {
+        "weapon_id": "sky_needle",
+        "slot_progress": {
+            "striking_head": 0,
+            "binding_grip": 0,
+            "shaft": 25,
+            "focus_collar": 0,
+        },
+        "learned_technique_ids": [],
+        "components": {
+            "striking_head": "sky_needle_head",
+            "binding_grip": "sky_needle_binding",
+            "shaft": "sky_needle_shaft",
+            "focus_collar": "sky_needle_focus",
+        },
+        "tier_v_success": False,
+    }
+
+
+def test_signature_weapon_tier_five_success_is_source_state():
+    player = PlayerState(create_drifter("branoc"))
+    player.signature_weapon_state.mark_tier_v_success()
+
+    assert player.signature_weapon_state.tier_v_success is True
+    assert player.snapshot()["signature_weapon"]["tier_v_success"] is True
+
+
+def test_signature_weapon_snapshot_rejects_non_boolean_tier_five_state():
+    player = PlayerState(create_drifter("branoc"))
+    snapshot = player.snapshot()["signature_weapon"]
+    snapshot["tier_v_success"] = 1
+
+    with pytest.raises(ValueError, match="tier_v_success"):
+        type(player.signature_weapon_state).from_snapshot(
+            snapshot,
+            get_weapon_spec("sunder_spire").progression,
+        )
 
 
 def test_invalid_character_raises_type_error():

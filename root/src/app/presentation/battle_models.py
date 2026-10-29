@@ -103,6 +103,29 @@ class CombatantView:
             _validate_string_tuple("temporary_labels", self.temporary_labels),
         )
 
+    @property
+    def target_id(self):
+        return None
+
+    @property
+    def active(self):
+        return False
+
+
+@dataclass(frozen=True)
+class PartyCombatantView(CombatantView):
+    target_id: str = ""
+    active: bool = False
+
+    def __post_init__(self):
+        CombatantView.__post_init__(self)
+        object.__setattr__(
+            self,
+            "target_id",
+            _validate_nonempty_string("target_id", self.target_id),
+        )
+        object.__setattr__(self, "active", _validate_bool("active", self.active))
+
 
 @dataclass(frozen=True)
 class EnemyCombatantView:
@@ -459,6 +482,7 @@ class BattleView:
     inventory_confirmation: InventoryConfirmationView | None = None
     log_entries: tuple[BattleLogEntry, ...] = ()
     visual: BattleVisualView = field(default_factory=BattleVisualView)
+    party_members: tuple[PartyCombatantView, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(
@@ -559,6 +583,28 @@ class BattleView:
             _validate_instance_tuple("log_entries", self.log_entries, BattleLogEntry),
         )
         _validate_instance("visual", self.visual, BattleVisualView)
+        object.__setattr__(
+            self,
+            "party_members",
+            _validate_instance_tuple(
+                "party_members",
+                self.party_members,
+                PartyCombatantView,
+            ),
+        )
+        if self.party_members:
+            party_target_ids = tuple(member.target_id for member in self.party_members)
+            if len(set(party_target_ids)) != len(party_target_ids):
+                raise ValueError("party target IDs must be unique")
+            if sum(member.active for member in self.party_members) != 1:
+                raise ValueError("exactly one party member must be active")
+
+    @property
+    def active_player_id(self):
+        for member in self.party_members:
+            if member.active:
+                return member.target_id
+        return None
 
     @property
     def enemy(self):

@@ -154,10 +154,40 @@ class SaveCoordinator:
             )
         try:
             game_state = reconstruct_game_state(result.envelope.payload)
+            migrated_payload = build_save_document(game_state)
+            if migrated_payload != result.envelope.payload:
+                previous = result.envelope
+                sync_state = previous.sync_state
+                if sync_state is SyncState.CLEAN:
+                    sync_state = SyncState.PENDING
+                upgraded = build_profile_envelope(
+                    migrated_payload,
+                    profile_id=previous.profile_id,
+                    account_id=previous.account_id,
+                    remote_revision=previous.remote_revision,
+                    local_sequence=previous.local_sequence + 1,
+                    sync_state=sync_state,
+                    client_save_id=self._client_save_id_factory(),
+                    saved_at=self._now_factory(),
+                )
+                self._store.save(upgraded)
+                committed = self._store.load(self._profile_id)
+                if (
+                    committed.status is not ProfileStoreStatus.VALID
+                    or committed.envelope != upgraded
+                ):
+                    raise ProfileStoreError(
+                        "migrated profile did not validate after commit"
+                    )
         except (TypeError, ValueError):
             return SaveLoadResult(
                 status=SaveLoadStatus.INVALID,
                 error="The save file is invalid and was not loaded.",
+            )
+        except (OSError, ProfileStoreError, ProfileEnvelopeValidationError):
+            return SaveLoadResult(
+                status=SaveLoadStatus.INVALID,
+                error="The save file could not be upgraded safely.",
             )
         return SaveLoadResult(
             status=SaveLoadStatus.LOADED,

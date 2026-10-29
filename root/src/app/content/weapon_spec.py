@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.items.weapon import Weapon
 from app.readonly_mapping import readonly_mapping
+from app.content.weapon_progression_spec import WeaponProgressionSpec
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class WeaponSpec:
     stat_bonuses: Mapping[str, int]
     value: int
     description: str
+    progression: WeaponProgressionSpec | None = None
 
     def __post_init__(self):
         weapon = self._create_weapon()
@@ -35,6 +37,24 @@ class WeaponSpec:
             "stat_bonuses",
             readonly_mapping(weapon.stat_bonuses),
         )
+        if self.progression is not None and not isinstance(
+            self.progression,
+            WeaponProgressionSpec,
+        ):
+            raise TypeError("progression must be a WeaponProgressionSpec")
+        if self.progression is not None:
+            governed_stats = set()
+            for slot in self.progression.slots:
+                if not slot.governed_stats:
+                    raise ValueError("each weapon slot must govern at least one stat")
+                unknown = set(slot.governed_stats) - set(self.stat_bonuses)
+                if unknown:
+                    raise ValueError(
+                        "weapon slots cannot govern stats absent from base bonuses"
+                    )
+                governed_stats.update(slot.governed_stats)
+            if governed_stats != set(self.stat_bonuses):
+                raise ValueError("every weapon base stat must be governed by a slot")
 
     def _create_weapon(self):
         return Weapon(

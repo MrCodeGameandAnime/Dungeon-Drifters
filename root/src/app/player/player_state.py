@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 from app.items.weapon import Weapon
 from app.combat.move import DamageType
+from app.content.weapon_progression_spec import (
+    project_component_move_effects,
+    project_weapon_stat_bonuses,
+)
 from app.player import resources
 from app.player import progression
 from app.snapshot import to_plain_value
@@ -13,6 +17,7 @@ from app.player.character_run_state import (
     CharacterRunState,
 )
 from app.player.inventory import Inventory
+from app.player.signature_weapon_state import SignatureWeaponState
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,16 @@ class PlayerState:
         for slot, item in getattr(character, "starting_equipment", {}).items():
             self._validate_equipment_slot(slot)
             self._equipment[slot] = item
+        signature_weapon = self._equipment["weapon"]
+        if not isinstance(signature_weapon, Weapon):
+            raise ValueError("a Drifter must start with a signature weapon")
+        from app.content.catalog import get_weapon_spec
+
+        weapon_spec = get_weapon_spec(signature_weapon.item_id)
+        self._signature_weapon_state = SignatureWeaponState(
+            signature_weapon.item_id,
+            weapon_spec.progression,
+        )
 
     @property
     def character(self):
@@ -60,6 +75,10 @@ class PlayerState:
     @property
     def inventory(self):
         return self._inventory
+
+    @property
+    def signature_weapon_state(self):
+        return self._signature_weapon_state
 
     @property
     def character_run_state(self):
@@ -111,7 +130,19 @@ class PlayerState:
 
     @property
     def combat_moves(self):
-        return self.character.combat_moves
+        weapon = self.get_equipped("weapon")
+        if not isinstance(weapon, Weapon):
+            return self.character.combat_moves
+        if weapon.item_id != self.signature_weapon_state.weapon_id:
+            return self.character.combat_moves
+        from app.content.catalog import get_weapon_spec
+
+        progression = get_weapon_spec(weapon.item_id).progression
+        return project_component_move_effects(
+            progression,
+            self.signature_weapon_state.components,
+            self.character.combat_moves,
+        )
 
     @property
     def class_mechanic(self):
@@ -125,6 +156,18 @@ class PlayerState:
         base_value = self.stats.effective_stat(name)
         weapon = self.get_equipped("weapon")
         if isinstance(weapon, Weapon):
+            if weapon.item_id == self.signature_weapon_state.weapon_id:
+                from app.content.catalog import get_weapon_spec
+
+                progression = get_weapon_spec(weapon.item_id).progression
+                if progression is not None:
+                    bonuses = project_weapon_stat_bonuses(
+                        progression,
+                        weapon.stat_bonuses,
+                        self.signature_weapon_state.slot_progress,
+                        tier_v_success=self.signature_weapon_state.tier_v_success,
+                    )
+                    return base_value + bonuses.get(name, 0)
             return base_value + weapon.stat_bonuses.get(name, 0)
 
         return base_value
@@ -253,6 +296,18 @@ class PlayerState:
             checkpoint.character_run_state
         )
 
+    def clone(self):
+        profile = self.character.profile
+        if profile is None:
+            raise ValueError("player state cannot be cloned without a profile")
+        return self.from_persistent_snapshot(
+            profile.create_character(),
+            self.snapshot(),
+            inventory_items=self.inventory.items,
+            equipment_items=self.equipment,
+            run_checkpoint=self.character_run_state.create_checkpoint(),
+        )
+
     @classmethod
     def from_persistent_snapshot(
         cls,
@@ -275,6 +330,15 @@ class PlayerState:
         player_state.super_resource.current = snapshot["resources"]["super"]["current"]
         player_state._inventory._items = list(inventory_items)
         player_state._equipment = dict(equipment_items)
+        signature_snapshot = snapshot.get("signature_weapon")
+        if signature_snapshot is not None:
+            from app.content.catalog import get_weapon_spec
+
+            weapon_spec = get_weapon_spec(signature_snapshot["weapon_id"])
+            player_state._signature_weapon_state = SignatureWeaponState.from_snapshot(
+                signature_snapshot,
+                weapon_spec.progression,
+            )
         player_state.character_run_state.restore_checkpoint(run_checkpoint)
         return player_state
 
@@ -308,6 +372,7 @@ class PlayerState:
                 "growth_points": self.growth_points,
             },
             "gold": self.gold,
+            "signature_weapon": self.signature_weapon_state.snapshot(),
             "inventory": [
                 self._snapshot_item(item, f"player.inventory[{index}]")
                 for index, item in enumerate(self.inventory.items)

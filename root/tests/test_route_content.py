@@ -16,6 +16,7 @@ from app.content.catalog import (
     get_route_spec,
     get_route_successor_id,
 )
+from app.content import catalog
 from app.content.encounter_spec import EncounterSpec
 from app.content.route_spec import RouteNodeKind, RouteNodeSpec, RouteSpec
 from app.game.game_state import GameState
@@ -70,6 +71,8 @@ EXPECTED_SURFACE_ROUTE = (
 )
 
 EXPECTED_ENCOUNTERS = (
+    ("dungeon_goblin_quad", ("goblin", "goblin", "goblin", "goblin")),
+    ("dungeon_goblin_trio", ("goblin", "goblin", "goblin")),
     ("surface_goblin_solo", ("goblin",)),
     ("surface_goblin_pair", ("goblin", "goblin")),
     ("surface_warrior_solo", ("goblin_warrior",)),
@@ -115,11 +118,14 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     assert len(route.nodes) == 12
     assert sum(node.encounter_id is not None for node in route.nodes) == 8
     assert sum(node.kind is RouteNodeKind.REST for node in route.nodes) == 3
-    assert tuple(spec.route_id for spec in ROUTE_SPECS) == ("surface",)
-    assert discover_route_ids() == ("surface",)
+    assert tuple(spec.route_id for spec in ROUTE_SPECS) == (
+        "floor_one",
+        "surface",
+    )
+    assert discover_route_ids() == ("floor_one", "surface")
 
 
-def test_eight_encounter_packages_match_the_independent_authored_contract():
+def test_encounter_packages_match_the_independent_authored_contract():
     assert tuple(
         (encounter_id, get_encounter_spec(encounter_id).enemy_archetype_ids)
         for encounter_id, _composition in EXPECTED_ENCOUNTERS
@@ -189,6 +195,16 @@ def test_rewards_and_boss_state_are_derived_from_canonical_content():
         for node in route.nodes
         if node.kind is RouteNodeKind.BOSS
     ) == ("surface_goblin_lord",)
+
+
+def test_floor_one_encounters_offer_goblin_salvage_and_lord_core():
+    assert hasattr(catalog, "get_encounter_item_rewards")
+    assert catalog.get_encounter_item_rewards("surface_goblin_solo") == (
+        ("goblin_scrap", 1),
+    )
+    assert dict(catalog.get_encounter_item_rewards("surface_goblin_lord"))[
+        "goblin_lord_core"
+    ] == 1
 
 
 def test_route_specs_and_nested_records_are_immutable():
@@ -371,7 +387,7 @@ def test_global_route_node_lookup_and_successors_match_authored_order():
         )
 
 
-def test_schema8_payload_is_byte_equivalent_after_canonical_reconstruction():
+def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
     player = PlayerState(get_profile_by_choice("1").create_character())
     document = build_save_document(GameState(player))
     encoded = json.dumps(document, sort_keys=True, separators=(",", ":"))
@@ -380,8 +396,9 @@ def test_schema8_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 8
+    assert rebuilt["schema_version"] == 12
     assert rebuilt["overworld"] == {
+        "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",
         "surface_route_begun": False,
         "dungeon_entrance_reached": False,
@@ -401,3 +418,36 @@ def test_generated_runtime_catalog_contains_no_route_discovery_code():
         assert "pathlib" not in source
         assert "pkgutil" not in source
         assert "importlib" not in source
+
+
+def test_floor_one_route_matches_the_approved_ten_battle_contract():
+    route = get_route_spec("floor_one")
+
+    assert len(route.nodes) == 12
+    assert tuple(node.kind for node in route.nodes) == (
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.REST,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.REST,
+        RouteNodeKind.BOSS,
+    )
+    combat_nodes = tuple(
+        node for node in route.nodes if node.kind is RouteNodeKind.COMBAT
+    )
+    compositions = tuple(
+        get_encounter_spec(node.encounter_id).enemy_archetype_ids
+        for node in combat_nodes
+    )
+    assert tuple(map(len, compositions)) == (4, 3, 2, 1, 4, 2, 3, 4, 3)
+    assert all(composition == ("goblin",) * len(composition) for composition in compositions)
+    assert tuple(
+        node.node_id for node in route.nodes if node.kind is RouteNodeKind.REST
+    ) == ("floor_one_midway_rest", "floor_one_pre_boss_rest")
+    assert route.nodes[-1].encounter_id == "surface_goblin_lord"
