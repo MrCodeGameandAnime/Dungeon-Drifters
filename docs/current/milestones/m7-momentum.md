@@ -14,7 +14,7 @@
 
 - [Momentum design](../../future/momentum.md), locked rules, unresolved questions, and encounter ownership.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), limited Intuition interaction and global critical limits.
-- [Roadmap](../development-roadmap.md), M7/shared constraints; [M3](m3-character-advancement.md) damage/critical/effect contracts; [M4](m4-enemy-progression.md) mitigation and approved enemy behavior.
+- [Roadmap](development-roadmap.md), M7/shared constraints; [M3](m3-character-advancement.md) damage/critical/effect contracts; [M4](m4-enemy-progression.md) mitigation and approved enemy behavior.
 
 This can run before M6 if combat contracts are stable and the user selects that order. It does not depend on expedition energy or add passive/move trees. The source's v0.3 exclusion is historical deferral, not an approved formula or a reason to enable Momentum merely because the version changed.
 

@@ -14,7 +14,7 @@
 
 - [Party design](../../future/party-and-expedition-core-loop.md), assignment, seven categories, reduced XP, reports, reunion and full-party events.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), energy regeneration/costs, unlimited dungeon play and monetization boundaries.
-- [Roadmap](../development-roadmap.md), M6 and fixed pacing; [M1](m1-permanent-roster.md), [M2](m2-preparation-trading-escape.md), [M3](m3-character-advancement.md), [M4B](m4-enemy-progression.md), [M5](m5-armor-accessories.md).
+- [Roadmap](development-roadmap.md), M6 and fixed pacing; [M1](m1-permanent-roster.md), [M2](m2-preparation-trading-escape.md), [M3](m3-character-advancement.md), [M4B](m4-enemy-progression.md), [M5](m5-armor-accessories.md).
 
 Entry requires accepted M4B evidence: D1 starts, D2 recruited on Floor I, D3 on Floor II, D4 on Floor III, and the first four-Drifter boss completed at the end of Floor III. Floor IV is the first expedition-enabled floor. Merely having four `PlayerState`s in a fixture or unlocking a menu does not satisfy this entry gate.
 

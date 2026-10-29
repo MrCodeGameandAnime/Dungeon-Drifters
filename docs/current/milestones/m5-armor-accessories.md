@@ -14,7 +14,7 @@
 
 - [Armor design](../../future/armor.md), controlling ownership, permanent viability, equipment separation, and narrow first implementation scope.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), accessories, secured/unsecured equipment and trader/drop roles.
-- [Roadmap](../development-roadmap.md), M5/shared constraints; [M1](m1-permanent-roster.md) roster ownership, [M2](m2-preparation-trading-escape.md) trade/salvage and provenance, [M3](m3-character-advancement.md) effect composition, [M4A](m4-enemy-progression.md) reward sources.
+- [Roadmap](development-roadmap.md), M5/shared constraints; [M1](m1-permanent-roster.md) roster ownership, [M2](m2-preparation-trading-escape.md) trade/salvage and provenance, [M3](m3-character-advancement.md) effect composition, [M4A](m4-enemy-progression.md) reward sources.
 
 M5 can start after accepted M4A; it does not depend on M4B's four-member boss. M4B uses M5's accepted equipment contract afterward. The armor source says not to interrupt unfinished foundations: this entry dependency satisfies that instruction rather than overriding it.
 

@@ -12,7 +12,7 @@
 
 ## Authority And Dependencies
 
-- [Roadmap](../development-roadmap.md), M8, fixed pacing and common qualification contract.
+- [Roadmap](development-roadmap.md), M8, fixed pacing and common qualification contract.
 - [Party design](../../future/party-and-expedition-core-loop.md), dungeon knowledge/restrictions, pair identity, reunion/boss/post-boss loop.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), pressure, secure/loss rules, preparation, trader/expedition roles and quest protections.
 - [Enemy design](../../future/enemy-archetypes-scaling-and-capability-progression.md), selected formations/phases/visuals and placement versus tier.

@@ -14,7 +14,7 @@
 
 - [Enemy design](../../future/enemy-archetypes-scaling-and-capability-progression.md), archetype/rank/tier/capability separation and Defend contracts.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), pressure, soft walls, rewards and death; [party design](../../future/party-and-expedition-core-loop.md), roster and convergence.
-- [Roadmap](../development-roadmap.md), M4 and fixed recruitment; [M2](m2-preparation-trading-escape.md) supplies and escape; [M3](m3-character-advancement.md) damage/potency/discovery contracts; [component names](../weapons/component.md).
+- [Roadmap](development-roadmap.md), M4 and fixed recruitment; [M2](m2-preparation-trading-escape.md) supplies and escape; [M3](m3-character-advancement.md) damage/potency/discovery contracts; [component names](../weapons/component.md).
 
 **Proposed delivery decomposition for review:** **M4A** follows M2/M3: enemy systems plus an approved bounded Floor II path, D3 recruitment, and a Floor II completion gate sufficient to reach the next story stage. It is independently qualified before M5 begins. **M4B** follows M5: a bounded Floor III path, D4 recruitment, and the first live four-Drifter boss, qualified before M6. M4 is fully closed only after both tranches. M5 depends on M4A, not M4B; this avoids a circular dependency. M8 completes region depth and later content rather than postponing these prerequisite recruitment/boss proofs.
 

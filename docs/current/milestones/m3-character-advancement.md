@@ -12,7 +12,7 @@
 
 ## Authority, Dependencies, And Non-Goals
 
-- [Roadmap](../development-roadmap.md), M3 and shared constraints; [M1](m1-permanent-roster.md) exact roster identity; [M2](m2-preparation-trading-escape.md) supply/payout contracts where implemented.
+- [Roadmap](development-roadmap.md), M3 and shared constraints; [M1](m1-permanent-roster.md) exact roster identity; [M2](m2-preparation-trading-escape.md) supply/payout contracts where implemented.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), sole authority for individual advancement, prototype curves, and unresolved formulas.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), sole authority for securing/losing XP; [weapon design](../weapons/signature-weapon-progression.md), independent weapon investment/learned-technique contract.
 

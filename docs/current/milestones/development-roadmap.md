@@ -14,13 +14,13 @@ Explicit exclusions: `docs/future/longterm.md` and everything under `docs/future
 
 | Included source | Delivery owner in this roadmap |
 | --- | --- |
-| [Party and Expedition Core Loop](../future/party-and-expedition-core-loop.md) | M1 roster architecture and staged recruitment, M6 expeditions, M8 regions/story/later full-party bosses |
-| [Dungeon Progression, Difficulty, and Economy](../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M8 content, M9 economy/optional services |
-| [Character Growth and Stat Scaling](../future/character-growth-and-stat-scaling.md) | M3 advancement, M7 Momentum interaction, M8 permanent discoveries, M9 tuning |
-| [Enemy Archetypes, Scaling, and Capability Progression](../future/enemy-archetypes-scaling-and-capability-progression.md) | M4 enemy systems, M8 encounters/bosses/visual content |
-| [Momentum](../future/momentum.md) | M7 temporary combat mechanic |
-| [Armor](../future/armor.md) | M5 armor/accessories/ownership/upgrade loop |
-| [Website Profile Report](../future/website-profile-report.md) | W1 independent website delivery and measurement lane |
+| [Party and Expedition Core Loop](../../future/party-and-expedition-core-loop.md) | M1 roster architecture and staged recruitment, M6 expeditions, M8 regions/story/later full-party bosses |
+| [Dungeon Progression, Difficulty, and Economy](../../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M8 content, M9 economy/optional services |
+| [Character Growth and Stat Scaling](../../future/character-growth-and-stat-scaling.md) | M3 advancement, M7 Momentum interaction, M8 permanent discoveries, M9 tuning |
+| [Enemy Archetypes, Scaling, and Capability Progression](../../future/enemy-archetypes-scaling-and-capability-progression.md) | M4 enemy systems, M8 encounters/bosses/visual content |
+| [Momentum](../../future/momentum.md) | M7 temporary combat mechanic |
+| [Armor](../../future/armor.md) | M5 armor/accessories/ownership/upgrade loop |
+| [Website Profile Report](../../future/website-profile-report.md) | W1 independent website delivery and measurement lane |
 
 The website report is a September measurement, not a current performance result. Armor is included because it is present locally, regardless of its current Git tracking status.
 
@@ -294,15 +294,15 @@ These are planning drafts for review, not authorization to implement M1-M9 conti
 
 | Milestone | Implementation document | Entry dependency |
 | --- | --- | --- |
-| M1 | [Permanent roster](milestones/m1-permanent-roster.md) | Accepted M0 boundary and M1 entry decisions |
-| M2 | [Preparation, trading, and escape](milestones/m2-preparation-trading-escape.md) | M1 |
-| M3 | [Character advancement](milestones/m3-character-advancement.md) | M1; integrate M2 reward/supply contracts |
-| M4 | [Enemy progression](milestones/m4-enemy-progression.md) | M2/M3 for M4A; M5 for the M4B Floor III readiness proof |
-| M5 | [Armor and accessories](milestones/m5-armor-accessories.md) | M1-M3 and accepted M4A |
-| M6 | [Expeditions](milestones/m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
-| M7 | [Momentum](milestones/m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
-| M8 | [Region and content loop](milestones/m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
-| M9 | [Release qualification](milestones/m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
+| M1 | [Permanent roster](m1-permanent-roster.md) | Accepted M0 boundary and M1 entry decisions |
+| M2 | [Preparation, trading, and escape](m2-preparation-trading-escape.md) | M1 |
+| M3 | [Character advancement](m3-character-advancement.md) | M1; integrate M2 reward/supply contracts |
+| M4 | [Enemy progression](m4-enemy-progression.md) | M2/M3 for M4A; M5 for the M4B Floor III readiness proof |
+| M5 | [Armor and accessories](m5-armor-accessories.md) | M1-M3 and accepted M4A |
+| M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
+| M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
+| M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
+| M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
 **Proposed Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and D3 recruitment. After M5, M4B supplies the bounded Floor III path, D4 recruitment, and first full-party boss proof needed by M6. This planning decomposition is for review: it is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 supplies a minimal playable Floor IV expedition loop; M8 completes the approved region manifest.
 

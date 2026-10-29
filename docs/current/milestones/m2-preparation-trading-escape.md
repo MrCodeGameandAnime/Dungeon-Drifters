@@ -12,7 +12,7 @@
 
 ## Authority, Dependencies, And Scope
 
-- [Roadmap](../development-roadmap.md), M2 and the shared implementation/qualification contract.
+- [Roadmap](development-roadmap.md), M2 and the shared implementation/qualification contract.
 - [Economy design](../../future/dungeon-progression-difficulty-and-economy.md), Extraction Methods, Hub Trader, Healing Potions, Gold, and unresolved rules.
 - [Party design](../../future/party-and-expedition-core-loop.md), preparation and participant ownership.
 - [M1](m1-permanent-roster.md) supplies recruited/active IDs and exact-target actions; [M3](m3-character-advancement.md) later consumes secured XP and potency hooks; [M5](m5-armor-accessories.md) adds actual equippable inventory, not M2.

@@ -12,7 +12,7 @@
 
 ## Authority, Scope, And Entry
 
-- [Roadmap](../development-roadmap.md), M9, W1 and shared implementation/qualification contract.
+- [Roadmap](development-roadmap.md), M9, W1 and shared implementation/qualification contract.
 - [Party design](../../future/party-and-expedition-core-loop.md), rotation/specialization/full-party pressure.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), free access, soft walls, monetization, optional endgame/services and preparation risk.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), provisional curves and earned power fantasy.

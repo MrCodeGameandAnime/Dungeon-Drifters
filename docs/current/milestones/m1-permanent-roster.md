@@ -12,7 +12,7 @@
 
 ## Authority And Boundaries
 
-- [Roadmap](../development-roadmap.md), especially M0/M1, staged recruitment, and the shared implementation/qualification contract.
+- [Roadmap](development-roadmap.md), especially M0/M1, staged recruitment, and the shared implementation/qualification contract.
 - [Party design](../../future/party-and-expedition-core-loop.md), roster, selection, restrictions, and reunion sections.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), secured ownership and death; existing Hub/Floor I evidence in [probe record](../../probe.md).
 - [Weapon contract](../weapons/signature-weapon-implementation.md), exact-target progression and craft-and-install.
