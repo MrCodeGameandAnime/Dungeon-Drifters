@@ -789,6 +789,11 @@ try {
     "ready browser launch did not show Start without autoplaying the looped theme",
   );
   await captureScreenshot(page, "desktop-start-ready");
+  await page.keyboard.press("Shift+Alt+C");
+  requireCondition(
+    await page.locator("#shortcut-dialog").isHidden(),
+    "the picker-only shortcut opened before Start",
+  );
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
   const startTransition = await page.evaluate(() => ({
@@ -832,6 +837,46 @@ try {
     `Drifter picker did not show loaded sprites with authored text below: ${JSON.stringify(rosterCards)}`,
   );
   await captureScreenshot(page, "desktop-drifter-selection");
+
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("invalid");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  requireCondition(
+    await page.locator("#shortcut-dialog").isVisible() &&
+      (await page.locator("#shortcut-error").innerText()).includes("did not match"),
+    "an unrecognized shortcut was not rejected in the picker",
+  );
+  await page.locator("#shortcut-cancel").click();
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("H01B");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#hub-shared-gold").innerText()).includes("75"),
+    "the Hub shortcut did not load its expected Branoc start state",
+  );
+  await page.keyboard.press("Shift+Alt+C");
+  requireCondition(
+    await page.locator("#shortcut-dialog").isHidden(),
+    "the picker-only shortcut opened during gameplay",
+  );
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.keyboard.press("Shift+Alt+C");
+  await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
+  await page.locator("#shortcut-code").fill("F01BA");
+  await page.locator('#shortcut-form button[type="submit"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("Floor 1 is cleared") &&
+      (await page.locator("#hub-shared-gold").innerText()).includes("106"),
+    "the Floor 1 shortcut did not load its Branoc/Azhvielle clear state",
+  );
+  await page.locator("#restart").click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   const utilityIcons = await page.locator(".header-actions img").evaluateAll((images) => images.map((image) => {

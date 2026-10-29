@@ -42,6 +42,7 @@
 
   function showDrifterSelection() {
     state = null;
+    if ($("shortcut-dialog").open) $("shortcut-dialog").close();
     showApp();
     $("selection-screen").hidden = false;
     $("overworld-screen").hidden = true;
@@ -1201,6 +1202,38 @@
   $("restart").addEventListener("click", async function () {
     await requestImmersion();
     await restart();
+  });
+  document.addEventListener("keydown", function (event) {
+    if (
+      event.key.toLowerCase() !== "c" ||
+      !event.shiftKey ||
+      !event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      $("selection-screen").hidden ||
+      $("shortcut-dialog").open
+    ) return;
+    event.preventDefault();
+    $("shortcut-error").hidden = true;
+    $("shortcut-code").value = "";
+    $("shortcut-dialog").showModal();
+    $("shortcut-code").focus();
+  }, true);
+  $("shortcut-cancel").addEventListener("click", function () {
+    $("shortcut-dialog").close();
+  });
+  $("shortcut-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    pyodide.globals.set("_shortcut_code", $("shortcut-code").value);
+    try {
+      state = await pythonJson("load_scenario_json(_shortcut_code)");
+      $("shortcut-dialog").close();
+      render();
+    } catch (_error) {
+      setText("shortcut-error", "That code did not match.");
+      $("shortcut-error").hidden = false;
+      $("shortcut-code").select();
+    }
   });
   $("immersive").addEventListener("click", toggleImmersion);
   document.addEventListener("fullscreenchange", updateFullscreenButton);

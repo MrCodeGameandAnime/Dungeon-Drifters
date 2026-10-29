@@ -65,6 +65,55 @@ def test_bridge_starts_the_canonical_headless_runtime():
     assert runtime._session._save_port is None
 
 
+def test_browser_shortcut_h01b_starts_branoc_at_the_floor_one_hub():
+    runtime = bridge.BrowserRuntime()
+
+    view = runtime.load_scenario("  h01b  ")
+
+    assert view["screen"] == OverworldScreen.HUB.value
+    assert runtime._game.player_state.character.profile.drifter_id == "branoc"
+    assert runtime._game.party_state.phase is DungeonPhase.HUB
+    assert runtime._game.party_state.tutorial_complete is False
+    assert runtime._game.party_state.shared_gold == 75
+    assert runtime._game.party_state.companions == ()
+
+
+def test_browser_shortcut_f01ba_starts_after_branoc_and_azhvielle_clear_floor_one():
+    runtime = bridge.BrowserRuntime()
+
+    view = runtime.load_scenario("F01BA")
+
+    assert view["screen"] == OverworldScreen.HUB.value
+    assert runtime._game.player_state.character.profile.drifter_id == "branoc"
+    assert tuple(
+        member.character.profile.drifter_id
+        for member in runtime._game.party_state.companions
+    ) == ("azhvielle",)
+    assert runtime._game.party_state.phase is DungeonPhase.HUB
+    assert runtime._game.party_state.tutorial_complete is True
+    assert runtime._game.party_state.floor_one_cleared is True
+    assert runtime._game.party_state.shared_gold == 106
+    assert runtime._game.party_state.shared_items
+    assert runtime._game.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert "Floor 1 is cleared" in view["adventure_text"]
+
+
+def test_browser_shortcut_rejects_unknown_codes_without_replacing_the_game():
+    runtime = bridge.BrowserRuntime()
+    current = runtime.start_game("joruun")
+    game = runtime._game
+
+    with pytest.raises(ValueError, match="invalid shortcut code"):
+        runtime.load_scenario("not-a-code")
+
+    assert runtime._game is game
+    assert runtime.current_view() == current
+
+
 def test_bridge_exposes_authored_roster_and_starts_each_drifter():
     runtime = bridge.BrowserRuntime()
     roster = bridge.drifter_roster()

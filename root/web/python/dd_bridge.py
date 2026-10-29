@@ -6,6 +6,7 @@ from enum import Enum
 
 from app.combat.battle import Battle
 from app.content.catalog import DRIFTER_SPECS, create_enemy_state
+from app.game.browser_test_scenarios import build_browser_test_scenario
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.player.run_items import InventoryCommand
@@ -138,6 +139,20 @@ def drifter_roster():
     ]
 
 
+def _activate_session(runtime, game, drifter_id, adventure_text=None):
+    runtime._game = game
+    runtime._session = OverworldSession(
+        game,
+        ui=None,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        battle_ui_factory=None,
+        save_port=None,
+    )
+    runtime._session._adventure_text = adventure_text
+    runtime._drifter_id = drifter_id
+
+
 class BrowserRuntime:
     def __init__(self):
         self._game = None
@@ -145,16 +160,13 @@ class BrowserRuntime:
         self._drifter_id = None
 
     def start_game(self, drifter_id="branoc"):
-        self._game = create_new_game(drifter_id)
-        self._session = OverworldSession(
-            self._game,
-            ui=None,
-            battle_factory=Battle,
-            enemy_factory=create_enemy_state,
-            battle_ui_factory=None,
-            save_port=None,
-        )
-        self._drifter_id = drifter_id
+        game = create_new_game(drifter_id)
+        _activate_session(self, game, drifter_id)
+        return self.current_view()
+
+    def load_scenario(self, code):
+        game, drifter_id, adventure_text = build_browser_test_scenario(code)
+        _activate_session(self, game, drifter_id, adventure_text)
         return self.current_view()
 
     def current_view(self):
@@ -194,3 +206,7 @@ def submit(command):
 
 def restart_game():
     return _runtime.restart_game()
+
+
+def load_scenario(code):
+    return _runtime.load_scenario(code)

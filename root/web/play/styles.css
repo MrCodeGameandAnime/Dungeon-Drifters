@@ -223,6 +223,34 @@ button:disabled {
   font-weight: 400;
 }
 
+.shortcut-dialog {
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: .65rem;
+  color: var(--ink);
+  background: #101b1d;
+  box-shadow: var(--shadow);
+}
+
+.shortcut-dialog::backdrop { background: rgb(0 0 0 / 72%); }
+.shortcut-dialog form { display: grid; gap: .7rem; }
+.shortcut-dialog h2 { margin: 0; font-size: 1.15rem; }
+.shortcut-dialog label { color: var(--muted); font-size: .9rem; }
+.shortcut-dialog input {
+  width: 100%;
+  min-height: 2.8rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: .4rem;
+  color: var(--ink);
+  background: #0d1719;
+  font: inherit;
+  text-transform: uppercase;
+}
+.shortcut-error { margin: 0; color: var(--danger); }
+.shortcut-actions { display: flex; justify-content: flex-end; gap: .55rem; }
+
 .panel {
   border: 1px solid var(--line);
   border-radius: .7rem;

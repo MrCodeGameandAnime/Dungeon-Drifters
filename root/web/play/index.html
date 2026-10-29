@@ -50,6 +50,18 @@
           <h1 id="selection-title">Choose your Drifter</h1>
           <div id="drifter-options" class="drifter-options"></div>
         </div>
+        <dialog id="shortcut-dialog" class="shortcut-dialog">
+          <form id="shortcut-form">
+            <h2>Enter code</h2>
+            <label for="shortcut-code">Code</label>
+            <input id="shortcut-code" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <p id="shortcut-error" class="shortcut-error" role="status" hidden></p>
+            <div class="shortcut-actions">
+              <button id="shortcut-cancel" type="button">Cancel</button>
+              <button type="submit">Enter</button>
+            </div>
+          </form>
+        </dialog>
       </section>
 
       <section id="overworld-screen" class="phase-screen overworld-screen" aria-label="Overworld" hidden>
