@@ -9,6 +9,7 @@ from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from tests.persistence_test_support import make_test_save_port
+from tests.game_test_support import advance_surface_to
 from app.player.inventory_action import InventoryActionResolver
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
@@ -137,38 +138,7 @@ def _quit_inputs():
 
 
 def _advance_to_goblin_lord(game):
-    game.overworld_state.begin_surface_route()
-    completed_encounters = (
-        "surface_goblin_solo",
-        "surface_goblin_pair",
-        "surface_warrior_solo",
-        "surface_warrior_pair",
-        "surface_shaman_solo",
-        "surface_shaman_pair",
-        "surface_elite_patrol",
-    )
-    for encounter_id in completed_encounters:
-        game.world_state.mark_encounter_defeated(encounter_id)
-    for rest_id in (
-        "surface_rest_after_warrior_solo",
-        "surface_rest_after_shaman_pair",
-        "surface_rest_before_goblin_lord",
-    ):
-        game.overworld_state.record_resolved_rest_node(rest_id)
-
-    for node_id, phase in (
-        ("surface_goblin_pair", ContextualRoutePhase.NONE),
-        ("surface_warrior_solo", ContextualRoutePhase.ENTER_ENCOUNTER),
-        ("surface_rest_after_warrior_solo", ContextualRoutePhase.NONE),
-        ("surface_warrior_pair", ContextualRoutePhase.ENTER_ENCOUNTER),
-        ("surface_shaman_solo", ContextualRoutePhase.ENTER_ENCOUNTER),
-        ("surface_shaman_pair", ContextualRoutePhase.ENTER_ENCOUNTER),
-        ("surface_rest_after_shaman_pair", ContextualRoutePhase.NONE),
-        ("surface_elite_patrol", ContextualRoutePhase.ENTER_ENCOUNTER),
-        ("surface_rest_before_goblin_lord", ContextualRoutePhase.NONE),
-        ("surface_goblin_lord", ContextualRoutePhase.ENTER_ENCOUNTER),
-    ):
-        game.overworld_state.advance_to(node_id, contextual_phase=phase)
+    advance_surface_to(game, "surface_goblin_lord")
 
 
 def test_finished_real_battle_starts_next_battle_with_fresh_combat_state():

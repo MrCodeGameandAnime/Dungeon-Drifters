@@ -1,5 +1,4 @@
 from app.combat.battle import Battle
-from app.combat.result import MoveResult
 from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.new_game import create_new_game
@@ -7,39 +6,7 @@ from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from tests.persistence_test_support import make_test_save_port
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
-
-
-class AlwaysOneRng:
-    def randint(self, _start, _end):
-        return 1
-
-    def choice(self, options):
-        return tuple(options)[0]
-
-
-class OneHitResolver:
-    def resolve_move(
-        self,
-        actor,
-        target,
-        move_name,
-        *,
-        combat_state=None,
-        character_run_state=None,
-    ):
-        del actor, combat_state, character_run_state
-        damage = target.health.current
-        target.health.take_damage(damage)
-        return MoveResult(
-            accepted=True,
-            hit=True,
-            move_name=move_name,
-            resource_spent=0,
-            damage=damage,
-            healing=0,
-            statuses_applied=(),
-            reason=None,
-        )
+from tests.combat_test_support import AlwaysOneRng, OneHitResolver
 
 
 class NoRunBattle(Battle):

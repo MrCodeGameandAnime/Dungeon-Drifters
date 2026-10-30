@@ -1,4 +1,5 @@
 import app.combat.battle as battle_module
+import pytest
 from app.content.catalog import create_drifter
 from app.combat.battle import Battle
 from app.combat.combat_state import CombatState
@@ -120,12 +121,74 @@ def _outcomes(entries):
     )
 
 
-def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
+@pytest.mark.parametrize(
+    (
+        "first_item",
+        "companion",
+        "prepared_outcome",
+        "applied_outcome",
+        "tick_outcome",
+        "expired_outcome",
+        "tick_amounts",
+        "defend_count",
+        "ready_tag",
+        "remaining_items",
+    ),
+    (
+        pytest.param(
+            "ember_shard",
+            "deep_coal",
+            CombatOutcomeType.FIRE_INFUSION_PREPARED,
+            CombatOutcomeType.BURN_APPLIED,
+            CombatOutcomeType.BURN_TICK,
+            CombatOutcomeType.BURN_EXPIRED,
+            (7, 7, 7),
+            2,
+            "Ready: Fire",
+            (
+                (RunItemId.EMBER_SHARD, 0),
+                (RunItemId.DEEP_COAL, 0),
+                (RunItemId.NIGHT_BERRY, 1),
+            ),
+            id="burn",
+        ),
+        pytest.param(
+            "deep_coal",
+            "night_berry",
+            CombatOutcomeType.POISON_INFUSION_PREPARED,
+            CombatOutcomeType.POISON_APPLIED,
+            CombatOutcomeType.POISON_TICK,
+            CombatOutcomeType.POISON_EXPIRED,
+            (5, 5, 5, 5),
+            3,
+            "Ready: Poison",
+            (
+                (RunItemId.EMBER_SHARD, 1),
+                (RunItemId.DEEP_COAL, 0),
+                (RunItemId.NIGHT_BERRY, 0),
+            ),
+            id="poison",
+        ),
+    ),
+)
+def test_stock_prepared_infusion_resolves_and_expires_in_goblin_battle(
+    monkeypatch,
+    first_item,
+    companion,
+    prepared_outcome,
+    applied_outcome,
+    tick_outcome,
+    expired_outcome,
+    tick_amounts,
+    defend_count,
+    ready_tag,
+    remaining_items,
+):
     monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     player = PlayerState(create_drifter("zhaivra"))
     enemy = EnemyState(create_enemy_definition("goblin"))
-    ui = ZhaivraLoopUI()
+    ui = ZhaivraLoopUI(first_item=first_item, companion=companion)
     session = RecordingPresentationSession()
     battle = Battle(
         player,
@@ -139,38 +202,37 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
 
     assert winner == "player"
     assert enemy.health.current == 0
-    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 0
-    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
-    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 1
+    for item_id, expected_quantity in remaining_items:
+        assert player.character_run_state.item_quantity(item_id) == expected_quantity
     assert player.character_run_state.payload_prepared(
         PreparedPayloadId.INFUSED_BARB
     ) is False
     assert battle.combat_state.burn_active(enemy) is False
-    assert ui.defend_count == 2
+    assert battle.combat_state.poison_active(enemy) is False
+    assert ui.defend_count == defend_count
 
     outcomes = _outcomes(session.history)
     outcome_types = tuple(outcome.outcome_type for outcome in outcomes)
     assert outcome_types.count(CombatOutcomeType.COMPOUNDS_CONSUMED) == 1
-    assert outcome_types.count(CombatOutcomeType.FIRE_INFUSION_PREPARED) == 1
+    assert outcome_types.count(prepared_outcome) == 1
     assert outcome_types.count(CombatOutcomeType.INFUSED_BARB_CONSUMED) == 1
-    assert outcome_types.count(CombatOutcomeType.BURN_APPLIED) == 1
-    assert outcome_types.count(CombatOutcomeType.BURN_TICK) == 3
-    assert outcome_types.count(CombatOutcomeType.BURN_EXPIRED) == 1
+    assert outcome_types.count(applied_outcome) == 1
+    assert outcome_types.count(tick_outcome) == len(tick_amounts)
+    assert outcome_types.count(expired_outcome) == 1
     assert tuple(
         outcome.amount
         for outcome in outcomes
-        if outcome.outcome_type == CombatOutcomeType.BURN_TICK
-    ) == (7, 7, 7)
+        if outcome.outcome_type == tick_outcome
+    ) == tick_amounts
 
     ready_infused_barb = tuple(
         move
         for view in ui.rendered_views
         for move in view.move_options
-        if move.name == "Infused Barb" and "Ready: Fire" in move.tags
+        if move.name == "Infused Barb" and ready_tag in move.tags
     )
     assert ready_infused_barb
 
-    # The displayed log remains turn-scoped even though the test recorder audits history.
     assert tuple(entry.event_type for entry in session.entries) == (
         BattleEventType.DAMAGE,
         BattleEventType.VICTORY,
@@ -179,62 +241,12 @@ def test_complete_stock_prepare_loose_burn_goblin_vertical_slice(monkeypatch):
         outcome.outcome_type
         in {
             CombatOutcomeType.COMPOUNDS_CONSUMED,
-            CombatOutcomeType.FIRE_INFUSION_PREPARED,
+            prepared_outcome,
             CombatOutcomeType.INFUSED_BARB_CONSUMED,
-            CombatOutcomeType.BURN_TICK,
+            tick_outcome,
         }
         for outcome in _outcomes(session.entries)
     )
-
-
-def test_complete_stock_prepare_loose_poison_goblin_vertical_slice(monkeypatch):
-    monkeypatch.setattr(battle_module.random, "randint", lambda _start, _end: 1)
-    monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
-    player = PlayerState(create_drifter("zhaivra"))
-    enemy = EnemyState(create_enemy_definition("goblin"))
-    ui = ZhaivraLoopUI(first_item="deep_coal", companion="night_berry")
-    session = RecordingPresentationSession()
-    battle = Battle(
-        player,
-        enemy,
-        ui=ui,
-        resolver=CombatResolver(rng=AlwaysOneRng()),
-        presentation_session=session,
-    )
-
-    winner = battle.run()
-
-    assert winner == "player"
-    assert enemy.health.current == 0
-    assert player.character_run_state.item_quantity(RunItemId.EMBER_SHARD) == 1
-    assert player.character_run_state.item_quantity(RunItemId.DEEP_COAL) == 0
-    assert player.character_run_state.item_quantity(RunItemId.NIGHT_BERRY) == 0
-    assert player.character_run_state.payload_prepared(
-        PreparedPayloadId.INFUSED_BARB
-    ) is False
-    assert battle.combat_state.poison_active(enemy) is False
-
-    outcomes = _outcomes(session.history)
-    outcome_types = tuple(outcome.outcome_type for outcome in outcomes)
-    assert outcome_types.count(CombatOutcomeType.COMPOUNDS_CONSUMED) == 1
-    assert outcome_types.count(CombatOutcomeType.POISON_INFUSION_PREPARED) == 1
-    assert outcome_types.count(CombatOutcomeType.INFUSED_BARB_CONSUMED) == 1
-    assert outcome_types.count(CombatOutcomeType.POISON_APPLIED) == 1
-    assert outcome_types.count(CombatOutcomeType.POISON_TICK) == 4
-    assert outcome_types.count(CombatOutcomeType.POISON_EXPIRED) == 1
-    assert tuple(
-        outcome.amount
-        for outcome in outcomes
-        if outcome.outcome_type == CombatOutcomeType.POISON_TICK
-    ) == (5, 5, 5, 5)
-
-    ready_poison = tuple(
-        move
-        for view in ui.rendered_views
-        for move in view.move_options
-        if move.name == "Infused Barb" and "Ready: Poison" in move.tags
-    )
-    assert ready_poison
 
 
 def test_run_scarcity_personal_ownership_and_encounter_state_boundaries():

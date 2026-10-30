@@ -324,32 +324,21 @@ def test_direct_level_mutation_does_not_recalculate_resource_maximums():
     assert character.mana_resource.maximum == 56
 
 
-def test_explicit_resource_recalculation_updates_maximums_without_refill():
+@pytest.mark.parametrize(("increase_current", "expected_hp", "expected_mana"), ((False, 84, 48), (True, 92, 50)))
+def test_explicit_resource_recalculation_preserves_or_increases_current(increase_current, expected_hp, expected_mana):
     character = create_drifter("azhvielle")
     character.health.take_damage(7)
     character.mana_resource.spend(8)
     character.level = 3
 
-    character.recalculate_resource_maximums(increase_current=False)
+    character.recalculate_resource_maximums(increase_current=increase_current)
 
     assert character.health.maximum == 99
-    assert character.health.current == 84
+    assert character.health.current == expected_hp
     assert character.mana_resource.maximum == 58
-    assert character.mana_resource.current == 48
+    assert character.mana_resource.current == expected_mana
 
 
-def test_explicit_resource_recalculation_can_increase_current_by_positive_delta():
-    character = create_drifter("azhvielle")
-    character.health.take_damage(7)
-    character.mana_resource.spend(8)
-    character.level = 3
-
-    character.recalculate_resource_maximums(increase_current=True)
-
-    assert character.health.maximum == 99
-    assert character.health.current == 92
-    assert character.mana_resource.maximum == 58
-    assert character.mana_resource.current == 50
 
 
 def test_stat_mutation_does_not_recalculate_until_explicitly_requested():

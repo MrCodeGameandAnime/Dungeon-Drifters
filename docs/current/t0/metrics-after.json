@@ -1,0 +1,160 @@
+{
+  "head": "3acd725adccdaaef7cba25351ffeb9c3ca9c94d7",
+  "measurement_state": "uncommitted working tree based on head",
+  "test_source_tree_sha256": "4c75aa0dea98e7a80decda07549fb0ae16b38bb44cdf3bd23d0ccce554444f47",
+  "python_physical_loc": 70414,
+  "tracked_python_physical_loc": 70414,
+  "test_python_physical_loc": 40987,
+  "game_application_physical_loc": 21923,
+  "service_application_physical_loc": 1135,
+  "combined_application_physical_loc": 23058,
+  "non_test_python_physical_loc": 29427,
+  "test_to_game_application_ratio": 1.86959,
+  "test_to_combined_application_ratio": 1.77756,
+  "test_to_non_test_ratio": 1.39284,
+  "python_test_support_file_count": 148,
+  "python_test_module_count": 140,
+  "test_function_count": 1381,
+  "median_test_file_loc": 194.5,
+  "p95_test_file_loc": 692,
+  "largest_test_files": [
+    {
+      "file": "root/tests/test_combat_resolver.py",
+      "loc": 1940,
+      "test_functions": 55
+    },
+    {
+      "file": "root/tests/test_battle_player_state.py",
+      "loc": 1344,
+      "test_functions": 55
+    },
+    {
+      "file": "root/tests/test_overworld_session.py",
+      "loc": 1194,
+      "test_functions": 24
+    },
+    {
+      "file": "root/tests/test_terminal_battle_ui.py",
+      "loc": 1128,
+      "test_functions": 32
+    },
+    {
+      "file": "root/tests/test_floor_one_run.py",
+      "loc": 915,
+      "test_functions": 27
+    },
+    {
+      "file": "root/web_tests/test_browser_bridge_contract.py",
+      "loc": 757,
+      "test_functions": 20
+    },
+    {
+      "file": "root/tests/test_m11_surface_routes.py",
+      "loc": 697,
+      "test_functions": 9
+    },
+    {
+      "file": "root/tests/test_overworld_presenter.py",
+      "loc": 692,
+      "test_functions": 24
+    },
+    {
+      "file": "root/tests/test_terminal_overworld_ui.py",
+      "loc": 692,
+      "test_functions": 35
+    },
+    {
+      "file": "root/tests/test_weapon_progression.py",
+      "loc": 666,
+      "test_functions": 29
+    },
+    {
+      "file": "root/tests/test_m11_cross_encounter.py",
+      "loc": 645,
+      "test_functions": 8
+    },
+    {
+      "file": "root/tests/test_save_state.py",
+      "loc": 639,
+      "test_functions": 24
+    },
+    {
+      "file": "root/tests/test_profile_conflicts.py",
+      "loc": 577,
+      "test_functions": 18
+    },
+    {
+      "file": "root/tests/test_battle_presenter.py",
+      "loc": 566,
+      "test_functions": 22
+    },
+    {
+      "file": "root/tests/test_profile_sync.py",
+      "loc": 554,
+      "test_functions": 13
+    },
+    {
+      "file": "root/tests/test_m11_session_ownership.py",
+      "loc": 541,
+      "test_functions": 4
+    },
+    {
+      "file": "root/tests/test_weapon_content.py",
+      "loc": 535,
+      "test_functions": 20
+    },
+    {
+      "file": "root/services/profile_api/tests/test_profiles.py",
+      "loc": 492,
+      "test_functions": 10
+    },
+    {
+      "file": "root/tests/test_m10c_exact_targeting.py",
+      "loc": 488,
+      "test_functions": 13
+    },
+    {
+      "file": "root/tests/test_character_loadout_regression.py",
+      "loc": 486,
+      "test_functions": 7
+    },
+    {
+      "file": "root/tests/test_m10c_hardening.py",
+      "loc": 460,
+      "test_functions": 8
+    },
+    {
+      "file": "root/tests/test_route_content.py",
+      "loc": 453,
+      "test_functions": 18
+    },
+    {
+      "file": "root/tests/test_item_first_inventory.py",
+      "loc": 446,
+      "test_functions": 9
+    },
+    {
+      "file": "root/tests/test_hub_flow.py",
+      "loc": 442,
+      "test_functions": 19
+    },
+    {
+      "file": "root/tests/test_m11_save_continue.py",
+      "loc": 436,
+      "test_functions": 5
+    }
+  ],
+  "layer_loc_roots": {
+    "root/tests/": 37830,
+    "root/web_tests/": 1651,
+    "root/services/profile_api/tests/": 1506
+  },
+  "game_state_constructor_modules": 35,
+  "game_state_constructor_calls": 104,
+  "party_state_constructor_modules": 2,
+  "party_state_constructor_calls": 11,
+  "snapshot_coupled_modules": 37,
+  "snapshot_calls": 284,
+  "schema_reference_modules": 15,
+  "schema_mentions": 61
+}

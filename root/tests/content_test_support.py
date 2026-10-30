@@ -1,4 +1,8 @@
-"""Test-only conveniences derived from the public content catalog."""
+"""Shared helpers for authored-content tests and tools."""
+
+import os
+import subprocess
+import sys
 
 from app.content.catalog import (
     create_enemy_state,
@@ -32,6 +36,19 @@ def create_route_encounter_enemies(node_id, *, enemy_factory=create_enemy_state)
     )
 
 
+def run_content_validator(project_root):
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(project_root / "src")
+    return subprocess.run(
+        [sys.executable, "-m", "tools.validate_content"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 __all__ = [
     "DUNGEON_ENTRANCE_NODE_ID",
     "FIRST_SURFACE_NODE_ID",
@@ -40,4 +57,5 @@ __all__ = [
     "SURFACE_ROUTE_NODE_IDS",
     "SURFACE_ROUTE_NODES",
     "create_route_encounter_enemies",
+    "run_content_validator",
 ]

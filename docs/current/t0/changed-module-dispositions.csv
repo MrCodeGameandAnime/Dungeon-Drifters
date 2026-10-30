@@ -1,0 +1,47 @@
+module,before_loc,after_loc,disposition,proof
+root/tests/combat_test_support.py,0,75,ADD TEST SUPPORT,Shared accepted-result/move-projection/runtime adapters and strict RecordedRng; see removed-test-equivalence.md
+root/tests/content_test_support.py,43,61,REFACTOR / MERGE,Exact shared authored-content validator runner replaces duplicate subprocess setup; distinct fixture contents and assertions remain local
+root/tests/game_test_support.py,0,83,ADD TEST SUPPORT,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/portable_test_support.py,0,15,ADD TEST SUPPORT,Shared isolated python -S overlay-script launcher; overlay preludes and module-specific contracts remain local
+root/tests/test_azhvielle_gravemantle.py,339,343,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_battle_player_state.py,1407,1344,REFACTOR / MERGE,Accepted MoveResult fixture now shared; first-pass merges retained
+root/tests/test_character_loadout_regression.py,483,486,REFACTOR / MERGE,Move projection helper now shared; independent loadout oracle retained
+root/tests/test_character_module_boundaries.py,89,113,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_move_data.py,291,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_state.py,413,402,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_content_creation_boundaries.py,161,146,REFACTOR / MERGE,Uses shared content validator runner; source-tree boundary assertions remain local
+root/tests/test_content_tooling.py,319,307,REFACTOR / MERGE,Uses shared content validator runner; scaffolding and generated-content assertions remain local
+root/tests/test_combat_resolver.py,2133,1940,REFACTOR / MERGE,Hit/Brace/damage matrices consolidated; physical damage boundaries retained
+root/tests/test_enemy_state.py,390,353,REFACTOR / MERGE,Enemy move projection helper now shared; enemy isolation assertions retained
+root/tests/test_floor_one_run.py,937,915,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_game_snapshot.py,206,224,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_game_test_support.py,0,31,ADD TEST SUPPORT,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_heal_action.py,378,371,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_hub_extraction.py,341,315,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_hub_flow.py,474,442,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_air_route.py,191,184,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_lightning_storm.py,188,181,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_water_route.py,229,222,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m10b_encounter_instantiation.py,173,175,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m10b_hardening.py,177,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m10c_exact_targeting.py,500,488,REFACTOR / MERGE,Accepted MoveResult fixture now shared; exact-targeting assertions retained
+root/tests/test_m10c_hardening.py,493,460,REFACTOR / MERGE,Pair frame assertions moved into Goblin Lord width matrix; see removed-test-equivalence.md
+root/tests/test_m10g_session_integration.py,277,216,REFACTOR / MERGE,Redundant load/continue test replaced by stronger save-and-resave flow; see removed-test-equivalence.md
+root/tests/test_m11_cross_encounter.py,675,645,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m11_save_continue.py,457,436,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m9c_zhaivra_hardening.py,403,415,MERGE WITH EXPLICIT CASE DATA,Burn/Poison vertical slices share one parameterized owner; distinct ticks/defend counts retained
+root/tests/test_m9e_character_identity_audit.py,220,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_mournglass_frost_route.py,241,234,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_overworld_presenter.py,710,692,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_overworld_session.py,1312,1194,REFACTOR / MERGE,Redundant full-route and stubbed retry journeys removed; per-Rest and real-Battle owners retained; see removed-test-equivalence.md
+root/tests/test_portable_collections_abc.py,178,173,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; collections ABC overlay semantics remain local
+root/tests/test_portable_keyword.py,170,163,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; keyword overlay semantics remain local
+root/tests/test_portable_regex.py,196,189,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; regex overlay semantics remain local
+root/tests/test_portable_string_validation.py,137,130,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; string validation overlay semantics remain local
+root/tests/test_portable_typing.py,171,164,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; typing overlay semantics remain local
+root/tests/test_profile_sync.py,601,554,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_runtime_compatibility.py,97,64,REFACTOR / MERGE,Identical AlwaysOneRng and OneHitResolver moved to shared combat support
+root/tests/test_runtime_overworld.py,346,314,REFACTOR / MERGE,Identical AlwaysOneRng and OneHitResolver moved to shared combat support; specialized resolver remains local
+root/tests/test_save_state.py,678,639,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_terminal_overworld_ui.py,748,692,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_weapon_progression.py,671,666,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained

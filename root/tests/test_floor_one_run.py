@@ -9,9 +9,8 @@ from app.content.catalog import (
     get_route_node_spec,
     get_route_spec,
 )
-from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
-from app.game.overworld_state import ContextualRoutePhase, OverworldState
+from app.game.overworld_state import ContextualRoutePhase
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
 from app.persistence.coordinator import SaveCoordinator
@@ -27,6 +26,7 @@ from app.presentation.overworld_models import (
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.battle_ui import ChooseAction, GoBack
 from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
+from tests.game_test_support import completed_hub_game as game_at_completed_hub
 
 
 def completed_tutorial_party():
@@ -97,28 +97,6 @@ class FailNextSavePort:
                 error="The game could not be saved.",
             )
         return self._save_port.save(game_state)
-
-
-def game_at_completed_hub():
-    party, party_members = completed_tutorial_party()
-    game = GameState(party_members[0])
-    game._party_state = party
-    surface = get_route_spec("surface")
-    for node in surface.nodes:
-        if node.encounter_id is not None:
-            game.world_state.mark_encounter_defeated(node.encounter_id)
-    rests = [node.node_id for node in surface.nodes if node.kind.value == "rest"]
-    game._overworld_state = OverworldState.from_snapshot(
-        {
-            "current_route_node_id": surface.nodes[-1].node_id,
-            "surface_route_begun": True,
-            "dungeon_entrance_reached": True,
-            "route_complete": True,
-            "resolved_rest_node_ids": rests,
-            "current_contextual_route_phase": "none",
-        }
-    )
-    return game
 
 
 def make_session(game, save_port=None):

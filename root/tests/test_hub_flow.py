@@ -1,15 +1,8 @@
 import pytest
 
 from app.combat.battle import Battle
-from app.content.catalog import (
-    DRIFTER_SPECS,
-    create_enemy_state,
-    get_drifter_spec,
-    get_route_spec,
-)
-from app.game.game_state import GameState
+from app.content.catalog import DRIFTER_SPECS, create_enemy_state, get_drifter_spec
 from app.game.overworld_session import OverworldSession
-from app.game.overworld_state import OverworldState
 from app.game.party_state import COMPANION_RECRUITMENT_COST, DungeonPhase
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent
@@ -31,32 +24,7 @@ from app.ui.overworld_ui import (
     ChoosePermanentStatIncrease,
 )
 from app.ui.battle_ui import ChooseAction
-
-
-def game_at_hub(*, lead_id="branoc", gold=75):
-    profile = next(spec for spec in DRIFTER_SPECS if spec.drifter_id == lead_id)
-    player = PlayerState(profile.create_character(), gold=gold)
-    game = GameState(player)
-    route = get_route_spec("surface")
-    entrance = route.nodes[-1]
-    for node in route.nodes[:-1]:
-        if node.encounter_id is not None:
-            game.world_state.mark_encounter_defeated(node.encounter_id)
-    rests = tuple(
-        node.node_id for node in route.nodes[:-1] if node.kind.value == "rest"
-    )
-    game._overworld_state = OverworldState.from_snapshot(
-        {
-            "current_route_node_id": entrance.node_id,
-            "surface_route_begun": True,
-            "dungeon_entrance_reached": True,
-            "route_complete": True,
-            "resolved_rest_node_ids": list(rests),
-            "current_contextual_route_phase": "none",
-        }
-    )
-    assert game.party_state.arrive_at_hub(player) is True
-    return game
+from tests.game_test_support import hub_game as game_at_hub
 
 
 def make_session(game):

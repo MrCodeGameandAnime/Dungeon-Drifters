@@ -101,10 +101,12 @@ def test_duplicate_enemies_remain_identity_distinct_in_combat_state():
     assert combat_state.burn_active(second) is False
 
 
-def test_repeated_creation_never_reuses_runtime_or_resource_objects():
-    first = create_route_encounter_enemies("surface_goblin_lord")
-    second = create_route_encounter_enemies("surface_goblin_lord")
+@pytest.mark.parametrize("node_id", EXPECTED_COMPOSITIONS)
+def test_repeated_creation_never_reuses_runtime_or_resource_objects(node_id):
+    first = create_route_encounter_enemies(node_id)
+    second = create_route_encounter_enemies(node_id)
 
+    assert len(first) == len(second)
     for first_enemy, second_enemy in zip(first, second, strict=True):
         assert first_enemy is not second_enemy
         assert first_enemy.definition is not second_enemy.definition

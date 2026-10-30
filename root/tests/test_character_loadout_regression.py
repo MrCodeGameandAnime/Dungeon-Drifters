@@ -1,4 +1,7 @@
 from app.content.catalog import create_drifter, get_drifter_spec
+from app.combat.move_presentation import MoveRole
+from app.combat.move import Move
+from tests.combat_test_support import move_to_dict
 
 
 EXPECTED_LOADOUTS = {
@@ -373,25 +376,6 @@ EXPECTED_LOADOUTS = {
 }
 
 
-def move_to_dict(move):
-    return {
-        "name": move.name,
-        "kind": move.kind.value,
-        "resource_type": move.resource_type.value,
-        "resource_cost": move.resource_cost,
-        "power": move.power,
-        "scales_with": [
-            attribute.value
-            for attribute in move.scales_with
-        ],
-        "accuracy": move.accuracy,
-        "target": move.target.value,
-        "damage_type": move.damage_type.value,
-        "mechanic": move.mechanic,
-        "description": move.description,
-    }
-
-
 def test_authored_starting_stats_live_in_drifter_specs():
     for drifter_id, expected in EXPECTED_LOADOUTS.items():
         starting_stats = get_drifter_spec(drifter_id).stats.as_dict()
@@ -430,8 +414,27 @@ def test_all_archetype_authored_loadout_data_is_unchanged():
             move["name"] for move in expected["combat_moves"]
         ]
         assert [move_to_dict(move) for move in player.combat_moves] == expected["combat_moves"]
+        assert all(isinstance(move, Move) for move in player.combat_moves)
         assert player.class_mechanic == expected["class_mechanic"]
         assert player.starting_equipment["weapon"].item_id == expected["starting_weapon"]
+
+
+def test_azhvielle_authored_spell_classification():
+    moves = create_drifter("azhvielle").combat_moves
+    assert tuple(move.is_spell for move in moves) == (False, True, True, True, True)
+
+
+def test_branoc_authored_move_presentation():
+    moves = create_drifter("branoc").combat_moves
+    assert [move.presentation.role for move in moves] == [
+        MoveRole.NORMAL,
+        MoveRole.NORMAL,
+        MoveRole.UTILITY,
+        MoveRole.HEAVY,
+        MoveRole.SUPER,
+    ]
+    assert moves[1].presentation.affinity_label == "Fire"
+    assert moves[3].presentation.static_summary == "A crushing Sunder-Spire strike."
 
 
 def test_branoc_has_no_active_momentum_hooks_or_resource_declaration():

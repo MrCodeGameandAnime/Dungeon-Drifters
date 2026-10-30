@@ -1,5 +1,29 @@
 # Dungeon Drifters Change Log
 
+## v0.6
+
+v0.6 turns the portable gameplay runtime into a playable browser game and
+establishes the first dungeon progression loop:
+
+- added a Pyodide-powered Play page while preserving the existing public site
+  structure and navigation
+- added local-first profile saves and optional synchronization through the
+  Dungeon Drifters profile API, including explicit conflict recovery
+- added the Hub onboarding loop: recruit a companion, fight as a two-Drifter
+  party, return to the Hub, and secure the tutorial rewards
+- added Floor I with ten battles, two Rest points, the Goblin Lord, extraction,
+  and replay from the Hub
+- added the Hub merchant's signature-weapon component crafting, installation,
+  improvement, and Tier V progression flows
+- consolidated overlapping tests and recorded test ownership ahead of the
+  M1-M9 development program, without changing production behavior
+- passed browser gameplay and persistence journeys, PostgreSQL profile-service,
+  content, and build checks; retained the established pinned MicroPython
+  qualification, with no runtime changes during T0
+
+The current playable endpoint is the Floor I Goblin Lord and return to the Hub.
+Later dungeon floors and M1-M9 systems remain planned work.
+
 ## v0.5
 
 v0.5 establishes Dungeon Drifters as a headless-capable runtime and prepares

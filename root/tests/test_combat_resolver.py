@@ -1,5 +1,6 @@
 import builtins
 import inspect
+import pytest
 
 from app.content.catalog import create_drifter
 from app.enemies.definition import Enemy, EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
@@ -13,6 +14,7 @@ from app.player.character_run_state import (
     PreparedPayloadId,
 )
 from app.player.player_state import PlayerState
+from tests.combat_test_support import RecordedRng
 
 
 class ScriptedRng:
@@ -413,95 +415,48 @@ def test_brace_protection_persists_across_multiple_hits_before_lifecycle_complet
     assert combat_state.brace_incoming_reduction_percent(target, DamageType.PHYSICAL) == 40
 
 
-def test_accepted_heavy_attack_consumes_brace_payoff_before_hit_resolution():
-    heavy = make_move(
-        name="heavy",
-        power=20,
-        scales_with=(ScalingAttribute.NONE,),
-        mechanic="heavy_attack",
+@pytest.mark.parametrize(
+    ("brace_owner", "intuition", "crit_roll", "expected_damage"),
+    (
+        pytest.param("actor", 10, 100, 26, id="heavy-payoff"),
+        pytest.param("actor", 100, 1, 39, id="heavy-payoff-before-crit"),
+        pytest.param("target", 100, 1, 18, id="incoming-reduction-before-crit"),
+    ),
+)
+def test_brace_damage_pipeline(brace_owner, intuition, crit_roll, expected_damage):
+    move = make_move(
+        name="braced strike", power=20, scales_with=(ScalingAttribute.NONE,),
+        mechanic="heavy_attack" if brace_owner == "actor" else None,
     )
     actor = SimpleCombatant(
-        moves=(heavy,),
+        moves=(move,),
         effective_stats={
-            "constitution": 10,
-            "spirit": 10,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 10,
+            "constitution": 10, "spirit": 10, "intelligence": 10,
+            "strength": 10, "dexterity": 10, "intuition": intuition,
         },
     )
     target = SimpleCombatant(
         effective_stats={
-            "constitution": 1,
-            "spirit": 1,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 10,
+            "constitution": 1, "spirit": 1, "intelligence": 10,
+            "strength": 10, "dexterity": 10, "intuition": 10,
         },
     )
-    combat_state = CombatState()
-    combat_state.activate_brace(actor)
+    state = CombatState()
+    state.activate_brace(actor if brace_owner == "actor" else target)
+    rng = RecordedRng(1, crit_roll)
 
-    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
-        actor,
-        target,
-        heavy.name,
-        combat_state=combat_state,
+    result = CombatResolver(rng=rng).resolve_move(
+        actor, target, move.name, combat_state=state,
     )
 
-    assert result.accepted
-    assert result.hit
-    assert result.damage == 26
-    assert target.health.current == target.health.maximum - 26
-    assert (
-        combat_state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack")
-        == 0
-    )
+    assert result.accepted and result.hit
+    assert result.critical is (crit_roll == 1)
+    assert result.damage == expected_damage
+    assert target.health.current == target.health.maximum - expected_damage
+    assert state.consume_brace_follow_up_damage_bonus_percent(actor, "heavy_attack") == 0
+    assert rng.calls == [(1, 100), (1, 100)]
 
 
-def test_heavy_brace_payoff_is_applied_before_final_crit_multiplier():
-    heavy = make_move(
-        name="critical heavy",
-        power=20,
-        scales_with=(ScalingAttribute.NONE,),
-        mechanic="heavy_attack",
-    )
-    actor = SimpleCombatant(
-        moves=(heavy,),
-        effective_stats={
-            "constitution": 10,
-            "spirit": 10,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 100,
-        },
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 1,
-            "spirit": 1,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 10,
-        },
-    )
-    combat_state = CombatState()
-    combat_state.activate_brace(actor)
-
-    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
-        actor,
-        target,
-        heavy.name,
-        combat_state=combat_state,
-    )
-
-    assert result.critical
-    assert result.damage == 39
-    assert target.health.current == target.health.maximum - 39
 
 
 def test_accepted_missed_heavy_attack_consumes_brace_payoff():
@@ -575,46 +530,6 @@ def test_rejected_heavy_attack_preserves_brace_payoff_and_nonmatching_move_does_
     )
 
 
-def test_brace_reduction_is_applied_before_final_crit_damage():
-    physical = make_move(
-        name="critical physical",
-        power=20,
-        scales_with=(ScalingAttribute.NONE,),
-    )
-    actor = SimpleCombatant(
-        moves=(physical,),
-        effective_stats={
-            "constitution": 10,
-            "spirit": 10,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 100,
-        },
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 1,
-            "spirit": 1,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 10,
-            "intuition": 10,
-        },
-    )
-    combat_state = CombatState()
-    combat_state.activate_brace(target)
-
-    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
-        actor,
-        target,
-        physical.name,
-        combat_state=combat_state,
-    )
-
-    assert result.critical
-    assert result.damage == 18
-    assert target.health.current == target.health.maximum - 18
 
 
 def test_invalid_and_defeated_combatants_are_rejected_before_resource_spend():
@@ -1084,8 +999,9 @@ def test_accuracy_uses_randint_one_to_one_hundred_and_roll_less_or_equal_hits():
     assert rng.calls == [(1, 100), (1, 100)]
 
 
-def test_dexterity_accuracy_and_dodge_adjust_final_hit_chance():
-    examples = (
+@pytest.mark.parametrize(
+    "actor_dexterity,target_dexterity,accuracy,roll,expected_hit",
+    (
         (10, 10, 50, 50, True),
         (10, 10, 50, 51, False),
         (20, 10, 50, 54, True),
@@ -1100,51 +1016,18 @@ def test_dexterity_accuracy_and_dodge_adjust_final_hit_chance():
         (100, 10, 70, 91, False),
         (40, 20, 50, 58, True),
         (40, 20, 50, 59, False),
-    )
-
-    for actor_dexterity, target_dexterity, accuracy, roll, expected_hit in examples:
-        move = make_move(
-            name=f"actor {actor_dexterity} target {target_dexterity} acc {accuracy}",
-            accuracy=accuracy,
-            scales_with=(ScalingAttribute.NONE,),
-        )
-        actor = SimpleCombatant(
-            moves=(move,),
-            effective_stats={
-                "constitution": 8,
-                "spirit": 8,
-                "intelligence": 8,
-                "strength": 8,
-                "dexterity": actor_dexterity,
-                "intuition": 8,
-            },
-        )
-        target = SimpleCombatant(
-            effective_stats={
-                "constitution": 1,
-                "spirit": 1,
-                "intelligence": 10,
-                "strength": 10,
-                "dexterity": target_dexterity,
-                "intuition": 10,
-            },
-        )
-
-        result = CombatResolver(rng=ScriptedRng(roll)).resolve_move(
-            actor,
-            target,
-            move.name,
-        )
-
-        assert result.hit is expected_hit
-
-
-def test_final_hit_chance_caps_at_ninety_five_with_accuracy_and_dodge():
-    move = make_move(
-        name="cap test",
-        accuracy=90,
-        scales_with=(ScalingAttribute.NONE,),
-    )
+        pytest.param(100, 10, 90, 95, True, id="upper-cap-hit"),
+        pytest.param(100, 10, 90, 96, False, id="upper-cap-miss"),
+        pytest.param(10, 100, 0, 5, True, id="lower-floor-hit"),
+        pytest.param(10, 100, 0, 6, False, id="lower-floor-miss"),
+        pytest.param(10, 5, 50, 51, True, id="negative-dodge-hit"),
+        pytest.param(10, 5, 50, 52, False, id="negative-dodge-miss"),
+    ),
+)
+def test_hit_chance_boundaries(
+    actor_dexterity, target_dexterity, accuracy, roll, expected_hit,
+):
+    move = make_move(accuracy=accuracy, scales_with=(ScalingAttribute.NONE,))
     actor = SimpleCombatant(
         moves=(move,),
         effective_stats={
@@ -1152,7 +1035,7 @@ def test_final_hit_chance_caps_at_ninety_five_with_accuracy_and_dodge():
             "spirit": 8,
             "intelligence": 8,
             "strength": 8,
-            "dexterity": 100,
+            "dexterity": actor_dexterity,
             "intuition": 8,
         },
     )
@@ -1162,110 +1045,16 @@ def test_final_hit_chance_caps_at_ninety_five_with_accuracy_and_dodge():
             "spirit": 1,
             "intelligence": 10,
             "strength": 10,
-            "dexterity": 10,
+            "dexterity": target_dexterity,
             "intuition": 10,
         },
     )
+    rng = ScriptedRng(roll)
 
-    hit_result = CombatResolver(rng=ScriptedRng(95)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
-    miss_result = CombatResolver(rng=ScriptedRng(96)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
+    result = CombatResolver(rng=rng).resolve_move(actor, target, move.name)
 
-    assert hit_result.hit
-    assert not miss_result.hit
-
-
-def test_final_hit_chance_floors_at_five():
-    move = make_move(
-        name="floor test",
-        accuracy=0,
-        scales_with=(ScalingAttribute.NONE,),
-    )
-    actor = SimpleCombatant(
-        moves=(move,),
-        effective_stats={
-            "constitution": 8,
-            "spirit": 8,
-            "intelligence": 8,
-            "strength": 8,
-            "dexterity": 10,
-            "intuition": 8,
-        },
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 1,
-            "spirit": 1,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 100,
-            "intuition": 10,
-        },
-    )
-
-    hit_result = CombatResolver(rng=ScriptedRng(5)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
-    miss_result = CombatResolver(rng=ScriptedRng(6)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
-
-    assert hit_result.hit
-    assert not miss_result.hit
-
-
-def test_low_target_dexterity_negative_dodge_bonus_is_preserved_before_clamp():
-    move = make_move(
-        name="low target dex test",
-        accuracy=50,
-        scales_with=(ScalingAttribute.NONE,),
-    )
-    actor = SimpleCombatant(
-        moves=(move,),
-        effective_stats={
-            "constitution": 8,
-            "spirit": 8,
-            "intelligence": 8,
-            "strength": 8,
-            "dexterity": 10,
-            "intuition": 8,
-        },
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 1,
-            "spirit": 1,
-            "intelligence": 10,
-            "strength": 10,
-            "dexterity": 5,
-            "intuition": 10,
-        },
-    )
-
-    hit_result = CombatResolver(rng=ScriptedRng(51)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
-    miss_result = CombatResolver(rng=ScriptedRng(52)).resolve_move(
-        actor,
-        target,
-        move.name,
-    )
-
-    assert hit_result.hit
-    assert not miss_result.hit
+    assert result.hit is expected_hit
+    assert rng.calls == [(1, 100)] * (2 if expected_hit else 1)
 
 
 def test_accuracy_zero_and_one_hundred_still_roll_exactly_once():
@@ -1575,12 +1364,24 @@ def test_strength_physical_negation_applies_only_to_incoming_physical_damage():
         assert magical_result.damage == 20
 
 
-def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract():
+@pytest.mark.parametrize(
+    ("strength", "constitution", "power", "expected_damage"),
+    (
+        pytest.param(3, 1, 20, 21, id="low-strength-extra-damage"),
+        pytest.param(100, 100, 0, 1, id="minimum-landed-damage"),
+    ),
+)
+def test_strength_adjustment_preserves_physical_damage_boundaries(
+        strength,
+        constitution,
+        power,
+        expected_damage,
+):
     actor = SimpleCombatant(
         moves=(
             make_move(
                 name="physical",
-                power=20,
+                power=power,
                 damage_type=DamageType.PHYSICAL,
                 scales_with=(ScalingAttribute.NONE,),
             ),
@@ -1588,10 +1389,10 @@ def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract
     )
     target = SimpleCombatant(
         effective_stats={
-            "constitution": 1,
-            "spirit": 1,
+            "constitution": constitution,
+            "spirit": 8,
             "intelligence": 8,
-            "strength": 3,
+            "strength": strength,
             "dexterity": 8,
             "intuition": 8,
         },
@@ -1599,34 +1400,8 @@ def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract
 
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "physical")
 
-    assert result.damage == 21
-
-
-def test_strength_physical_negation_preserves_minimum_landed_damage_of_one():
-    actor = SimpleCombatant(
-        moves=(
-            make_move(
-                name="tap",
-                power=0,
-                damage_type=DamageType.PHYSICAL,
-                scales_with=(ScalingAttribute.NONE,),
-            ),
-        ),
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 100,
-            "spirit": 8,
-            "intelligence": 8,
-            "strength": 100,
-            "dexterity": 8,
-            "intuition": 8,
-        },
-    )
-
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "tap")
-
-    assert result.damage == 1
+    assert result.accepted and result.hit
+    assert result.damage == expected_damage
 
 
 def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount():
@@ -2131,3 +1906,35 @@ def test_resolver_is_isolated_from_world_story_profile_and_duplicate_resources()
     assert "Health(" not in source
     assert "Mana(" not in source
     assert "Super(" not in source
+
+
+def test_branoc_complete_brace_loop_is_durable_and_single_use():
+    actor = PlayerState(create_drifter("branoc"))
+    target = EnemyState(create_enemy_definition("goblin"))
+    state = CombatState()
+    resolver = CombatResolver(rng=RecordedRng(1, 100, 1, 100))
+
+    brace = resolver.resolve_move(actor, actor, "Brace", combat_state=state)
+    assert brace.accepted is True
+    assert actor.mana_resource.current == actor.mana_resource.maximum - 5
+    assert state.brace_incoming_protection_active(actor) is True
+    assert state.brace_follow_up_damage_bonus_percent(actor, "heavy_attack") == 30
+
+    incoming = resolver.resolve_move(
+        PlayerState(create_drifter("branoc")),
+        actor,
+        "Crestgrave Reaping",
+        combat_state=state,
+    )
+    assert incoming.accepted is True
+    assert incoming.hit is True
+    assert state.brace_incoming_protection_active(actor) is True
+
+    heavy = resolver.resolve_move(
+        actor,
+        target,
+        "Ironwake Dismemberment",
+        combat_state=state,
+    )
+    assert heavy.accepted is True
+    assert state.brace_follow_up_damage_bonus_percent(actor, "heavy_attack") == 0

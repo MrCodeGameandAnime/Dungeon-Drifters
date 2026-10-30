@@ -15,6 +15,7 @@ from app.enemies.definition import (
     EnemyRole,
 )
 from app.enemies.state import EnemyState
+from tests.combat_test_support import move_to_dict
 
 EXPECTED_COMBAT_MOVES = [
     {
@@ -44,25 +45,6 @@ EXPECTED_COMBAT_MOVES = [
         "description": "A committed leaping slash.",
     },
 ]
-
-
-def move_to_dict(move):
-    return {
-        "name": move.name,
-        "kind": move.kind.value,
-        "resource_type": move.resource_type.value,
-        "resource_cost": move.resource_cost,
-        "power": move.power,
-        "scales_with": [
-            attribute.value
-            for attribute in move.scales_with
-        ],
-        "accuracy": move.accuracy,
-        "target": move.target.value,
-        "damage_type": move.damage_type.value,
-        "mechanic": move.mechanic,
-        "description": move.description,
-    }
 
 
 EXPECTED_ENEMIES = {
@@ -257,15 +239,20 @@ def test_enemy_metadata_rejects_invalid_non_enum_values():
     assert valid_moves
 
 
-def test_enemy_states_do_not_share_runtime_resources_stats_or_move_tuples():
-    first = EnemyState(create_enemy_definition("goblin"))
-    second = EnemyState(create_enemy_definition("goblin"))
+@pytest.mark.parametrize("factory", (
+    pytest.param(lambda: EnemyState(create_enemy_definition("goblin")), id="direct"),
+    pytest.param(lambda: create_enemy_state("goblin", tier=0), id="factory"),
+))
+def test_enemy_instances_own_runtime_resources_stats_and_moves(factory):
+    first = factory()
+    second = factory()
 
     first.health.take_damage(5)
     first.mana_resource.restore(3)
     first.super_resource.gain(10)
     first.permanent_stats.increase_stat("strength", 1)
 
+    assert first.definition is not second.definition
     assert first.health is not second.health
     assert first.mana_resource is not second.mana_resource
     assert first.super_resource is not second.super_resource
@@ -283,30 +270,6 @@ def test_enemy_states_do_not_share_runtime_resources_stats_or_move_tuples():
     assert first.combat_moves == second.combat_moves
 
 
-def test_factory_enemy_states_do_not_share_runtime_state():
-    first = create_enemy_state("goblin", tier=0)
-    second = create_enemy_state("goblin", tier=0)
-
-    first.health.take_damage(5)
-    first.mana_resource.restore(3)
-    first.super_resource.gain(10)
-    first.permanent_stats.increase_stat("strength", 1)
-
-    assert first.definition is not second.definition
-    assert first.health is not second.health
-    assert first.mana_resource is not second.mana_resource
-    assert first.super_resource is not second.super_resource
-    assert first.permanent_stats is not second.permanent_stats
-    assert first.combat_moves is not second.combat_moves
-    assert first.health.current == 55
-    assert second.health.current == 60
-    assert first.mana_resource.current == 0
-    assert second.mana_resource.current == 0
-    assert first.super_resource.current == 10
-    assert second.super_resource.current == 0
-    assert first.effective_stat("strength") == 4
-    assert second.effective_stat("strength") == 3
-    assert first.combat_moves == second.combat_moves
 
 
 def test_runtime_mutation_does_not_mutate_enemy_definition():

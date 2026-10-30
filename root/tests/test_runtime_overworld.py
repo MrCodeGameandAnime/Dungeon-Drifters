@@ -15,39 +15,7 @@ from app.presentation.battle_models import ActionIntent, InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import ChooseOverworldAction
-
-
-class AlwaysOneRng:
-    def randint(self, _start, _end):
-        return 1
-
-    def choice(self, options):
-        return tuple(options)[0]
-
-
-class OneHitResolver:
-    def resolve_move(
-        self,
-        actor,
-        target,
-        move_name,
-        *,
-        combat_state=None,
-        character_run_state=None,
-    ):
-        del actor, combat_state, character_run_state
-        damage = target.health.current
-        target.health.take_damage(damage)
-        return MoveResult(
-            accepted=True,
-            hit=True,
-            move_name=move_name,
-            resource_spent=0,
-            damage=damage,
-            healing=0,
-            statuses_applied=(),
-            reason=None,
-        )
+from tests.combat_test_support import AlwaysOneRng, OneHitResolver
 
 
 class PlayerOneHitResolver(OneHitResolver):

@@ -1,8 +1,5 @@
 import ast
-import os
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +7,7 @@ import pytest
 from app.content.catalog import create_drifter, create_enemy_definition, create_enemy_state
 from tools import scaffold_content as scaffolder
 from tools.validate_content import TODO_MARKER
+from tests.content_test_support import run_content_validator as _run_validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,19 +57,6 @@ def _tooling_root(tmp_path):
     ):
         shutil.copy2(ROOT / "tools" / name, root / "tools" / name)
     return root
-
-
-def _run_validator(root):
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(root / "src")
-    return subprocess.run(
-        [sys.executable, "-m", "tools.validate_content"],
-        cwd=root,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
 
 
 def test_obsolete_authoring_and_compatibility_paths_are_removed():

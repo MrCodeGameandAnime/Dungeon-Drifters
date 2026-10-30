@@ -13,6 +13,7 @@ from app.combat.move import MoveKind
 from app.combat.resolver import authored_move_rejection_reason
 from app.content.catalog import DRIFTER_SPECS, ENEMY_SPECS, WEAPON_SPECS
 from app.content.weapon_progression_spec import ComponentMoveModifierSpec
+from tests.content_test_support import run_content_validator as _run_fixture_validator
 from tools import scaffold_content as scaffolder
 from tools.generate_content_catalog import render_discovered_catalog
 from tools.validate_content import (
@@ -36,19 +37,6 @@ def _copy_validation_tools(root):
     (root / "tools").mkdir()
     for name in ("generate_content_catalog.py", "validate_content.py"):
         shutil.copy2(ROOT / "tools" / name, root / "tools" / name)
-
-
-def _run_fixture_validator(root):
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(root / "src")
-    return subprocess.run(
-        [sys.executable, "-m", "tools.validate_content"],
-        cwd=root,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
 
 
 @pytest.mark.parametrize(

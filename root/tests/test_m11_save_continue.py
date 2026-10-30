@@ -18,6 +18,7 @@ from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from app.game.overworld_state import ContextualRoutePhase
 from app.persistence.ports import SaveLoadStatus
 from tests.persistence_test_support import make_test_save_port, profile_path_for
+from tests.game_test_support import advance_surface_to
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
@@ -78,10 +79,6 @@ class DeterministicBattle:
         return self.current_view()
 
 
-def _phase_for(kind):
-    if kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
-        return ContextualRoutePhase.ENTER_ENCOUNTER
-    return ContextualRoutePhase.NONE
 
 
 def _state_at_node(profile_choice, target_node_id, *, begin_route=True):
@@ -115,25 +112,7 @@ def _state_at_node(profile_choice, target_node_id, *, begin_route=True):
     if target_node_id == game.overworld_state.current_route_node_id:
         return game
 
-    target_index = next(
-        index
-        for index, node in enumerate(SURFACE_ROUTE_NODES)
-        if node.node_id == target_node_id
-    )
-    for node in SURFACE_ROUTE_NODES[:target_index]:
-        if node.kind in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
-            game.world_state.mark_encounter_defeated(
-                node.encounter_id
-            )
-        if node.kind is RouteNodeKind.REST:
-            game.overworld_state.record_resolved_rest_node(node.node_id)
-        next_node = SURFACE_ROUTE_NODES[
-            SURFACE_ROUTE_NODES.index(node) + 1
-        ]
-        game.overworld_state.advance_to(
-            next_node.node_id,
-            contextual_phase=_phase_for(next_node.kind),
-        )
+    advance_surface_to(game, target_node_id)
     if target_node_id == "surface_dungeon_entrance":
         assert game.party_state.arrive_at_hub(game.player_state)
     return game

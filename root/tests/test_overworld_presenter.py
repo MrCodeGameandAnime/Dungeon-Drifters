@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter, get_drifter_spec
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -15,6 +15,18 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
 from app.content.catalog import DRIFTER_SPECS, get_weapon_spec
+from tests.game_test_support import advance_surface_to, recruited_pair_game, hub_game
+
+
+def test_map_completion_uses_world_for_combat_and_overworld_for_rest():
+    route_map = OverworldPresenter().build(
+        hub_game(), screen=OverworldScreen.MAP,
+    ).route_map
+
+    assert tuple(node.state for node in route_map.nodes[:-1]) == (
+        MapNodeState.COMPLETED,
+    ) * 11
+    assert route_map.nodes[-1].state is MapNodeState.CURRENT
 
 
 def get_character_profiles():
@@ -275,11 +287,8 @@ def test_installed_component_recipe_is_hidden_for_that_drifter():
 
 
 def test_component_recipe_visibility_is_independent_for_each_drifter():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
-    assert game.party_state.recruit_companion(lead, companion)
+    game = recruited_pair_game()
+    lead = game.player_state
     lead.signature_weapon_state.install_component(
         "blade_guard",
         "sunder_spire_blade_reinforced",
@@ -521,50 +530,25 @@ def test_map_uses_overworld_state_as_the_rest_completion_owner():
 
 
 @pytest.mark.parametrize(
-    ("rest_node_id", "rest_label", "successor_id", "successor_label", "path"),
+    ("rest_node_id", "rest_label", "successor_id", "successor_label"),
     (
         (
             "surface_rest_after_warrior_solo",
             "Woodland Rest",
             "surface_warrior_pair",
             "Warrior Patrol",
-            (
-                "surface_goblin_pair",
-                "surface_warrior_solo",
-                "surface_rest_after_warrior_solo",
-            ),
         ),
         (
             "surface_rest_after_shaman_pair",
             "Ritual Clearing Rest",
             "surface_elite_patrol",
             "Elite Patrol",
-            (
-                "surface_goblin_pair",
-                "surface_warrior_solo",
-                "surface_rest_after_warrior_solo",
-                "surface_warrior_pair",
-                "surface_shaman_solo",
-                "surface_shaman_pair",
-                "surface_rest_after_shaman_pair",
-            ),
         ),
         (
             "surface_rest_before_goblin_lord",
             "Final Approach Rest",
             "surface_goblin_lord",
             "Goblin Lord",
-            (
-                "surface_goblin_pair",
-                "surface_warrior_solo",
-                "surface_rest_after_warrior_solo",
-                "surface_warrior_pair",
-                "surface_shaman_solo",
-                "surface_shaman_pair",
-                "surface_rest_after_shaman_pair",
-                "surface_elite_patrol",
-                "surface_rest_before_goblin_lord",
-            ),
         ),
     ),
     ids=("woodland", "ritual_clearing", "final_approach"),
@@ -574,11 +558,9 @@ def test_map_marks_each_rest_completed_only_after_resolution(
     rest_label,
     successor_id,
     successor_label,
-    path,
 ):
     game = create_game()
-    for node_id in path:
-        game.overworld_state.advance_to(node_id)
+    advance_surface_to(game, rest_node_id)
 
     before = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
     before_states = {

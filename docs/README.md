@@ -2,13 +2,15 @@
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
+**Current version: v0.6**
+
 Choose one of four distinct Drifters, master their unique combat style, grow
 stronger through battle, evolve their signature weapon, and push deeper into
 a dangerous world shaped by each character's identity and abilities.
 
-The game is currently in active development. The playable build covers the
-opening journey through the surface route, ending at the entrance to the
-dungeon.
+The game is in active development. The current build includes the surface
+route, the Hub, and the first dungeon floor. The same Python gameplay runtime
+is playable in the browser and through the terminal.
 
 ## The Drifters
 
@@ -48,15 +50,18 @@ combat flow to overwhelm enemies before they can settle into the fight.
 
 ## Current Playable Build
 
-The current build contains the complete opening sequence for all four Drifters:
+The current build contains the opening sequence for all four Drifters:
 
-- Play through eight authored surface encounters that escalate from lone Goblins to the Goblin Lord.
-- Fight single and multi-enemy battles using attacks, Defend, healing, items, Supers, targeting, and each Drifter's unique mechanics.
-- Earn EXP, gold, Growth Points, and rewards while developing permanent stats and combat progression.
-- Inspect your Drifter's character sheet, skills, inventory, map, progression, and signature weapon.
-- Use three single-use Rest points to restore HP and Mana while deciding when to press forward.
-- Save, quit, load, and continue the same run with persistent progression between sessions.
-- Defeat the Goblin Lord and reach the dungeon entrance, the current endpoint of the playable build.
+- Play eight authored surface encounters that escalate from lone Goblins to the Goblin Lord.
+- Recruit a companion in the Hub and fight as a two-Drifter party.
+- Enter Floor I's ten battles and two Rest points, ending with the Goblin Lord.
+- Extract to the Hub to secure rewards, inspect the party, and prepare another run.
+- Use the Hub merchant to craft and install signature-weapon components and improve weapon slots.
+- Inspect character progression, skills, inventory, map, and signature weapons.
+- Save, quit, load, and continue with persistent progression; cloud synchronization is optional.
+
+Floor I and return to the Hub are the current dungeon endpoint. Later floors and
+the M1-M9 systems remain in development.
 
 ## Play Instructions
 
@@ -102,15 +107,15 @@ Key foundations include:
 
 ### Save and Cloud Data
 
-The schema-9 `GameState` payload contains progression only, including the
+The schema-11 `GameState` payload contains progression only, including the
 recruited party, shared hub inventory, and pending outing rewards. Existing
-schema-8 disk payloads remain readable and are migrated only after their
-original envelope digest is verified. A separate version-1 local profile
-envelope stores the stable profile ID, optional DD account association, local
-sequence, accepted remote revision, sync state, and payload digest. The local
-profile store is authoritative for immediate play: saves are committed locally
-first, and a player can continue playing, saving, quitting, and loading without
-an account or network connection.
+schema-8 through schema-11 disk payloads remain readable and are migrated only
+after their original envelope digest is verified; new disk saves use schema 12.
+A separate version-1 local profile envelope stores the stable profile ID,
+optional DD account association, local sequence, accepted remote revision, sync
+state, and payload digest. The local profile store is authoritative for
+immediate play: saves are committed locally first, and a player can continue
+playing, saving, quitting, and loading without an account or network connection.
 
 Optional cloud sync uses the DD-owned HTTPS/JSON profile API backed by
 PostgreSQL. The game depends on profile and transport interfaces, not on
