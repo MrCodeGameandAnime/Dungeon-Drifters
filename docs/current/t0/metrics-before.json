@@ -1,0 +1,160 @@
+{
+  "head": "2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8",
+  "python_physical_loc": 71801,
+  "tracked_python_physical_loc": 71801,
+  "test_python_physical_loc": 42374,
+  "game_application_physical_loc": 21923,
+  "service_application_physical_loc": 1135,
+  "combined_application_physical_loc": 23058,
+  "non_test_python_physical_loc": 29427,
+  "test_to_game_application_ratio": 1.93286,
+  "test_to_combined_application_ratio": 1.83771,
+  "test_to_non_test_ratio": 1.43997,
+  "python_test_support_file_count": 147,
+  "python_test_module_count": 142,
+  "test_function_count": 1409,
+  "median_test_file_loc": 206,
+  "p95_test_file_loc": 710,
+  "largest_test_files": [
+    {
+      "file": "root/tests/test_combat_resolver.py",
+      "loc": 2133,
+      "test_functions": 60
+    },
+    {
+      "file": "root/tests/test_battle_player_state.py",
+      "loc": 1407,
+      "test_functions": 57
+    },
+    {
+      "file": "root/tests/test_overworld_session.py",
+      "loc": 1312,
+      "test_functions": 25
+    },
+    {
+      "file": "root/tests/test_terminal_battle_ui.py",
+      "loc": 1128,
+      "test_functions": 32
+    },
+    {
+      "file": "root/tests/test_floor_one_run.py",
+      "loc": 937,
+      "test_functions": 27
+    },
+    {
+      "file": "root/web_tests/test_browser_bridge_contract.py",
+      "loc": 757,
+      "test_functions": 20
+    },
+    {
+      "file": "root/tests/test_terminal_overworld_ui.py",
+      "loc": 748,
+      "test_functions": 35
+    },
+    {
+      "file": "root/tests/test_overworld_presenter.py",
+      "loc": 710,
+      "test_functions": 23
+    },
+    {
+      "file": "root/tests/test_m11_surface_routes.py",
+      "loc": 697,
+      "test_functions": 9
+    },
+    {
+      "file": "root/tests/test_save_state.py",
+      "loc": 678,
+      "test_functions": 24
+    },
+    {
+      "file": "root/tests/test_m11_cross_encounter.py",
+      "loc": 675,
+      "test_functions": 8
+    },
+    {
+      "file": "root/tests/test_weapon_progression.py",
+      "loc": 671,
+      "test_functions": 29
+    },
+    {
+      "file": "root/tests/test_profile_sync.py",
+      "loc": 601,
+      "test_functions": 14
+    },
+    {
+      "file": "root/tests/test_profile_conflicts.py",
+      "loc": 577,
+      "test_functions": 18
+    },
+    {
+      "file": "root/tests/test_battle_presenter.py",
+      "loc": 566,
+      "test_functions": 22
+    },
+    {
+      "file": "root/tests/test_m11_session_ownership.py",
+      "loc": 541,
+      "test_functions": 4
+    },
+    {
+      "file": "root/tests/test_weapon_content.py",
+      "loc": 535,
+      "test_functions": 20
+    },
+    {
+      "file": "root/tests/test_m10c_exact_targeting.py",
+      "loc": 500,
+      "test_functions": 13
+    },
+    {
+      "file": "root/tests/test_m10c_hardening.py",
+      "loc": 493,
+      "test_functions": 9
+    },
+    {
+      "file": "root/services/profile_api/tests/test_profiles.py",
+      "loc": 492,
+      "test_functions": 10
+    },
+    {
+      "file": "root/tests/test_character_loadout_regression.py",
+      "loc": 483,
+      "test_functions": 5
+    },
+    {
+      "file": "root/tests/test_hub_flow.py",
+      "loc": 474,
+      "test_functions": 19
+    },
+    {
+      "file": "root/tests/test_m11_save_continue.py",
+      "loc": 457,
+      "test_functions": 5
+    },
+    {
+      "file": "root/tests/test_route_content.py",
+      "loc": 453,
+      "test_functions": 18
+    },
+    {
+      "file": "root/tests/test_item_first_inventory.py",
+      "loc": 446,
+      "test_functions": 9
+    }
+  ],
+  "layer_loc_roots": {
+    "root/tests/": 39217,
+    "root/web_tests/": 1651,
+    "root/services/profile_api/tests/": 1506
+  },
+  "measurement_policy": {
+    "test_roots": [
+      "root/tests",
+      "root/web_tests",
+      "root/services/profile_api/tests"
+    ],
+    "application_denominator": "root/src plus root/services/profile_api/src; game-only ratio also reported",
+    "physical_lines": "UTF-8 text splitlines, including blank/comment/data lines; same paths and rules before/after",
+    "file_universe": "git tracked and untracked non-ignored Python; ignored test artifacts excluded"
+  }
+}

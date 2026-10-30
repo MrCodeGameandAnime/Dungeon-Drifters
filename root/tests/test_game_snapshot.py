@@ -6,6 +6,23 @@ from app.content.catalog import create_drifter
 from app.game.game_state import GameState
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value, validate_plain_value
+from tests.game_test_support import hub_game
+
+
+def test_all_surface_completion_ids_round_trip_in_world_snapshot():
+    game = hub_game()
+    expected = (
+        "surface_goblin_solo", "surface_goblin_pair",
+        "surface_warrior_solo", "surface_warrior_pair",
+        "surface_shaman_solo", "surface_shaman_pair",
+        "surface_elite_patrol", "surface_goblin_lord",
+    )
+    snapshot = game.snapshot()
+
+    assert game.world_state.defeated_encounters == expected
+    assert snapshot["schema_version"] == 11
+    assert snapshot["world"]["defeated_encounters"] == list(expected)
+    assert "defeated_encounters" not in snapshot["overworld"]
 
 
 def assert_strict_json(snapshot):
@@ -77,6 +94,7 @@ def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():
 
     snapshot = game_state.snapshot()
 
+    assert "defeated_encounters" not in snapshot["overworld"]
     assert snapshot["story"] == {
         "current_chapter": "chapter_one",
         "current_scene": "opening",

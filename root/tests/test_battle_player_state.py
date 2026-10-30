@@ -25,13 +25,7 @@ from app.player.character_run_state import PreparedPayloadId, RunItemId
 from app.player.inventory_action import InventoryActionResolver
 from app.player.player_state import PlayerState
 from app.player.run_items import InventoryCommand
-from app.presentation.battle_models import (
-    ActionIntent,
-    BattleEventType,
-    BattleLogEntry,
-    InputRejectionReason,
-    InteractionPhase,
-)
+from app.presentation.battle_models import ActionIntent, BattleEventType, BattleLogEntry, InteractionPhase
 from app.ui.battle_ui import (
     ChooseAction,
     ChooseInventoryCommand,
@@ -477,12 +471,13 @@ def test_battle_accepts_injected_semantic_ui():
     assert resolver.calls[0]["move_name"] == "Crestgrave Reaping"
 
 
-def test_accepted_player_action_replaces_previous_displayed_turn():
+@pytest.mark.parametrize("hit", (True, False), ids=("hit", "miss"))
+def test_accepted_action_replaces_previous_displayed_turn(hit):
     ui = ScriptedBattleUI(
         ChooseAction(ActionIntent.ATTACK),
         ChooseMove("Crestgrave Reaping"),
     )
-    resolver = RecordingResolver(accepted_result())
+    resolver = RecordingResolver(result_with(hit=hit))
     battle = Battle(
         PlayerState(create_drifter("branoc")),
         EnemyState(create_enemy_definition("goblin")),
@@ -540,30 +535,6 @@ def test_navigation_and_rejected_action_preserve_displayed_turn():
     assert names[-1] == "test move"
 
 
-def test_accepted_miss_starts_a_new_displayed_turn():
-    ui = ScriptedBattleUI(
-        ChooseAction(ActionIntent.ATTACK),
-        ChooseMove("Crestgrave Reaping"),
-    )
-    resolver = RecordingResolver(result_with(hit=False))
-    battle = Battle(
-        PlayerState(create_drifter("branoc")),
-        EnemyState(create_enemy_definition("goblin")),
-        resolver=resolver,
-        ui=ui,
-    )
-    battle.presentation_session.record(
-        BattleLogEntry(
-            event_type=BattleEventType.DAMAGE,
-            actor_name="old",
-            action_name="old turn",
-        )
-    )
-
-    assert battle.player_action() is True
-    assert tuple(entry.action_name for entry in battle.presentation_session.entries) == (
-        "test move",
-    )
 
 
 def test_unoffered_semantic_action_never_reaches_resolver_or_advances():
@@ -610,8 +581,6 @@ def test_go_back_changes_phase_without_resolver_or_lifecycle_completion():
     )
     assert resolver.calls == []
     assert battle.combat_state.turn_count == 1
-
-
 def test_super_opens_from_regular_move_phase_without_advancing():
     player_state = PlayerState(create_drifter("branoc"))
     player_state.super_resource.gain(100)
@@ -1334,8 +1303,9 @@ def test_battle_starts_from_existing_persistent_health():
     assert player_state.health.current == player_state.health.maximum - 10
 
 
-def test_victory_returns_player():
-    player_state = PlayerState(create_drifter("joruun"))
+@pytest.mark.parametrize(("drifter_id", "move_key", "expected_turns"), (("joruun", "2", 5), ("branoc", "4", 7)))
+def test_victory_returns_player_and_counts_completed_actions(drifter_id, move_key, expected_turns):
+    player_state = PlayerState(create_drifter(drifter_id))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
     initiative_rolls = 0
 
@@ -1348,11 +1318,11 @@ def test_victory_returns_player():
             return 1
         return end
 
-    with patched_battle(inputs=["attack", "2", "attack", "2", "attack", "2", "attack", "2"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
+    with patched_battle(inputs=["attack", move_key] * 4, randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
         winner = battle.run()
 
     assert winner == "player"
-    assert battle.combat_state.turn_count == 5
+    assert battle.combat_state.turn_count == expected_turns
 
 
 def test_defeat_returns_enemy_and_persists_player_health():
@@ -1384,24 +1354,3 @@ def test_invalid_player_input_does_not_advance_turn_count_until_accepted_action(
         battle.player_action()
 
     assert battle.combat_state.turn_count == 1
-
-
-def test_completed_actions_advance_turn_count():
-    player_state = PlayerState(create_drifter("branoc"))
-    battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))
-    initiative_rolls = 0
-
-    def fake_randint(start, end):
-        nonlocal initiative_rolls
-        if (start, end) == (1, 2):
-            initiative_rolls += 1
-            return 1 if initiative_rolls == 1 else 2
-        if (start, end) == (1, 100):
-            return 1
-        return end
-
-    with patched_battle(inputs=["attack", "4", "attack", "4", "attack", "4", "attack", "4"], randint=fake_randint), contextlib.redirect_stdout(io.StringIO()):
-        winner = battle.run()
-
-    assert winner == "player"
-    assert battle.combat_state.turn_count == 7

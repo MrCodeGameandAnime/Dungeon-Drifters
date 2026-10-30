@@ -12,14 +12,7 @@ from app.presentation.battle_presenter import BattlePresenter
 from app.ui.terminal_battle_ui import TerminalBattleUI
 
 
-class ScriptedRng:
-    def __init__(self, *rolls):
-        self.rolls = list(rolls)
-        self.calls = []
-
-    def randint(self, start, end):
-        self.calls.append((start, end))
-        return self.rolls.pop(0)
+from tests.combat_test_support import RecordedRng as ScriptedRng
 
 
 def _joruun():

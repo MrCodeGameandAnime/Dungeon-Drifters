@@ -10,10 +10,10 @@ from app.content.weapon_progression_spec import (
     improvement_roll,
     project_weapon_stat_bonuses,
 )
-from app.game.game_state import GameState
 from app.game.weapon_progression import WeaponProgressionService
 from app.player.player_state import PlayerState
 from app.player.signature_weapon_state import SignatureWeaponState
+from tests.game_test_support import hub_game
 
 
 class FixedRng:
@@ -31,12 +31,7 @@ class FixedRng:
 
 
 def _game(*, crafting_experience=0, items=None, rng_values=()):
-    lead = PlayerState(
-        get_drifter_spec("branoc").create_character(),
-        gold=75,
-    )
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game()
     if crafting_experience:
         game.party_state.add_crafting_experience(crafting_experience)
     if items:

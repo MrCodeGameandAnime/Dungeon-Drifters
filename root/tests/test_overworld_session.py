@@ -25,6 +25,8 @@ from app.ui.overworld_ui import (
     ChoosePermanentStatIncrease,
 )
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
+from tests.game_test_support import hub_game, recruited_pair_game
+from tests.game_test_support import advance_surface_to as move_to_authored_rest
 
 
 class ScriptedUI:
@@ -157,11 +159,6 @@ REST_ROUTE_CASES = (
         "Woodland Rest",
         "surface_warrior_pair",
         "Warrior Patrol",
-        (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-        ),
         (),
     ),
     (
@@ -169,15 +166,6 @@ REST_ROUTE_CASES = (
         "Ritual Clearing Rest",
         "surface_elite_patrol",
         "Elite Patrol",
-        (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-            "surface_warrior_pair",
-            "surface_shaman_solo",
-            "surface_shaman_pair",
-            "surface_rest_after_shaman_pair",
-        ),
         ("surface_rest_after_warrior_solo",),
     ),
     (
@@ -186,17 +174,6 @@ REST_ROUTE_CASES = (
         "surface_goblin_lord",
         "Goblin Lord",
         (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-            "surface_warrior_pair",
-            "surface_shaman_solo",
-            "surface_shaman_pair",
-            "surface_rest_after_shaman_pair",
-            "surface_elite_patrol",
-            "surface_rest_before_goblin_lord",
-        ),
-        (
             "surface_rest_after_warrior_solo",
             "surface_rest_after_shaman_pair",
         ),
@@ -204,22 +181,6 @@ REST_ROUTE_CASES = (
 )
 
 
-def move_to_authored_rest(game, rest_node_id):
-    case = next(case for case in REST_ROUTE_CASES if case[0] == rest_node_id)
-    for node_id in case[4]:
-        phase = (
-            ContextualRoutePhase.ENTER_ENCOUNTER
-            if node_id
-            not in {
-                "surface_rest_after_warrior_solo",
-                "surface_rest_after_shaman_pair",
-                "surface_rest_before_goblin_lord",
-            }
-            else ContextualRoutePhase.NONE
-        )
-        game.overworld_state.advance_to(node_id, contextual_phase=phase)
-        if node_id in case[5]:
-            game.overworld_state.record_resolved_rest_node(node_id)
 
 
 def full_surface_route_inputs(rest_action):
@@ -338,7 +299,7 @@ def test_skip_rest_consumes_node_without_recovery():
 
 
 @pytest.mark.parametrize(
-    "rest_node_id,rest_label,successor_id,successor_label,path,prior_resolved",
+    "rest_node_id,rest_label,successor_id,successor_label,prior_resolved",
     REST_ROUTE_CASES,
     ids=("woodland", "ritual_clearing", "final_approach"),
 )
@@ -347,7 +308,6 @@ def test_each_authored_rest_recovers_only_hp_and_mana(
     rest_label,
     successor_id,
     successor_label,
-    path,
     prior_resolved,
 ):
     player = PlayerState(create_drifter("zhaivra"), gold=17)
@@ -363,14 +323,6 @@ def test_each_authored_rest_recovers_only_hp_and_mana(
         FIRE_INFUSION_REQUIREMENTS,
     )
     game = GameState(player)
-    for node_id in path:
-        if node_id not in {
-            rest_node_id,
-            "surface_rest_after_warrior_solo",
-            "surface_rest_after_shaman_pair",
-            "surface_rest_before_goblin_lord",
-        }:
-            game.world_state.mark_encounter_defeated(node_id)
     move_to_authored_rest(game, rest_node_id)
     before_player = player.snapshot()
     before_world = game.world_state.snapshot()
@@ -409,7 +361,7 @@ def test_each_authored_rest_recovers_only_hp_and_mana(
 
 
 @pytest.mark.parametrize(
-    "rest_node_id,rest_label,successor_id,successor_label,path,prior_resolved",
+    "rest_node_id,rest_label,successor_id,successor_label,prior_resolved",
     REST_ROUTE_CASES,
     ids=("woodland", "ritual_clearing", "final_approach"),
 )
@@ -418,7 +370,6 @@ def test_each_authored_rest_can_be_skipped_without_other_state_changes(
     rest_label,
     successor_id,
     successor_label,
-    path,
     prior_resolved,
 ):
     player = PlayerState(create_drifter("branoc"), gold=17)
@@ -823,9 +774,8 @@ def test_navigation_covers_every_shell_and_back_returns_one_level():
 
 
 def test_hub_component_craft_installs_updates_combat_and_persists():
-    player = PlayerState(get_drifter_spec("branoc").create_character())
-    game = GameState(player)
-    assert game.party_state.arrive_at_hub(player)
+    game = hub_game(gold=0)
+    player = game.player_state
     game.party_state.add_shared_items({"grade_i_metal": 1})
     session = OverworldSession(
         game,
@@ -886,11 +836,9 @@ def test_hub_component_craft_installs_updates_combat_and_persists():
 
 
 def test_component_craft_targets_the_requested_companion_not_lead():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
-    assert game.party_state.recruit_companion(lead, companion)
+    game = recruited_pair_game()
+    lead = game.player_state
+    companion = game.party_state.companions[0]
     game.party_state.add_shared_items({"grade_i_metal": 1})
     result = WeaponProgressionService(game).craft_component(
         target_drifter_id="azhvielle",
@@ -1127,6 +1075,10 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
     assert game.party_state.shared_items == {"goblin_scrap": 1}
     assert player.exp_state.current == 40
     assert player.gold == 3
+    assert player.level_state.current == 1
+    assert player.growth_points == 0
+    assert game.overworld_state.resolved_rest_node_ids == ()
+    assert post_victory.screen is OverworldScreen.MAIN
     assert identities == (
         player,
         player.character,
@@ -1137,6 +1089,34 @@ def test_victory_preserves_battle_mutations_and_advances_to_pair_node():
         player.character_run_state,
         player.get_equipped("weapon"),
     )
+
+
+@pytest.mark.parametrize("drifter_id", ("branoc", "azhvielle", "zhaivra", "joruun"))
+def test_surface_victory_adds_rewards_to_existing_progress(drifter_id):
+    player = PlayerState(create_drifter(drifter_id), gold=9)
+    player.exp_state.gain(13)
+    game = GameState(player)
+
+    result, ui, battles, enemies, _ = run_session(
+        game,
+        [ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER), *quit_inputs()],
+        winners=("player",),
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert battles.instances[0].player_state is player
+    assert enemies.calls == [("goblin", 0)]
+    assert player.exp_state.current == 53
+    assert player.gold == 12
+    assert player.level_state.current == 1
+    assert player.growth_points == 0
+    assert game.world_state.defeated_encounters == (FIRST_SURFACE_NODE_ID,)
+    assert game.overworld_state.resolved_rest_node_ids == ()
+    assert game.overworld_state.current_route_node_id == SECOND_SURFACE_NODE_ID
+    assert game.overworld_state.current_contextual_route_phase is ContextualRoutePhase.ENTER_ENCOUNTER
+    assert ui.views[1].screen is OverworldScreen.MAIN
+    assert ui.views[1].location_label == "Goblin Pair"
+    assert ui.views[1].contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
 
 
 def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():

@@ -77,10 +77,11 @@ def test_local_only_sync_never_contacts_the_remote_service(tmp_path):
     assert server.profiles == {}
 
 
-def test_schema8_remote_head_advances_to_schema12_without_rewriting_history(tmp_path):
+@pytest.mark.parametrize("legacy_payload", (make_legacy_schema8_payload, _legacy_schema9_payload), ids=("schema8", "schema9"))
+def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_payload):
     store = LocalProfileStore(tmp_path / "profiles")
     server = MemoryRemoteProfileServer()
-    old_payload = make_legacy_schema8_payload(gold=14)
+    old_payload = legacy_payload(gold=14)
     server.create_profile(
         ACCOUNT_ID,
         DEVICE_A,
@@ -125,54 +126,6 @@ def test_schema8_remote_head_advances_to_schema12_without_rewriting_history(tmp_
     assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 12
 
 
-def test_schema9_cloud_head_advances_to_schema12_without_rewriting_history(
-    tmp_path,
-):
-    store = LocalProfileStore(tmp_path / "profiles")
-    server = MemoryRemoteProfileServer()
-    old_payload = _legacy_schema9_payload(gold=14)
-    server.create_profile(
-        ACCOUNT_ID,
-        DEVICE_A,
-        PROFILE_ID,
-        SAVE_A,
-        old_payload,
-    )
-    old_envelope = build_profile_envelope(
-        old_payload,
-        profile_id=PROFILE_ID,
-        account_id=ACCOUNT_ID,
-        remote_revision=1,
-        local_sequence=1,
-        sync_state=SyncState.CLEAN,
-        client_save_id=SAVE_A,
-        saved_at=SAVED_AT,
-    )
-    store.save(old_envelope)
-    coordinator = SaveCoordinator(
-        store,
-        PROFILE_ID,
-        client_save_id_factory=lambda: SAVE_B,
-        now_factory=lambda: SAVED_AT,
-    )
-    sync = ProfileSyncCoordinator(
-        store,
-        PROFILE_ID,
-        BoundMemoryRemoteClient(server, ACCOUNT_ID, DEVICE_A),
-        now_factory=lambda: SAVED_AT,
-    )
-
-    loaded = coordinator.load()
-    local_pending = store.load(PROFILE_ID).envelope
-    result = sync.sync_pending()
-
-    assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 12
-    assert local_pending.sync_state is SyncState.PENDING
-    assert result.sync_state is SyncState.CLEAN
-    assert server.revision_count(PROFILE_ID) == 2
-    assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 12
 
 
 def test_offline_guest_claim_retries_without_changing_profile_identity(tmp_path):

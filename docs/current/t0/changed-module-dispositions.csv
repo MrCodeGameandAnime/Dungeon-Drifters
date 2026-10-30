@@ -1,0 +1,32 @@
+module,before_loc,after_loc,disposition,proof
+root/tests/combat_test_support.py,0,11,ADD TEST SUPPORT,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/game_test_support.py,0,83,ADD TEST SUPPORT,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_azhvielle_gravemantle.py,339,343,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_battle_player_state.py,1407,1356,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_loadout_regression.py,483,504,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_module_boundaries.py,89,113,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_move_data.py,291,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_character_state.py,413,402,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_combat_resolver.py,2133,1954,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_enemy_state.py,390,371,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_floor_one_run.py,937,915,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_game_snapshot.py,206,224,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_game_test_support.py,0,31,ADD TEST SUPPORT,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_heal_action.py,378,371,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_hub_extraction.py,341,315,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_hub_flow.py,474,442,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_air_route.py,191,184,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_lightning_storm.py,188,181,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_joruun_water_route.py,229,222,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m10b_encounter_instantiation.py,173,175,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m10b_hardening.py,177,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m11_cross_encounter.py,675,645,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m11_save_continue.py,457,436,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_m9e_character_identity_audit.py,220,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_mournglass_frost_route.py,241,234,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_overworld_presenter.py,710,692,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_overworld_session.py,1312,1292,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_profile_sync.py,601,554,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_save_state.py,678,639,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_terminal_overworld_ui.py,748,692,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_weapon_progression.py,671,666,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained

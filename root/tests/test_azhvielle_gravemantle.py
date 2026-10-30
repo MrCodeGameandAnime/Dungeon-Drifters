@@ -1,4 +1,5 @@
 from dataclasses import replace
+import pytest
 
 from app.content.catalog import create_drifter
 from app.combat.combat_state import CombatState
@@ -13,14 +14,7 @@ from app.enemies.state import EnemyState
 from app.player.player_state import PlayerState
 
 
-class ScriptedRng:
-    def __init__(self, *rolls):
-        self.rolls = list(rolls)
-        self.calls = []
-
-    def randint(self, start, end):
-        self.calls.append((start, end))
-        return self.rolls.pop(0)
+from tests.combat_test_support import RecordedRng as ScriptedRng
 
 
 def _azhvielle():
@@ -49,49 +43,58 @@ def test_atomic_arcane_discharge_returns_facts_and_clears_live_state():
     assert state.arcane_instability_active(actor) is False
 
 
-def test_gravemantle_hit_grants_overcharge_and_break_without_backlash():
-    actor = _azhvielle()
-    target = _goblin()
-    rng = ScriptedRng(1, 100, 100)
-
-    result = CombatResolver(rng=rng).resolve_move(
-        actor,
-        target,
-        "Gravemantle Rupture",
-        combat_state=CombatState(),
-    )
-
-    assert result.accepted and result.hit and result.damage > 0
-    assert actor.mana_resource.current == 44
-    assert [outcome.outcome_type for outcome in result.outcomes] == [
-        CombatOutcomeType.BREAK_APPLIED,
-        CombatOutcomeType.OVERCHARGE_GAINED,
-    ]
-
-
-def test_gravemantle_miss_grants_charge_without_break_and_backlash_can_apply():
+@pytest.mark.parametrize(
+    "rolls,hit,backlash_damage",
+    (
+        pytest.param((1, 100, 100), True, 0, id="hit-clean"),
+        pytest.param((100, 100), False, 0, id="miss-clean"),
+        pytest.param((100, 1, 6), False, 6, id="miss-backlash"),
+        pytest.param((1, 100, 1, 8), True, 8, id="hit-backlash"),
+    ),
+)
+def test_gravemantle_charge_break_backlash_and_discharge(rolls, hit, backlash_damage):
     actor = _azhvielle()
     target = _goblin()
     state = CombatState()
-    rng = ScriptedRng(100, 1, 6)
 
-    result = CombatResolver(rng=rng).resolve_move(
-        actor,
-        target,
-        "Gravemantle Rupture",
-        combat_state=state,
+    result = CombatResolver(rng=ScriptedRng(*rolls)).resolve_move(
+        actor, target, "Gravemantle Rupture", combat_state=state,
     )
 
-    assert result.accepted and result.hit is False and result.damage == 0
+    assert result.accepted
+    assert result.hit is hit
+    assert (result.damage > 0) is hit
+    assert actor.mana_resource.current == 44
+    assert actor.health.current == actor.health.maximum - backlash_damage
     assert state.arcane_overcharge_active(actor) is True
-    assert state.gravemantle_break_active(target) is False
-    assert state.arcane_instability_active(actor) is True
-    assert any(
-        outcome.outcome_type == CombatOutcomeType.BACKLASH_DAMAGE
-        and outcome.amount == 6
-        and outcome.target == CombatOutcomeTarget.ACTOR
-        for outcome in result.outcomes
+    assert state.gravemantle_break_active(target) is hit
+    assert state.arcane_instability_active(actor) is bool(backlash_damage)
+    if backlash_damage:
+        assert any(
+            outcome.outcome_type == CombatOutcomeType.BACKLASH_DAMAGE
+            and outcome.amount == backlash_damage
+            and outcome.target == CombatOutcomeTarget.ACTOR
+            for outcome in result.outcomes
+        )
+        assert CombatOutcomeType.INSTABILITY_APPLIED in tuple(
+            outcome.outcome_type for outcome in result.outcomes
+        )
+    elif hit:
+        assert tuple(outcome.outcome_type for outcome in result.outcomes) == (
+            CombatOutcomeType.BREAK_APPLIED,
+            CombatOutcomeType.OVERCHARGE_GAINED,
+        )
+
+    discharge = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor, target, "Gloamweight Sepulcher", combat_state=state,
     )
+    assert discharge.accepted
+    assert CombatOutcomeType.OVERCHARGE_CONSUMED in tuple(
+        outcome.outcome_type for outcome in discharge.outcomes
+    )
+    assert state.arcane_overcharge_active(actor) is False
+    assert state.gravemantle_break_active(target) is False
+    assert state.arcane_instability_active(actor) is False
 
 
 def test_backlash_outcome_reports_actual_hp_lost_after_capping():
@@ -120,13 +123,14 @@ def test_backlash_outcome_reports_actual_hp_lost_after_capping():
     )
 
 
-def test_same_target_spell_discharge_uses_captured_break_and_clears_once():
+@pytest.mark.parametrize("rolls,hit", (((1, 100), True), ((100,), False)))
+def test_same_target_spell_discharge_uses_captured_break_and_clears_once(rolls, hit):
     actor = _azhvielle()
     target = _goblin()
     state = CombatState()
     state.activate_arcane_overcharge(actor, broken_target=target)
     state.activate_arcane_instability(actor)
-    rng = ScriptedRng(1, 100)
+    rng = ScriptedRng(*rolls)
 
     result = CombatResolver(rng=rng).resolve_move(
         actor,
@@ -135,7 +139,7 @@ def test_same_target_spell_discharge_uses_captured_break_and_clears_once():
         combat_state=state,
     )
 
-    assert result.accepted and result.hit
+    assert result.accepted and result.hit is hit
     assert [outcome.outcome_type for outcome in result.outcomes[:3]] == [
         CombatOutcomeType.OVERCHARGE_CONSUMED,
         CombatOutcomeType.BREAK_CLEARED,
@@ -279,7 +283,7 @@ def test_instability_affects_physical_damage_but_not_magical_or_hybrid():
 
     hybrid_actor = _azhvielle()
     hybrid_move = hybrid_actor.combat_moves[2]
-    hybrid_move = replace(hybrid_move, name="Test Hybrid Spell")
+    hybrid_move = replace(hybrid_move, name="Test Hybrid Spell", damage_type=DamageType.HYBRID)
     hybrid_actor.character._combat_moves = (*hybrid_actor.combat_moves, hybrid_move)
     hybrid_unstable_target = _azhvielle()
     hybrid_baseline_target = _azhvielle()

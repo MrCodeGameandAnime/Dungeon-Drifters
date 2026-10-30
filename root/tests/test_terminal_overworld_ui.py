@@ -1,8 +1,7 @@
 import pytest
 
-from app.content.catalog import create_drifter, get_drifter_spec, get_route_spec
+from app.content.catalog import create_drifter
 from app.game.game_state import GameState
-from app.game.party_state import PartyState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
@@ -21,6 +20,7 @@ from app.ui.overworld_ui import (
     ChooseWeaponTarget,
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
+from tests.game_test_support import advance_surface_to, floor_one_rest_game, hub_game
 
 
 def create_view(screen=OverworldScreen.MAIN, drifter_id="branoc", **kwargs):
@@ -30,60 +30,13 @@ def create_view(screen=OverworldScreen.MAIN, drifter_id="branoc", **kwargs):
 
 def create_rest_view(rest_node_id="surface_rest_after_warrior_solo"):
     game = GameState(PlayerState(create_drifter("branoc")))
-    paths = {
-        "surface_rest_after_warrior_solo": (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-        ),
-        "surface_rest_after_shaman_pair": (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-            "surface_warrior_pair",
-            "surface_shaman_solo",
-            "surface_shaman_pair",
-            "surface_rest_after_shaman_pair",
-        ),
-        "surface_rest_before_goblin_lord": (
-            "surface_goblin_pair",
-            "surface_warrior_solo",
-            "surface_rest_after_warrior_solo",
-            "surface_warrior_pair",
-            "surface_shaman_solo",
-            "surface_shaman_pair",
-            "surface_rest_after_shaman_pair",
-            "surface_elite_patrol",
-            "surface_rest_before_goblin_lord",
-        ),
-    }
-    for node_id in paths[rest_node_id]:
-        game.overworld_state.advance_to(node_id)
+    advance_surface_to(game, rest_node_id)
     return OverworldPresenter().build(game, screen=OverworldScreen.REST)
 
 
 def create_floor_one_rest_view():
-    lead = PlayerState(
-        get_drifter_spec("branoc").create_character(),
-        gold=75,
-    )
-    companion = PlayerState(get_drifter_spec("azhvielle").create_character())
-    party = PartyState()
-    assert party.arrive_at_hub(lead)
-    assert party.recruit_companion(lead, companion)
-    assert party.begin_outing()
-    assert party.begin_extraction(experience=0, gold=0)
-    assert party.complete_extraction((lead, companion))
-    assert party.start_floor_one_run() == 100
-
-    game = GameState(lead)
-    game._party_state = party
-    route = get_route_spec("floor_one")
-    game.overworld_state.begin_route("floor_one")
-    for node in route.nodes[1:6]:
-        game.overworld_state.advance_to(node.node_id)
     return OverworldPresenter().build(
-        game,
+        floor_one_rest_game(),
         screen=OverworldScreen.REST,
         save_available=True,
     )
@@ -137,9 +90,7 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
 
 
 def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game()
     game.party_state.add_shared_items({"goblin_scrap": 2, "grade_i_metal": 1})
     view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
 
@@ -154,9 +105,7 @@ def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
 
 
 def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game()
     game.party_state.add_shared_items({"goblin_scrap": 1, "grade_i_metal": 1})
     view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
 
@@ -170,9 +119,7 @@ def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
 
 
 def test_merchant_terminal_offers_grade_one_component_recipes():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game()
     game.party_state.add_shared_items({"grade_i_metal": 1})
     view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
     ui = TerminalOverworldUI(output_func=lambda _message: None)
@@ -190,9 +137,8 @@ def test_merchant_terminal_offers_grade_one_component_recipes():
 
 
 def test_merchant_terminal_offers_tier_v_when_requirements_are_met():
-    lead = PlayerState(get_drifter_spec("branoc").create_character())
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game(gold=0)
+    lead = game.player_state
     game.party_state.add_crafting_experience(990)
     for slot_id in lead.signature_weapon_state.slot_progress:
         lead.signature_weapon_state.set_slot_progress(slot_id, 100)
@@ -210,9 +156,7 @@ def test_merchant_terminal_offers_tier_v_when_requirements_are_met():
 
 
 def test_weapon_terminal_inspects_installed_components_and_targets_exact_drifter():
-    lead = PlayerState(get_drifter_spec("branoc").create_character(), gold=75)
-    game = GameState(lead)
-    assert game.party_state.arrive_at_hub(lead)
+    game = hub_game()
     view = OverworldPresenter().build(game, screen=OverworldScreen.WEAPON)
     ui = TerminalOverworldUI(output_func=lambda _message: None)
 

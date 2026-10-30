@@ -4,7 +4,6 @@ import pytest
 from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
 from app.persistence.ports import SaveLoadStatus
 from app.persistence.save_document import build_save_document, reconstruct_game_state
@@ -15,8 +14,8 @@ from app.presentation.overworld_models import OverworldAction
 from app.ui.battle_ui import ChooseAction, GoBack
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
 from tests.persistence_test_support import make_test_save_port
-from app.content.catalog import get_route_spec
 from app.content import catalog
+from tests.game_test_support import hub_game as game_at_hub
 
 
 class StableRng:
@@ -25,31 +24,6 @@ class StableRng:
 
     def choice(self, values):
         return values[0]
-
-
-def game_at_hub():
-    lead = PlayerState(catalog.get_drifter_spec("branoc").create_character(), gold=75)
-    game = GameState(lead)
-    route = get_route_spec("surface")
-    entrance = route.nodes[-1]
-    for node in route.nodes[:-1]:
-        if node.encounter_id is not None:
-            game.world_state.mark_encounter_defeated(node.encounter_id)
-    rests = tuple(
-        node.node_id for node in route.nodes[:-1] if node.kind.value == "rest"
-    )
-    game._overworld_state = OverworldState.from_snapshot(
-        {
-            "current_route_node_id": entrance.node_id,
-            "surface_route_begun": True,
-            "dungeon_entrance_reached": True,
-            "route_complete": True,
-            "resolved_rest_node_ids": list(rests),
-            "current_contextual_route_phase": "none",
-        }
-    )
-    assert game.party_state.arrive_at_hub(lead)
-    return game
 
 
 def ready_party():

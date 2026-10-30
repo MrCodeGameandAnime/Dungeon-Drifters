@@ -87,3 +87,27 @@ def test_archetype_instances_do_not_share_mutable_runtime_containers():
         assert first.mana_resource is not second.mana_resource
         assert first.level_state is not second.level_state
         assert first.exp_state is not second.exp_state
+
+
+def test_identity_mechanics_do_not_branch_on_display_or_class_names():
+    source_root = Path(__file__).parents[1] / "src" / "app"
+    inspected = (
+        source_root / "combat" / "battle.py",
+        source_root / "combat" / "resolver.py",
+        source_root / "combat" / "combat_state.py",
+        source_root / "combat" / "status_state.py",
+    )
+    forbidden_fragments = (
+        ".display_name ==",
+        "__class__.__name__",
+        "isinstance(actor,",
+        "isinstance(target,",
+        "Brawler",
+        "BlackMage",
+        "RogueArcher",
+        "Monk",
+    )
+
+    for path in inspected:
+        source = path.read_text(encoding="utf-8")
+        assert not any(fragment in source for fragment in forbidden_fragments), path

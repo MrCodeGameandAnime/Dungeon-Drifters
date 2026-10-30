@@ -3,7 +3,7 @@ import copy
 import pytest
 
 from app.game.game_state import GameState
-from app.game.overworld_state import ContextualRoutePhase, OverworldState
+from app.game.overworld_state import ContextualRoutePhase
 from app.game.party_state import DungeonPhase
 from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
@@ -14,7 +14,7 @@ from app.persistence.save_document import (
     validate_profile_payload,
     validate_save_document,
 )
-from app.content.catalog import create_weapon, get_route_node_spec, get_route_spec
+from app.content.catalog import create_weapon, get_route_spec
 from app.player.character_run_state import (
     InfusionKind,
     PreparedPayloadId,
@@ -22,6 +22,7 @@ from app.player.character_run_state import (
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION
 from app.content.catalog import DRIFTER_SPECS
+from tests.game_test_support import advance_surface_to, enter_floor_one_rest
 
 
 def get_character_profiles():
@@ -61,26 +62,7 @@ def _create_populated_game(choice):
 
 
 def _move_game_to_dungeon_entrance(game):
-    route = get_route_spec("surface")
-    entrance = route.nodes[-1]
-    for node in route.nodes[:-1]:
-        if node.encounter_id is not None:
-            game.world_state.mark_encounter_defeated(node.encounter_id)
-    rests = [
-        node.node_id for node in route.nodes[:-1] if node.kind.value == "rest"
-    ]
-    for rest_id in rests:
-        game.overworld_state.record_resolved_rest_node(rest_id)
-    game._overworld_state = OverworldState.from_snapshot(
-        {
-            "current_route_node_id": entrance.node_id,
-            "surface_route_begun": True,
-            "dungeon_entrance_reached": True,
-            "route_complete": True,
-            "resolved_rest_node_ids": rests,
-            "current_contextual_route_phase": "none",
-        }
-    )
+    advance_surface_to(game, get_route_spec("surface").nodes[-1].node_id)
 
 
 def _game_at_floor_one_rest(rest_index=0):
@@ -97,29 +79,8 @@ def _game_at_floor_one_rest(rest_index=0):
     assert game.party_state.begin_outing()
     assert game.party_state.begin_extraction(experience=0, gold=0)
     assert game.party_state.complete_extraction(party_members)
-    game.party_state.start_floor_one_run()
+    enter_floor_one_rest(game, rest_index)
     game.party_state.add_floor_one_rewards(experience=70, gold=5)
-
-    route = get_route_spec("floor_one")
-    rest_nodes = tuple(
-        node for node in route.nodes if node.kind.value == "rest"
-    )
-    target = rest_nodes[rest_index]
-    game.overworld_state.begin_route("floor_one")
-    for node in route.nodes[1:]:
-        current = get_route_node_spec(
-            game.overworld_state.current_route_node_id
-        )
-        if current.kind.value == "rest":
-            game.overworld_state.record_resolved_rest_node(current.node_id)
-        phase = (
-            ContextualRoutePhase.ENTER_ENCOUNTER
-            if node.kind.value in {"combat", "boss"}
-            else ContextualRoutePhase.NONE
-        )
-        game.overworld_state.advance_to(node.node_id, contextual_phase=phase)
-        if node.node_id == target.node_id:
-            break
     return game
 
 
