@@ -1,5 +1,6 @@
 {
   "head": "2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8",
+  "test_source_tree_sha256": "70310f263dd3817dfab5327d13fef8a2ff0ccd27e75fdd2682f5482fa77494f6",
   "python_physical_loc": 71801,
   "tracked_python_physical_loc": 71801,
   "test_python_physical_loc": 42374,
@@ -147,6 +148,14 @@
     "root/web_tests/": 1651,
     "root/services/profile_api/tests/": 1506
   },
+  "game_state_constructor_modules": 38,
+  "game_state_constructor_calls": 121,
+  "party_state_constructor_modules": 3,
+  "party_state_constructor_calls": 12,
+  "snapshot_coupled_modules": 38,
+  "snapshot_calls": 284,
+  "schema_reference_modules": 16,
+  "schema_mentions": 63,
   "measurement_policy": {
     "test_roots": [
       "root/tests",

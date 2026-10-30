@@ -1,6 +1,7 @@
 from app.content.catalog import create_drifter, get_drifter_spec
 from app.combat.move_presentation import MoveRole
 from app.combat.move import Move
+from tests.combat_test_support import move_to_dict
 
 
 EXPECTED_LOADOUTS = {
@@ -373,25 +374,6 @@ EXPECTED_LOADOUTS = {
         "starting_weapon": "sky_needle",
     },
 }
-
-
-def move_to_dict(move):
-    return {
-        "name": move.name,
-        "kind": move.kind.value,
-        "resource_type": move.resource_type.value,
-        "resource_cost": move.resource_cost,
-        "power": move.power,
-        "scales_with": [
-            attribute.value
-            for attribute in move.scales_with
-        ],
-        "accuracy": move.accuracy,
-        "target": move.target.value,
-        "damage_type": move.damage_type.value,
-        "mechanic": move.mechanic,
-        "description": move.description,
-    }
 
 
 def test_authored_starting_stats_live_in_drifter_specs():

@@ -15,6 +15,7 @@ from app.enemies.definition import (
     EnemyRole,
 )
 from app.enemies.state import EnemyState
+from tests.combat_test_support import move_to_dict
 
 EXPECTED_COMBAT_MOVES = [
     {
@@ -44,25 +45,6 @@ EXPECTED_COMBAT_MOVES = [
         "description": "A committed leaping slash.",
     },
 ]
-
-
-def move_to_dict(move):
-    return {
-        "name": move.name,
-        "kind": move.kind.value,
-        "resource_type": move.resource_type.value,
-        "resource_cost": move.resource_cost,
-        "power": move.power,
-        "scales_with": [
-            attribute.value
-            for attribute in move.scales_with
-        ],
-        "accuracy": move.accuracy,
-        "target": move.target.value,
-        "damage_type": move.damage_type.value,
-        "mechanic": move.mechanic,
-        "description": move.description,
-    }
 
 
 EXPECTED_ENEMIES = {

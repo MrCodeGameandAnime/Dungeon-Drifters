@@ -1,6 +1,6 @@
 # T0 Removed-Test Equivalence Record
 
-This record covers the current uncommitted T0 pass on baseline `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`. A renamed or deleted test function is not an assertion that its behavior was obsolete. The following named owners retain the inputs, expected outcomes and failure boundaries. All other test functions remain; setup-only edits are listed separately.
+The first consolidation pass was committed as `131c217676ce9f077493d093999dc645353faa7f` on `t0`, based on `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`. This record also includes the current uncommitted review pass. A renamed or deleted test function is not an assertion that its behavior was obsolete. The following named owners retain the inputs, expected outcomes and failure boundaries. All other test functions remain; setup-only edits are listed separately.
 
 ## Authored Loadout Authority
 
@@ -58,6 +58,29 @@ The canonical instability test previously renamed a magical move to "Test Hybrid
 | `test_character_state.py`: `test_explicit_resource_recalculation_updates_maximums_without_refill`, `test_explicit_resource_recalculation_can_increase_current_by_positive_delta` | `test_explicit_resource_recalculation_preserves_or_increases_current`: False/84 HP/48 mana and True/92 HP/50 mana, same initial damage/spend/level and maxima |
 | `test_enemy_state.py`: `test_enemy_states_do_not_share_runtime_resources_stats_or_move_tuples`, `test_factory_enemy_states_do_not_share_runtime_state` | `test_enemy_instances_own_runtime_resources_stats_and_moves[direct/factory]`: original mutations, exact values and object isolation; both stats and definition checks now apply to both paths |
 | `test_profile_sync.py`: `test_schema8_remote_head_advances_to_schema12_without_rewriting_history`, `test_schema9_cloud_head_advances_to_schema12_without_rewriting_history` | `test_legacy_remote_head_advances_without_rewriting_history[schema8/schema9]`: distinct original legacy builders, same real local store/coordinator/memory-remote boundary, pending-to-clean progression and immutable historical payload |
+| `test_combat_resolver.py`: `test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract`, `test_strength_physical_negation_preserves_minimum_landed_damage_of_one` | `test_strength_adjustment_preserves_physical_damage_boundaries[low-strength-extra-damage/minimum-landed-damage]`: the original target Strength/Constitution/Move Power combinations and literal damage results 21 and 1 remain separate collected cases; the physical-versus-magical matrix remains independently owned |
+| `test_m9c_zhaivra_hardening.py`: `test_complete_stock_prepare_loose_burn_goblin_vertical_slice`, `test_complete_stock_prepare_loose_poison_goblin_vertical_slice` | `test_stock_prepared_infusion_resolves_and_expires_in_goblin_battle[burn/poison]`: exact recipe inputs, remaining inventory, typed prepare/apply/tick/expire outcomes, tick amounts (three 7s versus four 5s), readiness tag, expiry, turn-scoped log and distinct defend counts (2 versus 3) stay explicit in the parameter rows |
+| `test_m10c_hardening.py`: `test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label` | Its player/enemy frame, route-heading, width-safe row split and no-generic-`Enemies` assertions are covered by `test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths`, which exercises the harder authored three-enemy composition at 50/80/120 columns. The no-generic-heading check now runs at each width. The route heading is checked against the actual Goblin Lord label; the generic 2/3/4-enemy layouts remain covered by the separate terminal UI layout test. |
+
+## Second Local Review Pass
+
+| Consolidated owner | Equivalent behavior retained |
+| --- | --- |
+| `test_combat_resolver.py`: low-Strength extra damage and minimum landed physical damage | `test_strength_adjustment_preserves_physical_damage_boundaries` has two explicit parameter rows with the original inputs and literal results 21 and 1. The separate incoming physical-versus-magical negation matrix remains unchanged. |
+| `test_m9c_zhaivra_hardening.py`: complete prepared Burn and Poison battle slices | `test_stock_prepared_infusion_resolves_and_expires_in_goblin_battle` keeps the two recipes and typed outcomes explicit. Tick counts/damage remain 3 x 7 versus 4 x 5, and the distinct 2 versus 3 defend-turn lifecycles remain case data. |
+| `test_m10c_hardening.py`: pair framed-layout assertion | The actual three-enemy Goblin Lord render now checks player/enemy split, route heading, width safety and absence of a generic `Enemies` heading at 50/80/120 columns. The separate terminal UI test still owns the generic 2/3/4-enemy layouts. |
+
+## Shared Test Helpers
+
+- The identical generic accepted `MoveResult` constructor in battle-player-state and exact-targeting tests is now `accepted_move_result` in `combat_test_support.py`; both call sites retain their existing assertions. Rejected-result construction stays local because it is only used by the battle-player-state contract.
+- The identical complete combat-move-to-dictionary projection is now one helper used by the independent Drifter loadout oracle and enemy-state tests. Expected authored values remain independent; only serialization of the runtime move object is shared.
+- The identical `AlwaysOneRng` (including first-choice behavior) and lethal `OneHitResolver` are shared by the two runtime integration modules. `PlayerOneHitResolver`, defeat-specific resolvers, recorded RNGs, and local RNG doubles that intentionally lack a `choice` method remain separate because their behavior is not equivalent.
+- Five portable-overlay contract modules now share `run_isolated_overlay_script` for the repeated `python -S -c` subprocess mechanics. Each module keeps its own overlay prelude, source assertions, and expected contract behavior; the helper does not combine or interpret those contracts.
+- Content tooling and content-creation-boundary tests share the exact validator subprocess runner. Their temporary project layouts, catalog mutations, and boundary assertions remain local to each owner.
+
+## Reviewed And Retained
+
+The solo real-Battle retry, pair retry/rollback, and Goblin Lord retry journeys remain separate. They respectively prove observation of the real defeat/retry screen and fresh enemy/reward behavior; pair resource rollback and one-time surface payout; and authored boss composition plus dungeon completion/shared reward banking. Folding them into one configurable test would hide distinct failure boundaries rather than remove duplication. Likewise, step-driven versus terminal Battle, resolver versus Battle lifecycle, Rest extraction versus continue/quit, and status-rule versus cross-encounter cleanup remain separate owners.
 
 ## Setup Refactors Without Test Deletion
 

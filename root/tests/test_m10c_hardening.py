@@ -339,6 +339,7 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
             ansi_enabled=False,
             interactive=False,
         ).render(view)
+        text = "\n".join(output)
         if width >= 60:
             status_lines = TerminalBattleUI(
                 output_func=output.append,
@@ -366,44 +367,10 @@ def test_authored_goblin_lord_composition_renders_at_narrow_and_wide_widths():
         if width >= 60:
             assert (
                 f"[ {view.player.display_name} ]   VS   [ Goblin Lord ]"
-                in "\n".join(output)
+                in text
             )
+        assert "Enemies" not in text
         assert all(len(line) <= width for line in output)
-
-
-def test_multi_enemy_framed_layout_preserves_player_enemy_split_and_route_label():
-    battle = Battle(
-        PlayerState(create_drifter("branoc")),
-        create_route_encounter_enemies("surface_goblin_pair"),
-        ui=ScriptedBattleUI(()),
-        resolver=CombatResolver(rng=AlwaysOneRng()),
-        rng=AlwaysOneRng(),
-        encounter_label="Goblin Pair",
-    )
-    view = battle._build_view()
-    output = []
-    TerminalBattleUI(
-        output_func=output.append,
-        width_provider=lambda: 80,
-        unicode_enabled=False,
-        ansi_enabled=False,
-        interactive=False,
-    ).render(view)
-
-    text = "\n".join(output)
-    assert "Enemies" not in text
-    assert f"[ {view.player.display_name} ]   VS   [ Goblin Pair ]" in text
-    status_lines = TerminalBattleUI(
-        output_func=output.append,
-        width_provider=lambda: 80,
-        unicode_enabled=False,
-        ansi_enabled=False,
-        interactive=False,
-    )._status_lines(view, 76)
-    assert all(" | " in line for line in status_lines)
-    right_rows = [line.split(" | ", 1)[1] for line in status_lines]
-    assert any(row.startswith("Goblin 1") for row in right_rows)
-    assert any("Goblin 2" in row for row in right_rows)
 
 
 def test_branoc_follow_up_damage_targets_one_of_two_enemies():

@@ -35,6 +35,7 @@ from app.ui.battle_ui import (
     ConfirmInventoryUse,
     GoBack,
 )
+from tests.combat_test_support import accepted_move_result as accepted_result
 from app.ui.terminal_battle_ui import TerminalBattleUI
 from app.content.catalog import get_drifter_spec_by_choice as get_profile_by_choice
 
@@ -62,19 +63,6 @@ def patched_battle(inputs=(), randint=None):
         builtins.input = original_input
         random.randint = original_randint
         random.choice = original_choice
-
-
-def accepted_result():
-    return MoveResult(
-        accepted=True,
-        hit=True,
-        move_name="test move",
-        resource_spent=0,
-        damage=0,
-        healing=0,
-        statuses_applied=(),
-        reason=None,
-    )
 
 
 def rejected_result():

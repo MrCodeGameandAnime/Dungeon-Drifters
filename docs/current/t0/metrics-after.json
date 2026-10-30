@@ -1,29 +1,30 @@
 {
-  "head": "2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8",
-  "python_physical_loc": 70696,
-  "tracked_python_physical_loc": 70571,
-  "test_python_physical_loc": 41269,
+  "head": "131c217676ce9f077493d093999dc645353faa7f",
+  "test_source_tree_sha256": "edf584d5283a6f74633468eb143fa1c177bc647986d87158e93184ddba669be1",
+  "python_physical_loc": 70573,
+  "tracked_python_physical_loc": 70558,
+  "test_python_physical_loc": 41146,
   "game_application_physical_loc": 21923,
   "service_application_physical_loc": 1135,
   "combined_application_physical_loc": 23058,
   "non_test_python_physical_loc": 29427,
-  "test_to_game_application_ratio": 1.88245,
-  "test_to_combined_application_ratio": 1.78979,
-  "test_to_non_test_ratio": 1.40242,
-  "python_test_support_file_count": 147,
+  "test_to_game_application_ratio": 1.87684,
+  "test_to_combined_application_ratio": 1.78446,
+  "test_to_non_test_ratio": 1.39824,
+  "python_test_support_file_count": 148,
   "python_test_module_count": 140,
-  "test_function_count": 1387,
-  "median_test_file_loc": 198,
+  "test_function_count": 1384,
+  "median_test_file_loc": 194.5,
   "p95_test_file_loc": 692,
   "largest_test_files": [
     {
       "file": "root/tests/test_combat_resolver.py",
-      "loc": 1954,
-      "test_functions": 56
+      "loc": 1940,
+      "test_functions": 55
     },
     {
       "file": "root/tests/test_battle_player_state.py",
-      "loc": 1356,
+      "loc": 1344,
       "test_functions": 55
     },
     {
@@ -102,24 +103,24 @@
       "test_functions": 20
     },
     {
-      "file": "root/tests/test_character_loadout_regression.py",
-      "loc": 504,
-      "test_functions": 7
-    },
-    {
-      "file": "root/tests/test_m10c_exact_targeting.py",
-      "loc": 500,
-      "test_functions": 13
-    },
-    {
-      "file": "root/tests/test_m10c_hardening.py",
-      "loc": 493,
-      "test_functions": 9
-    },
-    {
       "file": "root/services/profile_api/tests/test_profiles.py",
       "loc": 492,
       "test_functions": 10
+    },
+    {
+      "file": "root/tests/test_m10c_exact_targeting.py",
+      "loc": 488,
+      "test_functions": 13
+    },
+    {
+      "file": "root/tests/test_character_loadout_regression.py",
+      "loc": 486,
+      "test_functions": 7
+    },
+    {
+      "file": "root/tests/test_m10c_hardening.py",
+      "loc": 460,
+      "test_functions": 8
     },
     {
       "file": "root/tests/test_route_content.py",
@@ -143,11 +144,16 @@
     }
   ],
   "layer_loc_roots": {
-    "root/tests/": 38112,
+    "root/tests/": 37989,
     "root/web_tests/": 1651,
     "root/services/profile_api/tests/": 1506
   },
-  "status": "Qualified first-pass checkpoint; T0 is not closed and the LOC target remains unmet.",
-  "measurement_policy": "Same roots and physical-line rule as metrics-before.json; all new builders/support counted; no production/non-test denominator changes.",
-  "working_tree_test_digest_sha256": "0a82741853f9e33828806d930573a241f0ff7fc19711620dc990345ed435d6b4"
+  "game_state_constructor_modules": 35,
+  "game_state_constructor_calls": 107,
+  "party_state_constructor_modules": 2,
+  "party_state_constructor_calls": 11,
+  "snapshot_coupled_modules": 37,
+  "snapshot_calls": 284,
+  "schema_reference_modules": 15,
+  "schema_mentions": 61
 }

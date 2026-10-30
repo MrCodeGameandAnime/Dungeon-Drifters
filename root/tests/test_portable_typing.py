@@ -1,7 +1,6 @@
-import os
-import subprocess
-import sys
 from pathlib import Path
+
+from tests.portable_test_support import run_isolated_overlay_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,13 +21,7 @@ def _run_forced_overlay(source):
         "import dataclasses\n"
         "import typing\n"
     )
-    return subprocess.run(
-        [sys.executable, "-S", "-c", prelude + source],
-        cwd=ROOT,
-        env=os.environ.copy(),
-        capture_output=True,
-        text=True,
-    )
+    return run_isolated_overlay_script(prelude, source, cwd=ROOT)
 
 
 def test_native_cpython_typing_is_not_shadowed():

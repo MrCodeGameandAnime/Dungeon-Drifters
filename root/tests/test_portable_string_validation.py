@@ -1,10 +1,9 @@
 import os
-import subprocess
-import sys
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from tests.portable_test_support import run_isolated_overlay_script
 
 from app.content.catalog import get_drifter_spec
 from app.content.drifter_spec import _ASCII_DECIMAL_PATTERN
@@ -48,13 +47,7 @@ def _run_forced_regex(source):
         "from re_compat import install\n"
         "sys.modules['re'] = install(native_re)\n"
     )
-    return subprocess.run(
-        [sys.executable, "-S", "-c", prelude + source],
-        cwd=ROOT,
-        env=os.environ.copy(),
-        capture_output=True,
-        text=True,
-    )
+    return run_isolated_overlay_script(prelude, source, cwd=ROOT)
 
 
 @pytest.mark.parametrize("value", ("1", "2", "9", "10", "99", "001"))

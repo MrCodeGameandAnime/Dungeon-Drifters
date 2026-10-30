@@ -1,8 +1,8 @@
 # T0 Test Architecture Audit And Consolidation
 
-**Status:** T0-A baseline plus an initial locally qualified consolidation pass. T0 is not closed: the LOC target and broader consolidation remain unfinished.
+**Status:** T0-A baseline and two local test-only consolidation passes. Current root, web, browser, PostgreSQL/migration, content/build, source-compilation, and pinned-runtime checks are green. T0 remains open pending the final manual ownership audit and exact committed/hosted revision evidence.
 
-**Baseline:** `t0` at `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`, 2026-10-29. Work remains on this existing branch. M1 has not begun. Production/game/service/client/runtime/tool code is read-only for this work.
+**Baseline:** `t0` at `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`, 2026-10-29. The captured baseline inventory's 147 source hashes match that commit exactly; its aggregate test-source SHA-256 is recorded in [metrics before](metrics-before.json). Work remains on this existing branch. M1 has not begun. Production/game/service/client/runtime/tool code is read-only for this work.
 
 ## Measurement Contract
 
@@ -89,14 +89,16 @@ Re-measure with identical denominators, compare collected cases and every remove
 
 ## Change Amplification
 
-The baseline inventory records GameState/PartyState constructor calls and snapshot/schema references per module. During consolidation, also distinguish positional party construction from deliberate roster/persistence assertions. The M1 thought experiment is not permission to rewrite the canonical roster now. Success means unrelated flow setup depends on a few valid semantic builders, while actual party/snapshot contracts remain explicit. Record before/after module counts and remaining intentional direct coupling at closure.
+The structural constructor/reference scan is now recorded before and after. GameState construction fell from **38 modules / 121 calls** to **35 / 107**; PartyState from **3 / 12** to **2 / 11**. Snapshot references fell from **38 modules / 284 calls** to **37 / 284**; schema mentions fell from **16 / 63** to **15 / 61**. The snapshot call count is unchanged: direct snapshot tests remain concentrated in their owning state/save modules rather than being abstracted away. These are AST counts, not a semantic coverage score.
+
+During consolidation, positional party construction was distinguished from deliberate roster/persistence assertions. The M1 thought experiment is not permission to rewrite the canonical roster now. Scenario-builder use in the current tree includes `game_at_hub` 23 calls, `hub_game` 10, `recruited_pair_game` 3, and `floor_one_rest_game` 1; test-specific transitions and rewards remain visible at callers. The remaining top GameState constructor sites are overworld session (25), terminal overworld (10), game state (8), overworld presenter (7), and M10c route integration (5). Remaining PartyState constructors are its own domain contract (9) and explicit Floor I party setup (2). Snapshot-heavy owners remain overworld session (24), overworld state (19), M11 session ownership/player snapshot/save state (17 each), and Floor I run (14). Schema-heavy owners remain save state (21), save coordinator (6), profile service/game snapshot/legacy migration (5 each). These are not all interchangeable setup.
 
 ### Measured First-Pass Result
 
 | Measurement | Before | Current checkpoint |
 | --- | ---: | ---: |
 | All Python physical LOC | 71,801 | 70,696 |
-| Tracked Python physical LOC | 71,801 | 70,571 |
+| Tracked Python physical LOC | 71,801 | 70,696 |
 | Test/support Python physical LOC | 42,374 | 41,269 |
 | Combined application LOC | 23,058 | 23,058 |
 | Game-only application LOC | 21,923 | 21,923 |
@@ -114,7 +116,7 @@ The baseline inventory records GameState/PartyState constructor calls and snapsh
 | Snapshot-coupled modules / calls | 38 / 284 | 37 / 284 |
 | Schema-reference modules / mentions | 16 / 63 | 15 / 61 |
 
-Net reduction: **1,105 physical test lines, 2.61%**. The 125 lines of new test/support Python are counted even though not yet tracked. No denominator was expanded. This is useful local cleanup, not a substantial suite-wide reduction or proof that the requested ratio is unattainable.
+Net reduction at commit `131c217`: **1,105 physical test lines, 2.61%**. The first-pass metric artifact was captured before its new support file became tracked; the captured source inventory matches the committed tree exactly, so tracked and total Python LOC at that commit are both 70,696. No denominator was expanded.
 
 [Metrics after](metrics-after.json), [actual changed-module dispositions](changed-module-dispositions.csv), [removed-test equivalence](removed-test-equivalence.md), and [qualification](qualification.md) distinguish measurements, semantic justification and observed execution. The initial module inventory remains a structural/provisional audit, not a claim that every existing test's unique failure has been manually proved.
 
@@ -128,18 +130,39 @@ Repeated assertion families include accepted-action success (35 `battle.player_a
 
 Largest remaining GameState coupling: overworld session 25 constructor calls, terminal overworld 10, game state 8, overworld presenter 7, and route/session integration 5 each. Remaining PartyState constructors are in its own domain contract (9) and explicit Floor I party setup (2). Snapshot-heavy owners remain overworld session (24), overworld state (19), session ownership/player snapshot/save state (17 each). Schema-heavy owners remain save state (21 references), save coordinator (6), service profiles/game snapshot/legacy migration (5 each). These are not all interchangeable setup.
 
-### Remaining Work And Ratio Gap
+### Second Local Review Pass And Ratio Gap
 
-At the unchanged application denominator, 1.20 permits at most **27,669 test lines**. A further **13,600** lines would have to be removed from this checkpoint. This pass does not establish equivalent protection for removing that amount and does not claim a justified final exception yet.
+The current test-only working tree is based on `131c217676ce9f077493d093999dc645353faa7f`; its sorted test-source SHA-256 is `edf584d5283a6f74633468eb143fa1c177bc647986d87158e93184ddba669be1` in [metrics after](metrics-after.json). The first-pass committed test tree hashes to `199c99d03f786bcec6021600efc90cc26346be30dd863c79f9182b5273ee6836`. The earlier qualification note's `0a827...` digest was not reproducible from the captured inventory and is corrected there.
 
-Continue with these bounded ownership reviews before considering T0 complete:
+| Measurement | Baseline `2af6e59` | First-pass commit `131c217` | Current local tree |
+| --- | ---: | ---: | ---: |
+| All / tracked Python LOC | 71,801 / 71,801 | 70,696 / 70,696 | 70,573 / 70,558 |
+| Test/support Python LOC | 42,374 | 41,269 | 41,146 |
+| Combined application LOC | 23,058 | 23,058 | 23,058 |
+| Test : combined application | 1.83771 | 1.78979 | 1.78446 |
+| Test : game-only application | 1.93286 | 1.88245 | 1.87684 |
+| Test : non-test Python | 1.43997 | 1.40242 | 1.39824 |
+| Test functions | 1,409 | 1,387 | 1,384 |
+| Test files / modules | 147 / 142 | 147 / 140 | 148 / 140 |
+| Median / p95 test-file LOC | 206 / 710 | 198 / 692 | 194.5 / 692 |
 
-1. Decompose and consolidate oversized combat/Battle contracts by rule ownership, retaining the distinct blocking-terminal and step-driven lifecycle boundaries. Current largest files are resolver 1,954, Battle/player state 1,357, overworld session 1,292 and terminal battle 1,128 lines.
-2. Review repeated burn/poison/Frost and presentation setup for genuine table-driven equivalence. Do not merge different tick durations, actor/opponent cleanup or status-layer versus Battle-lifecycle boundaries merely because bodies look alike.
-3. Audit remaining historical M10/M11 flow groups against canonical route/session/targeting owners. Reused semantic setup is safe; deletion of whole journeys still needs named failure-mode equivalence.
-4. Review persistence/coordinator/conflict and client-contract matrices individually. Preserve restart fault windows, source-preserving legacy migration, idempotent ancestry, exact-Drifter state and fail-closed payload validation.
-5. Keep real browser/PostgreSQL/pinned-runtime qualification intact. Service tests and browser tests were not edited in this pass; their independently exercised boundaries are not redundant with unit tests.
-6. Re-measure and qualify the eventual final tree. If the cleanest defensible end remains above 1.20, provide the final category-by-category exception evidence then, rather than extrapolating from this initial pass.
+Cumulative reduction from the clean baseline is **1,228 test/support lines (2.90%)**. At the unchanged combined application denominator, ratio 1.20 permits at most **27,669 test lines**; reaching it would require removing **13,477 lines**, or **32.75% of the current test tree**. The preferred 1.15 and ideal 1.0 targets are farther away. This is a measurement, not a deletion quota. The current aggregate includes one new, untracked 15-line test helper; tracked and total Python LOC are therefore reported separately.
+
+The current Python test LOC, grouped by the inventory's primary layer, is:
+
+| Layer | LOC | Files | Test functions |
+| --- | ---: | ---: | ---: |
+| Contract | 16,550 | 72 | 602 |
+| Flow | 12,372 | 28 | 301 |
+| Unit | 11,248 | 40 | 470 |
+| Qualification | 772 | 4 | 10 |
+| New shared support | 204 | 4 | 1 |
+
+If flow, qualification and shared support are retained, the 13,477-line reduction needed for 1.20 would remove about **48.5% of the combined unit and contract layer**. Those layers contain the focused fail-closed, persistence/schema, migration, combat-rule and adapter-boundary proofs that the consolidation rules explicitly protect. This quantifies why the ratio cannot responsibly be treated as a deletion quota; the remaining per-module ownership audit is still required before asserting that no further safe reduction exists.
+
+The second review consolidated explicit combat, status-lifecycle, and layout cases; shared exact combat fixtures, deterministic overlay-script launch, and content-validator process setup; and reviewed the large combat/Battle/UI owners and M11 defeat/retry cluster. The three retry flows are retained because they prove different real-Battle, party-rollback/reward, and boss/dungeon-completion boundaries. Structurally similar runtime overlay tests likewise enforce different module/import contracts. The dispositions and preserved failure modes are recorded in [changed-module dispositions](changed-module-dispositions.csv) and [removed-test equivalence](removed-test-equivalence.md).
+
+The ratio remains high and the 2.90% LOC reduction is modest. The reviewed areas provide no basis for deleting another 13.5K lines without losing distinct test, persistence, client, service, or runtime boundaries. The baseline inventory is complete structurally, but its generated invariant/equivalence descriptions are not a substitute for a manual owner decision for every untouched module. That final review remains open. Do not claim the target is met. The cumulative local qualification has now been rerun on the current test tree; before T0 can close, finish the ownership review, preserve the ratio exception with evidence, and run hosted checks against the exact committed SHA.
 
 No production defect was fixed. One test-fixture gap was corrected (a nominal hybrid test actually used magical damage); one invalid consolidation attempt exposed unsupported character-specific setup and was withdrawn. The browser readiness timeout remains an intermittent qualification observation, not a production change.
 
@@ -147,9 +170,9 @@ No production defect was fixed. One test-fixture gap was corrected (a nominal hy
 
 - [x] T0-A: structural inventory, green baseline runs, ownership and consolidation candidates captured before test edits.
 - [x] T0-B initial pass: justified shared scenario builders and identical strict RNG helper; focused cases and full-suite verification.
-- [ ] T0-C: initial unit/contract matrices and historical merges qualified; broader ownership/consolidation remains.
-- [ ] T0-D: repeated Hub/Rest/Surface setup reduced; broader flow consolidation remains.
-- [ ] T0-E: qualification boundaries reviewed and rerun unchanged; no redundant journey removal established.
-- [ ] T0-F: checkpoint metrics/equivalence/local qualification recorded; final T0 closure, target/exception justification and exact committed/hosted revision remain open.
+- [ ] T0-C: known equivalent unit/contract matrices and shared fixtures consolidated; complete manual per-module ownership review remains open.
+- [ ] T0-D: Hub/Rest/Surface setup reduced; M11 defeat/retry candidates reviewed and retained for distinct failure boundaries; complete flow-owner review remains open.
+- [x] T0-E local qualification: root/web pytest, browser smoke, PostgreSQL/concurrency, migration-from-zero, Alembic check, content/build, source compilation, and pinned MicroPython matrix rerun on the current test tree.
+- [ ] T0-F: checkpoint metrics/equivalence/local qualification recorded; final ownership audit, ratio exception, and exact committed/hosted SHA remain open.
 
-No application changes, new branch, M1 implementation, commits or pushes are part of this record.
+The current local root suite passed **1,825 tests in 161.52 seconds**. No application changes, new branch, M1 implementation, commits or pushes are part of this record. The exact local results are recorded in [qualification](qualification.md); there is not yet a new Git SHA or hosted result for the uncommitted test tree.

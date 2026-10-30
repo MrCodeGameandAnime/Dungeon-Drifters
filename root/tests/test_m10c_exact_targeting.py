@@ -18,6 +18,7 @@ from app.presentation.battle_models import (
     InteractionPhase,
 )
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget, GoBack
+from tests.combat_test_support import accepted_move_result as _accepted_result
 from app.ui.terminal_battle_ui import TerminalBattleUI
 
 
@@ -69,19 +70,6 @@ class ScriptedUI:
         if self.before_input is not None:
             self.before_input(view)
         return next(self.inputs)
-
-
-def _accepted_result():
-    return MoveResult(
-        accepted=True,
-        hit=True,
-        move_name="test move",
-        resource_spent=0,
-        damage=0,
-        healing=0,
-        statuses_applied=(),
-        reason=None,
-    )
 
 
 def _battle(character=None, *, enemies=None, resolver=None, ui=None, rng=None):

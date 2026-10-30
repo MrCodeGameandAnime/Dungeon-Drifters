@@ -1,7 +1,8 @@
 import os
-import subprocess
 import sys
 from pathlib import Path
+
+from tests.portable_test_support import run_isolated_overlay_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,13 +25,7 @@ def _run_forced_compatibility(source):
         "assert install(native_collections, object) is proxy\n"
         "sys.modules['collections.abc'] = proxy\n"
     )
-    return subprocess.run(
-        [sys.executable, "-S", "-c", prelude + source],
-        cwd=ROOT,
-        env=os.environ.copy(),
-        capture_output=True,
-        text=True,
-    )
+    return run_isolated_overlay_script(prelude, source, cwd=ROOT)
 
 
 def test_native_cpython_uses_standard_library_collections_abc():

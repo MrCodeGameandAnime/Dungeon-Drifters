@@ -1,8 +1,7 @@
 import keyword as native_keyword
-import os
-import subprocess
-import sys
 from pathlib import Path
+
+from tests.portable_test_support import run_isolated_overlay_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,13 +26,7 @@ def _run_forced_overlay(source):
         f"sys.path.insert(0, {str(OVERLAY_ROOT)!r})\n"
         f"sys.path.insert(1, {str(SRC_ROOT)!r})\n"
     )
-    return subprocess.run(
-        [sys.executable, "-S", "-c", prelude + source],
-        cwd=ROOT,
-        env=os.environ.copy(),
-        capture_output=True,
-        text=True,
-    )
+    return run_isolated_overlay_script(prelude, source, cwd=ROOT)
 
 
 def test_forced_overlay_is_active_and_matches_native_keyword():

@@ -1364,12 +1364,24 @@ def test_strength_physical_negation_applies_only_to_incoming_physical_damage():
         assert magical_result.damage == 20
 
 
-def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract():
+@pytest.mark.parametrize(
+    ("strength", "constitution", "power", "expected_damage"),
+    (
+        pytest.param(3, 1, 20, 21, id="low-strength-extra-damage"),
+        pytest.param(100, 100, 0, 1, id="minimum-landed-damage"),
+    ),
+)
+def test_strength_adjustment_preserves_physical_damage_boundaries(
+        strength,
+        constitution,
+        power,
+        expected_damage,
+):
     actor = SimpleCombatant(
         moves=(
             make_move(
                 name="physical",
-                power=20,
+                power=power,
                 damage_type=DamageType.PHYSICAL,
                 scales_with=(ScalingAttribute.NONE,),
             ),
@@ -1377,10 +1389,10 @@ def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract
     )
     target = SimpleCombatant(
         effective_stats={
-            "constitution": 1,
-            "spirit": 1,
+            "constitution": constitution,
+            "spirit": 8,
             "intelligence": 8,
-            "strength": 3,
+            "strength": strength,
             "dexterity": 8,
             "intuition": 8,
         },
@@ -1388,34 +1400,8 @@ def test_low_strength_targets_can_take_extra_physical_damage_per_helper_contract
 
     result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "physical")
 
-    assert result.damage == 21
-
-
-def test_strength_physical_negation_preserves_minimum_landed_damage_of_one():
-    actor = SimpleCombatant(
-        moves=(
-            make_move(
-                name="tap",
-                power=0,
-                damage_type=DamageType.PHYSICAL,
-                scales_with=(ScalingAttribute.NONE,),
-            ),
-        ),
-    )
-    target = SimpleCombatant(
-        effective_stats={
-            "constitution": 100,
-            "spirit": 8,
-            "intelligence": 8,
-            "strength": 100,
-            "dexterity": 8,
-            "intuition": 8,
-        },
-    )
-
-    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, "tap")
-
-    assert result.damage == 1
+    assert result.accepted and result.hit
+    assert result.damage == expected_damage
 
 
 def test_defended_damage_uses_enemy_fixed_reductions_and_floors_reduction_amount():
