@@ -1,6 +1,6 @@
 # T0 Test Architecture Audit And Consolidation
 
-**Status:** T0-A baseline and two local test-only consolidation passes. Current root, web, browser, PostgreSQL/migration, content/build, source-compilation, and pinned-runtime checks are green. T0 remains open pending the final manual ownership audit and exact committed/hosted revision evidence.
+**Status:** T0-A baseline, two committed test-only consolidation passes, the manual ownership audit, and three narrowly scoped local Surface-test consolidations are complete. The latest root suite passes on the local test tree; web, browser, PostgreSQL/migration, content/build, source-compilation, and pinned-runtime checks remain qualified at `3acd725`. T0 remains open until the audit/test edits are committed and the resulting exact SHA has hosted-check evidence.
 
 **Baseline:** `t0` at `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`, 2026-10-29. The captured baseline inventory's 147 source hashes match that commit exactly; its aggregate test-source SHA-256 is recorded in [metrics before](metrics-before.json). Work remains on this existing branch. M1 has not begun. Production/game/service/client/runtime/tool code is read-only for this work.
 
@@ -24,7 +24,7 @@ The measured Python test universe is `root/tests/`, `root/web_tests/`, and `root
 | Test functions before parametrization | 1,409 |
 | Median / nearest-rank 95th percentile file LOC | 206 / 710 |
 
-[Metrics before](metrics-before.json) records the largest 25 files and exact denominator policy. [Module inventory](module-inventory.csv) covers every Python test/support file with measured LOC/functions, subsystem/layer, builders, repeated calls/assertions, snapshot coupling, provisional disposition and boundary-overlap notes. Structural facts come from AST parsing; a MERGE/REFACTOR candidate is not a finding that every test in its module is redundant. Every actual removal requires the separate named equivalence record.
+[Metrics before](metrics-before.json) records the largest 25 files and exact denominator policy. [Module inventory](module-inventory.csv) is the structural 147-file baseline; [current module ownership audit](module-ownership-audit.md) manually assigns a primary owner, distinct failure boundary and disposition to every one of the current 148 test/support files. Structural counts come from AST parsing; a MERGE/REFACTOR candidate is not a finding that every test in its module is redundant. Every actual removal requires the separate named equivalence record.
 
 ## Baseline Runs
 
@@ -118,7 +118,7 @@ During consolidation, positional party construction was distinguished from delib
 
 Net reduction at commit `131c217`: **1,105 physical test lines, 2.61%**. The first-pass metric artifact was captured before its new support file became tracked; the captured source inventory matches the committed tree exactly, so tracked and total Python LOC at that commit are both 70,696. No denominator was expanded.
 
-[Metrics after](metrics-after.json), [actual changed-module dispositions](changed-module-dispositions.csv), [removed-test equivalence](removed-test-equivalence.md), and [qualification](qualification.md) distinguish measurements, semantic justification and observed execution. The initial module inventory remains a structural/provisional audit, not a claim that every existing test's unique failure has been manually proved.
+[Metrics after](metrics-after.json), [changed-module dispositions](changed-module-dispositions.csv), [removed-test equivalence](removed-test-equivalence.md), [current module ownership audit](module-ownership-audit.md), and [qualification](qualification.md) distinguish measurements, semantic justification and observed execution. The initial inventory remains a historical structural baseline; the new ownership map is the current manual disposition record.
 
 ### Repetition And Coupling
 
@@ -132,37 +132,37 @@ Largest remaining GameState coupling: overworld session 25 constructor calls, te
 
 ### Second Local Review Pass And Ratio Gap
 
-The current test-only working tree is based on `131c217676ce9f077493d093999dc645353faa7f`; its sorted test-source SHA-256 is `edf584d5283a6f74633468eb143fa1c177bc647986d87158e93184ddba669be1` in [metrics after](metrics-after.json). The first-pass committed test tree hashes to `199c99d03f786bcec6021600efc90cc26346be30dd863c79f9182b5273ee6836`. The earlier qualification note's `0a827...` digest was not reproducible from the captured inventory and is corrected there.
+The committed test-source baseline remains `3acd725adccdaaef7cba25351ffeb9c3ca9c94d7`, with digest `edf584d5283a6f74633468eb143fa1c177bc647986d87158e93184ddba669be1`. After three local Surface-test removals, the working-tree digest is `4c75aa0dea98e7a80decda07549fb0ae16b38bb44cdf3bd23d0ccce554444f47`, computed over the same 148 test/support source files; see [metrics after](metrics-after.json). The first-pass committed test tree hashes to `199c99d03f786bcec6021600efc90cc26346be30dd863c79f9182b5273ee6836`. The earlier qualification note's `0a827...` digest was not reproducible from the captured inventory and is corrected there.
 
-| Measurement | Baseline `2af6e59` | First-pass commit `131c217` | Current local tree |
+| Measurement | Baseline `2af6e59` | First-pass commit `131c217` | Local working tree based on `3acd725` |
 | --- | ---: | ---: | ---: |
-| All / tracked Python LOC | 71,801 / 71,801 | 70,696 / 70,696 | 70,573 / 70,558 |
-| Test/support Python LOC | 42,374 | 41,269 | 41,146 |
+| All / tracked Python LOC | 71,801 / 71,801 | 70,696 / 70,696 | 70,414 / 70,414 |
+| Test/support Python LOC | 42,374 | 41,269 | 40,987 |
 | Combined application LOC | 23,058 | 23,058 | 23,058 |
-| Test : combined application | 1.83771 | 1.78979 | 1.78446 |
-| Test : game-only application | 1.93286 | 1.88245 | 1.87684 |
-| Test : non-test Python | 1.43997 | 1.40242 | 1.39824 |
-| Test functions | 1,409 | 1,387 | 1,384 |
+| Test : combined application | 1.83771 | 1.78979 | 1.77756 |
+| Test : game-only application | 1.93286 | 1.88245 | 1.86959 |
+| Test : non-test Python | 1.43997 | 1.40242 | 1.39284 |
+| Test functions | 1,409 | 1,387 | 1,381 |
 | Test files / modules | 147 / 142 | 147 / 140 | 148 / 140 |
 | Median / p95 test-file LOC | 206 / 710 | 198 / 692 | 194.5 / 692 |
 
-Cumulative reduction from the clean baseline is **1,228 test/support lines (2.90%)**. At the unchanged combined application denominator, ratio 1.20 permits at most **27,669 test lines**; reaching it would require removing **13,477 lines**, or **32.75% of the current test tree**. The preferred 1.15 and ideal 1.0 targets are farther away. This is a measurement, not a deletion quota. The current aggregate includes one new, untracked 15-line test helper; tracked and total Python LOC are therefore reported separately.
+Cumulative reduction from the clean baseline is **1,387 test/support lines (3.27%)**. At the unchanged combined application denominator, ratio 1.20 permits at most **27,669 test lines**; reaching it would require removing **13,318 lines**, or **32.49% of the current test tree**. The preferred 1.15 and ideal 1.0 targets are farther away. This is a measurement, not a deletion quota. The 15-line helper that was untracked when the metric was first captured is included in commit `3acd725`; the latest local all/tracked Python LOC are both **70,414**.
 
 The current Python test LOC, grouped by the inventory's primary layer, is:
 
 | Layer | LOC | Files | Test functions |
 | --- | ---: | ---: | ---: |
 | Contract | 16,550 | 72 | 602 |
-| Flow | 12,372 | 28 | 301 |
+| Flow | 12,213 | 28 | 298 |
 | Unit | 11,248 | 40 | 470 |
 | Qualification | 772 | 4 | 10 |
 | New shared support | 204 | 4 | 1 |
 
-If flow, qualification and shared support are retained, the 13,477-line reduction needed for 1.20 would remove about **48.5% of the combined unit and contract layer**. Those layers contain the focused fail-closed, persistence/schema, migration, combat-rule and adapter-boundary proofs that the consolidation rules explicitly protect. This quantifies why the ratio cannot responsibly be treated as a deletion quota; the remaining per-module ownership audit is still required before asserting that no further safe reduction exists.
+If flow, qualification and shared support are retained, the 13,318-line reduction needed for 1.20 would remove about **47.9% of the combined unit and contract layer**. Those layers contain the focused fail-closed, persistence/schema, migration, combat-rule and adapter-boundary proofs that the consolidation rules explicitly protect. The complete module review found no further module-level duplicate whose removal preserves its same-layer contract; the ratio therefore remains an evidence-backed exception, not a deletion quota.
 
-The second review consolidated explicit combat, status-lifecycle, and layout cases; shared exact combat fixtures, deterministic overlay-script launch, and content-validator process setup; and reviewed the large combat/Battle/UI owners and M11 defeat/retry cluster. The three retry flows are retained because they prove different real-Battle, party-rollback/reward, and boss/dungeon-completion boundaries. Structurally similar runtime overlay tests likewise enforce different module/import contracts. The dispositions and preserved failure modes are recorded in [changed-module dispositions](changed-module-dispositions.csv) and [removed-test equivalence](removed-test-equivalence.md).
+The second review consolidated explicit combat, status-lifecycle, and layout cases; shared exact combat fixtures, deterministic overlay-script launch, and content-validator process setup; and reviewed the large combat/Battle/UI owners and M11 defeat/retry cluster. The targeted Surface follow-up removed the load/continue test subsumed by the save-and-resave journey, the synthetic full-route journey whose rest assertions have per-rest owners, and the stubbed retry subsumed by real-Battle retry coverage. The three distinct real-Battle retry flows remain for solo defeat/retry, pair rollback/reward, and boss/dungeon-completion boundaries. Structurally similar runtime overlay tests likewise enforce different module/import contracts. The dispositions and preserved failure modes are recorded in [changed-module dispositions](changed-module-dispositions.csv) and [removed-test equivalence](removed-test-equivalence.md).
 
-The ratio remains high and the 2.90% LOC reduction is modest. The reviewed areas provide no basis for deleting another 13.5K lines without losing distinct test, persistence, client, service, or runtime boundaries. The baseline inventory is complete structurally, but its generated invariant/equivalence descriptions are not a substitute for a manual owner decision for every untouched module. That final review remains open. Do not claim the target is met. The cumulative local qualification has now been rerun on the current test tree; before T0 can close, finish the ownership review, preserve the ratio exception with evidence, and run hosted checks against the exact committed SHA.
+The ratio remains high and the 3.27% LOC reduction is modest. The module-by-module review found that the remaining suite protects distinct test, persistence, client, service, and runtime boundaries; removing another 13.3K lines is not supported by the reviewed equivalence evidence. The target is not met, and is not claimed. The ownership decisions and ratio exception are recorded in [module ownership audit](module-ownership-audit.md). The full root suite passed on the latest local test-source tree; other qualification results remain tied to `3acd725`. Hosted checks must be inspected on the exact commit containing these updates before T0 can close.
 
 No production defect was fixed. One test-fixture gap was corrected (a nominal hybrid test actually used magical damage); one invalid consolidation attempt exposed unsupported character-specific setup and was withdrawn. The browser readiness timeout remains an intermittent qualification observation, not a production change.
 
@@ -170,9 +170,9 @@ No production defect was fixed. One test-fixture gap was corrected (a nominal hy
 
 - [x] T0-A: structural inventory, green baseline runs, ownership and consolidation candidates captured before test edits.
 - [x] T0-B initial pass: justified shared scenario builders and identical strict RNG helper; focused cases and full-suite verification.
-- [ ] T0-C: known equivalent unit/contract matrices and shared fixtures consolidated; complete manual per-module ownership review remains open.
-- [ ] T0-D: Hub/Rest/Surface setup reduced; M11 defeat/retry candidates reviewed and retained for distinct failure boundaries; complete flow-owner review remains open.
-- [x] T0-E local qualification: root/web pytest, browser smoke, PostgreSQL/concurrency, migration-from-zero, Alembic check, content/build, source compilation, and pinned MicroPython matrix rerun on the current test tree.
-- [ ] T0-F: checkpoint metrics/equivalence/local qualification recorded; final ownership audit, ratio exception, and exact committed/hosted SHA remain open.
+- [x] T0-C: known equivalent unit/contract matrices and shared fixtures consolidated; manually reviewed all 148 current modules and recorded primary owners/dispositions.
+- [x] T0-D: Hub/Rest/Surface setup reduced; three redundant Surface journeys consolidated into stronger owners; distinct real-Battle retry boundaries and per-Rest contracts retained and recorded.
+- [ ] T0-E final cumulative qualification: root pytest has been rerun after the three Surface-test deletions; web/browser, PostgreSQL/migration, build/content, compilation, and pinned MicroPython evidence remains at `3acd725` and must be repeated or explicitly revalidated against the final committed tree.
+- [ ] T0-F: metrics, equivalence, local qualification, full ownership audit and ratio exception are recorded. Still requires a committed audit-document SHA and hosted checks on that exact revision.
 
-The current local root suite passed **1,825 tests in 161.52 seconds**. No application changes, new branch, M1 implementation, commits or pushes are part of this record. The exact local results are recorded in [qualification](qualification.md); there is not yet a new Git SHA or hosted result for the uncommitted test tree.
+The latest local root suite passed **1,821 tests in 113.58 seconds** against the test-source working tree based on `3acd725`. No production/application changes, new branch, M1 implementation, commits or pushes were made in this audit pass. Test deletions and audit-document edits remain uncommitted; hosted checks for their resulting exact SHA are pending.

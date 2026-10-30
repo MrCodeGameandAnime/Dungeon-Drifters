@@ -26,13 +26,14 @@ root/tests/test_m10b_encounter_instantiation.py,173,175,REFACTOR / MERGE,See rem
 root/tests/test_m10b_hardening.py,177,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
 root/tests/test_m10c_exact_targeting.py,500,488,REFACTOR / MERGE,Accepted MoveResult fixture now shared; exact-targeting assertions retained
 root/tests/test_m10c_hardening.py,493,460,REFACTOR / MERGE,Pair frame assertions moved into Goblin Lord width matrix; see removed-test-equivalence.md
+root/tests/test_m10g_session_integration.py,277,216,REFACTOR / MERGE,Redundant load/continue test replaced by stronger save-and-resave flow; see removed-test-equivalence.md
 root/tests/test_m11_cross_encounter.py,675,645,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
 root/tests/test_m11_save_continue.py,457,436,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
 root/tests/test_m9c_zhaivra_hardening.py,403,415,MERGE WITH EXPLICIT CASE DATA,Burn/Poison vertical slices share one parameterized owner; distinct ticks/defend counts retained
 root/tests/test_m9e_character_identity_audit.py,220,0,MERGE / MOVE / DELETE,See removed-test-equivalence.md; all unlisted boundaries retained
 root/tests/test_mournglass_frost_route.py,241,234,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
 root/tests/test_overworld_presenter.py,710,692,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
-root/tests/test_overworld_session.py,1312,1292,REFACTOR / MERGE,See removed-test-equivalence.md; all unlisted boundaries retained
+root/tests/test_overworld_session.py,1312,1194,REFACTOR / MERGE,Redundant full-route and stubbed retry journeys removed; per-Rest and real-Battle owners retained; see removed-test-equivalence.md
 root/tests/test_portable_collections_abc.py,178,173,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; collections ABC overlay semantics remain local
 root/tests/test_portable_keyword.py,170,163,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; keyword overlay semantics remain local
 root/tests/test_portable_regex.py,196,189,REFACTOR / MERGE,Uses shared isolated overlay-script launcher; regex overlay semantics remain local

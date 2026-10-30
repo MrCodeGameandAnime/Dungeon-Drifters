@@ -183,23 +183,6 @@ REST_ROUTE_CASES = (
 
 
 
-def full_surface_route_inputs(rest_action):
-    return (
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(rest_action),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(rest_action),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(rest_action),
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        *quit_inputs(),
-    )
-
-
 def test_rest_fully_recovers_without_changing_unrelated_player_state():
     player = PlayerState(create_drifter("zhaivra"), gold=17)
     player.gain_experience(140)
@@ -524,63 +507,6 @@ def test_surface_route_exit_arrives_at_the_dungeon_hub():
     assert game.party_state.phase.value == "hub"
     assert game.player_state.gold == 0
     assert game.party_state.shared_gold >= 75
-
-
-@pytest.mark.parametrize(
-    "rest_action",
-    (OverworldAction.REST, OverworldAction.SKIP_REST),
-    ids=("accept_all_rests", "skip_all_rests"),
-)
-def test_complete_surface_route_resolves_all_rests_without_changing_rewards(
-    rest_action,
-):
-    player = PlayerState(create_drifter("branoc"))
-    player.health.take_damage(7)
-    player.mana_resource.spend(3)
-    game = GameState(player)
-
-    def damage_for_battle(acting_player):
-        acting_player.health.take_damage(1)
-        acting_player.mana_resource.spend(1)
-
-    result, ui, battles, enemies, _ = run_session(
-        game,
-        full_surface_route_inputs(rest_action),
-        winners=("player",) * 8,
-        mutations=(damage_for_battle,) * 8,
-    )
-
-    assert result is OverworldSessionResult.QUIT
-    assert len(battles.instances) == 8
-    assert len(enemies.enemies) == 14
-    assert player.level_state.current == 9
-    assert player.exp_state.current == 68
-    assert player.growth_points == 24
-    assert player.gold == 0
-    assert game.party_state.shared_gold == 75
-    if rest_action is OverworldAction.REST:
-        assert player.health.current == player.health.maximum - 1
-        assert player.mana_resource.current == player.mana_resource.maximum - 1
-    else:
-        assert player.health.current < player.health.maximum - 1
-        assert player.mana_resource.current < player.mana_resource.maximum - 1
-    assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
-    assert game.overworld_state.route_complete is True
-    assert game.overworld_state.resolved_rest_node_ids == (
-        "surface_rest_after_warrior_solo",
-        "surface_rest_after_shaman_pair",
-        "surface_rest_before_goblin_lord",
-    )
-    assert game.world_state.defeated_encounters == (
-        "surface_goblin_solo",
-        "surface_goblin_pair",
-        "surface_warrior_solo",
-        "surface_warrior_pair",
-        "surface_shaman_solo",
-        "surface_shaman_pair",
-        "surface_elite_patrol",
-        "surface_goblin_lord",
-    )
 
 
 def test_rest_menu_save_and_quit_cancel_preserve_unresolved_node(tmp_path):
@@ -1241,30 +1167,6 @@ def test_victory_adventure_text_uses_actual_level_and_growth_point_grammar():
         "Shaman Pair is defeated. Rewards: 180 EXP and 14 gold. "
         "Level up! Gained 2 levels, reached Level 6, and gained 6 Growth Points. "
         "The route continues toward Elite Patrol."
-    )
-
-
-def test_retry_creates_a_fresh_enemy_and_victory_cannot_replay_first_encounter():
-    game = GameState(PlayerState(create_drifter("branoc")))
-    inputs = [
-        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-        ChooseOverworldAction(OverworldAction.RETRY),
-        *quit_inputs(),
-    ]
-
-    _, _, battles, enemies, _ = run_session(
-        game,
-        inputs,
-        winners=("enemy", "player"),
-    )
-
-    assert len(battles.instances) == 2
-    assert len(enemies.enemies) == 2
-    assert enemies.enemies[0] is not enemies.enemies[1]
-    assert game.world_state.defeated_encounters == (FIRST_SURFACE_NODE_ID,)
-    assert (
-        game.overworld_state.current_contextual_route_phase
-        is ContextualRoutePhase.ENTER_ENCOUNTER
     )
 
 

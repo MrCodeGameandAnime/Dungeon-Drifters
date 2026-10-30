@@ -1,6 +1,6 @@
 # T0 Removed-Test Equivalence Record
 
-The first consolidation pass was committed as `131c217676ce9f077493d093999dc645353faa7f` on `t0`, based on `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`. This record also includes the current uncommitted review pass. A renamed or deleted test function is not an assertion that its behavior was obsolete. The following named owners retain the inputs, expected outcomes and failure boundaries. All other test functions remain; setup-only edits are listed separately.
+The first consolidation pass was committed as `131c217676ce9f077493d093999dc645353faa7f` on `t0`, based on `2af6e59b21d1c187ca4f2833fde04f6dd6f44cf8`. This record also includes the committed second review pass at `3acd725adccdaaef7cba25351ffeb9c3ca9c94d7` and the current local Surface-test consolidation based on that commit. A renamed or deleted test function is not an assertion that its behavior was obsolete. The following named owners retain the inputs, expected outcomes and failure boundaries. Unlisted test functions remain; setup-only edits are listed separately.
 
 ## Authored Loadout Authority
 
@@ -69,6 +69,14 @@ The canonical instability test previously renamed a magical move to "Test Hybrid
 | `test_combat_resolver.py`: low-Strength extra damage and minimum landed physical damage | `test_strength_adjustment_preserves_physical_damage_boundaries` has two explicit parameter rows with the original inputs and literal results 21 and 1. The separate incoming physical-versus-magical negation matrix remains unchanged. |
 | `test_m9c_zhaivra_hardening.py`: complete prepared Burn and Poison battle slices | `test_stock_prepared_infusion_resolves_and_expires_in_goblin_battle` keeps the two recipes and typed outcomes explicit. Tick counts/damage remain 3 x 7 versus 4 x 5, and the distinct 2 versus 3 defend-turn lifecycles remain case data. |
 | `test_m10c_hardening.py`: pair framed-layout assertion | The actual three-enemy Goblin Lord render now checks player/enemy split, route heading, width safety and absence of a generic `Enemies` heading at 50/80/120 columns. The separate terminal UI test still owns the generic 2/3/4-enemy layouts. |
+
+## Surface Load/Continue Consolidation
+
+| Removed test | Remaining protection |
+| --- | --- |
+| `test_m10g_session_integration.py::test_loaded_session_can_continue_into_the_next_encounter` | `test_m11_save_continue.py::test_loaded_session_continues_and_resaves_without_duplicate_reward` follows the same Options -> Load -> Confirm -> encounter -> Options path, reaches `surface_warrior_solo`, and verifies both defeated encounter IDs. It additionally verifies the loaded player and encounter label, exact EXP/gold, explicit resave, snapshot equality after reload, replacement of the original session, and the returned screen. No unique assertion from the removed test was lost. |
+| `test_overworld_session.py::test_complete_surface_route_resolves_all_rests_without_changing_rewards` | `test_m11_surface_routes.py::test_four_drifters_complete_the_full_surface_route` covers the eight-battle route, all three rests, completion, rewards, and varied rest choices for each Drifter; its cases include all-rest and all-skip runs. The removed test's distinct recovery assertions remain owned by `test_each_authored_rest_recovers_only_hp_and_mana` and `test_each_authored_rest_can_be_skipped_without_other_state_changes`, which separately qualify every authored Rest. |
+| `test_overworld_session.py::test_retry_creates_a_fresh_enemy_and_victory_cannot_replay_first_encounter` | `test_m11_cross_encounter.py::test_real_solo_defeat_boundary_restores_before_retry_and_rewards_once` uses real Battles and verifies checkpoint restoration at defeat, retry phase, fresh enemy identity, rewards exactly once, and advancement to `surface_goblin_pair` with only `surface_goblin_solo` defeated. The next-node and defeated-ID assertions preserve the no-replay guarantee. |
 
 ## Shared Test Helpers
 

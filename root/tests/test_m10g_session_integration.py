@@ -161,67 +161,6 @@ def test_valid_startup_save_loads_without_character_selection(tmp_path, monkeypa
     assert loaded.snapshot() == saved.snapshot()
 
 
-def test_loaded_session_can_continue_into_the_next_encounter(tmp_path):
-    saved = _saved_game()
-    repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
-    repository.save(saved)
-    current = GameState(PlayerState(create_drifter("branoc")))
-
-    class ContinuingBattle:
-        def __init__(self, player_state, enemies, *, ui, encounter_label):
-            self.player_state = player_state
-            self.enemies = tuple(enemies)
-            self._complete = False
-
-        @property
-        def is_complete(self):
-            return self._complete
-
-        @property
-        def winner(self):
-            return "player"
-
-        def current_view(self):
-            if self._complete:
-                return None
-            for enemy in self.enemies:
-                enemy.health.take_damage(enemy.health.current)
-            self._complete = True
-            return None
-
-        def submit(self, _battle_input):
-            return self.current_view()
-
-    ui = ScriptedUI(
-        [
-            ChooseOverworldAction(OverworldAction.OPTIONS),
-            ChooseOverworldAction(OverworldAction.LOAD),
-            ChooseOverworldAction(OverworldAction.CONFIRM),
-            ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER),
-            ChooseOverworldAction(OverworldAction.OPTIONS),
-            ChooseOverworldAction(OverworldAction.QUIT),
-            ChooseOverworldAction(OverworldAction.CONFIRM),
-        ]
-    )
-    session = OverworldSession(
-        current,
-        ui=ui,
-        battle_factory=ContinuingBattle,
-        enemy_factory=create_enemy_state,
-        battle_ui_factory=lambda: object(),
-        save_port=repository,
-    )
-
-    assert session.run() is OverworldSessionResult.QUIT
-    assert session.game_state.overworld_state.current_route_node_id == (
-        "surface_warrior_solo"
-    )
-    assert session.game_state.world_state.defeated_encounters == (
-        "surface_goblin_solo",
-        "surface_goblin_pair",
-    )
-
-
 def test_main_load_startup_bypasses_new_game_flow(tmp_path, monkeypatch):
     repository = make_test_save_port(tmp_path / "dungeon_drifters.json")
     saved = _saved_game()
