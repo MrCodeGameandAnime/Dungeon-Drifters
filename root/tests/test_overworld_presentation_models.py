@@ -110,6 +110,7 @@ def test_all_approved_screen_values_are_typed():
         "merchant",
         "items",
         "item_inspect",
+        "healing_targets",
         "map",
         "map_inspect",
         "options",

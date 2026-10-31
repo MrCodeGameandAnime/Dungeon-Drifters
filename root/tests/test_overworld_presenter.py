@@ -115,6 +115,58 @@ def test_hub_location_label_is_preserved_in_secondary_menus():
     )
 
 
+def test_merchant_view_exposes_storage_pack_and_authored_alchemy_recipes():
+    game = completed_hub_game()
+    game.party_state.add_shared_items({"healing_potion": 2, "goblin_scrap": 1})
+    assert game.party_state.load_carried_supplies({"healing_potion": 1})
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    assert view.hub_economy.shared_gold == game.party_state.shared_gold
+    assert view.hub_economy.carried_units == 1
+    potion = next(
+        item for item in view.hub_economy.items
+        if item.item_id == "healing_potion"
+    )
+    assert (potion.stored_quantity, potion.carried_quantity) == (1, 1)
+    assert potion.can_buy and potion.can_sell and potion.can_load and potion.can_unload
+    recipe = next(
+        recipe for recipe in view.hub_economy.recipes
+        if recipe.recipe_id == "healing_potion"
+    )
+    assert recipe.can_craft is False
+    assert recipe.ingredient_summary == ("Medicinal Herb x1", "Clean Water x1")
+    assert recipe.output_summary == ("Healing Potion x1",)
+
+
+def test_items_separate_carried_supplies_from_storage_and_only_pack_is_usable():
+    game = completed_hub_game()
+    game.party_state.add_shared_items({"healing_potion": 2})
+    assert game.party_state.load_carried_supplies({"healing_potion": 1})
+    game.member_for_drifter_id("azhvielle").health.take_damage(30)
+    presenter = OverworldPresenter()
+
+    items = presenter.build(game, screen=OverworldScreen.ITEMS)
+    potions = tuple(
+        item for item in items.inventory.items
+        if item.display_name == "Healing Potion"
+    )
+    selected_pack = presenter.build(
+        game,
+        screen=OverworldScreen.ITEMS,
+        selected_item_key="carried-item:healing_potion",
+    )
+
+    assert [(item.quantity, item.location_label) for item in potions] == [
+        (1, "Hub Storage"),
+        (1, "Carried Pack"),
+    ]
+    assert tuple(
+        item.location_label for item in potions if item.overworld_use_enabled
+    ) == ("Carried Pack",)
+    assert option(selected_pack, OverworldAction.USE).enabled
+
+
 def test_two_member_completed_hub_offers_both_ordered_party_choices():
     game = completed_hub_game()
     presenter = OverworldPresenter()

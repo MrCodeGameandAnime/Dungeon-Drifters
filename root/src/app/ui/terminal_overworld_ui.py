@@ -14,6 +14,7 @@ from app.presentation.overworld_models import (
 )
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseAlchemyRecipe,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -21,8 +22,11 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseHubSupplyAction,
+    HubSupplyOperation,
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChooseOverworldHealingTarget,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
 )
@@ -134,6 +138,30 @@ class TerminalOverworldUI:
                     return ChooseWeaponTarget(weapon.targets[index].drifter_id)
         if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
             merchant = view.merchant
+            economy = view.hub_economy
+            if economy is not None:
+                for prefix, operation, enabled_name in (
+                    ("b", HubSupplyOperation.BUY, "can_buy"),
+                    ("s", HubSupplyOperation.SELL, "can_sell"),
+                    ("l", HubSupplyOperation.LOAD, "can_load"),
+                    ("u", HubSupplyOperation.UNLOAD, "can_unload"),
+                ):
+                    if choice.startswith(prefix) and choice[len(prefix):].isdigit():
+                        index = int(choice[len(prefix):]) - 1
+                        if 0 <= index < len(economy.items):
+                            item = economy.items[index]
+                            if getattr(item, enabled_name):
+                                return ChooseHubSupplyAction(operation, item.item_id)
+                            self._output("That Hub supply action is unavailable.")
+                            return self._REJECTED
+                if choice.startswith("a") and choice[1:].isdigit():
+                    index = int(choice[1:]) - 1
+                    if 0 <= index < len(economy.recipes):
+                        recipe = economy.recipes[index]
+                        if recipe.can_craft:
+                            return ChooseAlchemyRecipe(recipe.recipe_id)
+                        self._output("That Alchemy recipe is unavailable.")
+                        return self._REJECTED
             if choice.startswith("t") and choice[1:].isdigit():
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(merchant.targets):
@@ -180,6 +208,11 @@ class TerminalOverworldUI:
             for number, item in enumerate(view.inventory.items, start=1):
                 if choice == str(number):
                     return ChooseOverworldItem(item.selection_key)
+
+        if view.screen is OverworldScreen.HEALING_TARGETS:
+            for number, target in enumerate(view.healing_targets, start=1):
+                if choice in {str(number), f"t{number}"}:
+                    return ChooseOverworldHealingTarget(target.drifter_id)
 
         if view.screen is OverworldScreen.SKILLS and view.skills is not None:
             for number, row in enumerate(view.skills.stats, start=1):
@@ -342,6 +375,13 @@ class TerminalOverworldUI:
             lines = list(self._merchant_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT:
             lines = list(self._equipment_lines(view))
+        elif view.screen is OverworldScreen.HEALING_TARGETS:
+            lines = ["CHOOSE A DRIFTER TO HEAL", ""]
+            lines.extend(
+                f"{index}. {target.display_name} | "
+                f"HP {target.hp_current}/{target.hp_maximum}"
+                for index, target in enumerate(view.healing_targets, start=1)
+            )
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
             lines = list(self._inventory_lines(view, width))
         elif view.screen is OverworldScreen.MAP:
@@ -560,6 +600,37 @@ class TerminalOverworldUI:
             lines.append(
                 f"V. Attempt Tier V ({tier_v.success_chance_percent}% chance)"
             )
+        economy = view.hub_economy
+        if economy is not None:
+            lines.extend(
+                (
+                    "",
+                    "HUB STORAGE",
+                    f"Shared gold: {economy.shared_gold}",
+                    f"CARRIED SUPPLIES {economy.carried_units}/{economy.carried_capacity}",
+                )
+            )
+            for index, item in enumerate(economy.items, start=1):
+                controls = []
+                if item.shop_stocked:
+                    controls.append(f"B{index} Buy {item.base_price}g")
+                if item.sellable:
+                    controls.append(f"S{index} Sell {item.base_price // 2}g")
+                if item.carryable:
+                    controls.extend((f"L{index} Load", f"U{index} Unload"))
+                lines.append(
+                    f"{item.display_name}: stored {item.stored_quantity}, "
+                    f"carried {item.carried_quantity}"
+                    + (" | " + " | ".join(controls) if controls else "")
+                )
+            lines.extend(("", "ALCHEMY"))
+            lines.extend(
+                f"A{index}. {recipe.display_name}: "
+                f"{' + '.join(recipe.ingredient_summary)} -> "
+                f"{' + '.join(recipe.output_summary)}"
+                f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                for index, recipe in enumerate(economy.recipes, start=1)
+            )
         return tuple(lines)
 
     @staticmethod
@@ -598,16 +669,23 @@ class TerminalOverworldUI:
         inventory = view.inventory
         if view.screen is OverworldScreen.ITEM_INSPECT:
             item = inventory.inspected_item
-            lines = [item.display_name, f"Quantity: {item.quantity}", ""]
+            lines = [
+                item.display_name,
+                f"Quantity: {item.quantity} | {item.location_label}",
+                "",
+            ]
             lines.extend(self._wrapped(item.description, width))
             return tuple(lines)
         lines = ["ITEMS", ""]
         if not inventory.items:
-            lines.append("Your persistent inventory is empty.")
+            lines.append("No items are currently available.")
             return tuple(lines)
         for number, item in enumerate(inventory.items, start=1):
             marker = ">" if item.selection_key == inventory.selected_item_key else " "
-            lines.append(f"{marker} {number}. {item.display_name} x{item.quantity}")
+            lines.append(
+                f"{marker} {number}. {item.display_name} x{item.quantity} "
+                f"[{item.location_label}]"
+            )
         return tuple(lines)
 
     def _map_lines(self, view, width):
@@ -774,6 +852,7 @@ class TerminalOverworldUI:
             OverworldScreen.MERCHANT: "MERCHANT",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
+            OverworldScreen.HEALING_TARGETS: "USE HEALING POTION",
             OverworldScreen.MAP: "MAP",
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",

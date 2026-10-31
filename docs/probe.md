@@ -283,3 +283,28 @@ as pending in the M1 implementation plan because its latest smoke attempts
 timed out before app startup while downloading Pyodide assets from jsDelivr.
 The preceding full browser smoke passed before that additional assertion was
 added.
+
+## M2 Preparation, Trading, And Escape Probe (2026-10-31)
+
+The M2 runtime matrix ran on the uncommitted `dungeon` working tree based on
+`4324b35ae21233ddc03901e5376aebd0dc32d831`. The exact pinned Windows
+MicroPython v1.29.0 executable was used: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+Native and forced-overlay CPython, default MicroPython, the 688K MicroPython
+run, and semantic parity passed. The 688K heap point passed 3/3; 672K produced
+the expected memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The route probe now includes M2 preparation/Alchemy, Healing Potion use, Smoke
+Bomb exit and same-node retry, Return Talisman XP-only return, and teardown.
+Full local verification also passed: root pytest **1,895**, web pytest **63**,
+content validation, compileall, a **149-file static browser build**, and the complete
+Playwright smoke. The browser smoke emitted the M2 preparation/save-reload,
+smoke-escape/retry, and talisman XP-only pass markers.
+
+This is working-tree evidence, not commit- or hosted-run evidence. PostgreSQL
+service tests, migration-from-zero, and Alembic check were not rerun because the
+Docker engine pipe was inaccessible. No profile-service/API/database
+implementation files changed in M2; these checks remain required for final
+hosted qualification on the exact committed SHA.

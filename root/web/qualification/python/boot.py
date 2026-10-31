@@ -102,7 +102,17 @@ class HeadlessBattleFactory:
     def __init__(self):
         self.battles = []
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
+    def __call__(
+        self,
+        player_state,
+        enemies,
+        *,
+        ui,
+        encounter_label,
+        party=(),
+        party_state=None,
+        smoke_escape_allowed=False,
+    ):
         if ui is not None:
             raise AssertionError("route battle must be headless")
         battle = Battle(
@@ -113,6 +123,8 @@ class HeadlessBattleFactory:
             rng=DeterministicRng(),
             encounter_label=encounter_label,
             party=party,
+            party_state=party_state,
+            smoke_escape_allowed=smoke_escape_allowed,
         )
         self.battles.append(battle)
         return battle

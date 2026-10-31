@@ -396,7 +396,7 @@ def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 13
+    assert rebuilt["schema_version"] == 14
     assert rebuilt["overworld"] == {
         "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",

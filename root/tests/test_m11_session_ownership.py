@@ -205,7 +205,7 @@ def test_schema12_snapshot_contains_persistent_state_and_no_runtime_objects(
 
     validate_plain_value(snapshot)
     json.dumps(snapshot, allow_nan=False)
-    assert snapshot["schema_version"] == 12
+    assert snapshot["schema_version"] == 13
     assert set(snapshot) == {
         "schema_version",
         "player",

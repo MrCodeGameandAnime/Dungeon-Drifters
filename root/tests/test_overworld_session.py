@@ -2,7 +2,8 @@ import copy
 
 import pytest
 
-from app.content.catalog import create_drifter, get_drifter_spec
+from app.content.catalog import create_drifter, get_drifter_spec, get_route_spec
+from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.weapon_progression import WeaponProgressionService
 from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
@@ -22,10 +23,13 @@ from app.ui.overworld_ui import (
     ChooseMerchantCraftComponent,
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChooseOverworldHealingTarget,
+    ChooseHubSupplyAction,
+    ChooseAlchemyRecipe,
     ChoosePermanentStatIncrease,
 )
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from tests.game_test_support import hub_game, recruited_pair_game
+from tests.game_test_support import completed_hub_game, hub_game, recruited_pair_game
 from tests.game_test_support import advance_surface_to as move_to_authored_rest
 
 
@@ -134,6 +138,116 @@ def run_session(game, inputs, winners=(), mutations=(), save_port=None):
     )
     result = session.run()
     return result, ui, battles, enemies, battle_uis
+
+
+def make_step_session(game):
+    return OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+    )
+
+
+def test_merchant_commands_buy_load_and_alchemize_through_session():
+    game = completed_hub_game()
+    session = make_step_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+
+    session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
+    assert game.party_state.shared_gold == 2
+    assert game.party_state.shared_items == {"healing_potion": 1}
+
+    session.submit(ChooseHubSupplyAction("load", "healing_potion"))
+    assert game.party_state.shared_items == {}
+    assert game.party_state.carried_items == {"healing_potion": 1}
+
+    game.party_state.add_shared_items({"medicinal_herb": 1, "clean_water": 1})
+    session.submit(ChooseAlchemyRecipe("healing_potion"))
+    assert game.party_state.shared_items == {"healing_potion": 1}
+    assert game.party_state.carried_items == {"healing_potion": 1}
+    assert game.party_state.crafting_experience == 0
+
+
+def test_merchant_stale_or_wrong_screen_commands_do_not_mutate():
+    game = completed_hub_game()
+    session = make_step_session(game)
+    before = game.party_state.snapshot()
+
+    session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
+    assert game.party_state.snapshot() == before
+    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    session.submit(ChooseHubSupplyAction("load", "healing_potion"))
+    assert game.party_state.snapshot() == before
+
+
+def test_carried_healing_potion_can_be_used_for_selected_drifter_at_rest():
+    game = completed_hub_game()
+    party = game.party_state
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    party.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    route = get_route_spec("floor_one")
+    for node in route.nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.kind is RouteNodeKind.REST:
+            break
+
+    target = game.member_for_drifter_id("azhvielle")
+    target.health.take_damage(31)
+    session = make_step_session(game)
+
+    rest = session.current_view()
+    assert rest.screen is OverworldScreen.REST
+    items_view = session.submit(
+        ChooseOverworldAction(OverworldAction.ITEMS)
+    )
+    potion = next(
+        item for item in items_view.inventory.items
+        if item.selection_key == "carried-item:healing_potion"
+    )
+    assert potion.overworld_use_enabled
+    items_view = session.submit(ChooseOverworldItem(potion.selection_key))
+    assert next(
+        option for option in items_view.options
+        if option.action is OverworldAction.USE
+    ).enabled
+
+    targets_view = session.submit(ChooseOverworldAction(OverworldAction.USE))
+    assert targets_view.screen is OverworldScreen.HEALING_TARGETS
+    assert [target.drifter_id for target in targets_view.healing_targets] == [
+        "azhvielle"
+    ]
+
+    result = session.submit(ChooseOverworldHealingTarget("azhvielle"))
+    assert result.screen is OverworldScreen.ITEMS
+    assert target.health.current == target.health.maximum
+    assert party.carried_items == {}
+    assert party.phase.value == "outing"
+
+
+def test_stale_overworld_healing_target_does_not_consume_carried_potion():
+    game = completed_hub_game()
+    party = game.party_state
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    party.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    for node in get_route_spec("floor_one").nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.kind is RouteNodeKind.REST:
+            break
+    game.member_for_drifter_id("azhvielle").health.take_damage(20)
+    session = make_step_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.ITEMS))
+    session.submit(ChooseOverworldItem("carried-item:healing_potion"))
+    session.submit(ChooseOverworldAction(OverworldAction.USE))
+    before = game.snapshot()
+
+    result = session.submit(ChooseOverworldHealingTarget("drifter_branoc"))
+
+    assert result.screen is OverworldScreen.HEALING_TARGETS
+    assert game.snapshot() == before
 
 
 def quit_inputs():
@@ -471,7 +585,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 12
+    assert snapshot["schema_version"] == 13
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",

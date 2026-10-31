@@ -50,6 +50,7 @@ def _legacy_schema9_payload(gold=0):
     payload["schema_version"] = 9
     payload["player"].pop("signature_weapon")
     payload["party"].pop("active_drifter_ids")
+    payload["party"].pop("carried_items")
     payload["overworld"].pop("active_route_id")
     for field in (
         "floor_one_cleared",
@@ -119,12 +120,12 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 13
+    assert local_pending.payload["schema_version"] == 14
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 13
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 14
 
 
 

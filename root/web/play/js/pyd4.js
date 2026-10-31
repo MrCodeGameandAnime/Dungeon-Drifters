@@ -751,7 +751,91 @@
       tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
       "merchant-action",
     ));
+    renderHubEconomy(view.hub_economy);
     renderDetailOptions("merchant-options", view.options);
+  }
+
+  function renderHubEconomy(economy) {
+    const summary = $("merchant-storage-summary");
+    const supplies = $("merchant-supplies");
+    const recipes = $("merchant-alchemy-recipes");
+    clear(supplies);
+    clear(recipes);
+    if (!economy) {
+      summary.textContent = "";
+      return;
+    }
+    summary.textContent = `Shared gold: ${economy.shared_gold} | Carried supplies: ${economy.carried_units}/${economy.carried_capacity}`;
+    for (const item of economy.items || []) {
+      const row = document.createElement("div");
+      row.className = "merchant-row hub-supply-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = item.display_name;
+      const quantity = document.createElement("span");
+      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | ${item.base_price} gold` : ""}`;
+      const detail = document.createElement("span");
+      detail.textContent = item.description;
+      description.append(title, quantity, detail);
+      const actions = document.createElement("div");
+      actions.className = "merchant-row-actions";
+      if (item.shop_stocked) {
+        actions.append(makeButton(
+          "Buy",
+          { kind: "hub_supply", operation: "buy", item_id: item.item_id },
+          item.can_buy,
+          item.can_buy ? null : "insufficient_gold",
+          "merchant-action",
+        ));
+      }
+      if (item.sellable) {
+        actions.append(makeButton(
+          `Sell ${Math.floor(item.base_price / 2)}g`,
+          { kind: "hub_supply", operation: "sell", item_id: item.item_id },
+          item.can_sell,
+          item.can_sell ? null : "not_in_storage",
+          "merchant-action",
+        ));
+      }
+      if (item.carryable) {
+        actions.append(makeButton(
+          "Load",
+          { kind: "hub_supply", operation: "load", item_id: item.item_id },
+          item.can_load,
+          item.can_load ? null : (item.stored_quantity ? "pack_full" : "not_in_storage"),
+          "merchant-action",
+        ));
+        actions.append(makeButton(
+          "Unload",
+          { kind: "hub_supply", operation: "unload", item_id: item.item_id },
+          item.can_unload,
+          item.can_unload ? null : "not_in_pack",
+          "merchant-action",
+        ));
+      }
+      row.append(description, actions);
+      supplies.append(row);
+    }
+    for (const recipe of economy.recipes || []) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = recipe.display_name;
+      const ingredients = document.createElement("span");
+      ingredients.textContent = `${recipe.ingredient_summary.join(" + ")} -> ${recipe.output_summary.join(" + ")}`;
+      description.append(title, ingredients);
+      row.append(description, makeButton(
+        "Craft",
+        { kind: "alchemy_recipe", recipe_id: recipe.recipe_id },
+        recipe.can_craft,
+        recipe.can_craft ? null : "missing_ingredients",
+        "merchant-action",
+      ));
+      recipes.append(row);
+    }
   }
 
   function renderDetailOptions(containerId, options) {
@@ -839,23 +923,35 @@
   function renderOverworldItems(view) {
     const inventory = view.inventory;
     const inspecting = view.screen === "item_inspect";
+    const choosingHealingTarget = view.screen === "healing_targets";
     const list = $("items-list");
     const details = $("items-inspection");
     clear(list);
     details.hidden = !inspecting;
+    setText("items-title", choosingHealingTarget ? "Choose a Drifter to Heal" : "Items");
 
-    if (inspecting) {
+    if (choosingHealingTarget) {
+      for (const target of view.healing_targets || []) {
+        list.append(makeButton(
+          `${target.display_name} | HP ${target.hp_current}/${target.hp_maximum}`,
+          { kind: "overworld_healing_target", drifter_id: target.drifter_id },
+          true,
+          null,
+          "inventory-item-choice",
+        ));
+      }
+    } else if (inspecting) {
       const item = inventory && inventory.inspected_item;
       setText("items-inspection-name", item ? item.display_name : "Item");
       setText(
         "items-inspection-quantity",
-        item ? `Quantity: ${item.quantity}` : "",
+        item ? `Quantity: ${item.quantity} | ${item.location_label}` : "",
       );
       setText("items-inspection-description", item ? item.description : "");
     } else {
       for (const item of (inventory && inventory.items) || []) {
         const button = makeButton(
-          `${item.display_name} x${item.quantity}`,
+          `${item.display_name} x${item.quantity} | ${item.location_label}`,
           { kind: "overworld_item", selection_key: item.selection_key },
           true,
           null,
@@ -872,7 +968,7 @@
       if (!list.childElementCount) {
         const empty = document.createElement("p");
         empty.className = "merchant-empty";
-        empty.textContent = "Your shared inventory is empty.";
+        empty.textContent = "No items are currently available.";
         list.append(empty);
       }
     }
@@ -882,7 +978,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "weapon", "equipment", "merchant", "items", "item_inspect",
+      "character", "skills", "weapon", "equipment", "merchant", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -935,13 +1031,13 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("weapon-panel").hidden = view.screen !== "weapon";
     $("equipment-panel").hidden = view.screen !== "equipment";
-    $("items-panel").hidden = !["items", "item_inspect"].includes(view.screen);
+    $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "weapon") renderWeapon(view);
     else if (view.screen === "equipment") renderEquipment(view);
-    else if (["items", "item_inspect"].includes(view.screen)) renderOverworldItems(view);
+    else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
     else if (view.screen === "merchant") renderMerchant(view);
 
     renderInventory($("inventory"), view);
@@ -1046,6 +1142,16 @@
     } else if (phase === "targets") {
       setText("controls-title", "Choose a target:");
       renderTargets(targets, view.target_options);
+    } else if (phase === "healing_targets") {
+      setText("controls-title", "Use Healing Potion on:");
+      renderOptions(
+        targets,
+        view.healing_target_options,
+        (option) => ({ kind: "healing_target", target_id: option.target_id }),
+        (option) => `${option.number}. ${option.display_label} | HP ${option.hp_current}/${option.hp_maximum}`,
+        "battle-option target-choice",
+      );
+      appendBack(targets);
     } else {
       const headings = {
         inventory: "Items",
@@ -1053,6 +1159,7 @@
         inventory_inspect: "Item details",
         inventory_combination: "Combine items",
         inventory_confirmation: "Confirm combination",
+        healing_targets: "Choose a Drifter to heal",
         complete: "Battle complete",
       };
       setText("controls-title", headings[phase] || "Battle");

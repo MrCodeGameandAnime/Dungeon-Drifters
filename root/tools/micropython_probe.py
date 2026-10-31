@@ -186,7 +186,17 @@ class _RouteBattleFactory:
         self.battle_compositions = []
         self.completed_count = 0
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
+    def __call__(
+        self,
+        player_state,
+        enemies,
+        *,
+        ui,
+        encounter_label,
+        party=(),
+        party_state=None,
+        smoke_escape_allowed=False,
+    ):
         from app.combat.battle import Battle
 
         self.battle_compositions.append(
@@ -200,6 +210,8 @@ class _RouteBattleFactory:
             rng=_DeterministicRng(),
             encounter_label=encounter_label,
             party=party,
+            party_state=party_state,
+            smoke_escape_allowed=smoke_escape_allowed,
         )
         return battle
 
@@ -658,8 +670,9 @@ def _assert_route_live_state():
         raise AssertionError("Dungeon Entrance state changed after Floor 1")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
         raise AssertionError("Floor 1 changed Surface defeat history")
-    if party.shared_gold != 115:
-        raise AssertionError("Floor 1 rewards were not secured in shared gold")
+    expected_shared_gold = STATE.get("m2_expected_shared_gold", 115)
+    if party.shared_gold != expected_shared_gold:
+        raise AssertionError("Hub shared gold changed after qualification setup")
     if not party.tutorial_complete or not party.floor_one_cleared:
         raise AssertionError("Hub progression was incomplete after Floor 1")
     if party.outing_rewards.experience or party.outing_rewards.gold:

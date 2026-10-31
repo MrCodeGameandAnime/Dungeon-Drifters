@@ -486,7 +486,7 @@ const itemsProjection = {
     { action: "back", label: "Back", enabled: true, disabled_reason: null },
   ],
   inventory: {
-    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false }],
+    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false, location_label: "Hub Storage" }],
     selected_item_key: null,
     inspected_item: null,
   },
@@ -2099,10 +2099,10 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Items");
   await targetPage.locator("#items-panel").waitFor({ state: "visible" });
   requireCondition(
-    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3"),
+    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3 | Hub Storage"),
     "Items page did not show the secured Goblin Scrap stack",
   );
-  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3");
+  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3 | Hub Storage");
   await clickVisibleOption(targetPage, "#items-options", "Inspect");
   await targetPage.locator("#items-inspection").waitFor({ state: "visible" });
   requireCondition(
@@ -2514,6 +2514,294 @@ try {
   );
   requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
   console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
+
+  const supplyRow = (name) => page.locator("#merchant-supplies .hub-supply-row")
+    .filter({ hasText: name }).first();
+  const updateSupply = async (name, action) => {
+    const row = supplyRow(name);
+    const previous = await row.innerText();
+    await row.getByRole("button", { name: action, exact: true }).click();
+    await page.waitForFunction(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: previous });
+  };
+  const quantityInSupplyRow = async (name, kind) => {
+    const text = await supplyRow(name).innerText();
+    const match = text.match(new RegExp(`${kind}\\s+(\\d+)`));
+    return Number(match?.[1] || 0);
+  };
+  const cordCount = async () => {
+    const text = await page.locator("#merchant-materials").innerText();
+    return Number(text.match(/Cord:\s*(\d+)/i)?.[1] || 0);
+  };
+
+  const bossCore = page.locator("#merchant-dismantle .merchant-row")
+    .filter({ hasText: "Goblin Lord Core" });
+  requireCondition(await bossCore.count() === 1, "M2 supply setup did not provide a Goblin Lord Core");
+  const coreBeforeDismantle = await bossCore.innerText();
+  await bossCore.getByRole("button", { name: "Dismantle" }).click();
+  await page.waitForFunction((previous) => {
+    const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
+      .find((candidate) => candidate.innerText.includes("Goblin Lord Core"));
+    return !row || row.innerText !== previous;
+  }, coreBeforeDismantle);
+
+  for (let attempt = 0; attempt < 20 && await cordCount() < 3; attempt += 1) {
+    const scrapRow = page.locator("#merchant-dismantle .merchant-row")
+      .filter({ hasText: "Goblin Scrap" });
+    requireCondition(await scrapRow.count() === 1, "M2 supply setup exhausted Goblin Scrap before obtaining Cord");
+    const previous = await scrapRow.innerText();
+    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
+    await page.waitForFunction((oldText) => {
+      const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
+        .find((candidate) => candidate.innerText.includes("Goblin Scrap"));
+      return !row || row.innerText !== oldText;
+    }, previous);
+  }
+  requireCondition(await cordCount() >= 3, "M2 supply setup could not obtain three Cord for Alchemy");
+
+  await updateSupply("Charcoal Dust", "Buy");
+  await updateSupply("Charcoal Dust", "Buy");
+  await updateSupply("Healing Potion", "Buy");
+  const craftAlchemy = async (name) => {
+    const row = page.locator("#merchant-alchemy-recipes .merchant-row")
+      .filter({ has: page.locator("strong").getByText(name, { exact: true }) });
+    const rowCount = await row.count();
+    if (rowCount !== 1) {
+      const recipes = await page.locator("#merchant-alchemy-recipes").innerText();
+      const badge = await page.locator("#screen-badge").innerText();
+      throw new Error(`M2 Merchant did not offer ${name} (matches=${rowCount}, screen=${badge}, recipes=${recipes})`);
+    }
+    const before = await supplyRow(name).innerText();
+    await row.getByRole("button", { name: "Craft", exact: true }).click();
+    await page.waitForFunction(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: before });
+  };
+  await craftAlchemy("Smoke Powder");
+  await craftAlchemy("Smoke Powder");
+  await craftAlchemy("Smoke Bomb");
+  await craftAlchemy("Smoke Bomb");
+  await craftAlchemy("Return Talisman");
+  requireCondition(
+    await quantityInSupplyRow("Healing Potion", "Stored") === 1 &&
+      await quantityInSupplyRow("Smoke Bomb", "Stored") === 2 &&
+      await quantityInSupplyRow("Return Talisman", "Stored") === 1,
+    "Hub purchase and Alchemy did not create the expected secured supply quantities",
+  );
+  await updateSupply("Healing Potion", "Load");
+  await updateSupply("Smoke Bomb", "Load");
+  await updateSupply("Smoke Bomb", "Load");
+  await updateSupply("Return Talisman", "Load");
+  requireCondition(
+    (await page.locator("#merchant-storage-summary").innerText()).includes("Carried supplies: 4/6") &&
+      await quantityInSupplyRow("Healing Potion", "Stored") === 0 &&
+      await quantityInSupplyRow("Smoke Bomb", "Stored") === 0 &&
+      await quantityInSupplyRow("Return Talisman", "Stored") === 0,
+    "loading supplies did not transfer four units out of Hub storage into the pack",
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("#overworld-options button")].some((button) =>
+      (button.querySelector(".choice-label")?.textContent ?? button.textContent).trim() === "Save" &&
+      !button.disabled,
+    ),
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, { timeout: 120000 });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(() =>
+    document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(() =>
+    document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const text = document.getElementById("items-list").innerText;
+    return text.includes("Healing Potion x1 | Carried Pack") &&
+      text.includes("Smoke Bomb x2 | Carried Pack") &&
+      text.includes("Return Talisman x1 | Carried Pack");
+  });
+  const carriedItemsText = await page.locator("#items-list").innerText();
+  requireCondition(
+    carriedItemsText.includes("Healing Potion x1 | Carried Pack") &&
+      carriedItemsText.includes("Smoke Bomb x2 | Carried Pack") &&
+      carriedItemsText.includes("Return Talisman x1 | Carried Pack"),
+    `browser save/reload did not preserve carried supplies separately: ${carriedItemsText}`,
+  );
+  console.log("M2_BROWSER|PREP_ALCHEMY_PACK_SAVE_RELOAD|PASS");
+
+  const hubScrapBeforeRun = Number(
+    carriedItemsText.match(/Goblin Scrap x(\d+) \| Hub Storage/)?.[1] || 0,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  const characterProgress = async (label) => {
+    await clickVisibleOption(page, "#character-targets", label);
+    return {
+      level: Number((await page.locator("#character-level").innerText()).match(/\d+/)?.[0] || 0),
+      experience: Number((await page.locator("#experience-value").innerText()).match(/^\s*(\d+)/)?.[1] || 0),
+    };
+  };
+  const drifterLabels = [
+    "Ser Branoc, the Unbroken Crest",
+    "Azhvielle, the Unconfessed",
+  ];
+  const xpBeforeTalismanRun = {};
+  for (const label of drifterLabels) xpBeforeTalismanRun[label] = await characterProgress(label);
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+
+  const hubGoldBeforeTalismanRun = await page.locator("#hub-shared-gold").innerText();
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 1");
+  await page.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "FLOOR_ONE_WARNING");
+  await clickVisibleOption(page, "#overworld-options", "Set Out");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+
+  const clickFirstBattleChoice = async (selector) => {
+    const clicked = await page.evaluate((choiceSelector) => {
+      const button = document.querySelector(`${choiceSelector}:not([disabled])`);
+      if (!button) return false;
+      window.__DD_LAST_BATTLE_CHOICE__ = button;
+      button.click();
+      return true;
+    }, selector);
+    requireCondition(clicked, `no enabled battle choice matched ${selector}`);
+    await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+  };
+  const resolveAttackChoice = async () => {
+    await page.waitForFunction(() =>
+      document.querySelector("#moves .move-choice:not([disabled])") !== null ||
+        document.querySelector("#targets .target-choice:not([disabled])") !== null,
+    null, { timeout: 10000 }).catch(async (error) => {
+      const state = await page.evaluate(() => ({
+        phase: document.getElementById("app").dataset.interactionPhase,
+        actions: [...document.querySelectorAll("#actions button")].map((button) => button.textContent.trim()),
+        moves: [...document.querySelectorAll("#moves button")].map((button) => button.textContent.trim()),
+        log: document.getElementById("battle-log").innerText,
+      }));
+      throw new Error(`Attack did not render a move or target choice: ${JSON.stringify(state)}; ${error.message}`);
+    });
+    if (await page.locator("#targets .target-choice:not([disabled])").count()) return;
+    await clickFirstBattleChoice("#moves .move-choice");
+    if (await page.locator("#app").getAttribute("data-interaction-phase") === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    }
+  };
+  const attackOnce = async () => {
+    await clickVisibleOption(page, "#actions", "Attack");
+    await resolveAttackChoice();
+  };
+  for (let action = 0; action < 60 && await page.locator("#overworld-screen").isHidden(); action += 1) {
+    const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+    if (phase === "actions") {
+      await attackOnce();
+    } else if (phase === "regular_moves") {
+      await resolveAttackChoice();
+    } else if (phase === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    } else {
+      throw new Error(`unexpected browser battle phase while clearing one encounter: ${phase}`);
+    }
+  }
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  const firstEncounterRewards = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    firstEncounterRewards.includes("Unsecured rewards:") && firstEncounterRewards.includes("Items: 4 Goblin Scrap"),
+    `Floor 1 did not display the unsecured item drop: ${firstEncounterRewards}`,
+  );
+  const smokeNode = await page.locator("#location-label").innerText();
+  requireCondition(smokeNode === "Goblin Patrol", `expected the next encounter after the first clear, got ${smokeNode}`);
+
+  const partyStatus = () => page.locator("#party-members .party-member").evaluateAll((members) =>
+    members.map((member) => `${member.dataset.targetId}|${member.querySelector(".party-member-status").textContent.trim()}`),
+  );
+  const enemyStatus = () => page.locator("#enemy-panel .enemy").evaluateAll((enemies) =>
+    enemies.map((enemy) => enemy.textContent.trim()),
+  );
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  const freshEnemyStatus = await enemyStatus();
+  requireCondition(freshEnemyStatus.length === 3, `Goblin Patrol did not create three fresh enemies: ${JSON.stringify(freshEnemyStatus)}`);
+  await attackOnce();
+  const partyBeforeSmoke = await partyStatus();
+  const damagedEnemyStatus = await enemyStatus();
+  await clickVisibleOption(page, "#actions", "Smoke Bomb");
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === smokeNode &&
+      (await page.locator("#adventure-text").innerText()).includes("No rewards are earned") &&
+      JSON.stringify(await partyStatus()) === JSON.stringify(partyBeforeSmoke) &&
+      await page.getByRole("button", { name: "Enter Encounter" }).isVisible(),
+    "Smoke Bomb changed party resources, awarded rewards, advanced the route, or hid the retry",
+  );
+  console.log("M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS");
+
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    JSON.stringify(await enemyStatus()) === JSON.stringify(freshEnemyStatus) &&
+      JSON.stringify(await enemyStatus()) !== JSON.stringify(damagedEnemyStatus),
+    "retry did not recreate the same encounter with fresh enemy health",
+  );
+  await clickVisibleOption(page, "#actions", "Smoke Bomb");
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === smokeNode &&
+      await page.getByRole("button", { name: "Use Return Talisman" }).isVisible(),
+    "the second smoke escape did not leave the same node and allow the separate talisman exit",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Use Return Talisman");
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const talismanNotice = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    talismanNotice.includes("Adjusted XP is secured") &&
+      talismanNotice.includes("run gold and items are lost") &&
+      (await page.locator("#hub-shared-gold").innerText()) === hubGoldBeforeTalismanRun,
+    `Return Talisman banked the wrong rewards: ${JSON.stringify({ talismanNotice, gold: await page.locator("#hub-shared-gold").innerText() })}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  for (const label of drifterLabels) {
+    const after = await characterProgress(label);
+    const before = xpBeforeTalismanRun[label];
+    requireCondition(
+      after.level > before.level || (after.level === before.level && after.experience > before.experience),
+      `Return Talisman did not secure earned XP for ${label}: ${JSON.stringify({ before, after })}`,
+    );
+  }
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const returnedItems = await page.locator("#items-list").innerText();
+  requireCondition(
+    returnedItems.includes("Healing Potion x1 | Hub Storage") &&
+      !returnedItems.includes("Smoke Bomb x") &&
+      !returnedItems.includes("Return Talisman x") &&
+      Number(returnedItems.match(/Goblin Scrap x(\d+) \| Hub Storage/)?.[1] || 0) === hubScrapBeforeRun,
+    `Return Talisman returned consumed or unsecured items: ${returnedItems}`,
+  );
+  console.log("M2_BROWSER|TALISMAN_XP_ONLY|PASS");
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));

@@ -11,6 +11,7 @@ from app.content.catalog import (
     get_route_spec,
     get_weapon_spec,
 )
+from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
@@ -33,6 +34,9 @@ from app.presentation.overworld_models import (
     CharacterOverviewView,
     CompanionChoiceView,
     EquipmentView,
+    HubAlchemyRecipeView,
+    HubEconomyView,
+    HubSupplyItemView,
     InventoryView,
     MapNodeState,
     MapNodeView,
@@ -52,6 +56,7 @@ from app.presentation.overworld_models import (
     OverworldOptionView,
     OutingItemRewardView,
     OutingRewardsView,
+    SupplyHealingTargetView,
     OverworldScreen,
     OverworldView,
     PartyPairChoiceView,
@@ -191,6 +196,11 @@ class OverworldPresenter:
                 if screen is OverworldScreen.MERCHANT
                 else None
             ),
+            hub_economy=(
+                self._hub_economy_view(game_state)
+                if screen is OverworldScreen.MERCHANT
+                else None
+            ),
             equipment=(
                 self._equipment_view(game_state, selected_character_target_id)
                 if screen is OverworldScreen.EQUIPMENT
@@ -208,7 +218,11 @@ class OverworldPresenter:
                         else None
                     ),
                 )
-                if screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}
+                if screen in {
+                    OverworldScreen.ITEMS,
+                    OverworldScreen.ITEM_INSPECT,
+                    OverworldScreen.HEALING_TARGETS,
+                }
                 else None
             ),
             route_map=(
@@ -268,6 +282,11 @@ class OverworldPresenter:
                 )
                 if screen is OverworldScreen.EXTRACTION
                 else None
+            ),
+            healing_targets=(
+                self._healing_targets(game_state)
+                if screen is OverworldScreen.HEALING_TARGETS
+                else ()
             ),
         )
 
@@ -730,6 +749,78 @@ class OverworldPresenter:
         )
 
     @staticmethod
+    def _hub_economy_view(game_state):
+        party = game_state.party_state
+        authored_ids = {item.item_id for item in SUPPLY_ITEMS}
+        item_ids = [item.item_id for item in SUPPLY_ITEMS]
+        item_ids.extend(
+            sorted((set(party.shared_items) | set(party.carried_items)) - authored_ids)
+        )
+        items = []
+        for item_id in item_ids:
+            spec = get_supply_item(item_id)
+            stored = party.shared_items.get(item_id, 0)
+            carried = party.carried_items.get(item_id, 0)
+            if spec is None:
+                display_name = item_id.replace("_", " ").title()
+                description = "Stored item. No Hub supply action is authored for it."
+                price = 0
+                shop_stocked = sellable = carryable = False
+            else:
+                display_name = spec.display_name
+                description = spec.description
+                price = spec.base_price
+                shop_stocked = spec.shop_stocked
+                sellable = spec.sellable
+                carryable = spec.carryable
+            items.append(
+                HubSupplyItemView(
+                    item_id=item_id,
+                    display_name=display_name,
+                    description=description,
+                    base_price=price,
+                    stored_quantity=stored,
+                    carried_quantity=carried,
+                    shop_stocked=shop_stocked,
+                    sellable=sellable,
+                    carryable=carryable,
+                    can_buy=shop_stocked and party.shared_gold >= price,
+                    can_sell=sellable and stored > 0,
+                    can_load=carryable and stored > 0 and party.carried_item_units < 6,
+                    can_unload=carryable and carried > 0,
+                )
+            )
+
+        names = {item.item_id: item.display_name for item in SUPPLY_ITEMS}
+        recipes = []
+        for recipe in ALCHEMY_RECIPES:
+            recipes.append(
+                HubAlchemyRecipeView(
+                    recipe_id=recipe.recipe_id,
+                    display_name=recipe.display_name,
+                    ingredient_summary=tuple(
+                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        for item_id, quantity in recipe.ingredient_costs
+                    ),
+                    output_summary=tuple(
+                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        for item_id, quantity in recipe.outputs
+                    ),
+                    can_craft=all(
+                        party.shared_items.get(item_id, 0) >= quantity
+                        for item_id, quantity in recipe.ingredient_costs
+                    ),
+                )
+            )
+        return HubEconomyView(
+            shared_gold=party.shared_gold,
+            carried_units=party.carried_item_units,
+            carried_capacity=6,
+            items=tuple(items),
+            recipes=tuple(recipes),
+        )
+
+    @staticmethod
     def _component_effect_summary(component):
         effects = []
         for modifier in component.move_modifiers:
@@ -786,6 +877,7 @@ class OverworldPresenter:
     @staticmethod
     def _inventory_items(game_state):
         player = game_state.player_state
+        party = game_state.party_state
         items = []
         for index, item in enumerate(player.inventory.items, start=1):
             if isinstance(item, Weapon):
@@ -795,6 +887,7 @@ class OverworldPresenter:
                         display_name=item.name,
                         quantity=1,
                         description=item.description,
+                        location_label="Personal",
                     )
                 )
         for definition in owned_run_item_definitions(player.character_run_state):
@@ -806,6 +899,7 @@ class OverworldPresenter:
                         definition.item_id
                     ),
                     description=definition.description,
+                    location_label="Personal",
                 )
             )
         shared_items = game_state.party_state.shared_items
@@ -819,9 +913,59 @@ class OverworldPresenter:
                     display_name=OverworldPresenter._shared_item_display_name(item_id),
                     quantity=quantity,
                     description="Shared crafting material or weapon component.",
+                    location_label="Hub Storage",
+                )
+            )
+        for item_id, quantity in sorted(
+            party.carried_items.items(),
+            key=lambda item: OverworldPresenter._shared_item_display_name(item[0]),
+        ):
+            spec = get_supply_item(item_id)
+            items.append(
+                OverworldItemView(
+                    selection_key=f"carried-item:{item_id}",
+                    display_name=(
+                        spec.display_name
+                        if spec is not None
+                        else OverworldPresenter._shared_item_display_name(item_id)
+                    ),
+                    quantity=quantity,
+                    description=(spec.description if spec is not None else "Carried supply."),
+                    overworld_use_enabled=(
+                        item_id == "healing_potion"
+                        and party.phase
+                        in {
+                            DungeonPhase.HUB,
+                            DungeonPhase.PARTY_READY,
+                            DungeonPhase.OUTING,
+                        }
+                        and bool(OverworldPresenter._healing_targets(game_state))
+                    ),
+                    location_label="Carried Pack",
                 )
             )
         return tuple(items)
+
+    @staticmethod
+    def _healing_targets(game_state):
+        party = game_state.party_state
+        if party.phase not in {
+            DungeonPhase.HUB,
+            DungeonPhase.PARTY_READY,
+            DungeonPhase.OUTING,
+        }:
+            return ()
+        return tuple(
+            SupplyHealingTargetView(
+                drifter_id=member.character.profile.drifter_id,
+                display_name=member.character.full_display_name,
+                hp_current=member.health.current,
+                hp_maximum=member.health.maximum,
+            )
+            for member in game_state.active_party_members
+            if member.health.is_alive()
+            and member.health.current < member.health.maximum
+        )
 
     @staticmethod
     def _map_view(game_state):
@@ -918,7 +1062,8 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
-            return (
+            talisman_option = self._return_talisman_option(game_state)
+            return talisman_option + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
@@ -937,7 +1082,9 @@ class OverworldPresenter:
                     ) + (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
                     )
-                elif available_recruitment_event(game_state) is not None:
+                elif (
+                    available_recruitment_event(game_state) is not None
+                ):
                     party_actions = (
                         enabled(
                             OverworldAction.RECRUIT_COMPANION,
@@ -947,6 +1094,7 @@ class OverworldPresenter:
                 else:
                     party_actions = ()
             elif party_state.phase is DungeonPhase.PARTY_READY:
+                merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
                 party_actions = (
                     enabled(OverworldAction.READY, "Ready / Set Out"),
                 )
@@ -1007,17 +1155,23 @@ class OverworldPresenter:
                         OverworldAvailabilityReason.NO_ITEM_SELECTED,
                     )
                 ),
-                disabled(
-                    OverworldAction.USE,
-                    "Use",
-                    (
-                        OverworldAvailabilityReason.NO_OVERWORLD_USE
-                        if selected_item
-                        else OverworldAvailabilityReason.NO_ITEM_SELECTED
-                    ),
+                (
+                    enabled(OverworldAction.USE, "Use")
+                    if selected_item and selected_item.overworld_use_enabled
+                    else disabled(
+                        OverworldAction.USE,
+                        "Use",
+                        (
+                            OverworldAvailabilityReason.NO_OVERWORLD_USE
+                            if selected_item
+                            else OverworldAvailabilityReason.NO_ITEM_SELECTED
+                        ),
+                    )
                 ),
                 enabled(OverworldAction.BACK, "Back"),
             )
+        if screen is OverworldScreen.HEALING_TARGETS:
+            return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.MAP:
             inspectable = get_inspectable_route_node_spec(
                 game_state.overworld_state.current_route_node_id
@@ -1067,7 +1221,7 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.REST:
             if game_state.overworld_state.active_route_id == "floor_one":
-                return (
+                return self._return_talisman_option(game_state) + (
                     enabled(OverworldAction.REST, "Recover"),
                     (
                         enabled(OverworldAction.SAVE, "Save")
@@ -1097,6 +1251,21 @@ class OverworldPresenter:
                 enabled(OverworldAction.MENU, "Menu"),
             )
         raise ValueError(f"unsupported overworld screen: {screen!r}")
+
+    def _return_talisman_option(self, game_state):
+        party_state = game_state.party_state
+        if (
+            game_state.overworld_state.active_route_id == "floor_one"
+            and party_state.phase is DungeonPhase.OUTING
+            and party_state.carried_items.get("return_talisman", 0) > 0
+        ):
+            return (
+                self._enabled_option(
+                    OverworldAction.RETURN_WITH_TALISMAN,
+                    "Use Return Talisman",
+                ),
+            )
+        return ()
 
     def _contextual_route_option(self, game_state, screen):
         current_node_id = game_state.overworld_state.current_route_node_id

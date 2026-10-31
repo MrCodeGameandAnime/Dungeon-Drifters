@@ -40,6 +40,14 @@ class ChooseTarget:
 
 
 @dataclass(frozen=True)
+class ChooseHealingTarget:
+    target_id: str
+
+    def __post_init__(self):
+        _validate_nonempty_string("target_id", self.target_id)
+
+
+@dataclass(frozen=True)
 class ChooseInventoryItem:
     item_id: str
 
@@ -85,6 +93,7 @@ BattleInput: TypeAlias = Union[
     ChooseAction,
     ChooseMove,
     ChooseTarget,
+    ChooseHealingTarget,
     ChooseInventoryItem,
     ChooseInventoryCommand,
     ChooseInventoryCompanion,

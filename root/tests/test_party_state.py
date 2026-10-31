@@ -4,6 +4,8 @@ from app.content.catalog import get_drifter_spec
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase, PartyState
 from app.player.player_state import PlayerState
+from app.player.progression import xp_required_for_next_level
+from game_test_support import completed_hub_game
 
 
 def _player(drifter_id, *, gold=0):
@@ -11,6 +13,13 @@ def _player(drifter_id, *, gold=0):
         get_drifter_spec(drifter_id).create_character(),
         gold=gold,
     )
+
+
+def _total_xp(member):
+    return sum(
+        xp_required_for_next_level(level)
+        for level in range(1, member.level_state.current)
+    ) + member.exp_state.current
 
 
 def test_hub_entry_transfers_route_gold_once():
@@ -63,6 +72,225 @@ def test_shared_material_spending_is_atomic_and_removes_empty_stacks():
     assert party.shared_items == before
     assert party.spend_shared_items({"grade_i_fiber": 1}) is True
     assert party.shared_items == {"grade_i_metal": 1}
+
+
+def test_carried_supplies_load_from_secured_storage_with_six_unit_capacity():
+    lead = _player("branoc", gold=75)
+    party = PartyState()
+    party.arrive_at_hub(lead)
+    party.add_shared_items({"healing_potion": 4, "smoke_bomb": 2, "return_talisman": 1})
+
+    assert party.load_carried_supplies(
+        {"healing_potion": 3, "smoke_bomb": 2, "return_talisman": 1}
+    ) is True
+    assert party.carried_items == {
+        "healing_potion": 3,
+        "smoke_bomb": 2,
+        "return_talisman": 1,
+    }
+    assert party.carried_item_units == 6
+    assert party.shared_items == {"healing_potion": 1}
+
+
+def test_carried_supply_load_rejects_over_capacity_or_missing_items_atomically():
+    lead = _player("branoc", gold=75)
+    party = PartyState()
+    party.arrive_at_hub(lead)
+    party.add_shared_items({"healing_potion": 8})
+    before = party.snapshot()
+
+    assert party.load_carried_supplies({"healing_potion": 7}) is False
+    assert party.load_carried_supplies({"healing_potion": 2, "smoke_bomb": 1}) is False
+    assert party.snapshot() == before
+
+
+def test_pack_only_accepts_authored_carryable_supplies_and_can_unload_at_hub():
+    lead = _player("branoc", gold=75)
+    party = PartyState()
+    party.arrive_at_hub(lead)
+    party.add_shared_items({"healing_potion": 2, "grade_i_metal": 1})
+
+    assert party.load_carried_supplies({"grade_i_metal": 1}) is False
+    assert party.load_carried_supplies({"unknown_supply": 1}) is False
+    assert party.shared_items == {"healing_potion": 2, "grade_i_metal": 1}
+
+    assert party.load_carried_supplies({"healing_potion": 2}) is True
+    assert party.unload_carried_supplies({"healing_potion": 1}) is True
+    assert party.shared_items == {"healing_potion": 1, "grade_i_metal": 1}
+    assert party.carried_items == {"healing_potion": 1}
+
+
+def test_pack_unload_rejects_missing_items_and_outing_mutation():
+    party = completed_hub_game().party_state
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    before = party.snapshot()
+
+    assert party.unload_carried_supplies({"healing_potion": 2}) is False
+    assert party.snapshot() == before
+    assert party.start_floor_one_run() == 100
+    before = party.snapshot()
+    assert party.unload_carried_supplies({"healing_potion": 1}) is False
+    assert party.snapshot() == before
+
+
+def test_carried_supplies_consume_return_and_discard_without_duplication():
+    lead = _player("branoc", gold=75)
+    party = PartyState()
+    party.arrive_at_hub(lead)
+    party.add_shared_items({"healing_potion": 3, "smoke_bomb": 2})
+    assert party.load_carried_supplies({"healing_potion": 2, "smoke_bomb": 1})
+
+    assert party.consume_carried_supplies({"healing_potion": 1}) is True
+    assert party.consume_carried_supplies({"healing_potion": 2}) is False
+    assert party.carried_items == {"healing_potion": 1, "smoke_bomb": 1}
+
+    party.return_carried_supplies()
+    assert party.shared_items == {"healing_potion": 2, "smoke_bomb": 2}
+    assert party.carried_items == {}
+
+    assert party.load_carried_supplies({"healing_potion": 1})
+    party.discard_carried_supplies()
+    assert party.shared_items == {"healing_potion": 1, "smoke_bomb": 2}
+    assert party.carried_items == {}
+
+
+def test_healing_potion_targets_deployed_drifter_with_floor_rounding():
+    game = completed_hub_game()
+    party = game.party_state
+    lead, companion = game.active_party_members
+    party.add_shared_items({"healing_potion": 2})
+    assert party.load_carried_supplies({"healing_potion": 2})
+    assert party.start_floor_one_run() == 100
+    lead.health.take_damage(90)
+    companion.health.take_damage(30)
+
+    assert party.use_healing_potion(lead, deployed_members=(lead, companion)) is True
+
+    assert lead.health.current == 26 + (lead.health.maximum * 40 // 100)
+    assert companion.health.current == companion.health.maximum - 30
+    assert party.carried_items == {"healing_potion": 1}
+
+
+@pytest.mark.parametrize("target_kind", ("full", "dead", "undeployed"))
+def test_healing_potion_rejection_does_not_mutate_state(target_kind):
+    game = completed_hub_game()
+    party = game.party_state
+    lead, companion = game.active_party_members
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    assert party.start_floor_one_run() == 100
+    if target_kind == "full":
+        target = companion
+    elif target_kind == "dead":
+        companion.health.take_damage(companion.health.maximum)
+        target = companion
+    else:
+        target = PlayerState(get_drifter_spec("joruun").create_character())
+        target.health.take_damage(10)
+    before = party.snapshot()
+    before_hp = tuple(member.health.current for member in game.recruited_members)
+
+    assert party.use_healing_potion(target, deployed_members=(lead, companion)) is False
+
+    assert party.snapshot() == before
+    assert tuple(member.health.current for member in game.recruited_members) == before_hp
+
+
+def test_carried_supplies_round_trip_and_snapshot_validation():
+    lead = _player("branoc", gold=75)
+    party = GameState(lead).party_state
+    party.arrive_at_hub(lead)
+    party.add_shared_items({"healing_potion": 2})
+    assert party.load_carried_supplies({"healing_potion": 1})
+
+    restored = PartyState.from_snapshot(
+        party.snapshot(), companions=(), active_drifter_ids=party.active_drifter_ids
+    )
+    assert restored.carried_items == {"healing_potion": 1}
+
+    invalid = party.snapshot()
+    invalid["carried_items"] = {"healing_potion": 7}
+    with pytest.raises(ValueError, match="capacity"):
+        PartyState.from_snapshot(invalid, companions=())
+
+    invalid["carried_items"] = {"grade_i_metal": 1}
+    with pytest.raises(ValueError, match="carryable"):
+        PartyState.from_snapshot(invalid, companions=())
+
+
+def test_floor_one_safe_boss_return_banks_pack_and_death_discards_it():
+    game = completed_hub_game()
+    party = game.party_state
+    members = game.active_party_members
+    party.add_shared_items({"healing_potion": 2})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(experience=20, gold=5)
+
+    assert party.complete_floor_one_boss(members)
+    assert party.shared_items == {"healing_potion": 2}
+    assert party.carried_items == {}
+
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    assert party.start_floor_one_run() == 50
+    party.add_floor_one_rewards(experience=20, gold=5)
+
+    assert party.fail_floor_one_run(members)
+    assert party.shared_items == {"healing_potion": 2}
+    assert party.carried_items == {}
+
+
+def test_return_talisman_banks_adjusted_xp_only_and_returns_unused_supplies():
+    game = completed_hub_game()
+    party = game.party_state
+    members = game.active_party_members
+    party.add_shared_items(
+        {"return_talisman": 1, "healing_potion": 2, "smoke_bomb": 1}
+    )
+    assert party.load_carried_supplies(
+        {"return_talisman": 1, "healing_potion": 1, "smoke_bomb": 1}
+    )
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(
+        experience=101,
+        gold=25,
+        items={"goblin_scrap": 2},
+    )
+    xp_before = tuple(_total_xp(member) for member in members)
+
+    assert party.return_with_talisman(members) is True
+
+    assert tuple(_total_xp(member) for member in members) == tuple(
+        total + 50 for total in xp_before
+    )
+    assert party.shared_gold == 10
+    assert party.shared_items == {
+        "healing_potion": 2,
+        "smoke_bomb": 1,
+    }
+    assert party.carried_items == {}
+    assert party.outing_rewards.experience == 0
+    assert party.phase is DungeonPhase.HUB
+    assert party.return_with_talisman(members) is False
+    assert tuple(_total_xp(member) for member in members) == tuple(
+        total + 50 for total in xp_before
+    )
+
+
+def test_return_talisman_rejects_without_talisman_or_outing_without_mutation():
+    game = completed_hub_game()
+    party = game.party_state
+    members = game.active_party_members
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(experience=20, gold=5, items={"goblin_scrap": 1})
+    before = party.snapshot()
+    xp_before = tuple(_total_xp(member) for member in members)
+
+    assert party.return_with_talisman(members) is False
+    assert party.snapshot() == before
+    assert tuple(_total_xp(member) for member in members) == xp_before
 
 
 @pytest.mark.parametrize("invalid", (-1, 991, True, "10"))

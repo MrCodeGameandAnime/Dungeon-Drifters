@@ -5,6 +5,7 @@ from app.combat.combat_state import CombatState
 from app.combat.combatant import is_enemy_combatant
 from app.combat.move import ResourceType, TargetType
 from app.combat.resolver import CombatResolver
+from app.combat.result import MoveResult
 from app.presentation.battle_models import (
     ActionIntent,
     BattleEventType,
@@ -24,6 +25,7 @@ from app.ui.battle_ui import (
     ChooseInventoryCommand,
     ChooseInventoryCompanion,
     ChooseInventoryItem,
+    ChooseHealingTarget,
     ChooseMove,
     ChooseTarget,
     ConfirmInventoryUse,
@@ -63,6 +65,8 @@ class Battle:
         presentation_session=None,
         inventory_action_resolver=None,
         party=(),
+        party_state=None,
+        smoke_escape_allowed=False,
     ):
         if not isinstance(player_state, PlayerState):
             raise TypeError("player_state must be a PlayerState")
@@ -82,6 +86,14 @@ class Battle:
             self._party_members = party_members
             self._party_turn_queue = []
             self._party_dexterity_snapshot = {}
+        if party_state is not None and not callable(
+            getattr(party_state, "consume_carried_supplies", None)
+        ):
+            raise TypeError("party_state must provide carried-supply operations")
+        if not isinstance(smoke_escape_allowed, bool):
+            raise TypeError("smoke_escape_allowed must be a boolean")
+        self._party_state = party_state
+        self._smoke_escape_allowed = smoke_escape_allowed
         self.player = player_state.character
         self._enemies = self._normalize_enemies(enemies)
         self._enemy_target_ids = tuple(
@@ -224,6 +236,8 @@ class Battle:
 
         accepted_action = self._process_player_input(view, battle_input)
         if accepted_action:
+            if self.is_complete:
+                return self._final_view
             if self._party_mode:
                 acting_player = self.player_state
                 winner = self._winner()
@@ -618,6 +632,12 @@ class Battle:
             originating_move_phase=self._originating_move_phase,
             party=(self._party_members if self._party_mode else None),
             active_player_id=(self.active_player_id if self._party_mode else None),
+            carried_items=(
+                self._party_state.carried_items
+                if self._party_state is not None
+                else None
+            ),
+            smoke_escape_allowed=self._smoke_escape_allowed,
         )
 
     def _render_current_view(self):
@@ -763,6 +783,32 @@ class Battle:
                 self._clear_inventory_navigation()
                 self.interaction_phase = InteractionPhase.INVENTORY
                 return False
+            if battle_input.intent == ActionIntent.HEALING_POTION:
+                self.interaction_phase = InteractionPhase.HEALING_TARGETS
+                return False
+            if battle_input.intent == ActionIntent.ESCAPE:
+                if (
+                    not self._smoke_escape_allowed
+                    or self._party_state is None
+                    or not self._party_state.consume_carried_supplies(
+                        {"smoke_bomb": 1}
+                    )
+                ):
+                    return False
+                self.presentation_session.record(
+                    BattleLogEntry(
+                        event_type=BattleEventType.ESCAPE,
+                        actor_name=self.player_state.display_name,
+                        action_name="Smoke Bomb",
+                        accepted=True,
+                    )
+                )
+                self._winner_result = "escaped"
+                self.interaction_phase = InteractionPhase.COMPLETE
+                self._clear_inventory_navigation()
+                self._clear_move_target_navigation()
+                self._final_view = self._build_view()
+                return True
             if battle_input.intent == ActionIntent.DEFEND:
                 result = self.resolver.resolve_defend(
                     self.player_state,
@@ -880,12 +926,59 @@ class Battle:
 
             return False
 
+        if isinstance(battle_input, ChooseHealingTarget):
+            target = None
+            for member in self.party_states:
+                if f"drifter_{self._drifter_id(member)}" == battle_input.target_id:
+                    target = member
+                    break
+            if (
+                target is None
+                or self._party_state is None
+            ):
+                return False
+            before_healing = target.health.current
+            if not self._party_state.use_healing_potion(
+                target,
+                deployed_members=tuple(self.party_states),
+            ):
+                return False
+            healing = target.health.current
+            item = MoveResult(
+                accepted=True,
+                hit=True,
+                move_name="Healing Potion",
+                resource_spent=0,
+                damage=0,
+                healing=healing - before_healing,
+                statuses_applied=(),
+                reason=None,
+            )
+            self.presentation_session.begin_player_turn()
+            self._record_move_result(
+                item,
+                actor=self.player_state,
+                target=target,
+                event_type=BattleEventType.HEALING,
+            )
+            self._complete_accepted_action(
+                self.player_state,
+                self.enemies,
+                item,
+                presentation_target=target,
+            )
+            self.interaction_phase = InteractionPhase.ACTIONS
+            return True
+
         return False
 
     def _navigate_back(self):
         if self.interaction_phase == InteractionPhase.TARGETS:
             self.interaction_phase = self._originating_move_phase
             self._clear_move_target_navigation()
+            return
+        if self.interaction_phase == InteractionPhase.HEALING_TARGETS:
+            self.interaction_phase = InteractionPhase.ACTIONS
             return
         if self.interaction_phase == InteractionPhase.INVENTORY_ITEM:
             self.interaction_phase = InteractionPhase.INVENTORY
@@ -1013,6 +1106,18 @@ class Battle:
 
         if isinstance(battle_input, ChooseTarget):
             return self._target_rejection_reason(battle_input.target_id)
+
+        if isinstance(battle_input, ChooseHealingTarget):
+            if view.interaction_phase != InteractionPhase.HEALING_TARGETS:
+                return InputRejectionReason.TARGET_UNAVAILABLE
+            return (
+                None
+                if any(
+                    option.target_id == battle_input.target_id
+                    for option in view.healing_target_options
+                )
+                else InputRejectionReason.TARGET_UNAVAILABLE
+            )
 
         if isinstance(battle_input, ChooseInventoryItem):
             if view.interaction_phase != InteractionPhase.INVENTORY:

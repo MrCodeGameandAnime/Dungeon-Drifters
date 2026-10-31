@@ -20,6 +20,7 @@ class OverworldScreen(StrEnum):
     MERCHANT = "merchant"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
+    HEALING_TARGETS = "healing_targets"
     MAP = "map"
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
@@ -58,6 +59,7 @@ class OverworldAction(StrEnum):
     START_FLOOR_ONE = "start_floor_one"
     SET_OUT = "set_out"
     EXTRACT = "extract"
+    RETURN_WITH_TALISMAN = "return_with_talisman"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -534,6 +536,68 @@ class MerchantView:
 
 
 @dataclass(frozen=True)
+class HubSupplyItemView:
+    item_id: str
+    display_name: str
+    description: str
+    base_price: int
+    stored_quantity: int
+    carried_quantity: int
+    shop_stocked: bool
+    sellable: bool
+    carryable: bool
+    can_buy: bool
+    can_sell: bool
+    can_load: bool
+    can_unload: bool
+
+    def __post_init__(self):
+        for name in ("item_id", "display_name", "description"):
+            _validate_text(name, getattr(self, name))
+        for name in ("base_price", "stored_quantity", "carried_quantity"):
+            _validate_nonnegative(name, getattr(self, name))
+        for name in (
+            "shop_stocked", "sellable", "carryable", "can_buy",
+            "can_sell", "can_load", "can_unload",
+        ):
+            _validate_bool(name, getattr(self, name))
+
+
+@dataclass(frozen=True)
+class HubAlchemyRecipeView:
+    recipe_id: str
+    display_name: str
+    ingredient_summary: tuple[str, ...]
+    output_summary: tuple[str, ...]
+    can_craft: bool
+
+    def __post_init__(self):
+        _validate_text("recipe_id", self.recipe_id)
+        _validate_text("display_name", self.display_name)
+        _validate_text_tuple("ingredient_summary", self.ingredient_summary)
+        _validate_text_tuple("output_summary", self.output_summary)
+        _validate_bool("can_craft", self.can_craft)
+
+
+@dataclass(frozen=True)
+class HubEconomyView:
+    shared_gold: int
+    carried_units: int
+    carried_capacity: int
+    items: tuple[HubSupplyItemView, ...]
+    recipes: tuple[HubAlchemyRecipeView, ...]
+
+    def __post_init__(self):
+        _validate_nonnegative("shared_gold", self.shared_gold)
+        _validate_nonnegative("carried_units", self.carried_units)
+        _validate_nonnegative("carried_capacity", self.carried_capacity)
+        if self.carried_units > self.carried_capacity:
+            raise ValueError("carried units exceed capacity")
+        _validate_instance_tuple("items", self.items, HubSupplyItemView)
+        _validate_instance_tuple("recipes", self.recipes, HubAlchemyRecipeView)
+
+
+@dataclass(frozen=True)
 class AccessorySlotView:
     label: str
     item_name: str
@@ -569,9 +633,15 @@ class OverworldItemView:
     quantity: int
     description: str
     overworld_use_enabled: bool = False
+    location_label: str = "Shared Storage"
 
     def __post_init__(self):
-        for name in ("selection_key", "display_name", "description"):
+        for name in (
+            "selection_key",
+            "display_name",
+            "description",
+            "location_label",
+        ):
             _validate_text(name, getattr(self, name))
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
@@ -609,6 +679,22 @@ class OutingItemRewardView:
             raise TypeError("quantity must be an integer")
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
+
+
+@dataclass(frozen=True)
+class SupplyHealingTargetView:
+    drifter_id: str
+    display_name: str
+    hp_current: int
+    hp_maximum: int
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("hp_current", self.hp_current)
+        _validate_nonnegative("hp_maximum", self.hp_maximum)
+        if self.hp_current >= self.hp_maximum:
+            raise ValueError("healing targets must be missing HP")
 
 
 @dataclass(frozen=True)
@@ -669,6 +755,7 @@ class OverworldView:
     skills: SkillsView | None = None
     weapon: WeaponView | None = None
     merchant: MerchantView | None = None
+    hub_economy: HubEconomyView | None = None
     equipment: EquipmentView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
@@ -679,6 +766,7 @@ class OverworldView:
     shared_gold: int | None = None
     recruitment_cost: int | None = None
     outing_rewards: OutingRewardsView | None = None
+    healing_targets: tuple[SupplyHealingTargetView, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -694,6 +782,11 @@ class OverworldView:
             "active_party_choices",
             self.active_party_choices,
             PartyPairChoiceView,
+        )
+        _validate_instance_tuple(
+            "healing_targets",
+            self.healing_targets,
+            SupplyHealingTargetView,
         )
         if not isinstance(self.active_drifter_ids, tuple):
             raise TypeError("active_drifter_ids must be a tuple")
@@ -743,6 +836,8 @@ class OverworldView:
             raise ValueError("pending outing rewards belong only to Extraction")
         if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
             raise ValueError("merchant data belongs only to the Merchant screen")
+        if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
+            raise ValueError("Hub economy data belongs only to the Merchant screen")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
             if len(self.companion_choices) != 3:
                 raise ValueError("companion selection must offer three choices")
@@ -765,11 +860,19 @@ class OverworldView:
                 raise ValueError("selected party choice must match active IDs")
         elif self.active_party_choices or self.active_drifter_ids:
             raise ValueError("party choices are only valid on the party selection screen")
+        if self.screen is OverworldScreen.HEALING_TARGETS:
+            if not self.healing_targets:
+                raise ValueError("healing target selection requires an injured Drifter")
+            if self.inventory is None or self.inventory.selected_item_key is None:
+                raise ValueError("healing target selection requires a selected supply")
+        elif self.healing_targets:
+            raise ValueError("healing targets are only valid on their selection screen")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),
             ("weapon", WeaponView),
             ("merchant", MerchantView),
+            ("hub_economy", HubEconomyView),
             ("equipment", EquipmentView),
             ("inventory", InventoryView),
             ("route_map", MapView),

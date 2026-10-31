@@ -26,6 +26,7 @@ root/.m1-browser-preview/
 coverage.xml
 htmlcov/
 root/web_tests/node_modules/
+root/web_tests/.playwright-browsers/
 
 # Browser/runtime diagnostic output
 /debug.log

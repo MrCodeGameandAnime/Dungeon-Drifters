@@ -827,6 +827,127 @@ def test_floor_one_extract_persists_banked_rewards_before_leaving_rest():
     )
 
 
+def test_smoke_bomb_leaves_encounter_uncleared_and_allows_fresh_retry():
+    game = game_at_completed_hub()
+    party = game.party_state
+    party.add_shared_items({"smoke_bomb": 2})
+    assert party.load_carried_supplies({"smoke_bomb": 2})
+    session = make_session(game)
+    initial = set_out(session)
+    route_node_id = game.overworld_state.current_route_node_id
+    first_battle = session.active_battle
+    first_enemies = first_battle.enemies
+    resources_before = tuple(
+        (member.health.current, member.mana_resource.current, member.super_resource.current)
+        for member in game.active_party_members
+    )
+    rewards_before = party.outing_rewards.snapshot()
+    defeated_before = game.world_state.defeated_encounters
+    escape_option = next(
+        option
+        for option in initial.action_options
+        if option.intent is ActionIntent.ESCAPE
+    )
+
+    assert escape_option.enabled is True
+
+    session.submit(ChooseAction(ActionIntent.ESCAPE))
+    escaped = session.current_view()
+
+    assert escaped.screen is OverworldScreen.MAIN
+    assert session.active_battle is None
+    assert game.party_state.phase is DungeonPhase.OUTING
+    assert game.overworld_state.current_route_node_id == route_node_id
+    assert game.world_state.defeated_encounters == defeated_before
+    assert game.party_state.outing_rewards.snapshot() == rewards_before
+    assert game.party_state.carried_items == {"smoke_bomb": 1}
+    assert tuple(
+        (member.health.current, member.mana_resource.current, member.super_resource.current)
+        for member in game.active_party_members
+    ) == resources_before
+
+    retried = session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+
+    assert isinstance(retried, BattleView)
+    assert game.overworld_state.current_route_node_id == route_node_id
+    assert session.active_battle.enemies != first_enemies
+    assert all(
+        new is not old
+        for new, old in zip(session.active_battle.enemies, first_enemies)
+    )
+
+
+def test_return_talisman_after_smoke_banks_only_adjusted_xp_after_durable_save():
+    game = game_at_completed_hub()
+    party = game.party_state
+    party.add_shared_items({"smoke_bomb": 1, "return_talisman": 1})
+    assert party.load_carried_supplies(
+        {"smoke_bomb": 1, "return_talisman": 1}
+    )
+    party_members = game.active_party_members
+    session_save = RecordingSavePort()
+    session = make_session(game, session_save)
+    set_out(session)
+    party.add_floor_one_rewards(
+        experience=101,
+        gold=25,
+        items={"goblin_scrap": 2},
+    )
+    expected_members = tuple(member.clone() for member in party_members)
+    for member in expected_members:
+        member.gain_experience(50)
+
+    session.submit(ChooseAction(ActionIntent.ESCAPE))
+    after_smoke = session.current_view()
+    assert any(
+        option.action.value == "return_with_talisman" and option.enabled
+        for option in after_smoke.options
+    )
+    state_before_failed_save = game.snapshot()
+    session_save.fail_next_save = True
+
+    failed = session.submit(
+        ChooseOverworldAction("return_with_talisman")
+    )
+
+    assert failed.screen is OverworldScreen.MAIN
+    assert failed.notice == "The Hub return could not be saved. The last committed save remains available."
+    assert game.snapshot() == state_before_failed_save
+    assert session_save.saved_states == []
+
+    returned = session.submit(
+        ChooseOverworldAction("return_with_talisman")
+    )
+
+    assert returned.screen is OverworldScreen.HUB
+    assert game.party_state.phase is DungeonPhase.HUB
+    assert game.party_state.shared_gold == 10
+    assert game.party_state.shared_items == {}
+    assert game.party_state.carried_items == {}
+    assert game.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert tuple(
+        (member.level_state.current, member.exp_state.current)
+        for member in game.active_party_members
+    ) == tuple(
+        (member.level_state.current, member.exp_state.current)
+        for member in expected_members
+    )
+    saved_outcome = session_save.saved_states[0]
+    assert saved_outcome is not game
+    assert saved_outcome.party_state.phase is DungeonPhase.HUB
+    assert saved_outcome.party_state.shared_items == {}
+    assert saved_outcome.party_state.carried_items == {}
+    assert saved_outcome.overworld_state.current_route_node_id == (
+        "surface_dungeon_entrance"
+    )
+
+
 def test_death_save_failure_cannot_restore_the_previous_rest_checkpoint(tmp_path):
     game = game_at_completed_hub()
     store = LocalProfileStore(tmp_path / "profiles")

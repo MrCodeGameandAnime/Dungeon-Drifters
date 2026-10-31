@@ -339,6 +339,7 @@ button:disabled {
 .merchant-row-description { display: grid; min-width: 0; gap: .1rem; }
 .merchant-row-description span, .merchant-material, .merchant-empty { color: var(--muted); }
 .merchant-row-description strong { overflow-wrap: anywhere; }
+.merchant-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
 .weapon-component-choices { display: grid; gap: .3rem; justify-items: end; }
 .weapon-component-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .15rem .5rem; color: var(--muted); }
 .weapon-component-option .weapon-effect-summary { grid-column: 1 / -1; text-align: right; }

@@ -25,6 +25,7 @@ from app.persistence.ports import (
 )
 from app.ui.battle_ui import (
     ChooseAction,
+    ChooseHealingTarget,
     ChooseInventoryCommand,
     ChooseInventoryCompanion,
     ChooseInventoryItem,
@@ -42,7 +43,10 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseHubSupplyAction,
+    ChooseAlchemyRecipe,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
@@ -201,6 +205,8 @@ def _command_to_input(command):
         return ChooseOverworldAction(_required(command, "action"))
     if kind == "overworld_item":
         return ChooseOverworldItem(_required(command, "selection_key"))
+    if kind == "overworld_healing_target":
+        return ChooseOverworldHealingTarget(_required(command, "drifter_id"))
     if kind == "companion":
         return ChooseCompanion(
             _required(command, "drifter_id"),
@@ -232,6 +238,13 @@ def _command_to_input(command):
         )
     if kind == "merchant_tier_v":
         return ChooseMerchantTierV(_required(command, "target_drifter_id"))
+    if kind == "hub_supply":
+        return ChooseHubSupplyAction(
+            _required(command, "operation"),
+            _required(command, "item_id"),
+        )
+    if kind == "alchemy_recipe":
+        return ChooseAlchemyRecipe(_required(command, "recipe_id"))
     if kind == "weapon_target":
         return ChooseWeaponTarget(_required(command, "drifter_id"))
     if kind == "action":
@@ -240,6 +253,8 @@ def _command_to_input(command):
         return ChooseMove(_required(command, "key"))
     if kind == "target":
         return ChooseTarget(_required(command, "target_id"))
+    if kind == "healing_target":
+        return ChooseHealingTarget(_required(command, "target_id"))
     if kind == "inventory_item":
         return ChooseInventoryItem(_required(command, "item_id"))
     if kind == "inventory_command":

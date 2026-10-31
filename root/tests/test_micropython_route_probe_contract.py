@@ -181,8 +181,15 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         "WEAPON_PROGRESSION_IMPROVE",
         "WEAPON_PROGRESSION_SAVE_ROUNDTRIP",
         "WEAPON_PROGRESSION_FINAL_STATE",
+        "M2_PREP_ALCHEMY",
+        "M2_HEALING_POTION",
+        "M2_SMOKE_RETRY",
+        "M2_TALISMAN_RETURN",
     )
-    assert stages[-len(expected_floor_one) :] == expected_floor_one
+    floor_one_start = stages.index("FLOOR_ONE_WARNING")
+    assert stages[
+        floor_one_start : floor_one_start + len(expected_floor_one)
+    ] == expected_floor_one
 
     runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
     runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
@@ -215,6 +222,10 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         'snapshot = game.snapshot()',
         'restored = game.clone()',
         'restored.snapshot() != snapshot',
+        'HubEconomyService(game)',
+        'ChooseHealingTarget',
+        'ActionIntent.ESCAPE',
+        'RETURN_WITH_TALISMAN',
         'del state["route_enemy_factory"].enemies[:]',
     ):
         assert required in source

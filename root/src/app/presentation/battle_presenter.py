@@ -16,6 +16,7 @@ from app.presentation.battle_models import (
     BattleVisualView,
     CombatantView,
     EnemyCombatantView,
+    HealingTargetOptionView,
     InputRejectionReason,
     InteractionPhase,
     InventoryCommandOptionView,
@@ -61,6 +62,8 @@ class BattlePresenter:
         selected_inventory_companion_id=None,
         party=None,
         active_player_id=None,
+        carried_items=None,
+        smoke_escape_allowed=False,
     ):
         phase = InteractionPhase(interaction_phase)
         enemies = self._normalize_enemies(enemy=enemy, enemies=enemies)
@@ -123,6 +126,12 @@ class BattlePresenter:
                 )
                 for member, drifter_id in zip(party, party_ids)
             )
+        healing_targets = tuple(
+            member
+            for member in (party or ())
+            if member.health.is_alive()
+            and member.health.current < member.health.maximum
+        )
         view_player = self._combatant_view(
             player,
             enemies[0] if len(enemies) == 1 else None,
@@ -136,7 +145,20 @@ class BattlePresenter:
         action_options = (
             ()
             if phase == InteractionPhase.COMPLETE
-            else self._action_options(player, combat_state)
+            else self._action_options(
+                player,
+                combat_state,
+                has_smoke_bomb=bool(
+                    carried_items
+                    and carried_items.get("smoke_bomb", 0) > 0
+                ),
+                smoke_escape_allowed=smoke_escape_allowed,
+                has_healing_potion=bool(
+                    carried_items
+                    and carried_items.get("healing_potion", 0) > 0
+                ),
+                has_healing_target=bool(healing_targets),
+            )
         )
         move_options = self._move_options(
             player,
@@ -152,6 +174,20 @@ class BattlePresenter:
             phase,
             selected_move_key,
             originating_move_phase,
+        )
+        healing_target_options = (
+            tuple(
+                HealingTargetOptionView(
+                    target_id=f"drifter_{self._drifter_id(member)}",
+                    number=index,
+                    display_label=member.display_name,
+                    hp_current=member.health.current,
+                    hp_maximum=member.health.maximum,
+                )
+                for index, member in enumerate(healing_targets, start=1)
+            )
+            if phase == InteractionPhase.HEALING_TARGETS
+            else ()
         )
         inventory_items = self._inventory_items(player, phase)
         inventory_commands = self._inventory_commands(player, phase, selected_item)
@@ -177,6 +213,7 @@ class BattlePresenter:
             action_options=action_options,
             move_options=move_options,
             target_options=target_options,
+            healing_target_options=healing_target_options,
             inventory_items=inventory_items,
             selected_inventory_item=selected_item,
             inventory_commands=inventory_commands,
@@ -357,7 +394,16 @@ class BattlePresenter:
             return resource.current, resource.maximum
         return None, None
 
-    def _action_options(self, player, combat_state):
+    def _action_options(
+        self,
+        player,
+        combat_state,
+        *,
+        has_smoke_bomb=False,
+        smoke_escape_allowed=False,
+        has_healing_potion=False,
+        has_healing_target=False,
+    ):
         regular_moves = self._regular_moves(player)
         can_defend = bool(player.can_defend)
         heal_cooldown = combat_state.heal_cooldown_remaining(player)
@@ -404,11 +450,28 @@ class BattlePresenter:
                 disabled_reason=None,
             ),
             self._action_option(
-                ActionIntent.ESCAPE,
+                ActionIntent.HEALING_POTION,
                 5,
-                "Escape",
-                enabled=False,
-                disabled_reason=ActionAvailabilityReason.NOT_IMPLEMENTED,
+                "Healing Potion",
+                enabled=has_healing_potion and has_healing_target,
+                disabled_reason=(
+                    None
+                    if has_healing_potion and has_healing_target
+                    else ActionAvailabilityReason.NO_CARRIED_SUPPLY
+                    if not has_healing_potion
+                    else ActionAvailabilityReason.NO_HEALING_TARGET
+                ),
+            ),
+            self._action_option(
+                ActionIntent.ESCAPE,
+                6,
+                "Smoke Bomb" if smoke_escape_allowed and has_smoke_bomb else "Escape",
+                enabled=smoke_escape_allowed and has_smoke_bomb,
+                disabled_reason=(
+                    ActionAvailabilityReason.NOT_IMPLEMENTED
+                    if not (smoke_escape_allowed and has_smoke_bomb)
+                    else None
+                ),
             ),
         )
 

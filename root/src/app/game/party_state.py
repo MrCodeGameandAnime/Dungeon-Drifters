@@ -7,9 +7,11 @@ from app.content.weapon_progression_spec import (
     crafting_level_for_experience,
 )
 from app.player.player_state import PlayerState
+from app.content.hub_economy import get_supply_item
 
 
 COMPANION_RECRUITMENT_COST = 65
+MAX_CARRIED_SUPPLY_UNITS = 6
 _FLOOR_ONE_REPLAY_XP_RATES = (50, 40, 30, 20)
 _FLOOR_ONE_MINIMUM_REPLAY_XP_RATE = 20
 
@@ -63,6 +65,7 @@ class PartyState:
         self._active_drifter_ids = ()
         self._shared_gold = 0
         self._shared_items = {}
+        self._carried_items = {}
         self._crafting_experience = 0
         self._tutorial_complete = False
         self._phase = DungeonPhase.OUTSIDE
@@ -86,6 +89,14 @@ class PartyState:
     @property
     def shared_items(self):
         return dict(self._shared_items)
+
+    @property
+    def carried_items(self):
+        return dict(self._carried_items)
+
+    @property
+    def carried_item_units(self):
+        return sum(self._carried_items.values())
 
     @property
     def crafting_experience(self):
@@ -202,6 +213,13 @@ class PartyState:
     def add_shared_gold(self, amount):
         self._shared_gold += _nonnegative("gold amount", amount)
 
+    def spend_shared_gold(self, amount):
+        amount = _nonnegative("gold amount", amount)
+        if self._shared_gold < amount:
+            return False
+        self._shared_gold -= amount
+        return True
+
     def add_shared_items(self, items):
         additions = _item_stacks(items)
         for item_id, quantity in additions.items():
@@ -225,6 +243,93 @@ class PartyState:
                 del remaining[item_id]
         self._shared_items = remaining
         return True
+
+    def load_carried_supplies(self, items):
+        if self._phase not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
+            return False
+        items = _item_stacks(items)
+        if any(
+            (spec := get_supply_item(item_id)) is None or not spec.carryable
+            for item_id in items
+        ):
+            return False
+        if self.carried_item_units + sum(items.values()) > MAX_CARRIED_SUPPLY_UNITS:
+            return False
+        if not self.spend_shared_items(items):
+            return False
+        for item_id, quantity in items.items():
+            self._carried_items[item_id] = (
+                self._carried_items.get(item_id, 0) + quantity
+            )
+        return True
+
+    def consume_carried_supplies(self, costs):
+        costs = _item_stacks(costs)
+        if any(
+            self._carried_items.get(item_id, 0) < quantity
+            for item_id, quantity in costs.items()
+        ):
+            return False
+        remaining = dict(self._carried_items)
+        for item_id, quantity in costs.items():
+            balance = remaining[item_id] - quantity
+            if balance:
+                remaining[item_id] = balance
+            else:
+                del remaining[item_id]
+        self._carried_items = remaining
+        return True
+
+    def use_healing_potion(self, target, *, deployed_members):
+        if self._phase not in {
+            DungeonPhase.HUB,
+            DungeonPhase.PARTY_READY,
+            DungeonPhase.OUTING,
+        }:
+            return False
+        self._validate_party_members(deployed_members)
+        if not isinstance(target, PlayerState) or not any(
+            target is member for member in deployed_members
+        ):
+            return False
+        item = get_supply_item("healing_potion")
+        if (
+            item is None
+            or item.healing_percent <= 0
+            or not target.health.is_alive()
+            or target.health.current >= target.health.maximum
+            or self._carried_items.get(item.item_id, 0) < 1
+        ):
+            return False
+        amount = target.health.maximum * item.healing_percent // 100
+        if amount <= 0:
+            return False
+        if not self.consume_carried_supplies({item.item_id: 1}):
+            return False
+        target.health.heal(amount)
+        return True
+
+    def unload_carried_supplies(self, items):
+        if self._phase not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
+            return False
+        items = _item_stacks(items)
+        if any(
+            (spec := get_supply_item(item_id)) is None or not spec.carryable
+            for item_id in items
+        ):
+            return False
+        if not self.consume_carried_supplies(items):
+            return False
+        for item_id, quantity in items.items():
+            self._shared_items[item_id] = self._shared_items.get(item_id, 0) + quantity
+        return True
+
+    def return_carried_supplies(self):
+        self.add_shared_items(self._carried_items)
+        self._carried_items = {}
+
+    def discard_carried_supplies(self):
+        self._carried_items = {}
 
     def begin_outing(self):
         if self._phase is not DungeonPhase.PARTY_READY:
@@ -304,6 +409,7 @@ class PartyState:
         self._validate_party_members(party_members)
         rewards = self._floor_one_payout(partial=False)
         self._bank_rewards(party_members, rewards)
+        self.return_carried_supplies()
         self._floor_one_cleared = True
         self._outing_rewards = OutingRewards()
         self._outing_xp_multiplier_percent = 100
@@ -315,6 +421,7 @@ class PartyState:
             return False
         self._validate_party_members(party_members)
         self._outing_rewards = OutingRewards()
+        self.discard_carried_supplies()
         self._restore_party(party_members)
         self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
@@ -345,7 +452,33 @@ class PartyState:
 
         rewards = self._outing_rewards
         self._bank_rewards(party_members, rewards)
+        self.return_carried_supplies()
         self._tutorial_complete = True
+        self._outing_rewards = OutingRewards()
+        self._outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def return_with_talisman(self, party_members):
+        if (
+            not self.tutorial_complete
+            or self._phase is not DungeonPhase.OUTING
+            or self._carried_items.get("return_talisman", 0) < 1
+        ):
+            return False
+        self._validate_party_members(party_members)
+        rewards = self._floor_one_payout(partial=False)
+        experience_each = rewards.experience // len(party_members)
+        for member in party_members:
+            member.exp_state.validate_gain_amount(experience_each)
+        if not self.consume_carried_supplies({"return_talisman": 1}):
+            return False
+
+        self._bank_rewards(
+            party_members,
+            OutingRewards(experience=rewards.experience, gold=0, items={}),
+        )
+        self.return_carried_supplies()
         self._outing_rewards = OutingRewards()
         self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
@@ -370,6 +503,14 @@ class PartyState:
             state._set_active_drifter_ids(active_drifter_ids)
         state._shared_gold = _nonnegative("shared_gold", snapshot["shared_gold"])
         state._shared_items = _item_stacks(snapshot["shared_items"])
+        state._carried_items = _item_stacks(snapshot.get("carried_items", {}))
+        if sum(state._carried_items.values()) > MAX_CARRIED_SUPPLY_UNITS:
+            raise ValueError("carried supplies exceed the six-unit capacity")
+        if any(
+            (spec := get_supply_item(item_id)) is None or not spec.carryable
+            for item_id in state._carried_items
+        ):
+            raise ValueError("carried supplies must contain only carryable items")
         state._crafting_experience = _nonnegative(
             "crafting_experience",
             snapshot.get("crafting_experience", 0),
@@ -433,6 +574,7 @@ class PartyState:
             "active_drifter_ids": list(self.active_drifter_ids),
             "shared_gold": self.shared_gold,
             "shared_items": self.shared_items,
+            "carried_items": self.carried_items,
             "crafting_experience": self.crafting_experience,
             "tutorial_complete": self.tutorial_complete,
             "phase": self.phase.value,
@@ -534,6 +676,7 @@ def _item_stacks(items):
 
 __all__ = [
     "COMPANION_RECRUITMENT_COST",
+    "MAX_CARRIED_SUPPLY_UNITS",
     "DungeonPhase",
     "OutingRewards",
     "PartyState",

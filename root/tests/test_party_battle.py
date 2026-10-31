@@ -11,7 +11,8 @@ from app.content.catalog import (
 )
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, GoBack
+from tests.game_test_support import completed_hub_game
 
 
 class StableRng:
@@ -180,6 +181,48 @@ def test_party_turns_project_and_resolve_each_drifters_own_combat_state():
     assert (
         resolver.calls[1][2]["character_run_state"]
         is companion.character_run_state
+    )
+
+
+def test_party_battle_healing_potion_targets_exact_member_and_consumes_actor_turn():
+    game = completed_hub_game()
+    lead, companion = game.active_party_members
+    party_state = game.party_state
+    party_state.add_shared_items({"healing_potion": 1})
+    assert party_state.load_carried_supplies({"healing_potion": 1})
+    assert party_state.start_floor_one_run() == 100
+    companion.health.take_damage(80)
+    before_hp = companion.health.current
+    battle = Battle(
+        lead,
+        (goblin(1),),
+        party=(companion,),
+        party_state=party_state,
+        rng=StableRng(),
+    )
+
+    action = next(
+        option for option in battle.current_view().action_options
+        if option.intent is ActionIntent.HEALING_POTION
+    )
+    assert action.enabled
+    target_view = battle.submit(ChooseAction(ActionIntent.HEALING_POTION))
+    assert target_view.interaction_phase.value == "healing_targets"
+    assert tuple(option.target_id for option in target_view.healing_target_options) == (
+        "drifter_azhvielle",
+    )
+
+    view = battle.submit(ChooseHealingTarget("drifter_azhvielle"))
+
+    assert companion.health.current == before_hp + companion.health.maximum * 40 // 100
+    assert party_state.carried_items == {}
+    assert view.active_player_id == "drifter_azhvielle"
+    assert any(
+        entry.event_type is BattleEventType.HEALING
+        and entry.actor_name == lead.display_name
+        and entry.target_name == companion.display_name
+        and entry.amount == companion.health.maximum * 40 // 100
+        for entry in view.log_entries
     )
 
 

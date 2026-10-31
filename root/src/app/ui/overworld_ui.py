@@ -1,6 +1,7 @@
 """Semantic overworld input values and UI protocol."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol, TypeAlias, Union, runtime_checkable
 
 from app.presentation.overworld_models import OverworldAction, OverworldView
@@ -22,6 +23,15 @@ class ChooseOverworldItem:
     def __post_init__(self):
         if not isinstance(self.selection_key, str) or not self.selection_key.strip():
             raise ValueError("selection_key must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseOverworldHealingTarget:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
 
 
 @dataclass(frozen=True)
@@ -64,6 +74,33 @@ class ChooseMerchantTarget:
     def __post_init__(self):
         if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
             raise ValueError("drifter_id must be a nonempty string")
+
+
+class HubSupplyOperation(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+    LOAD = "load"
+    UNLOAD = "unload"
+
+
+@dataclass(frozen=True)
+class ChooseHubSupplyAction:
+    operation: HubSupplyOperation
+    item_id: str
+
+    def __post_init__(self):
+        object.__setattr__(self, "operation", HubSupplyOperation(self.operation))
+        if not isinstance(self.item_id, str) or not self.item_id.strip():
+            raise ValueError("item_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseAlchemyRecipe:
+    recipe_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.recipe_id, str) or not self.recipe_id.strip():
+            raise ValueError("recipe_id must be a nonempty string")
 
 
 @dataclass(frozen=True)
@@ -137,11 +174,14 @@ class ChooseWeaponTarget:
 OverworldInput: TypeAlias = Union[
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChooseOverworldHealingTarget,
     ChoosePermanentStatIncrease,
     ChooseCompanion,
     ChooseActivePair,
     ChooseCharacterTarget,
     ChooseMerchantTarget,
+    ChooseHubSupplyAction,
+    ChooseAlchemyRecipe,
     ChooseMerchantImprove,
     ChooseMerchantDismantle,
     ChooseMerchantCraftComponent,

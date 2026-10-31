@@ -1,4 +1,4 @@
-"""Schema-13 save documents and canonical in-memory reconstruction."""
+"""Schema-14 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -9,6 +9,7 @@ from app.content.catalog import (
     get_route_spec,
     get_weapon_spec,
 )
+from app.content.hub_economy import get_supply_item
 from app.content.route_spec import RouteNodeKind
 from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
@@ -67,7 +68,8 @@ _PREVIOUS_DISK_SCHEMA_VERSION = 9
 _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION = 10
 _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 11
 _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT = 12
-DISK_SCHEMA_VERSION = 13
+_LATEST_PREVIOUS_DISK_SCHEMA_VERSION = 13
+DISK_SCHEMA_VERSION = 14
 
 
 class SaveStateValidationError(ValueError):
@@ -174,6 +176,7 @@ def migrate_schema_11(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_tier_v_success_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
+    _add_carried_supply_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -184,6 +187,17 @@ def migrate_schema_12(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_active_drifter_ids(migrated)
+    _add_carried_supply_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema_13(document):
+    """Upgrade a schema-13 save with an empty carried-supplies pack."""
+    validate_legacy_schema13_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_carried_supply_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -229,6 +243,7 @@ def validate_legacy_schema11_document(document):
     )
     historical["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_active_drifter_ids(historical)
+    _add_carried_supply_defaults(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
@@ -240,6 +255,13 @@ def validate_legacy_schema12_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema13_document(document):
+    """Validate and copy an immutable schema-13 payload without migrating it."""
+    _validate_plain_document(document)
+    _validate_document(document, schema_version=_LATEST_PREVIOUS_DISK_SCHEMA_VERSION)
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -248,7 +270,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or immutable schema-8/9/10/11/12 history."""
+    """Validate a current payload or immutable schema-8 through schema-13 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -272,6 +294,11 @@ def validate_profile_payload(document):
         == _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
     ):
         return validate_legacy_schema12_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema13_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -339,6 +366,8 @@ def validate_save_document(document):
         return migrate_schema_11(document)
     if schema_version == _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT:
         return migrate_schema_12(document)
+    if schema_version == _LATEST_PREVIOUS_DISK_SCHEMA_VERSION:
+        return migrate_schema_13(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -500,7 +529,10 @@ def _validate_document(
         document["party"],
         document["player"],
         require_signature_weapon=require_signature_weapon,
-        require_active_drifter_ids=schema_version == DISK_SCHEMA_VERSION,
+        require_active_drifter_ids=(
+            schema_version >= _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
+        ),
+        require_carried_supplies=schema_version == DISK_SCHEMA_VERSION,
     )
     _validate_route_party_relationship(document["overworld"], document["party"])
     validate_plain_value(document["metadata"], "game.metadata")
@@ -551,6 +583,7 @@ def _migrate_previous_current_document(document):
     migrated["party"].setdefault("floor_one_runs_started_after_clear", 0)
     migrated["party"].setdefault("outing_xp_multiplier_percent", 100)
     migrated["party"].setdefault("crafting_experience", 0)
+    _add_carried_supply_defaults(migrated)
     if isinstance(migrated.get("player"), dict):
         migrated["player"].pop("combat", None)
     _strip_companion_combat(migrated.get("party"))
@@ -735,6 +768,7 @@ def _validate_party(
     *,
     require_signature_weapon=True,
     require_active_drifter_ids=False,
+    require_carried_supplies=False,
 ):
     _require_mapping(party, "party")
     expected_keys = {
@@ -751,6 +785,8 @@ def _validate_party(
     }
     if require_active_drifter_ids:
         expected_keys.add("active_drifter_ids")
+    if require_carried_supplies:
+        expected_keys.add("carried_items")
     _require_exact_keys(party, expected_keys, "party")
     companions = party["companions"]
     max_companions = 3 if require_active_drifter_ids else 1
@@ -807,6 +843,19 @@ def _validate_party(
 
     _require_int_min(party["shared_gold"], 0, "party.shared_gold")
     _validate_item_stacks(party["shared_items"], "party.shared_items")
+    if require_carried_supplies:
+        _validate_item_stacks(party["carried_items"], "party.carried_items")
+        if any(
+            (spec := get_supply_item(item_id)) is None or not spec.carryable
+            for item_id in party["carried_items"]
+        ):
+            raise SaveStateValidationError(
+                "party.carried_items contains an invalid carried item"
+            )
+        if sum(party["carried_items"].values()) > 6:
+            raise SaveStateValidationError(
+                "party.carried_items exceed the six-unit capacity"
+            )
     _require_int_range(
         party["crafting_experience"],
         0,
@@ -951,6 +1000,7 @@ def _add_legacy_party_state(document):
         "companions": [],
         "shared_gold": shared_gold,
         "shared_items": {},
+        "carried_items": {},
         "tutorial_complete": False,
         "phase": phase,
         "outing_rewards": {"experience": 0, "gold": 0, "items": {}},
@@ -959,6 +1009,12 @@ def _add_legacy_party_state(document):
         "outing_xp_multiplier_percent": 100,
         "crafting_experience": 0,
     }
+
+
+def _add_carried_supply_defaults(document):
+    party = document.get("party")
+    if isinstance(party, dict):
+        party.setdefault("carried_items", {})
 
 
 def _strip_companion_combat(party):
@@ -1481,10 +1537,12 @@ __all__ = [
     "migrate_schema_7",
     "migrate_schema_9",
     "migrate_schema_12",
+    "migrate_schema_13",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
     "validate_legacy_schema9_document",
     "validate_legacy_schema12_document",
+    "validate_legacy_schema13_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

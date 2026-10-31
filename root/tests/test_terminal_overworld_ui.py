@@ -6,16 +6,27 @@ from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
-from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.presentation.overworld_models import (
+    InventoryView,
+    OverworldAction,
+    OverworldItemView,
+    OverworldOptionView,
+    OverworldScreen,
+    OverworldView,
+    SupplyHealingTargetView,
+)
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseAlchemyRecipe,
+    ChooseHubSupplyAction,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
@@ -124,6 +135,28 @@ def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
     assert "Blade / Guard" in text
     assert "Scrap metal" in text
     assert "Goblin Scrap x2" in text
+
+
+def test_merchant_screen_offers_shared_supply_and_alchemy_controls():
+    game = hub_game()
+    game.party_state.add_shared_items({
+        "healing_potion": 1,
+        "medicinal_herb": 1,
+        "clean_water": 1,
+    })
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    text = "\n".join(rendered(view))
+    buy, _ = read(view, ["b9"])
+    load, _ = read(view, ["l9"])
+    alchemy, _ = read(view, ["a1"])
+
+    assert "HUB STORAGE" in text
+    assert "CARRIED SUPPLIES 0/6" in text
+    assert "Healing Potion" in text
+    assert buy == ChooseHubSupplyAction("buy", "healing_potion")
+    assert load == ChooseHubSupplyAction("load", "healing_potion")
+    assert alchemy == ChooseAlchemyRecipe("healing_potion")
 
 
 def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
@@ -312,7 +345,7 @@ def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
         ),
         (OverworldScreen.WEAPON, ("WEAPON", "Sunder-Spire", "BONUSES", "DESCRIPTION")),
         (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
-        (OverworldScreen.ITEMS, ("ITEMS", "Your persistent inventory is empty.", "Craft")),
+        (OverworldScreen.ITEMS, ("ITEMS", "No items are currently available.", "Craft")),
         (OverworldScreen.MAP, ("MAP", "SURFACE ROUTE", "Goblin Ambush", "Dungeon Entrance")),
         (
             OverworldScreen.MAP_INSPECT,
@@ -637,6 +670,34 @@ def test_item_number_selects_the_item_without_exposing_its_key():
 
     assert isinstance(result, ChooseOverworldItem)
     assert result.selection_key == view.inventory.items[0].selection_key
+    assert output == []
+
+
+def test_healing_target_number_selects_the_explicit_drifter():
+    supply = OverworldItemView(
+        "carried-item:healing_potion",
+        "Healing Potion",
+        1,
+        "Restores 40% HP.",
+        location_label="Carried Pack",
+    )
+    view = OverworldView(
+        screen=OverworldScreen.HEALING_TARGETS,
+        location_label="Floor 1 Rest",
+        adventure_text="Choose a Drifter to heal.",
+        options=(OverworldOptionView(OverworldAction.BACK, "Back", True),),
+        inventory=InventoryView(
+            items=(supply,),
+            selected_item_key=supply.selection_key,
+        ),
+        healing_targets=(
+            SupplyHealingTargetView("azhvielle", "Azhvielle", 60, 100),
+        ),
+    )
+
+    result, output = read(view, ["1"])
+
+    assert result == ChooseOverworldHealingTarget("azhvielle")
     assert output == []
 
 

@@ -19,7 +19,7 @@ from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
-from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
     ChooseActivePair,
     ChooseCompanion,
@@ -28,11 +28,12 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
 )
-from tests.game_test_support import three_member_hub_game
+from tests.game_test_support import completed_hub_game, three_member_hub_game
 
 
 ROOT = Path(__file__).parents[1]
@@ -416,10 +417,60 @@ def test_bridge_exposes_shared_loot_in_items_and_item_inspection():
     assert inspected["inventory"]["inspected_item"]["quantity"] == 3
 
 
+def test_browser_healing_potion_uses_an_explicit_active_target_outside_combat():
+    runtime = bridge.BrowserRuntime()
+    game = completed_hub_game()
+    party = game.party_state
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    party.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    for node in get_route_spec("floor_one").nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.kind.value == "rest":
+            break
+    target = game.member_for_drifter_id("azhvielle")
+    target.health.take_damage(25)
+    bridge._activate_session(runtime, game, "branoc")
+
+    rest = runtime.current_view()
+    assert rest["screen"] == OverworldScreen.REST.value
+    items = runtime.submit({"kind": "overworld_action", "action": "items"})
+    assert items["screen"] == OverworldScreen.ITEMS.value
+    assert any(
+        item["selection_key"] == "carried-item:healing_potion"
+        and item["location_label"] == "Carried Pack"
+        for item in items["inventory"]["items"]
+    )
+    runtime.submit(
+        {
+            "kind": "overworld_item",
+            "selection_key": "carried-item:healing_potion",
+        }
+    )
+    targets = runtime.submit({"kind": "overworld_action", "action": "use"})
+    assert targets["screen"] == OverworldScreen.HEALING_TARGETS.value
+    assert [item["drifter_id"] for item in targets["healing_targets"]] == [
+        "azhvielle"
+    ]
+
+    healed = runtime.submit(
+        {"kind": "overworld_healing_target", "drifter_id": "azhvielle"}
+    )
+
+    assert healed["screen"] == OverworldScreen.ITEMS.value
+    assert target.health.current == target.health.maximum
+    assert party.carried_items == {}
+
+
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
         ({"kind": "overworld_item", "selection_key": "shared-item:goblin_scrap"}, ChooseOverworldItem),
+        (
+            {"kind": "overworld_healing_target", "drifter_id": "azhvielle"},
+            ChooseOverworldHealingTarget,
+        ),
         (
             {"kind": "active_pair", "drifter_ids": ["joruun", "azhvielle"]},
             ChooseActivePair,
@@ -465,6 +516,7 @@ def test_bridge_command_decoder_returns_existing_input_types():
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
         ({"kind": "target", "target_id": "enemy-1"}, ChooseTarget),
+        ({"kind": "healing_target", "target_id": "drifter_azhvielle"}, ChooseHealingTarget),
     )
 
     for command, expected_type in cases:

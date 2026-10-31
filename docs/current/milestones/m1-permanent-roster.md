@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. This document does not authorize implementation, delegation, commits, or publishing.
 
-**Status:** M1 implementation commit `8eb1a63cd08cf5f5a424749f3ae25479a048bccf` was corrected in `eee874a848ce86b094dc14d633c81a1c49928aa6`. Hosted run `41202800638` passed Python, web, PostgreSQL, content, and build checks, but browser smoke exposed a test synchronization race after returning from party selection. The smoke now waits for the Hub badge before opening Character; the web suite and clean full browser smoke pass locally. A hosted rerun on a new corrective commit remains required; M1 is not sealed.
+**Status:** M1 implementation and qualification are complete on `4324b35ae21233ddc03901e5376aebd0dc32d831`. Hosted run [41207450687](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/41207450687) passed both jobs, including the full browser smoke and PostgreSQL qualification. The smoke now waits for the Hub badge after returning from party selection before opening Character. M1 branch integration/closure is separate from this implementation gate.
 
 **Goal:** Separate permanent recruited Drifters from the deployed party without changing recruitment pacing or losing any existing character investment.
 
@@ -165,7 +165,7 @@ Proof: focused local persistence tests plus PostgreSQL service/integration tests
 ### Gate 4 - Terminal And Built-Browser Flow
 
 - [x] Add semantic Hub pair-selection inputs and presenter offers; terminal and browser bridge contract tests pass.
-- [x] Execute the real-browser pair-selection and save/reload flow on the corrective working tree. A clean built-site smoke passes the two ordered choices, exact recruited target, stat investment, and weapon progression across save/reload. Hosted run `41160651816` exposed the missing two-member `Choose Party` option; run `41202800638` verified that fix and pair save/reload, then failed because the smoke clicked Character before the Hub rerender completed. The smoke now waits for the Hub badge after Back; hosted rerun remains required under Gate 5.
+- [x] Execute the real-browser pair-selection and save/reload flow. A clean built-site smoke passes the two ordered choices, exact recruited target, stat investment, and weapon progression across save/reload. Hosted run `41160651816` exposed the missing two-member `Choose Party` option; run `41202800638` verified that fix and pair save/reload, then exposed a smoke synchronization race after Back. The condition-based Hub-badge wait resolved it; hosted run `41207450687` passed the full smoke on the exact corrective SHA.
 - [x] Verify semantic D1 -> D2 recruitment, invalid/unoffered submissions, and desktop/mobile selection/navigation contracts through the existing route, bridge, and viewport qualification tests.
 
 Proof: same Python-authoritative choices/results in terminal and browser, no client-only recruitment or party rules.
@@ -173,17 +173,16 @@ Proof: same Python-authoritative choices/results in terminal and browser, no cli
 ### Gate 5 - Qualification And Handoff
 
 - [x] Extend the real probe with roster initialization, selection, snapshot round-trip, teardown, and no early recruit; run the shared cumulative qualification with the pinned MicroPython executable.
-- [ ] Review and accept the corrective diff, rerun cumulative hosted qualification on its commit, and record the resulting SHA and exact evidence.
+- [x] Review the corrective diff, rerun cumulative hosted qualification on its commit, and record the resulting SHA and exact evidence.
 
-Local qualification record (2026-10-30; uncommitted working tree):
+Local qualification record (2026-10-30; pre-hosted run):
 
 - Root pytest: 1,856 passed. Web pytest: 62 passed. Profile service against disposable PostgreSQL 17: 33 passed.
 - Authored-content validation passed: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, and 1 recruitment event. Python compileall and `git diff --check` passed.
 - PostgreSQL migration from zero passed; `alembic check` reported no new upgrade operations.
 - The exact pinned Windows MicroPython v1.29.0 executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Native/overlay CPython, default MicroPython, 624K MicroPython, and semantic parity passed; 624K was stable 3/3 and 608K produced the expected memory-limit result 3/3.
 - The initial hosted M1 run `41160651816` on `8eb1a63cd08cf5f5a424749f3ae25479a048bccf` reached the Hub and failed because `Choose Party` was missing for a two-member completed roster. The regression reproduced that failure; the presenter now offers the action for exactly two members, and the focused presenter module passes 40 tests.
-- After the presenter and browser-smoke corrections (2026-10-31), a clean local browser build passed the full `browser_smoke.mjs` route, including active-pair selection, recruited-Drifter stat save/reload, and weapon component/progression save/reload. This is local evidence only; the hosted cumulative rerun and its resulting SHA remain open.
-- Hosted run `41202800638` on `eee874a848ce86b094dc14d633c81a1c49928aa6` passed its Python (1,857), web (62), PostgreSQL (33), content, compile, and browser-build checks, but browser smoke failed after Back from PARTY SELECTION because it attempted Character before the Hub rerender. Added a condition-based wait for the `HUB` badge and a web contract assertion that protects the sequence. Current web pytest passes 62; a fresh 147-file browser build and full local smoke pass. The synchronization correction is uncommitted and has no hosted result yet.
+- Hosted run [41207450687](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/41207450687) on `4324b35ae21233ddc03901e5376aebd0dc32d831` passed both jobs. Results: root pytest 1,857 passed; web pytest 62 passed; PostgreSQL job collected and passed 33 tests; content validation, Python compile, browser build, and full headless browser smoke passed. The browser smoke included `M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS`, weapon save/reload, the full route, and Floor I clear/replay extraction. PostgreSQL migration-from-zero and Alembic model-parity check passed with no new upgrade operations.
 
 Closure: roster and active-party identity are distinct, all currently recruited members can be targeted exactly, old pairs migrate unchanged, and no future Drifter is granted. All-six-pair live qualification and the first four-Drifter boss remain M4B/M6 responsibilities after canonical recruitment.
 
