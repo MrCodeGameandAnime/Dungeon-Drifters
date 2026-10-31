@@ -2738,11 +2738,36 @@ try {
   const enemyStatus = () => page.locator("#enemy-panel .enemy").evaluateAll((enemies) =>
     enemies.map((enemy) => enemy.textContent.trim()),
   );
+  const enemyHealthTotal = () => page.locator("#enemy-panel .enemy").evaluateAll((enemies) =>
+    enemies.reduce((total, enemy) => {
+      const match = enemy.textContent.match(/HP\s+(\d+)\s*\/\s*\d+/i);
+      if (!match) throw new Error(`enemy health is not rendered: ${enemy.textContent}`);
+      return total + Number(match[1]);
+    }, 0),
+  );
   await clickVisibleOption(page, "#route-actions", "Enter Encounter");
   await page.locator("#party-panel").waitFor({ state: "visible" });
   const freshEnemyStatus = await enemyStatus();
   requireCondition(freshEnemyStatus.length === 3, `Goblin Patrol did not create three fresh enemies: ${JSON.stringify(freshEnemyStatus)}`);
-  await attackOnce();
+  const freshEnemyHealth = await enemyHealthTotal();
+  let damagedEnemyHealth = freshEnemyHealth;
+  for (let attempt = 0; attempt < 12 && damagedEnemyHealth >= freshEnemyHealth; attempt += 1) {
+    const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+    if (phase === "actions") {
+      await attackOnce();
+    } else if (phase === "regular_moves") {
+      await resolveAttackChoice();
+    } else if (phase === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    } else {
+      throw new Error(`unexpected browser battle phase while preparing smoke retry proof: ${phase}`);
+    }
+    damagedEnemyHealth = await enemyHealthTotal();
+  }
+  requireCondition(
+    damagedEnemyHealth < freshEnemyHealth,
+    `bounded attacks did not damage Goblin Patrol before smoke escape: ${freshEnemyHealth} -> ${damagedEnemyHealth}`,
+  );
   const partyBeforeSmoke = await partyStatus();
   const damagedEnemyStatus = await enemyStatus();
   await clickVisibleOption(page, "#actions", "Smoke Bomb");
@@ -2754,15 +2779,18 @@ try {
       await page.getByRole("button", { name: "Enter Encounter" }).isVisible(),
     "Smoke Bomb changed party resources, awarded rewards, advanced the route, or hid the retry",
   );
-  console.log("M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS");
-
   await clickVisibleOption(page, "#route-actions", "Enter Encounter");
   await page.locator("#party-panel").waitFor({ state: "visible" });
+  const retriedEnemyHealth = await enemyHealthTotal();
+  const retriedEnemyStatus = await enemyStatus();
   requireCondition(
-    JSON.stringify(await enemyStatus()) === JSON.stringify(freshEnemyStatus) &&
-      JSON.stringify(await enemyStatus()) !== JSON.stringify(damagedEnemyStatus),
+    JSON.stringify(retriedEnemyStatus) === JSON.stringify(freshEnemyStatus) &&
+      retriedEnemyHealth === freshEnemyHealth &&
+      retriedEnemyHealth > damagedEnemyHealth &&
+      JSON.stringify(retriedEnemyStatus) !== JSON.stringify(damagedEnemyStatus),
     "retry did not recreate the same encounter with fresh enemy health",
   );
+  console.log("M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS");
   await clickVisibleOption(page, "#actions", "Smoke Bomb");
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   requireCondition(
