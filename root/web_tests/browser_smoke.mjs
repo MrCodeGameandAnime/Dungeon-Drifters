@@ -256,7 +256,9 @@ async function clickVisibleOption(page, containerSelector, label) {
   const buttons = page.locator(`${containerSelector} button`);
   for (let index = 0; index < await buttons.count(); index += 1) {
     const button = buttons.nth(index);
-    const text = await button.locator(".choice-label").textContent().catch(() => null);
+    const text = await button.evaluate((element) =>
+      element.querySelector(".choice-label")?.textContent ?? element.textContent,
+    );
     if (text?.trim() === label && await button.isEnabled()) {
       await button.click();
       return;
@@ -2294,7 +2296,8 @@ try {
     await page.locator("#party-pair-choices .party-pair-choice").count() === 2,
     "the real browser runtime did not offer both ordered choices for the recruited pair",
   );
-  const savedActivePairLabel = "Azhvielle + Ser Branoc";
+  const savedActivePairLabel =
+    "Azhvielle, the Unconfessed + Ser Branoc, the Unbroken Crest";
   await clickVisibleOption(page, "#party-pair-choices", savedActivePairLabel);
   await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
 
@@ -2306,7 +2309,9 @@ try {
   );
   await clickVisibleOption(page, "#character-options", "Skills");
   await page.locator("#skills-panel").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#skills-targets", "Azhvielle");
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
   const strengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
   const strengthBefore = await strengthRow.locator(".skill-value").innerText();
   const growthBefore = await page.locator("#growth-summary").innerText();
@@ -2457,12 +2462,18 @@ try {
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Skills");
   await page.locator("#skills-panel").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#skills-targets", "Azhvielle");
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
   const restoredStrengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
+  const restoredMemberProgression = {
+    strength: await restoredStrengthRow.locator(".skill-value").innerText(),
+    growth: await page.locator("#growth-summary").innerText(),
+  };
   requireCondition(
-    await restoredStrengthRow.locator(".skill-value").innerText() === savedMemberProgression.strength &&
-      await page.locator("#growth-summary").innerText() === savedMemberProgression.growth,
-    "Azhvielle's stat investment did not survive browser reload",
+    restoredMemberProgression.strength === savedMemberProgression.strength &&
+      restoredMemberProgression.growth === savedMemberProgression.growth,
+    `Azhvielle's stat investment did not survive browser reload: ${JSON.stringify({ savedMemberProgression, restoredMemberProgression })}`,
   );
   console.log("M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS");
   await clickVisibleOption(page, "#skills-options", "Back");
@@ -2475,11 +2486,13 @@ try {
   await page.locator("#weapon-panel").waitFor({ state: "visible" });
   const loadedWeaponTarget = page.locator("#weapon-targets button").filter({ hasText: "Ser Branoc" });
   await loadedWeaponTarget.click();
+  await page.locator("#weapon-targets button[aria-pressed='true']")
+    .filter({ hasText: "Ser Branoc" }).waitFor();
   const loadedBladeState = await page.locator("#weapon-components .weapon-component-slot").first().innerText();
   requireCondition(
     loadedBladeState.includes("Installed: Reinforced Blade and Guard") &&
       loadedBladeState === installedBladeState,
-    "browser reload and Load did not restore Branoc's weapon progression: installed component changed",
+    `browser reload and Load did not restore Branoc's weapon progression: installed component changed: ${JSON.stringify({ installedBladeState, loadedBladeState })}`,
   );
   await clickVisibleOption(page, "#weapon-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "visible" });

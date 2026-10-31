@@ -15,7 +15,12 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
 from app.content.catalog import DRIFTER_SPECS, get_weapon_spec
-from tests.game_test_support import advance_surface_to, recruited_pair_game, hub_game
+from tests.game_test_support import (
+    advance_surface_to,
+    completed_hub_game,
+    recruited_pair_game,
+    hub_game,
+)
 
 
 def test_map_completion_uses_world_for_combat_and_overworld_for_rest():
@@ -107,6 +112,20 @@ def test_hub_location_label_is_preserved_in_secondary_menus():
         "Floor 1 Hub",
         "Floor 1 Hub",
         "Floor 1 Hub",
+    )
+
+
+def test_two_member_completed_hub_offers_both_ordered_party_choices():
+    game = completed_hub_game()
+    presenter = OverworldPresenter()
+
+    hub = presenter.build(game, screen=OverworldScreen.HUB)
+    selection = presenter.build(game, screen=OverworldScreen.PARTY_SELECTION)
+
+    assert option(hub, OverworldAction.SELECT_PARTY).enabled is True
+    assert tuple(choice.drifter_ids for choice in selection.active_party_choices) == (
+        ("branoc", "azhvielle"),
+        ("azhvielle", "branoc"),
     )
 
 

@@ -932,7 +932,7 @@ class OverworldPresenter:
                 if party_state.tutorial_complete:
                     party_actions = (
                         (enabled(OverworldAction.SELECT_PARTY, "Choose Party"),)
-                        if len(game_state.recruited_members) > 2
+                        if len(game_state.recruited_members) >= 2
                         else ()
                     ) + (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),

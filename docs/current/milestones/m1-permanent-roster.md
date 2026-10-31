@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. This document does not authorize implementation, delegation, commits, or publishing.
 
-**Status:** Gates 1-3 are implemented and locally qualified in the uncommitted `dungeon` working tree, based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb` (2026-10-30). Gate 4's real-browser pair save/reload proof is pending a fresh smoke run; the latest attempt timed out before game startup while fetching Pyodide from jsDelivr. Gate 5 qualification is recorded below; final review, acceptance, and a post-change commit SHA remain open. No branch was created.
+**Status:** Initial M1 implementation is committed on `dungeon` as `8eb1a63cd08cf5f5a424749f3ae25479a048bccf`. Hosted run `41160651816` passed Python, web, PostgreSQL, migration, content, and build checks, but browser smoke failed in the completed two-Drifter Hub because `Choose Party` was not offered. The local corrective diff has been reviewed and passes the focused presenter/web tests and clean full browser smoke. A hosted rerun on a committed corrective SHA remains required; M1 is not sealed.
 
 **Goal:** Separate permanent recruited Drifters from the deployed party without changing recruitment pacing or losing any existing character investment.
 
@@ -165,7 +165,7 @@ Proof: focused local persistence tests plus PostgreSQL service/integration tests
 ### Gate 4 - Terminal And Built-Browser Flow
 
 - [x] Add semantic Hub pair-selection inputs and presenter offers; terminal and browser bridge contract tests pass.
-- [ ] Extend and execute the real-browser save/reload flow for a non-default active order, exact recruited target, and that member's stat investment. The assertion is implemented in `root/web_tests/browser_smoke.mjs`; two fresh runs stopped before game startup because the browser could not fetch `python_stdlib.zip` and `pyodide.asm.wasm` from jsDelivr. Existing full smoke passed before this added assertion.
+- [x] Execute the real-browser pair-selection and save/reload flow on the corrective working tree. A clean built-site smoke now passes the two ordered choices, exact recruited target, stat investment, and weapon progression across save/reload. Hosted run `41160651816` exposed the missing two-member `Choose Party` option; the presenter fix and regression pass locally. Hosted rerun remains required under Gate 5.
 - [x] Verify semantic D1 -> D2 recruitment, invalid/unoffered submissions, and desktop/mobile selection/navigation contracts through the existing route, bridge, and viewport qualification tests.
 
 Proof: same Python-authoritative choices/results in terminal and browser, no client-only recruitment or party rules.
@@ -173,7 +173,7 @@ Proof: same Python-authoritative choices/results in terminal and browser, no cli
 ### Gate 5 - Qualification And Handoff
 
 - [x] Extend the real probe with roster initialization, selection, snapshot round-trip, teardown, and no early recruit; run the shared cumulative qualification with the pinned MicroPython executable.
-- [ ] Review and accept the cumulative M1 diff, then record its post-change commit SHA. No commit has been created; current tested source is the uncommitted working tree based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb`.
+- [ ] Review and accept the corrective diff, rerun cumulative hosted qualification on its commit, and record the resulting SHA and exact evidence.
 
 Local qualification record (2026-10-30; uncommitted working tree):
 
@@ -181,7 +181,8 @@ Local qualification record (2026-10-30; uncommitted working tree):
 - Authored-content validation passed: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, and 1 recruitment event. Python compileall and `git diff --check` passed.
 - PostgreSQL migration from zero passed; `alembic check` reported no new upgrade operations.
 - The exact pinned Windows MicroPython v1.29.0 executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Native/overlay CPython, default MicroPython, 624K MicroPython, and semantic parity passed; 624K was stable 3/3 and 608K produced the expected memory-limit result 3/3.
-- The built-browser smoke passed end-to-end before the latest M1-specific persistence assertion was added. The new exact-pair/stat save-reload portion is not yet qualified because the two subsequent smoke attempts timed out on external Pyodide assets before the app initialized; do not treat those attempts as gameplay failures or as a pass.
+- The initial hosted M1 run `41160651816` on `8eb1a63cd08cf5f5a424749f3ae25479a048bccf` reached the Hub and failed because `Choose Party` was missing for a two-member completed roster. The regression reproduced that failure; the presenter now offers the action for exactly two members, and the focused presenter module passes 40 tests.
+- After the presenter and browser-smoke corrections (2026-10-31), a clean local browser build passed the full `browser_smoke.mjs` route, including active-pair selection, recruited-Drifter stat save/reload, and weapon component/progression save/reload. This is local evidence only; the hosted cumulative rerun and its resulting SHA remain open.
 
 Closure: roster and active-party identity are distinct, all currently recruited members can be targeted exactly, old pairs migrate unchanged, and no future Drifter is granted. All-six-pair live qualification and the first four-Drifter boss remain M4B/M6 responsibilities after canonical recruitment.
 

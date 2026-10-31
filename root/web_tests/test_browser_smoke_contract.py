@@ -170,8 +170,8 @@ def test_browser_smoke_persists_active_pair_and_exact_member_progression():
 
     for required in (
         'clickVisibleOption(page, "#overworld-options", "Choose Party")',
-        '"Azhvielle + Ser Branoc"',
-        'clickVisibleOption(page, "#skills-targets", "Azhvielle")',
+        '"Azhvielle, the Unconfessed + Ser Branoc, the Unbroken Crest"',
+        'clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed")',
         '"Growth Points:"',
         'M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS',
         "saved active-pair selection did not survive browser reload",
