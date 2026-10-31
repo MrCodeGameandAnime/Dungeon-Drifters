@@ -471,7 +471,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 11
+    assert snapshot["schema_version"] == 12
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
@@ -810,7 +810,7 @@ def test_item_selection_and_inspection_are_transient_and_non_consuming():
 
 
 def test_skills_stat_input_delegates_growth_and_stays_on_skills():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     player.gain_experience(100)
     game = GameState(player)
     strength_before = player.character.permanent_stats.strength

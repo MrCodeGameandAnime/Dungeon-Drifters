@@ -47,6 +47,13 @@ def _copy_validation_tools(root):
         ("drifter", "ashen_walker", "drifters", "drifter.py", "DRIFTER"),
         ("encounter", "ashen_ambush", "encounters", "encounter.py", "ENCOUNTER"),
         ("route", "ashen_road", "routes", "route.py", "ROUTE"),
+        (
+            "recruitment_event",
+            "ashen_recruitment",
+            "recruitment_events",
+            "recruitment_event.py",
+            "RECRUITMENT_EVENT",
+        ),
     ),
 )
 def test_every_content_type_scaffolds_conventional_importable_output(
@@ -79,7 +86,11 @@ def test_every_content_type_scaffolds_conventional_importable_output(
     )
 
     environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(root / "src")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        value
+        for value in (str(root / "src"), os.environ.get("PYTHONPATH", ""))
+        if value
+    )
     result = subprocess.run(
         [sys.executable, "-m", "pytest", str(test_path), "-q"],
         cwd=root,
@@ -202,6 +213,7 @@ def test_builtin_validation_is_read_only_and_has_no_todo_markers():
         "drifter": 4,
         "encounter": 10,
         "route": 2,
+        "recruitment_event": 1,
     }
 
 
@@ -235,6 +247,7 @@ def test_weapon_progression_content_validation_rejects_unknown_wielder_move():
         ],
         "encounter": [],
         "route": [],
+        "recruitment_event": [],
     }
     errors = []
 

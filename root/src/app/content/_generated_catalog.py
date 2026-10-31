@@ -25,6 +25,7 @@ from app.content.encounters.surface_warrior_pair.encounter import ENCOUNTER as s
 from app.content.encounters.surface_warrior_solo.encounter import ENCOUNTER as surface_warrior_solo_encounter
 from app.content.routes.floor_one.route import ROUTE as floor_one_route
 from app.content.routes.surface.route import ROUTE as surface_route
+from app.content.recruitment_events.floor_one_d2_recruitment.recruitment_event import RECRUITMENT_EVENT as floor_one_d2_recruitment_recruitment_event
 
 
 GENERATED_ENEMY_SPECS = (
@@ -72,10 +73,16 @@ GENERATED_ROUTE_SPECS = (
 )
 
 
+GENERATED_RECRUITMENT_EVENT_SPECS = (
+    ("floor_one_d2_recruitment", floor_one_d2_recruitment_recruitment_event),
+)
+
+
 __all__ = [
     "GENERATED_DRIFTER_SPECS",
     "GENERATED_ENCOUNTER_SPECS",
     "GENERATED_ENEMY_SPECS",
     "GENERATED_ROUTE_SPECS",
+    "GENERATED_RECRUITMENT_EVENT_SPECS",
     "GENERATED_WEAPON_SPECS",
 ]

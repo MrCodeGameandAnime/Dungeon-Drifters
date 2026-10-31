@@ -9,6 +9,7 @@ class OverworldScreen(StrEnum):
     HUB = "hub"
     FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
+    PARTY_SELECTION = "party_selection"
     PARTY_READY = "party_ready"
     OUTING = "outing"
     EXTRACTION = "extraction"
@@ -51,6 +52,7 @@ class OverworldAction(StrEnum):
     SKIP_REST = "skip_rest"
     MENU = "menu"
     RECRUIT_COMPANION = "recruit_companion"
+    SELECT_PARTY = "select_party"
     READY = "ready"
     RETURN_TO_HUB = "return_to_hub"
     START_FLOOR_ONE = "start_floor_one"
@@ -73,6 +75,7 @@ class OverworldAvailabilityReason(StrEnum):
 
 @dataclass(frozen=True)
 class CompanionChoiceView:
+    event_id: str
     drifter_id: str
     display_name: str
     archetype_label: str
@@ -82,7 +85,13 @@ class CompanionChoiceView:
     disabled_reason: OverworldAvailabilityReason | None = None
 
     def __post_init__(self):
-        for name in ("drifter_id", "display_name", "archetype_label", "summary"):
+        for name in (
+            "event_id",
+            "drifter_id",
+            "display_name",
+            "archetype_label",
+            "summary",
+        ):
             _validate_text(name, getattr(self, name))
         _validate_nonnegative("cost", self.cost)
         _validate_bool("enabled", self.enabled)
@@ -94,6 +103,24 @@ class CompanionChoiceView:
             )
         if self.enabled == (self.disabled_reason is not None):
             raise ValueError("companion availability and disabled reason disagree")
+
+
+@dataclass(frozen=True)
+class PartyPairChoiceView:
+    drifter_ids: tuple[str, str]
+    display_names: tuple[str, str]
+    selected: bool
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_ids, tuple) or len(self.drifter_ids) != 2:
+            raise ValueError("a party choice must contain exactly two Drifters")
+        if len(set(self.drifter_ids)) != 2:
+            raise ValueError("a party choice must contain distinct Drifters")
+        if not isinstance(self.display_names, tuple) or len(self.display_names) != 2:
+            raise ValueError("a party choice must contain two display names")
+        for value in self.drifter_ids + self.display_names:
+            _validate_text("party choice value", value)
+        _validate_bool("selected", self.selected)
 
 
 class MapNodeState(StrEnum):
@@ -647,6 +674,8 @@ class OverworldView:
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
     companion_choices: tuple[CompanionChoiceView, ...] = ()
+    active_party_choices: tuple[PartyPairChoiceView, ...] = ()
+    active_drifter_ids: tuple[str, ...] = ()
     shared_gold: int | None = None
     recruitment_cost: int | None = None
     outing_rewards: OutingRewardsView | None = None
@@ -661,6 +690,13 @@ class OverworldView:
             self.companion_choices,
             CompanionChoiceView,
         )
+        _validate_instance_tuple(
+            "active_party_choices",
+            self.active_party_choices,
+            PartyPairChoiceView,
+        )
+        if not isinstance(self.active_drifter_ids, tuple):
+            raise TypeError("active_drifter_ids must be a tuple")
         if any(
             option.action in {
                 OverworldAction.ENTER_ENCOUNTER,
@@ -714,6 +750,21 @@ class OverworldView:
                 raise ValueError("companion selection must show shared gold and cost")
         elif self.companion_choices:
             raise ValueError("companion choices are only valid on their selection screen")
+        if self.screen is OverworldScreen.PARTY_SELECTION:
+            if len(self.active_party_choices) < 1:
+                raise ValueError("party selection must offer at least one pair")
+            if len(self.active_drifter_ids) != 2:
+                raise ValueError("party selection must identify its active pair")
+            _validate_text_tuple("active_drifter_ids", self.active_drifter_ids)
+            selected_choices = tuple(
+                choice for choice in self.active_party_choices if choice.selected
+            )
+            if len(selected_choices) != 1:
+                raise ValueError("exactly one party choice must be selected")
+            if selected_choices[0].drifter_ids != self.active_drifter_ids:
+                raise ValueError("selected party choice must match active IDs")
+        elif self.active_party_choices or self.active_drifter_ids:
+            raise ValueError("party choices are only valid on the party selection screen")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),

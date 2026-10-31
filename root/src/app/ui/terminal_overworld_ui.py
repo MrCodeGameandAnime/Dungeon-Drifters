@@ -13,6 +13,7 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.ui.overworld_ui import (
+    ChooseActivePair,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -53,6 +54,7 @@ class TerminalOverworldUI:
         OverworldAction.SKIP_REST: "C",
         OverworldAction.MENU: "M",
         OverworldAction.RECRUIT_COMPANION: "R",
+        OverworldAction.SELECT_PARTY: "P",
         OverworldAction.READY: "Y",
         OverworldAction.RETURN_TO_HUB: "H",
         OverworldAction.EXTRACT: "X",
@@ -196,9 +198,15 @@ class TerminalOverworldUI:
                 if choice != str(number):
                     continue
                 if candidate.enabled:
-                    return ChooseCompanion(candidate.drifter_id)
+                    return ChooseCompanion(candidate.drifter_id, candidate.event_id)
                 self._output(self._disabled_message(candidate.disabled_reason))
                 return self._REJECTED
+
+        if view.screen is OverworldScreen.PARTY_SELECTION:
+            for number, choice_view in enumerate(view.active_party_choices, start=1):
+                if choice != str(number):
+                    continue
+                return ChooseActivePair(choice_view.drifter_ids)
 
         for option in self._input_options(view):
             key = self._option_key(option, view).lower()
@@ -291,6 +299,14 @@ class TerminalOverworldUI:
                     f"{availability}"
                 )
                 lines.extend(self._wrapped(candidate.summary, width))
+        elif view.screen is OverworldScreen.PARTY_SELECTION:
+            lines = ["CHOOSE YOUR PARTY", ""]
+            for number, choice in enumerate(view.active_party_choices, start=1):
+                selected = " [Selected]" if choice.selected else ""
+                lines.append(
+                    f"{number}. {choice.display_names[0]} + "
+                    f"{choice.display_names[1]}{selected}"
+                )
         elif view.screen is OverworldScreen.PARTY_READY:
             lines = ["PARTY READY", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
@@ -747,6 +763,7 @@ class TerminalOverworldUI:
             OverworldScreen.MAIN: "OVERWORLD",
             OverworldScreen.HUB: "HUB",
             OverworldScreen.COMPANION_SELECTION: "RECRUITMENT",
+            OverworldScreen.PARTY_SELECTION: "PARTY SELECTION",
             OverworldScreen.PARTY_READY: "PARTY READY",
             OverworldScreen.OUTING: "OUTING",
             OverworldScreen.EXTRACTION: "EXTRACTION",

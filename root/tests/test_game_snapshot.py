@@ -20,7 +20,7 @@ def test_all_surface_completion_ids_round_trip_in_world_snapshot():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == expected
-    assert snapshot["schema_version"] == 11
+    assert snapshot["schema_version"] == 12
     assert snapshot["world"]["defeated_encounters"] == list(expected)
     assert "defeated_encounters" not in snapshot["overworld"]
 
@@ -57,7 +57,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 11
+    assert snapshot["schema_version"] == 12
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -69,6 +69,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
     }
     assert snapshot["party"] == {
         "companions": [],
+        "active_drifter_ids": [],
         "shared_gold": 0,
         "shared_items": {},
         "tutorial_complete": False,
@@ -87,6 +88,13 @@ def test_game_snapshot_has_required_shape_and_schema_version():
     assert snapshot["metadata"] == {"run_id": "test-run"}
     assert snapshot["overworld"]["current_route_node_id"] == "surface_goblin_solo"
     assert_strict_json(snapshot)
+
+
+def test_runtime_snapshot_keeps_active_pair_separate_from_roster():
+    game = hub_game()
+    snapshot = game.snapshot()
+
+    assert snapshot["party"]["active_drifter_ids"] == ["branoc"]
 
 
 def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():

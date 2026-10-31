@@ -15,6 +15,7 @@ from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
+from app.game.recruitment import available_recruitment_event
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -30,6 +31,7 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.battle_models import BattleView, InteractionPhase
 from app.ui.overworld_ui import (
+    ChooseActivePair,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -189,6 +191,9 @@ class OverworldSession:
         if isinstance(session_input, ChooseCompanion):
             self._select_companion(view, session_input)
             return self._build_view()
+        if isinstance(session_input, ChooseActivePair):
+            self._select_active_pair(view, session_input)
+            return self._build_view()
         if isinstance(session_input, ChooseCharacterTarget):
             self._select_character_target(view, session_input)
             return self._build_view()
@@ -243,7 +248,8 @@ class OverworldSession:
             return battle_view
         if session_input.action is OverworldAction.READY:
             party_state = self.game_state.party_state
-            party_members = (self.game_state.player_state,) + party_state.companions
+            party_members = self.game_state.active_party_members
+            self._select_party_target(party_members[0])
             checkpoints = tuple(
                 member.create_battle_checkpoint() for member in party_members
             )
@@ -351,6 +357,12 @@ class OverworldSession:
         )
 
     def _build_view(self):
+        if (
+            self._screen is OverworldScreen.COMPANION_SELECTION
+            and available_recruitment_event(self.game_state) is None
+        ):
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = None
         return self._presenter.build(
             self.game_state,
             screen=self._screen,
@@ -420,7 +432,8 @@ class OverworldSession:
         if view.screen is not OverworldScreen.COMPANION_SELECTION:
             self._notice = "That Drifter is not available."
             return
-        if self.game_state.party_state.phase is not DungeonPhase.HUB:
+        event = available_recruitment_event(self.game_state)
+        if event is None:
             self._screen = OverworldScreen.HUB
             self._adventure_text = None
             self._notice = "That Drifter is not available."
@@ -428,13 +441,14 @@ class OverworldSession:
         choice = first_or_none(
             choice
             for choice in view.companion_choices
-            if choice.drifter_id == session_input.drifter_id
+            if choice.event_id == session_input.event_id
+            and choice.drifter_id == session_input.drifter_id
         )
-        if choice is None:
+        if choice is None or event.event_id != session_input.event_id:
             self._notice = "That Drifter is not available."
             return
-        if not choice.enabled:
-            self._notice = "You need 65 shared gold to recruit a Drifter."
+        if self.game_state.party_state.shared_gold < event.cost:
+            self._notice = f"You need {event.cost} shared gold to recruit a Drifter."
             return
         try:
             profile = get_drifter_spec(choice.drifter_id)
@@ -442,13 +456,15 @@ class OverworldSession:
             recruited = self.game_state.party_state.recruit_companion(
                 self.game_state.player_state,
                 companion,
+                cost=event.cost,
             )
         except (TypeError, ValueError):
             self._notice = "That Drifter is not available."
             return
         if not recruited:
-            self._notice = "You need 65 shared gold to recruit a Drifter."
+            self._notice = f"You need {event.cost} shared gold to recruit a Drifter."
             return
+        self.game_state.story_state.complete_event(event.event_id)
         self._screen = OverworldScreen.PARTY_READY
         lead_name = self.game_state.player_state.character.full_display_name
         self._adventure_text = (
@@ -456,6 +472,38 @@ class OverworldSession:
             "Your party is ready to set out."
         )
         self._notice = None
+
+    def _select_active_pair(self, view, session_input):
+        offered = any(
+            choice.drifter_ids == session_input.drifter_ids
+            for choice in view.active_party_choices
+        )
+        if view.screen is not OverworldScreen.PARTY_SELECTION or not offered:
+            self._notice = "That party is not available."
+            return
+        try:
+            self.game_state.party_state.select_active_pair(
+                session_input.drifter_ids,
+                recruited_ids=tuple(
+                    member.character.profile.drifter_id
+                    for member in self.game_state.recruited_members
+                ),
+            )
+        except (TypeError, ValueError):
+            self._notice = "That party is not available."
+            return
+        self._select_party_target(
+            self.game_state.member_for_drifter_id(session_input.drifter_ids[0])
+        )
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = None
+        self._notice = None
+
+    def _select_party_target(self, member):
+        drifter_id = member.character.profile.drifter_id
+        self._selected_character_target_id = drifter_id
+        self._selected_merchant_target_id = drifter_id
+        self._selected_weapon_target_id = drifter_id
 
     def _select_merchant_target(self, view, session_input):
         merchant = view.merchant
@@ -636,21 +684,7 @@ class OverworldSession:
 
         try:
             selected_id = view.skills.selected_target_id
-            target_spec = get_drifter_spec(selected_id)
-            member = next(
-                candidate
-                for candidate in (self.game_state.player_state,)
-                + self.game_state.party_state.companions
-                if (
-                    candidate.character.profile is not None
-                    and candidate.character.profile.drifter_id == selected_id
-                )
-                or (
-                    candidate.character.profile is None
-                    and getattr(candidate.get_equipped("weapon"), "item_id", None)
-                    == target_spec.starting_weapon_id
-                )
-            )
+            member = self.game_state.member_for_drifter_id(selected_id)
             new_value = member.increase_permanent_stat(row.stat_name)
         except (TypeError, ValueError):
             self._notice = "That stat is not available."
@@ -723,6 +757,7 @@ class OverworldSession:
             OverworldAction.WEAPON: OverworldScreen.WEAPON,
             OverworldAction.EQUIPMENT: OverworldScreen.EQUIPMENT,
             OverworldAction.MERCHANT: OverworldScreen.MERCHANT,
+            OverworldAction.SELECT_PARTY: OverworldScreen.PARTY_SELECTION,
         }
         if action in navigation:
             if (
@@ -743,6 +778,10 @@ class OverworldSession:
         if action is OverworldAction.RECRUIT_COMPANION:
             self._screen = OverworldScreen.COMPANION_SELECTION
             self._adventure_text = "Choose one Drifter to join your party."
+            return None
+        if action is OverworldAction.SELECT_PARTY:
+            self._screen = OverworldScreen.PARTY_SELECTION
+            self._adventure_text = "Choose the two Drifters for your next outing."
             return None
         if action is OverworldAction.READY:
             self._notice = "That option is not available."
@@ -785,17 +824,18 @@ class OverworldSession:
         )
         secured_items = dict(party_state.outing_rewards.items)
         if not party_state.complete_extraction(
-            (self.game_state.player_state,) + party_state.companions
+            self.game_state.active_party_members
         ):
             self._notice = "Those rewards are no longer available."
             return
+        self._restore_recruited_party()
         if floor_one_extraction:
             self.game_state.overworld_state.return_to_surface_entrance()
         self._screen = OverworldScreen.HUB
         if floor_one_extraction:
             self._adventure_text = (
-                "You extract to the Hub. Your run rewards are secured and both "
-                + "Drifters are fully restored. "
+                "You extract to the Hub. Your run rewards are secured and your "
+                + "recruited Drifters are fully restored. "
                 + _item_reward_text(secured_items, prefix="Items secured:")
             )
         else:
@@ -805,6 +845,15 @@ class OverworldSession:
             )
         if floor_one_extraction:
             self._persist_floor_one_hub_outcome()
+
+    def _restore_recruited_party(self):
+        self._restore_members(self.game_state.recruited_members)
+
+    @staticmethod
+    def _restore_members(members):
+        for member in members:
+            member.health.heal(member.health.maximum)
+            member.mana_resource.restore(member.mana_resource.maximum)
 
     def _dispatch_menu_action(self, action):
         if action is OverworldAction.INSPECT:
@@ -865,12 +914,13 @@ class OverworldSession:
         overworld = self.game_state.overworld_state
         party_snapshot = party_state.snapshot()
         overworld_snapshot = overworld.snapshot()
-        party_members = (self.game_state.player_state,) + party_state.companions
+        party_members = self.game_state.active_party_members
         checkpoints = tuple(
             member.create_battle_checkpoint() for member in party_members
         )
         try:
             party_state.start_floor_one_run()
+            self._select_party_target(party_members[0])
             overworld.begin_route("floor_one")
             self._screen = OverworldScreen.MAIN
             self._adventure_text = "Your party sets out into Floor 1."
@@ -883,6 +933,7 @@ class OverworldSession:
             self.game_state._party_state = PartyState.from_snapshot(
                 party_snapshot,
                 companions=party_state.companions,
+                active_drifter_ids=party_state.active_drifter_ids,
             )
             self.game_state._overworld_state = OverworldState.from_snapshot(
                 overworld_snapshot
@@ -913,7 +964,7 @@ class OverworldSession:
     def _persist_floor_one_rest_fallback(self, *, extraction=False):
         fallback = self.game_state.clone()
         party_state = fallback.party_state
-        party_members = (fallback.player_state,) + party_state.companions
+        party_members = fallback.active_party_members
         if extraction:
             if not party_state.begin_floor_one_extraction(partial=True):
                 self._notice = "The next step could not be saved. You remain at this Rest."
@@ -924,6 +975,8 @@ class OverworldSession:
         elif not party_state.fail_floor_one_run(party_members):
             self._notice = "The next step could not be saved. You remain at this Rest."
             return False
+
+        self._restore_members(fallback.recruited_members)
 
         fallback.overworld_state.return_to_surface_entrance()
         try:
@@ -971,6 +1024,7 @@ class OverworldSession:
     def _navigate_back(self):
         if self._screen in {
             OverworldScreen.COMPANION_SELECTION,
+            OverworldScreen.PARTY_SELECTION,
             OverworldScreen.PARTY_READY,
         }:
             self._screen = OverworldScreen.HUB
@@ -1049,10 +1103,11 @@ class OverworldSession:
             raise RuntimeError("an encounter is already active")
         if tutorial:
             party_state = self.game_state.party_state
+            party_members = self.game_state.active_party_members
             if (
                 party_state.phase is not DungeonPhase.OUTING
                 or party_state.tutorial_complete
-                or len(party_state.companions) != 1
+                or len(party_members) != 2
             ):
                 self._notice = "Your party is not ready for the tutorial encounter."
                 return None
@@ -1063,24 +1118,30 @@ class OverworldSession:
                 self._enemy_factory(archetype_id, tier=0)
                 for archetype_id in encounter.enemy_archetype_ids
             )
+            checkpoints = tuple(
+                member.create_battle_checkpoint() for member in party_members
+            )
+            try:
+                self._active_battle = self._battle_factory(
+                    party_members[0],
+                    enemies,
+                    ui=ui,
+                    encounter_label="Goblin Trio",
+                    party=party_members[1:],
+                )
+            except Exception:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                self._active_battle_context = None
+                raise
             self._active_battle_context = (
                 None,
                 encounter_id,
                 exp_reward,
                 gold_reward,
-                None,
+                party_members,
+                checkpoints,
             )
-            try:
-                self._active_battle = self._battle_factory(
-                    self.game_state.player_state,
-                    enemies,
-                    ui=ui,
-                    encounter_label="Goblin Trio",
-                    party=party_state.companions,
-                )
-            except Exception:
-                self._active_battle_context = None
-                raise
             return self._active_battle
 
         overworld = self.game_state.overworld_state
@@ -1093,19 +1154,19 @@ class OverworldSession:
         exp_reward, gold_reward = get_encounter_rewards(encounter.encounter_id)
 
         is_floor_one = overworld.active_route_id == "floor_one"
-        checkpoint = self.game_state.player_state.create_battle_checkpoint()
+        party_members = (
+            self.game_state.active_party_members
+            if is_floor_one
+            else (self.game_state.player_state,)
+        )
+        checkpoints = tuple(
+            member.create_battle_checkpoint() for member in party_members
+        )
         if not is_floor_one:
             overworld.begin_surface_route()
         enemies = tuple(
             self._enemy_factory(archetype_id, tier=0)
             for archetype_id in encounter.enemy_archetype_ids
-        )
-        self._active_battle_context = (
-            current_node_id,
-            encounter.encounter_id,
-            exp_reward,
-            gold_reward,
-            checkpoint,
         )
         try:
             battle_kwargs = {
@@ -1113,15 +1174,25 @@ class OverworldSession:
                 "encounter_label": current_node.display_label,
             }
             if is_floor_one:
-                battle_kwargs["party"] = self.game_state.party_state.companions
+                battle_kwargs["party"] = party_members[1:]
             self._active_battle = self._battle_factory(
-                self.game_state.player_state,
+                party_members[0],
                 enemies,
                 **battle_kwargs,
             )
         except Exception:
+            for member, checkpoint in zip(party_members, checkpoints):
+                member.restore_battle_checkpoint(checkpoint)
             self._active_battle_context = None
             raise
+        self._active_battle_context = (
+            current_node_id,
+            encounter.encounter_id,
+            exp_reward,
+            gold_reward,
+            party_members,
+            checkpoints,
+        )
         return self._active_battle
 
     def _finalize_active_battle(self, *, winner=None):
@@ -1134,13 +1205,13 @@ class OverworldSession:
             encounter_id,
             exp_reward,
             gold_reward,
-            checkpoint,
+            party_members,
+            checkpoints,
         ) = context
         overworld = self.game_state.overworld_state
         if winner is None:
             winner = battle.winner
         if current_node_id is None and encounter_id == "dungeon_goblin_trio":
-            selection_requested = False
             party_state = self.game_state.party_state
             if winner == "player":
                 if not self._battle_enemies_are_defeated(battle):
@@ -1159,20 +1230,18 @@ class OverworldSession:
                     "your rewards."
                 )
             else:
-                if not party_state.reset_failed_tutorial():
+                if not party_state.reset_failed_tutorial(party_members):
                     raise RuntimeError("the tutorial defeat could not be cleared")
-                self._screen = OverworldScreen.MAIN
-                self._adventure_text = None
-                selection_requested = True
+                self._screen = OverworldScreen.PARTY_READY
+                self._adventure_text = (
+                    "The party was defeated. Your recruited Drifters return fully "
+                    "restored; ready again when you are."
+                )
             self._selected_item_key = None
             self._notice = None
             self._active_battle = None
             self._active_battle_context = None
-            return (
-                OverworldSessionResult.SELECT_DRIFTER
-                if selection_requested
-                else None
-            )
+            return None
 
         if overworld.active_route_id == "floor_one":
             self._finalize_floor_one_battle(
@@ -1181,6 +1250,7 @@ class OverworldSession:
                 current_node_id=current_node_id,
                 exp_reward=exp_reward,
                 gold_reward=gold_reward,
+                party_members=party_members,
             )
             return None
 
@@ -1233,7 +1303,8 @@ class OverworldSession:
                 )
             )
         else:
-            self.game_state.player_state.restore_battle_checkpoint(checkpoint)
+            for member, checkpoint in zip(party_members, checkpoints):
+                member.restore_battle_checkpoint(checkpoint)
             overworld.set_contextual_route_phase(ContextualRoutePhase.RETRY)
             self._adventure_text = self.DEFEAT_ADVENTURE_TEXT
         if winner != "player":
@@ -1252,10 +1323,10 @@ class OverworldSession:
         current_node_id,
         exp_reward,
         gold_reward,
+        party_members,
     ):
         party_state = self.game_state.party_state
         overworld = self.game_state.overworld_state
-        party_members = (self.game_state.player_state,) + party_state.companions
         current_node = get_route_node_spec(current_node_id)
 
         if winner == "player":
@@ -1275,11 +1346,12 @@ class OverworldSession:
                 secured_items = dict(party_state.outing_rewards.items)
                 if not party_state.complete_floor_one_boss(party_members):
                     raise RuntimeError("Floor 1 boss rewards could not be secured")
+                self._restore_recruited_party()
                 overworld.return_to_surface_entrance()
                 self._screen = OverworldScreen.HUB
                 self._adventure_text = (
                     "The Goblin Lord is defeated. Floor 1 is cleared; all run "
-                    + "rewards are secured and both Drifters return to the Hub. "
+                    + "rewards are secured and your recruited party returns to the Hub. "
                     + _item_reward_text(secured_items, prefix="Items secured:")
                 )
                 self._persist_floor_one_hub_outcome()
@@ -1322,7 +1394,7 @@ class OverworldSession:
             self._screen = OverworldScreen.HUB
             self._adventure_text = (
                 "The party was defeated. All unsecured XP, gold, and items "
-                "were lost. Both Drifters return fully restored to the Hub."
+                "were lost. Your recruited party returns fully restored to the Hub."
             )
             self._persist_floor_one_hub_outcome()
 
@@ -1362,7 +1434,7 @@ class OverworldSession:
         if recover:
             members = (self.game_state.player_state,)
             if overworld.active_route_id == "floor_one":
-                members += self.game_state.party_state.companions
+                members = self.game_state.active_party_members
             for member in members:
                 member.health.heal(member.health.maximum)
                 member.mana_resource.restore(member.mana_resource.maximum)

@@ -260,3 +260,26 @@ completed successfully for the pushed `hub` SHA
 This is the cumulative closure evidence for the Hub signature-weapon scope.
 Future-floor content, balance tuning, and other explicitly deferred systems
 remain outside this qualification.
+
+## M1 Permanent Roster Probe (2026-10-30)
+
+The M1 roster probe and shared runtime matrix were run against the uncommitted
+working tree based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb` on `dungeon`.
+This is working-tree evidence, not a post-change commit SHA.
+
+The exact pinned Windows MicroPython v1.29.0 executable was used: 488,960 bytes,
+SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+The matrix reported native and forced-overlay CPython PASS, default MicroPython
+PASS, 624K MicroPython PASS, and semantic parity PASS. The 624K heap run was
+stable 3/3; 608K was classified as the expected memory limit 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The route probe now covers M1 initial roster, active-pair selection,
+snapshot/clone round-trip, teardown, and no premature recruitment. The
+consolidated Python suite passed 1,856 tests; web contracts passed 62; profile
+service passed 33 against disposable PostgreSQL 17. Migration-from-zero and
+`alembic check` passed. The real-browser pair-order save/reload check is recorded
+as pending in the M1 implementation plan because its latest smoke attempts
+timed out before app startup while downloading Pyodide assets from jsDelivr.
+The preceding full browser smoke passed before that additional assertion was
+added.

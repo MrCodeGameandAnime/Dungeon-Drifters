@@ -700,6 +700,11 @@ def _teardown_route_session():
     del STATE["floor_one_pending_xp"]
     del STATE["floor_one_pending_gold"]
     gc.collect()
+    if any(
+        key in STATE
+        for key in ("route_game", "route_session", "route_battle_factory")
+    ):
+        raise AssertionError("route teardown retained roster/session state")
 
 
 def main():

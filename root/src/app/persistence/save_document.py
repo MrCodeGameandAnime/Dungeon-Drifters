@@ -1,4 +1,4 @@
-"""Schema-12 save documents and canonical in-memory reconstruction."""
+"""Schema-13 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -66,7 +66,8 @@ _LEGACY_DISK_SCHEMA_VERSION = 8
 _PREVIOUS_DISK_SCHEMA_VERSION = 9
 _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION = 10
 _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 11
-DISK_SCHEMA_VERSION = 12
+_PREVIOUS_DISK_SCHEMA_VERSION_CURRENT = 12
+DISK_SCHEMA_VERSION = 13
 
 
 class SaveStateValidationError(ValueError):
@@ -135,6 +136,7 @@ def migrate_schema_7(document):
         ]
     _add_legacy_party_state(migrated)
     _add_signature_weapon_defaults(migrated)
+    _add_legacy_active_drifter_ids(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -148,6 +150,7 @@ def migrate_schema_8(document):
     _add_legacy_party_state(migrated)
     migrated["overworld"].setdefault("active_route_id", "surface")
     _add_signature_weapon_defaults(migrated)
+    _add_legacy_active_drifter_ids(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -170,6 +173,17 @@ def migrate_schema_11(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_tier_v_success_defaults(migrated)
+    _add_legacy_active_drifter_ids(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema_12(document):
+    """Upgrade an immutable schema-12 payload with its legacy deployed pair."""
+    validate_legacy_schema12_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_legacy_active_drifter_ids(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -207,9 +221,22 @@ def validate_legacy_schema11_document(document):
             raise SaveStateValidationError(
                 "schema-11 signature weapon cannot contain tier_v_success"
             )
-    historical["schema_version"] = DISK_SCHEMA_VERSION
+    historical["schema_version"] = _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
     _add_tier_v_success_defaults(historical)
+    _validate_document(
+        historical,
+        schema_version=_PREVIOUS_DISK_SCHEMA_VERSION_CURRENT,
+    )
+    historical["schema_version"] = DISK_SCHEMA_VERSION
+    _add_legacy_active_drifter_ids(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
+    return deepcopy(document)
+
+
+def validate_legacy_schema12_document(document):
+    """Validate and copy an immutable schema-12 payload without migrating it."""
+    _validate_plain_document(document)
+    _validate_document(document, schema_version=_PREVIOUS_DISK_SCHEMA_VERSION_CURRENT)
     return deepcopy(document)
 
 
@@ -221,7 +248,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or immutable schema-8/9/10/11 history."""
+    """Validate a current payload or immutable schema-8/9/10/11/12 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -239,6 +266,12 @@ def validate_profile_payload(document):
         == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema11_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
+    ):
+        return validate_legacy_schema12_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -304,6 +337,8 @@ def validate_save_document(document):
         return migrate_schema_10(document)
     if schema_version == _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION:
         return migrate_schema_11(document)
+    if schema_version == _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT:
+        return migrate_schema_12(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -450,7 +485,7 @@ def _validate_document(
     if document["schema_version"] != schema_version:
         raise SaveStateValidationError("save schema version mismatch")
     if require_signature_weapon is None:
-        require_signature_weapon = schema_version == DISK_SCHEMA_VERSION
+        require_signature_weapon = schema_version >= _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
     _validate_player(
         document["player"],
         require_signature_weapon=require_signature_weapon,
@@ -465,6 +500,7 @@ def _validate_document(
         document["party"],
         document["player"],
         require_signature_weapon=require_signature_weapon,
+        require_active_drifter_ids=schema_version == DISK_SCHEMA_VERSION,
     )
     _validate_route_party_relationship(document["overworld"], document["party"])
     validate_plain_value(document["metadata"], "game.metadata")
@@ -520,8 +556,25 @@ def _migrate_previous_current_document(document):
     _strip_companion_combat(migrated.get("party"))
     _add_signature_weapon_defaults(migrated)
     _add_tier_v_success_defaults(migrated)
+    _add_legacy_active_drifter_ids(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
+
+
+def _add_legacy_active_drifter_ids(document):
+    party = document.get("party")
+    if not isinstance(party, dict) or "active_drifter_ids" in party:
+        return
+    player = document.get("player")
+    if not isinstance(player, dict):
+        raise SaveStateValidationError("game.player must be an object")
+    active_ids = [_canonical_profile(player).drifter_id]
+    companions = party.get("companions")
+    if not isinstance(companions, list):
+        raise SaveStateValidationError("party.companions must be a list")
+    if companions:
+        active_ids.append(_canonical_profile(companions[0]).drifter_id)
+    party["active_drifter_ids"] = active_ids
 
 
 def _add_signature_weapon_defaults(document):
@@ -676,28 +729,34 @@ def _validate_legacy_party(party, player):
         )
 
 
-def _validate_party(party, player, *, require_signature_weapon=True):
+def _validate_party(
+    party,
+    player,
+    *,
+    require_signature_weapon=True,
+    require_active_drifter_ids=False,
+):
     _require_mapping(party, "party")
-    _require_exact_keys(
-        party,
-        {
-            "companions",
-            "shared_gold",
-            "shared_items",
-            "tutorial_complete",
-            "phase",
-            "outing_rewards",
-            "floor_one_cleared",
-            "floor_one_runs_started_after_clear",
-            "outing_xp_multiplier_percent",
-            "crafting_experience",
-        },
-        "party",
-    )
+    expected_keys = {
+        "companions",
+        "shared_gold",
+        "shared_items",
+        "tutorial_complete",
+        "phase",
+        "outing_rewards",
+        "floor_one_cleared",
+        "floor_one_runs_started_after_clear",
+        "outing_xp_multiplier_percent",
+        "crafting_experience",
+    }
+    if require_active_drifter_ids:
+        expected_keys.add("active_drifter_ids")
+    _require_exact_keys(party, expected_keys, "party")
     companions = party["companions"]
-    if not isinstance(companions, list) or len(companions) > 1:
+    max_companions = 3 if require_active_drifter_ids else 1
+    if not isinstance(companions, list) or len(companions) > max_companions:
         raise SaveStateValidationError(
-            "party.companions must contain at most one Drifter"
+            f"party.companions must contain at most {max_companions} Drifters"
         )
     lead_profile = _canonical_profile(player)
     companion_ids = set()
@@ -710,6 +769,41 @@ def _validate_party(party, player, *, require_signature_weapon=True):
         if choice == lead_profile.choice or choice in companion_ids:
             raise SaveStateValidationError("party contains a duplicate Drifter")
         companion_ids.add(choice)
+
+    active_ids = None
+    if require_active_drifter_ids:
+        active_ids = party["active_drifter_ids"]
+        if not isinstance(active_ids, list) or len(active_ids) not in {1, 2}:
+            raise SaveStateValidationError(
+                "party.active_drifter_ids must contain one or two Drifters"
+            )
+        if any(not isinstance(value, str) or not value for value in active_ids):
+            raise SaveStateValidationError(
+                "party.active_drifter_ids must contain canonical IDs"
+            )
+        if len(active_ids) != len(set(active_ids)):
+            raise SaveStateValidationError(
+                "party.active_drifter_ids must not contain duplicates"
+            )
+        player_id = lead_profile.drifter_id
+        recruited_ids = {player_id}
+        recruited_ids.update(
+            _canonical_profile(companion).drifter_id
+            for companion in companions
+        )
+        if any(drifter_id not in recruited_ids for drifter_id in active_ids):
+            raise SaveStateValidationError(
+                "party.active_drifter_ids must refer to recruited Drifters"
+            )
+        expected_active_count = 2 if companions else 1
+        if len(active_ids) != expected_active_count:
+            raise SaveStateValidationError(
+                "party.active_drifter_ids size disagrees with recruited roster"
+            )
+        if not companions and active_ids != [player_id]:
+            raise SaveStateValidationError(
+                "a solo roster must actively deploy its starting Drifter"
+            )
 
     _require_int_min(party["shared_gold"], 0, "party.shared_gold")
     _validate_item_stacks(party["shared_items"], "party.shared_items")
@@ -773,9 +867,10 @@ def _validate_party(party, player, *, require_signature_weapon=True):
         raise SaveStateValidationError(
             "hub party membership must match tutorial completion"
         )
-    if phase is DungeonPhase.EXTRACTION and (
-        rewards["experience"] % (1 + len(companions))
-    ):
+    reward_party_size = (
+        len(active_ids) if active_ids is not None else 1 + len(companions)
+    )
+    if phase is DungeonPhase.EXTRACTION and rewards["experience"] % reward_party_size:
         raise SaveStateValidationError(
             "outing experience must divide evenly across the party"
         )
@@ -1286,7 +1381,7 @@ def _validate_route_party_relationship(overworld, party):
     if (
         phase is not DungeonPhase.OUTING
         or not party["tutorial_complete"]
-        or len(party["companions"]) != 1
+        or not party["companions"]
     ):
         raise SaveStateValidationError(
             "Floor 1 requires an active outing with the recruited party"
@@ -1385,9 +1480,11 @@ __all__ = [
     "build_save_document",
     "migrate_schema_7",
     "migrate_schema_9",
+    "migrate_schema_12",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
     "validate_legacy_schema9_document",
+    "validate_legacy_schema12_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

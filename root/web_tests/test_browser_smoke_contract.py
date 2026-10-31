@@ -106,6 +106,12 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
     ):
         assert required in source
 
+    save_reload = source.index('"PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS"')
+    qualification_page = source.index("const qualification = page;", save_reload)
+    qualification = source.index('goto(`${baseUrl}/qualification/`', qualification_page)
+    assert save_reload < qualification_page < qualification
+    assert "await page.close();" not in source[save_reload:qualification]
+
     for screenshot in (
         "desktop-start-ready",
         "desktop-drifter-selection",
@@ -157,3 +163,18 @@ def test_browser_shell_exposes_shared_items_and_item_inspection():
     assert "function renderOverworldItems(view)" in script
     assert 'view.screen === "item_inspect"' in script
     assert '{ kind: "overworld_item", selection_key: item.selection_key }' in script
+
+
+def test_browser_smoke_persists_active_pair_and_exact_member_progression():
+    source = SMOKE_PATH.read_text()
+
+    for required in (
+        'clickVisibleOption(page, "#overworld-options", "Choose Party")',
+        '"Azhvielle + Ser Branoc"',
+        'clickVisibleOption(page, "#skills-targets", "Azhvielle")',
+        '"Growth Points:"',
+        'M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS',
+        "saved active-pair selection did not survive browser reload",
+        "Azhvielle's stat investment did not survive browser reload",
+    ):
+        assert required in source

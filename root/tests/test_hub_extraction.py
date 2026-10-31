@@ -3,19 +3,22 @@ import pytest
 
 from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
-from app.game.overworld_session import OverworldSession, OverworldSessionResult
+from app.game.overworld_session import OverworldSession
 from app.game.party_state import DungeonPhase
 from app.persistence.ports import SaveLoadStatus
 from app.persistence.save_document import build_save_document, reconstruct_game_state
 from app.player.character_run_state import FIRE_INFUSION_REQUIREMENTS, InfusionKind
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleView, InteractionPhase
-from app.presentation.overworld_models import OverworldAction
+from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.battle_ui import ChooseAction, GoBack
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
 from tests.persistence_test_support import make_test_save_port
 from app.content import catalog
-from tests.game_test_support import hub_game as game_at_hub
+from tests.game_test_support import (
+    hub_game as game_at_hub,
+    three_member_hub_game,
+)
 
 
 class StableRng:
@@ -42,7 +45,7 @@ def ready_party():
         ),
     )
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    session.submit(ChooseCompanion("azhvielle"))
+    session.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
     view = session.submit(ChooseOverworldAction(OverworldAction.READY))
     assert isinstance(view, BattleView)
     return game, session, view
@@ -148,19 +151,47 @@ def test_pending_extraction_round_trips_without_banking_rewards():
     assert reloaded.player_state.exp_state.current == 0
 
 
-def test_tutorial_defeat_discards_attempt_and_returns_to_drifter_selection():
+def test_tutorial_defeat_keeps_recruited_pair_and_returns_them_ready_to_retry():
     game, session, _ = ready_party()
     for member in (game.player_state, *game.party_state.companions):
         member.health.take_damage(member.health.current)
     session.active_battle._finish("enemy")
 
-    result = session.submit(GoBack())
+    session.submit(GoBack())
+    view = session.current_view()
 
-    assert result is OverworldSessionResult.SELECT_DRIFTER
-    assert game.party_state.phase is DungeonPhase.OUTSIDE
-    assert game.party_state.companions == ()
+    assert view.screen is OverworldScreen.PARTY_READY
+    assert game.party_state.phase is DungeonPhase.PARTY_READY
+    assert len(game.party_state.companions) == 1
+    assert game.player_state.health.current == game.player_state.health.maximum
+    assert game.party_state.companions[0].health.current == game.party_state.companions[0].health.maximum
     assert game.party_state.outing_rewards.experience == 0
     assert game.party_state.outing_rewards.gold == 0
+
+
+def test_outing_rewards_follow_selected_pair_and_leave_bench_unchanged():
+    game = three_member_hub_game()
+    party = game.party_state
+    recruited_ids = tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    )
+    party.select_active_pair(
+        ("joruun", "azhvielle"),
+        recruited_ids=recruited_ids,
+    )
+    active_members = game.active_party_members
+    benched = game.member_for_drifter_id("branoc")
+    benched_before = benched.snapshot()
+    active_xp_before = tuple(member.exp_state.current for member in active_members)
+
+    party.start_floor_one_run()
+    party.add_floor_one_rewards(experience=120, gold=9)
+    assert party.complete_floor_one_boss(active_members)
+
+    assert tuple(member.exp_state.current for member in active_members) == tuple(
+        value + 60 for value in active_xp_before
+    )
+    assert benched.snapshot() == benched_before
 
 
 @pytest.mark.parametrize(
@@ -203,7 +234,7 @@ def test_ready_failure_restores_party_state_when_construction_raises(
         ),
     )
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    session.submit(ChooseCompanion("zhaivra"))
+    session.submit(ChooseCompanion("zhaivra", "floor_one_d2_recruitment"))
     party_members = (game.player_state, *game.party_state.companions)
     checkpoints = tuple(
         member.create_battle_checkpoint() for member in party_members
@@ -232,7 +263,7 @@ def test_ready_factory_returning_no_battle_does_not_leave_an_outing_or_context()
         enemy_factory=create_enemy_state,
     )
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    session.submit(ChooseCompanion("azhvielle"))
+    session.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
 
     view = session.submit(ChooseOverworldAction(OverworldAction.READY))
 
@@ -279,7 +310,9 @@ def test_load_restores_phase_screen_narrative_and_load_notice(
             setup.submit(
                 ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
             )
-            setup.submit(ChooseCompanion("azhvielle"))
+            setup.submit(
+                ChooseCompanion("azhvielle", "floor_one_d2_recruitment")
+            )
             if state_name in {"extraction", "completed_hub"}:
                 setup.submit(ChooseOverworldAction(OverworldAction.READY))
                 for enemy in setup.active_battle.enemies:

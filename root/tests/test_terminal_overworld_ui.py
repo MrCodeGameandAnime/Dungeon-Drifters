@@ -9,6 +9,7 @@ from app.player.progression import MAXIMUM_LEVEL
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseActivePair,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
@@ -20,7 +21,12 @@ from app.ui.overworld_ui import (
     ChooseWeaponTarget,
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
-from tests.game_test_support import advance_surface_to, floor_one_rest_game, hub_game
+from tests.game_test_support import (
+    advance_surface_to,
+    floor_one_rest_game,
+    hub_game,
+    three_member_hub_game,
+)
 
 
 def create_view(screen=OverworldScreen.MAIN, drifter_id="branoc", **kwargs):
@@ -87,6 +93,22 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
     assert contextual_index < controls_index
     assert not any("[1/" in line for line in lines)
     assert lines[-1].startswith("+")
+
+
+def test_party_selection_lists_ordered_pairs_and_reads_selected_identity():
+    game = three_member_hub_game()
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.PARTY_SELECTION,
+    )
+
+    text = "\n".join(rendered(view))
+    selected, _output = read(view, ["6"])
+
+    assert "CHOOSE YOUR PARTY" in text
+    assert "Ser Branoc, the Unbroken Crest + Azhvielle" in text
+    assert "[Selected]" in text
+    assert selected == ChooseActivePair(("joruun", "azhvielle"))
 
 
 def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():

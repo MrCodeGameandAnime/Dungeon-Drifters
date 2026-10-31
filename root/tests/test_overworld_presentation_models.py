@@ -99,6 +99,7 @@ def test_all_approved_screen_values_are_typed():
         "hub",
         "floor_one_warning",
         "companion_selection",
+        "party_selection",
         "party_ready",
         "outing",
         "extraction",

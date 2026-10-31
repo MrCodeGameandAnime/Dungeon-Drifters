@@ -26,6 +26,7 @@ from tools.generate_content_catalog import (
     discover_encounter_ids,
     discover_enemy_ids,
     discover_route_ids,
+    discover_recruitment_event_ids,
     discover_weapon_ids,
     render_catalog,
 )
@@ -104,6 +105,7 @@ def test_generated_enemy_catalog_is_deterministic_and_current():
         EXPECTED_DRIFTER_IDS,
         EXPECTED_ENCOUNTER_IDS,
         EXPECTED_ROUTE_IDS,
+        discover_recruitment_event_ids(),
     )
     assert discover_weapon_ids() == EXPECTED_WEAPON_IDS
     assert discover_drifter_ids() == EXPECTED_DRIFTER_IDS

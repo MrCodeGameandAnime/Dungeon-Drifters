@@ -269,11 +269,14 @@ button:disabled {
 #route-actions { grid-template-columns: minmax(12rem, 24rem); }
 #overworld-options { grid-template-columns: repeat(2, minmax(10rem, 1fr)); max-width: 42rem; margin-top: 1.1rem; padding-top: .75rem; border-top: 1px solid var(--line); }
 #route-actions button, #overworld-options button { min-height: 2.6rem; text-align: left; }
-.companion-selection, .extraction-rewards { max-width: 42rem; margin-top: .6rem; }
+.companion-selection, .party-selection, .extraction-rewards { max-width: 42rem; margin-top: .6rem; }
 .hub-shared-gold { margin: .45rem 0; color: var(--muted); font-weight: 700; }
 .companion-funds { margin: 0 0 .35rem; color: var(--muted); }
 .companion-choices { display: grid; gap: .25rem; }
 .companion-choice { display: grid; justify-items: start; gap: .12rem; min-height: 3rem; padding: .5rem .65rem; text-align: left; }
+.party-pair-choices { display: grid; gap: .25rem; }
+.party-pair-choice { display: flex; justify-content: space-between; gap: .75rem; min-height: 3rem; padding: .5rem .65rem; text-align: left; }
+.party-pair-choice.is-selected { border-color: var(--accent); }
 .companion-role, .companion-cost { color: var(--muted); font-size: .86rem; }
 .companion-summary { color: var(--ink); font-size: .9rem; font-weight: 400; }
 .extraction-rewards { padding: .5rem .65rem; border-block: 1px solid var(--line); }

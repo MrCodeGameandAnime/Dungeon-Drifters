@@ -326,7 +326,9 @@ def _qualify_route():
         raise AssertionError("Hub recruitment did not open companion selection")
     companion_id = recruit_view.companion_choices[0].drifter_id
     lead_total_before = _total_experience(game.player_state)
-    companion_view = session.submit(ChooseCompanion(companion_id))
+    companion_view = session.submit(
+        ChooseCompanion(companion_id, "floor_one_d2_recruitment")
+    )
     if companion_view.screen is not OverworldScreen.PARTY_READY:
         raise AssertionError("companion choice did not reach Party Ready")
     if companion_view.shared_gold != 10:

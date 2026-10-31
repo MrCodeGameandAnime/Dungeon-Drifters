@@ -36,10 +36,25 @@ class ChoosePermanentStatIncrease:
 @dataclass(frozen=True)
 class ChooseCompanion:
     drifter_id: str
+    event_id: str
 
     def __post_init__(self):
         if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
             raise ValueError("drifter_id must be a nonempty string")
+        if not isinstance(self.event_id, str) or not self.event_id.strip():
+            raise ValueError("event_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseActivePair:
+    drifter_ids: tuple[str, str]
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_ids, tuple) or len(self.drifter_ids) != 2:
+            raise ValueError("drifter_ids must contain exactly two IDs")
+        for drifter_id in self.drifter_ids:
+            if not isinstance(drifter_id, str) or not drifter_id.strip():
+                raise ValueError("drifter IDs must be nonempty strings")
 
 
 @dataclass(frozen=True)
@@ -124,6 +139,7 @@ OverworldInput: TypeAlias = Union[
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseCompanion,
+    ChooseActivePair,
     ChooseCharacterTarget,
     ChooseMerchantTarget,
     ChooseMerchantImprove,

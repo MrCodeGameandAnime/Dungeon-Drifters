@@ -778,7 +778,11 @@
     for (const candidate of view.companion_choices || []) {
       const button = makeButton(
         candidate.display_name,
-        { kind: "companion", drifter_id: candidate.drifter_id },
+        {
+          kind: "companion",
+          drifter_id: candidate.drifter_id,
+          event_id: candidate.event_id,
+        },
         candidate.enabled,
         candidate.disabled_reason,
         "companion-choice",
@@ -786,6 +790,25 @@
       appendChoiceDetail(button, "companion-role", candidate.archetype_label);
       appendChoiceDetail(button, "companion-summary", candidate.summary);
       appendChoiceDetail(button, "companion-cost", `${candidate.cost} gold`);
+      container.append(button);
+    }
+  }
+
+  function renderActivePartyChoices(view) {
+    const section = $("party-selection");
+    const visible = view.screen === "party_selection";
+    section.hidden = !visible;
+    if (!visible) return;
+    const container = $("party-pair-choices");
+    clear(container);
+    for (const choice of view.active_party_choices || []) {
+      const button = makeButton(
+        `${choice.display_names[0]} + ${choice.display_names[1]}`,
+        { kind: "active_pair", drifter_ids: choice.drifter_ids },
+        true,
+        null,
+        `party-pair-choice${choice.selected ? " is-selected" : ""}`,
+      );
       container.append(button);
     }
   }
@@ -870,6 +893,7 @@
     }
     const screenLabels = {
       companion_selection: "RECRUITMENT",
+      party_selection: "PARTY SELECTION",
       party_ready: "PARTY READY",
       extraction: "EXTRACTION",
     };
@@ -897,6 +921,7 @@
       "overworld-option",
     );
     renderCompanionChoices(view);
+    renderActivePartyChoices(view);
     renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),

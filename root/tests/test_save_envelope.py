@@ -36,6 +36,7 @@ def _legacy_schema9_payload():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 9
     payload["player"].pop("signature_weapon")
+    payload["party"].pop("active_drifter_ids")
     payload["overworld"].pop("active_route_id")
     for field in (
         "floor_one_cleared",
@@ -74,7 +75,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "500d9eaa5cd1fad59be386a61b2721f0795ab486b5930717b19255cde40065b0"
+        "edf99e856c52fcbc6fbaea9d1847c49883f12942502ae786f4451219ee49661a"
     )
 
 

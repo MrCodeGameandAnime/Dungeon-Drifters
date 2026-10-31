@@ -59,6 +59,19 @@ def completed_hub_game(*, lead_id="branoc", companion_id="azhvielle", gold=75):
     ))
 
 
+def three_member_hub_game(
+    *, lead_id="branoc", companion_id="azhvielle", third_id="joruun"
+):
+    game = completed_hub_game(lead_id=lead_id, companion_id=companion_id)
+    third = PlayerState(get_drifter_spec(third_id).create_character())
+    assert game.party_state.recruit_companion(
+        game.player_state,
+        third,
+        cost=0,
+    )
+    return game
+
+
 def enter_floor_one_rest(game, rest_index=0):
     route = get_route_spec("floor_one")
     rest = tuple(node for node in route.nodes if node.kind is RouteNodeKind.REST)[rest_index]

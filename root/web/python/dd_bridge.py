@@ -34,6 +34,7 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.overworld_ui import (
+    ChooseActivePair,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -201,7 +202,12 @@ def _command_to_input(command):
     if kind == "overworld_item":
         return ChooseOverworldItem(_required(command, "selection_key"))
     if kind == "companion":
-        return ChooseCompanion(_required(command, "drifter_id"))
+        return ChooseCompanion(
+            _required(command, "drifter_id"),
+            _required(command, "event_id"),
+        )
+    if kind == "active_pair":
+        return ChooseActivePair(tuple(_required(command, "drifter_ids")))
     if kind == "character_target":
         return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":

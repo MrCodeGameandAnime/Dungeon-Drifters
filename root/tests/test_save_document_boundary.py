@@ -24,9 +24,9 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 2085
+    assert len(canonical_bytes) == 2117
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "500d9eaa5cd1fad59be386a61b2721f0795ab486b5930717b19255cde40065b0"
+        "edf99e856c52fcbc6fbaea9d1847c49883f12942502ae786f4451219ee49661a"
     )
 
 

@@ -60,6 +60,7 @@ class OutingRewards:
 class PartyState:
     def __init__(self):
         self._companions = ()
+        self._active_drifter_ids = ()
         self._shared_gold = 0
         self._shared_items = {}
         self._crafting_experience = 0
@@ -73,6 +74,10 @@ class PartyState:
     @property
     def companions(self):
         return self._companions
+
+    @property
+    def active_drifter_ids(self):
+        return self._active_drifter_ids
 
     @property
     def shared_gold(self):
@@ -135,26 +140,64 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
-    def recruit_companion(self, lead, companion):
+    def recruit_companion(
+        self,
+        lead,
+        companion,
+        *,
+        cost=COMPANION_RECRUITMENT_COST,
+    ):
         _require_player_state(lead, "lead")
         _require_player_state(companion, "companion")
         lead_id = _drifter_id(lead)
         companion_id = _drifter_id(companion)
+        cost = _nonnegative("recruitment cost", cost)
         if companion_id == lead_id:
             raise ValueError("the lead Drifter cannot be recruited as a companion")
         if any(_drifter_id(member) == companion_id for member in self._companions):
             raise ValueError("the Drifter was already recruited")
         if self._phase is not DungeonPhase.HUB:
             raise ValueError("a companion can only be recruited at the hub")
-        if self._companions:
-            raise ValueError("the tutorial party already has a companion")
-        if self._shared_gold < COMPANION_RECRUITMENT_COST:
+        if len(self._companions) >= 3:
+            raise ValueError("the permanent roster is full")
+        if self._shared_gold < cost:
             return False
 
-        self._shared_gold -= COMPANION_RECRUITMENT_COST
+        first_companion = not self._companions
+        self._shared_gold -= cost
         self._companions = self._companions + (companion,)
-        self._phase = DungeonPhase.PARTY_READY
+        if first_companion and not self._tutorial_complete:
+            self._set_active_drifter_ids((lead_id, companion_id))
+            self._phase = DungeonPhase.PARTY_READY
         return True
+
+    def select_active_pair(self, drifter_ids, *, recruited_ids):
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("the active pair can only change at the Hub")
+        if not isinstance(drifter_ids, (tuple, list)) or len(drifter_ids) != 2:
+            raise ValueError("an active pair must contain exactly two Drifters")
+        if not isinstance(recruited_ids, (tuple, list)):
+            raise TypeError("recruited_ids must be a sequence of canonical IDs")
+        selected = tuple(_canonical_id(value, "active Drifter ID") for value in drifter_ids)
+        recruited = tuple(
+            _canonical_id(value, "recruited Drifter ID")
+            for value in recruited_ids
+        )
+        if len(recruited) != len(set(recruited)):
+            raise ValueError("recruited Drifter IDs must be unique")
+        if len(selected) != len(set(selected)):
+            raise ValueError("an active pair cannot contain the same Drifter twice")
+        if any(drifter_id not in recruited for drifter_id in selected):
+            raise ValueError("an active Drifter must be recruited")
+        self._set_active_drifter_ids(selected)
+
+    def _set_active_drifter_ids(self, drifter_ids):
+        values = tuple(_canonical_id(value, "active Drifter ID") for value in drifter_ids)
+        if not 1 <= len(values) <= 2:
+            raise ValueError("the active party must contain one or two Drifters")
+        if len(values) != len(set(values)):
+            raise ValueError("active Drifter IDs must be unique")
+        self._active_drifter_ids = values
 
     def add_shared_gold(self, amount):
         self._shared_gold += _nonnegative("gold amount", amount)
@@ -195,7 +238,7 @@ class PartyState:
             raise ValueError("the tutorial must be complete before Floor 1")
         if self._phase is not DungeonPhase.HUB:
             raise ValueError("a Floor 1 run can only start from the Hub")
-        if len(self._companions) != 1:
+        if len(self._active_drifter_ids) != 2:
             raise ValueError("a Floor 1 run requires the two-Drifter party")
 
         rate = 100
@@ -234,7 +277,7 @@ class PartyState:
         if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
             return False
 
-        party_size = 1 + len(self._companions)
+        party_size = len(self._active_drifter_ids)
         if party_size != 2:
             raise ValueError("Floor 1 extraction requires the two-Drifter party")
         denominator = 100 * party_size * (2 if partial else 1)
@@ -288,7 +331,8 @@ class PartyState:
         if self._phase is not DungeonPhase.OUTING:
             return False
         rewards = OutingRewards(experience, gold, items)
-        if rewards.experience % (1 + len(self._companions)):
+        party_size = len(self._active_drifter_ids)
+        if party_size < 1 or rewards.experience % party_size:
             raise ValueError("outing experience must divide evenly across the party")
         self._outing_rewards = rewards
         self._phase = DungeonPhase.EXTRACTION
@@ -307,24 +351,23 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
-    def reset_failed_tutorial(self):
+    def reset_failed_tutorial(self, party_members):
         if self._phase is not DungeonPhase.OUTING:
             return False
-        self._companions = ()
-        self._shared_gold = 0
-        self._shared_items = {}
-        self._tutorial_complete = False
+        self._validate_party_members(party_members)
         self._outing_rewards = OutingRewards()
-        self._floor_one_cleared = False
-        self._floor_one_runs_started_after_clear = 0
-        self._outing_xp_multiplier_percent = 100
-        self._phase = DungeonPhase.OUTSIDE
+        self._restore_party(party_members)
+        self._phase = DungeonPhase.PARTY_READY
         return True
 
     @classmethod
-    def from_snapshot(cls, snapshot, *, companions):
+    def from_snapshot(cls, snapshot, *, companions, active_drifter_ids=None):
         state = cls()
         state._companions = tuple(companions)
+        if active_drifter_ids is None:
+            active_drifter_ids = snapshot.get("active_drifter_ids")
+        if active_drifter_ids is not None:
+            state._set_active_drifter_ids(active_drifter_ids)
         state._shared_gold = _nonnegative("shared_gold", snapshot["shared_gold"])
         state._shared_items = _item_stacks(snapshot["shared_items"])
         state._crafting_experience = _nonnegative(
@@ -373,8 +416,13 @@ class PartyState:
                 raise ValueError("active Floor 1 run has an inconsistent XP rate")
         elif state._outing_xp_multiplier_percent != 100:
             raise ValueError("inactive Floor 1 runs must use the default XP rate")
+        snapshot_party_size = (
+            len(state._active_drifter_ids)
+            if state._active_drifter_ids
+            else 1 + len(state._companions)
+        )
         if state._phase is DungeonPhase.EXTRACTION and (
-            state._outing_rewards.experience % (1 + len(state._companions))
+            state._outing_rewards.experience % snapshot_party_size
         ):
             raise ValueError("outing experience must divide evenly across the party")
         return state
@@ -382,6 +430,7 @@ class PartyState:
     def snapshot(self):
         snapshot = {
             "companions": [member.snapshot() for member in self.companions],
+            "active_drifter_ids": list(self.active_drifter_ids),
             "shared_gold": self.shared_gold,
             "shared_items": self.shared_items,
             "crafting_experience": self.crafting_experience,
@@ -403,11 +452,11 @@ class PartyState:
             raise TypeError("Floor 1 requires the two-member tutorial party")
         if not all(isinstance(member, PlayerState) for member in party_members):
             raise TypeError("party_members must contain PlayerState values")
-        if not self._companions or party_members[1] is not self._companions[0]:
-            raise ValueError("party_members do not match the recruited party")
+        if tuple(_drifter_id(member) for member in party_members) != self._active_drifter_ids:
+            raise ValueError("party_members do not match the active party")
 
     def _floor_one_payout(self, *, partial):
-        party_size = 1 + len(self._companions)
+        party_size = len(self._active_drifter_ids)
         denominator = 100 * party_size * (2 if partial else 1)
         experience_each = (
             self._outing_rewards.experience
@@ -448,9 +497,16 @@ def _require_player_state(value, name):
 
 def _drifter_id(player_state):
     profile = player_state.character.profile
-    if profile is None:
+    drifter_id = getattr(profile, "drifter_id", None)
+    if drifter_id is None:
         raise ValueError("party members must have canonical Drifter profiles")
-    return profile.choice
+    return _canonical_id(drifter_id, "Drifter ID")
+
+
+def _canonical_id(value, name):
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
 
 
 def _nonnegative(name, value):

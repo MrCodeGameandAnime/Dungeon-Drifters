@@ -2,6 +2,7 @@
 
 from app.content.catalog import (
     DRIFTER_SPECS,
+    get_drifter_spec,
     get_drifter_spec_by_choice,
     get_encounter_spec,
     get_enemy_spec,
@@ -19,10 +20,8 @@ from app.content.weapon_progression_spec import (
     get_material_spec,
     get_weapon_component_spec,
 )
-from app.game.party_state import (
-    COMPANION_RECRUITMENT_COST,
-    DungeonPhase,
-)
+from app.game.party_state import DungeonPhase
+from app.game.recruitment import available_recruitment_event
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
@@ -55,6 +54,7 @@ from app.presentation.overworld_models import (
     OutingRewardsView,
     OverworldScreen,
     OverworldView,
+    PartyPairChoiceView,
     SkillMoveView,
     SkillsView,
     StatBonusView,
@@ -128,6 +128,7 @@ class OverworldPresenter:
                     OverworldScreen.HUB,
                     OverworldScreen.FLOOR_ONE_WARNING,
                     OverworldScreen.COMPANION_SELECTION,
+                    OverworldScreen.PARTY_SELECTION,
                     OverworldScreen.PARTY_READY,
                     OverworldScreen.OUTING,
                     OverworldScreen.EXTRACTION,
@@ -225,6 +226,16 @@ class OverworldPresenter:
                 if screen is OverworldScreen.COMPANION_SELECTION
                 else ()
             ),
+            active_party_choices=(
+                self._active_party_choices(game_state)
+                if screen is OverworldScreen.PARTY_SELECTION
+                else ()
+            ),
+            active_drifter_ids=(
+                game_state.party_state.active_drifter_ids
+                if screen is OverworldScreen.PARTY_SELECTION
+                else ()
+            ),
             shared_gold=(
                 game_state.party_state.shared_gold
                 if screen
@@ -236,7 +247,7 @@ class OverworldPresenter:
                 else None
             ),
             recruitment_cost=(
-                COMPANION_RECRUITMENT_COST
+                available_recruitment_event(game_state).cost
                 if screen is OverworldScreen.COMPANION_SELECTION
                 else None
             ),
@@ -264,6 +275,8 @@ class OverworldPresenter:
     def _hub_adventure_text(game_state, screen):
         if screen is OverworldScreen.COMPANION_SELECTION:
             return "Choose one Drifter to join your party."
+        if screen is OverworldScreen.PARTY_SELECTION:
+            return "Choose the two Drifters for your next outing."
         if screen is OverworldScreen.FLOOR_ONE_WARNING:
             return (
                 "Death means returning to the Hub. All unsecured XP, gold, "
@@ -285,29 +298,58 @@ class OverworldPresenter:
 
     @staticmethod
     def _companion_choices(game_state):
-        profile = game_state.player_state.character.profile
-        if profile is None:
-            raise ValueError("companion selection requires a canonical lead Drifter")
-        lead_id = profile.drifter_id
+        event = available_recruitment_event(game_state)
+        if event is None:
+            raise ValueError("no recruitment event is currently available")
+        recruited_ids = {
+            member.character.profile.drifter_id
+            for member in game_state.recruited_members
+        }
         shared_gold = game_state.party_state.shared_gold
-        enabled = shared_gold >= COMPANION_RECRUITMENT_COST
         return tuple(
             CompanionChoiceView(
+                event_id=event.event_id,
                 drifter_id=spec.drifter_id,
                 display_name=spec.display_name,
                 archetype_label=spec.archetype_name,
                 summary=spec.selection_summary,
-                cost=COMPANION_RECRUITMENT_COST,
-                enabled=enabled,
+                cost=event.cost,
+                enabled=shared_gold >= event.cost,
                 disabled_reason=(
                     None
-                    if enabled
+                    if shared_gold >= event.cost
                     else OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD
                 ),
             )
-            for spec in DRIFTER_SPECS
-            if spec.drifter_id != lead_id
+            for spec in (
+                get_drifter_spec(drifter_id)
+                for drifter_id in event.candidate_drifter_ids
+                if drifter_id not in recruited_ids
+            )
         )
+
+    @staticmethod
+    def _active_party_choices(game_state):
+        members = game_state.recruited_members
+        active_ids = game_state.party_state.active_drifter_ids
+        choices = []
+        for first in members:
+            first_id = _member_drifter_spec(first).drifter_id
+            for second in members:
+                second_id = _member_drifter_spec(second).drifter_id
+                if first_id == second_id:
+                    continue
+                choices.append(
+                    PartyPairChoiceView(
+                        drifter_ids=(first_id, second_id),
+                        display_names=(
+                            first.character.full_display_name,
+                            second.character.full_display_name,
+                        ),
+                        selected=(first_id, second_id) == active_ids,
+                    )
+                )
+        return tuple(choices)
 
     @staticmethod
     def _default_adventure_text(game_state):
@@ -389,11 +431,13 @@ class OverworldPresenter:
 
     @staticmethod
     def _selected_party_member(game_state, selected_target_id):
-        members = (game_state.player_state,) + game_state.party_state.companions
+        members = game_state.members_available_to_party
         member_specs = tuple((member, _member_drifter_spec(member)) for member in members)
         target_ids = {spec.drifter_id for _member, spec in member_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = member_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         targets = tuple(
             MerchantTargetView(
                 drifter_id=spec.drifter_id,
@@ -442,14 +486,16 @@ class OverworldPresenter:
 
     @staticmethod
     def _weapon_view(game_state, selected_target_id):
-        members = (game_state.player_state,) + game_state.party_state.companions
+        members = game_state.members_available_to_party
         target_specs = tuple(
             (member, _member_drifter_spec(member))
             for member in members
         )
         target_ids = {spec.drifter_id for _member, spec in target_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = target_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         target_member = next(
             member
             for member, spec in target_specs
@@ -507,7 +553,7 @@ class OverworldPresenter:
     @staticmethod
     def _merchant_view(game_state, selected_target_id):
         party = game_state.party_state
-        members = (game_state.player_state,) + party.companions
+        members = game_state.members_available_to_party
         target_specs = tuple(
             (
                 member,
@@ -516,8 +562,10 @@ class OverworldPresenter:
             for member in members
         )
         target_ids = {spec.drifter_id for _member, spec in target_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = target_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         target_member = next(
             member
             for member, spec in target_specs
@@ -881,18 +929,23 @@ class OverworldPresenter:
             merchant_action = ()
             if party_state.phase is DungeonPhase.HUB:
                 merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
-                party_actions = (
-                    (
+                if party_state.tutorial_complete:
+                    party_actions = (
+                        (enabled(OverworldAction.SELECT_PARTY, "Choose Party"),)
+                        if len(game_state.recruited_members) > 2
+                        else ()
+                    ) + (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
                     )
-                    if party_state.tutorial_complete
-                    else (
+                elif available_recruitment_event(game_state) is not None:
+                    party_actions = (
                         enabled(
                             OverworldAction.RECRUIT_COMPANION,
                             "Recruit Companion",
                         ),
                     )
-                )
+                else:
+                    party_actions = ()
             elif party_state.phase is DungeonPhase.PARTY_READY:
                 party_actions = (
                     enabled(OverworldAction.READY, "Ready / Set Out"),
@@ -906,6 +959,8 @@ class OverworldPresenter:
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
         if screen is OverworldScreen.COMPANION_SELECTION:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.PARTY_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.FLOOR_ONE_WARNING:
             return (

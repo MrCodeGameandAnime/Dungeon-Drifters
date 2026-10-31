@@ -100,7 +100,7 @@ def _run_sync_scenarios(api, tmp_path):
     assert store_b.load_conflict(profile_id).snapshot is None
 
 
-def _run_schema11_history_advancement(api, session_factory):
+def _run_schema_history_advancement(api, session_factory, historical_schema):
     account = create_account(api)
     account_id = UUID(account["account_id"])
     profile_id = uuid4()
@@ -108,11 +108,13 @@ def _run_schema11_history_advancement(api, session_factory):
     device_id = UUID("00000000-0000-4000-8000-000000000024")
     current_payload = build_save_document(_game_state())
     historical_payload = deepcopy(current_payload)
-    historical_payload["schema_version"] = 11
-    historical_players = [historical_payload["player"]]
-    historical_players.extend(historical_payload["party"]["companions"])
-    for player in historical_players:
-        player["signature_weapon"].pop("tier_v_success")
+    historical_payload["schema_version"] = historical_schema
+    historical_payload["party"].pop("active_drifter_ids")
+    if historical_schema == 11:
+        historical_players = [historical_payload["player"]]
+        historical_players.extend(historical_payload["party"]["companions"])
+        for player in historical_players:
+            player["signature_weapon"].pop("tier_v_success")
     historical_digest = payload_sha256(historical_payload)
 
     with session_factory() as session:
@@ -143,7 +145,7 @@ def _run_schema11_history_advancement(api, session_factory):
         headers=authorization(account["access_token"]),
     )
     migrated_payload = deepcopy(current_payload)
-    migrated_payload["metadata"]["schema_migration"] = "11"
+    migrated_payload["metadata"]["schema_migration"] = str(historical_schema)
     advanced = api.put(
         f"/v1/profiles/{profile_id}/progression",
         headers=authorization(account["access_token"]),
@@ -160,16 +162,21 @@ def _run_schema11_history_advancement(api, session_factory):
     assert head.json()["head"]["payload_sha256"] == historical_digest
     assert advanced.status_code == 200, advanced.text
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 12
+    assert advanced.json()["head"]["payload"]["schema_version"] == 13
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == historical_payload
         assert historical.payload_sha256 == historical_digest
 
 
-def test_schema11_remote_history_advances_to_schema12_without_mutation(service):
+def test_schema11_remote_history_advances_to_schema13_without_mutation(service):
     api, session_factory = service
-    _run_schema11_history_advancement(api, session_factory)
+    _run_schema_history_advancement(api, session_factory, 11)
+
+
+def test_schema12_remote_history_advances_to_schema13_without_mutation(service):
+    api, session_factory = service
+    _run_schema_history_advancement(api, session_factory, 12)
 
 
 @pytest.mark.skipif(
@@ -177,14 +184,31 @@ def test_schema11_remote_history_advances_to_schema12_without_mutation(service):
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema11_remote_history_advances_to_schema12_on_postgresql():
+def test_schema11_remote_history_advances_to_schema13_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
         session_factory = sessionmaker(engine, expire_on_commit=False)
         app = create_app(session_factory=session_factory, settings=Settings())
         with TestClient(app) as api:
-            _run_schema11_history_advancement(api, session_factory)
+            _run_schema_history_advancement(api, session_factory, 11)
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRES_URL
+    or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
+    reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
+)
+def test_schema12_remote_history_advances_to_schema13_on_postgresql():
+    engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
+    try:
+        Base.metadata.create_all(engine)
+        session_factory = sessionmaker(engine, expire_on_commit=False)
+        app = create_app(session_factory=session_factory, settings=Settings())
+        with TestClient(app) as api:
+            _run_schema_history_advancement(api, session_factory, 12)
     finally:
         engine.dispose()
 

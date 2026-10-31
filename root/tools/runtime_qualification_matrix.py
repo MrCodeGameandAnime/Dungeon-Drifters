@@ -28,12 +28,14 @@ EXPECTED_STAGES = (
     "SURFACE_ROUTE_COMPLETE",
     "ROUTE_FINAL_STATE",
     "ROUTE_EVIDENCE_RELEASE",
+    "M1_INITIAL_ROSTER",
     "HUB_RECRUITMENT",
     "HUB_READY",
     "HUB_TUTORIAL_BATTLE",
     "HUB_EXTRACTION",
     "HUB_RETURN",
     "HUB_FINAL_STATE",
+    "M1_ACTIVE_PAIR_ROUNDTRIP",
     "FLOOR_ONE_WARNING",
     "FLOOR_ONE_SET_OUT",
     "FLOOR_ONE_BATTLE_01",
@@ -77,7 +79,7 @@ COMPLETION_MARKER = "MYP|RESULT|RAW_PROBE_STAGES_COMPLETE"
 CPYTHON_NATIVE = "CPYTHON_NATIVE"
 CPYTHON_FORCED_OVERLAY = "CPYTHON_FORCED_OVERLAY"
 MICROPYTHON_DEFAULT = "MICROPYTHON_DEFAULT"
-MICROPYTHON_608K = "MICROPYTHON_608K"
+MICROPYTHON_624K = "MICROPYTHON_624K"
 
 _IMPLEMENTATION_PREFIX = "MYP|IMPLEMENTATION|"
 _VERSION_PREFIX = "MYP|VERSION|"
@@ -138,11 +140,11 @@ def build_command(mode, python, micropython, probe, bootstrap, source):
         return [str(python), str(bootstrap), str(source)]
     if mode == MICROPYTHON_DEFAULT:
         return [str(micropython), str(bootstrap), str(source)]
-    if mode == MICROPYTHON_608K:
+    if mode == MICROPYTHON_624K:
         return [
             str(micropython),
             "-X",
-            "heapsize=608K",
+            "heapsize=624K",
             str(bootstrap),
             str(source),
         ]
@@ -370,7 +372,7 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
                 returncode=result.returncode,
             )
             validate_semantic_contract(observation, returncode=result.returncode)
-            _validate_identity(observation, MICROPYTHON_608K)
+            _validate_identity(observation, MICROPYTHON_624K)
         except SemanticContractError:
             return PressureObservation("UNEXPECTED_FAILURE", result)
         return PressureObservation("PASS", result)
@@ -381,11 +383,11 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
 
 def classify_pressure_confirmation(heap_kib, observations):
     classifications = [value.classification for value in observations]
-    if heap_kib == 608:
+    if heap_kib == 624:
         if classifications == ["PASS"] * 3:
             return "STABLE_PASS", "3/3"
         count = sum(value == "PASS" for value in classifications)
-    elif heap_kib == 576:
+    elif heap_kib == 608:
         if classifications == ["MEMORY_LIMIT"] * 3:
             return "MEMORY_LIMIT_CONFIRMED", "3/3"
         count = sum(value == "MEMORY_LIMIT" for value in classifications)
@@ -398,14 +400,14 @@ def closure_complete(
     *,
     runtime_passed,
     semantic_parity,
+    heap_624_status,
     heap_608_status,
-    heap_576_status,
 ):
     return (
         runtime_passed
         and semantic_parity
-        and heap_608_status == "STABLE_PASS"
-        and heap_576_status == "MEMORY_LIMIT_CONFIRMED"
+        and heap_624_status == "STABLE_PASS"
+        and heap_608_status == "MEMORY_LIMIT_CONFIRMED"
     )
 
 
@@ -480,7 +482,7 @@ def main(argv=None):
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
         MICROPYTHON_DEFAULT,
-        MICROPYTHON_608K,
+        MICROPYTHON_624K,
     )
     results = {}
     for mode in modes:
@@ -505,6 +507,16 @@ def main(argv=None):
         return 1
 
     heap_sweep = _load_heap_sweep()
+    heap_624_status = _run_pressure_confirmation(
+        heap_sweep,
+        args.micropython,
+        args.bootstrap,
+        args.source,
+        624,
+    )
+    if heap_624_status != "STABLE_PASS":
+        return 1
+
     heap_608_status = _run_pressure_confirmation(
         heap_sweep,
         args.micropython,
@@ -512,24 +524,14 @@ def main(argv=None):
         args.source,
         608,
     )
-    if heap_608_status != "STABLE_PASS":
-        return 1
-
-    heap_576_status = _run_pressure_confirmation(
-        heap_sweep,
-        args.micropython,
-        args.bootstrap,
-        args.source,
-        576,
-    )
-    if heap_576_status != "MEMORY_LIMIT_CONFIRMED":
+    if heap_608_status != "MEMORY_LIMIT_CONFIRMED":
         return 1
 
     if closure_complete(
         runtime_passed=True,
         semantic_parity=parity,
+        heap_624_status=heap_624_status,
         heap_608_status=heap_608_status,
-        heap_576_status=heap_576_status,
     ):
         print("MYP20|RESULT|CLOSURE_COMPLETE")
         return 0

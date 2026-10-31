@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec
 from app.combat.battle import Battle
 from app.combat.brace import BRACE_RULES
 from app.combat.resolver import CombatResolver
@@ -214,7 +214,7 @@ def test_four_drifters_complete_the_full_surface_route(
     rest_actions,
     tmp_path,
 ):
-    player = PlayerState(create_drifter(drifter_id))
+    player = PlayerState(get_drifter_spec(drifter_id).create_character())
     character = player.character
     health = player.health
     mana = player.mana_resource

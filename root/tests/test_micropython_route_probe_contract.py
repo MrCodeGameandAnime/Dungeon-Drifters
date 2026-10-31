@@ -121,13 +121,15 @@ def test_probe_route_contract_contains_the_authored_surface_route():
 
 def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     hub_stages = _stage_calls(_hub_probe_tree(), "run_stage")
-    assert tuple(hub_stages[:6]) == (
+    assert tuple(hub_stages[:8]) == (
+        "M1_INITIAL_ROSTER",
         "HUB_RECRUITMENT",
         "HUB_READY",
         "HUB_TUTORIAL_BATTLE",
         "HUB_EXTRACTION",
         "HUB_RETURN",
         "HUB_FINAL_STATE",
+        "M1_ACTIVE_PAIR_ROUNDTRIP",
     )
 
     source = _probe_source()
@@ -137,6 +139,23 @@ def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     assert route_final < evidence_release < hub_run
     live_state_assert = source.index("_assert_route_live_state()", hub_run)
     assert hub_run < live_state_assert
+
+
+def test_m1_probe_covers_roster_identity_pair_selection_and_round_trip():
+    source = _hub_probe_source()
+    for required in (
+        '("branoc",)',
+        '"Drifter was recruited before its authored event"',
+        '"branoc", "azhvielle"',
+        '"zhaivra", "azhvielle"',
+        "ChooseActivePair",
+        "game.clone()",
+        "clone.snapshot() != snapshot",
+        "clone.member_for_drifter_id(",
+        '"M1_ACTIVE_PAIR_ROUNDTRIP"',
+        '"M1_INITIAL_ROSTER"',
+    ):
+        assert required in source
 
 
 def test_probe_continues_through_all_floor_one_battles_and_both_rests():

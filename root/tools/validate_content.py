@@ -15,6 +15,7 @@ from tools.generate_content_catalog import (
     discover_encounter_ids,
     discover_enemy_ids,
     discover_route_ids,
+    discover_recruitment_event_ids,
     discover_weapon_ids,
     render_discovered_catalog,
 )
@@ -29,6 +30,7 @@ from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
 from app.content.route_spec import RouteNodeKind, RouteSpec
+from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 
@@ -46,6 +48,13 @@ CONTENT_TYPES = {
         discover_encounter_ids,
     ),
     "route": ("routes", "route", "ROUTE", RouteSpec, discover_route_ids),
+    "recruitment_event": (
+        "recruitment_events",
+        "recruitment_event",
+        "RECRUITMENT_EVENT",
+        RecruitmentEventSpec,
+        discover_recruitment_event_ids,
+    ),
 }
 
 
@@ -203,6 +212,22 @@ def _validate_references_and_factories(records, errors):
             if index + 1 < len(route.nodes) and route.nodes[index + 1] is node:
                 _error(errors, path, "route successors must derive from distinct ordered nodes")
 
+    routes_by_id = {spec.route_id: spec for _, spec, _ in records["route"]}
+    drifter_ids = {spec.drifter_id for _, spec, _ in records["drifter"]}
+    for _, event, path in records["recruitment_event"]:
+        route = routes_by_id.get(event.route_id)
+        if route is None:
+            _error(errors, path, f"unknown route ID {event.route_id!r}")
+        elif event.route_node_id not in {node.node_id for node in route.nodes}:
+            _error(
+                errors,
+                path,
+                f"route node {event.route_node_id!r} is not on route {event.route_id!r}",
+            )
+        for drifter_id in event.candidate_drifter_ids:
+            if drifter_id not in drifter_ids:
+                _error(errors, path, f"unknown candidate Drifter ID {drifter_id!r}")
+
 
 def _validate_catalog(errors):
     try:
@@ -277,6 +302,12 @@ def validate_content():
     _duplicates(records["drifter"], "choice", "Drifter choice", errors)
     _duplicates(records["encounter"], "encounter_id", "encounter ID", errors)
     _duplicates(records["route"], "route_id", "route ID", errors)
+    _duplicates(
+        records["recruitment_event"],
+        "event_id",
+        "recruitment event ID",
+        errors,
+    )
     _validate_moves(records, errors)
     _validate_references_and_factories(records, errors)
     if not errors:
@@ -302,10 +333,18 @@ def main(argv=None):
         "drifter": "drifters",
         "encounter": "encounters",
         "route": "routes",
+        "recruitment_event": "recruitment events",
     }
     counts = ", ".join(
         f"{len(records[name])} {name if len(records[name]) == 1 else plurals[name]}"
-        for name in ("enemy", "weapon", "drifter", "encounter", "route")
+        for name in (
+            "enemy",
+            "weapon",
+            "drifter",
+            "encounter",
+            "route",
+            "recruitment_event",
+        )
     )
     print(f"content valid: {counts}")
     return 0

@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. This document does not authorize implementation, delegation, commits, or publishing.
 
-**Status:** Planning draft, 2026-10-29. Current-code plan based on `hub` at `8099b895`; revalidate at entry, including local documentation moves.
+**Status:** Gates 1-3 are implemented and locally qualified in the uncommitted `dungeon` working tree, based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb` (2026-10-30). Gate 4's real-browser pair save/reload proof is pending a fresh smoke run; the latest attempt timed out before game startup while fetching Pyodide from jsDelivr. Gate 5 qualification is recorded below; final review, acceptance, and a post-change commit SHA remain open. No branch was created.
 
 **Goal:** Separate permanent recruited Drifters from the deployed party without changing recruitment pacing or losing any existing character investment.
 
@@ -31,17 +31,17 @@ Runtime schema 11/disk 12 store the original player plus embedded companions, no
 
 ## State And Interfaces
 
-The following are proposed M1 interfaces, not claims that they already exist. Gate 0 confirms naming against the entry tree:
+The following are approved M1 interfaces, not claims that they already exist. Exact names may be adjusted during implementation without changing these ownership contracts:
 
 | Proposed boundary | Contract |
 | --- | --- |
 | `GameState.recruited_members` | Read-only tuple of canonical recruited `PlayerState`s, including the original starting Drifter once |
 | `GameState.member_for_drifter_id(drifter_id)` | Returns that canonical member; rejects unknown/unrecruited IDs, with no lead fallback |
-| `PartyState.active_drifter_ids` | Ordered deployed IDs; M1 supports a single starting Drifter and the approved ordinary active pair, distinct from the permanent roster; M4B extends the authored full-party encounter mode |
+| `PartyState.active_drifter_ids` | Persisted ordered selection, distinct from the permanent roster; one member before D2 joins and exactly two for an ordinary outing; M4B adds the explicit authored full-party encounter mode |
 | `GameState.active_party_members` | Resolves active IDs through the roster; does not clone them into another authoritative party |
 | `PartyState.select_active_pair(drifter_ids, *, recruited_ids)` | Validates two distinct recruited IDs and Hub eligibility before assigning; no mutation on rejection |
 
-Recommended implementation representation: preserve the original player at the existing root boundary and generalize companions to the remaining recruited members, adding explicit active IDs. This is a minimal storage recommendation, not a decision that the original Drifter must always fight or remain the narrative speaker. Gate 0 must approve another representation if needed; do not persist both a roster copy and companion copies.
+Approved representation: preserve the original player at the existing root boundary, generalize companions to the remaining recruited members, and persist explicit active IDs. The root player is the stable campaign/story anchor, not a mandatory active participant. Do not persist both a roster copy and companion copies.
 
 Recruitment needs an authored event identity, required floor/story condition, eligible candidate IDs, cost, and one-time completion evidence. The client submits an offered event/Drifter ID, not an arbitrary floor/cost/unlock flag. Reuse `StoryState` completed-event support where sufficient. Decide when later recruits become secured before connecting a dungeon event. M1 supplies the validated extension point and controlled fixtures, not production Floor II/III recruitment scenes.
 
@@ -51,7 +51,7 @@ Ordinary-run participants are fixed at deployment and remain the reward recipien
 
 Modify `root/src/app/game/game_state.py`, `party_state.py`, `overworld_session.py`, and `weapon_progression.py`; extend `root/src/app/ui/overworld_ui.py`, `terminal_overworld_ui.py`, and `root/src/app/presentation/overworld_models.py`/`overworld_presenter.py`. Inspect `root/src/app/player/inventory_action.py` for actor-owned item targeting. Prefer one shared roster lookup over repeating position-dependent tuples.
 
-Add only the small authored recruitment definition module needed by Gate 0's representation; its filename and catalog integration are a design choice to record before coding. Extend existing content validation/scaffolding only if the event becomes a new content family. Do not create another world/session engine.
+Gate 1 adds the smallest immutable recruitment-event spec needed by the existing authored-content architecture and exposes its records through the current read-only content catalog. The spec owns event ID, floor/story eligibility, candidate Drifter IDs, and authored cost; the existing Floor I D2 onboarding is the only production recruitment event represented by M1. Follow the existing generated-catalog path where applicable, and extend its validation only for recruitment-specific invariants. Do not add a new narrative scene, second event engine, broad content framework, or production D3/D4 records.
 
 Extend `root/web/python/dd_bridge.py` and `root/web/play/js/pyd4.js` to project and submit semantic pair/target choices. The browser may hold temporary checkbox/selection presentation, never recruitment eligibility or authoritative membership. Terminal exposes the same confirm/back choices. Existing mobile single-view menus and desktop presentation remain usable; no visual redesign is required.
 
@@ -71,64 +71,125 @@ Forged IDs, duplicate selection, insufficient recruitment funds, stale offers, n
 - Stale recruitment/pair choices must not charge twice or swap a live outing; Gates 1/2 check zero mutation.
 - Failed battle construction must restore every participant, not only the former lead; Gate 2 checks checkpoint/phase rollback.
 
+## Gate 0 Decision Record
+
+The user approved all six defaults on 2026-10-30:
+
+| ID | Approved decision |
+| --- | --- |
+| M1-D1 | D1 remains the campaign/story anchor but may be benched. Active order never changes Drifter identity, and no active-party rule requires D1. |
+| M1-D2 | Accepting a valid authored recruitment event adds that Drifter permanently and charges its authored cost exactly once. Death does not remove the recruit. Reuse `StoryState.completed_events` as the one-time event record; later recruitment scenes and prices remain owned by their floor/content milestones. |
+| M1-D3 | At the Hub, all recruited Drifters are inspectable and available to existing exact-target Character, Skills, Weapon, Equipment, and merchant actions. During an outing, only the deployed pair is accessible; no bench actions, transfers, or swaps. Every return to the Hub restores all recruited Drifters to full HP/Mana. |
+| M1-D4 | At the Hub, select any two distinct recruited Drifters. Selection order is battle/presentation order only. The pair is locked from deployment until return to the Hub, including Rest; ordinary outings remain two-person. |
+| M1-D5 | Store D1 once as `GameState.player_state`, D2-D4 as canonical `PartyState.companions`, and the ordered active IDs on `PartyState`. No duplicate roster representation. |
+| M1-D6 | Advance runtime schema 11 to 12 and disk schema 12 to 13. Keep profile-envelope version 1 and API `/v1`; update the profile-service payload validator for disk schema 13. No database-table migration is planned. |
+
+The fixed campaign pacing remains unchanged: any Drifter may be D1; D2 joins on Floor I for 65 gold, D3 on Floor II, D4 on Floor III; Floor III has the first four-Drifter boss, and expeditions start on Floor IV. M1 adds no production D3/D4 scenes or costs. A recruit accepted during an outing joins the permanent roster immediately but cannot replace an outing participant until the party returns to the Hub.
+
+### State, Action, And Validation Matrix
+
+| Concern | Owner and rule | Validation/failure behavior |
+| --- | --- | --- |
+| Permanent roster | `GameState.player_state` is D1; `PartyState.companions` stores up to three additional canonical `PlayerState` objects. Each recruited Drifter exists once per game. | Canonical content IDs are unique; an unknown or unrecruited ID is rejected, never substituted with D1. |
+| Deployed party | `PartyState.active_drifter_ids` is an ordered list of one or two recruited IDs. After D2 joins, ordinary outings use exactly two. Deployment captures the pair for the entire outing. | IDs must be unique and belong to the roster. A party change outside the Hub is rejected without mutation. |
+| Recruitment | A semantic request names the currently offered authored event and candidate. The event owns eligibility/cost; successful addition and payment are one atomic mutation. `StoryState.completed_events` prevents replay. | Forged/stale event, duplicate recruit, or insufficient funds leaves roster, event evidence, and currency unchanged. Recruitment is permanent once accepted. |
+| Hub targeting | Character, Skills, Weapon, Equipment, and merchant actions resolve the submitted Drifter ID against the full recruited roster. | Exact target required; no lead/first-member fallback. Bench actions are unavailable during an outing. |
+| Battle and rewards | Battle construction, item-use actor, run checkpoints, XP, and encounter rewards resolve through the captured active IDs, not roster position. Bench members gain no combat XP. | Duplicate, missing, or changed participants fail before mutation; failed construction restores every captured participant and phase. |
+| Return/recovery | Extraction or death returns to the Hub and restores every recruited Drifter to full HP/Mana. | No mid-run bench restoration or party substitution. Existing reward-loss/banking rules remain unchanged. |
+| Persistence | Game snapshot runtime schema 12; disk schema 13; envelope v1 and API `/v1`. Profile service accepts the new current disk payload while historical remote revisions remain immutable. | Validate roster uniqueness, active subset/order/size, event evidence, and phase consistency before reconstruction. Invalid payloads fail closed. |
+
+### Migration Examples
+
+| Source state | Schema-13 roster | Active IDs | Preserved behavior |
+| --- | --- | --- | --- |
+| New game or legacy solo/pre-Hub save | D1 only | `[D1]` | No companion or future Drifter is granted. |
+| Existing tutorial pair save | D1 plus its existing D2 | Existing pair order, normally `[D1, D2]` | All player progression, equipment, weapon investment, shared inventory, and recruitment evidence remain intact. |
+| Completed Hub save | Exact legacy recruited members | Exact prior selection; legacy pair derives `[D1, D2]` | Hub state and shared resources remain unchanged. |
+| Active Floor I Rest save | D1 and D2 | Exact active pair `[D1, D2]` | Rest cursor/phase, HP/Mana, pending rewards, and no-rewind behavior are preserved. No bench swap occurs on load. |
+| Historical remote schema-12 revision | Migrated copy of the same D1/D2 state | `[D1, D2]` unless a valid prior selection is represented | Original payload and digest remain immutable; a new schema-13 write advances from the accepted remote revision. |
+
+### Current-Tree Roster Lookup Inventory
+
+Entry inventory at `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb` found these implementation boundaries. Line numbers are from that baseline and are navigation aids, not fixed patch locations.
+
+| File/boundary | Current position-based assumption | M1 treatment |
+| --- | --- | --- |
+| `root/src/app/game/game_state.py` (`clone`, `snapshot`) | Clones/snapshots root player and companions as separate fixed fields. | Keep the one-root-plus-companions storage, extend companions and clone graph, persist active IDs. |
+| `root/src/app/game/party_state.py` (`recruit_companion`, Floor I start/reward validation, snapshot reconstruction) | Rejects a second companion; assumes pair order and computes party size from root plus companion count. | Generalize roster membership; use captured active IDs for ordinary run eligibility and participant/reward ownership. |
+| `root/src/app/game/overworld_session.py` (participant tuple at 246, 788, 868, 916, 1258; targeting at 642-643; battle setup/checkpoints at 1055-1118 and 1236; Rest recovery at 1363-1365) | Rebuilds participants as `(player_state,) + companions`, forces the root player into Battle, and checkpoints/restores only that root in some paths. | Resolve the deployed pair once and use it consistently for Battle, rewards, checkpoints, recovery, and exact targets. Keep root identity separate from active order. |
+| `root/src/app/presentation/overworld_presenter.py` (`_companion_choices` 287-310; target lists 391-410, 444-478, 508-540) | Recruitment choices exclude the root lead; character, weapon, and merchant target lists contain only root plus companions. | Candidate offers come from authored event eligibility; Hub target lists use every recruited member. Pair-selection offers only recruited identities. |
+| `root/src/app/game/weapon_progression.py` (target lookup at 208) | Resolves a Drifter through root plus companions. | Resolve against the canonical roster with no lead fallback. |
+| `root/src/app/persistence/save_document.py` (current/legacy party validation around 601-780; Floor I payload validation around 1285-1292) | Limits old and current party snapshots to one companion and infers participant count from that shape. | Preserve historical-schema limits; update only schema-13 validation/migration to the approved roster and active-ID contracts. |
+| `root/web/python/dd_bridge.py`, `root/web/play/js/pyd4.js` | Existing character/weapon/merchant commands already carry Drifter IDs, but no active-pair action exists. | Add semantic pair-selection submission/projection; Python remains authoritative for membership, eligibility, and validation. |
+| `root/web/qualification/python/boot.py` (334, 386) | The sealed Surface/Hub probe explicitly names the tutorial lead and companion. | Preserve that pair as historical regression evidence; add roster qualification without weakening the existing two-Drifter path. |
+
+A broad search for direct `player_state`/`companions` assumptions matched 26 Python test/support modules. This is an impact list, not a deletion/edit quota; Gate 1-4 touch the focused state, flow, persistence, presenter, terminal, browser, and profile-service owners below. Existing T0 qualification and historical Surface coverage remain protected.
+
 ## Gates And Tests
 
 Every gate uses red/green focused tests; names below are proposed additions unless identified as existing. Existing test modules are the preferred homes rather than a new test for every prose bullet.
 
 ### Gate 0 - Freeze M1 Decisions And Migration Shape
 
-- [ ] Approve M1-D1 through D4 below; inventory all position-based roster lookups with `rg` and record the exact changed call sites.
-- [ ] Specify old-to-new snapshot examples for a new game, pre-entrance save, recruited tutorial pair, completed Hub, and active Rest checkpoint. Map every added field to a runtime owner and validator.
-- [ ] Review the shape before implementation; no unapproved narrative restriction or recruitment content is introduced.
+- [x] Approve M1-D1 through D6 and record the selected representation above.
+- [x] Inventory current position-based roster lookups and record the production boundaries and qualification references above.
+- [x] Specify old-to-new snapshot examples for a new game, legacy solo/pre-Hub save, recruited tutorial pair, completed Hub, active Rest checkpoint, and historical remote schema-12 revision. Map new fields to owners and validators.
+- [x] Review the shape before implementation; no unapproved narrative restriction, future recruitment price, or recruitment scene is introduced.
 
-Proof: a finite field/API/action matrix, migration fixtures, and decisions recorded in this plan. Unresolved downstream story costs are assigned to M4, not guessed.
+Gate 0 is complete. The field/action matrix and migration fixtures are specified above; implementation and generated migration tests begin at Gate 1. Unresolved downstream story costs remain assigned to their owning floor/content milestones.
 
 ### Gate 1 - Canonical Roster And Deployment Identity
 
-- [ ] Add failing cases in `root/tests/test_game_state.py` and `test_party_state.py` for `test_recruited_members_are_unique_and_active_ids_resolve_canonical_objects`, `test_selection_rejects_duplicate_unknown_or_unrecruited_ids_without_mutation`, and `test_original_identity_does_not_change_when_active_order_changes`.
-- [ ] Implement the approved roster lookup/active-ID representation and controlled recruitment eligibility; preserve the existing 65-gold event exactly once.
-- [ ] Verify single-member opening, pair after D2, legal three-member pair choices after a controlled Floor II event, and no production path to premature D3/D4.
+- [x] Add focused cases in `root/tests/test_game_state.py` and `test_party_state.py` for canonical roster lookup, rejected duplicate/unrecruited selection without mutation, and unchanged root identity after active-order changes.
+- [x] Implement the approved roster lookup/active-ID representation and authored recruitment eligibility; preserve the existing 65-gold event exactly once.
+- [x] Verify the solo opening, pair after D2, legal pair choices with a controlled three-member test roster, and no production path to premature D3/D4.
 
-Proof: `python -m pytest tests/test_game_state.py tests/test_party_state.py tests/test_hub_flow.py` from `root/`; invalid snapshots and selection leave before/after state equal.
+Proof: root suite passed; invalid snapshots and selections leave before/after state equal. Controlled D3 data is test-only; no Floor II event or future recruit was authored.
 
 ### Gate 2 - Session, Participant Rewards, And Exact Targets
 
-- [ ] Extend `root/tests/test_hub_flow.py`, `test_party_battle.py`, `test_hub_extraction.py`, and `test_floor_one_run.py`. Exercise a controlled three-member roster with a non-default active pair, actor-owned moves/resources, participant-only rewards, and unchanged bench state.
-- [ ] Route battle creation, rewards, return restoration, character/skill/weapon/equipment inspection, and merchant actions through the correct roster versus participant boundary.
-- [ ] Add `test_pair_cannot_change_during_outing_or_rest`, `test_bench_weapon_action_targets_requested_member`, and construction-failure rollback for every participant. Keep existing `test_floor_one_recover_keeps_the_party_at_rest_until_explicit_continue` and extraction-after-recovery coverage.
+- [x] Extend the Hub/Floor I flows for a controlled three-member roster with a non-default active pair, actor-owned moves/resources, participant-only rewards, and unchanged bench state.
+- [x] Route battle creation, rewards, return restoration, character/skill/weapon/equipment inspection, and merchant actions through the correct roster-versus-participant boundary.
+- [x] Verify party lock through Rest, exact bench targeting rejection, and construction-failure rollback for all participants; retain recovery-at-Rest and extraction-after-recovery coverage.
 
 Proof: all affected flow modules pass; pure synthetic roster tests do not claim live Floor III/four-party qualification.
 
 ### Gate 3 - Trusted Save And Remote Advancement
 
-- [ ] Add schema migration/round-trip cases to `root/tests/test_save_state.py`, `test_game_snapshot.py`, `test_save_coordinator.py`, and profile integration tests. Cover two/three/four recruited IDs, active order, exact per-Drifter progression, no auto-recruitment, and source immutability.
-- [ ] Implement validators/reconstruction/clone and version dispatch. Reject duplicate nested identities, dangling active references, invalid event/floor evidence, and mid-battle disk saves without a supported snapshot.
-- [ ] Prove a historical schema-12 remote revision retains its digest/content and advances to a valid new revision; malformed current payloads are rejected by client and real service.
+- [x] Add schema migration/round-trip cases covering one through four recruited IDs, active order, per-Drifter progression, no auto-recruitment, and source immutability.
+- [x] Implement schema-13 validators/reconstruction/clone and version dispatch; reject malformed roster references, event evidence, and unsupported mid-battle disk saves.
+- [x] Prove schema-12 remote history remains immutable while advancing to schema 13; reject malformed current payloads at client and real-service boundaries.
 
 Proof: focused local persistence tests plus PostgreSQL service/integration tests and migration checks under the shared contract. A synthetic migration alone is insufficient.
 
 ### Gate 4 - Terminal And Built-Browser Flow
 
-- [ ] Add semantic Hub pair-selection inputs and matching presenter offers. Test in `root/tests/test_party_terminal_ui.py`/`test_terminal_overworld_ui.py` and `root/web_tests/test_browser_bridge_contract.py`.
-- [ ] Extend `root/web_tests/browser_smoke.mjs`: select a legal controlled recruited pair, inspect each member, alter one member's permitted progression, save, reload a new browser runtime, and verify exact roster, active IDs, target state, resources, and original identity.
-- [ ] Verify D1 -> D2 onboarding by ordinary gameplay separately from controlled later-roster setup; invalid/unoffered submissions remain rejected. Check phone portrait/landscape and desktop for reachable selection and navigation.
+- [x] Add semantic Hub pair-selection inputs and presenter offers; terminal and browser bridge contract tests pass.
+- [ ] Extend and execute the real-browser save/reload flow for a non-default active order, exact recruited target, and that member's stat investment. The assertion is implemented in `root/web_tests/browser_smoke.mjs`; two fresh runs stopped before game startup because the browser could not fetch `python_stdlib.zip` and `pyodide.asm.wasm` from jsDelivr. Existing full smoke passed before this added assertion.
+- [x] Verify semantic D1 -> D2 recruitment, invalid/unoffered submissions, and desktop/mobile selection/navigation contracts through the existing route, bridge, and viewport qualification tests.
 
 Proof: same Python-authoritative choices/results in terminal and browser, no client-only recruitment or party rules.
 
 ### Gate 5 - Qualification And Handoff
 
-- [ ] Extend the real probe with roster initialization, selection, snapshot round-trip, teardown, and no early recruit; run the shared cumulative qualification on the final tree.
-- [ ] Record exact results/SHA, review the cumulative diff, and obtain acceptance for M1 only.
+- [x] Extend the real probe with roster initialization, selection, snapshot round-trip, teardown, and no early recruit; run the shared cumulative qualification with the pinned MicroPython executable.
+- [ ] Review and accept the cumulative M1 diff, then record its post-change commit SHA. No commit has been created; current tested source is the uncommitted working tree based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb`.
+
+Local qualification record (2026-10-30; uncommitted working tree):
+
+- Root pytest: 1,856 passed. Web pytest: 62 passed. Profile service against disposable PostgreSQL 17: 33 passed.
+- Authored-content validation passed: 5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, and 1 recruitment event. Python compileall and `git diff --check` passed.
+- PostgreSQL migration from zero passed; `alembic check` reported no new upgrade operations.
+- The exact pinned Windows MicroPython v1.29.0 executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Native/overlay CPython, default MicroPython, 624K MicroPython, and semantic parity passed; 624K was stable 3/3 and 608K produced the expected memory-limit result 3/3.
+- The built-browser smoke passed end-to-end before the latest M1-specific persistence assertion was added. The new exact-pair/stat save-reload portion is not yet qualified because the two subsequent smoke attempts timed out on external Pyodide assets before the app initialized; do not treat those attempts as gameplay failures or as a pass.
 
 Closure: roster and active-party identity are distinct, all currently recruited members can be targeted exactly, old pairs migrate unchanged, and no future Drifter is granted. All-six-pair live qualification and the first four-Drifter boss remain M4B/M6 responsibilities after canonical recruitment.
 
-## Unresolved Product Decisions
+## Deferred Decisions Owned By Later Milestones
 
-| ID | Decision and blocking gate | Do not assume |
+| Owner | Deferred question | Boundary |
 | --- | --- | --- |
-| M1-D1 | Original starting Drifter's narrative role and whether that identity imposes an active-party restriction; Gate 0 | A root save field means mandatory active leader, or changing slot 1 changes protagonist |
-| M1-D2 | Later recruitment event representation and when recruitment becomes secured; Gate 0 defines the contract, M4 authors scenes/costs | D3/D4 cost 65 or appear immediately in the Hub |
-| M1-D3 | Restoration/access rules for benched recruits at the Hub and during an outing; Gate 0 | A bench slot creates free mid-run healing or inventory transfer |
-| M1-D4 | Pair-order semantics and any non-expedition Hub restrictions; Gate 0 | Arbitrary mid-run substitution or four-person ordinary encounters |
+| M4/content | Authored D3/D4 recruitment scenes, floor events, and costs. | Do not copy D2's 65-gold price or grant D3/D4 before their floors. |
+| M4B | Exact four-Drifter boss participation and XP interpretation while preserving rewards earned by the prior pair. | Do not redivide earlier pair rewards or make ordinary encounters four-person. |
 
-Later entry checks revalidate the concrete API names above; the recruitment floors and regression-protected first pair are fixed, not provisional.
+Later entry checks revalidate concrete API names against the implementation tree. The approved roster, active-pair, migration, and recovery semantics above are fixed for M1.

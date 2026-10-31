@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import get_drifter_spec
 from app.game.game_state import GameState
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
@@ -34,7 +34,7 @@ def get_character_profiles():
 
 
 def create_game(drifter_id="branoc"):
-    return GameState(PlayerState(create_drifter(drifter_id)))
+    return GameState(PlayerState(get_drifter_spec(drifter_id).create_character()))
 
 
 def option(view, action):
@@ -216,7 +216,7 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
 
 
 def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recipes():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     game.party_state.add_shared_items({"grade_i_metal": 1})
@@ -242,7 +242,7 @@ def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recip
 
 
 def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     game.party_state.add_crafting_experience(990)
@@ -271,7 +271,7 @@ def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
 
 
 def test_installed_component_recipe_is_hidden_for_that_drifter():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     installed_id = "sunder_spire_grip_braided"
@@ -308,7 +308,7 @@ def test_component_recipe_visibility_is_independent_for_each_drifter():
 
 
 def test_weapon_component_view_explains_its_combat_and_identity_effects():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     player.signature_weapon_state.install_component(
@@ -330,7 +330,7 @@ def test_weapon_component_view_explains_its_combat_and_identity_effects():
 
 
 def test_skills_view_reports_effective_move_values_after_component_install():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     player.signature_weapon_state.install_component(
         "blade_guard",
         "sunder_spire_blade_reinforced",

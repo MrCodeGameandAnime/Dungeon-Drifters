@@ -57,7 +57,9 @@ def _recruit_companion(state):
     )
     if selection.screen is not OverworldScreen.COMPANION_SELECTION:
         raise AssertionError("Hub did not open companion selection")
-    ready = session.submit(ChooseCompanion("azhvielle"))
+    ready = session.submit(
+        ChooseCompanion("azhvielle", "floor_one_d2_recruitment")
+    )
     if ready.screen is not OverworldScreen.PARTY_READY:
         raise AssertionError("companion recruitment did not ready the party")
     if game.party_state.phase is not DungeonPhase.PARTY_READY:
@@ -74,6 +76,105 @@ def _recruit_companion(state):
         for option in ready.options
     ):
         raise AssertionError("the recruited party was not offered Ready")
+
+
+def _assert_initial_roster(state):
+    game = state["route_game"]
+    roster_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
+    if roster_ids != ("branoc",):
+        raise AssertionError("Drifter was recruited before its authored event")
+    if game.party_state.active_drifter_ids != ("branoc",):
+        raise AssertionError("a new game did not deploy only its starting Drifter")
+    if "floor_one_d2_recruitment" in game.story_state.completed_events:
+        raise AssertionError("the D2 recruitment event completed before the Hub")
+
+
+def _select_and_roundtrip_active_pair(state):
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import ChooseActivePair, ChooseOverworldAction
+
+    game = state["route_game"]
+    recruited_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
+    if recruited_ids != ("branoc", "azhvielle"):
+        raise AssertionError("Hub recruitment changed the M1 roster")
+
+    # Simulate a later authored recruitment only in an isolated probe game.
+    from app.player.player_state import PlayerState
+
+    controlled_game = game.clone()
+    controlled_member = PlayerState(
+        state["catalog"].get_drifter_spec("zhaivra").create_character()
+    )
+    if not controlled_game.party_state.recruit_companion(
+        controlled_game.player_state,
+        controlled_member,
+        cost=0,
+    ):
+        raise AssertionError("controlled third-member roster setup failed")
+    pair_session = state["route_session"].__class__(
+        controlled_game,
+        battle_factory=state["route_battle_factory"].__class__(),
+        enemy_factory=lambda archetype_id, tier=0: state["catalog"].create_enemy_state(
+            archetype_id, tier=tier
+        ),
+    )
+
+    selection = pair_session.submit(
+        ChooseOverworldAction(OverworldAction.SELECT_PARTY)
+    )
+    if selection.screen is not OverworldScreen.PARTY_SELECTION:
+        raise AssertionError("the Hub did not open active-party selection")
+    offered_pairs = tuple(choice.drifter_ids for choice in selection.active_party_choices)
+    if len(offered_pairs) != 6 or any(
+        drifter_id not in ("branoc", "azhvielle", "zhaivra")
+        for pair in offered_pairs
+        for drifter_id in pair
+    ):
+        raise AssertionError("pair selection offered an unrecruited Drifter")
+
+    selected = pair_session.submit(
+        ChooseActivePair(("zhaivra", "azhvielle"))
+    )
+    if selected.screen is not OverworldScreen.HUB:
+        raise AssertionError("selecting the reversed pair did not return to the Hub")
+    if controlled_game.party_state.active_drifter_ids != ("zhaivra", "azhvielle"):
+        raise AssertionError("active-party order was not persisted")
+    active_members = controlled_game.active_party_members
+    if active_members != (
+        controlled_game.member_for_drifter_id("zhaivra"),
+        controlled_game.member_for_drifter_id("azhvielle"),
+    ):
+        raise AssertionError("active IDs did not resolve canonical roster members")
+    if game.player_state.character.profile.drifter_id != "branoc":
+        raise AssertionError("active order changed the campaign identity")
+
+    snapshot = controlled_game.snapshot()
+    clone = controlled_game.clone()
+    if clone.snapshot() != snapshot:
+        raise AssertionError("roster snapshot round-trip changed persistent state")
+    if clone.party_state.active_drifter_ids != ("zhaivra", "azhvielle"):
+        raise AssertionError("snapshot round-trip changed active-party order")
+    if clone.recruited_members[0] is controlled_game.recruited_members[0]:
+        raise AssertionError("roster round-trip aliased members across games")
+    if clone.active_party_members != (
+        clone.member_for_drifter_id("zhaivra"),
+        clone.member_for_drifter_id("azhvielle"),
+    ):
+        raise AssertionError("cloned active IDs did not resolve canonical members")
+    if tuple(
+        member.character.profile.drifter_id for member in clone.recruited_members
+    ) != ("branoc", "azhvielle", "zhaivra"):
+        raise AssertionError("snapshot round-trip changed the recruited roster")
+    if tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    ) != recruited_ids or game.party_state.active_drifter_ids != ("branoc", "azhvielle"):
+        raise AssertionError("controlled pair selection mutated the live tutorial roster")
 
 
 def _ready_party(state):
@@ -181,6 +282,13 @@ def _assert_final_state(state):
         raise AssertionError("tutorial extraction did not complete at the Hub")
     if len(members) != 2:
         raise AssertionError("tutorial extraction changed party membership")
+    roster_ids = tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    )
+    if roster_ids != ("branoc", "azhvielle"):
+        raise AssertionError("tutorial recruitment changed the permanent roster")
+    if party.active_drifter_ids != ("branoc", "azhvielle"):
+        raise AssertionError("tutorial extraction changed the deployed pair")
     if party.shared_gold != 19:
         raise AssertionError("tutorial gold was not secured exactly once")
     if party.shared_items != {
@@ -623,6 +731,7 @@ def _assert_weapon_progression_final_state(state):
 
 
 def run(state, complete_battle, run_stage):
+    run_stage("M1_INITIAL_ROSTER", lambda: _assert_initial_roster(state))
     run_stage("HUB_RECRUITMENT", lambda: _recruit_companion(state))
     run_stage("HUB_READY", lambda: _ready_party(state))
     run_stage(
@@ -632,6 +741,10 @@ def run(state, complete_battle, run_stage):
     run_stage("HUB_EXTRACTION", lambda: _assert_extraction_pending(state))
     run_stage("HUB_RETURN", lambda: _return_to_hub(state))
     run_stage("HUB_FINAL_STATE", lambda: _assert_final_state(state))
+    run_stage(
+        "M1_ACTIVE_PAIR_ROUNDTRIP",
+        lambda: _select_and_roundtrip_active_pair(state),
+    )
     run_stage("FLOOR_ONE_WARNING", lambda: _open_floor_one_warning(state))
     run_stage("FLOOR_ONE_SET_OUT", lambda: _set_out_floor_one(state))
     run_stage(

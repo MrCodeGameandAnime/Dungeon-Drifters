@@ -20,6 +20,11 @@ CONTENT_LAYOUTS = {
     "drifter": ("drifters", "drifter.py", "DRIFTER"),
     "encounter": ("encounters", "encounter.py", "ENCOUNTER"),
     "route": ("routes", "route.py", "ROUTE"),
+    "recruitment_event": (
+        "recruitment_events",
+        "recruitment_event.py",
+        "RECRUITMENT_EVENT",
+    ),
 }
 TODO_MARKER = "TODO(CONTENT-AUTHORING)"
 
@@ -45,6 +50,7 @@ def _content_roots(root):
         "drifter_root": base / "drifters",
         "encounter_root": base / "encounters",
         "route_root": base / "routes",
+        "recruitment_event_root": base / "recruitment_events",
     }
 
 
@@ -319,6 +325,28 @@ def _route_template(content_id):
     )
 
 
+def _recruitment_event_template(content_id, *, route_id, route_node_id, drifter_id):
+    return dedent(
+        f'''\
+        """Authored {_title(content_id)} recruitment event content."""
+
+        from app.content.recruitment_event_spec import RecruitmentEventSpec
+
+
+        RECRUITMENT_EVENT = RecruitmentEventSpec(
+            event_id="{content_id}",
+            route_id="{route_id}",  # {TODO_MARKER}
+            route_node_id="{route_node_id}",  # {TODO_MARKER}
+            candidate_drifter_ids=("{drifter_id}",),  # {TODO_MARKER}
+            cost=0,  # {TODO_MARKER}
+        )
+
+
+        __all__ = ["RECRUITMENT_EVENT"]
+        '''
+    )
+
+
 def _test_template(content_type, content_id):
     symbol = CONTENT_LAYOUTS[content_type][2]
     lookup = {
@@ -327,6 +355,7 @@ def _test_template(content_type, content_id):
         "drifter": f'get_drifter_spec("{content_id}")',
         "encounter": f'get_encounter_spec("{content_id}")',
         "route": f'get_route_spec("{content_id}")',
+        "recruitment_event": f'get_recruitment_event("{content_id}")',
     }[content_type]
     factory = {
         "enemy": f'create_enemy_state("{content_id}")',
@@ -339,6 +368,7 @@ def _test_template(content_type, content_id):
         "drifter": "create_drifter, get_drifter_spec",
         "encounter": "get_encounter_spec, get_enemy_spec",
         "route": "get_route_node_spec, get_route_spec, get_route_successor_id",
+        "recruitment_event": "get_recruitment_event",
     }[content_type]
     assertions = [f"assert {lookup} is {symbol}"]
     if factory:
@@ -367,12 +397,16 @@ def _test_template(content_type, content_id):
             )
     elif content_type == "encounter":
         assertions.append("assert all(get_enemy_spec(value) for value in ENCOUNTER.enemy_archetype_ids)")
-    else:
+    elif content_type == "route":
         assertions.extend(
             [
                 "assert all(get_route_node_spec(node.node_id) is node for node in ROUTE.nodes)",
                 "assert tuple(get_route_successor_id(node.node_id) for node in ROUTE.nodes) == tuple(node.node_id for node in ROUTE.nodes[1:]) + (None,)",
             ]
+        )
+    else:
+        assertions.append(
+            "assert RECRUITMENT_EVENT.route_node_id and RECRUITMENT_EVENT.candidate_drifter_ids"
         )
     body = "\n".join(f"    {line.strip()}" for line in assertions)
     return (
@@ -404,6 +438,7 @@ def scaffold_content(content_type, content_id, *, root=ROOT):
         "drifter": "drifter_id",
         "encounter": "encounter_id",
         "route": "route_id",
+        "recruitment_event": "event_id",
     }[content_type]):
         collisions.append(Path(f"catalog:{content_type}:{content_id}"))
     if content_type == "weapon" and _persistence_key(content_id) in _existing_values(root, "weapon", "persistence_key"):
@@ -436,6 +471,13 @@ def scaffold_content(content_type, content_id, *, root=ROOT):
         source = _encounter_template(
             content_id,
             enemy_id=_first_existing_id(root, "enemy", "archetype_id"),
+        )
+    elif content_type == "recruitment_event":
+        source = _recruitment_event_template(
+            content_id,
+            route_id=_first_existing_id(root, "route", "route_id"),
+            route_node_id=sorted(_existing_route_node_ids(root))[0],
+            drifter_id=_first_existing_id(root, "drifter", "drifter_id"),
         )
     else:
         source = _route_template(content_id)

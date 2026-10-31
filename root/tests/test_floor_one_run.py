@@ -25,8 +25,16 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.battle_ui import ChooseAction, GoBack
-from app.ui.overworld_ui import ChooseOverworldAction, ChooseOverworldItem
-from tests.game_test_support import completed_hub_game as game_at_completed_hub
+from app.ui.overworld_ui import (
+    ChooseActivePair,
+    ChooseCharacterTarget,
+    ChooseOverworldAction,
+    ChooseOverworldItem,
+)
+from tests.game_test_support import (
+    completed_hub_game as game_at_completed_hub,
+    three_member_hub_game,
+)
 
 
 def completed_tutorial_party():
@@ -322,6 +330,38 @@ def test_set_out_starts_the_four_goblin_battle_with_both_drifters():
     assert game.party_state.phase is DungeonPhase.OUTING
     assert game.overworld_state.active_route_id == "floor_one"
     assert game.overworld_state.current_route_node_id == "floor_one_battle_01"
+
+
+def test_active_pair_and_bench_access_stay_locked_through_rest():
+    game = three_member_hub_game()
+    session = make_session(game)
+    game.party_state.select_active_pair(
+        ("joruun", "azhvielle"),
+        recruited_ids=tuple(
+            member.character.profile.drifter_id
+            for member in game.recruited_members
+        ),
+    )
+    active_ids = game.party_state.active_drifter_ids
+    rest_view = reach_first_floor_one_rest(session)
+    assert rest_view.screen is OverworldScreen.REST
+
+    rejected_swap = session.submit(
+        ChooseActivePair(("branoc", "joruun"))
+    )
+    character = session.submit(
+        ChooseOverworldAction(OverworldAction.CHARACTER)
+    )
+    rejected_bench_target = session.submit(ChooseCharacterTarget("branoc"))
+
+    assert rejected_swap.notice == "That party is not available."
+    assert game.party_state.active_drifter_ids == active_ids
+    assert {target.drifter_id for target in character.character.targets} == {
+        "joruun",
+        "azhvielle",
+    }
+    assert rejected_bench_target.notice == "That Drifter is not available."
+    assert game.party_state.active_drifter_ids == active_ids
 
 
 def test_reused_floor_encounters_do_not_enter_surface_defeat_history():

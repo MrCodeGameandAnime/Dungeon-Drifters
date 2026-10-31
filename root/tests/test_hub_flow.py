@@ -14,6 +14,7 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseActivePair,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantDismantle,
@@ -24,7 +25,10 @@ from app.ui.overworld_ui import (
     ChoosePermanentStatIncrease,
 )
 from app.ui.battle_ui import ChooseAction
-from tests.game_test_support import hub_game as game_at_hub
+from tests.game_test_support import (
+    hub_game as game_at_hub,
+    three_member_hub_game,
+)
 
 
 def make_session(game):
@@ -67,6 +71,95 @@ def test_hub_offers_merchant_navigation():
 
     assert merchant.screen is OverworldScreen.MERCHANT
     assert getattr(merchant, "merchant", None) is not None
+
+
+def test_hub_pair_selection_changes_deployment_by_stable_drifter_id():
+    game = three_member_hub_game()
+    session = make_session(game)
+
+    hub = session.current_view()
+    assert OverworldAction.SELECT_PARTY in enabled_actions(hub)
+    selection = session.submit(
+        ChooseOverworldAction(OverworldAction.SELECT_PARTY)
+    )
+
+    assert selection.screen is OverworldScreen.PARTY_SELECTION
+    assert len(selection.active_party_choices) == 6
+    assert tuple(choice.drifter_ids for choice in selection.active_party_choices)
+    assert selection.active_drifter_ids == ("branoc", "azhvielle")
+
+    selected = session.submit(ChooseActivePair(("joruun", "azhvielle")))
+
+    assert selected.screen is OverworldScreen.HUB
+    assert game.party_state.active_drifter_ids == ("joruun", "azhvielle")
+    assert game.active_party_members == (
+        game.member_for_drifter_id("joruun"),
+        game.member_for_drifter_id("azhvielle"),
+    )
+    assert game.player_state is game.member_for_drifter_id("branoc")
+
+
+def test_selected_pair_is_the_pair_deployed_for_floor_one():
+    game = three_member_hub_game()
+    session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.SELECT_PARTY))
+    session.submit(ChooseActivePair(("joruun", "azhvielle")))
+
+    warning = session.submit(
+        ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    )
+    assert warning.screen is OverworldScreen.FLOOR_ONE_WARNING
+    battle_view = session.submit(ChooseOverworldAction(OverworldAction.SET_OUT))
+
+    assert tuple(member.display_name for member in battle_view.party_members) == tuple(
+        member.character.profile.short_name
+        for member in game.active_party_members
+    )
+    assert session.active_battle.party_states == game.active_party_members
+
+
+def test_invalid_pair_selection_does_not_mutate_deployment():
+    game = three_member_hub_game()
+    session = make_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.SELECT_PARTY))
+    before = game.snapshot()
+    active_before = game.party_state.active_drifter_ids
+
+    rejected = session.submit(ChooseActivePair(("joruun", "zhaivra")))
+
+    assert rejected.notice == "That party is not available."
+    assert game.snapshot() == before
+    assert game.party_state.active_drifter_ids == active_before
+
+
+def test_hub_targets_full_roster_and_outing_targets_only_deployed_pair():
+    game = three_member_hub_game()
+    session = make_session(game)
+    hub_character = session.submit(
+        ChooseOverworldAction(OverworldAction.CHARACTER)
+    )
+    assert {target.drifter_id for target in hub_character.character.targets} == {
+        "branoc",
+        "azhvielle",
+        "joruun",
+    }
+
+    game.party_state.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    outing_character = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.CHARACTER,
+        selected_character_target_id="branoc",
+    )
+
+    assert {target.drifter_id for target in outing_character.character.targets} == {
+        "branoc",
+        "azhvielle",
+    }
 
 
 def test_merchant_dismantle_and_improvement_spend_shared_materials():
@@ -234,7 +327,9 @@ def test_recruitment_is_authoritative_and_ready_is_an_explicit_next_action():
     assert game.party_state.phase is DungeonPhase.HUB
     assert game.party_state.shared_gold == 75
 
-    ready = session.submit(ChooseCompanion("azhvielle"))
+    ready = session.submit(
+        ChooseCompanion("azhvielle", event_id="floor_one_d2_recruitment")
+    )
 
     assert ready.screen is OverworldScreen.PARTY_READY
     assert ready.location_label == "Floor 1 Hub"
@@ -242,6 +337,7 @@ def test_recruitment_is_authoritative_and_ready_is_an_explicit_next_action():
     assert tuple(member.character.profile.drifter_id for member in game.party_state.companions) == (
         "azhvielle",
     )
+    assert game.story_state.completed_events == ("floor_one_d2_recruitment",)
     assert game.party_state.shared_gold == 10
     assert enabled_actions(ready) == (
         OverworldAction.READY,
@@ -250,13 +346,52 @@ def test_recruitment_is_authoritative_and_ready_is_an_explicit_next_action():
     assert OverworldAction.ENTER_ENCOUNTER not in enabled_actions(hub)
 
 
+def test_recruitment_offer_uses_authored_event_identity_and_cost():
+    game = game_at_hub(lead_id="branoc")
+    session = make_session(game)
+
+    selection = session.submit(
+        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
+    )
+
+    assert {choice.event_id for choice in selection.companion_choices} == {
+        "floor_one_d2_recruitment"
+    }
+    assert {choice.cost for choice in selection.companion_choices} == {65}
+
+
+def test_wrong_recruitment_event_is_rejected_without_mutation():
+    game = game_at_hub()
+    session = make_session(game)
+    session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
+    before = game.snapshot()
+
+    rejected = session.submit(
+        ChooseCompanion("azhvielle", event_id="forged_event")
+    )
+
+    assert rejected.notice == "That Drifter is not available."
+    assert game.snapshot() == before
+
+
+def test_recruitment_event_is_not_available_after_its_single_use():
+    game = game_at_hub()
+    game.story_state.complete_event("floor_one_d2_recruitment")
+
+    view = make_session(game).current_view()
+
+    assert OverworldAction.RECRUIT_COMPANION not in enabled_actions(view)
+
+
 def test_stale_or_forged_companion_selection_is_rejected_without_mutation():
     game = game_at_hub()
     session = make_session(game)
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
     before = game.snapshot()
 
-    rejected = session.submit(ChooseCompanion("not-a-drifter"))
+    rejected = session.submit(
+        ChooseCompanion("not-a-drifter", "floor_one_d2_recruitment")
+    )
 
     assert rejected.screen is OverworldScreen.COMPANION_SELECTION
     assert rejected.notice == "That Drifter is not available."
@@ -270,9 +405,9 @@ def test_stale_selection_from_another_session_cannot_recruit_twice():
     first.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
     second.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
 
-    first.submit(ChooseCompanion("azhvielle"))
+    first.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
     before_stale_input = game.snapshot()
-    stale = second.submit(ChooseCompanion("zhaivra"))
+    stale = second.submit(ChooseCompanion("zhaivra", "floor_one_d2_recruitment"))
 
     assert stale.screen is OverworldScreen.HUB
     assert stale.notice == "That Drifter is not available."
@@ -287,7 +422,9 @@ def test_back_from_recruitment_returns_to_hub_and_old_choice_is_stale():
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
 
     hub = session.submit(ChooseOverworldAction(OverworldAction.BACK))
-    stale = session.submit(ChooseCompanion("azhvielle"))
+    stale = session.submit(
+        ChooseCompanion("azhvielle", "floor_one_d2_recruitment")
+    )
 
     assert hub.screen is OverworldScreen.HUB
     assert stale.screen is OverworldScreen.HUB
@@ -303,7 +440,9 @@ def test_unaffordable_recruitment_is_disabled_and_cannot_be_forged():
     view = session.current_view()
     before = game.snapshot()
 
-    rejected = session.submit(ChooseCompanion("azhvielle"))
+    rejected = session.submit(
+        ChooseCompanion("azhvielle", "floor_one_d2_recruitment")
+    )
 
     assert view.shared_gold == 64
     assert all(not choice.enabled for choice in view.companion_choices)
@@ -320,7 +459,7 @@ def test_back_after_recruitment_preserves_the_pair_and_ready_action():
     game = game_at_hub()
     session = make_session(game)
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    session.submit(ChooseCompanion("azhvielle"))
+    session.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
 
     hub = session.submit(ChooseOverworldAction(OverworldAction.BACK))
 
@@ -352,7 +491,7 @@ def test_back_from_hub_menus_returns_to_hub(action, screen, party_ready):
         session.submit(
             ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
         )
-        session.submit(ChooseCompanion("azhvielle"))
+        session.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
         session.submit(ChooseOverworldAction(OverworldAction.BACK))
 
     opened = session.submit(ChooseOverworldAction(action))
@@ -386,7 +525,7 @@ def test_ready_action_starts_the_two_drifter_tutorial_battle():
         enemy_factory=create_enemy_state,
     )
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    session.submit(ChooseCompanion("azhvielle"))
+    session.submit(ChooseCompanion("azhvielle", "floor_one_d2_recruitment"))
     before_ready = session.current_view()
 
     battle_view = session.submit(
@@ -422,7 +561,10 @@ def test_terminal_recruitment_menu_shows_cost_and_accepts_a_numbered_choice():
 
     assert any("Shared gold: 75" in line for line in output)
     assert any("65" in line for line in output)
-    assert selected == ChooseCompanion(view.companion_choices[1].drifter_id)
+    assert selected == ChooseCompanion(
+        view.companion_choices[1].drifter_id,
+        view.companion_choices[1].event_id,
+    )
 
 
 def test_terminal_recruitment_back_returns_the_semantic_back_action():

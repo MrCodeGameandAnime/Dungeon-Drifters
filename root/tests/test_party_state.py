@@ -1,6 +1,7 @@
 import pytest
 
 from app.content.catalog import get_drifter_spec
+from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase, PartyState
 from app.player.player_state import PlayerState
 
@@ -37,10 +38,14 @@ def test_crafting_progress_is_shared_and_levels_up_from_authored_points():
 
 
 def test_crafting_progress_survives_party_snapshot_round_trip():
-    party = PartyState()
+    party = GameState(_player("branoc")).party_state
     party.add_crafting_experience(245)
 
-    restored = PartyState.from_snapshot(party.snapshot(), companions=())
+    restored = PartyState.from_snapshot(
+        party.snapshot(),
+        companions=(),
+        active_drifter_ids=party.active_drifter_ids,
+    )
 
     assert restored.crafting_experience == 245
     assert restored.crafting_level == 25

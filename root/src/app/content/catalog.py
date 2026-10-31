@@ -4,6 +4,7 @@ from app.content._generated_catalog import (
     GENERATED_DRIFTER_SPECS,
     GENERATED_ENCOUNTER_SPECS,
     GENERATED_ENEMY_SPECS,
+    GENERATED_RECRUITMENT_EVENT_SPECS,
     GENERATED_ROUTE_SPECS,
     GENERATED_WEAPON_SPECS,
 )
@@ -11,6 +12,7 @@ from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
 from app.content.route_spec import RouteSpec
+from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 from app.enemies.validation import validate_enemy_tier
@@ -190,6 +192,61 @@ def _build_route_catalog(records, *, encounter_catalog=None):
 ) = _build_route_catalog(GENERATED_ROUTE_SPECS)
 
 
+def _build_recruitment_event_catalog(
+    records,
+    *,
+    drifter_catalog=None,
+    route_catalog=None,
+):
+    if drifter_catalog is None:
+        drifter_catalog = _DRIFTER_CATALOG
+    if route_catalog is None:
+        route_catalog = _ROUTE_CATALOG
+    by_id = {}
+    for directory_id, spec in records:
+        if not isinstance(directory_id, str):
+            raise TypeError("generated recruitment event directory IDs must be strings")
+        if not isinstance(spec, RecruitmentEventSpec):
+            raise TypeError(
+                "generated recruitment event records must contain "
+                "RecruitmentEventSpec values"
+            )
+        if directory_id != spec.event_id:
+            raise ValueError(
+                "recruitment event directory ID does not match authored event ID: "
+                f"{directory_id} != {spec.event_id}"
+            )
+        if spec.event_id in by_id:
+            raise ValueError(f"duplicate recruitment event ID: {spec.event_id}")
+        try:
+            route = route_catalog[spec.route_id]
+        except KeyError as error:
+            raise ValueError(
+                f"recruitment event {spec.event_id!r} references unknown route: "
+                f"{spec.route_id!r}"
+            ) from error
+        if spec.route_node_id not in {node.node_id for node in route.nodes}:
+            raise ValueError(
+                f"recruitment event {spec.event_id!r} references a node outside "
+                f"route {spec.route_id!r}: {spec.route_node_id!r}"
+            )
+        for drifter_id in spec.candidate_drifter_ids:
+            if drifter_id not in drifter_catalog:
+                raise ValueError(
+                    f"recruitment event {spec.event_id!r} references unknown "
+                    f"Drifter: {drifter_id!r}"
+                )
+        by_id[spec.event_id] = spec
+    ordered = tuple(sorted(by_id.values(), key=lambda spec: spec.event_id))
+    return ordered, readonly_mapping(by_id)
+
+
+(
+    RECRUITMENT_EVENT_SPECS,
+    _RECRUITMENT_EVENT_CATALOG,
+) = _build_recruitment_event_catalog(GENERATED_RECRUITMENT_EVENT_SPECS)
+
+
 def get_enemy_spec(archetype_id):
     try:
         return _ENEMY_CATALOG[archetype_id]
@@ -236,6 +293,13 @@ def get_drifter_spec(drifter_id):
         return _DRIFTER_CATALOG[drifter_id]
     except (KeyError, TypeError) as error:
         raise ValueError(f"unknown Drifter ID: {drifter_id}") from error
+
+
+def get_recruitment_event(event_id):
+    try:
+        return _RECRUITMENT_EVENT_CATALOG[event_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown recruitment event ID: {event_id}") from error
 
 
 def get_drifter_spec_by_choice(choice):
@@ -321,6 +385,7 @@ __all__ = [
     "ENEMY_SPECS",
     "ENCOUNTER_SPECS",
     "DRIFTER_SPECS",
+    "RECRUITMENT_EVENT_SPECS",
     "ROUTE_SPECS",
     "WEAPON_SPECS",
     "create_enemy_definition",
@@ -335,6 +400,7 @@ __all__ = [
     "get_inspectable_encounter_spec",
     "get_inspectable_route_node_spec",
     "get_drifter_spec",
+    "get_recruitment_event",
     "get_drifter_spec_by_choice",
     "get_route_spec",
     "get_route_node_spec",

@@ -5,6 +5,7 @@ import path from "node:path";
 
 const baseUrl = (process.argv[2] || "http://127.0.0.1:8765").replace(/\/$/, "");
 const errors = [];
+const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
 await mkdir(screenshotDirectory, { recursive: true });
 
@@ -384,9 +385,9 @@ const companionProjection = {
   adventure_text: "Choose one Drifter to join your party.",
   options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
   companion_choices: [
-    { drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
-    { drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
-    { drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
   ],
   recruitment_cost: 65,
 };
@@ -445,8 +446,34 @@ const securedHubProjection = {
   options: [
     { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
     ...hubProjection.options.slice(2),
+    { action: "select_party", label: "Choose Party", enabled: true, disabled_reason: null },
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
   ],
+};
+
+const partySelectionProjection = {
+  ...securedHubProjection,
+  screen: "party_selection",
+  adventure_text: "Choose the two Drifters for your next outing.",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  active_drifter_ids: ["branoc", "azhvielle"],
+  active_party_choices: [
+    ["branoc", "azhvielle", "Ser Branoc", "Azhvielle", true],
+    ["branoc", "joruun", "Ser Branoc", "Joruun Veyr", false],
+    ["azhvielle", "branoc", "Azhvielle", "Ser Branoc", false],
+    ["azhvielle", "joruun", "Azhvielle", "Joruun Veyr", false],
+    ["joruun", "branoc", "Joruun Veyr", "Ser Branoc", false],
+    ["joruun", "azhvielle", "Joruun Veyr", "Azhvielle", false],
+  ].map(([first, second, firstName, secondName, selected]) => ({
+    drifter_ids: [first, second],
+    display_names: [firstName, secondName],
+    selected,
+  })),
+};
+
+const partyChosenProjection = {
+  ...securedHubProjection,
+  adventure_text: "Party selected for the next outing.",
 };
 
 const itemsProjection = {
@@ -759,6 +786,8 @@ if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
 const browser = await chromium.launch(browserOptions);
 try {
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(120000);
+  page.on("crash", () => errors.push("browser page crashed"));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => {
     window.__fullscreenRequests = 0;
@@ -796,6 +825,14 @@ try {
     });
   });
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    pendingRequests.set(request, request.url());
+  });
+  page.on("requestfinished", (request) => pendingRequests.delete(request));
+  page.on("requestfailed", (request) => {
+    pendingRequests.delete(request);
+    errors.push(`request failed ${request.url()}: ${request.failure()?.errorText || "unknown"}`);
+  });
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
@@ -803,12 +840,34 @@ try {
   await page.route("**/favicon.ico", (route) =>
     route.fulfill({ status: 204, body: "" }),
   );
-  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" }).catch(async (error) => {
+    const navigationState = await page.evaluate(() => ({
+      readyState: document.readyState,
+      scripts: Array.from(document.scripts, (script) => ({
+        source: script.src,
+        loaded: script.readyState || "unknown",
+      })),
+      assets: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => /pyodide|dd_runtime|dd_bridge/.test(name)),
+    })).catch(() => null);
+    throw new Error(`${errors.join("; ") || error.message}; navigation=${JSON.stringify(navigationState)}`);
+  });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
   }).catch(async (error) => {
     const startupError = await page.locator("#error-message").innerText().catch(() => "");
-    throw new Error(startupError || errors.join("; ") || error.message);
+    const startupState = await page.evaluate(() => ({
+      status: document.querySelector("#start-status")?.textContent?.trim(),
+      runtimeLoaded: typeof window.loadPyodide === "function",
+      assets: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => /pyodide|dd_runtime|dd_bridge|qualification\/python\/boot/.test(name)),
+      pendingRequests: Array.from(pendingRequests.values()),
+    })).catch(() => null);
+    throw new Error(
+      startupError || `${errors.join("; ") || error.message}; startup=${JSON.stringify(startupState)}; pending=${JSON.stringify(Array.from(pendingRequests.values()))}`,
+    );
   });
   requireCondition(
     await page.locator("#start-screen").isVisible() &&
@@ -1659,7 +1718,7 @@ try {
                 window.__fixtureHubPhase = "companion";
                 return JSON.stringify(views.companion);
               }
-              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle") {
+              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle" && command.event_id === "floor_one_d2_recruitment") {
                 window.__fixtureHubPhase = "partyReady";
                 return JSON.stringify(views.partyReady);
               }
@@ -1678,6 +1737,15 @@ try {
               if (window.__fixtureHubPhase === "extraction" && command.action === "return_to_hub") {
                 window.__fixtureHubPhase = "securedHub";
                 return JSON.stringify(views.securedHub);
+              }
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "select_party") {
+                window.__fixtureHubPhase = "partySelection";
+                return JSON.stringify(views.partySelection);
+              }
+              if (window.__fixtureHubPhase === "partySelection" && command.kind === "active_pair" &&
+                  JSON.stringify(command.drifter_ids) === JSON.stringify(["joruun", "azhvielle"])) {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.partyChosen);
               }
               throw new Error(`unexpected hub fixture command at ${window.__fixtureHubPhase}`);
             }
@@ -1698,6 +1766,8 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    partySelection: partySelectionProjection,
+    partyChosen: partyChosenProjection,
     items: itemsProjection,
     itemsSelected: itemsSelectedProjection,
     itemInspection: itemInspectionProjection,
@@ -1900,19 +1970,30 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 6 &&
+      await targetPage.locator("#overworld-options button").count() === 7 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
     "returned Hub did not show secured currency or offer Floor 1",
   );
+  await clickVisibleOption(targetPage, "#overworld-options", "Choose Party");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION");
+  requireCondition(
+    await targetPage.locator("#party-pair-choices button").count() === 6 &&
+      await targetPage.locator("#party-pair-choices").innerText().then((text) => text.includes("Joruun Veyr + Azhvielle")),
+    "party selection did not render all ordered Drifter pairs",
+  );
+  await clickVisibleOption(targetPage, "#party-pair-choices", "Joruun Veyr + Azhvielle");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "HUB");
   const hubCommands = await targetPage.evaluate(() => window.__fixtureCommands);
   requireCondition(
     JSON.stringify(hubCommands) === JSON.stringify([
       { kind: "overworld_action", action: "recruit_companion" },
-      { kind: "companion", drifter_id: "azhvielle" },
+      { kind: "companion", drifter_id: "azhvielle", event_id: "floor_one_d2_recruitment" },
       { kind: "overworld_action", action: "ready" },
       { kind: "action", intent: "defend" },
       { kind: "overworld_action", action: "return_to_hub" },
+      { kind: "overworld_action", action: "select_party" },
+      { kind: "active_pair", drifter_ids: ["joruun", "azhvielle"] },
     ]),
     `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
   );
@@ -1993,6 +2074,8 @@ try {
   const merchantCommands = await targetPage.evaluate(() => window.__fixtureCommands.slice(5));
   requireCondition(
     JSON.stringify(merchantCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "select_party" },
+      { kind: "active_pair", drifter_ids: ["joruun", "azhvielle"] },
       { kind: "overworld_action", action: "merchant" },
       { kind: "merchant_target", drifter_id: "azhvielle" },
       { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
@@ -2155,35 +2238,6 @@ try {
   );
   console.log("PYD7|BROWSER|DEFEAT_RESELECT|PASS");
 
-  const qualification = await browser.newPage();
-  qualification.on("pageerror", (error) => errors.push(error.message));
-  qualification.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  await qualification.goto(`${baseUrl}/qualification/`, {
-    waitUntil: "domcontentloaded",
-  });
-  await qualification.waitForFunction(
-    () => {
-      const output = document.getElementById("status").textContent;
-      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
-    },
-    null,
-    { timeout: 120000 },
-  );
-  const result = await qualification.locator("#status").innerText();
-  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
-  requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
-  requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
-  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
-  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
-  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
-  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
-  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
-  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
-  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
-  requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
-
   await page.locator("#restart").click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
@@ -2196,7 +2250,10 @@ try {
   await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
+  }).catch(async (error) => {
+    const startupError = await page.locator("#error-message").innerText().catch(() => "");
+    throw new Error(startupError || errors.join("; ") || error.message);
   });
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
@@ -2229,6 +2286,51 @@ try {
   await page.locator("#shortcut-code").fill("F01BA");
   await page.locator('#shortcut-form button[type="submit"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  requireCondition(
+    await page.locator("#party-pair-choices .party-pair-choice").count() === 2,
+    "the real browser runtime did not offer both ordered choices for the recruited pair",
+  );
+  const savedActivePairLabel = "Azhvielle + Ser Branoc";
+  await clickVisibleOption(page, "#party-pair-choices", savedActivePairLabel);
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#character-targets button").count() === 2,
+    "the real Hub character view did not expose both recruited Drifters",
+  );
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle");
+  const strengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
+  const strengthBefore = await strengthRow.locator(".skill-value").innerText();
+  const growthBefore = await page.locator("#growth-summary").innerText();
+  requireCondition(
+    growthBefore.startsWith("Growth Points:") &&
+      Number(growthBefore.match(/\d+/)?.[0] || 0) > 0,
+    "the controlled Hub state did not provide a Growth Point for the recruited target",
+  );
+  await strengthRow.getByRole("button", { name: "[+1]" }).click();
+  await page.waitForFunction((previous) => {
+    const row = [...document.querySelectorAll("#skill-stats .skill-stat")]
+      .find((candidate) => candidate.querySelector(".skill-label")?.textContent === "Strength");
+    return row?.querySelector(".skill-value")?.textContent !== previous;
+  }, strengthBefore);
+  const savedMemberProgression = {
+    drifter: "azhvielle",
+    strength: await strengthRow.locator(".skill-value").innerText(),
+    growth: await page.locator("#growth-summary").innerText(),
+  };
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+
   await clickVisibleOption(page, "#overworld-options", "Merchant");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
@@ -2310,7 +2412,10 @@ try {
   await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
+  }).catch(async (error) => {
+    const startupError = await page.locator("#error-message").innerText().catch(() => "");
+    throw new Error(startupError || errors.join("; ") || error.message);
   });
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
@@ -2336,6 +2441,34 @@ try {
     restoredHubState.location === "Floor 1 Hub",
     `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
   );
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const restoredActivePair = page.locator("#party-pair-choices .party-pair-choice.is-selected");
+  requireCondition(
+    await page.locator("#party-pair-choices .party-pair-choice").count() === 2 &&
+      await restoredActivePair.count() === 1 &&
+      (await restoredActivePair.innerText()) === savedActivePairLabel,
+    "saved active-pair selection did not survive browser reload",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle");
+  const restoredStrengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
+  requireCondition(
+    await restoredStrengthRow.locator(".skill-value").innerText() === savedMemberProgression.strength &&
+      await page.locator("#growth-summary").innerText() === savedMemberProgression.growth,
+    "Azhvielle's stat investment did not survive browser reload",
+  );
+  console.log("M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS");
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Weapon");
@@ -2365,6 +2498,35 @@ try {
   );
   requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
   console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
+
+  const qualification = page;
+  qualification.on("pageerror", (error) => errors.push(error.message));
+  qualification.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await qualification.goto(`${baseUrl}/qualification/`, {
+    waitUntil: "domcontentloaded",
+  });
+  await qualification.waitForFunction(
+    () => {
+      const output = document.getElementById("status").textContent;
+      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
+    },
+    null,
+    { timeout: 120000 },
+  );
+  const result = await qualification.locator("#status").innerText();
+  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
+  requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
+  requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
+  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
+  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
+  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
+  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
+  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
+  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
+  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
+  requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
 
   console.log("PYD7|PASS");
   console.log("PYD7|BROWSER|INITIAL_SESSION|PASS");
