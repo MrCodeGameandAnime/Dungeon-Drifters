@@ -2,7 +2,7 @@
 
 > Implementation method: execute the approved gates on the existing `dungeon` branch. This plan does not authorize branch creation, commits, or publishing.
 
-**Status:** Gate 0 approved, 2026-10-31. M2 implementation and local qualification are complete on the uncommitted `dungeon` working tree based on `4324b35ae21233ddc03901e5376aebd0dc32d831`. Runtime save schema is 13 and disk schema is 14. PostgreSQL/migration and exact-SHA hosted qualification remain pending; Docker is currently unavailable in this environment. Content quantities and prices below are provisional and configurable.
+**Status:** Complete, 2026-10-31, on `dungeon` at `31c922fe912828742d8e8e0fe01d0d0ae5b63889`. Runtime save schema is 13 and disk schema is 14. The exact-SHA hosted run passed root, web, browser, PostgreSQL, migration-from-zero, and Alembic parity checks. Content quantities and prices below are provisional and configurable.
 
 **Goal:** Make preparation, carried supplies, merchant transactions, and emergency escape a complete playable economy loop without weakening extraction risk.
 
@@ -103,7 +103,7 @@ Proof: earned loot -> emergency exit -> fresh load returns exactly the accepted 
 - [x] Terminal and bridge tests compare legal buy/sell/craft/use/escape offers and exact target/outcome projections; disabled reasons reflect authoritative state.
 - [x] Playwright journeys cover Hub preparation and save/reload, smoke use and fresh retry, XP-only talisman return, and the existing Floor I Rest flow where Recover retains Extract. They stay bounded rather than replaying the campaign for every item edge case.
 - [x] Desktop/mobile browser checks, the pinned runtime probe, shared local cumulative qualification, content validation, compilation, and browser build passed. Probe markers include M2 preparation/Alchemy, healing, smoke retry, and talisman return.
-- [ ] Run the PostgreSQL service/migration qualification and exact-SHA hosted checks. Docker is inaccessible locally; hosted checks require the eventual committed/pushed SHA.
+- [x] Run PostgreSQL service/migration qualification and exact-SHA hosted checks; record the final evidence below.
 
 Closure: a real preparation -> play -> loss/extraction -> restock loop is available in both clients, with atomic spending and no-rewind outcomes. Armor, payments, expansive recipe catalogs, and later floor content remain outside M2.
 
@@ -119,12 +119,12 @@ Closure: a real preparation -> play -> loss/extraction -> restock loop is availa
 | M2-D6 | Resolved: unlimited static authored merchant stock; purchases/sales affect secured Hub storage only; only explicitly sellable IDs accepted; sale is floor(base price / 2). Prices are provisional content values. |
 | M2-D7 | Future-floor extraction/quest-item exceptions; M8 entry, not permission to change Floor I now |
 
-All product decisions are resolved. Runtime and disk schema versions are recorded above. M2 implementation and local qualification are complete; final closure remains pending the PostgreSQL/migration and exact-SHA hosted checks.
+All product decisions are resolved. Runtime and disk schema versions are recorded above. M2 implementation and cumulative qualification are complete; later-floor content and balance tuning remain deferred.
 
-### Local Qualification Record (2026-10-31)
+### Qualification Record (2026-10-31)
 
-Working-tree evidence is based on `4324b35ae21233ddc03901e5376aebd0dc32d831` on `dungeon`; the M2 changes are not committed or pushed. The full root suite passed **1,895 tests** and the web contract suite passed **63 tests**. Content validation, Python compilation, `git diff --check`, a **149-file browser build**, and the full Playwright smoke passed. The Playwright output included `M2_BROWSER|PREP_ALCHEMY_PACK_SAVE_RELOAD|PASS`, `M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS`, and `M2_BROWSER|TALISMAN_XP_ONLY|PASS`.
+The M2 implementation was pushed as `b11f22d18892905048d717f15340826c883e7810`; the qualification-only correction is `31c922fe912828742d8e8e0fe01d0d0ae5b63889`. Local verification passed **1,895 root tests**, **63 web tests**, and the full browser smoke. Content validation, the **149-file browser build**, Python compilation of actual source/test modules, and `git diff --check` passed. The browser smoke included `M2_BROWSER|PREP_ALCHEMY_PACK_SAVE_RELOAD|PASS`, `M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS`, and `M2_BROWSER|TALISMAN_XP_ONLY|PASS`.
 
-The exact pinned MicroPython v1.29.0 Windows executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). CPython native/forced-overlay, default MicroPython, 688K MicroPython, and semantic parity passed. The 688K heap point passed 3/3; 672K was classified as the expected memory limit 3/3; final marker: `MYP20|RESULT|CLOSURE_COMPLETE`. The probe traversed the Hub, Floor I, weapon progression, and the new M2 supply/Alchemy/healing/smoke/talisman stages.
+The exact pinned MicroPython v1.29.0 Windows executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). CPython native/forced-overlay, default MicroPython, 688K MicroPython, and semantic parity passed. The 688K heap point passed 3/3; 672K was classified as the expected memory limit 3/3; final marker: `MYP20|RESULT|CLOSURE_COMPLETE`. The probe traversed the Hub, Floor I, weapon progression, and the new M2 supply/Alchemy/healing/smoke/talisman stages. The later corrective commit changed only browser and service test code, not game/runtime code.
 
-The PostgreSQL service suite, migration-from-zero, and Alembic check were not rerun: Docker returned a permission error for the engine pipe. No profile-service/API/database implementation files changed in M2. Hosted checks remain pending the eventual exact commit SHA. Do not treat local working-tree evidence as hosted or Postgres qualification.
+Hosted run [41246531438](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/41246531438) completed successfully on exact SHA `31c922fe912828742d8e8e0fe01d0d0ae5b63889`: **1,895 root tests**, **63 web tests**, and **33 PostgreSQL service tests** passed; content validation, compilation, the 149-file browser build, and full Playwright smoke passed. The browser markers include all three M2 journeys above. PostgreSQL migrations applied from zero and Alembic reported no new upgrade operations. No profile-service/API/database implementation files changed in M2.
