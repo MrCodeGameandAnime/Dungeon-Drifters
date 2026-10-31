@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. This document does not authorize implementation, delegation, commits, or publishing.
 
-**Status:** Initial M1 implementation is committed on `dungeon` as `8eb1a63cd08cf5f5a424749f3ae25479a048bccf`. Hosted run `41160651816` passed Python, web, PostgreSQL, migration, content, and build checks, but browser smoke failed in the completed two-Drifter Hub because `Choose Party` was not offered. The local corrective diff has been reviewed and passes the focused presenter/web tests and clean full browser smoke. A hosted rerun on a committed corrective SHA remains required; M1 is not sealed.
+**Status:** M1 implementation commit `8eb1a63cd08cf5f5a424749f3ae25479a048bccf` was corrected in `eee874a848ce86b094dc14d633c81a1c49928aa6`. Hosted run `41202800638` passed Python, web, PostgreSQL, content, and build checks, but browser smoke exposed a test synchronization race after returning from party selection. The smoke now waits for the Hub badge before opening Character; the web suite and clean full browser smoke pass locally. A hosted rerun on a new corrective commit remains required; M1 is not sealed.
 
 **Goal:** Separate permanent recruited Drifters from the deployed party without changing recruitment pacing or losing any existing character investment.
 
@@ -165,7 +165,7 @@ Proof: focused local persistence tests plus PostgreSQL service/integration tests
 ### Gate 4 - Terminal And Built-Browser Flow
 
 - [x] Add semantic Hub pair-selection inputs and presenter offers; terminal and browser bridge contract tests pass.
-- [x] Execute the real-browser pair-selection and save/reload flow on the corrective working tree. A clean built-site smoke now passes the two ordered choices, exact recruited target, stat investment, and weapon progression across save/reload. Hosted run `41160651816` exposed the missing two-member `Choose Party` option; the presenter fix and regression pass locally. Hosted rerun remains required under Gate 5.
+- [x] Execute the real-browser pair-selection and save/reload flow on the corrective working tree. A clean built-site smoke passes the two ordered choices, exact recruited target, stat investment, and weapon progression across save/reload. Hosted run `41160651816` exposed the missing two-member `Choose Party` option; run `41202800638` verified that fix and pair save/reload, then failed because the smoke clicked Character before the Hub rerender completed. The smoke now waits for the Hub badge after Back; hosted rerun remains required under Gate 5.
 - [x] Verify semantic D1 -> D2 recruitment, invalid/unoffered submissions, and desktop/mobile selection/navigation contracts through the existing route, bridge, and viewport qualification tests.
 
 Proof: same Python-authoritative choices/results in terminal and browser, no client-only recruitment or party rules.
@@ -183,6 +183,7 @@ Local qualification record (2026-10-30; uncommitted working tree):
 - The exact pinned Windows MicroPython v1.29.0 executable was used (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Native/overlay CPython, default MicroPython, 624K MicroPython, and semantic parity passed; 624K was stable 3/3 and 608K produced the expected memory-limit result 3/3.
 - The initial hosted M1 run `41160651816` on `8eb1a63cd08cf5f5a424749f3ae25479a048bccf` reached the Hub and failed because `Choose Party` was missing for a two-member completed roster. The regression reproduced that failure; the presenter now offers the action for exactly two members, and the focused presenter module passes 40 tests.
 - After the presenter and browser-smoke corrections (2026-10-31), a clean local browser build passed the full `browser_smoke.mjs` route, including active-pair selection, recruited-Drifter stat save/reload, and weapon component/progression save/reload. This is local evidence only; the hosted cumulative rerun and its resulting SHA remain open.
+- Hosted run `41202800638` on `eee874a848ce86b094dc14d633c81a1c49928aa6` passed its Python (1,857), web (62), PostgreSQL (33), content, compile, and browser-build checks, but browser smoke failed after Back from PARTY SELECTION because it attempted Character before the Hub rerender. Added a condition-based wait for the `HUB` badge and a web contract assertion that protects the sequence. Current web pytest passes 62; a fresh 147-file browser build and full local smoke pass. The synchronization correction is uncommitted and has no hosted result yet.
 
 Closure: roster and active-party identity are distinct, all currently recruited members can be targeted exactly, old pairs migrate unchanged, and no future Drifter is granted. All-six-pair live qualification and the first four-Drifter boss remain M4B/M6 responsibilities after canonical recruitment.
 

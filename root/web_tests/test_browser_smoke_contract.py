@@ -178,3 +178,9 @@ def test_browser_smoke_persists_active_pair_and_exact_member_progression():
         "Azhvielle's stat investment did not survive browser reload",
     ):
         assert required in source
+
+    pair_return = source.index('const restoredActivePair =')
+    back = source.index('clickVisibleOption(page, "#overworld-options", "Back")', pair_return)
+    hub_ready = source.index('textContent.trim() === "HUB"', back)
+    character = source.index('clickVisibleOption(page, "#overworld-options", "Character")', back)
+    assert back < hub_ready < character

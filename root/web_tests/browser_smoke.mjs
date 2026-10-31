@@ -2458,6 +2458,9 @@ try {
     "saved active-pair selection did not survive browser reload",
   );
   await clickVisibleOption(page, "#overworld-options", "Back");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "HUB",
+  );
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Skills");
