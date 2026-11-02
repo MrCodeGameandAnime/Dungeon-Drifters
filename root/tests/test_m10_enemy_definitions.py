@@ -63,7 +63,7 @@ EXPECTED = {
             ("King’s Cleaver", 0, 18, ("strength",), 92, "physical", "basic_attack"),
             ("Iron Decree", 0, 25, ("strength", "intuition"), 80, "physical", "heavy_attack"),
             ("Black Banner Flame", 8, 17, ("intelligence", "spirit"), 88, "magical", "basic_attack"),
-            ("Tyrant’s Ruin", 14, 26, ("strength", "intelligence"), 75, "hybrid", "heavy_attack"),
+            ("Tyrant’s Ruin", 14, 26, ("strength", "intelligence"), 75, "none", "heavy_attack"),
         ),
     },
 }
@@ -101,6 +101,15 @@ def test_m10_enemy_definitions_match_authored_contract(archetype_id, expected):
         )
         for move in definition.combat_moves
     ) == expected["moves"]
+
+    if archetype_id == "goblin_lord":
+        tyrant = next(
+            move for move in definition.combat_moves if move.name == "Tyrant’s Ruin"
+        )
+        assert tuple(
+            (component.identity.value, component.defense_class.value, component.power)
+            for component in tyrant.damage_components
+        ) == (("physical", "physical", 13), ("magical", "magical", 13))
 
 
 DESCRIPTIONS = {

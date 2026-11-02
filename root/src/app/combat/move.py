@@ -41,6 +41,47 @@ class DamageType(StrEnum):
     HEALING = "healing"
 
 
+class DamageComponentIdentity(StrEnum):
+    PHYSICAL = "physical"
+    MAGICAL = "magical"
+    ELEMENTAL = "elemental"
+    ALCHEMICAL = "alchemical"
+
+
+class DamageDefenseClass(StrEnum):
+    PHYSICAL = "physical"
+    MAGICAL = "magical"
+
+
+@dataclass(frozen=True)
+class DamageComponent:
+    identity: DamageComponentIdentity
+    defense_class: DamageDefenseClass
+    power: int
+    scales_with: tuple[ScalingAttribute, ...]
+    subtype: str | None = None
+
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "identity",
+            _validate_enum("component identity", self.identity, DamageComponentIdentity),
+        )
+        object.__setattr__(
+            self,
+            "defense_class",
+            _validate_enum("defense_class", self.defense_class, DamageDefenseClass),
+        )
+        object.__setattr__(self, "power", _validate_positive_integer("component power", self.power))
+        object.__setattr__(self, "scales_with", _validate_scaling_tuple(self.scales_with))
+        object.__setattr__(self, "subtype", _validate_optional_string("subtype", self.subtype))
+        if self.identity in {
+            DamageComponentIdentity.ELEMENTAL,
+            DamageComponentIdentity.ALCHEMICAL,
+        } and self.subtype is None:
+            raise ValueError("elemental and alchemical components require a subtype")
+
+
 @dataclass(frozen=True)
 class Move:
     name: str
@@ -57,6 +98,7 @@ class Move:
     presentation: MovePresentation | None = None
     is_spell: bool = False
     frost_backlash: bool = False
+    damage_components: tuple[DamageComponent, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "name", _validate_nonempty_string("name", self.name))
@@ -97,9 +139,21 @@ class Move:
             "frost_backlash",
             _validate_bool("frost_backlash", self.frost_backlash),
         )
+        object.__setattr__(
+            self,
+            "damage_components",
+            _validate_damage_components(self.damage_components),
+        )
 
         if self.resource_type == ResourceType.NONE and self.resource_cost != 0:
             raise ValueError("resource_type 'none' requires resource_cost 0")
+        if self.damage_components:
+            if self.kind is not MoveKind.DAMAGE:
+                raise ValueError("damage components are only valid on damage moves")
+            if self.damage_type is not DamageType.NONE:
+                raise ValueError("component moves must use damage_type 'none'")
+            if sum(component.power for component in self.damage_components) != self.power:
+                raise ValueError("component power must sum to move power")
 
     @property
     def mana_cost(self):
@@ -146,6 +200,21 @@ def _validate_nonnegative_integer(name, value):
     if value < 0:
         raise ValueError(f"{name} must not be negative")
 
+    return value
+
+
+def _validate_positive_integer(name, value):
+    value = _validate_nonnegative_integer(name, value)
+    if value < 1:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def _validate_damage_components(value):
+    if not isinstance(value, tuple):
+        raise TypeError("damage_components must be a tuple")
+    if any(not isinstance(component, DamageComponent) for component in value):
+        raise TypeError("damage_components must contain DamageComponent values")
     return value
 
 

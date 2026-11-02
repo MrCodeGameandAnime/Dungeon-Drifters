@@ -8,6 +8,7 @@ from app.content.advancement_spec import (
     get_advancement_skill,
     get_drifter_advancement_skills,
 )
+from app.content.advancement_combat_spec import get_advancement_move
 from app.content.catalog import create_drifter
 from app.player.player_state import PlayerState
 from app.player.advancement_state import move_id_for_name
@@ -173,6 +174,31 @@ def test_new_active_move_can_be_equipped_without_replacing_legacy_availability()
     assert set(starting_moves).issubset(player.available_normal_move_ids)
 
 
+def test_equipped_purchased_skill_move_is_projected_into_combat_pool():
+    player = PlayerState(create_drifter("branoc"))
+    _earn_growth_points(player, 1)
+    player.purchase_advancement("branoc_a01")
+    player.equip_normal_move("branoc_a01", slot=0)
+
+    combat_names = tuple(move.name for move in player.combat_moves)
+
+    assert combat_names == (
+        "Anvil-Line Thrust",
+        "Cinderlung Vesper",
+        "Brace",
+        "Ironwake Dismemberment",
+        "Third Gate Obsequy",
+    )
+
+
+def test_unpurchased_skill_moves_remain_unavailable_to_combat():
+    player = PlayerState(create_drifter("branoc"))
+
+    assert "Anvil-Line Thrust" not in {
+        move.name for move in player.combat_moves
+    }
+
+
 def test_unpurchased_or_super_move_cannot_be_equipped_as_a_normal_move():
     player = PlayerState(create_drifter("branoc"))
 
@@ -193,6 +219,25 @@ def test_purchased_super_unlock_is_separate_from_normal_move_slots():
     assert "branoc_a04" in player.available_super_move_ids
     assert "branoc_a04" not in player.available_normal_move_ids
     assert player.equipped_normal_move_ids == original_loadout
+    assert tuple(move.name for move in player.combat_moves) == (
+        "Crestgrave Reaping",
+        "Cinderlung Vesper",
+        "Brace",
+        "Ironwake Dismemberment",
+        "Third Gate Obsequy",
+        "The Last Crest",
+    )
+
+
+def test_every_authored_active_skill_resolves_to_supported_combat_move():
+    from app.combat.resolver import authored_move_rejection_reason
+
+    for skill in ADVANCEMENT_SKILLS:
+        if skill.kind is AdvancementSkillKind.PASSIVE:
+            continue
+        assert authored_move_rejection_reason(
+            get_advancement_move(skill.skill_id)
+        ) is None
 
 
 def test_advancement_snapshot_tracks_purchases_and_loadout_separately():

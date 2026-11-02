@@ -68,14 +68,7 @@ def test_lightning_storm_uses_exclusive_double_damage_before_mitigation():
     result = CombatResolver(rng=rng).resolve_move(
         actor, target, "Lightning Palm", combat_state=state
     )
-    move = _move(actor, "Lightning Palm")
-    expected = max(
-        1,
-        _scaled_damage_power(actor, move) * 200 // 100
-        - _mitigation(target, move.damage_type),
-    )
-
-    assert result.damage == expected
+    assert result.damage == 49
     assert rng.calls == [(1, 100), (1, 100)]
     assert not state.stun_active(target)
 

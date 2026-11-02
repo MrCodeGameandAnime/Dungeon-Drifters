@@ -7,7 +7,15 @@ from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import is_combatant
-from app.combat.move import DamageType, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move import (
+    DamageDefenseClass,
+    DamageType,
+    MoveKind,
+    ResourceType,
+    ScalingAttribute,
+    TargetType,
+)
+from app.combat.passive_effect import PassiveEffectCondition, PassiveEffectKind
 from app.combat.result import (
     CombatOutcome,
     CombatOutcomeTarget,
@@ -44,6 +52,7 @@ SUPPORTED_MECHANICS = (
 SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE = 10
 HEALING_ROLL_MIN = 10
 HEALING_ROLL_MAX = 16
+_OWN_STATUS_KINDS = "target_has_own_status_kinds"
 
 
 def authored_move_rejection_reason(move):
@@ -124,7 +133,26 @@ class CombatResolver:
         ):
             return _rejected(move.name, "invalid_combat_state")
 
-        affordable, insufficient_reason = _can_afford(actor, move)
+        actor_effect_context = _capture_passive_context(
+            actor,
+            target,
+            move,
+            combat_state,
+        )
+        target_effect_context = _capture_passive_context(
+            target,
+            actor,
+            move,
+            combat_state,
+        )
+        resource_cost = _effective_resource_cost(
+            actor,
+            target,
+            move,
+            combat_state,
+            actor_effect_context,
+        )
+        affordable, insufficient_reason = _can_afford(actor, move, resource_cost)
         if not affordable:
             return _rejected(move.name, insufficient_reason)
 
@@ -137,7 +165,7 @@ class CombatResolver:
             ):
                 return _rejected(move.name, "infused_barb_unprepared")
 
-        resource_spent = _spend_resource(actor, move)
+        resource_spent = _spend_resource(actor, move, resource_cost)
 
         if move.kind == MoveKind.UTILITY:
             combat_state.activate_brace(actor)
@@ -197,16 +225,39 @@ class CombatResolver:
                     move.mechanic,
                 )
             )
+            if follow_up_damage_bonus_percent:
+                follow_up_damage_bonus_percent += _passive_effect_total(
+                    actor,
+                    target,
+                    move,
+                    combat_state,
+                    actor_effect_context,
+                    PassiveEffectKind.BRACE_FOLLOW_UP,
+                )
 
         roll = self.rng.randint(1, 100)
-        hit = roll <= _final_hit_chance(actor, target, move)
+        hit = roll <= _final_hit_chance(
+            actor,
+            target,
+            move,
+            actor_effect_context=actor_effect_context,
+            target_effect_context=target_effect_context,
+            combat_state=combat_state,
+        )
 
         damage = 0
         healing = 0
         critical = False
         if hit:
             if move.kind == MoveKind.DAMAGE:
-                critical = _rolled_critical_hit(actor, self.rng)
+                critical = _rolled_critical_hit(
+                    actor,
+                    move,
+                    self.rng,
+                    condition_context=actor_effect_context,
+                    target=target,
+                    combat_state=combat_state,
+                )
                 damage = _apply_damage(
                     actor,
                     target,
@@ -228,6 +279,8 @@ class CombatResolver:
                             )
                         )
                     ),
+                    actor_effect_context=actor_effect_context,
+                    target_effect_context=target_effect_context,
                 )
 
                 if (
@@ -244,9 +297,33 @@ class CombatResolver:
                     )
                 if move.mechanic == INFUSED_BARB_MECHANIC and target.is_alive():
                     if infusion_kind == InfusionKind.FIRE:
-                        outcomes.append(combat_state.apply_burn(actor, target))
+                        outcomes.append(
+                            combat_state.apply_burn(
+                                actor,
+                                target,
+                                potency_bonus_bps=_status_potency_bonus_bps(
+                                    actor,
+                                    target,
+                                    move,
+                                    combat_state,
+                                    actor_effect_context,
+                                ),
+                            )
+                        )
                     elif infusion_kind == InfusionKind.POISON:
-                        outcomes.append(combat_state.apply_poison(actor, target))
+                        outcomes.append(
+                            combat_state.apply_poison(
+                                actor,
+                                target,
+                                potency_bonus_bps=_status_potency_bonus_bps(
+                                    actor,
+                                    target,
+                                    move,
+                                    combat_state,
+                                    actor_effect_context,
+                                ),
+                            )
+                        )
                 if move.mechanic == HYDRO_WHIP_MECHANIC and target.is_alive():
                     outcomes.append(combat_state.apply_conductive(actor, target))
                 if move.mechanic == TEMPEST_SURGE_MECHANIC and target.is_alive():
@@ -275,7 +352,13 @@ class CombatResolver:
                 healing = _apply_healing(actor, target, move)
 
         if hit and move.kind == MoveKind.DAMAGE and move.resource_type != ResourceType.SUPER:
-            _grant_super_for_landed_non_super_damage(actor)
+            _grant_super_for_landed_non_super_damage(
+                actor,
+                target,
+                move,
+                combat_state,
+                actor_effect_context,
+            )
 
         if move.mechanic == "gravemantle_rupture":
             linked_target = target if hit and target.is_alive() else None
@@ -466,6 +549,8 @@ def _resolve_owned_move(actor, move_name):
 
 def _is_supported_move_kind(move):
     if move.kind == MoveKind.DAMAGE:
+        if move.damage_components:
+            return move.damage_type == DamageType.NONE
         return move.damage_type in {
             DamageType.PHYSICAL,
             DamageType.MAGICAL,
@@ -485,30 +570,163 @@ def _is_valid_target_type(actor, target, move):
     return False
 
 
-def _can_afford(actor, move):
+def _capture_passive_context(owner, opponent, move, combat_state):
+    health = owner.health
+    mana = owner.mana_resource
+    context = {
+        PassiveEffectCondition.ALWAYS: True,
+        PassiveEffectCondition.LOW_HEALTH: health.current * 2 <= health.maximum,
+        PassiveEffectCondition.HIGH_HEALTH: health.current * 4 >= health.maximum * 3,
+        PassiveEffectCondition.LOW_MANA: mana.current * 4 <= mana.maximum,
+        PassiveEffectCondition.HIGH_MANA: mana.current * 4 >= mana.maximum * 3,
+    }
+    if not isinstance(combat_state, CombatState):
+        return context
+
+    mechanic = move.mechanic if move is not None else None
+    context[PassiveEffectCondition.BRACE_READY] = bool(
+        mechanic == "heavy_attack"
+        and combat_state.brace_follow_up_damage_bonus_percent(owner, mechanic)
+    )
+    context[PassiveEffectCondition.ARCANE_OVERCHARGE] = (
+        combat_state.arcane_overcharge_active(owner)
+    )
+    has_target = opponent is not None
+    context[PassiveEffectCondition.OWN_FROST] = bool(
+        has_target and combat_state.frost_active(owner, opponent)
+    )
+    conductive = bool(
+        has_target and combat_state.conductive_active(owner, opponent)
+    )
+    turbulence = bool(
+        has_target and combat_state.turbulence_active(owner, opponent)
+    )
+    context[PassiveEffectCondition.OWN_CONDUCTIVE_OR_TURBULENCE] = (
+        conductive or turbulence
+    )
+    context[PassiveEffectCondition.LIGHTNING_STORM] = conductive and turbulence
+    owned_statuses = []
+    if has_target:
+        for status_name, status in (
+            ("burn", combat_state.burn_status(opponent)),
+            ("poison", combat_state.poison_status(opponent)),
+        ):
+            if status is not None and status.source is owner:
+                owned_statuses.append(status_name)
+    context[_OWN_STATUS_KINDS] = tuple(owned_statuses)
+    context[PassiveEffectCondition.TARGET_HAS_OWN_STATUS] = bool(owned_statuses)
+    return context
+
+
+def _passive_effects(combatant):
+    return getattr(combatant, "combat_passive_effects", ())
+
+
+def _passive_effect_total(
+    owner,
+    opponent,
+    move,
+    combat_state,
+    condition_context,
+    kind,
+    *,
+    damage_class=None,
+):
+    total = 0
+    for effect in _passive_effects(owner):
+        if effect.kind is not kind:
+            continue
+        if effect.mechanic is not None and (
+            move is None or effect.mechanic != move.mechanic
+        ):
+            continue
+        if effect.damage_class is not None and effect.damage_class is not damage_class:
+            continue
+        if not _passive_condition_matches(effect, condition_context):
+            continue
+        total += effect.value
+    return total
+
+
+def _passive_condition_matches(effect, condition_context):
+    if effect.condition is PassiveEffectCondition.TARGET_HAS_OWN_STATUS:
+        return bool(
+            set(effect.target_statuses)
+            & set(condition_context.get(_OWN_STATUS_KINDS, ()))
+        )
+    return condition_context.get(effect.condition, False)
+
+
+def _effective_resource_cost(
+    actor,
+    target,
+    move,
+    combat_state,
+    condition_context,
+):
+    if move.resource_type is not ResourceType.MANA:
+        return move.resource_cost
+    discount = _passive_effect_total(
+        actor,
+        target,
+        move,
+        combat_state,
+        condition_context,
+        PassiveEffectKind.MANA_COST,
+    )
+    if not discount:
+        return move.resource_cost
+    return max(1, move.resource_cost - discount)
+
+
+def _status_potency_bonus_bps(
+    actor,
+    target,
+    move,
+    combat_state,
+    condition_context,
+):
+    effects = tuple(
+        effect
+        for effect in _passive_effects(actor)
+        if effect.kind is PassiveEffectKind.STATUS_POTENCY
+        and (effect.mechanic is None or effect.mechanic == move.mechanic)
+        and _passive_condition_matches(effect, condition_context)
+    )
+    bonus_bps = sum(effect.value for effect in effects) * 100
+    if any(effect.uses_intuition for effect in effects):
+        bonus_bps += scaling.special_potency_bps_from_intuition(
+            actor.effective_stat("intuition")
+        )
+    return bonus_bps
+
+
+def _can_afford(actor, move, resource_cost=None):
+    resource_cost = move.resource_cost if resource_cost is None else resource_cost
     if move.resource_type == ResourceType.NONE:
         return True, None
     if move.resource_type == ResourceType.MANA:
-        if actor.mana_resource.can_afford(move.resource_cost):
+        if actor.mana_resource.can_afford(resource_cost):
             return True, None
         return False, "insufficient_mana"
     if move.resource_type == ResourceType.SUPER:
-        if actor.super_resource.can_afford(move.resource_cost):
+        if actor.super_resource.can_afford(resource_cost):
             return True, None
         return False, "insufficient_super"
 
     return False, "unsupported_move_kind"
 
 
-def _spend_resource(actor, move):
+def _spend_resource(actor, move, resource_cost=None):
+    resource_cost = move.resource_cost if resource_cost is None else resource_cost
     if move.resource_type == ResourceType.NONE:
         return 0
     if move.resource_type == ResourceType.MANA:
-        actor.mana_resource.spend(move.resource_cost)
-        return move.resource_cost
+        actor.mana_resource.spend(resource_cost)
+        return resource_cost
     if move.resource_type == ResourceType.SUPER:
-        actor.super_resource.spend(move.resource_cost)
-        return move.resource_cost
+        actor.super_resource.spend(resource_cost)
+        return resource_cost
 
     return 0
 
@@ -533,7 +751,9 @@ def _apply_damage(
         critical=False,
         follow_up_damage_bonus_percent=0,
         arcane_discharge=None,
-        storm_damage_bonus_percent=0):
+        storm_damage_bonus_percent=0,
+        actor_effect_context=None,
+        target_effect_context=None):
     final_damage = _landed_damage(
         actor,
         target,
@@ -543,6 +763,8 @@ def _apply_damage(
         follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
         arcane_discharge=arcane_discharge,
         storm_damage_bonus_percent=storm_damage_bonus_percent,
+        actor_effect_context=actor_effect_context,
+        target_effect_context=target_effect_context,
     )
 
     before = target.health.current
@@ -559,8 +781,72 @@ def _landed_damage(
         critical=False,
         follow_up_damage_bonus_percent=0,
     arcane_discharge=None,
-    storm_damage_bonus_percent=0):
-    scaled_power = _scaled_damage_power(actor, move)
+    storm_damage_bonus_percent=0,
+    actor_effect_context=None,
+    target_effect_context=None):
+    if actor_effect_context is None:
+        actor_effect_context = _capture_passive_context(
+            actor, target, move, combat_state
+        )
+    if target_effect_context is None:
+        target_effect_context = _capture_passive_context(
+            target, actor, move, combat_state
+        )
+    if move.damage_components:
+        total_authored_power = sum(
+            component.power for component in move.damage_components
+        )
+        total_damage = sum(
+            _landed_component_damage(
+                actor,
+                target,
+                move,
+                component,
+                total_authored_power,
+                combat_state=combat_state,
+                follow_up_damage_bonus_percent=follow_up_damage_bonus_percent,
+                arcane_discharge=arcane_discharge,
+                storm_damage_bonus_percent=storm_damage_bonus_percent,
+                actor_effect_context=actor_effect_context,
+                target_effect_context=target_effect_context,
+            )
+            for component in move.damage_components
+        )
+        final_damage = max(1, total_damage)
+        if critical:
+            return max(
+                1,
+                final_damage * CRITICAL_DAMAGE_MULTIPLIER_PERCENT // 100,
+            )
+        return final_damage
+
+    defense_class = _damage_defense_class(move.damage_type)
+    output_bonus_bps = _passive_effect_total(
+        actor,
+        target,
+        move,
+        combat_state,
+        actor_effect_context,
+        PassiveEffectKind.DAMAGE_OUTPUT,
+        damage_class=defense_class,
+    ) * 100
+    if move.damage_type is DamageType.HYBRID:
+        output_bonus_bps = sum(
+            _passive_effect_total(
+                actor,
+                target,
+                move,
+                combat_state,
+                actor_effect_context,
+                PassiveEffectKind.DAMAGE_OUTPUT,
+                damage_class=damage_class,
+            )
+            for damage_class in (
+                DamageDefenseClass.PHYSICAL,
+                DamageDefenseClass.MAGICAL,
+            )
+        ) * 50
+    scaled_power = _scaled_damage_power(actor, move, output_bonus_bps)
     if arcane_discharge is not None and move.is_spell:
         scaled_power = (
             scaled_power
@@ -580,6 +866,14 @@ def _landed_damage(
             // 100
         )
     mitigation = _mitigation(target, move.damage_type)
+    mitigation += _passive_mitigation_bonus(
+        target,
+        actor,
+        move,
+        combat_state,
+        target_effect_context,
+        move.damage_type,
+    )
     break_reduction_percent = 0
     if arcane_discharge is not None:
         if target is arcane_discharge.broken_target:
@@ -604,6 +898,14 @@ def _landed_damage(
         move.damage_type,
         damage_after_instability,
         combat_state,
+        additional_reduction_percent=_brace_incoming_bonus(
+            target,
+            actor,
+            move,
+            combat_state,
+            target_effect_context,
+            move.damage_type,
+        ),
     )
     final_damage = _defended_damage(
         target,
@@ -620,6 +922,103 @@ def _landed_damage(
     return final_damage
 
 
+def _landed_component_damage(
+    actor,
+    target,
+    move,
+    component,
+    total_authored_power,
+    *,
+    combat_state=None,
+    follow_up_damage_bonus_percent=0,
+    arcane_discharge=None,
+    storm_damage_bonus_percent=0,
+    actor_effect_context=None,
+    target_effect_context=None,
+):
+    defense_type = (
+        DamageType.PHYSICAL
+        if component.defense_class is DamageDefenseClass.PHYSICAL
+        else DamageType.MAGICAL
+    )
+    output_bonus_bps = _damage_output_bonus_bps(actor, component.scales_with)
+    output_bonus_bps += _passive_effect_total(
+        actor,
+        target,
+        move,
+        combat_state,
+        actor_effect_context,
+        PassiveEffectKind.DAMAGE_OUTPUT,
+        damage_class=component.defense_class,
+    ) * 100
+    scaled_power = component.power * (
+        BASIS_POINTS + output_bonus_bps
+    ) // BASIS_POINTS
+    for bonus_percent in (
+        arcane_discharge.spell_bonus_percent
+        if arcane_discharge is not None and move.is_spell
+        else 0,
+        follow_up_damage_bonus_percent,
+        storm_damage_bonus_percent,
+    ):
+        if bonus_percent:
+            scaled_power = scaled_power * (100 + bonus_percent) // 100
+
+    mitigation = _mitigation(target, defense_type)
+    mitigation += _passive_mitigation_bonus(
+        target,
+        actor,
+        move,
+        combat_state,
+        target_effect_context,
+        defense_type,
+    )
+    break_reduction_percent = 0
+    if arcane_discharge is not None:
+        if target is arcane_discharge.broken_target:
+            break_reduction_percent = arcane_discharge.break_reduction_percent
+    elif combat_state is not None:
+        break_reduction_percent = combat_state.gravemantle_break_reduction_percent(target)
+    mitigation = mitigation * (100 - break_reduction_percent) // 100
+    mitigation = mitigation * component.power // total_authored_power
+
+    damage = max(0, scaled_power - mitigation)
+    damage = _strength_negated_damage(
+        target,
+        defense_type,
+        damage,
+        minimum_damage=0,
+    )
+    damage = _arcane_instability_damage(
+        target,
+        defense_type,
+        damage,
+        combat_state,
+    )
+    damage = _brace_reduced_damage(
+        target,
+        defense_type,
+        damage,
+        combat_state,
+        minimum_damage=0,
+        additional_reduction_percent=_brace_incoming_bonus(
+            target,
+            actor,
+            move,
+            combat_state,
+            target_effect_context,
+            defense_type,
+        ),
+    )
+    return _defended_damage(
+        target,
+        defense_type,
+        damage,
+        combat_state,
+        minimum_damage=0,
+    )
+
+
 def _arcane_instability_damage(target, damage_type, damage, combat_state):
     if combat_state is None or damage_type != DamageType.PHYSICAL:
         return damage
@@ -630,15 +1029,18 @@ def _arcane_instability_damage(target, damage_type, damage, combat_state):
     return damage * (100 + vulnerability_percent) // 100
 
 
-def _scaled_damage_power(actor, move):
-    output_bonus_bps = _damage_output_bonus_bps(actor, move)
+def _scaled_damage_power(actor, move, passive_output_bonus_bps=0):
+    output_bonus_bps = (
+        _damage_output_bonus_bps(actor, move.scales_with)
+        + passive_output_bonus_bps
+    )
     return move.power * (BASIS_POINTS + output_bonus_bps) // BASIS_POINTS
 
 
-def _damage_output_bonus_bps(actor, move):
+def _damage_output_bonus_bps(actor, scales_with):
     bonuses = []
 
-    for attribute in move.scales_with:
+    for attribute in scales_with:
         bonus = _output_bonus_bps_for_attribute(actor, attribute)
         if bonus is not None:
             bonuses.append(bonus)
@@ -689,6 +1091,75 @@ def _mitigation(target, damage_type):
     return defense_value // 4
 
 
+def _damage_defense_class(damage_type):
+    if damage_type == DamageType.PHYSICAL:
+        return DamageDefenseClass.PHYSICAL
+    if damage_type == DamageType.MAGICAL:
+        return DamageDefenseClass.MAGICAL
+    return None
+
+
+def _passive_mitigation_bonus(
+    owner,
+    opponent,
+    move,
+    combat_state,
+    condition_context,
+    damage_type,
+):
+    damage_class = _damage_defense_class(damage_type)
+    if damage_class is not None:
+        return _passive_effect_total(
+            owner,
+            opponent,
+            move,
+            combat_state,
+            condition_context,
+            PassiveEffectKind.MITIGATION,
+            damage_class=damage_class,
+        )
+    if damage_type == DamageType.HYBRID:
+        class_bonuses = tuple(
+            _passive_effect_total(
+                owner,
+                opponent,
+                move,
+                combat_state,
+                condition_context,
+                PassiveEffectKind.MITIGATION,
+                damage_class=defense_class,
+            )
+            for defense_class in (
+                DamageDefenseClass.PHYSICAL,
+                DamageDefenseClass.MAGICAL,
+            )
+        )
+        return sum(class_bonuses) // 2
+    return 0
+
+
+def _brace_incoming_bonus(
+    owner,
+    opponent,
+    move,
+    combat_state,
+    condition_context,
+    damage_type,
+):
+    if damage_type != DamageType.PHYSICAL or combat_state is None:
+        return 0
+    if not combat_state.brace_incoming_protection_active(owner):
+        return 0
+    return _passive_effect_total(
+        owner,
+        opponent,
+        move,
+        combat_state,
+        condition_context,
+        PassiveEffectKind.BRACE_INCOMING,
+    )
+
+
 def _strength_physical_negation_bps(target, damage_type):
     if damage_type != DamageType.PHYSICAL:
         return 0
@@ -698,13 +1169,27 @@ def _strength_physical_negation_bps(target, damage_type):
     )
 
 
-def _strength_negated_damage(target, damage_type, normal_damage):
+def _strength_negated_damage(
+    target,
+    damage_type,
+    normal_damage,
+    *,
+    minimum_damage=1,
+):
     negation_bps = _strength_physical_negation_bps(target, damage_type)
     reduction_amount = normal_damage * negation_bps // BASIS_POINTS
-    return max(1, normal_damage - reduction_amount)
+    return max(minimum_damage, normal_damage - reduction_amount)
 
 
-def _brace_reduced_damage(target, damage_type, normal_damage, combat_state):
+def _brace_reduced_damage(
+    target,
+    damage_type,
+    normal_damage,
+    combat_state,
+    *,
+    minimum_damage=1,
+    additional_reduction_percent=0,
+):
     if combat_state is None:
         return normal_damage
 
@@ -712,24 +1197,50 @@ def _brace_reduced_damage(target, damage_type, normal_damage, combat_state):
         target,
         damage_type,
     )
+    reduction_percent = min(100, reduction_percent + additional_reduction_percent)
     reduction_amount = normal_damage * reduction_percent // 100
-    return max(1, normal_damage - reduction_amount)
+    return max(minimum_damage, normal_damage - reduction_amount)
 
 
-def _defended_damage(target, damage_type, normal_damage, combat_state):
+def _defended_damage(
+    target,
+    damage_type,
+    normal_damage,
+    combat_state,
+    *,
+    minimum_damage=1,
+):
     if combat_state is None or not combat_state.is_defending(target):
         return normal_damage
 
     reduction_percent = target.defend_reduction_percent(damage_type)
     reduction_amount = normal_damage * reduction_percent // 100
-    return max(1, normal_damage - reduction_amount)
+    return max(minimum_damage, normal_damage - reduction_amount)
 
 
-def _grant_super_for_landed_non_super_damage(actor):
+def _grant_super_for_landed_non_super_damage(
+    actor,
+    target=None,
+    move=None,
+    combat_state=None,
+    condition_context=None,
+):
     if actor.generates_super:
         bonus_bps = scaling.super_gain_bonus_bps_from_intuition(
             actor.effective_stat("intuition")
         )
+        if condition_context is None:
+            condition_context = _capture_passive_context(
+                actor, target, move, combat_state
+            )
+        bonus_bps += _passive_effect_total(
+            actor,
+            target,
+            move,
+            combat_state,
+            condition_context,
+            PassiveEffectKind.SUPER_GAIN,
+        ) * 100
         gained_super = (
             SUPER_GAIN_PER_LANDED_NON_SUPER_DAMAGE
             * (BASIS_POINTS + bonus_bps)
@@ -750,25 +1261,92 @@ def _dexterity_dodge_bonus_percent(target):
     ) // 100
 
 
-def _final_hit_chance(actor, target, move):
+def _final_hit_chance(
+    actor,
+    target,
+    move,
+    *,
+    actor_effect_context=None,
+    target_effect_context=None,
+    combat_state=None,
+):
+    if actor_effect_context is None:
+        actor_effect_context = _capture_passive_context(
+            actor, target, move, combat_state
+        )
+    if target_effect_context is None:
+        target_effect_context = _capture_passive_context(
+            target, actor, move, combat_state
+        )
+    accuracy_bonus = _passive_effect_total(
+        actor,
+        target,
+        move,
+        combat_state,
+        actor_effect_context,
+        PassiveEffectKind.ACCURACY,
+    )
+    dodge_bonus = _passive_effect_total(
+        target,
+        actor,
+        move,
+        combat_state,
+        target_effect_context,
+        PassiveEffectKind.DODGE,
+    )
     raw_hit_chance = (
         move.accuracy
         + _dexterity_accuracy_bonus_percent(actor)
         - _dexterity_dodge_bonus_percent(target)
+        + accuracy_bonus
+        - dodge_bonus
     )
     final_hit_chance = min(MAX_ORDINARY_HIT_CHANCE, raw_hit_chance)
     return max(MIN_ORDINARY_HIT_CHANCE, final_hit_chance)
 
 
-def _final_crit_chance(actor):
+def _final_crit_chance(
+    actor,
+    move=None,
+    target=None,
+    combat_state=None,
+    condition_context=None,
+):
     raw_crit_chance = (
         BASE_ORDINARY_CRIT_CHANCE
         + scaling.crit_bonus_bps_from_intuition(
             actor.effective_stat("intuition")
         ) // 100
     )
+    if move is not None:
+        if condition_context is None:
+            condition_context = _capture_passive_context(
+                actor, target, move, combat_state
+            )
+        raw_crit_chance += _passive_effect_total(
+            actor,
+            target,
+            move,
+            combat_state,
+            condition_context,
+            PassiveEffectKind.CRITICAL,
+        )
     return min(MAX_ORDINARY_CRIT_CHANCE, raw_crit_chance)
 
 
-def _rolled_critical_hit(actor, rng):
-    return rng.randint(1, 100) <= _final_crit_chance(actor)
+def _rolled_critical_hit(
+    actor,
+    move,
+    rng,
+    *,
+    target=None,
+    combat_state=None,
+    condition_context=None,
+):
+    return rng.randint(1, 100) <= _final_crit_chance(
+        actor,
+        move,
+        target,
+        combat_state,
+        condition_context,
+    )

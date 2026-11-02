@@ -26,9 +26,15 @@ def test_stat_scaling_rejects_invalid_stat_types_and_ranges():
             with pytest.raises(TypeError):
                 function(invalid_type)
 
-        for invalid_range in (0, 101):
+        for invalid_range in (0,):
             with pytest.raises(ValueError):
                 function(invalid_range)
+
+
+def test_stat_scaling_clamps_effective_stats_to_permanent_cap():
+    for function in STAT_SCALING_FUNCTIONS:
+        assert function(101) == function(100)
+        assert function(150) == function(100)
 
 
 def test_resource_scaling_rejects_invalid_level_types_and_ranges():

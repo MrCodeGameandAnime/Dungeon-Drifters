@@ -1,4 +1,7 @@
 from app.combat.move import (
+    DamageComponent,
+    DamageComponentIdentity,
+    DamageDefenseClass,
     DamageType,
     Move,
     MoveKind,
@@ -80,8 +83,22 @@ ENEMY = EnemySpec(
             scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.INTELLIGENCE),
             accuracy=75,
             target=TargetType.ENEMY,
-            damage_type=DamageType.HYBRID,
+            damage_type=DamageType.NONE,
             mechanic="heavy_attack",
+            damage_components=(
+                DamageComponent(
+                    identity=DamageComponentIdentity.PHYSICAL,
+                    defense_class=DamageDefenseClass.PHYSICAL,
+                    power=13,
+                    scales_with=(ScalingAttribute.STRENGTH,),
+                ),
+                DamageComponent(
+                    identity=DamageComponentIdentity.MAGICAL,
+                    defense_class=DamageDefenseClass.MAGICAL,
+                    power=13,
+                    scales_with=(ScalingAttribute.INTELLIGENCE,),
+                ),
+            ),
             description="The Goblin Lord combines raw physical force with unstable sorcery in one devastating assault.",
         ),
     ),

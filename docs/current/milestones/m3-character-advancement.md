@@ -133,11 +133,59 @@ Proof: `tests/test_advancement.py`, `tests/test_save_state.py`, and existing per
 
 ### Gate 2 - Damage Components And Remaining Potency
 
-- [ ] Add resolver golden cases for unchanged legacy moves and approved new physical+magic/elemental/alchemical composition, independent mitigation, Defend, hit/critical outcomes, min/max values, and exact rounding boundaries.
-- [ ] Implement only supported component/effect forms. Connect Intuition special potency to actual approved mechanics rather than applying it indiscriminately to all damage or healing.
-- [ ] Prove one resource debit, one payload use, one per-action Super award, one passive projection, and stable weapon component effects. Preserve Dexterity initiative and current ordinary hit/crit caps unless explicitly changed.
+- [x] Add resolver golden cases for unchanged legacy moves and approved physical/magical/elemental/alchemical components, power-share mitigation, Defend, hit/critical outcomes, minimum damage, and exact rounding boundaries.
+- [x] Implement only supported component/effect forms. Connect Intuition special potency to actual approved mechanics rather than applying it indiscriminately to all damage or healing.
+- [x] Prove one resource debit, one payload use, one per-action Super award, one passive projection, and stable weapon component effects. Preserve Dexterity initiative and current ordinary hit/crit caps unless explicitly changed.
 
-Proof: existing resolver/character-mechanic/Battle regressions plus focused component tests pass; costs and outcomes are observable in terminal and bridge projections.
+#### Gate 2 Damage Contract (Approved)
+
+- A damage component has an authored identity, a physical or magical defense
+  class, scaling attributes, and a positive base-power contribution. Identity
+  is descriptive and future-facing; it does not introduce elemental or
+  alchemical resistance in M3.
+- Resolve each component through its applicable scaling and move/skill
+  modifiers, then generic mitigation, applicable physical-only Strength
+  negation, existing combat-state modifiers, Brace, and Defend, in that order.
+  Brace and Defend apply independently to each component; Brace remains
+  physical-only and Defend uses the component's defense class.
+- Allocate generic mitigation by each component's share of the move's authored
+  base power. First calculate the existing full class mitigation using its
+  current integer rules (Constitution or Spirit divided by four, including
+  existing Arcane Break adjustment); then multiply by that component's authored
+  base-power share and floor. This preserves the mixed move's total mitigation
+  budget instead of charging full physical and magical mitigation to both
+  halves. The 50/50 legacy conversions may differ from the old averaged
+  HYBRID result by at most one point from integer rounding.
+- Floor each existing percentage operation at its current stage for each
+  component. Components may resolve to zero, never negative damage. Sum the
+  resolved integer component damages, apply the move's minimum of one once to
+  that sum, then apply the existing critical multiplier once. Roll hit and
+  critical once per move, not once per component.
+- Rejected moves do not mutate resources, payloads, statuses, or combat state.
+  Accepted moves retain the current action timing: resource spend and existing
+  attempt-consumed setup occur before the hit roll; hit-dependent effects apply
+  only after a hit and while their target remains alive. Preserve the existing
+  Gravemantle miss behavior. Resource, setup, status, and Super effects resolve
+  at most once per action, regardless of component count.
+- Reuse current output curves: Strength/Dexterity physical output and
+  Intelligence magical output. Intuition special potency is used only by an
+  explicitly authored special/status effect, never as a generic damage or
+  healing multiplier. Clamp inputs to scaling helpers at 100; direct mitigation
+  continues to use the actual effective stat, including equipment bonuses.
+- For the clearly mixed legacy attacks, preserve the existing total base power
+  and split it evenly: Branoc's Third Gate Obsequy 12 physical + 12 magical;
+  Joruun's Lightning Palm 12 physical + 12 elemental/lightning (magical
+  defense); Goblin Lord's Tyrant's Ruin 13 physical + 13 magical. Retain
+  legacy HYBRID handling for moves without a clearly authored second source,
+  including Zhaivra's Starless Meridian Obsequy and Azhvielle's Gravemantle
+  Rupture.
+- Component identity does not itself apply a status. Existing and new
+  secondary effects require an authored mechanic and use the action timing
+  above. New skill coefficients remain conservative and are derived from the
+  Gate 1 authored purposes; do not add resistance, redesign tree structure, or
+  change GP, tier, purchase, loadout, or schema-15 ownership rules.
+
+Proof: local qualification on the current working tree: 1,932 root tests, 63 web tests, content validation, compileall, 132-entry dataclass manifest check, 153-file browser build, and browser smoke passed. Hosted CI on a committed SHA remains pending. Gate 5 browser advancement journey and pinned MicroPython requalification remain future qualification work.
 
 ### Gate 3 - Secured XP And Permanent Awards
 
@@ -168,8 +216,8 @@ Closure: all four Drifters have the approved functioning initial advancement pat
 | ID | Decision and blocking gate |
 | --- | --- |
 | M3-D1 | Resolved structure: new normal/mana skills are GP-purchased and permanently unlocked per Drifter; four equipped normal-move slots; additional Super remains outside those slots and unlocks at Level 50; preserve legacy kits. |
-| M3-D2 | Resolved structure, pricing, shared slot purposes, and character-specific concept list in the [M3 blueprint](m3-advancement-blueprint.md) and [M3 Drifter Skill Content](m3-drifter-skill-content.md): 24 skills per Drifter (18 single-purchase passives, six actives), tiers/counts at Levels 1/25/50/75/100, permanent stat 1 GP, passive 2 GP, active 3 GP, no premiums. Numerical/mechanical effects remain Gate 2 work; the initial trees have no skill prerequisites. |
-| M3-D3 | Component composition, mixed mitigation, rounding, effect ordering, and effective-stat cap treatment beyond permanent 100; before Gate 2 |
+| M3-D2 | Resolved structure, pricing, shared slot purposes, and character-specific concept list in the [M3 blueprint](m3-advancement-blueprint.md) and [M3 Drifter Skill Content](m3-drifter-skill-content.md): 24 skills per Drifter (18 single-purchase passives, six actives), tiers/counts at Levels 1/25/50/75/100, permanent stat 1 GP, passive 2 GP, active 3 GP, no premiums. Conservative initial mechanics are authored for Gate 2; later balance review may tune their coefficients. The initial trees have no skill prerequisites. |
+| M3-D3 | Resolved for Gate 2 by the approved [damage contract](#gate-2-damage-contract-approved): component floor/rounding, action-level hit/critical and resource timing, power-share mitigation, scaling-helper cap, and conservative migration of clearly mixed legacy moves. |
 | M3-D4 | Personal/party Intuition XP, bonus basis and rounding, including expedition handoff; before Gate 3 |
 | M3-D5 | Respec existence/eligibility/cost/refunds and legacy spending evidence policy; before Gate 4; recommendation is not historical approval |
 | M3-D6 | Permanent award scope/limits, resource changes, and claim security point; before Gate 3 |

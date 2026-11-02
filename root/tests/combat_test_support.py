@@ -17,7 +17,7 @@ def accepted_move_result():
 
 
 def move_to_dict(move):
-    return {
+    result = {
         "name": move.name,
         "kind": move.kind.value,
         "resource_type": move.resource_type.value,
@@ -30,6 +30,20 @@ def move_to_dict(move):
         "mechanic": move.mechanic,
         "description": move.description,
     }
+    if move.damage_components:
+        result["damage_components"] = [
+            {
+                "identity": component.identity.value,
+                "defense_class": component.defense_class.value,
+                "power": component.power,
+                "scales_with": [
+                    attribute.value for attribute in component.scales_with
+                ],
+                "subtype": component.subtype,
+            }
+            for component in move.damage_components
+        ]
+    return result
 
 
 class AlwaysOneRng:

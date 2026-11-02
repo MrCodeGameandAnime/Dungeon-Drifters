@@ -519,6 +519,23 @@ def test_crafting_installs_component_spends_material_and_awards_crafting_once():
     assert game.player_state.combat_moves[0].accuracy == original_moves[0].accuracy - 2
 
 
+def test_weapon_power_modifier_is_preserved_across_split_move_components():
+    game, _service = _game()
+    player = game.player_state
+    player.signature_weapon_state.install_component(
+        "crest_core",
+        "sunder_spire_crest_faded",
+    )
+
+    move = next(
+        move for move in player.combat_moves
+        if move.name == "Third Gate Obsequy"
+    )
+
+    assert move.power == 26
+    assert tuple(component.power for component in move.damage_components) == (13, 13)
+
+
 def test_crafting_an_already_installed_component_is_rejected_without_mutation():
     game, service = _game(items={"grade_i_metal": 1})
     state = game.player_state.signature_weapon_state

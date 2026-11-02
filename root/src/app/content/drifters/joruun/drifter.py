@@ -1,6 +1,16 @@
 """Monk authored Drifter content."""
 
-from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move import (
+    DamageComponent,
+    DamageComponentIdentity,
+    DamageDefenseClass,
+    DamageType,
+    Move,
+    MoveKind,
+    ResourceType,
+    ScalingAttribute,
+    TargetType,
+)
 from app.combat.storm import (
     HYDRO_WHIP_MECHANIC,
     LIGHTNING_PALM_MECHANIC,
@@ -43,8 +53,23 @@ _COMBAT_MOVES = (
             ),
             accuracy=70,
             target=TargetType.ENEMY,
-            damage_type=DamageType.HYBRID,
+            damage_type=DamageType.NONE,
             mechanic=LIGHTNING_PALM_MECHANIC,
+            damage_components=(
+                DamageComponent(
+                    identity=DamageComponentIdentity.PHYSICAL,
+                    defense_class=DamageDefenseClass.PHYSICAL,
+                    power=12,
+                    scales_with=(ScalingAttribute.DEXTERITY,),
+                ),
+                DamageComponent(
+                    identity=DamageComponentIdentity.ELEMENTAL,
+                    subtype="lightning",
+                    defense_class=DamageDefenseClass.MAGICAL,
+                    power=12,
+                    scales_with=(ScalingAttribute.INTELLIGENCE,),
+                ),
+            ),
             description='A risky palm strike that carries lightning through the point of impact.'),
         Move(
             name='Tempest Surge',

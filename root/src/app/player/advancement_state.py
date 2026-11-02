@@ -66,6 +66,14 @@ class AdvancementState:
         return tuple(self._purchased_passive_skill_ids)
 
     @property
+    def starting_normal_move_ids(self):
+        return self._starting_normal_move_ids
+
+    @property
+    def starting_super_move_ids(self):
+        return self._starting_super_move_ids
+
+    @property
     def purchased_active_skill_ids(self):
         return tuple(self._purchased_active_skill_ids)
 

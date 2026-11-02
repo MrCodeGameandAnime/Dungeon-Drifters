@@ -18,6 +18,7 @@ from app.player.character_run_state import (
 )
 from app.player.advancement_state import (
     AdvancementState,
+    move_id_for_name,
     move_ids_for_kit,
 )
 from app.player.inventory import Inventory
@@ -172,18 +173,90 @@ class PlayerState:
 
     @property
     def combat_moves(self):
+        from app.content.advancement_combat_spec import get_advancement_move
+
+        character_moves = self.character.combat_moves
+        starting_ids = (
+            self._advancement_state.starting_normal_move_ids
+            + self._advancement_state.starting_super_move_ids
+        )
+        character_move_ids = {
+            move_id_for_name(self.drifter_id, move.name)
+            for move in character_moves
+        }
+        if (
+            not self.purchased_active_skill_ids
+            and self.equipped_normal_move_ids
+            == self._advancement_state.starting_normal_move_ids
+            and set(starting_ids).issubset(character_move_ids)
+        ):
+            weapon = self.get_equipped("weapon")
+            if not isinstance(weapon, Weapon) or weapon.item_id != self.signature_weapon_state.weapon_id:
+                return character_moves
+            from app.content.catalog import get_weapon_spec
+
+            progression = get_weapon_spec(weapon.item_id).progression
+            return project_component_move_effects(
+                progression,
+                self.signature_weapon_state.components,
+                character_moves,
+            )
+
+        starting_moves = {
+            move_id_for_name(self.drifter_id, move.name): move
+            for move in character_moves
+        }
+        normal_moves = []
+        for move_id in self.equipped_normal_move_ids:
+            move = starting_moves.get(move_id)
+            if move is None:
+                if move_id in self._advancement_state.starting_normal_move_ids:
+                    continue
+                move = get_advancement_move(move_id)
+            normal_moves.append(move)
+
+        super_moves = []
+        for move_id in self.available_super_move_ids:
+            move = starting_moves.get(move_id)
+            if move is None:
+                if move_id in self._advancement_state.starting_super_move_ids:
+                    continue
+                move = get_advancement_move(move_id)
+            super_moves.append(move)
+
+        tracked_ids = set(
+            self._advancement_state.starting_normal_move_ids
+            + self._advancement_state.starting_super_move_ids
+            + self.purchased_active_skill_ids
+        )
+        legacy_extension_moves = tuple(
+            move
+            for move in character_moves
+            if move_id_for_name(self.drifter_id, move.name) not in tracked_ids
+        )
+        moves = tuple(normal_moves) + tuple(super_moves) + legacy_extension_moves
         weapon = self.get_equipped("weapon")
         if not isinstance(weapon, Weapon):
-            return self.character.combat_moves
+            return moves
         if weapon.item_id != self.signature_weapon_state.weapon_id:
-            return self.character.combat_moves
+            return moves
         from app.content.catalog import get_weapon_spec
 
         progression = get_weapon_spec(weapon.item_id).progression
         return project_component_move_effects(
             progression,
             self.signature_weapon_state.components,
-            self.character.combat_moves,
+            moves,
+        )
+
+    @property
+    def combat_passive_effects(self):
+        from app.content.advancement_combat_spec import (
+            get_advancement_passive_effects,
+        )
+
+        return get_advancement_passive_effects(
+            self.purchased_passive_skill_ids
         )
 
     @property
