@@ -30,6 +30,17 @@ def make_payload(gold=0, marker=None):
     return build_save_document(game_state)
 
 
+def remove_m3_advancement(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if isinstance(player, dict):
+            player.pop("advancement", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",
