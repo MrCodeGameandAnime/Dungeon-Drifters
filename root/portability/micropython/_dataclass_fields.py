@@ -23,6 +23,7 @@ FIELD_MANIFEST = {
     ('app.combat.status_state', 'StunStatus'): ('source', 'target'),
     ('app.combat.status_state', 'TurbulenceStatus'): ('source', 'target'),
     ('app.combat.storm', 'StormRules'): ('conductive_damage_bonus_percent', 'turbulence_damage_bonus_percent', 'lightning_storm_damage_bonus_percent', 'stun_chance_percent'),
+    ('app.content.advancement_spec', 'AdvancementSkillSpec'): ('drifter_id', 'slot_id', 'name', 'purpose'),
     ('app.content.drifter_spec', 'ClassMechanicSpec'): ('name', 'description'),
     ('app.content.drifter_spec', 'DrifterSpec'): ('drifter_id', 'choice', 'archetype_name', 'stats', 'combat_moves', 'class_mechanic', 'starting_weapon_id', 'short_name', 'display_name', 'ascii_art', 'origin_title', 'biography', 'dungeon_motive', 'combat_role', 'combat_summary', 'strengths', 'weaknesses', 'weapon', 'discipline', 'quote', 'selection_summary', 'starting_run_inventory', 'starting_prepared_payloads'),
     ('app.content.drifter_spec', 'DrifterStatSpec'): ('constitution', 'spirit', 'intelligence', 'strength', 'dexterity', 'intuition'),

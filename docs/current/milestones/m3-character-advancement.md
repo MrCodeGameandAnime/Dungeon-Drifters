@@ -1,8 +1,8 @@
 # M3 Character Advancement Implementation Plan
 
-> Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. Planning only; no progression or existing-save policy changes are authorized here.
+> Implementation authorization: M3 work is approved on the existing `dungeon` branch. Execute gate by gate; preserve all behavior and save policy outside the explicit M3 contracts below.
 
-**Status:** Draft for review, 2026-10-29. Revalidate exact APIs after M1/M2; do not mistake the historical word "future" for evidence a system is missing.
+**Status:** Gate 0 design/content baseline and Gate 1 authored-state implementation complete, 2026-11-01, on the existing `dungeon` branch. Gate 2 is next and must wait for the unresolved damage-composition and Intuition decisions below; do not mistake the historical word "future" for evidence a system is missing.
 
 **Goal:** Complete passive/move advancement, remaining Intuition consumers, split-damage capability, respecs, and permanent-discovery awards without rebuilding working stats or losing secured progress.
 
@@ -14,6 +14,8 @@
 
 - [Roadmap](development-roadmap.md), M3 and shared constraints; [M1](m1-permanent-roster.md) exact roster identity; [M2](m2-preparation-trading-escape.md) supply/payout contracts where implemented.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), sole authority for individual advancement, prototype curves, and unresolved formulas.
+- [M3 advancement blueprint](m3-advancement-blueprint.md), shared mechanical purpose for all 24 skill slots and character-specific authoring rules.
+- [M3 Drifter skill content](m3-drifter-skill-content.md), authored names and conceptual purposes for all four 24-skill trees.
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), sole authority for securing/losing XP; [weapon design](../weapons/signature-weapon-progression.md), independent weapon investment/learned-technique contract.
 
 Do not reimplement six stats, the Level 1 60-point budget, permanent caps, automatic HP/mana growth, levels, Growth Points, or stat spending. Non-goals: a new leveling architecture, resetting legacy builds, armor, Momentum, arbitrary campaign discovery placement, or weapon respec/refunds. The source's old milestone language does not authorize stripping existing kits.
@@ -24,15 +26,31 @@ Do not reimplement six stats, the Level 1 60-point budget, permanent caps, autom
 
 The resolver uses existing Strength/Dexterity/Intelligence output and Intuition critical/Super bonuses. Special-potency, secured-XP, and discovery helper functions exist; code inspection found no gameplay consumers for those helpers. Moves currently have one power/damage type and scaling attributes, not independently resolved damage packets. All authored kits are currently available, including Super. Weapon component effects are projected onto moves, and learned technique state exists in the signature-weapon model.
 
-No authored passive tree, paid move-unlock flow, GP purchase ledger/respec policy, or real permanent-resource discovery flow is implemented. A helper or serialization field alone is not a delivered consumer.
+Gate 1 now authors all 96 character-specific skill names/purposes and owns per-Drifter passive/active purchases plus four normal-move slots. These are persistent advancement records, not yet combat effects: no passive projection, executable new move definitions, Skills UI, terminal/browser action, secured-XP consumer, permanent-discovery claim flow, or respec is implemented. A helper or serialization field alone is not a delivered consumer.
 
 ## Fixed Contracts And Required State
 
-Secured levels grant three points; +1 permanent stat costs one, a passive node/rank costs two, and a move costs three. Affordability and eligibility are separate validations. A kit's intended shape is four normal moves plus one Super; starting moves/unlock order and existing-save policy must be approved before restricting moves.
+Secured levels continue to grant three Growth Points per level; +1 permanent stat continues to cost one point. Do not change the existing level/stat systems. Each single-purchase passive costs 2 GP; all new active skills cost 3 GP. These prices are flat across tiers and skill types: capstones, mana techniques, and the additional Super have no premium.
 
-Each selected Drifter owns permanent stats, unspent GP, purchased passive node/rank IDs, purchased/unlocked move IDs, and any approved spending/refund evidence. Authored nodes own costs, max ranks, prerequisites, mutually exclusive branches if selected, and effect definitions. Catalog validation rejects cycles, unknown references, invalid ranks/costs, impossible branches, and unsupported effects before gameplay.
+Each Drifter receives 24 new GP-purchased skills: 18 single-purchase passive skills and six active skills (four mana techniques, one free/non-mana normal move, and one additional Super). "Free/non-mana" describes the move's combat resource cost; it is still purchased with GP. The new additional Super unlocks at Level 50 and remains in the Super system, outside the four normal-move slots. The character-specific concepts are authored in the linked skill-content document; effect details remain subject to Gate 2.
 
-Derive effects and available moves from validated source state plus authored content; never persist both a final modified stat and the same bonus as a passive. Keep permanently learned weapon techniques distinct from GP-purchased moves and their refund ledger. Do not make every prerequisite category mandatory simply because it appears as an example in the design.
+| Tier | Minimum character level | Passive skills | Active skills |
+| --- | ---: | ---: | --- |
+| I | 1 | 5 | 1 free/non-mana normal move |
+| II | 25 | 4 | Mana Technique 1 |
+| III | 50 | 4 | Mana Technique 2 and additional Super |
+| IV | 75 | 4 | Mana Technique 3 |
+| V | 100 | 1 capstone | Mana Technique 4 |
+
+After a tier opens, its skills may generally be purchased in any order. Tier membership alone does not create prerequisite chains; add a specific prerequisite only when required by an authored skill. Mutually exclusive branches are not the default. Author skills using the primary/secondary identities defined from each Drifter's highest and second-highest authored Level 1 permanent stats in the Character Growth authority; effects should primarily scale from or enhance those stats, with other stats supporting specific mechanics where justified by the existing kit.
+
+Each Drifter's normal-move loadout has four equipped slots. A GP-purchased normal or mana skill is permanently unlocked into that Drifter's available move pool and may then be equipped in one of those slots. The additional Super is separately tracked by the Super system. Keep permanently learned weapon techniques distinct from GP-purchased skills.
+
+Legacy saves retain their current kits and continue normally. Migration must not remove existing move access, retroactively restrict a character, reset an equipped kit, or invent refunds/purchases because M3 begins tracking new advancement. Preserve existing access without fabricating purchase history.
+
+Each selected Drifter owns permanent stats, unspent GP, purchased passive IDs, newly purchased active-skill IDs, and the equipped normal-move IDs. The initial M3 content has no multi-rank nodes or skill prerequisites. Authored skills own costs, level gates, any later justified prerequisites, and effect definitions. Catalog validation must reject unknown references, invalid costs/levels/kinds, impossible branches, and unsupported effects before gameplay.
+
+Derive effects and available moves from validated source state plus authored content; never persist both a final modified stat and the same bonus as a passive. Affordability and eligibility are separate validations. Do not make every prerequisite category mandatory simply because it appears as an example in the design.
 
 A mixed move resolves only the authored components that exist: physical staff/arrow components use Dexterity, heavy/blade use Strength, magical/elemental/alchemical components use their approved Intelligence/Intuition rules. Specify hit/crit/resource-charge timing, mitigation/Defend per component, status application, and integer rounding before implementation. One action cannot charge mana, consume a payload, grant Super, or apply a weapon modifier twice because it has multiple damage components. Unchanged legacy moves retain their outputs under the approved compatibility mapping.
 
@@ -48,7 +66,7 @@ Revalidate these current edit areas: `root/src/app/player/player_state.py`, `cha
 
 Extend `OverworldSession`, Skills/Character presenter models, terminal inputs, and the browser bridge/renderer for exact-ID purchases, eligibility explanations, cost/effect previews, and respec confirmation. Clients never recalculate GP refunds or formulas. M2 Alchemy effects, signature component projections, and future M5 bonuses must share a documented effect composition order without making M3 depend on unreleased armor.
 
-Use a deliberate forward save migration. Preserve every old Drifter's stats, unspent points, level, XP, resources, full-kit access under the approved policy, slot progress, Tier V, and learned techniques. Old saves lack a detailed purchase history; do not invent refundable spending or silently refund all stats to a newly authored starting distribution. Update trusted payload validation for prerequisites/ranks/IDs and prove legacy remote revision advancement without rewriting history. New schema numbers are chosen from the entry tree, not assigned now.
+Use a deliberate forward save migration. Preserve every old Drifter's stats, unspent points, level, XP, resources, full-kit access under the approved policy, slot progress, Tier V, and learned techniques. Old saves lack a detailed purchase history; do not invent refundable spending or silently refund all stats to a newly authored starting distribution. Update trusted payload validation for prerequisites and IDs and prove legacy remote revision advancement without rewriting history. New schema numbers are chosen from the entry tree, not assigned now.
 
 ## Review Focus
 
@@ -62,19 +80,56 @@ Use a deliberate forward save migration. Preserve every old Drifter's stats, uns
 
 ### Gate 0 - Approve Arithmetic, Purchase, And Legacy Policies
 
-- [ ] Inventory existing curve callers and baseline fixtures; record where source prototypes match implementation and where adding a consumer changes outcomes.
-- [ ] Resolve M3-D1/D2 and the legacy compatibility boundary for the first slice. Schedule D3-D6 at their owning gates; freeze damage/award composition, rounding and respec rules before implementing those behaviors, not through invented defaults.
-- [ ] Keep approved prototype numbers editable and unchanged unless a specific numerical revision is approved; do not reopen all balance simultaneously.
+- [x] Inventory existing curve callers and baseline fixtures; record where source prototypes match implementation and where adding a consumer changes outcomes.
+- [x] Record the approved M3-D1 move-progression and M3-D2 tree-structure decisions, including preservation of legacy kits.
+- [x] Record flat M3 prices: permanent stat 1 GP, single-purchase passive skill 2 GP, active skill 3 GP, with no tier, capstone, mana-technique, or additional-Super premium.
+- [x] Record the universal P1-P18/A1-A6 slot blueprint; keep individual effects conceptual until the Gate 2 arithmetic contract is resolved.
+- [x] Author all four character-specific skill trees in [M3 Drifter Skill Content](m3-drifter-skill-content.md). Names and tactical purposes are set; Gate 2 still owns numerical effects and unsupported mechanics.
+- [x] Record the current-versus-M3 behavior baseline and additive migration examples below. Schema numbers for the advancement payload remain an implementation-entry choice.
+- [x] Preserve existing approved progression formulas and do not reopen unrelated balance.
 
-Proof: a current-versus-new behavior table and versioned migration examples for all four authored Drifters, including heavily invested legacy builds.
+Gate 0 evidence: curve consumers are `Character` resource-maximum recalculation, `CombatResolver` output/negation/accuracy/dodge/crit/Super generation, and save-document canonical resource validation. The secured-XP, discovery, and special-potency helper functions currently have no production gameplay consumer. The focused baseline command `python -m pytest -q tests/test_player_scaling.py tests/test_player_state.py tests/test_overworld_session.py` from `root/` passed **89 tests**.
+
+| Behavior | Current M1/M2 contract | M3 addition | Compatibility rule |
+| --- | --- | --- | --- |
+| Level and GP | Secured level awards 3 GP; level cap is 250. | Skill purchases spend the approved flat GP costs. | Preserve curve, level, current GP, and all past outcomes. |
+| Permanent stats | Six permanent stats; +1 costs 1 GP; existing stat/resource curves apply. | Passives project effects separately from permanent stats. | No stat reset, formula replacement, or fabricated stat-spending history. |
+| Starting moves | Each authored Drifter kit supplies its current normal moves and Super. | New normal/mana moves enter a permanent per-Drifter pool; four normal moves are equipped. | Existing kit and Super access remain available; initial equipment is the existing four normal moves. |
+| Purchased advancement | No M3 passive or active purchase ledger exists. | Add exact-Drifter passive/active purchase state and equipped normal move IDs. | Old saves migrate with no purchased M3 IDs; no GP is charged or refunded. |
+| Intuition consumers | Crit and Super generation are used in combat; secured-XP, discovery, and special-potency helpers have no production consumers. | Add only the consumers defined by their owning M3 gates. | Existing outputs and rewards stay unchanged until the relevant consumer is explicitly approved and tested. |
+| Weapon state | Signature weapon, component, slot progress, Tier V, and learned techniques are independently persisted. | M3 skill state is separate. | No weapon progress, materials, component, or technique changes. |
+
+The runtime snapshot was schema 13 and the disk save schema 14 at M3 entry.
+Gate 1 selected runtime schema 14 and disk schema 15 for the additive
+advancement state. The forward migration must not rewrite an old remote revision
+or its digest. Its default advancement state has empty M3 passive/active
+purchase lists and no spending history. The four already-authored normal moves
+seed the four equipped slots; the original Super stays available outside those
+slots. Existing stats, level, XP, unspent GP, current resources, shared/run
+inventory, party roster, and signature-weapon state are copied without
+adjustment.
+
+**Gate 1 implementation checkpoint (complete):** `root/src/app/content/advancement_spec.py` authors all 96 approved names/purposes and shared tier/cost schedule; `root/src/app/player/advancement_state.py` and `PlayerState` own exact-Drifter purchases, unlocked move pools, and four-slot loadouts; disk schema 15 migrates schema-14 saves additively while retaining schema-14 profile history unchanged. Validation passed 1,918 root tests, 63 web tests, content validation, and Python compilation. The focused advancement/save-state set passed 90 tests. The web checks covered static packaging/contracts, not a Playwright gameplay journey. Real pinned MicroPython qualification remains for final M3 qualification. No combat effect projection, Skills UI, terminal/browser actions, secured-XP consumer, discovery claims, or respec has been implemented yet.
+
+| Legacy Drifter example | Existing invested state to preserve | Additive M3 default |
+| --- | --- | --- |
+| Branoc | Level 137; STR 91, CON 97; 2 unspent GP; current Sunder-Spire state and full kit. | No purchased M3 nodes; current four normal moves equipped; Third Gate Obsequy remains available. |
+| Azhvielle | Level 118; INT 99, SPI 88; 5 unspent GP; current weapon and full kit. | No purchased M3 nodes; current four normal moves equipped; Causality Nullwake remains available. |
+| Zhaivra | Level 102; DEX 100, INTU 93; 0 unspent GP; current Sathren/payload state and full kit. | No purchased M3 nodes; current four normal moves equipped; Starless Meridian Obsequy remains available. |
+| Joruun | Level 79; INT 88, DEX 91; 11 unspent GP; current Sky-Needle state and full kit. | No purchased M3 nodes; current four normal moves equipped; Coagulated Torrent remains available. |
+
+These are migration fixtures, not grant examples. They demonstrate that high
+stats, spent points (which are not reconstructed), unspent GP, current kits,
+resources, and independent weapon investment survive without inferred purchases
+or refunds.
 
 ### Gate 1 - Authored Advancement And Atomic Purchases
 
-- [ ] Add failing tests for one stat costing 1, passive/rank costing 2, and move costing 3; unmet level/stat/story/node prerequisites, invalid rank, duplicate purchase, unknown target, and insufficient points must leave state identical.
-- [ ] Implement definitions, validation, player source state, and domain purchase actions. Author one useful bounded progression path per Drifter after approval; no empty trees counted as content.
-- [ ] Round-trip purchases and derived legal moves/effects using M1 exact targets, including a bench member and an active member without changing the other.
+- [x] Prove permanent stat/passive/active costs of 1/2/3 GP, respectively, with no tier/type premium; prove level gates, ownership, duplicate purchase, unknown target, and insufficient points reject without mutation. The initial content intentionally has no ranks or skill prerequisites, so neither is implemented as an invented rule.
+- [x] Implement and validate the complete 24-slot tree for each Drifter, exact-Drifter purchase state, permanent normal/Super unlock pools, and four-slot normal loadouts. Preserve the existing kit on migration and do not finalize Gate 2 effect numbers early.
+- [x] Round-trip purchases and unlocked/equipped move IDs for active and bench members under M1 roster ownership without changing another Drifter.
 
-Proof: focused additions to existing progression/player/Skills tests plus a small proposed advancement-content module test file; run applicable content/catalog/manifest checks.
+Proof: `tests/test_advancement.py`, `tests/test_save_state.py`, and existing permanent-stat tests; 1,918 root tests, 63 web tests, content validation, compilation, and `git diff --check` passed. Web verification covered build packaging/contracts only; no browser gameplay flow or real pinned MicroPython run is claimed for Gate 1.
 
 ### Gate 2 - Damage Components And Remaining Potency
 
@@ -96,7 +151,7 @@ Proof: original zero-bonus rewards remain unchanged; a real approved nonzero bon
 
 - [ ] Test refund/cost conservation, dependency cascades, minimum functional move kit, legacy purchase evidence, equipped move validity, and HP/mana maximum changes under the approved current-resource rule.
 - [ ] Implement the service only after its policy is approved. Reject a respec that would leave invalid prerequisites or exceed the refund budget before spending/refunding anything.
-- [ ] Round-trip all advancement state, reject invalid purchased IDs/ranks/claims at profile validation, and prove current remote progression advances while old schema/digest history stays immutable.
+- [ ] Round-trip all advancement state, reject invalid purchased IDs/claims at profile validation, and prove current remote progression advances while old schema/digest history stays immutable. Legacy saves must retain their existing move access/loadout without fabricated purchase/refund history.
 
 Proof: exact per-Drifter save/reload and real service coverage; no weapon material, progress, Tier V, or technique reset/refund.
 
@@ -112,8 +167,8 @@ Closure: all four Drifters have the approved functioning initial advancement pat
 
 | ID | Decision and blocking gate |
 | --- | --- |
-| M3-D1 | Starting moves, Super unlock, move equip/selection rules, and new-game versus existing-save access; Gate 0 |
-| M3-D2 | Initial passive trees/ranks, exclusivity and prerequisites, actual move purchase list; before Gate 1 |
+| M3-D1 | Resolved structure: new normal/mana skills are GP-purchased and permanently unlocked per Drifter; four equipped normal-move slots; additional Super remains outside those slots and unlocks at Level 50; preserve legacy kits. |
+| M3-D2 | Resolved structure, pricing, shared slot purposes, and character-specific concept list in the [M3 blueprint](m3-advancement-blueprint.md) and [M3 Drifter Skill Content](m3-drifter-skill-content.md): 24 skills per Drifter (18 single-purchase passives, six actives), tiers/counts at Levels 1/25/50/75/100, permanent stat 1 GP, passive 2 GP, active 3 GP, no premiums. Numerical/mechanical effects remain Gate 2 work; the initial trees have no skill prerequisites. |
 | M3-D3 | Component composition, mixed mitigation, rounding, effect ordering, and effective-stat cap treatment beyond permanent 100; before Gate 2 |
 | M3-D4 | Personal/party Intuition XP, bonus basis and rounding, including expedition handoff; before Gate 3 |
 | M3-D5 | Respec existence/eligibility/cost/refunds and legacy spending evidence policy; before Gate 4; recommendation is not historical approval |

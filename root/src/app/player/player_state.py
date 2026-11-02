@@ -16,6 +16,10 @@ from app.player.character_run_state import (
     CharacterRunCheckpoint,
     CharacterRunState,
 )
+from app.player.advancement_state import (
+    AdvancementState,
+    move_ids_for_kit,
+)
 from app.player.inventory import Inventory
 from app.player.signature_weapon_state import SignatureWeaponState
 
@@ -42,6 +46,7 @@ class PlayerState:
             raise TypeError("character must be a Character instance")
 
         self._character = character
+        self._drifter_id = self._resolve_drifter_id(character)
         self._gold = self._validate_gold_amount(gold)
         self._growth_points = 0
         self._inventory = Inventory()
@@ -67,6 +72,15 @@ class PlayerState:
             signature_weapon.item_id,
             weapon_spec.progression,
         )
+        normal_move_ids, super_move_ids = move_ids_for_kit(
+            self._drifter_id,
+            character.combat_moves,
+        )
+        self._advancement_state = AdvancementState(
+            self._drifter_id,
+            normal_move_ids,
+            super_move_ids,
+        )
 
     @property
     def character(self):
@@ -79,6 +93,34 @@ class PlayerState:
     @property
     def signature_weapon_state(self):
         return self._signature_weapon_state
+
+    @property
+    def drifter_id(self):
+        return self._drifter_id
+
+    @property
+    def advancement_state(self):
+        return self._advancement_state
+
+    @property
+    def purchased_passive_skill_ids(self):
+        return self._advancement_state.purchased_passive_skill_ids
+
+    @property
+    def purchased_active_skill_ids(self):
+        return self._advancement_state.purchased_active_skill_ids
+
+    @property
+    def available_normal_move_ids(self):
+        return self._advancement_state.available_normal_move_ids
+
+    @property
+    def available_super_move_ids(self):
+        return self._advancement_state.available_super_move_ids
+
+    @property
+    def equipped_normal_move_ids(self):
+        return self._advancement_state.equipped_normal_move_ids
 
     @property
     def character_run_state(self):
@@ -225,6 +267,19 @@ class PlayerState:
 
         return new_value
 
+    def purchase_advancement(self, skill_id):
+        skill = self._advancement_state.validate_purchase(
+            skill_id,
+            level=self.level_state.current,
+            growth_points=self.growth_points,
+        )
+        self._growth_points -= skill.gp_cost
+        self._advancement_state.record_purchase(skill)
+        return skill
+
+    def equip_normal_move(self, move_id, *, slot):
+        return self._advancement_state.equip_normal_move(move_id, slot=slot)
+
     def add_gold(self, amount):
         self._gold += self._validate_gold_amount(amount)
         return self.gold
@@ -325,6 +380,18 @@ class PlayerState:
         character.recalculate_resource_maximums()
         character.exp_state.current = snapshot["progression"]["exp"]
         player_state._growth_points = snapshot["progression"]["growth_points"]
+        if "advancement" in snapshot:
+            normal_move_ids, super_move_ids = move_ids_for_kit(
+                player_state.drifter_id,
+                character.combat_moves,
+            )
+            player_state._advancement_state = AdvancementState.from_snapshot(
+                player_state.drifter_id,
+                normal_move_ids,
+                super_move_ids,
+                snapshot["advancement"],
+                level=character.level_state.current,
+            )
         character.health.current = snapshot["resources"]["health"]["current"]
         character.mana_resource.current = snapshot["resources"]["mana"]["current"]
         player_state.super_resource.current = snapshot["resources"]["super"]["current"]
@@ -371,6 +438,7 @@ class PlayerState:
                 "exp": self.exp_state.current,
                 "growth_points": self.growth_points,
             },
+            "advancement": self._advancement_state.snapshot(),
             "gold": self.gold,
             "signature_weapon": self.signature_weapon_state.snapshot(),
             "inventory": [
@@ -394,6 +462,19 @@ class PlayerState:
             },
         }
         return to_plain_value(snapshot, "player")
+
+    @staticmethod
+    def _resolve_drifter_id(character):
+        profile = character.profile
+        if profile is not None:
+            return profile.drifter_id
+
+        from app.content.catalog import DRIFTER_SPECS
+
+        for spec in DRIFTER_SPECS:
+            if spec.archetype_name == character.archetype_name:
+                return spec.drifter_id
+        return "unregistered_drifter"
 
     @staticmethod
     def _validate_gold_amount(amount):

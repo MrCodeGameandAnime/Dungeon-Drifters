@@ -1,4 +1,4 @@
-"""Schema-14 save documents and canonical in-memory reconstruction."""
+"""Schema-15 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -26,6 +26,7 @@ from app.player.character_run_state import (
     PreparedPayloadId,
     RunItemId,
 )
+from app.player.advancement_state import AdvancementState, move_ids_for_kit
 from app.player.player_state import PlayerState
 from app.player.progression import (
     MAXIMUM_LEVEL,
@@ -69,7 +70,8 @@ _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION = 10
 _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 11
 _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT = 12
 _LATEST_PREVIOUS_DISK_SCHEMA_VERSION = 13
-DISK_SCHEMA_VERSION = 14
+_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 14
+DISK_SCHEMA_VERSION = 15
 
 
 class SaveStateValidationError(ValueError):
@@ -139,6 +141,7 @@ def migrate_schema_7(document):
     _add_legacy_party_state(migrated)
     _add_signature_weapon_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -153,6 +156,7 @@ def migrate_schema_8(document):
     migrated["overworld"].setdefault("active_route_id", "surface")
     _add_signature_weapon_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -177,6 +181,7 @@ def migrate_schema_11(document):
     _add_tier_v_success_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
     _add_carried_supply_defaults(migrated)
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -188,6 +193,7 @@ def migrate_schema_12(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_active_drifter_ids(migrated)
     _add_carried_supply_defaults(migrated)
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -198,6 +204,17 @@ def migrate_schema_13(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_carried_supply_defaults(migrated)
+    _add_advancement_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema14(document):
+    """Upgrade an immutable schema-14 payload with empty M3 advancement state."""
+    validate_legacy_schema14_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -244,6 +261,7 @@ def validate_legacy_schema11_document(document):
     historical["schema_version"] = DISK_SCHEMA_VERSION
     _add_legacy_active_drifter_ids(historical)
     _add_carried_supply_defaults(historical)
+    _add_advancement_defaults(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
@@ -262,6 +280,16 @@ def validate_legacy_schema13_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema14_document(document):
+    """Validate and copy an immutable schema-14 payload without migrating it."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -270,7 +298,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate a current payload or immutable schema-8 through schema-13 history."""
+    """Validate current payloads or immutable schema-8 through schema-14 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -299,6 +327,12 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema13_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
+    ):
+        return validate_legacy_schema14_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -368,6 +402,8 @@ def validate_save_document(document):
         return migrate_schema_12(document)
     if schema_version == _LATEST_PREVIOUS_DISK_SCHEMA_VERSION:
         return migrate_schema_13(document)
+    if schema_version == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT:
+        return migrate_schema14(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -518,6 +554,7 @@ def _validate_document(
     _validate_player(
         document["player"],
         require_signature_weapon=require_signature_weapon,
+        require_advancement=schema_version == DISK_SCHEMA_VERSION,
     )
     _validate_story(document["story"])
     _validate_world(document["world"])
@@ -529,10 +566,13 @@ def _validate_document(
         document["party"],
         document["player"],
         require_signature_weapon=require_signature_weapon,
+        require_advancement=schema_version == DISK_SCHEMA_VERSION,
         require_active_drifter_ids=(
             schema_version >= _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
         ),
-        require_carried_supplies=schema_version == DISK_SCHEMA_VERSION,
+        require_carried_supplies=(
+            schema_version >= _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
+        ),
     )
     _validate_route_party_relationship(document["overworld"], document["party"])
     validate_plain_value(document["metadata"], "game.metadata")
@@ -590,6 +630,7 @@ def _migrate_previous_current_document(document):
     _add_signature_weapon_defaults(migrated)
     _add_tier_v_success_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
+    _add_advancement_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -767,6 +808,7 @@ def _validate_party(
     player,
     *,
     require_signature_weapon=True,
+    require_advancement=False,
     require_active_drifter_ids=False,
     require_carried_supplies=False,
 ):
@@ -800,6 +842,7 @@ def _validate_party(
         _validate_player(
             companion,
             require_signature_weapon=require_signature_weapon,
+            require_advancement=require_advancement,
         )
         choice = _canonical_profile(companion).choice
         if choice == lead_profile.choice or choice in companion_ids:
@@ -1017,6 +1060,30 @@ def _add_carried_supply_defaults(document):
         party.setdefault("carried_items", {})
 
 
+def _add_advancement_defaults(document):
+    players = [document.get("player")]
+    party = document.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if not isinstance(player, dict):
+            raise SaveStateValidationError("legacy Drifter is invalid")
+        if "advancement" in player:
+            raise SaveStateValidationError(
+                "legacy Drifter already contains M3 advancement state"
+            )
+        profile = _canonical_profile(player)
+        normal_move_ids, super_move_ids = move_ids_for_kit(
+            profile.drifter_id,
+            profile.combat_moves,
+        )
+        player["advancement"] = AdvancementState(
+            profile.drifter_id,
+            normal_move_ids,
+            super_move_ids,
+        ).snapshot()
+
+
 def _strip_companion_combat(party):
     if not isinstance(party, dict):
         return
@@ -1027,7 +1094,12 @@ def _strip_companion_combat(party):
                 companion.pop("combat", None)
 
 
-def _validate_player(player, *, require_signature_weapon=True):
+def _validate_player(
+    player,
+    *,
+    require_signature_weapon=True,
+    require_advancement=False,
+):
     _require_mapping(player, "player")
     allowed_keys = {
         "identity",
@@ -1041,12 +1113,14 @@ def _validate_player(player, *, require_signature_weapon=True):
     }
     if require_signature_weapon:
         allowed_keys.add("signature_weapon")
+    if require_advancement:
+        allowed_keys.add("advancement")
     _require_exact_keys(
         {key for key in player if key != "combat"},
         allowed_keys,
         "player",
     )
-    _canonical_profile(player)
+    profile = _canonical_profile(player)
     _validate_stats(player["attributes"])
     progression = player["progression"]
     _require_mapping(progression, "player.progression")
@@ -1078,6 +1152,31 @@ def _validate_player(player, *, require_signature_weapon=True):
             _validate_weapon(item, f"player.equipment.{slot}")
     if require_signature_weapon:
         _validate_signature_weapon(player["signature_weapon"], equipment)
+    if require_advancement:
+        _validate_advancement(
+            player["advancement"],
+            profile,
+            progression["level"],
+        )
+
+
+def _validate_advancement(snapshot, profile, level):
+    try:
+        normal_move_ids, super_move_ids = move_ids_for_kit(
+            profile.drifter_id,
+            profile.combat_moves,
+        )
+        AdvancementState.from_snapshot(
+            profile.drifter_id,
+            normal_move_ids,
+            super_move_ids,
+            snapshot,
+            level=level,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise SaveStateValidationError(
+            f"player advancement is invalid: {error}"
+        ) from error
 
 
 def _validate_signature_weapon(snapshot, equipment):

@@ -114,7 +114,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 - Record these conflicts for resolution before their owning milestone, rather than changing behavior implicitly:
   - Existing rest extraction keeps 50% XP/gold and all items; the broad economy doc describes full normal extraction. Preserve the explicit Floor I rest rule unless separately changed (M2).
   - Ordinary floor encounters and earlier floor bosses use the currently legal active party. Floor 3 is the first planned full four-Drifter boss battle; later major dungeon/region bosses may reconverge all four. Do not turn every floor boss into a four-person fight (M4/M8).
-  - Current full move kits versus future two-move starts, bought moves, and delayed Super. Decide new-game and existing-save behavior before locking moves (M3).
+  - M3 Gate 0 resolves move progression: preserve current and legacy kits; new GP-purchased normal/mana skills join the permanent per-Drifter move pool and can be equipped in four normal slots; the additional Super unlocks at Level 50 outside those slots. Flat prices are 1 GP per permanent stat, 2 GP per single-purchase passive skill, and 3 GP per active skill, with no premiums; exact effects remain open (M3).
   - Future equipment-expedition weapon rewards and component installation/removal services must not reintroduce random replacement signature weapons or stackable signature parts (M2/M6).
   - Hub return currently restores HP/mana. Persistent injuries, durability, and treatment are optional new systems, not permission to remove that recovery (M4/M8).
   - Armor ring/amulet language versus economy ring/pendant language needs one accessory-slot vocabulary (M5).
@@ -159,14 +159,14 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 1. Audit existing curves/callers against the design and preserve working formulas. Add independently scaled physical/magical/elemental/alchemical damage components where actually needed, with explicit mitigation and rounding order.
 2. Complete Intuition special potency, secured-XP handling, and discovery integration. A helper function alone is not a finished mechanic; discovery waits for a real reward/search consumer in M4/M8.
-3. Add authored passive nodes/ranks, move purchases, prerequisites, and exact-Drifter spending: one point per stat, two per passive/rank, three per move as currently designed.
-4. Author an initial progression path for each Drifter, respecting the four-normal-move plus Super design. Distinguish bought moves from permanently learned weapon techniques.
+3. Preserve existing one-GP permanent stat spending. Add authored passive and active-skill purchases per Drifter at the approved flat prices: 2 GP per single-purchase passive skill and 3 GP per active skill, without tier or skill-type premiums.
+4. Author 24 new skills per Drifter from the shared P1-P18/A1-A6 slot blueprint in [M3 Advancement Blueprint](m3-advancement-blueprint.md): 18 passives and six actives (four mana techniques, one free/non-mana normal move, and one additional Super). Use level gates I-V at Levels 1/25/50/75/100 with passive counts 5/4/4/4/1; place the Super at Level 50. Base skill identity on primary/secondary stats derived from each Drifter's authored Level 1 permanent stats, as defined in the Character Growth authority. Keep the additional Super outside four normal-move slots. Distinguish GP-purchased skills from permanently learned weapon techniques and preserve legacy kits.
 5. Add the approved respec service, with explicit refund/prerequisite rules and no refunds or resets to weapon investment.
 6. Support permanent resource discoveries with unique award identity and repeat-claim prevention; author their actual locations in M8.
 
 **Proof:** Build each Drifter through stat, passive, and move choices; reject unmet prerequisites without spending; save/reload; respec legally without duplicating points or leaving invalid equipped moves. Verify mixed damage, caps, secured-XP application exactly once, and unchanged legacy characters under the approved migration policy.
 
-**Decide at entry:** Initial/unlocked moves and existing-save policy, first passive trees/prerequisites, respec contract, damage-component composition, personal versus party Intuition XP bonus. Preserve documented prototype numbers unless a numerical change is explicitly approved.
+**Decide at entry:** Respec contract, damage-component composition, and personal versus party Intuition XP bonus. The shared tree structure, flat prices, primary/secondary identities, and per-Drifter skill concepts are recorded in the M3 documents; exact effect mechanics and numbers remain subject to Gate 2. Starting-move and initial-Super timing decisions are settled; preserve existing and legacy move access. Preserve documented prototype numbers unless a numerical change is explicitly approved.
 
 ## M4 - Enemy Progression And Meaningful Dungeon Pressure
 

@@ -585,7 +585,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 13
+    assert snapshot["schema_version"] == 14
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
