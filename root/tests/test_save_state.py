@@ -34,7 +34,7 @@ def get_character_profiles():
     return DRIFTER_SPECS
 
 
-def _remove_advancement_state(document):
+def _remove_m3_state(document):
     players = [document.get("player")]
     party = document.get("party")
     if isinstance(party, dict):
@@ -42,6 +42,10 @@ def _remove_advancement_state(document):
     for player in players:
         if isinstance(player, dict):
             player.pop("advancement", None)
+            player.pop("permanent_discovery_bonuses", None)
+    world = document.get("world")
+    if isinstance(world, dict):
+        world.pop("permanent_discovery_claims", None)
     return document
 
 
@@ -100,7 +104,7 @@ def _game_at_floor_one_rest(rest_index=0):
     return game
 
 
-def test_schema15_document_has_only_persistent_state_and_schema14_stays_runtime_only():
+def test_schema16_document_has_only_persistent_state_and_schema15_stays_runtime_only():
     game = _create_populated_game("1")
 
     document = build_save_document(game)
@@ -121,13 +125,13 @@ def test_schema15_document_has_only_persistent_state_and_schema14_stays_runtime_
     assert "combat" in game.snapshot()["player"]
 
 
-def test_new_saves_use_runtime_schema14_and_disk_schema15():
+def test_new_saves_use_runtime_schema15_and_disk_schema16():
     game = GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
 
     document = build_save_document(game)
 
-    assert STATE_SCHEMA_VERSION == 14
-    assert DISK_SCHEMA_VERSION == document["schema_version"] == 15
+    assert STATE_SCHEMA_VERSION == 15
+    assert DISK_SCHEMA_VERSION == document["schema_version"] == 16
     assert document["overworld"]["active_route_id"] == "surface"
     assert document["party"]["floor_one_cleared"] is False
     assert document["party"]["floor_one_runs_started_after_clear"] == 0
@@ -135,7 +139,7 @@ def test_new_saves_use_runtime_schema14_and_disk_schema15():
     assert document["party"]["active_drifter_ids"] == ["branoc"]
 
 
-def test_schema15_round_trip_preserves_four_member_roster_and_selected_pair():
+def test_schema16_round_trip_preserves_four_member_roster_and_selected_pair():
     game = three_member_hub_game()
     zhaivra = next(profile for profile in DRIFTER_SPECS if profile.drifter_id == "zhaivra")
     assert game.party_state.recruit_companion(
@@ -159,7 +163,7 @@ def test_schema15_round_trip_preserves_four_member_roster_and_selected_pair():
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == 15
+    assert document["schema_version"] == 16
     assert document["party"]["active_drifter_ids"] == ["zhaivra", "azhvielle"]
     assert tuple(
         member.character.profile.drifter_id for member in restored.recruited_members
@@ -227,9 +231,7 @@ def test_advancement_round_trip_targets_active_and_bench_drifters_independently(
 def test_schema14_migrates_additive_advancement_defaults_without_mutating_history():
     historical = copy.deepcopy(build_save_document(three_member_hub_game()))
     historical["schema_version"] = 14
-    players = [historical["player"], *historical["party"]["companions"]]
-    for player in players:
-        player.pop("advancement")
+    _remove_m3_state(historical)
     original = copy.deepcopy(historical)
 
     assert validate_profile_payload(historical) == original
@@ -237,11 +239,35 @@ def test_schema14_migrates_additive_advancement_defaults_without_mutating_histor
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 15
+    assert migrated["schema_version"] == 16
     for member in restored.recruited_members:
         assert member.purchased_passive_skill_ids == ()
         assert member.purchased_active_skill_ids == ()
         assert len(member.equipped_normal_move_ids) == 4
+    assert build_save_document(restored) == migrated
+
+
+def test_schema15_migrates_discovery_defaults_without_mutating_profile_history():
+    historical = copy.deepcopy(build_save_document(three_member_hub_game()))
+    historical["schema_version"] = 15
+    players = [historical["player"], *historical["party"]["companions"]]
+    for player in players:
+        player.pop("permanent_discovery_bonuses")
+    historical["world"].pop("permanent_discovery_claims")
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert migrated["schema_version"] == 16
+    assert migrated["world"]["permanent_discovery_claims"] == []
+    assert all(
+        member.permanent_discovery_bonuses
+        == {"max_hp": 0, "max_mana": 0, "growth_points_awarded": 0}
+        for member in restored.recruited_members
+    )
     assert build_save_document(restored) == migrated
 
 
@@ -275,7 +301,7 @@ def test_current_save_rejects_unknown_or_wrong_drifter_advancement_ids():
         "branoc,azhvielle",
     ),
 )
-def test_schema14_rejects_invalid_active_member_selection(active_ids):
+def test_current_schema_rejects_invalid_active_member_selection(active_ids):
     game = three_member_hub_game()
     document = build_save_document(game)
     document["party"]["active_drifter_ids"] = active_ids
@@ -287,7 +313,7 @@ def test_schema14_rejects_invalid_active_member_selection(active_ids):
 def test_schema12_pair_history_migrates_without_mutating_or_adding_recruits():
     historical = copy.deepcopy(build_save_document(completed_hub_game()))
     historical["schema_version"] = 12
-    _remove_advancement_state(historical)
+    _remove_m3_state(historical)
     historical["party"].pop("active_drifter_ids")
     historical["party"].pop("carried_items")
     original = copy.deepcopy(historical)
@@ -297,7 +323,7 @@ def test_schema12_pair_history_migrates_without_mutating_or_adding_recruits():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 15
+    assert migrated["schema_version"] == 16
     assert migrated["party"]["active_drifter_ids"] == ["branoc", "azhvielle"]
     assert tuple(
         member.character.profile.drifter_id for member in restored.recruited_members
@@ -308,7 +334,7 @@ def test_schema12_pair_history_migrates_without_mutating_or_adding_recruits():
 def test_schema12_solo_history_migrates_to_only_the_starting_drifter():
     historical = copy.deepcopy(build_save_document(_create_populated_game("1")))
     historical["schema_version"] = 12
-    _remove_advancement_state(historical)
+    _remove_m3_state(historical)
     historical["party"].pop("active_drifter_ids")
     historical["party"].pop("carried_items")
     original = copy.deepcopy(historical)
@@ -333,7 +359,7 @@ def test_current_schema_floor_one_rest_checkpoint_round_trips(rest_index):
     rest_node = tuple(
         node for node in route.nodes if node.kind.value == "rest"
     )[rest_index]
-    assert document["schema_version"] == 15
+    assert document["schema_version"] == 16
     assert document["overworld"]["active_route_id"] == "floor_one"
     assert document["overworld"]["current_route_node_id"] == rest_node.node_id
     assert document["party"]["phase"] == "outing"
@@ -349,7 +375,7 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     game = _create_populated_game("1")
     old_payload = copy.deepcopy(build_save_document(game))
     old_payload["schema_version"] = 9
-    _remove_advancement_state(old_payload)
+    _remove_m3_state(old_payload)
     old_payload["player"].pop("signature_weapon")
     old_payload["party"].pop("active_drifter_ids")
     old_payload["party"].pop("carried_items")
@@ -367,21 +393,21 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     upgraded = build_save_document(restored)
 
     assert old_payload == original
-    assert upgraded["schema_version"] == 15
+    assert upgraded["schema_version"] == 16
     assert upgraded["overworld"]["active_route_id"] == "surface"
     assert upgraded["party"]["floor_one_cleared"] is False
     assert upgraded["party"]["floor_one_runs_started_after_clear"] == 0
     assert upgraded["party"]["outing_xp_multiplier_percent"] == 100
 
 
-def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema15():
+def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema16():
     historical = copy.deepcopy(
         build_save_document(
             GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
         )
     )
     historical["schema_version"] = 10
-    _remove_advancement_state(historical)
+    _remove_m3_state(historical)
     historical["player"].pop("signature_weapon")
     historical["party"].pop("active_drifter_ids")
     historical["party"].pop("carried_items")
@@ -391,7 +417,7 @@ def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema15(
     upgraded = validate_save_document(historical)
 
     assert historical == original
-    assert upgraded["schema_version"] == 15
+    assert upgraded["schema_version"] == 16
     assert upgraded["player"]["signature_weapon"]["weapon_id"] == "sunder_spire"
     assert set(upgraded["player"]["signature_weapon"]["slot_progress"].values()) == {0}
 
@@ -403,7 +429,7 @@ def test_schema11_profile_history_stays_immutable_and_migrates_tier_five_default
         )
     )
     historical["schema_version"] = 11
-    _remove_advancement_state(historical)
+    _remove_m3_state(historical)
     historical["player"]["signature_weapon"].pop("tier_v_success")
     historical["party"].pop("active_drifter_ids")
     historical["party"].pop("carried_items")
@@ -413,7 +439,7 @@ def test_schema11_profile_history_stays_immutable_and_migrates_tier_five_default
     upgraded = validate_save_document(historical)
 
     assert historical == original
-    assert upgraded["schema_version"] == 15
+    assert upgraded["schema_version"] == 16
     assert upgraded["player"]["signature_weapon"]["tier_v_success"] is False
 
 
@@ -425,6 +451,15 @@ def test_current_profile_payload_rejects_non_boolean_tier_five_state(invalid_val
     document["player"]["signature_weapon"]["tier_v_success"] = invalid_value
 
     with pytest.raises(SaveStateValidationError, match="tier_v_success"):
+        validate_profile_payload(document)
+
+
+@pytest.mark.parametrize("invalid_id", ("bad id", "UPPER_CASE", "éclair"))
+def test_current_profile_rejects_malformed_permanent_discovery_claim_id(invalid_id):
+    document = build_save_document(_create_populated_game("1"))
+    document["world"]["permanent_discovery_claims"] = [invalid_id]
+
+    with pytest.raises(SaveStateValidationError, match="malformed permanent discovery"):
         validate_profile_payload(document)
 
 
@@ -524,7 +559,7 @@ def test_schema7_migration_preserves_state_and_ignores_combat_payload():
     game = _create_populated_game("2")
     schema7 = copy.deepcopy(game.snapshot())
     schema7["schema_version"] = 7
-    _remove_advancement_state(schema7)
+    _remove_m3_state(schema7)
     schema7.pop("party", None)
     schema7["player"].pop("signature_weapon")
     schema7["player"]["combat"]["moves"][0]["name"] = "forged move"
@@ -544,7 +579,7 @@ def test_schema7_migration_defaults_missing_overworld_fields_without_disk_io():
     game = _create_populated_game("1")
     schema7 = copy.deepcopy(game.snapshot())
     schema7["schema_version"] = 7
-    _remove_advancement_state(schema7)
+    _remove_m3_state(schema7)
     schema7.pop("party", None)
     schema7["player"].pop("signature_weapon")
     del schema7["overworld"]
@@ -561,7 +596,7 @@ def test_schema7_migration_defaults_missing_overworld_fields_without_disk_io():
 def _old_schema8_document(game, *, at_dungeon_entrance=False):
     document = copy.deepcopy(game.snapshot())
     document["schema_version"] = 8
-    _remove_advancement_state(document)
+    _remove_m3_state(document)
     document.pop("party", None)
     document["overworld"].pop("active_route_id", None)
     document["player"].pop("combat")
@@ -596,7 +631,7 @@ def test_old_schema8_disk_save_before_entrance_preserves_lead_gold():
     restored = reconstruct_game_state(document)
     upgraded = build_save_document(restored)
 
-    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 15
+    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 16
     assert restored.player_state.gold == 17
     assert restored.party_state.shared_gold == 0
     assert restored.party_state.phase is DungeonPhase.OUTSIDE
@@ -641,7 +676,7 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
     assert restored.party_state.phase is DungeonPhase.HUB
 
 
-def test_party_state_and_companion_round_trip_in_schema15_document():
+def test_party_state_and_companion_round_trip_in_schema16_document():
     game = _create_populated_game("1")
     _move_game_to_dungeon_entrance(game)
     game.player_state.add_gold(58)
@@ -656,7 +691,7 @@ def test_party_state_and_companion_round_trip_in_schema15_document():
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == 15
+    assert document["schema_version"] == 16
     assert document["party"]["shared_gold"] == 17
     assert "combat" not in document["player"]
     assert all("combat" not in member for member in document["party"]["companions"])
@@ -782,7 +817,7 @@ def test_invalid_party_documents_are_rejected(mutator):
     "mutator",
     (
         lambda document: document.update(schema_version=6),
-        lambda document: document.update(schema_version=16),
+        lambda document: document.update(schema_version=17),
         lambda document: document["player"]["progression"].update(exp=True),
         lambda document: document["player"]["resources"]["health"].update(current=9999),
         lambda document: document["player"]["equipment"].update(

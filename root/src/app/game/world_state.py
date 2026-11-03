@@ -9,6 +9,7 @@ class WorldState:
         self._defeated_encounters = []
         self._opened_objects = []
         self._consumed_objects = []
+        self._permanent_discovery_claims = []
         self._dungeon_changes = {}
 
     @property
@@ -26,6 +27,10 @@ class WorldState:
     @property
     def consumed_objects(self):
         return tuple(self._consumed_objects)
+
+    @property
+    def permanent_discovery_claims(self):
+        return tuple(self._permanent_discovery_claims)
 
     @property
     def dungeon_changes(self):
@@ -47,6 +52,10 @@ class WorldState:
         if world_object not in self._consumed_objects:
             self._consumed_objects.append(world_object)
 
+    def claim_permanent_discovery(self, source_id):
+        if source_id not in self._permanent_discovery_claims:
+            self._permanent_discovery_claims.append(source_id)
+
     def set_dungeon_change(self, key, value):
         self._dungeon_changes[key] = value
 
@@ -57,6 +66,9 @@ class WorldState:
         state._defeated_encounters = list(snapshot["defeated_encounters"])
         state._opened_objects = list(snapshot["opened_objects"])
         state._consumed_objects = list(snapshot["consumed_objects"])
+        state._permanent_discovery_claims = list(
+            snapshot.get("permanent_discovery_claims", ())
+        )
         state._dungeon_changes = dict(snapshot["dungeon_changes"])
         return state
 
@@ -67,6 +79,9 @@ class WorldState:
                 "defeated_encounters": list(self.defeated_encounters),
                 "opened_objects": list(self.opened_objects),
                 "consumed_objects": list(self.consumed_objects),
+                "permanent_discovery_claims": list(
+                    self.permanent_discovery_claims
+                ),
                 "dungeon_changes": self.dungeon_changes,
             },
             "world",

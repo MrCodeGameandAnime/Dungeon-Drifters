@@ -1,4 +1,4 @@
-"""Schema-15 save documents and canonical in-memory reconstruction."""
+"""Schema-16 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -10,6 +10,9 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.hub_economy import get_supply_item
+from app.content.permanent_discovery_spec import (
+    is_valid_permanent_discovery_source_id,
+)
 from app.content.route_spec import RouteNodeKind
 from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
@@ -71,7 +74,8 @@ _CURRENT_PREVIOUS_DISK_SCHEMA_VERSION = 11
 _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT = 12
 _LATEST_PREVIOUS_DISK_SCHEMA_VERSION = 13
 _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 14
-DISK_SCHEMA_VERSION = 15
+_LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 15
+DISK_SCHEMA_VERSION = 16
 
 
 class SaveStateValidationError(ValueError):
@@ -142,6 +146,7 @@ def migrate_schema_7(document):
     _add_signature_weapon_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -157,6 +162,7 @@ def migrate_schema_8(document):
     _add_signature_weapon_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -182,6 +188,7 @@ def migrate_schema_11(document):
     _add_legacy_active_drifter_ids(migrated)
     _add_carried_supply_defaults(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -194,6 +201,7 @@ def migrate_schema_12(document):
     _add_legacy_active_drifter_ids(migrated)
     _add_carried_supply_defaults(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -205,6 +213,7 @@ def migrate_schema_13(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_carried_supply_defaults(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -215,6 +224,17 @@ def migrate_schema14(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema15(document):
+    """Upgrade schema-15 saves with empty permanent-discovery state."""
+    validate_legacy_schema15_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -262,6 +282,7 @@ def validate_legacy_schema11_document(document):
     _add_legacy_active_drifter_ids(historical)
     _add_carried_supply_defaults(historical)
     _add_advancement_defaults(historical)
+    _add_permanent_discovery_defaults(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
@@ -290,6 +311,16 @@ def validate_legacy_schema14_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema15_document(document):
+    """Validate schema-15 profile history without mutating or upgrading it."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -298,7 +329,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate current payloads or immutable schema-8 through schema-14 history."""
+    """Validate current payloads or immutable schema-8 through schema-15 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -333,6 +364,12 @@ def validate_profile_payload(document):
         == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
     ):
         return validate_legacy_schema14_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
+    ):
+        return validate_legacy_schema15_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -404,6 +441,8 @@ def validate_save_document(document):
         return migrate_schema_13(document)
     if schema_version == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT:
         return migrate_schema14(document)
+    if schema_version == _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT:
+        return migrate_schema15(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -554,10 +593,16 @@ def _validate_document(
     _validate_player(
         document["player"],
         require_signature_weapon=require_signature_weapon,
-        require_advancement=schema_version == DISK_SCHEMA_VERSION,
+        require_advancement=(
+            schema_version >= _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
+        ),
+        require_discovery_bonuses=schema_version == DISK_SCHEMA_VERSION,
     )
     _validate_story(document["story"])
-    _validate_world(document["world"])
+    _validate_world(
+        document["world"],
+        require_permanent_discovery_claims=schema_version == DISK_SCHEMA_VERSION,
+    )
     _validate_overworld(
         document["overworld"],
         document["world"],
@@ -566,7 +611,10 @@ def _validate_document(
         document["party"],
         document["player"],
         require_signature_weapon=require_signature_weapon,
-        require_advancement=schema_version == DISK_SCHEMA_VERSION,
+        require_advancement=(
+            schema_version >= _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
+        ),
+        require_discovery_bonuses=schema_version == DISK_SCHEMA_VERSION,
         require_active_drifter_ids=(
             schema_version >= _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
         ),
@@ -631,6 +679,7 @@ def _migrate_previous_current_document(document):
     _add_tier_v_success_defaults(migrated)
     _add_legacy_active_drifter_ids(migrated)
     _add_advancement_defaults(migrated)
+    _add_permanent_discovery_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -809,6 +858,7 @@ def _validate_party(
     *,
     require_signature_weapon=True,
     require_advancement=False,
+    require_discovery_bonuses=False,
     require_active_drifter_ids=False,
     require_carried_supplies=False,
 ):
@@ -843,6 +893,7 @@ def _validate_party(
             companion,
             require_signature_weapon=require_signature_weapon,
             require_advancement=require_advancement,
+            require_discovery_bonuses=require_discovery_bonuses,
         )
         choice = _canonical_profile(companion).choice
         if choice == lead_profile.choice or choice in companion_ids:
@@ -1084,6 +1135,34 @@ def _add_advancement_defaults(document):
         ).snapshot()
 
 
+def _add_permanent_discovery_defaults(document):
+    players = [document.get("player")]
+    party = document.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if not isinstance(player, dict):
+            raise SaveStateValidationError("legacy Drifter is invalid")
+        if "permanent_discovery_bonuses" in player:
+            raise SaveStateValidationError(
+                "legacy Drifter already contains permanent-discovery bonuses"
+            )
+        player["permanent_discovery_bonuses"] = {
+            "max_hp": 0,
+            "max_mana": 0,
+            "growth_points_awarded": 0,
+        }
+    world = document.get("world")
+    if not isinstance(world, dict):
+        raise SaveStateValidationError("game.world must be an object")
+    existing_claims = world.get("permanent_discovery_claims", [])
+    if existing_claims != []:
+        raise SaveStateValidationError(
+            "legacy world already contains permanent-discovery claims"
+        )
+    world["permanent_discovery_claims"] = []
+
+
 def _strip_companion_combat(party):
     if not isinstance(party, dict):
         return
@@ -1099,6 +1178,7 @@ def _validate_player(
     *,
     require_signature_weapon=True,
     require_advancement=False,
+    require_discovery_bonuses=False,
 ):
     _require_mapping(player, "player")
     allowed_keys = {
@@ -1115,6 +1195,8 @@ def _validate_player(
         allowed_keys.add("signature_weapon")
     if require_advancement:
         allowed_keys.add("advancement")
+    if require_discovery_bonuses:
+        allowed_keys.add("permanent_discovery_bonuses")
     _require_exact_keys(
         {key for key in player if key != "combat"},
         allowed_keys,
@@ -1135,9 +1217,24 @@ def _validate_player(
     if progression["exp"] < 0 or (threshold is not None and progression["exp"] >= threshold) or (threshold is None and progression["exp"] != 0):
         raise SaveStateValidationError("player progression contains invalid EXP")
     _require_int_min(progression["growth_points"], 0, "player.progression.growth_points")
-    if progression["growth_points"] > (progression["level"] - 1) * 3:
+    discovery_bonuses = (
+        player.get("permanent_discovery_bonuses")
+        if require_discovery_bonuses
+        else {"max_hp": 0, "max_mana": 0, "growth_points_awarded": 0}
+    )
+    if require_discovery_bonuses:
+        _validate_permanent_discovery_bonuses(discovery_bonuses)
+    if progression["growth_points"] > (
+        (progression["level"] - 1) * 3
+        + discovery_bonuses["growth_points_awarded"]
+    ):
         raise SaveStateValidationError("player growth points exceed earned points")
-    _validate_resources(player["resources"], player["attributes"], progression)
+    _validate_resources(
+        player["resources"],
+        player["attributes"],
+        progression,
+        discovery_bonuses,
+    )
     _require_int_min(player["gold"], 0, "player.gold")
     if not isinstance(player["inventory"], list):
         raise SaveStateValidationError("player.inventory must be a list")
@@ -1158,6 +1255,17 @@ def _validate_player(
             profile,
             progression["level"],
         )
+
+
+def _validate_permanent_discovery_bonuses(bonuses):
+    _require_mapping(bonuses, "player.permanent_discovery_bonuses")
+    _require_exact_keys(
+        bonuses,
+        {"max_hp", "max_mana", "growth_points_awarded"},
+        "player.permanent_discovery_bonuses",
+    )
+    for name, value in bonuses.items():
+        _require_int_min(value, 0, f"player.permanent_discovery_bonuses.{name}")
 
 
 def _validate_advancement(snapshot, profile, level):
@@ -1270,12 +1378,17 @@ def _validate_stats(attributes):
         _require_int_range(attributes[name], 1, 100, f"player.attributes.{name}")
 
 
-def _validate_resources(resources, attributes, progression):
+def _validate_resources(resources, attributes, progression, discovery_bonuses=None):
     _require_mapping(resources, "player.resources")
     _require_exact_keys(resources, {"health", "mana", "super"}, "player.resources")
     level = progression["level"]
-    expected_health = _maximum_hp(attributes["constitution"], level)
-    expected_mana = _maximum_mana(attributes["spirit"], level)
+    bonuses = discovery_bonuses or {"max_hp": 0, "max_mana": 0}
+    expected_health = (
+        _maximum_hp(attributes["constitution"], level) + bonuses["max_hp"]
+    )
+    expected_mana = (
+        _maximum_mana(attributes["spirit"], level) + bonuses["max_mana"]
+    )
     for name, expected_maximum in (("health", expected_health), ("mana", expected_mana)):
         resource = resources[name]
         _require_mapping(resource, f"player.resources.{name}")
@@ -1350,11 +1463,32 @@ def _validate_story(story):
     validate_plain_value(story["player_decisions"], "story.player_decisions")
 
 
-def _validate_world(world):
+def _validate_world(world, *, require_permanent_discovery_claims=False):
     _require_mapping(world, "world")
-    _require_exact_keys(world, {"discovered_locations", "defeated_encounters", "opened_objects", "consumed_objects", "dungeon_changes"}, "world")
+    expected_keys = {
+        "discovered_locations",
+        "defeated_encounters",
+        "opened_objects",
+        "consumed_objects",
+        "dungeon_changes",
+    }
+    if require_permanent_discovery_claims:
+        expected_keys.add("permanent_discovery_claims")
+    _require_exact_keys(world, expected_keys, "world")
     for name in ("discovered_locations", "defeated_encounters", "opened_objects", "consumed_objects"):
         _validate_unique_string_list(world[name], f"world.{name}")
+    if require_permanent_discovery_claims:
+        _validate_unique_string_list(
+            world["permanent_discovery_claims"],
+            "world.permanent_discovery_claims",
+        )
+        if any(
+            not is_valid_permanent_discovery_source_id(value)
+            for value in world["permanent_discovery_claims"]
+        ):
+            raise SaveStateValidationError(
+                "world contains a malformed permanent discovery source ID"
+            )
     _require_mapping(world["dungeon_changes"], "world.dungeon_changes")
     validate_plain_value(world["dungeon_changes"], "world.dungeon_changes")
 
@@ -1637,11 +1771,13 @@ __all__ = [
     "migrate_schema_9",
     "migrate_schema_12",
     "migrate_schema_13",
+    "migrate_schema15",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
     "validate_legacy_schema9_document",
     "validate_legacy_schema12_document",
     "validate_legacy_schema13_document",
+    "validate_legacy_schema15_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

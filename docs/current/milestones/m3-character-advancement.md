@@ -2,7 +2,7 @@
 
 > Implementation authorization: M3 work is approved on the existing `dungeon` branch. Execute gate by gate; preserve all behavior and save policy outside the explicit M3 contracts below.
 
-**Status:** Gates 0-2 are complete on the existing `dungeon` branch. Gate 3's secured-XP consumer is implemented and locally qualified; permanent-discovery scope and claim handling remain pending M3-D6. Gate 4 respec and Gate 5 cumulative qualification remain open.
+**Status:** Gates 0-2 and the Gate 3 secured-XP/permanent-discovery services are implemented on the existing `dungeon` branch. M3-D4 and M3-D6 are resolved. Gate 3 cumulative qualification, Gate 4 respec, and Gate 5 cumulative qualification remain open.
 
 **Goal:** Complete passive/move advancement, remaining Intuition consumers, split-damage capability, respecs, and permanent-discovery awards without rebuilding working stats or losing secured progress.
 
@@ -24,9 +24,9 @@ Do not reimplement six stats, the Level 1 60-point budget, permanent caps, autom
 
 `root/src/app/player/progression.py` already defines three Growth Points per level, a 250 level cap, and a deterministic XP curve. `player/scaling.py` implements piecewise Constitution/Spirit resource curves, primary output, physical negation, accuracy/dodge, and Intuition helper curves. `PlayerState.gain_experience()` awards points and recalculates maxima; `increase_permanent_stat()` spends one point. Preserve these existing behaviors pending an approved change.
 
-The resolver uses existing Strength/Dexterity/Intelligence output and Intuition critical/Super bonuses. The secured-XP helper now has a consumer at secured reward boundaries; special-potency and discovery helpers still have no gameplay consumers. Moves currently have one power/damage type and scaling attributes, not independently resolved damage packets. All authored kits are currently available, including Super. Weapon component effects are projected onto moves, and learned technique state exists in the signature-weapon model.
+The resolver uses existing Strength/Dexterity/Intelligence output and Intuition critical/Super bonuses. Secured-XP bonuses are consumed at secured reward boundaries, and Gate 3 now has a controlled permanent-discovery claim service. Moves currently have independently resolved damage components under the Gate 2 contract. All authored kits are currently available, including Super. Weapon component effects are projected onto moves, and learned technique state exists in the signature-weapon model.
 
-Gate 1 authors all 96 character-specific skill names/purposes and owns per-Drifter passive/active purchases plus four normal-move slots. Gate 2 now projects the authored passive and move effects into combat. The Skills UI and terminal/browser advancement actions remain for Gate 5; Gate 3 owns secured-XP awards, while permanent-discovery claims and respec remain open.
+Gate 1 authors all 96 character-specific skill names/purposes and owns per-Drifter passive/active purchases plus four normal-move slots. Gate 2 projects the authored passive and move effects into combat. The Skills UI and terminal/browser advancement actions remain for Gate 5; Gate 3 owns secured-XP awards and permanent-discovery claims, while respec remains open.
 
 ## Fixed Contracts And Required State
 
@@ -56,7 +56,7 @@ A mixed move resolves only the authored components that exist: physical staff/ar
 
 Apply secured-XP bonuses once at the security boundary, after the approved payout/recipient calculation. Do not award levels from unsecured dungeon XP or apply the helper on every save/load. M3-D4 resolves personal Intuition and rounding order below. Surface encounter rewards are already secured and use their existing recipient policy; M3 does not force the Surface into a dungeon extraction ledger.
 
-Permanent discoveries need an authored source ID, eligible target/scope, award value/cap, and durable claim evidence paired with the award. Implement the claim service with controlled content in M3; M8 owns actual release locations. A repeated claim/reload cannot award again. Discovery probability consumption in real loot/search belongs to M4/M8, not a new RNG call in the scaling helper.
+Permanent-discovery contract (M3-D6 resolved): an authored source has a unique source ID distinct from its type. Ancient Wells award authored +5 or +10 permanent max HP; Forgotten Altars award authored +5 or +10 permanent max Mana; Spirit Relics award exactly +3 GP. The player selects and confirms exactly one currently active Drifter. Cancellation changes nothing; a confirmed reward and durable source claim are saved together, and a repeated claim/reload cannot award again. No new HP, Mana, or GP cap is introduced. If a separately approved cap exists in the future, the player may cancel or consume-and-waste the source, never redirect it. M3 uses controlled source fixtures only; M8 owns actual release locations. Discovery probability consumption in real loot/search belongs to M4/M8, not a new RNG call in the scaling helper.
 
 Respec operates only under the approved Hub eligibility/cost/refund rules. Validate the resulting prerequisite graph, available kit, GP accounting, and resource maxima before any debit/refund. Preserve levels, XP, weapons/components/material investment, permanent discovery awards, and already-learned weapon techniques unless a separately approved contract explicitly says otherwise.
 
@@ -191,10 +191,11 @@ Proof: local qualification on the Gate 2 working tree passed 1,932 root tests, 6
 
 - [x] Extend reward tests for normal split, independent personal Intuition, partial extraction, replay multiplier, boss/full bank, Return Talisman, death, save/reload, and retry. Verify zero-bonus awards preserve prior totals.
 - [x] Implement the secured-XP consumer after payout adjustment and recipient split. Apply it per eligible Drifter on dungeon banking and already-secured Surface encounter rewards; never award unsecured XP.
-- [ ] Resolve M3-D6 before implementing permanent-discovery award/claim pairing. Do not infer award scope, limits, ownership, or claim handling. Then test repeated claims, wrong target, caps, malformed save, and failed required writes.
+- [x] Resolve M3-D6 and implement authored permanent-discovery sources, active-party target selection, explicit confirmation/cancellation, one-time claim evidence, and atomic reward-plus-save behavior. Do not add new permanent HP/Mana/GP caps or world placements.
+- [x] Verify each authored reward (HP/Mana +5/+10 and Spirit Relic +3 GP), both active targets, rejection of benched targets and malformed/unknown source IDs, cancellation, repeat/reload behavior, and unchanged state when persistence fails.
 - [ ] Specify the M4 loot-discovery hook and M8 placement contract semantically: probabilities/outcomes are resolved once by the owner, not rerolled on presentation.
 
-Secured-XP consumer proof on the current working tree: 1,938 root tests and 63 web tests passed; content validation, compileall, 153-file browser build, and the full browser smoke passed. The probe checks personal awards for the Floor I boss and replay extraction. Hosted CI and pinned MicroPython qualification have not been run on these uncommitted Gate 3 changes. Permanent-discovery behavior remains unimplemented pending M3-D6.
+Gate 3 local verification on the current working tree: **1,960 root tests** and **63 web tests** passed; content validation passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compilation passed, and `git diff --check` passed. The discovery service uses injected authored definitions and controlled fixtures; no release locations or search/drop probabilities are implemented in M3. Web tests cover static packaging/contracts, not a browser gameplay journey. Hosted PostgreSQL and pinned MicroPython qualification were not run for this checkpoint; cumulative Gate 5 qualification remains open.
 
 ### Gate 4 - Respec And Persistence Trust Boundary
 
@@ -221,7 +222,7 @@ Closure: all four Drifters have the approved functioning initial advancement pat
 | M3-D3 | Resolved for Gate 2 by the approved [damage contract](#gate-2-damage-contract-approved): component floor/rounding, action-level hit/critical and resource timing, power-share mitigation, scaling-helper cap, and conservative migration of clearly mixed legacy moves. |
 | M3-D4 | **Resolved:** calculate the secured pool after existing replay/extraction/talisman/boss rules; split it among eligible Drifters; then apply each Drifter's own `secured_xp_bonus_bps_from_intuition()` to their share. Floor each bonus independently. Never average party Intuition, apply the bonus before splitting, or recalculate it on reload/retry. Zero-bonus totals remain unchanged. Any later expedition handoff follows this same per-Drifter secured-award rule. |
 | M3-D5 | Respec existence/eligibility/cost/refunds and legacy spending evidence policy; before Gate 4; recommendation is not historical approval |
-| M3-D6 | **Unresolved:** permanent-discovery award scope/limits, ownership, resource changes, and claim security point. Required before the permanent-award portion of Gate 3; do not infer these rules from the secured-XP consumer. |
+| M3-D6 | **Resolved:** Ancient Well +5/+10 permanent max HP; Forgotten Altar +5/+10 permanent max Mana; Spirit Relic +3 GP. One player-selected currently active Drifter per unique authored source ID; explicit confirm; cancellation leaves the source; reward and claim persist atomically; repeated claims never award again. No new resource or GP cap. If a separately approved cap is added later, the player may cancel or consume-and-waste without redirect. Controlled fixtures only; M8 owns placements and M4/M8 own discovery probabilities. |
 | M3-D7 | Any change to level 250, current XP/HP/mana/output curves or caps; explicit review only, otherwise preserve current code |
 
 Actual file/API details will be revalidated at M3 entry; fixed GP costs and secured-versus-unsecured boundaries do not become provisional during that check.

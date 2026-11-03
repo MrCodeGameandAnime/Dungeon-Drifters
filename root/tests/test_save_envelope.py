@@ -36,6 +36,8 @@ def _legacy_schema9_payload():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 9
     payload["player"].pop("advancement")
+    payload["player"].pop("permanent_discovery_bonuses")
+    payload["world"].pop("permanent_discovery_claims")
     payload["player"].pop("signature_weapon")
     payload["party"].pop("active_drifter_ids")
     payload["party"].pop("carried_items")
@@ -77,7 +79,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "0ef2fdce82a61c01fb1167f22e94c25f7ed6d61f9a4ff8fdd79d9250193f532c"
+        "26f1265758c8c781dd78c767cbee0beb9fcc3bb1a4e3aa94c781486567261e0b"
     )
 
 
@@ -154,6 +156,8 @@ def test_legacy_schema8_envelope_keeps_original_payload_and_digest():
     legacy_payload.pop("party")
     legacy_payload["player"].pop("signature_weapon")
     legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
     legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
@@ -172,6 +176,8 @@ def test_legacy_schema8_payload_digest_is_checked_before_any_migration():
     legacy_payload.pop("party")
     legacy_payload["player"].pop("signature_weapon")
     legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
     legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     envelope_document["payload"] = legacy_payload
@@ -198,6 +204,8 @@ def test_schema14_profile_history_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 14
     legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload

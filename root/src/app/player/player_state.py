@@ -50,6 +50,7 @@ class PlayerState:
         self._drifter_id = self._resolve_drifter_id(character)
         self._gold = self._validate_gold_amount(gold)
         self._growth_points = 0
+        self._discovery_growth_points_awarded = 0
         self._inventory = Inventory()
         self._character_run_state = CharacterRunState(
             inventory=character.starting_run_inventory,
@@ -166,6 +167,14 @@ class PlayerState:
     @property
     def growth_points(self):
         return self._growth_points
+
+    @property
+    def permanent_discovery_bonuses(self):
+        return {
+            "max_hp": self.character.permanent_max_hp_bonus,
+            "max_mana": self.character.permanent_max_mana_bonus,
+            "growth_points_awarded": self._discovery_growth_points_awarded,
+        }
 
     @property
     def stats(self):
@@ -340,6 +349,28 @@ class PlayerState:
 
         return new_value
 
+    def increase_permanent_max_hp(self, amount):
+        amount = self._validate_discovery_bonus(amount)
+        if amount == 0:
+            return self.health.maximum
+        self.character.permanent_max_hp_bonus += amount
+        self.character.recalculate_resource_maximums()
+        return self.health.maximum
+
+    def increase_permanent_max_mana(self, amount):
+        amount = self._validate_discovery_bonus(amount)
+        if amount == 0:
+            return self.mana_resource.maximum
+        self.character.permanent_max_mana_bonus += amount
+        self.character.recalculate_resource_maximums()
+        return self.mana_resource.maximum
+
+    def gain_permanent_discovery_growth_points(self, amount):
+        amount = self._validate_discovery_bonus(amount)
+        self._growth_points += amount
+        self._discovery_growth_points_awarded += amount
+        return self.growth_points
+
     def purchase_advancement(self, skill_id):
         skill = self._advancement_state.validate_purchase(
             skill_id,
@@ -453,6 +484,16 @@ class PlayerState:
         character.recalculate_resource_maximums()
         character.exp_state.current = snapshot["progression"]["exp"]
         player_state._growth_points = snapshot["progression"]["growth_points"]
+        discovery_bonuses = snapshot.get(
+            "permanent_discovery_bonuses",
+            {"max_hp": 0, "max_mana": 0, "growth_points_awarded": 0},
+        )
+        character.permanent_max_hp_bonus = discovery_bonuses["max_hp"]
+        character.permanent_max_mana_bonus = discovery_bonuses["max_mana"]
+        player_state._discovery_growth_points_awarded = discovery_bonuses[
+            "growth_points_awarded"
+        ]
+        character.recalculate_resource_maximums()
         if "advancement" in snapshot:
             normal_move_ids, super_move_ids = move_ids_for_kit(
                 player_state.drifter_id,
@@ -511,6 +552,7 @@ class PlayerState:
                 "exp": self.exp_state.current,
                 "growth_points": self.growth_points,
             },
+            "permanent_discovery_bonuses": self.permanent_discovery_bonuses,
             "advancement": self._advancement_state.snapshot(),
             "gold": self.gold,
             "signature_weapon": self.signature_weapon_state.snapshot(),
@@ -556,6 +598,14 @@ class PlayerState:
         if amount < 0:
             raise ValueError("gold amount must not be negative")
 
+        return amount
+
+    @staticmethod
+    def _validate_discovery_bonus(amount):
+        if isinstance(amount, bool) or not isinstance(amount, int):
+            raise TypeError("discovery bonus must be an integer")
+        if amount < 0:
+            raise ValueError("discovery bonus must not be negative")
         return amount
 
     def _validate_equipment_slot(self, slot):

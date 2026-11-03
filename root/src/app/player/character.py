@@ -50,16 +50,18 @@ class Character:
             )
         )
         self.exp_state = progression.Exp(self.level_state)
+        self.permanent_max_hp_bonus = 0
+        self.permanent_max_mana_bonus = 0
 
     def recalculate_resource_maximums(self, increase_current=False):
         new_health_maximum = scaling.maximum_hp_from_constitution(
             self.permanent_stats.constitution,
             level=self.level_state.current,
-        )
+        ) + self.permanent_max_hp_bonus
         new_mana_maximum = scaling.maximum_mana_from_spirit(
             self.permanent_stats.spirit,
             level=self.level_state.current,
-        )
+        ) + self.permanent_max_mana_bonus
 
         self._set_resource_maximum(
             self.health,

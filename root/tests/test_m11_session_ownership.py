@@ -205,7 +205,7 @@ def test_schema12_snapshot_contains_persistent_state_and_no_runtime_objects(
 
     validate_plain_value(snapshot)
     json.dumps(snapshot, allow_nan=False)
-    assert snapshot["schema_version"] == 14
+    assert snapshot["schema_version"] == 15
     assert set(snapshot) == {
         "schema_version",
         "player",
@@ -395,6 +395,7 @@ def test_schema12_snapshot_contains_persistent_state_and_no_runtime_objects(
         "opened_objects": [],
         "consumed_objects": [],
         "dungeon_changes": {},
+        "permanent_discovery_claims": [],
     }
     assert snapshot["overworld"] == {
         "active_route_id": "surface",

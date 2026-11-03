@@ -20,7 +20,7 @@ def test_all_surface_completion_ids_round_trip_in_world_snapshot():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == expected
-    assert snapshot["schema_version"] == 14
+    assert snapshot["schema_version"] == 15
     assert snapshot["world"]["defeated_encounters"] == list(expected)
     assert "defeated_encounters" not in snapshot["overworld"]
 
@@ -57,7 +57,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 14
+    assert snapshot["schema_version"] == 15
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -118,6 +118,7 @@ def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():
         "opened_objects": ["old_chest"],
         "consumed_objects": ["campfire"],
         "dungeon_changes": {"first_gate": "open"},
+        "permanent_discovery_claims": [],
     }
     assert_strict_json(snapshot)
 
