@@ -41,6 +41,20 @@ def remove_m3_advancement(payload):
     return payload
 
 
+def remove_m3_discovery_state(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if isinstance(player, dict):
+            player.pop("permanent_discovery_bonuses", None)
+    world = payload.get("world")
+    if isinstance(world, dict):
+        world.pop("permanent_discovery_claims", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",
