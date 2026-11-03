@@ -7,6 +7,7 @@ from app.content.weapon_progression_spec import (
     crafting_level_for_experience,
 )
 from app.player.player_state import PlayerState
+from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.content.hub_economy import get_supply_item
 
 
@@ -468,15 +469,17 @@ class PartyState:
             return False
         self._validate_party_members(party_members)
         rewards = self._floor_one_payout(partial=False)
-        experience_each = rewards.experience // len(party_members)
-        for member in party_members:
-            member.exp_state.validate_gain_amount(experience_each)
+        experience_awards = self.secured_xp_awards(
+            party_members,
+            rewards.experience,
+        )
         if not self.consume_carried_supplies({"return_talisman": 1}):
             return False
 
         self._bank_rewards(
             party_members,
             OutingRewards(experience=rewards.experience, gold=0, items={}),
+            experience_awards=experience_awards,
         )
         self.return_carried_supplies()
         self._outing_rewards = OutingRewards()
@@ -614,12 +617,34 @@ class PartyState:
             items=self._outing_rewards.items,
         )
 
-    def _bank_rewards(self, party_members, rewards):
-        experience_each = rewards.experience // len(party_members)
+    def secured_xp_awards(self, party_members, secured_experience):
+        if not party_members:
+            raise ValueError("secured XP requires at least one eligible Drifter")
+        experience_each = secured_experience // len(party_members)
+        awards = []
         for member in party_members:
-            member.exp_state.validate_gain_amount(experience_each)
-        for member in party_members:
-            member.gain_experience(experience_each)
+            intuition_bonus_bps = secured_xp_bonus_bps_from_intuition(
+                member.effective_stat("intuition")
+            )
+            award = experience_each + (
+                experience_each * intuition_bonus_bps // 10000
+            )
+            member.exp_state.validate_gain_amount(award)
+            awards.append(award)
+        return tuple(awards)
+
+    def _bank_rewards(self, party_members, rewards, *, experience_awards=None):
+        if experience_awards is None:
+            experience_awards = self.secured_xp_awards(
+                party_members,
+                rewards.experience,
+            )
+        elif len(experience_awards) != len(party_members):
+            raise ValueError("secured XP awards must match eligible Drifters")
+        for member, award in zip(party_members, experience_awards):
+            member.exp_state.validate_gain_amount(award)
+        for member, award in zip(party_members, experience_awards):
+            member.gain_experience(award)
         self._restore_party(party_members)
         self._shared_gold += rewards.gold
         for item_id, quantity in rewards.items.items():

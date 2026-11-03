@@ -16,6 +16,7 @@ from app.persistence.save_port_contract import SaveLoadStatus
 from app.persistence.coordinator import SaveCoordinator
 from app.persistence.local_store import LocalProfileStore
 from app.game.party_state import DungeonPhase, PartyState
+from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleView
 from app.presentation.overworld_models import (
@@ -52,6 +53,24 @@ def completed_tutorial_party():
 def clear_floor_one(party, party_members):
     assert party.start_floor_one_run() == 100
     assert party.complete_floor_one_boss(party_members)
+
+
+def set_intuition(member, value):
+    member.stats.permanent_stats.set_stat("intuition", value)
+
+
+def progression_for(members):
+    return tuple(
+        (member.level_state.current, member.exp_state.current)
+        for member in members
+    )
+
+
+def progression_after(members, awards):
+    expected = tuple(member.clone() for member in members)
+    for member, award in zip(expected, awards):
+        member.gain_experience(award)
+    return progression_for(expected)
 
 
 class StableRng:
@@ -254,6 +273,8 @@ def test_floor_one_partial_extraction_rounds_equal_xp_and_gold_and_keeps_items()
 def test_floor_one_boss_banks_full_rewards_and_marks_floor_cleared():
     party, party_members = completed_tutorial_party()
     lead, companion = party_members
+    set_intuition(lead, 10)
+    set_intuition(companion, 10)
     lead.health.take_damage(13)
     companion.health.take_damage(19)
     assert party.start_floor_one_run() == 100
@@ -270,6 +291,62 @@ def test_floor_one_boss_banks_full_rewards_and_marks_floor_cleared():
     assert party.phase is DungeonPhase.HUB
     for member in party_members:
         assert member.health.current == member.health.maximum
+
+
+def test_secured_xp_bonus_uses_each_drifters_intuition_after_party_split():
+    party, party_members = completed_tutorial_party()
+    lead, companion = party_members
+    set_intuition(lead, 100)
+    set_intuition(companion, 20)
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(experience=1000, gold=0)
+    expected = progression_after(party_members, (560, 505))
+
+    assert party.complete_floor_one_boss(party_members)
+
+    assert progression_for(party_members) == expected
+
+
+def test_secured_xp_bonus_rounds_each_members_share_independently():
+    party, party_members = completed_tutorial_party()
+    for member in party_members:
+        set_intuition(member, 100)
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(experience=10, gold=0)
+
+    assert party.complete_floor_one_boss(party_members)
+
+    assert tuple(member.exp_state.current for member in party_members) == (5, 5)
+
+
+def test_partial_replay_xp_is_adjusted_before_personal_intuition_bonus():
+    party, party_members = completed_tutorial_party()
+    lead, companion = party_members
+    set_intuition(lead, 100)
+    set_intuition(companion, 10)
+    clear_floor_one(party, party_members)
+    assert party.start_floor_one_run() == 50
+    party.add_floor_one_rewards(experience=4000, gold=0)
+
+    assert party.begin_floor_one_extraction(partial=True)
+    assert party.outing_rewards.experience == 1000
+    expected = progression_after(party_members, (560, 500))
+    assert party.complete_extraction(party_members)
+
+    assert progression_for(party_members) == expected
+
+
+def test_death_discards_unsecured_xp_without_applying_intuition_bonus():
+    party, party_members = completed_tutorial_party()
+    for member in party_members:
+        set_intuition(member, 100)
+    assert party.start_floor_one_run() == 100
+    party.add_floor_one_rewards(experience=1000, gold=0)
+    xp_before = tuple(member.exp_state.current for member in party_members)
+
+    assert party.fail_floor_one_run(party_members)
+
+    assert tuple(member.exp_state.current for member in party_members) == xp_before
 
 
 def test_floor_one_clear_and_active_replay_rate_round_trip_in_party_snapshot():
@@ -706,6 +783,54 @@ def test_floor_one_rest_save_load_resumes_at_same_checkpoint(tmp_path):
     )
 
 
+def test_secured_xp_bonus_is_not_reapplied_after_extraction_save_reload(tmp_path):
+    game = game_at_completed_hub()
+    party_members = game.active_party_members
+    set_intuition(party_members[0], 100)
+    set_intuition(party_members[1], 10)
+    save = SaveCoordinator(
+        LocalProfileStore(tmp_path / "profiles"),
+        UUID("00000000-0000-4000-8000-000000000024"),
+    )
+    session = make_session(game, save)
+    reach_first_floor_one_rest(session)
+    saved = session.submit(ChooseOverworldAction(OverworldAction.SAVE))
+    loaded = save.load()
+    resumed = make_session(loaded.game_state, save)
+
+    assert saved.notice == "Game saved."
+    assert loaded.status is SaveLoadStatus.LOADED
+    extraction = resumed.submit(
+        ChooseOverworldAction(OverworldAction.EXTRACT)
+    )
+    secured_pool = loaded.game_state.party_state.outing_rewards.experience
+    assert extraction.screen is OverworldScreen.EXTRACTION
+    secured_share = secured_pool // 2
+    xp_awards = tuple(
+        secured_share + secured_share
+        * secured_xp_bonus_bps_from_intuition(
+            member.effective_stat("intuition")
+        )
+        // 10000
+        for member in loaded.game_state.active_party_members
+    )
+    expected_progression = progression_after(
+        loaded.game_state.active_party_members, xp_awards
+    )
+
+    returned = resumed.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+    banked_xp = progression_for(loaded.game_state.active_party_members)
+    reloaded = save.load()
+
+    assert returned.screen is OverworldScreen.HUB
+    assert banked_xp == expected_progression
+    assert reloaded.status is SaveLoadStatus.LOADED
+    assert progression_for(reloaded.game_state.active_party_members) == expected_progression
+    assert reloaded.game_state.party_state.outing_rewards.experience == 0
+
+
 @pytest.mark.parametrize(
     "action",
     (
@@ -890,14 +1015,16 @@ def test_return_talisman_after_smoke_banks_only_adjusted_xp_after_durable_save()
     session_save = RecordingSavePort()
     session = make_session(game, session_save)
     set_out(session)
+    set_intuition(party_members[0], 100)
+    set_intuition(party_members[1], 10)
     party.add_floor_one_rewards(
         experience=101,
         gold=25,
         items={"goblin_scrap": 2},
     )
     expected_members = tuple(member.clone() for member in party_members)
-    for member in expected_members:
-        member.gain_experience(50)
+    expected_members[0].gain_experience(56)
+    expected_members[1].gain_experience(50)
 
     session.submit(ChooseAction(ActionIntent.ESCAPE))
     after_smoke = session.current_view()
@@ -941,6 +1068,9 @@ def test_return_talisman_after_smoke_banks_only_adjusted_xp_after_durable_save()
     saved_outcome = session_save.saved_states[0]
     assert saved_outcome is not game
     assert saved_outcome.party_state.phase is DungeonPhase.HUB
+    assert progression_for(saved_outcome.active_party_members) == progression_for(
+        expected_members
+    )
     assert saved_outcome.party_state.shared_items == {}
     assert saved_outcome.party_state.carried_items == {}
     assert saved_outcome.overworld_state.current_route_node_id == (

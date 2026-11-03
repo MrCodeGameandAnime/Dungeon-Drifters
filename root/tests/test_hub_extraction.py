@@ -9,6 +9,7 @@ from app.persistence.ports import SaveLoadStatus
 from app.persistence.save_document import build_save_document, reconstruct_game_state
 from app.player.character_run_state import FIRE_INFUSION_REQUIREMENTS, InfusionKind
 from app.player.player_state import PlayerState
+from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.presentation.battle_models import ActionIntent, BattleView, InteractionPhase
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.battle_ui import ChooseAction, GoBack
@@ -189,7 +190,13 @@ def test_outing_rewards_follow_selected_pair_and_leave_bench_unchanged():
     assert party.complete_floor_one_boss(active_members)
 
     assert tuple(member.exp_state.current for member in active_members) == tuple(
-        value + 60 for value in active_xp_before
+        value
+        + 60
+        + 60 * secured_xp_bonus_bps_from_intuition(
+            member.effective_stat("intuition")
+        )
+        // 10000
+        for member, value in zip(active_members, active_xp_before)
     )
     assert benched.snapshot() == benched_before
 

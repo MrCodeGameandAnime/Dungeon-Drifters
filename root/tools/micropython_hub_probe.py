@@ -583,6 +583,7 @@ def _assert_rest_fallback(game, state):
 def _assert_floor_one_final_state(state):
     from app.game.party_state import DungeonPhase
     from app.presentation.overworld_models import OverworldScreen
+    from app.player.scaling import secured_xp_bonus_bps_from_intuition
 
     game = state["route_game"]
     session = state["route_session"]
@@ -613,11 +614,20 @@ def _assert_floor_one_final_state(state):
     if not game.overworld_state.route_complete or not game.overworld_state.dungeon_entrance_reached:
         raise AssertionError("Floor 1 clear changed Surface completion")
     xp_after = tuple(_total_experience(member) for member in members)
+    expected_xp_awards = tuple(
+        _FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER
+        + _FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER
+        * secured_xp_bonus_bps_from_intuition(
+            member.effective_stat("intuition")
+        )
+        // 10000
+        for member in members
+    )
     if tuple(
         after - before
         for after, before in zip(xp_after, state["floor_one_xp_before"])
-    ) != (_FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER,) * 2:
-        raise AssertionError("Floor 1 XP was not split evenly")
+    ) != expected_xp_awards:
+        raise AssertionError("Floor 1 personal secured-XP awards changed")
     if tuple(state["floor_one_battle_compositions"]) != tuple(
         tuple(
             state["catalog"].get_encounter_spec(node.encounter_id).enemy_archetype_ids

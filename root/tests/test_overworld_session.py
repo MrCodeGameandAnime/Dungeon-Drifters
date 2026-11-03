@@ -17,6 +17,7 @@ from app.player.character_run_state import (
     RunItemId,
 )
 from app.player.player_state import PlayerState
+from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
@@ -1146,7 +1147,10 @@ def test_surface_victory_adds_rewards_to_existing_progress(drifter_id):
     assert result is OverworldSessionResult.QUIT
     assert battles.instances[0].player_state is player
     assert enemies.calls == [("goblin", 0)]
-    assert player.exp_state.current == 53
+    secured_reward = 40 + 40 * secured_xp_bonus_bps_from_intuition(
+        player.effective_stat("intuition")
+    ) // 10000
+    assert player.exp_state.current == 13 + secured_reward
     assert player.gold == 12
     assert player.level_state.current == 1
     assert player.growth_points == 0
@@ -1157,6 +1161,22 @@ def test_surface_victory_adds_rewards_to_existing_progress(drifter_id):
     assert ui.views[1].screen is OverworldScreen.MAIN
     assert ui.views[1].location_label == "Goblin Pair"
     assert ui.views[1].contextual_route_option.action is OverworldAction.ENTER_ENCOUNTER
+
+
+def test_surface_secured_xp_applies_the_recipient_drifters_intuition_bonus():
+    player = PlayerState(create_drifter("branoc"), gold=9)
+    player.stats.permanent_stats.set_stat("intuition", 100)
+    game = GameState(player)
+
+    result, ui, _battles, _enemies, _ = run_session(
+        game,
+        [ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER), *quit_inputs()],
+        winners=("player",),
+    )
+
+    assert result is OverworldSessionResult.QUIT
+    assert player.exp_state.current == 44
+    assert "Rewards: 44 EXP and 3 gold." in ui.views[1].adventure_text
 
 
 def test_defeat_restores_values_in_place_and_exposes_retry_without_advancing():

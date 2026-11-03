@@ -201,17 +201,26 @@ class DeterministicBattleFactory:
 
 
 @pytest.mark.parametrize(
-    ("drifter_id", "rest_actions"),
+    ("drifter_id", "rest_actions", "expected_xp"),
     (
-        ("branoc", (OverworldAction.REST,) * 3),
-        ("azhvielle", (OverworldAction.SKIP_REST,) * 3),
-        ("zhaivra", (OverworldAction.REST, OverworldAction.SKIP_REST, OverworldAction.REST)),
-        ("joruun", (OverworldAction.SKIP_REST, OverworldAction.REST, OverworldAction.SKIP_REST)),
+        ("branoc", (OverworldAction.REST,) * 3, 68),
+        ("azhvielle", (OverworldAction.SKIP_REST,) * 3, 68),
+        (
+            "zhaivra",
+            (OverworldAction.REST, OverworldAction.SKIP_REST, OverworldAction.REST),
+            69,
+        ),
+        (
+            "joruun",
+            (OverworldAction.SKIP_REST, OverworldAction.REST, OverworldAction.SKIP_REST),
+            60,
+        ),
     ),
 )
 def test_four_drifters_complete_the_full_surface_route(
     drifter_id,
     rest_actions,
+    expected_xp,
     tmp_path,
 ):
     player = PlayerState(get_drifter_spec(drifter_id).create_character())
@@ -304,7 +313,7 @@ def test_four_drifters_complete_the_full_surface_route(
     )
     assert tuple(action for _label, action in route_ui.rest_decisions) == rest_actions
     assert player.level_state.current == 9
-    assert player.exp_state.current == 68
+    assert player.exp_state.current == expected_xp
     assert player.growth_points == 24
     assert player.gold == 0
     assert game.party_state.shared_gold == 75
@@ -332,7 +341,7 @@ def test_four_drifters_complete_the_full_surface_route(
         if screen is OverworldScreen.CHARACTER:
             assert view.character.display_name == player.character.full_display_name
             assert view.character.level == 9
-            assert view.character.exp_current == 68
+            assert view.character.exp_current == expected_xp
             assert view.character.hp_current == player.health.current
             assert view.character.mana_current == player.mana_resource.current
             assert view.character.super_current == player.super_resource.current

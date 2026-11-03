@@ -2854,9 +2854,9 @@ try {
   requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
   requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
   requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
-  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
+  requireCondition(result.includes("Floor 1: 10 battles, personal XP awards 670 / 671, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
   requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
-  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
+  requireCondition(result.includes("Replay: 50% EXP, 140 secured XP (70 / 70 awarded) | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
   requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
   requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
 

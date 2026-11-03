@@ -1460,8 +1460,12 @@ class OverworldSession:
                 raise RuntimeError("encounter has already been defeated")
             player = self.game_state.player_state
             growth_points_before = player.growth_points
-            levels_gained = player.apply_encounter_reward(
+            secured_experience = self.game_state.party_state.secured_xp_awards(
+                (player,),
                 exp_reward,
+            )[0]
+            levels_gained = player.apply_encounter_reward(
+                secured_experience,
                 gold_reward,
             )
             growth_points_gained = player.growth_points - growth_points_before
@@ -1476,7 +1480,7 @@ class OverworldSession:
             self._adventure_text = self._victory_adventure_text(
                 current_node_id,
                 next_node_id,
-                exp_reward=exp_reward,
+                exp_reward=secured_experience,
                 gold_reward=gold_reward,
                 levels_gained=levels_gained,
                 growth_points_gained=growth_points_gained,
