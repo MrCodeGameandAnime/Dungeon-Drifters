@@ -8,6 +8,8 @@ from app.persistence.envelope import SyncState, build_profile_envelope
 from app.persistence.local_store import LocalProfileStore
 from app.persistence.ports import ProfileStoreError, SaveLoadStatus
 from app.persistence.remote_client import RemoteRequestRejected
+from app.game.respec import RespecService, RespecStatus
+from tests.game_test_support import completed_hub_game
 from app.persistence.sync import ProfileSyncCoordinator, SyncResult
 from tests.remote_sync_test_support import (
     ACCOUNT_ID,
@@ -123,12 +125,55 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 16
+    assert local_pending.payload["schema_version"] == 17
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 16
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 17
+
+
+def test_respec_history_survives_profile_sync_and_keeps_free_use_spent(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles")
+    save_port = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+    game = completed_hub_game()
+    branoc = game.player_state
+    branoc.gain_experience(branoc.level_state.next_threshold)
+    branoc.purchase_advancement("branoc_p01")
+    assert save_port.save(game).status is SaveLoadStatus.SAVED
+
+    first = RespecService(save_port=save_port).respec(
+        game,
+        "branoc",
+        confirmed=True,
+    )
+    server = MemoryRemoteProfileServer()
+    sync = ProfileSyncCoordinator(
+        store,
+        PROFILE_ID,
+        BoundMemoryRemoteClient(server, ACCOUNT_ID, DEVICE_A),
+        now_factory=lambda: SAVED_AT,
+    )
+    synced = sync.enable_cloud(ACCOUNT_ID)
+    loaded = save_port.load()
+    repeated = RespecService(save_port=save_port).respec(
+        loaded.game_state,
+        "branoc",
+        confirmed=True,
+    )
+
+    assert first.status is RespecStatus.RESPECCED
+    assert synced.sync_state is SyncState.CLEAN
+    assert server.profiles[PROFILE_ID]["head"].payload["player"]["advancement"][
+        "respec_count"
+    ] == 1
+    assert loaded.game_state.player_state.respec_count == 1
+    assert repeated.status is RespecStatus.INSUFFICIENT_PARCHMENT
+    assert repeated.game_state.player_state.growth_points == 3
 
 
 

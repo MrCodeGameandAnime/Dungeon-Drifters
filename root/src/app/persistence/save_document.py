@@ -1,4 +1,4 @@
-"""Schema-16 save documents and canonical in-memory reconstruction."""
+"""Schema-17 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 
@@ -75,7 +75,8 @@ _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT = 12
 _LATEST_PREVIOUS_DISK_SCHEMA_VERSION = 13
 _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 14
 _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 15
-DISK_SCHEMA_VERSION = 16
+_PRE_RESPEC_DISK_SCHEMA_VERSION = 16
+DISK_SCHEMA_VERSION = 17
 
 
 class SaveStateValidationError(ValueError):
@@ -235,6 +236,17 @@ def migrate_schema15(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_permanent_discovery_defaults(migrated)
+    _add_respec_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema16(document):
+    """Add respec history to a schema-16 save without changing its input."""
+    validate_legacy_schema16_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_respec_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -321,6 +333,16 @@ def validate_legacy_schema15_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema16_document(document):
+    """Validate schema-16 profile history without mutating or upgrading it."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_RESPEC_DISK_SCHEMA_VERSION,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -329,7 +351,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate current payloads or immutable schema-8 through schema-15 history."""
+    """Validate current payloads or immutable schema-8 through schema-16 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -370,6 +392,11 @@ def validate_profile_payload(document):
         == _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
     ):
         return validate_legacy_schema15_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PRE_RESPEC_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema16_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -443,6 +470,8 @@ def validate_save_document(document):
         return migrate_schema14(document)
     if schema_version == _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT:
         return migrate_schema15(document)
+    if schema_version == _PRE_RESPEC_DISK_SCHEMA_VERSION:
+        return migrate_schema16(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -596,12 +625,17 @@ def _validate_document(
         require_advancement=(
             schema_version >= _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
         ),
-        require_discovery_bonuses=schema_version == DISK_SCHEMA_VERSION,
+        require_respec_state=schema_version >= DISK_SCHEMA_VERSION,
+        require_discovery_bonuses=(
+            schema_version >= _PRE_RESPEC_DISK_SCHEMA_VERSION
+        ),
     )
     _validate_story(document["story"])
     _validate_world(
         document["world"],
-        require_permanent_discovery_claims=schema_version == DISK_SCHEMA_VERSION,
+        require_permanent_discovery_claims=(
+            schema_version >= _PRE_RESPEC_DISK_SCHEMA_VERSION
+        ),
     )
     _validate_overworld(
         document["overworld"],
@@ -614,7 +648,10 @@ def _validate_document(
         require_advancement=(
             schema_version >= _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
         ),
-        require_discovery_bonuses=schema_version == DISK_SCHEMA_VERSION,
+        require_respec_state=schema_version >= DISK_SCHEMA_VERSION,
+        require_discovery_bonuses=(
+            schema_version >= _PRE_RESPEC_DISK_SCHEMA_VERSION
+        ),
         require_active_drifter_ids=(
             schema_version >= _LATEST_PREVIOUS_DISK_SCHEMA_VERSION
         ),
@@ -858,6 +895,7 @@ def _validate_party(
     *,
     require_signature_weapon=True,
     require_advancement=False,
+    require_respec_state=False,
     require_discovery_bonuses=False,
     require_active_drifter_ids=False,
     require_carried_supplies=False,
@@ -893,6 +931,7 @@ def _validate_party(
             companion,
             require_signature_weapon=require_signature_weapon,
             require_advancement=require_advancement,
+            require_respec_state=require_respec_state,
             require_discovery_bonuses=require_discovery_bonuses,
         )
         choice = _canonical_profile(companion).choice
@@ -1135,6 +1174,27 @@ def _add_advancement_defaults(document):
         ).snapshot()
 
 
+def _add_respec_defaults(document):
+    players = [document.get("player")]
+    party = document.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if not isinstance(player, dict):
+            raise SaveStateValidationError("legacy Drifter is invalid")
+        advancement = player.get("advancement")
+        if not isinstance(advancement, dict):
+            raise SaveStateValidationError("legacy advancement state is invalid")
+        if "purchased_stat_points" in advancement or "respec_count" in advancement:
+            raise SaveStateValidationError(
+                "legacy Drifter already contains respec history"
+            )
+        advancement["purchased_stat_points"] = {
+            name: 0 for name in PermanentStats.STAT_NAMES
+        }
+        advancement["respec_count"] = 0
+
+
 def _add_permanent_discovery_defaults(document):
     players = [document.get("player")]
     party = document.get("party")
@@ -1178,6 +1238,7 @@ def _validate_player(
     *,
     require_signature_weapon=True,
     require_advancement=False,
+    require_respec_state=False,
     require_discovery_bonuses=False,
 ):
     _require_mapping(player, "player")
@@ -1254,6 +1315,11 @@ def _validate_player(
             player["advancement"],
             profile,
             progression["level"],
+            player["attributes"],
+            progression["growth_points"],
+            (progression["level"] - 1) * 3
+            + discovery_bonuses["growth_points_awarded"],
+            require_respec_state=require_respec_state,
         )
 
 
@@ -1268,19 +1334,38 @@ def _validate_permanent_discovery_bonuses(bonuses):
         _require_int_min(value, 0, f"player.permanent_discovery_bonuses.{name}")
 
 
-def _validate_advancement(snapshot, profile, level):
+def _validate_advancement(
+    snapshot,
+    profile,
+    level,
+    attributes,
+    growth_points,
+    earned_growth_points,
+    *,
+    require_respec_state,
+):
     try:
         normal_move_ids, super_move_ids = move_ids_for_kit(
             profile.drifter_id,
             profile.combat_moves,
         )
-        AdvancementState.from_snapshot(
+        advancement = AdvancementState.from_snapshot(
             profile.drifter_id,
             normal_move_ids,
             super_move_ids,
             snapshot,
             level=level,
+            require_respec_state=require_respec_state,
         )
+        if require_respec_state:
+            for stat_name, purchased in snapshot["purchased_stat_points"].items():
+                starting = getattr(profile.stats, stat_name)
+                if purchased > attributes[stat_name] - starting:
+                    raise ValueError(
+                        f"purchased {stat_name} points exceed the Drifter's stats"
+                    )
+        if growth_points + advancement.purchased_growth_point_cost > earned_growth_points:
+            raise ValueError("advancement purchases exceed earned Growth Points")
     except (KeyError, TypeError, ValueError) as error:
         raise SaveStateValidationError(
             f"player advancement is invalid: {error}"
@@ -1772,12 +1857,14 @@ __all__ = [
     "migrate_schema_12",
     "migrate_schema_13",
     "migrate_schema15",
+    "migrate_schema16",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
     "validate_legacy_schema9_document",
     "validate_legacy_schema12_document",
     "validate_legacy_schema13_document",
     "validate_legacy_schema15_document",
+    "validate_legacy_schema16_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

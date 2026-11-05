@@ -28,9 +28,9 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 2498
+    assert len(canonical_bytes) == 2627
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "26f1265758c8c781dd78c767cbee0beb9fcc3bb1a4e3aa94c781486567261e0b"
+        "22bda31ba3ce30b679d6a7f4924cb0e1f633f488f4bdc140f1852362d93fa63e"
     )
 
 
@@ -53,7 +53,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 16
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 17
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -89,7 +89,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
 
     assert schema13 == original
     assert restored.party_state.carried_items == {}
-    assert build_save_document(restored)["schema_version"] == 16
+    assert build_save_document(restored)["schema_version"] == 17
 
 
 def test_signature_weapon_progress_survives_save_round_trip():

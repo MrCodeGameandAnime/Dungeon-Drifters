@@ -49,6 +49,8 @@ FIELD_MANIFEST = {
     ('app.content.weapon_spec', 'WeaponSpec'): ('item_id', 'persistence_key', 'name', 'weapon_type', 'intended_wielder', 'stat_bonuses', 'value', 'description', 'progression'),
     ('app.game.hub_economy', 'HubEconomyResult'): ('success', 'reason', 'item_id', 'quantity', 'gold_delta'),
     ('app.game.permanent_discovery', 'DiscoveryClaimResult'): ('status', 'game_state', 'reward_applied'),
+    ('app.game.respec', 'RespecPreview'): ('drifter_id', 'first_respec', 'revision_parchment_cost', 'growth_points_refunded', 'current_growth_points', 'resulting_growth_points', 'purchased_stat_points', 'purchased_passive_skill_ids', 'purchased_active_skill_ids', 'resulting_stats'),
+    ('app.game.respec', 'RespecResult'): ('status', 'game_state', 'preview'),
     ('app.game.weapon_progression', 'WeaponProgressionResult'): ('success', 'reason', 'slot_progress', 'roll', 'material_id', 'component_id', 'slot_id', 'crafting_level', '_materials', 'attempted', '_materials_spent'),
     ('app.persistence.account', 'AccountCredentials'): ('account_id', 'access_token', 'access_expires_at', 'refresh_token', 'refresh_expires_at'),
     ('app.persistence.envelope', 'ConflictSnapshot'): ('profile_id', 'local_client_save_id', 'local_payload', 'local_payload_sha256', 'base_remote_revision', 'remote_current_revision', 'remote_payload', 'remote_payload_sha256', 'detected_at'),

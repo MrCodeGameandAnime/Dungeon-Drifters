@@ -9,6 +9,14 @@ from app.combat.move import ResourceType
 
 
 _EQUIPPED_NORMAL_MOVE_COUNT = 4
+_STAT_NAMES = (
+    "constitution",
+    "spirit",
+    "intelligence",
+    "strength",
+    "dexterity",
+    "intuition",
+)
 
 
 def move_id_for_name(drifter_id, move_name):
@@ -60,6 +68,8 @@ class AdvancementState:
         self._purchased_passive_skill_ids = []
         self._purchased_active_skill_ids = []
         self._equipped_normal_move_ids = list(self._starting_normal_move_ids)
+        self._purchased_stat_points = {name: 0 for name in _STAT_NAMES}
+        self._respec_count = 0
 
     @property
     def purchased_passive_skill_ids(self):
@@ -80,6 +90,28 @@ class AdvancementState:
     @property
     def equipped_normal_move_ids(self):
         return tuple(self._equipped_normal_move_ids)
+
+    @property
+    def purchased_stat_points(self):
+        return dict(self._purchased_stat_points)
+
+    @property
+    def respec_count(self):
+        return self._respec_count
+
+    @property
+    def purchased_growth_point_cost(self):
+        return (
+            sum(self._purchased_stat_points.values())
+            + sum(
+                get_advancement_skill(skill_id).gp_cost
+                for skill_id in self._purchased_passive_skill_ids
+            )
+            + sum(
+                get_advancement_skill(skill_id).gp_cost
+                for skill_id in self._purchased_active_skill_ids
+            )
+        )
 
     @property
     def available_normal_move_ids(self):
@@ -128,6 +160,26 @@ class AdvancementState:
         )
         target.append(skill.skill_id)
 
+    def record_stat_point(self, stat_name):
+        if stat_name not in self._purchased_stat_points:
+            raise ValueError(f"invalid permanent stat: {stat_name}")
+        self._purchased_stat_points[stat_name] += 1
+
+    def complete_respec(self):
+        refund = self.purchased_growth_point_cost
+        purchased_active = set(self._purchased_active_skill_ids)
+        self._equipped_normal_move_ids = [
+            move_id
+            if move_id not in purchased_active
+            else self._starting_normal_move_ids[slot]
+            for slot, move_id in enumerate(self._equipped_normal_move_ids)
+        ]
+        self._purchased_passive_skill_ids = []
+        self._purchased_active_skill_ids = []
+        self._purchased_stat_points = {name: 0 for name in _STAT_NAMES}
+        self._respec_count += 1
+        return refund
+
     def equip_normal_move(self, move_id, *, slot):
         if isinstance(slot, bool) or not isinstance(slot, int):
             raise TypeError("normal move slot must be an integer")
@@ -148,6 +200,8 @@ class AdvancementState:
                 self._purchased_active_skill_ids
             ),
             "equipped_normal_move_ids": list(self._equipped_normal_move_ids),
+            "purchased_stat_points": self.purchased_stat_points,
+            "respec_count": self.respec_count,
         }
 
     @classmethod
@@ -159,6 +213,7 @@ class AdvancementState:
         snapshot,
         *,
         level,
+        require_respec_state=True,
     ):
         if not isinstance(snapshot, dict):
             raise TypeError("advancement snapshot must be a mapping")
@@ -167,6 +222,8 @@ class AdvancementState:
             "purchased_active_skill_ids",
             "equipped_normal_move_ids",
         }
+        if require_respec_state:
+            expected.update({"purchased_stat_points", "respec_count"})
         if set(snapshot) != expected:
             raise ValueError("advancement snapshot has an invalid shape")
         state = cls(
@@ -212,6 +269,24 @@ class AdvancementState:
             raise ValueError("exactly four normal moves must be equipped")
         state._purchased_passive_skill_ids = list(passive_ids)
         state._purchased_active_skill_ids = list(active_ids)
+        if require_respec_state:
+            purchased_stat_points = snapshot["purchased_stat_points"]
+            if not isinstance(purchased_stat_points, dict):
+                raise TypeError("purchased stat points must be a mapping")
+            if set(purchased_stat_points) != set(_STAT_NAMES):
+                raise ValueError("purchased stat points have an invalid shape")
+            for stat_name, amount in purchased_stat_points.items():
+                if isinstance(amount, bool) or not isinstance(amount, int):
+                    raise TypeError("purchased stat point counts must be integers")
+                if amount < 0:
+                    raise ValueError("purchased stat point counts must not be negative")
+            state._purchased_stat_points = dict(purchased_stat_points)
+            respec_count = snapshot["respec_count"]
+            if isinstance(respec_count, bool) or not isinstance(respec_count, int):
+                raise TypeError("respec count must be an integer")
+            if respec_count < 0:
+                raise ValueError("respec count must not be negative")
+            state._respec_count = respec_count
         if not set(equipped).issubset(set(state.available_normal_move_ids)):
             raise ValueError("equipped move is not unlocked for this Drifter")
         state._equipped_normal_move_ids = list(equipped)

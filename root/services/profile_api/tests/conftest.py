@@ -55,6 +55,19 @@ def remove_m3_discovery_state(payload):
     return payload
 
 
+def remove_m3_respec_state(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        advancement = player.get("advancement") if isinstance(player, dict) else None
+        if isinstance(advancement, dict):
+            advancement.pop("purchased_stat_points", None)
+            advancement.pop("respec_count", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

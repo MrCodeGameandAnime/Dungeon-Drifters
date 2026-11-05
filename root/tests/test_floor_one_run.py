@@ -787,7 +787,7 @@ def test_secured_xp_bonus_is_not_reapplied_after_extraction_save_reload(tmp_path
     game = game_at_completed_hub()
     party_members = game.active_party_members
     set_intuition(party_members[0], 100)
-    set_intuition(party_members[1], 10)
+    set_intuition(party_members[1], 20)
     save = SaveCoordinator(
         LocalProfileStore(tmp_path / "profiles"),
         UUID("00000000-0000-4000-8000-000000000024"),

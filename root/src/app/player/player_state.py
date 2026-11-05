@@ -169,6 +169,14 @@ class PlayerState:
         return self._growth_points
 
     @property
+    def purchased_stat_points(self):
+        return self._advancement_state.purchased_stat_points
+
+    @property
+    def respec_count(self):
+        return self._advancement_state.respec_count
+
+    @property
     def permanent_discovery_bonuses(self):
         return {
             "max_hp": self.character.permanent_max_hp_bonus,
@@ -341,6 +349,7 @@ class PlayerState:
             stat_name,
             1,
         )
+        self._advancement_state.record_stat_point(stat_name)
         self._growth_points -= 1
         if stat_name in {"constitution", "spirit"}:
             self.character.recalculate_resource_maximums(
@@ -348,6 +357,27 @@ class PlayerState:
             )
 
         return new_value
+
+    def respec_advancement(self):
+        stat_points = self._advancement_state.purchased_stat_points
+        profile = self.character.profile
+        if profile is None:
+            raise ValueError("respec requires a canonical Drifter profile")
+        for stat_name, amount in stat_points.items():
+            current = self.character.permanent_stats.get_stat(stat_name)
+            starting = getattr(profile.stats, stat_name)
+            if amount > current - starting:
+                raise ValueError(
+                    f"purchased {stat_name} points exceed the current stat"
+                )
+
+        refund = self._advancement_state.complete_respec()
+        for stat_name, amount in stat_points.items():
+            if amount:
+                self.character.permanent_stats.decrease_stat(stat_name, amount)
+        self._growth_points += refund
+        self.character.recalculate_resource_maximums()
+        return refund
 
     def increase_permanent_max_hp(self, amount):
         amount = self._validate_discovery_bonus(amount)
