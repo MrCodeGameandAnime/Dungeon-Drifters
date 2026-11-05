@@ -173,9 +173,12 @@ def test_browser_smoke_persists_active_pair_and_exact_member_progression():
         '"Azhvielle, the Unconfessed + Ser Branoc, the Unbroken Crest"',
         'clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed")',
         '"Growth Points:"',
+        'M3_BROWSER|ADVANCEMENT_SAVE_RELOAD|PASS',
+        'M3_BROWSER|ADVANCEMENT_MOVE_USED|PASS',
         'M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS',
         "saved active-pair selection did not survive browser reload",
-        "Azhvielle's stat investment did not survive browser reload",
+        "Azhvielle's skills, loadout, or stat investment did not survive browser reload",
+        'M3_BROWSER|RESPEC_SAVE_RELOAD|PASS',
     ):
         assert required in source
 
@@ -184,3 +187,23 @@ def test_browser_smoke_persists_active_pair_and_exact_member_progression():
     hub_ready = source.index('textContent.trim() === "HUB"', back)
     character = source.index('clickVisibleOption(page, "#overworld-options", "Character")', back)
     assert back < hub_ready < character
+
+
+def test_browser_skills_panel_exposes_purchase_loadout_and_respec_contracts():
+    shell = SHELL_PATH.read_text()
+    script = SCRIPT_PATH.read_text()
+
+    for element_id in (
+        "skill-advancement",
+        "skill-loadout",
+        "skill-available-moves",
+        "respec-panel",
+        "respec-stat-points",
+        "respec-skills",
+        "respec-result-stats",
+    ):
+        assert f'id="{element_id}"' in shell
+    assert 'kind: "advancement_purchase"' in script
+    assert 'kind: "advancement_equip"' in script
+    assert 'view.screen === "respec_confirmation"' in script
+    assert 'view.respec_preview' in script

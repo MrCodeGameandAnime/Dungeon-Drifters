@@ -22,6 +22,8 @@ from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseCompanion,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
@@ -484,6 +486,23 @@ def test_bridge_command_decoder_returns_existing_input_types():
             ChooseCompanion,
         ),
         ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
+        (
+            {
+                "kind": "advancement_purchase",
+                "drifter_id": "azhvielle",
+                "skill_id": "azhvielle_active_01",
+            },
+            ChooseAdvancementPurchase,
+        ),
+        (
+            {
+                "kind": "advancement_equip",
+                "drifter_id": "azhvielle",
+                "move_id": "azhvielle_move_01",
+                "slot": 2,
+            },
+            ChooseAdvancementEquip,
+        ),
         ({"kind": "merchant_target", "drifter_id": "branoc"}, ChooseMerchantTarget),
         (
             {
@@ -703,6 +722,52 @@ def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
     assert updated["screen"] == OverworldScreen.SKILLS.value
     assert updated["skills"]["growth_points_available"] == 2
     assert strength["value"] == 16
+
+
+def test_bridge_purchases_and_equips_advancement_for_the_exact_selected_drifter():
+    runtime = bridge.BrowserRuntime()
+    game = completed_hub_game()
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    azhvielle.gain_experience(1000)
+    bridge._activate_session(runtime, game, "branoc")
+
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    skills = runtime.submit({"kind": "overworld_action", "action": "skills"})
+    skills = runtime.submit(
+        {"kind": "character_target", "drifter_id": "azhvielle"}
+    )
+    initial_gp = skills["skills"]["growth_points_available"]
+
+    rejected = runtime.submit(
+        {
+            "kind": "advancement_purchase",
+            "drifter_id": "branoc",
+            "skill_id": "azhvielle_a01",
+        }
+    )
+    assert "not available" in rejected["notice"]
+    assert azhvielle.purchased_active_skill_ids == ()
+    assert azhvielle.growth_points == initial_gp
+
+    purchased = runtime.submit(
+        {
+            "kind": "advancement_purchase",
+            "drifter_id": "azhvielle",
+            "skill_id": "azhvielle_a01",
+        }
+    )
+    assert purchased["skills"]["selected_target_id"] == "azhvielle"
+    assert azhvielle.purchased_active_skill_ids == ("azhvielle_a01",)
+    equipped = runtime.submit(
+        {
+            "kind": "advancement_equip",
+            "drifter_id": "azhvielle",
+            "move_id": "azhvielle_a01",
+            "slot": 0,
+        }
+    )
+    assert equipped["skills"]["loadout"][0]["move"]["move_id"] == "azhvielle_a01"
+    assert game.member_for_drifter_id("branoc").purchased_active_skill_ids == ()
 
 
 def test_bridge_completes_floor_one_through_semantic_actions():

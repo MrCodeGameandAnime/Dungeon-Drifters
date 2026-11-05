@@ -13,6 +13,8 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseActivePair,
     ChooseAlchemyRecipe,
     ChooseCompanion,
@@ -40,6 +42,7 @@ class TerminalOverworldUI:
         OverworldAction.MAP: "M",
         OverworldAction.OPTIONS: "O",
         OverworldAction.SKILLS: "S",
+        OverworldAction.RESPEC: "R",
         OverworldAction.WEAPON: "W",
         OverworldAction.EQUIPMENT: "E",
         OverworldAction.MERCHANT: "T",
@@ -53,6 +56,8 @@ class TerminalOverworldUI:
         OverworldAction.CONFIRM: "Y",
         OverworldAction.CANCEL: "N",
         OverworldAction.ENTER_ENCOUNTER: "E",
+        OverworldAction.START_FLOOR_ONE: "F",
+        OverworldAction.SET_OUT: "Y",
         OverworldAction.RETRY: "R",
         OverworldAction.REST: "R",
         OverworldAction.SKIP_REST: "C",
@@ -215,6 +220,38 @@ class TerminalOverworldUI:
                     return ChooseOverworldHealingTarget(target.drifter_id)
 
         if view.screen is OverworldScreen.SKILLS and view.skills is not None:
+            if choice.startswith("p") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(view.skills.advancement_options):
+                    skill = view.skills.advancement_options[index]
+                    if skill.can_purchase:
+                        return ChooseAdvancementPurchase(
+                            view.skills.selected_target_id,
+                            skill.skill_id,
+                        )
+                    self._output(skill.blocked_reason or "That skill is unavailable.")
+                    return self._REJECTED
+            parts = choice.split()
+            if (
+                len(parts) == 3
+                and parts[0] == "e"
+                and parts[1].isdigit()
+                and parts[2].isdigit()
+            ):
+                move_index = int(parts[1]) - 1
+                slot = int(parts[2]) - 1
+                if (
+                    0 <= move_index < len(view.skills.available_moves)
+                    and 0 <= slot < 4
+                ):
+                    move = view.skills.available_moves[move_index]
+                    return ChooseAdvancementEquip(
+                        view.skills.selected_target_id,
+                        move.move_id,
+                        slot,
+                    )
+                self._output("That move or loadout slot is unavailable.")
+                return self._REJECTED
             for number, row in enumerate(view.skills.stats, start=1):
                 if choice != str(number):
                     continue
@@ -369,6 +406,8 @@ class TerminalOverworldUI:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:
             lines = list(self._skills_lines(view, width))
+        elif view.screen is OverworldScreen.RESPEC_CONFIRMATION:
+            lines = list(self._respec_lines(view, width))
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
         elif view.screen is OverworldScreen.MERCHANT:
@@ -489,7 +528,62 @@ class TerminalOverworldUI:
                 f"{(move.damage_type or 'none').title()}"
             )
             lines.extend(self._wrapped(move.description, width))
+        lines.extend(("", "ADVANCEMENT SKILLS"))
+        for number, skill in enumerate(skills.advancement_options, start=1):
+            if skill.purchased:
+                status = "Purchased"
+            elif skill.can_purchase:
+                status = "Ready"
+            else:
+                status = skill.blocked_reason or "Unavailable"
+            lines.append(
+                f"P{number}. {skill.name} | Tier {skill.tier} | "
+                f"{skill.gp_cost} GP | {status}"
+            )
+            lines.extend(self._wrapped(skill.purpose, width))
+        lines.extend(("", "NORMAL-MOVE LOADOUT"))
+        equipped_ids = set()
+        for slot in skills.loadout:
+            equipped_ids.add(slot.move.move_id)
+            lines.append(f"{slot.slot + 1}. {slot.move.name}")
+        lines.extend(("", "AVAILABLE NORMAL MOVES"))
+        for number, move in enumerate(skills.available_moves, start=1):
+            equipped = " [Equipped]" if move.move_id in equipped_ids else ""
+            lines.append(f"E {number}. {move.name}{equipped}")
         return tuple(lines)
+
+    def _respec_lines(self, view, width):
+        preview = view.respec_preview
+        lines = [
+            "RESPEC PREVIEW",
+            preview.display_name,
+            f"Growth Points: {preview.current_growth_points} -> "
+            f"{preview.resulting_growth_points} "
+            f"(refund {preview.growth_points_refunded})",
+            "Revision Parchment: "
+            + ("not required" if preview.first_respec else str(preview.revision_parchment_cost)),
+            "",
+            "REMOVED STAT PURCHASES",
+        ]
+        lines.extend(
+            f"{name.title()} +{amount}"
+            for name, amount in preview.removed_stat_points
+        )
+        if not preview.removed_stat_points:
+            lines.append("None")
+        lines.extend(("", "REMOVED SKILLS"))
+        lines.extend(preview.removed_skills or ("None",))
+        lines.extend(("", "RESULTING STATS"))
+        lines.extend(
+            f"{row.label}: {row.value}"
+            for row in preview.resulting_stats
+        )
+        lines.extend(("", "Weapon, level, XP, and independent progression are preserved."))
+        return tuple(
+            line
+            for value in lines
+            for line in self._wrapped(value, width)
+        )
 
     def _weapon_lines(self, view, width):
         weapon = view.weapon
@@ -858,6 +952,7 @@ class TerminalOverworldUI:
             OverworldScreen.OPTIONS: "OPTIONS",
             OverworldScreen.QUIT_CONFIRMATION: "QUIT",
             OverworldScreen.LOAD_CONFIRMATION: "LOAD",
+            OverworldScreen.RESPEC_CONFIRMATION: "RESPEC",
             OverworldScreen.REST: "REST",
         }[screen]
 

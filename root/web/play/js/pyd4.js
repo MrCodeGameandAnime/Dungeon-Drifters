@@ -512,6 +512,90 @@
       line.append(name, description, values);
       attacks.append(line);
     }
+
+    const advancement = $("skill-advancement");
+    clear(advancement);
+    for (const skill of skills.advancement_options || []) {
+      const row = document.createElement("article");
+      row.className = "skill-advancement-row";
+      row.dataset.skillId = skill.skill_id;
+      const details = document.createElement("div");
+      details.className = "skill-advancement-description";
+      const title = document.createElement("strong");
+      title.textContent = `${skill.name} | Tier ${skill.tier} ${skill.kind}`;
+      const purpose = document.createElement("span");
+      purpose.textContent = skill.purpose;
+      const stateLine = document.createElement("span");
+      stateLine.className = "skill-advancement-state";
+      stateLine.textContent = skill.purchased
+        ? "Purchased"
+        : (skill.blocked_reason || `Level ${skill.minimum_level} | ${skill.gp_cost} GP`);
+      details.append(title, purpose, stateLine);
+      row.append(details);
+      if (!skill.purchased) {
+        row.append(makeButton(
+          `Purchase · ${skill.gp_cost} GP`,
+          skill.can_purchase
+            ? {
+                kind: "advancement_purchase",
+                drifter_id: skills.selected_target_id,
+                skill_id: skill.skill_id,
+              }
+            : null,
+          skill.can_purchase,
+          skill.blocked_reason,
+          "skill-advancement-purchase",
+        ));
+      }
+      advancement.append(row);
+    }
+
+    const loadout = $("skill-loadout");
+    clear(loadout);
+    const availableMoves = skills.available_moves || [];
+    for (const slot of skills.loadout || []) {
+      const row = document.createElement("label");
+      row.className = "skill-loadout-row";
+      row.dataset.slot = String(slot.slot);
+      const slotName = document.createElement("span");
+      slotName.textContent = `Slot ${slot.slot + 1}`;
+      const select = document.createElement("select");
+      select.className = "skill-loadout-select";
+      select.dataset.slot = String(slot.slot);
+      select.setAttribute("aria-label", `Normal move slot ${slot.slot + 1}`);
+      for (const move of availableMoves) {
+        const option = document.createElement("option");
+        option.value = move.move_id;
+        option.textContent = move.name;
+        option.selected = move.move_id === slot.move.move_id;
+        select.append(option);
+      }
+      select.disabled = availableMoves.length < 1;
+      select.addEventListener("change", () => send({
+        kind: "advancement_equip",
+        drifter_id: skills.selected_target_id,
+        move_id: select.value,
+        slot: slot.slot,
+      }));
+      row.append(slotName, select);
+      loadout.append(row);
+    }
+
+    const movePool = $("skill-available-moves");
+    clear(movePool);
+    for (const move of availableMoves) {
+      const line = document.createElement("article");
+      line.className = "skill-available-move";
+      const name = document.createElement("strong");
+      name.textContent = move.name;
+      const summary = document.createElement("span");
+      const resource = move.resource_type === "none" || !move.resource_cost
+        ? "No resource cost"
+        : `${String(move.resource_type).toUpperCase()} ${move.resource_cost}`;
+      summary.textContent = `${resource} | ${move.damage_type || "utility"}`;
+      line.append(name, summary);
+      movePool.append(line);
+    }
     renderOptions(
       $("skills-options"),
       view.options,
@@ -519,6 +603,49 @@
       (option) => option.label,
       "overworld-option",
     );
+  }
+
+  function renderRespec(view) {
+    const preview = view.respec_preview;
+    if (!preview) return;
+    setText("respec-target", preview.display_name);
+    setText(
+      "respec-cost",
+      preview.first_respec
+        ? "First respec: no Revision Parchment required."
+        : `Cost: ${preview.revision_parchment_cost} Revision Parchment.`,
+    );
+    setText(
+      "respec-refund",
+      `Growth Points: ${preview.current_growth_points} now | ${preview.growth_points_refunded} refunded | ${preview.resulting_growth_points} after respec`,
+    );
+    const renderLines = (id, values, format) => {
+      const container = $(id);
+      clear(container);
+      for (const value of values || []) {
+        const line = document.createElement("div");
+        line.textContent = format(value);
+        container.append(line);
+      }
+      if (!container.childElementCount) {
+        const line = document.createElement("div");
+        line.className = "merchant-empty";
+        line.textContent = "None";
+        container.append(line);
+      }
+    };
+    renderLines(
+      "respec-stat-points",
+      preview.removed_stat_points,
+      ([name, amount]) => `${name}: -${amount}`,
+    );
+    renderLines("respec-skills", preview.removed_skills, (skill) => skill);
+    renderLines(
+      "respec-result-stats",
+      preview.resulting_stats,
+      (stat) => `${stat.label}: ${stat.value}`,
+    );
+    renderDetailOptions("respec-options", view.options);
   }
 
   function renderWeapon(view) {
@@ -978,7 +1105,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "weapon", "equipment", "merchant", "items", "item_inspect", "healing_targets",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "merchant", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -1029,12 +1156,14 @@
 
     $("character-panel").hidden = view.screen !== "character";
     $("skills-panel").hidden = view.screen !== "skills";
+    $("respec-panel").hidden = view.screen !== "respec_confirmation";
     $("weapon-panel").hidden = view.screen !== "weapon";
     $("equipment-panel").hidden = view.screen !== "equipment";
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
+    else if (view.screen === "respec_confirmation") renderRespec(view);
     else if (view.screen === "weapon") renderWeapon(view);
     else if (view.screen === "equipment") renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);

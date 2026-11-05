@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only and Floor One qualifications below remain historical records. The latest signature-weapon progression extension passed the pinned MicroPython matrix on 2026-10-29 at a 608K/576K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, and earlier M3 records below remain historical checkpoints. The latest M3 Gate 5 extension passed the pinned MicroPython matrix on 2026-11-05 at an 816K/784K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -308,3 +308,55 @@ service tests, migration-from-zero, and Alembic check were not rerun because the
 Docker engine pipe was inaccessible. No profile-service/API/database
 implementation files changed in M2; these checks remain required for final
 hosted qualification on the exact committed SHA.
+
+## M3 Gate 5 Advancement Probe (2026-11-05)
+
+The Gate 5 extension was run on the uncommitted `dungeon` working tree based on
+`410ed240f284d79ab37daf7211f9b0d60e409d45`. It extends the existing probe
+through authored advancement purchase, loadout, combat effect, and state
+round-trip without changing discovery placement or M4/M8 probability ownership.
+
+The pinned Windows MicroPython v1.29.0 executable was re-identified:
+
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+
+The full runtime matrix reported native/forced-overlay CPython PASS, default
+MicroPython PASS, semantic parity PASS, and `MYP20|RESULT|CLOSURE_COMPLETE`.
+The expanded Hub/Floor One/M3 probe passed at 816K in 3/3 runs. At 784K it
+reached the expected memory-limit classification in 3/3 runs. An 800K result
+was transitional and is not used as either frontier evidence or a product
+memory limit. These heap values qualify this pinned Windows probe only.
+
+The M3 probe adds these assertions after the existing M2 route:
+
+1. Navigate through Hub > Character > Skills and select Azhvielle explicitly.
+2. Purchase one passive and one active advancement, then equip the active move
+   in a normal-move slot.
+3. Clone the game and verify the snapshot, purchased IDs, and equipped move
+   survive the round trip.
+4. Use the purchased Witchlight Bolt in a controlled battle against three
+   Goblins and verify enemy HP decreases.
+5. Confirm the combat proof does not mutate the campaign snapshot and the
+   probe can return to the Hub state.
+
+The terminal integration pass also exposed a missing terminal key mapping for
+the existing Hub `Start Floor 1` and warning-screen `Set Out` actions. The
+session state machine already supported both actions; the terminal now maps
+them to `F` and `Y`, respectively, with a regression test covering display and
+input translation. A terminal-driven session test now exercises exact-target
+skill purchase/equip, save/load, and confirmed respec while checking loadout,
+Growth Point, and signature-weapon preservation.
+
+Local cumulative verification on this tree passed: **1,983 root tests**,
+**65 web tests**, authored-content validation (5 enemies, 4 weapons, 4
+Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compileall, a
+**156-file browser build**, and the full Playwright browser smoke. The smoke
+passed the advancement purchase/equip/save/reload journey, actual advancement
+move use, respec persistence, existing weapon save/reload, Floor One clear and
+replay/extraction, and the full route.
+
+This is working-tree evidence, not hosted or exact-commit evidence. The local
+Docker engine was inaccessible, so PostgreSQL service tests, migration-from-zero,
+and Alembic parity were not rerun. No commit or push was made; exact-SHA hosted
+qualification remains required before M3 can be called sealed.

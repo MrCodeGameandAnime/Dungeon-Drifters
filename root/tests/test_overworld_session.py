@@ -21,6 +21,9 @@ from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
+    ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
     ChooseOverworldAction,
     ChooseOverworldItem,
@@ -29,6 +32,7 @@ from app.ui.overworld_ui import (
     ChooseAlchemyRecipe,
     ChoosePermanentStatIncrease,
 )
+from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
 from tests.game_test_support import completed_hub_game, hub_game, recruited_pair_game
 from tests.game_test_support import advance_surface_to as move_to_authored_rest
@@ -147,6 +151,137 @@ def make_step_session(game):
         battle_factory=lambda *args, **kwargs: None,
         enemy_factory=lambda *args, **kwargs: None,
     )
+
+
+def test_skills_session_purchases_and_equips_for_the_selected_drifter_only():
+    game = completed_hub_game()
+    branoc = game.member_for_drifter_id("branoc")
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    branoc.gain_experience(1000)
+    azhvielle.gain_experience(1000)
+    branoc_gp = branoc.growth_points
+    session = make_step_session(game)
+
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.SKILLS))
+    session.submit(ChooseCharacterTarget("azhvielle"))
+    rejected = session.submit(
+        ChooseAdvancementPurchase("branoc", "branoc_p01")
+    )
+    assert "That skill is not available" in rejected.notice
+    assert branoc.purchased_passive_skill_ids == ()
+    assert branoc.growth_points == branoc_gp
+
+    session.submit(ChooseAdvancementPurchase("azhvielle", "azhvielle_p01"))
+    session.submit(ChooseAdvancementPurchase("azhvielle", "azhvielle_a01"))
+    session.submit(
+        ChooseAdvancementEquip("azhvielle", "azhvielle_a01", slot=2)
+    )
+
+    view = session.current_view()
+    assert view.skills.selected_target_id == "azhvielle"
+    assert azhvielle.purchased_passive_skill_ids == ("azhvielle_p01",)
+    assert azhvielle.purchased_active_skill_ids == ("azhvielle_a01",)
+    assert azhvielle.equipped_normal_move_ids[2] == "azhvielle_a01"
+    assert branoc.purchased_passive_skill_ids == ()
+    assert branoc.growth_points == branoc_gp
+
+
+def test_terminal_advancement_purchase_save_reload_and_respec_journey(tmp_path):
+    game = completed_hub_game()
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    azhvielle.gain_experience(1000)
+    original_growth_points = azhvielle.growth_points
+    original_loadout = azhvielle.equipped_normal_move_ids
+    original_weapon = azhvielle.signature_weapon_state.snapshot()
+    save_port = make_test_save_port(tmp_path / "terminal-advancement.json")
+    commands = iter(
+        (
+            "c", "s", "t2", "p1", "p6", "e 5 3",
+            "b", "b", "o", "s", "l", "y",
+            "c", "s", "t2", "r", "y",
+            "b", "b", "o", "q", "y",
+        )
+    )
+    rendered_lines = []
+    ui = TerminalOverworldUI(
+        input_func=lambda _prompt: next(commands),
+        output_func=rendered_lines.append,
+        interactive=False,
+    )
+    session = OverworldSession(
+        game,
+        ui=ui,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        battle_ui_factory=lambda: None,
+        save_port=save_port,
+    )
+
+    result = session.run()
+
+    assert result is OverworldSessionResult.QUIT
+    restored = session.game_state.member_for_drifter_id("azhvielle")
+    assert restored.purchased_passive_skill_ids == ()
+    assert restored.purchased_active_skill_ids == ()
+    assert restored.equipped_normal_move_ids == original_loadout
+    assert restored.growth_points == original_growth_points
+    assert restored.respec_count == 1
+    assert restored.signature_weapon_state.snapshot() == original_weapon
+    rendered_text = "\n".join(rendered_lines)
+    assert "ADVANCEMENT SKILLS" in rendered_text
+    assert "Witchlight Bolt" in rendered_text
+    assert "RESPEC PREVIEW" in rendered_text
+    assert "Game saved." in rendered_text
+
+
+def test_skills_session_previews_cancels_and_persists_confirmed_respec(tmp_path):
+    game = completed_hub_game()
+    branoc = game.member_for_drifter_id("branoc")
+    branoc.gain_experience(1000)
+    branoc.purchase_advancement("branoc_p01")
+    branoc.purchase_advancement("branoc_a01")
+    branoc.increase_permanent_stat("strength")
+    before = game.snapshot()
+    port = make_test_save_port(tmp_path / "skills-respec.json")
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        save_port=port,
+    )
+
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    skills = session.submit(ChooseOverworldAction(OverworldAction.SKILLS))
+    assert skills.skills.respec_available is True
+    session.submit(ChooseOverworldAction(OverworldAction.RESPEC))
+    preview = session.current_view()
+
+    assert preview.screen is OverworldScreen.RESPEC_CONFIRMATION
+    assert preview.respec_preview.growth_points_refunded == 6
+    assert preview.respec_preview.resulting_growth_points == (
+        branoc.growth_points + 6
+    )
+    assert preview.respec_preview.removed_stat_points == (("strength", 1),)
+    assert set(preview.respec_preview.removed_skills) == {
+        "branoc_p01",
+        "branoc_a01",
+    }
+    session.submit(ChooseOverworldAction(OverworldAction.CANCEL))
+    assert session.game_state.snapshot() == before
+    assert session.current_view().screen is OverworldScreen.SKILLS
+
+    session.submit(ChooseOverworldAction(OverworldAction.RESPEC))
+    result = session.submit(ChooseOverworldAction(OverworldAction.CONFIRM))
+    assert result.screen is OverworldScreen.SKILLS
+    restored = session.game_state.member_for_drifter_id("branoc")
+    assert restored.growth_points == branoc.growth_points + 6
+    assert restored.stats.strength == get_drifter_spec("branoc").stats.strength
+    assert restored.purchased_passive_skill_ids == ()
+    assert restored.purchased_active_skill_ids == ()
+    assert restored.respec_count == 1
+    loaded = port.load()
+    assert loaded.game_state.member_for_drifter_id("branoc").respec_count == 1
 
 
 def test_merchant_commands_buy_load_and_alchemize_through_session():

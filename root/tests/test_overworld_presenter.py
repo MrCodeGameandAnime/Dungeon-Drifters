@@ -181,6 +181,50 @@ def test_two_member_completed_hub_offers_both_ordered_party_choices():
     )
 
 
+def test_skills_view_projects_exact_drifter_advancement_and_normal_move_loadout():
+    game = completed_hub_game()
+    branoc = game.member_for_drifter_id("branoc")
+    branoc.gain_experience(1000)
+    branoc.purchase_advancement("branoc_p01")
+    branoc.purchase_advancement("branoc_a01")
+    branoc.equip_normal_move("branoc_a01", slot=1)
+
+    skills = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.SKILLS,
+        selected_character_target_id="branoc",
+    ).skills
+
+    assert len(skills.advancement_options) == 24
+    primary = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_p01"
+    )
+    new_move = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_a01"
+    )
+    assert primary.purchased is True
+    assert primary.can_purchase is False
+    assert new_move.purchased is True
+    assert new_move.unlocked is True
+    assert new_move.can_purchase is False
+    locked = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_a02"
+    )
+    assert locked.unlocked is False
+    assert locked.can_purchase is False
+    assert locked.blocked_reason == "Requires level 25"
+    assert tuple((slot.slot, slot.move.move_id) for slot in skills.loadout) == (
+        (0, "branoc_starting_crestgrave_reaping"),
+        (1, "branoc_a01"),
+        (2, "branoc_starting_brace"),
+        (3, "branoc_starting_ironwake_dismemberment"),
+    )
+    assert any(move.move_id == "branoc_a01" for move in skills.available_moves)
+
+
 @pytest.mark.parametrize("profile", get_character_profiles())
 def test_all_drifter_views_expose_complete_authored_data_without_mutation(
     profile,

@@ -17,6 +17,8 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseActivePair,
     ChooseAlchemyRecipe,
     ChooseHubSupplyAction,
@@ -34,6 +36,7 @@ from app.ui.overworld_ui import (
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from tests.game_test_support import (
     advance_surface_to,
+    completed_hub_game,
     floor_one_rest_game,
     hub_game,
     three_member_hub_game,
@@ -104,6 +107,23 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
     assert contextual_index < controls_index
     assert not any("[1/" in line for line in lines)
     assert lines[-1].startswith("+")
+
+
+def test_terminal_can_start_floor_one_from_the_hub_warning():
+    game = completed_hub_game()
+    hub = OverworldPresenter().build(game, screen=OverworldScreen.HUB)
+
+    hub_text = "\n".join(rendered(hub))
+    start, _output = read(hub, ["f"])
+    warning = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.FLOOR_ONE_WARNING,
+    )
+    set_out, _output = read(warning, ["y"])
+
+    assert "[F] Start Floor 1" in hub_text
+    assert start == ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    assert set_out == ChooseOverworldAction(OverworldAction.SET_OUT)
 
 
 def test_party_selection_lists_ordered_pairs_and_reads_selected_identity():
@@ -647,6 +667,22 @@ def test_skills_numeric_input_exposes_enabled_stat_increase():
 
     assert result == ChoosePermanentStatIncrease("strength")
     assert output == []
+
+
+def test_skills_commands_purchase_and_equip_exact_drifter_moves():
+    game = GameState(PlayerState(create_drifter("branoc")))
+    game.player_state.gain_experience(1000)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    purchase, purchase_output = read(view, ["p6"])
+    game.player_state.purchase_advancement("branoc_a01")
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+    equip, equip_output = read(view, ["e 5 2"])
+
+    assert purchase == ChooseAdvancementPurchase("branoc", "branoc_a01")
+    assert purchase_output == []
+    assert equip == ChooseAdvancementEquip("branoc", "branoc_a01", slot=1)
+    assert equip_output == []
 
 
 def test_skills_render_maximum_and_enabled_controls():

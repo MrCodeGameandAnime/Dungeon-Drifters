@@ -44,6 +44,35 @@ class ChoosePermanentStatIncrease:
 
 
 @dataclass(frozen=True)
+class ChooseAdvancementPurchase:
+    drifter_id: str
+    skill_id: str
+
+    def __post_init__(self):
+        for name in ("drifter_id", "skill_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseAdvancementEquip:
+    drifter_id: str
+    move_id: str
+    slot: int
+
+    def __post_init__(self):
+        for name in ("drifter_id", "move_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int):
+            raise TypeError("slot must be an integer")
+        if not 0 <= self.slot < 4:
+            raise ValueError("normal move slot must be between 0 and 3")
+
+
+@dataclass(frozen=True)
 class ChooseCompanion:
     drifter_id: str
     event_id: str
@@ -176,6 +205,8 @@ OverworldInput: TypeAlias = Union[
     ChooseOverworldItem,
     ChooseOverworldHealingTarget,
     ChoosePermanentStatIncrease,
+    ChooseAdvancementPurchase,
+    ChooseAdvancementEquip,
     ChooseCompanion,
     ChooseActivePair,
     ChooseCharacterTarget,

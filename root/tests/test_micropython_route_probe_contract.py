@@ -199,6 +199,16 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         expected_stages[floor_one_start : floor_one_start + len(expected_floor_one)]
     ) == expected_floor_one
 
+    m3_stages = (
+        "M3_ADVANCEMENT_PURCHASE",
+        "M3_ADVANCEMENT_ROUNDTRIP",
+        "M3_ADVANCEMENT_MOVE_EFFECT",
+        "M3_ADVANCEMENT_FINAL_STATE",
+    )
+    talisman_index = stages.index("M2_TALISMAN_RETURN")
+    assert stages[talisman_index + 1 : talisman_index + 1 + len(m3_stages)] == m3_stages
+    assert expected_stages[expected_stages.index("M2_TALISMAN_RETURN") + 1 :][:4] == m3_stages
+
     source = _hub_probe_source()
     for required in (
         'get_route_spec("floor_one")',
@@ -227,6 +237,24 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         'ActionIntent.ESCAPE',
         'RETURN_WITH_TALISMAN',
         'del state["route_enemy_factory"].enemies[:]',
+    ):
+        assert required in source
+
+
+def test_m3_probe_purchases_roundtrips_and_uses_an_authored_move():
+    source = _hub_probe_source()
+    for required in (
+        '"azhvielle_p01"',
+        '"azhvielle_a01"',
+        "ChooseAdvancementPurchase",
+        "ChooseAdvancementEquip",
+        "game.snapshot()",
+        "game.clone()",
+        'option.name == "Witchlight Bolt"',
+        "enemy.health.current >= enemy_hp_before",
+        '"M3_ADVANCEMENT_PURCHASE"',
+        '"M3_ADVANCEMENT_ROUNDTRIP"',
+        '"M3_ADVANCEMENT_MOVE_EFFECT"',
     ):
         assert required in source
 

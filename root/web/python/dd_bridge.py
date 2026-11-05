@@ -36,6 +36,8 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -218,6 +220,17 @@ def _command_to_input(command):
         return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
+    if kind == "advancement_purchase":
+        return ChooseAdvancementPurchase(
+            _required(command, "drifter_id"),
+            _required(command, "skill_id"),
+        )
+    if kind == "advancement_equip":
+        return ChooseAdvancementEquip(
+            _required(command, "drifter_id"),
+            _required(command, "move_id"),
+            _required(command, "slot"),
+        )
     if kind == "merchant_target":
         return ChooseMerchantTarget(_required(command, "drifter_id"))
     if kind == "merchant_improve":

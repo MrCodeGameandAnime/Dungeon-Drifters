@@ -2320,6 +2320,28 @@ try {
       Number(growthBefore.match(/\d+/)?.[0] || 0) > 0,
     "the controlled Hub state did not provide a Growth Point for the recruited target",
   );
+  const passiveSkillRow = page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_p01"]',
+  );
+  const activeSkillRow = page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_a01"]',
+  );
+  await passiveSkillRow.getByRole("button", { name: /Purchase/ }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-advancement [data-skill-id="azhvielle_p01"]')
+      ?.innerText.includes("Purchased"),
+  );
+  await activeSkillRow.getByRole("button", { name: /Purchase/ }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-advancement [data-skill-id="azhvielle_a01"]')
+      ?.innerText.includes("Purchased"),
+  );
+  const firstMoveSlot = page.locator('#skill-loadout select[data-slot="0"]');
+  await firstMoveSlot.selectOption("azhvielle_a01");
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-loadout select[data-slot="0"]')?.value ===
+      "azhvielle_a01",
+  );
   await strengthRow.getByRole("button", { name: "[+1]" }).click();
   await page.waitForFunction((previous) => {
     const row = [...document.querySelectorAll("#skill-stats .skill-stat")]
@@ -2330,6 +2352,10 @@ try {
     drifter: "azhvielle",
     strength: await strengthRow.locator(".skill-value").innerText(),
     growth: await page.locator("#growth-summary").innerText(),
+    passive: await passiveSkillRow.innerText(),
+    active: await activeSkillRow.innerText(),
+    equippedMove: await page.locator('#skill-loadout select[data-slot="0"]')
+      .inputValue(),
   };
   await clickVisibleOption(page, "#skills-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "visible" });
@@ -2472,12 +2498,24 @@ try {
   const restoredMemberProgression = {
     strength: await restoredStrengthRow.locator(".skill-value").innerText(),
     growth: await page.locator("#growth-summary").innerText(),
+    passive: await page.locator(
+      '#skill-advancement [data-skill-id="azhvielle_p01"]',
+    ).innerText(),
+    active: await page.locator(
+      '#skill-advancement [data-skill-id="azhvielle_a01"]',
+    ).innerText(),
+    equippedMove: await page.locator('#skill-loadout select[data-slot="0"]')
+      .inputValue(),
   };
   requireCondition(
     restoredMemberProgression.strength === savedMemberProgression.strength &&
-      restoredMemberProgression.growth === savedMemberProgression.growth,
-    `Azhvielle's stat investment did not survive browser reload: ${JSON.stringify({ savedMemberProgression, restoredMemberProgression })}`,
+      restoredMemberProgression.growth === savedMemberProgression.growth &&
+      restoredMemberProgression.passive.includes("Purchased") &&
+      restoredMemberProgression.active.includes("Purchased") &&
+      restoredMemberProgression.equippedMove === "azhvielle_a01",
+    `Azhvielle's skills, loadout, or stat investment did not survive browser reload: ${JSON.stringify({ savedMemberProgression, restoredMemberProgression })}`,
   );
+  console.log("M3_BROWSER|ADVANCEMENT_SAVE_RELOAD|PASS");
   console.log("M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS");
   await clickVisibleOption(page, "#skills-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "visible" });
@@ -2711,10 +2749,33 @@ try {
     await clickVisibleOption(page, "#actions", "Attack");
     await resolveAttackChoice();
   };
+  let advancementMoveDamage = 0;
+  const useAzhvielleAdvancementMove = async () => {
+    await clickVisibleOption(page, "#actions", "Attack");
+    const move = page.locator("#moves .move-choice").filter({ hasText: "Witchlight Bolt" }).first();
+    await move.waitFor({ state: "visible" });
+    await move.click();
+    await page.locator("#targets .target-choice:not([disabled])").first()
+      .waitFor({ state: "visible" });
+    await clickFirstBattleChoice("#targets .target-choice");
+    await page.waitForFunction(() =>
+      document.getElementById("battle-log").innerText.includes("Witchlight Bolt"),
+    );
+    const log = await page.locator("#battle-log").innerText();
+    const damageMatch = log.match(/Witchlight Bolt[^\n]*It dealt (\d+) damage/i);
+    if (damageMatch) advancementMoveDamage = Number(damageMatch[1]);
+  };
   for (let action = 0; action < 60 && await page.locator("#overworld-screen").isHidden(); action += 1) {
     const phase = await page.locator("#app").getAttribute("data-interaction-phase");
     if (phase === "actions") {
-      await attackOnce();
+      const activeDrifterId = await page.locator(
+        "#party-members .party-member.is-active",
+      ).getAttribute("data-target-id");
+      if (activeDrifterId === "drifter_azhvielle" && advancementMoveDamage === 0) {
+        await useAzhvielleAdvancementMove();
+      } else {
+        await attackOnce();
+      }
     } else if (phase === "regular_moves") {
       await resolveAttackChoice();
     } else if (phase === "targets") {
@@ -2724,6 +2785,11 @@ try {
     }
   }
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    advancementMoveDamage > 0,
+    "Azhvielle's purchased Witchlight Bolt did not deal damage in the browser battle",
+  );
+  console.log("M3_BROWSER|ADVANCEMENT_MOVE_USED|PASS");
   const firstEncounterRewards = await page.locator("#adventure-text").innerText();
   requireCondition(
     firstEncounterRewards.includes("Unsecured rewards:") && firstEncounterRewards.includes("Items: 4 Goblin Scrap"),
@@ -2830,6 +2896,111 @@ try {
     `Return Talisman returned consumed or unsecured items: ${returnedItems}`,
   );
   console.log("M2_BROWSER|TALISMAN_XP_ONLY|PASS");
+
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  const preRespecGrowth = await page.locator("#growth-summary").innerText();
+  const baseAzhvielleStrength = "5";
+  await clickVisibleOption(page, "#skills-options", "Respec");
+  await page.locator("#respec-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#respec-target").innerText()) === "Azhvielle, the Unconfessed" &&
+      (await page.locator("#respec-cost").innerText()).includes("no Revision Parchment") &&
+      (await page.locator("#respec-skills").innerText()).includes("azhvielle_p01") &&
+      (await page.locator("#respec-skills").innerText()).includes("azhvielle_a01") &&
+      (await page.locator("#respec-stat-points").innerText()).includes("strength"),
+    "Azhvielle's first-respec preview omitted its cost or the purchases to be removed",
+  );
+  await clickVisibleOption(page, "#respec-options", "Confirm");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  const strengthAfterRespec = page.locator("#skill-stats .skill-stat")
+    .filter({ hasText: "Strength" });
+  await page.waitForFunction(() => {
+    const row = [...document.querySelectorAll("#skill-stats .skill-stat")]
+      .find((candidate) => candidate.querySelector(".skill-label")?.textContent === "Strength");
+    return row?.querySelector(".skill-value")?.textContent === "5";
+  });
+  const growthAfterRespec = await page.locator("#growth-summary").innerText();
+  requireCondition(
+    (await strengthAfterRespec.locator(".skill-value").innerText()) === baseAzhvielleStrength &&
+      growthAfterRespec !== preRespecGrowth &&
+      !(await page.locator('#skill-advancement [data-skill-id="azhvielle_p01"]')
+        .innerText()).includes("Purchased") &&
+      !(await page.locator('#skill-advancement [data-skill-id="azhvielle_a01"]')
+        .innerText()).includes("Purchased"),
+    "confirmed respec did not remove the selected Drifter's tracked upgrades",
+  );
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#weapon-targets", "Ser Branoc, the Unbroken Crest");
+  await page.locator("#weapon-targets button[aria-pressed='true']")
+    .filter({ hasText: "Ser Branoc, the Unbroken Crest" }).waitFor();
+  const weaponAfterAzhvielleRespec = await page.locator(
+    "#weapon-components .weapon-component-slot",
+  ).first().innerText();
+  requireCondition(
+    weaponAfterAzhvielleRespec === installedBladeState,
+    `Azhvielle's respec changed Branoc's independent signature weapon progression: ${JSON.stringify({ installedBladeState, weaponAfterAzhvielleRespec })}`,
+  );
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
+  const restoredRespecGrowth = await page.locator("#growth-summary").innerText();
+  const restoredRespecStrength = await page.locator("#skill-stats .skill-stat")
+    .filter({ hasText: "Strength" }).locator(".skill-value").innerText();
+  const restoredPassiveState = await page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_p01"]',
+  ).innerText();
+  const restoredActiveState = await page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_a01"]',
+  ).innerText();
+  requireCondition(
+    restoredRespecGrowth === growthAfterRespec &&
+      restoredRespecStrength === baseAzhvielleStrength &&
+      !restoredPassiveState.includes("Purchased") &&
+      !restoredActiveState.includes("Purchased"),
+    `browser save/reload changed or repeated Azhvielle's confirmed respec: ${JSON.stringify({ growthAfterRespec, restoredRespecGrowth, restoredRespecStrength, restoredPassiveState, restoredActiveState })}`,
+  );
+  console.log("M3_BROWSER|RESPEC_SAVE_RELOAD|PASS");
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));

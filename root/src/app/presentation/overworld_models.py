@@ -15,6 +15,7 @@ class OverworldScreen(StrEnum):
     EXTRACTION = "extraction"
     CHARACTER = "character"
     SKILLS = "skills"
+    RESPEC_CONFIRMATION = "respec_confirmation"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
@@ -35,6 +36,7 @@ class OverworldAction(StrEnum):
     MAP = "map"
     OPTIONS = "options"
     SKILLS = "skills"
+    RESPEC = "respec"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
@@ -235,6 +237,7 @@ class SkillMoveView:
     resource_type: str | None = None
     resource_cost: int | None = None
     damage_type: str | None = None
+    move_id: str | None = None
 
     def __post_init__(self):
         _validate_text("name", self.name)
@@ -243,10 +246,51 @@ class SkillMoveView:
             value = getattr(self, name)
             if value is not None:
                 _validate_nonnegative(name, value)
-        for name in ("resource_type", "damage_type"):
+        for name in ("resource_type", "damage_type", "move_id"):
             value = getattr(self, name)
             if value is not None:
                 _validate_text(name, value)
+
+
+@dataclass(frozen=True)
+class AdvancementSkillOptionView:
+    skill_id: str
+    name: str
+    purpose: str
+    tier: int
+    kind: str
+    gp_cost: int
+    minimum_level: int
+    purchased: bool
+    unlocked: bool
+    can_purchase: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        for name in ("skill_id", "name", "purpose", "kind"):
+            _validate_text(name, getattr(self, name))
+        for name in ("tier", "gp_cost", "minimum_level"):
+            _validate_nonnegative(name, getattr(self, name))
+        for name in ("purchased", "unlocked", "can_purchase"):
+            _validate_bool(name, getattr(self, name))
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.can_purchase and (self.purchased or self.blocked_reason is not None):
+            raise ValueError("available skill purchase has conflicting state")
+
+
+@dataclass(frozen=True)
+class SkillLoadoutSlotView:
+    slot: int
+    move: SkillMoveView
+
+    def __post_init__(self):
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int):
+            raise TypeError("slot must be an integer")
+        if self.slot < 0 or self.slot > 3:
+            raise ValueError("normal move slot must be between 0 and 3")
+        if not isinstance(self.move, SkillMoveView):
+            raise TypeError("move must be a SkillMoveView")
 
 
 @dataclass(frozen=True)
@@ -257,6 +301,10 @@ class SkillsView:
     moves: tuple[SkillMoveView, ...]
     targets: tuple = ()
     selected_target_id: str | None = None
+    advancement_options: tuple[AdvancementSkillOptionView, ...] = ()
+    loadout: tuple[SkillLoadoutSlotView, ...] = ()
+    available_moves: tuple[SkillMoveView, ...] = ()
+    respec_available: bool = False
 
     def __post_init__(self):
         if self.growth_points_available is not None:
@@ -267,9 +315,56 @@ class SkillsView:
         _validate_text("growth_message", self.growth_message)
         _validate_instance_tuple("stats", self.stats, StatRowView)
         _validate_instance_tuple("moves", self.moves, SkillMoveView)
+        _validate_instance_tuple(
+            "advancement_options",
+            self.advancement_options,
+            AdvancementSkillOptionView,
+        )
+        _validate_instance_tuple("loadout", self.loadout, SkillLoadoutSlotView)
+        _validate_instance_tuple("available_moves", self.available_moves, SkillMoveView)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_bool("respec_available", self.respec_available)
+        if self.loadout and len(self.loadout) != 4:
+            raise ValueError("normal move loadout must contain four slots")
         if self.targets:
             _validate_selected_target(self.targets, self.selected_target_id)
+
+
+@dataclass(frozen=True)
+class RespecPreviewView:
+    drifter_id: str
+    display_name: str
+    first_respec: bool
+    revision_parchment_cost: int
+    growth_points_refunded: int
+    current_growth_points: int
+    resulting_growth_points: int
+    removed_stat_points: tuple[tuple[str, int], ...]
+    removed_skills: tuple[str, ...]
+    resulting_stats: tuple[StatRowView, ...]
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("first_respec", self.first_respec)
+        for name in (
+            "revision_parchment_cost",
+            "growth_points_refunded",
+            "current_growth_points",
+            "resulting_growth_points",
+        ):
+            _validate_nonnegative(name, getattr(self, name))
+        _validate_text_tuple("removed_skills", self.removed_skills)
+        if not isinstance(self.removed_stat_points, tuple):
+            raise TypeError("removed_stat_points must be a tuple")
+        for item in self.removed_stat_points:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("removed stat points must be name/value pairs")
+            _validate_text("removed stat name", item[0])
+            _validate_nonnegative("removed stat points", item[1])
+            if item[1] == 0:
+                raise ValueError("removed stat points must be positive")
+        _validate_instance_tuple("resulting_stats", self.resulting_stats, StatRowView)
 
 
 @dataclass(frozen=True)
@@ -749,6 +844,7 @@ class OverworldView:
     location_label: str
     adventure_text: str
     options: tuple[OverworldOptionView, ...]
+    respec_preview: RespecPreviewView | None = None
     contextual_route_option: OverworldOptionView | None = None
     notice: str | None = None
     character: CharacterOverviewView | None = None
@@ -834,6 +930,10 @@ class OverworldView:
             self.outing_rewards is not None
         ):
             raise ValueError("pending outing rewards belong only to Extraction")
+        if (self.screen is OverworldScreen.RESPEC_CONFIRMATION) != (
+            self.respec_preview is not None
+        ):
+            raise ValueError("respec preview belongs only to its confirmation screen")
         if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
             raise ValueError("merchant data belongs only to the Merchant screen")
         if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
@@ -870,6 +970,7 @@ class OverworldView:
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),
+            ("respec_preview", RespecPreviewView),
             ("weapon", WeaponView),
             ("merchant", MerchantView),
             ("hub_economy", HubEconomyView),

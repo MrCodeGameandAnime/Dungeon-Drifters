@@ -12,6 +12,11 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
+from app.content.advancement_combat_spec import get_advancement_move
+from app.content.advancement_spec import (
+    AdvancementSkillKind,
+    get_drifter_advancement_skills,
+)
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
@@ -29,7 +34,9 @@ from app.game.overworld_state import ContextualRoutePhase
 from app.iteration import first_or_none
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
+from app.player.advancement_state import move_id_for_name
 from app.presentation.overworld_models import (
+    AdvancementSkillOptionView,
     AccessorySlotView,
     CharacterOverviewView,
     CompanionChoiceView,
@@ -61,6 +68,7 @@ from app.presentation.overworld_models import (
     OverworldView,
     PartyPairChoiceView,
     SkillMoveView,
+    SkillLoadoutSlotView,
     SkillsView,
     StatBonusView,
     StatRowView,
@@ -120,6 +128,8 @@ class OverworldPresenter:
         notice=None,
         save_available=False,
         load_available=False,
+        respec_available=False,
+        respec_preview=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -153,6 +163,7 @@ class OverworldPresenter:
             selected_item,
             save_available=save_available,
             load_available=load_available,
+            respec_available=respec_available,
         )
         contextual_route_option = self._contextual_route_option(
             game_state,
@@ -175,6 +186,7 @@ class OverworldPresenter:
             adventure_text=adventure_text,
             notice=notice,
             options=options,
+            respec_preview=respec_preview,
             contextual_route_option=contextual_route_option,
             character=(
                 self._character_view(game_state, selected_character_target_id)
@@ -182,7 +194,11 @@ class OverworldPresenter:
                 else None
             ),
             skills=(
-                self._skills_view(game_state, selected_character_target_id)
+                self._skills_view(
+                    game_state,
+                    selected_character_target_id,
+                    respec_available=respec_available,
+                )
                 if screen is OverworldScreen.SKILLS
                 else None
             ),
@@ -418,12 +434,104 @@ class OverworldPresenter:
             selected_target_id=selected_target_id,
         )
 
-    def _skills_view(self, game_state, selected_target_id):
+    def _skills_view(
+        self,
+        game_state,
+        selected_target_id,
+        *,
+        respec_available=False,
+    ):
         player, selected_target_id, targets = self._selected_party_member(
             game_state,
             selected_target_id,
         )
         growth_points = player.growth_points
+        advancement_specs = get_drifter_advancement_skills(player.drifter_id)
+        purchased_ids = set(
+            player.purchased_passive_skill_ids
+            + player.purchased_active_skill_ids
+        )
+        level = player.level_state.current
+        skill_options = []
+        for skill in advancement_specs:
+            purchased = skill.skill_id in purchased_ids
+            unlocked = level >= skill.minimum_level
+            if purchased:
+                blocked_reason = "Already purchased"
+            elif not unlocked:
+                blocked_reason = f"Requires level {skill.minimum_level}"
+            elif growth_points < skill.gp_cost:
+                blocked_reason = "Insufficient Growth Points"
+            else:
+                blocked_reason = None
+            skill_options.append(
+                AdvancementSkillOptionView(
+                    skill_id=skill.skill_id,
+                    name=skill.name,
+                    purpose=skill.purpose,
+                    tier=skill.tier,
+                    kind=skill.kind.value,
+                    gp_cost=skill.gp_cost,
+                    minimum_level=skill.minimum_level,
+                    purchased=purchased,
+                    unlocked=unlocked,
+                    can_purchase=blocked_reason is None,
+                    blocked_reason=blocked_reason,
+                )
+            )
+
+        current_moves = player.combat_moves
+        move_ids_by_name = {
+            move.name: move_id_for_name(player.drifter_id, move.name)
+            for move in current_moves
+            if move_id_for_name(player.drifter_id, move.name)
+            in (
+                player.available_normal_move_ids
+                + player.available_super_move_ids
+            )
+        }
+        for skill in advancement_specs:
+            if skill.kind is AdvancementSkillKind.PASSIVE:
+                continue
+            move = get_advancement_move(skill.skill_id)
+            move_ids_by_name[move.name] = skill.skill_id
+
+        def move_view(move, move_id):
+            return SkillMoveView(
+                name=move.name,
+                description=move.description,
+                power=move.power,
+                accuracy=move.accuracy,
+                resource_type=move.resource_type.value,
+                resource_cost=move.resource_cost,
+                damage_type=move.damage_type.value,
+                move_id=move_id,
+            )
+
+        current_move_views = tuple(
+            move_view(move, move_ids_by_name.get(move.name))
+            for move in current_moves
+        )
+        available_move_by_id = {
+            move_id_for_name(player.drifter_id, move.name): move
+            for move in player.character.combat_moves
+            if move_id_for_name(player.drifter_id, move.name)
+            in player.available_normal_move_ids
+        }
+        for move in current_moves:
+            move_id = move_ids_by_name.get(move.name)
+            if move_id in player.available_normal_move_ids:
+                available_move_by_id[move_id] = move
+        for move_id in player.available_normal_move_ids:
+            if move_id not in available_move_by_id:
+                available_move_by_id[move_id] = get_advancement_move(move_id)
+        available_move_views = tuple(
+            move_view(available_move_by_id[move_id], move_id)
+            for move_id in player.available_normal_move_ids
+        )
+        equipped_move_by_id = {
+            move.move_id: move for move in available_move_views
+        }
         return SkillsView(
             growth_points_available=growth_points,
             growth_message=(
@@ -432,20 +540,16 @@ class OverworldPresenter:
                 else "Earn Growth Points by leveling up."
             ),
             stats=self._stats(player, increase_controls=True),
-            moves=tuple(
-                SkillMoveView(
-                    name=move.name,
-                    description=move.description,
-                    power=move.power,
-                    accuracy=move.accuracy,
-                    resource_type=move.resource_type.value,
-                    resource_cost=move.resource_cost,
-                    damage_type=move.damage_type.value,
-                )
-                for move in player.combat_moves
-            ),
+            moves=current_move_views,
             targets=targets,
             selected_target_id=selected_target_id,
+            advancement_options=tuple(skill_options),
+            loadout=tuple(
+                SkillLoadoutSlotView(slot, equipped_move_by_id[move_id])
+                for slot, move_id in enumerate(player.equipped_normal_move_ids)
+            ),
+            available_moves=available_move_views,
+            respec_available=respec_available,
         )
 
     @staticmethod
@@ -1058,6 +1162,7 @@ class OverworldPresenter:
         *,
         save_available=False,
         load_available=False,
+        respec_available=False,
     ):
         enabled = self._enabled_option
         disabled = self._disabled_option
@@ -1131,8 +1236,13 @@ class OverworldPresenter:
                 enabled(OverworldAction.EQUIPMENT, "Equipment"),
                 enabled(OverworldAction.BACK, "Back"),
             )
+        if screen is OverworldScreen.SKILLS:
+            return (
+                (enabled(OverworldAction.RESPEC, "Respec"),)
+                if respec_available
+                else ()
+            ) + (enabled(OverworldAction.BACK, "Back"),)
         if screen in {
-            OverworldScreen.SKILLS,
             OverworldScreen.WEAPON,
             OverworldScreen.EQUIPMENT,
             OverworldScreen.MERCHANT,
@@ -1214,6 +1324,7 @@ class OverworldPresenter:
         if screen in {
             OverworldScreen.QUIT_CONFIRMATION,
             OverworldScreen.LOAD_CONFIRMATION,
+            OverworldScreen.RESPEC_CONFIRMATION,
         }:
             return (
                 enabled(OverworldAction.CONFIRM, "Confirm"),

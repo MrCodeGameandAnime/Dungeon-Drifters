@@ -17,6 +17,7 @@ from app.game.hub_economy import HubEconomyService
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.game.recruitment import available_recruitment_event
+from app.game.respec import RespecService, RespecStatus
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -29,9 +30,13 @@ from app.presentation.overworld_models import (
     OverworldAvailabilityReason,
     OverworldScreen,
     OverworldView,
+    RespecPreviewView,
+    StatRowView,
 )
 from app.presentation.battle_models import BattleView, InteractionPhase
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseActivePair,
     ChooseCompanion,
     ChooseCharacterTarget,
@@ -140,6 +145,8 @@ class OverworldSession:
         self._selected_character_target_id = None
         self._selected_merchant_target_id = None
         self._selected_weapon_target_id = None
+        self._respec_preview = None
+        self._respec_target_id = None
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
@@ -193,6 +200,12 @@ class OverworldSession:
             self._increase_permanent_stat(view, session_input)
             if self._stale_enabled_stat_input(view, session_input):
                 self._notice = "That stat is not available."
+            return self._build_view()
+        if isinstance(
+            session_input,
+            (ChooseAdvancementPurchase, ChooseAdvancementEquip),
+        ):
+            self._perform_advancement_action(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChooseOverworldItem):
             self._select_item(view, session_input)
@@ -392,6 +405,11 @@ class OverworldSession:
             notice=self._notice,
             save_available=self._save_available(),
             load_available=self._load_available(),
+            respec_available=(
+                self._screen is OverworldScreen.SKILLS
+                and self.game_state.party_state.phase is DungeonPhase.HUB
+            ),
+            respec_preview=self._respec_preview,
         )
 
     def _save_available(self):
@@ -439,6 +457,62 @@ class OverworldSession:
             return
         self._selected_item_key = overworld_input.selection_key
         self._notice = None
+
+    def _perform_advancement_action(self, view, session_input):
+        skills = view.skills
+        if (
+            view.screen is not OverworldScreen.SKILLS
+            or skills is None
+            or skills.selected_target_id != session_input.drifter_id
+        ):
+            self._notice = "That skill is not available for the selected Drifter."
+            return
+        try:
+            player = self.game_state.member_for_drifter_id(
+                session_input.drifter_id
+            )
+        except (TypeError, ValueError):
+            self._notice = "That Drifter is not available."
+            return
+
+        if isinstance(session_input, ChooseAdvancementPurchase):
+            option = first_or_none(
+                row
+                for row in skills.advancement_options
+                if row.skill_id == session_input.skill_id
+            )
+            if option is None or not option.can_purchase:
+                self._notice = (
+                    option.blocked_reason
+                    if option is not None
+                    else "That skill is not available."
+                )
+                return
+            try:
+                purchased = player.purchase_advancement(session_input.skill_id)
+            except (TypeError, ValueError):
+                self._notice = "That skill is not available."
+                return
+            self._notice = (
+                f"{purchased.name} learned for {purchased.gp_cost} Growth Points."
+            )
+            return
+
+        if not any(
+            move.move_id == session_input.move_id
+            for move in skills.available_moves
+        ):
+            self._notice = "That move is not unlocked for the selected Drifter."
+            return
+        try:
+            player.equip_normal_move(
+                session_input.move_id,
+                slot=session_input.slot,
+            )
+        except (TypeError, ValueError):
+            self._notice = "That move cannot be equipped in this slot."
+            return
+        self._notice = f"Loadout slot {session_input.slot + 1} updated."
 
     def _use_overworld_healing_potion(self, view, session_input):
         if (
@@ -1007,7 +1081,95 @@ class OverworldSession:
             member.health.heal(member.health.maximum)
             member.mana_resource.restore(member.mana_resource.maximum)
 
+    def _open_respec_confirmation(self, view):
+        skills = view.skills
+        if (
+            view.screen is not OverworldScreen.SKILLS
+            or skills is None
+            or not skills.respec_available
+            or skills.selected_target_id is None
+        ):
+            self._notice = "Respec is only available for a selected Drifter at the Hub."
+            return
+        try:
+            service = RespecService(save_port=self._save_port_instance())
+            preview = service.preview(
+                self.game_state,
+                skills.selected_target_id,
+            )
+            player = self.game_state.member_for_drifter_id(
+                skills.selected_target_id
+            )
+        except (OSError, SavePortError, TypeError, ValueError):
+            self._notice = "A respec preview is not available for that Drifter."
+            return
+        self._respec_target_id = skills.selected_target_id
+        self._respec_preview = RespecPreviewView(
+            drifter_id=preview.drifter_id,
+            display_name=player.character.full_display_name,
+            first_respec=preview.first_respec,
+            revision_parchment_cost=preview.revision_parchment_cost,
+            growth_points_refunded=preview.growth_points_refunded,
+            current_growth_points=preview.current_growth_points,
+            resulting_growth_points=preview.resulting_growth_points,
+            removed_stat_points=preview.purchased_stat_points,
+            removed_skills=(
+                preview.purchased_passive_skill_ids
+                + preview.purchased_active_skill_ids
+            ),
+            resulting_stats=tuple(
+                StatRowView(
+                    stat_name=name,
+                    label=name.capitalize(),
+                    value=value,
+                )
+                for name, value in preview.resulting_stats
+            ),
+        )
+        self._screen = OverworldScreen.RESPEC_CONFIRMATION
+        self._adventure_text = (
+            f"Review the full respec for {player.character.full_display_name}. "
+            "Confirm to refund tracked M3 purchases and remove their effects."
+        )
+        self._notice = None
+
+    def _confirm_respec(self):
+        if (
+            self._screen is not OverworldScreen.RESPEC_CONFIRMATION
+            or self._respec_target_id is None
+        ):
+            self._notice = "That respec is not available."
+            return
+        result = RespecService(
+            save_port=self._save_port_instance(),
+        ).respec(
+            self.game_state,
+            self._respec_target_id,
+            confirmed=True,
+        )
+        target_id = self._respec_target_id
+        self._respec_preview = None
+        self._respec_target_id = None
+        self._screen = OverworldScreen.SKILLS
+        self._adventure_text = None
+        if result.status is RespecStatus.RESPECCED:
+            self._game_state = result.game_state
+            self._selected_character_target_id = target_id
+            self._notice = (
+                f"Respec complete. {result.preview.growth_points_refunded} "
+                "Growth Points refunded; independent weapon progression preserved."
+            )
+        elif result.status is RespecStatus.INSUFFICIENT_PARCHMENT:
+            self._notice = "A Revision Parchment is required for another respec."
+        elif result.status is RespecStatus.SAVE_FAILED:
+            self._notice = "The respec could not be saved. Nothing changed."
+        else:
+            self._notice = "That respec is no longer available. Nothing changed."
+
     def _dispatch_menu_action(self, action):
+        if action is OverworldAction.RESPEC:
+            self._open_respec_confirmation(self._build_view())
+            return None
         if action is OverworldAction.USE:
             if (
                 self._screen is not OverworldScreen.ITEMS
@@ -1042,6 +1204,13 @@ class OverworldSession:
             )
             return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.RESPEC_CONFIRMATION:
+                self._screen = OverworldScreen.SKILLS
+                self._respec_preview = None
+                self._respec_target_id = None
+                self._adventure_text = None
+                self._notice = None
+                return None
             if self._screen is OverworldScreen.LOAD_CONFIRMATION:
                 self._screen = OverworldScreen.OPTIONS
                 self._adventure_text = None
@@ -1053,6 +1222,9 @@ class OverworldSession:
         if action is OverworldAction.CONFIRM:
             if self._screen is OverworldScreen.LOAD_CONFIRMATION:
                 self._load_saved_session()
+                return None
+            if self._screen is OverworldScreen.RESPEC_CONFIRMATION:
+                self._confirm_respec()
                 return None
             return OverworldSessionResult.QUIT
         return _UNHANDLED_ACTION
@@ -1188,6 +1360,12 @@ class OverworldSession:
         self._adventure_text = None
 
     def _navigate_back(self):
+        if self._screen is OverworldScreen.RESPEC_CONFIRMATION:
+            self._screen = OverworldScreen.SKILLS
+            self._respec_preview = None
+            self._respec_target_id = None
+            self._adventure_text = None
+            return
         if self._screen in {
             OverworldScreen.COMPANION_SELECTION,
             OverworldScreen.PARTY_SELECTION,

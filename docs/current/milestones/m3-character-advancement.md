@@ -2,7 +2,7 @@
 
 > Implementation authorization: M3 work is approved on the existing `dungeon` branch. Execute gate by gate; preserve all behavior and save policy outside the explicit M3 contracts below.
 
-**Status:** Gates 0-2 and the Gate 3 secured-XP/permanent-discovery services are implemented on the existing `dungeon` branch. M3-D4, M3-D5, and M3-D6 are resolved. Gate 4 respec implementation and local browser/root checks are complete; exact-SHA hosted/PostgreSQL qualification and cumulative Python 3.14 qualification remain open. Gate 5 playable advancement and cumulative qualification remain open.
+**Status:** Gates 0-4 are implemented on the existing `dungeon` branch. M3-D1 through M3-D6 are resolved. Gate 4 passed exact-SHA hosted qualification, including hosted browser smoke and PostgreSQL/migration checks. Gate 5 implementation and local cumulative qualification are complete in the current working tree; exact-SHA hosted qualification remains pending. The pinned MicroPython matrix passed on this working tree.
 
 **Goal:** Complete passive/move advancement, remaining Intuition consumers, split-damage capability, respecs, and permanent-discovery awards without rebuilding working stats or losing secured progress.
 
@@ -185,7 +185,7 @@ Proof: `tests/test_advancement.py`, `tests/test_save_state.py`, and existing per
   Gate 1 authored purposes; do not add resistance, redesign tree structure, or
   change GP, tier, purchase, loadout, or schema-15 ownership rules.
 
-Proof: local qualification on the Gate 2 working tree passed 1,932 root tests, 63 web tests, content validation, compileall, the 132-entry dataclass manifest check, a 153-file browser build, and browser smoke. Hosted Gate 2 CI passed on base SHA `9d9c892fefdd8b91a3969938dbfb984fafbf3e96`; the current Gate 3 changes are not part of that run. Gate 5's advancement journey and pinned MicroPython requalification remain future qualification work.
+Proof: local qualification on the Gate 2 working tree passed 1,932 root tests, 63 web tests, content validation, compileall, the 132-entry dataclass manifest check, a 153-file browser build, and browser smoke. Hosted Gate 2 CI passed on base SHA `9d9c892fefdd8b91a3969938dbfb984fafbf3e96`; the current Gate 3 changes were not part of that run. At this Gate 2 checkpoint, Gate 5's advancement journey and pinned MicroPython requalification remained future work; see Gate 5 for the cumulative follow-through.
 
 ### Gate 3 - Secured XP And Permanent Awards
 
@@ -193,9 +193,9 @@ Proof: local qualification on the Gate 2 working tree passed 1,932 root tests, 6
 - [x] Implement the secured-XP consumer after payout adjustment and recipient split. Apply it per eligible Drifter on dungeon banking and already-secured Surface encounter rewards; never award unsecured XP.
 - [x] Resolve M3-D6 and implement authored permanent-discovery sources, active-party target selection, explicit confirmation/cancellation, one-time claim evidence, and atomic reward-plus-save behavior. Do not add new permanent HP/Mana/GP caps or world placements.
 - [x] Verify each authored reward (HP/Mana +5/+10 and Spirit Relic +3 GP), both active targets, rejection of benched targets and malformed/unknown source IDs, cancellation, repeat/reload behavior, and unchanged state when persistence fails.
-- [ ] Specify the M4 loot-discovery hook and M8 placement contract semantically: probabilities/outcomes are resolved once by the owner, not rerolled on presentation.
+- [x] Record the M4/M8 handoff: M4/M8 owns discovery probability and resolves an outcome once; M8 owns source placement and authored source IDs. Presentation only offers an already-resolved source to the claim service and never rerolls. M3 adds no locations, search probabilities, or loot placement.
 
-Gate 3 local verification on the current working tree: **1,960 root tests** and **63 web tests** passed; content validation passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compilation passed, and `git diff --check` passed. The discovery service uses injected authored definitions and controlled fixtures; no release locations or search/drop probabilities are implemented in M3. Web tests cover static packaging/contracts, not a browser gameplay journey. Hosted PostgreSQL and pinned MicroPython qualification were not run for this checkpoint; cumulative Gate 5 qualification remains open.
+Gate 3 local verification at that checkpoint: **1,960 root tests** and **63 web tests** passed; content validation passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compilation passed, and `git diff --check` passed. The discovery service uses injected authored definitions and controlled fixtures; no release locations or search/drop probabilities are implemented in M3. Web tests then covered static packaging/contracts, not a browser gameplay journey. Hosted PostgreSQL and pinned MicroPython were not run for that checkpoint; see Gate 5 for cumulative qualification status.
 
 ### Gate 4 - Respec And Persistence Trust Boundary
 
@@ -205,17 +205,23 @@ Gate 3 local verification on the current working tree: **1,960 root tests** and 
 - [x] Remove purchased passive/active ownership and any equipped move made unavailable by the respec; preserve legacy/independent move access and maintain the four-slot legal kit. Preserve level, XP, automatic growth, weapons, components, materials, weapon XP, learned techniques, discovery bonuses/claims, and all other Drifters.
 - [x] Recalculate resource maxima from resulting permanent stats and clamp current HP/Mana to the new maxima without healing/refilling. Persist per-Drifter stat-purchase history and respec count under runtime schema 16 / disk schema 17; keep profile API, envelope, and database schemas unchanged.
 - [x] Test exact refund and parchment accounting, independent free uses, cancellation/failure atomicity, invalid target/phase, save/reload/profile-sync no-duplicate behavior, preserved independent progression, resource clamping, and strict save validation.
-- [ ] Complete exact-SHA hosted qualification: PostgreSQL integration, migration-from-zero, Alembic parity, Python 3.14 full root suite, and hosted browser smoke. Gate 5 remains responsible for the playable terminal/browser respec journey.
+- [x] Complete exact-SHA hosted qualification: PostgreSQL integration, migration-from-zero, Alembic parity, Python 3.14 full root suite, and hosted browser smoke. Gate 5 remains responsible for the playable terminal/browser respec journey.
 
 **Gate 4 local evidence (working tree based on `d9d068f99a85ddcb6668726f537c1707184d605f`):** a fresh focused schema/respec bundle passed **136 tests** under Python 3.14.6, and web pytest passed **63 tests**. The full root suite reported **1,937 passed and 39 failed**; each failure occurred while a test attempted to spawn a child process and Windows returned `WinError 6` for an invalid handle, before that child-process behavior could be exercised. The repository's hosted workflow also uses Python 3.14, but this local runner result is not counted as a green full suite.
 
-Content validation passed (5 enemies, 4 weapons, 4 Drifters, 10 encounters, 2 routes, 1 recruitment event); compileall passed; the generated dataclass manifest check passed at 136 entries; browser site build passed at 156 files; and `git diff --check` passed. A prior local Playwright smoke passed the Floor I, M1/M2, save/reload, and qualification routes; a repeat attempt in this continuation could not launch because the Playwright Chromium executable is absent. The earlier profile-service run passed 28 tests and skipped 9 PostgreSQL/migration cases because Docker's `dockerDesktopLinuxEngine` pipe was unavailable and no dedicated database URL was set. A repeat with the available Python 3.14.6 could not collect service tests because the existing `pydantic_core` binary wheel is incompatible with that interpreter. PostgreSQL integration, migration-from-zero, Alembic parity, exact-SHA hosted CI, and pinned MicroPython therefore remain unqualified. No commit SHA or Actions link exists yet for this working tree; record those after the user commits/pushes and exact-SHA hosted checks finish. No production behavior outside the approved respec/state/migration contract was changed.
+
+**Gate 4 hosted qualification (exact commit `410ed240f284d79ab37daf7211f9b0d60e409d45`; [Actions run 41969940820](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/41969940820)):** both hosted jobs passed. The hosted Python 3.14 suite passed **1,976 root tests** and **63 web tests**; the PostgreSQL service suite passed **37 tests**. Content validation, compilation, the 156-file browser build, Chromium smoke, migration from zero, and Alembic model parity passed. Gate 4 is hosted-qualified. The local Windows child-process `WinError 6`, unavailable local Chromium executable, and incompatible local `pydantic_core` wheel are historical environment diagnostics, not outstanding Gate 4 blockers. Pinned MicroPython was not run and remains part of cumulative qualification.
+
+No production behavior outside the approved respec/state/migration contract was changed.
 
 ### Gate 5 - Playable Advancement And Qualification
 
-- [ ] Terminal/built-browser journey: gain secured GP -> buy passive/move -> inspect changed legal kit -> use its real effect -> save/reload -> approved Hub respec -> verify conservation and weapon preservation.
-- [ ] Retain compact mobile Skills/Character navigation and desktop information; extend the real probe with a bounded purchase/effect/round-trip path.
-- [ ] Run shared cumulative qualification and exact-SHA hosted checks. Record which discoveries are system-only controlled fixtures pending M8; do not claim real location content exists yet.
+- [x] Prove the terminal journey through its real input/render adapter: target a Drifter, purchase passive/active skills, equip the move, save/load, and confirm Hub respec with preserved weapon state. The built-browser journey additionally proves the equipped move's real combat effect, save/reload, and respec conservation.
+- [x] Retain compact mobile Skills/Character navigation and desktop information; extend the pinned probe with a bounded purchase/effect/round-trip path.
+- [x] Run local cumulative qualification: 1,983 root tests, 65 web tests, content validation, compileall, 156-file browser build, full Playwright smoke, and the pinned MicroPython matrix (816K stable pass 3/3; 784K expected memory limit 3/3).
+- [ ] Run exact-SHA hosted checks, including PostgreSQL integration, migration-from-zero, Alembic parity, and hosted browser smoke. Record discoveries as controlled system fixtures pending M8; no real discovery locations are claimed.
+
+Gate 5 local evidence is recorded in [Probe Notes](../../probe.md). The current tree is based on `410ed240f284d79ab37daf7211f9b0d60e409d45` and remains uncommitted. Docker was unavailable in the local environment, so PostgreSQL/migration checks were not rerun locally. M3 is not sealed until the exact pushed revision passes hosted CI.
 
 Closure: all four Drifters have the approved functioning initial advancement path, real potency/secured-XP consumers, safe respec, and trusted persistence. M4/M8 remain responsible for real search/loot placement; M7 is separate temporary Momentum.
 

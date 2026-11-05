@@ -325,6 +325,16 @@ button:disabled {
 .skill-attack { display: grid; gap: .15rem; padding-block: .3rem; border-bottom: 1px solid var(--line); }
 .skill-attack p { margin: 0; color: var(--muted); }
 .skill-attack-values, .weapon-effect-summary { font-size: .9rem; }
+.advancement-heading { margin-top: 1rem; }
+.skill-advancement, .skill-loadout, .skill-available-moves { display: grid; gap: .3rem; max-width: 54rem; }
+.skill-advancement-row, .skill-available-move { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding-block: .35rem; border-bottom: 1px solid var(--line); }
+.skill-advancement-description, .skill-available-move { min-width: 0; }
+.skill-advancement-description { display: grid; gap: .1rem; }
+.skill-advancement-description span, .skill-available-move span, .skill-advancement-state { color: var(--muted); }
+.skill-advancement-purchase { min-height: 2.25rem; padding: .35rem .6rem; white-space: nowrap; }
+.skill-loadout-row { display: grid; grid-template-columns: 5rem minmax(0, 24rem); align-items: center; gap: .5rem; min-height: 2.5rem; }
+.skill-loadout-select { min-width: 0; min-height: 2.25rem; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: .25rem; background: var(--panel); color: var(--ink); font: inherit; }
+#respec-panel .detail-line { margin-block: .3rem; }
 .weapon-panel .detail-subtitle, .weapon-panel .detail-line { margin-top: .1rem; }
 .weapon-panel .detail-copy { max-width: 92ch; white-space: pre-wrap; }
 .detail-options, #skills-options { grid-template-columns: minmax(10rem, 18rem); max-width: 18rem; }
@@ -447,6 +457,9 @@ button:disabled {
   .drifter-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-option-sprite { height: clamp(8rem, 24vh, 13rem); }
   .skill-stat { grid-template-columns: 1.6rem minmax(5rem, 1fr) 2.5rem minmax(8rem, auto); gap: .2rem; }
+  .skill-advancement-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .skill-advancement-purchase { justify-self: start; }
+  .skill-loadout-row { grid-template-columns: 3.5rem minmax(0, 1fr); }
 }
 
 @media (orientation: portrait) and (max-width: 60rem) {

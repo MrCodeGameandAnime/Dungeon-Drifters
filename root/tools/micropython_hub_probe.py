@@ -1041,6 +1041,127 @@ def _m2_return_talisman(state):
         raise AssertionError("saved Talisman outcome differs from the accepted result")
 
 
+def _m3_purchase_advancement(state):
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import (
+        ChooseAdvancementEquip,
+        ChooseAdvancementPurchase,
+        ChooseCharacterTarget,
+        ChooseOverworldAction,
+    )
+
+    game = state["route_game"]
+    session = state["route_session"]
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    if session.current_view().screen is not OverworldScreen.HUB:
+        raise AssertionError("M3 advancement probe did not begin at the Hub")
+    if azhvielle.growth_points < 5:
+        raise AssertionError("secured Floor I rewards did not fund the M3 probe")
+
+    view = session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    if view.screen is not OverworldScreen.CHARACTER:
+        raise AssertionError("Hub did not open the Character screen")
+    view = session.submit(ChooseOverworldAction(OverworldAction.SKILLS))
+    if view.screen is not OverworldScreen.SKILLS:
+        raise AssertionError("Hub did not open the Skills screen")
+    view = session.submit(ChooseCharacterTarget("azhvielle"))
+    if view.skills is None or view.skills.selected_target_id != "azhvielle":
+        raise AssertionError("Skills screen did not target Azhvielle")
+
+    starting_gp = azhvielle.growth_points
+    for skill_id in ("azhvielle_p01", "azhvielle_a01"):
+        view = session.submit(ChooseAdvancementPurchase("azhvielle", skill_id))
+        if skill_id not in azhvielle.purchased_passive_skill_ids + azhvielle.purchased_active_skill_ids:
+            raise AssertionError("authored M3 skill purchase was not recorded")
+    view = session.submit(ChooseAdvancementEquip("azhvielle", "azhvielle_a01", 3))
+    if not view.skills or view.skills.loadout[3].move.move_id != "azhvielle_a01":
+        raise AssertionError("purchased M3 move was not equipped")
+    if azhvielle.growth_points != starting_gp - 5:
+        raise AssertionError("M3 skill purchases spent an unexpected GP amount")
+    if not any(move.move_id == "azhvielle_a01" for move in view.skills.available_moves):
+        raise AssertionError("purchased M3 move was absent from the available pool")
+    state["m3_progression_snapshot"] = game.snapshot()
+    state["m3_progression_gp"] = azhvielle.growth_points
+
+
+def _m3_roundtrip_advancement(state):
+    game = state["route_game"]
+    snapshot = state["m3_progression_snapshot"]
+    restored = game.clone()
+    if restored.snapshot() != snapshot:
+        raise AssertionError("M3 skill purchases or loadout changed on round-trip")
+    member = restored.member_for_drifter_id("azhvielle")
+    if (
+        "azhvielle_p01" not in member.purchased_passive_skill_ids
+        or "azhvielle_a01" not in member.purchased_active_skill_ids
+        or member.equipped_normal_move_ids[3] != "azhvielle_a01"
+    ):
+        raise AssertionError("M3 advancement fields did not survive round-trip")
+    state["m3_roundtrip_game"] = restored
+
+
+def _m3_use_advancement_move(state):
+    from app.combat.battle import Battle
+    from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+
+    class FirstRollRng:
+        def randint(self, start, end):
+            return start
+
+        def choice(self, values):
+            return values[0]
+
+    combat_game = state["m3_roundtrip_game"].clone()
+    azhvielle = combat_game.member_for_drifter_id("azhvielle")
+    enemies = tuple(
+        state["catalog"].create_enemy_state("goblin") for _ in range(3)
+    )
+    enemy = enemies[0]
+    enemy_hp_before = enemy.health.current
+    battle = Battle(
+        azhvielle,
+        enemies,
+        rng=FirstRollRng(),
+        encounter_label="M3 Advancement Probe",
+    )
+    view = battle.current_view()
+    view = battle.submit(ChooseAction("attack"))
+    move = None
+    for option in view.move_options:
+        if option.name == "Witchlight Bolt" and option.enabled:
+            move = option
+            break
+    if move is None:
+        raise AssertionError("Witchlight Bolt was not offered in the real Battle")
+    view = battle.submit(ChooseMove(move.selection_key))
+    if not view.target_options:
+        raise AssertionError("Witchlight Bolt did not offer a legal target")
+    view = battle.submit(ChooseTarget(view.target_options[0].target_id))
+    if enemy.health.current >= enemy_hp_before:
+        raise AssertionError("Witchlight Bolt did not damage the Goblin")
+    state["m3_move_damage"] = enemy_hp_before - enemy.health.current
+
+
+def _m3_assert_advancement_final_state(state):
+    from app.presentation.overworld_models import OverworldScreen
+    from app.ui.overworld_ui import ChooseOverworldAction
+    from app.presentation.overworld_models import OverworldAction
+
+    game = state["route_game"]
+    restored = state["m3_roundtrip_game"]
+    if game.snapshot() != state["m3_progression_snapshot"]:
+        raise AssertionError("probe combat mutated the saved M3 progression state")
+    if restored.snapshot() != state["m3_progression_snapshot"]:
+        raise AssertionError("M3 round-trip state changed after combat proof")
+    if state.get("m3_move_damage", 0) <= 0:
+        raise AssertionError("M3 probe did not record positive move damage")
+    session = state["route_session"]
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    if session.current_view().screen is not OverworldScreen.HUB:
+        raise AssertionError("M3 probe did not restore the Hub route view")
+
+
 def run(state, complete_battle, run_stage):
     run_stage("M1_INITIAL_ROSTER", lambda: _assert_initial_roster(state))
     run_stage("HUB_RECRUITMENT", lambda: _recruit_companion(state))
@@ -1140,3 +1261,7 @@ def run(state, complete_battle, run_stage):
         lambda: _m2_smoke_retry(state, complete_battle),
     )
     run_stage("M2_TALISMAN_RETURN", lambda: _m2_return_talisman(state))
+    run_stage("M3_ADVANCEMENT_PURCHASE", lambda: _m3_purchase_advancement(state))
+    run_stage("M3_ADVANCEMENT_ROUNDTRIP", lambda: _m3_roundtrip_advancement(state))
+    run_stage("M3_ADVANCEMENT_MOVE_EFFECT", lambda: _m3_use_advancement_move(state))
+    run_stage("M3_ADVANCEMENT_FINAL_STATE", lambda: _m3_assert_advancement_final_state(state))
