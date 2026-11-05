@@ -311,9 +311,10 @@ hosted qualification on the exact committed SHA.
 
 ## M3 Gate 5 Advancement Probe (2026-11-05)
 
-The Gate 5 extension was run on the uncommitted `dungeon` working tree based on
-`410ed240f284d79ab37daf7211f9b0d60e409d45`. It extends the existing probe
-through authored advancement purchase, loadout, combat effect, and state
+The Gate 5 extension is committed on `dungeon` as
+`703502a5aeff74ea83f8cde091629368da18826d` (`m5 gate 5`), based on the Gate 4
+commit `410ed240f284d79ab37daf7211f9b0d60e409d45`. It extends the existing
+probe through authored advancement purchase, loadout, combat effect, and state
 round-trip without changing discovery placement or M4/M8 probability ownership.
 
 The pinned Windows MicroPython v1.29.0 executable was re-identified:
@@ -348,7 +349,7 @@ input translation. A terminal-driven session test now exercises exact-target
 skill purchase/equip, save/load, and confirmed respec while checking loadout,
 Growth Point, and signature-weapon preservation.
 
-Local cumulative verification on this tree passed: **1,983 root tests**,
+Local cumulative verification passed: **1,983 root tests**,
 **65 web tests**, authored-content validation (5 enemies, 4 weapons, 4
 Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compileall, a
 **156-file browser build**, and the full Playwright browser smoke. The smoke
@@ -356,7 +357,7 @@ passed the advancement purchase/equip/save/reload journey, actual advancement
 move use, respec persistence, existing weapon save/reload, Floor One clear and
 replay/extraction, and the full route.
 
-This is working-tree evidence, not hosted or exact-commit evidence. The local
-Docker engine was inaccessible, so PostgreSQL service tests, migration-from-zero,
-and Alembic parity were not rerun. No commit or push was made; exact-SHA hosted
-qualification remains required before M3 can be called sealed.
+The exact-commit hosted qualification passed on `703502a5aeff74ea83f8cde091629368da18826d`
+([Actions run 42083678861](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42083678861)). The `Tests` job passed 1,983 root tests and 65 web tests, content validation, compileall, a 156-file browser build, and the complete Chromium smoke. The smoke included advancement purchase/equip/save/reload, actual advancement-move use, respec save/reload, Floor One, weapon persistence, and full-route markers. The `Profile Service (PostgreSQL)` job passed all 37 service tests, migrations from zero, and Alembic model parity (`No new upgrade operations detected`).
+
+The local Docker engine was inaccessible, so PostgreSQL/migration evidence is hosted rather than local. The pinned MicroPython matrix was run locally against the Gate 5 implementation: 816K stable pass 3/3 and 784K expected memory limit 3/3. The hosted workflow does not run the pinned MicroPython binary; keep that distinction explicit. Gate 5 cumulative qualification is complete, and M3 is sealed on `dungeon`.

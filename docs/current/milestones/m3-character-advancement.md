@@ -2,7 +2,7 @@
 
 > Implementation authorization: M3 work is approved on the existing `dungeon` branch. Execute gate by gate; preserve all behavior and save policy outside the explicit M3 contracts below.
 
-**Status:** Gates 0-4 are implemented on the existing `dungeon` branch. M3-D1 through M3-D6 are resolved. Gate 4 passed exact-SHA hosted qualification, including hosted browser smoke and PostgreSQL/migration checks. Gate 5 implementation and local cumulative qualification are complete in the current working tree; exact-SHA hosted qualification remains pending. The pinned MicroPython matrix passed on this working tree.
+**Status:** Gates 0-5 are implemented on the existing `dungeon` branch. M3-D1 through M3-D6 are resolved. Gate 4 passed exact-SHA hosted qualification. Gate 5 passed local cumulative qualification, the pinned MicroPython matrix, and exact-SHA hosted qualification on `703502a5aeff74ea83f8cde091629368da18826d` (Actions run `42083678861`). M3 is sealed on `dungeon`; integration remains governed by the project roadmap.
 
 **Goal:** Complete passive/move advancement, remaining Intuition consumers, split-damage capability, respecs, and permanent-discovery awards without rebuilding working stats or losing secured progress.
 
@@ -26,7 +26,7 @@ Do not reimplement six stats, the Level 1 60-point budget, permanent caps, autom
 
 The resolver uses existing Strength/Dexterity/Intelligence output and Intuition critical/Super bonuses. Secured-XP bonuses are consumed at secured reward boundaries, and Gate 3 now has a controlled permanent-discovery claim service. Moves currently have independently resolved damage components under the Gate 2 contract. All authored kits are currently available, including Super. Weapon component effects are projected onto moves, and learned technique state exists in the signature-weapon model.
 
-Gate 1 authors all 96 character-specific skill names/purposes and owns per-Drifter passive/active purchases plus four normal-move slots. Gate 2 projects the authored passive and move effects into combat. The Skills UI and terminal/browser advancement actions remain for Gate 5; Gate 3 owns secured-XP awards and permanent-discovery claims, while respec remains open.
+Gate 1 authors all 96 character-specific skill names/purposes and owns per-Drifter passive/active purchases plus four normal-move slots. Gate 2 projects the authored passive and move effects into combat. Gate 5 delivers the terminal/browser Skills UI and advancement actions; Gate 3 owns secured-XP awards and permanent-discovery claims, and Gate 4 implements respec.
 
 ## Fixed Contracts And Required State
 
@@ -219,11 +219,11 @@ No production behavior outside the approved respec/state/migration contract was 
 - [x] Prove the terminal journey through its real input/render adapter: target a Drifter, purchase passive/active skills, equip the move, save/load, and confirm Hub respec with preserved weapon state. The built-browser journey additionally proves the equipped move's real combat effect, save/reload, and respec conservation.
 - [x] Retain compact mobile Skills/Character navigation and desktop information; extend the pinned probe with a bounded purchase/effect/round-trip path.
 - [x] Run local cumulative qualification: 1,983 root tests, 65 web tests, content validation, compileall, 156-file browser build, full Playwright smoke, and the pinned MicroPython matrix (816K stable pass 3/3; 784K expected memory limit 3/3).
-- [ ] Run exact-SHA hosted checks, including PostgreSQL integration, migration-from-zero, Alembic parity, and hosted browser smoke. Record discoveries as controlled system fixtures pending M8; no real discovery locations are claimed.
+- [x] Run exact-SHA hosted checks, including PostgreSQL integration, migration-from-zero, Alembic parity, and hosted browser smoke. Record discoveries as controlled system fixtures pending M8; no real discovery locations are claimed.
 
-Gate 5 local evidence is recorded in [Probe Notes](../../probe.md). The current tree is based on `410ed240f284d79ab37daf7211f9b0d60e409d45` and remains uncommitted. Docker was unavailable in the local environment, so PostgreSQL/migration checks were not rerun locally. M3 is not sealed until the exact pushed revision passes hosted CI.
+Gate 5 local and runtime evidence is recorded in [Probe Notes](../../probe.md). **Exact-SHA hosted qualification** on `703502a5aeff74ea83f8cde091629368da18826d` ([Actions run 42083678861](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42083678861)) passed both jobs: 1,983 root tests, 65 web tests, full Chromium smoke, 37 PostgreSQL service tests, migrations from zero, and Alembic model parity. The pinned MicroPython matrix passed locally at 816K in 3/3 runs; 784K reached the expected memory-limit classification in 3/3 runs. Local Docker was unavailable, so PostgreSQL and migration qualification is specifically the hosted evidence.
 
-Closure: all four Drifters have the approved functioning initial advancement path, real potency/secured-XP consumers, safe respec, and trusted persistence. M4/M8 remain responsible for real search/loot placement; M7 is separate temporary Momentum.
+**M3 closure:** all four Drifters have the approved functioning initial advancement path, real potency/secured-XP consumers, safe respec, and trusted persistence. Local cumulative and pinned-runtime qualification plus exact-SHA hosted CI passed. M4/M8 remain responsible for real search/loot placement; M7 is separate temporary Momentum.
 
 ## Unresolved Product Decisions
 
