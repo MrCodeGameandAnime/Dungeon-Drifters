@@ -173,16 +173,16 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 **Depends on:** M3 combat contracts; M2 supplies for preparation counters.
 
 1. Implement authored numerical tier policies while preserving archetype identity and capability budgets. Enemy tier is not weapon quality or material grade.
-2. Add explicit resistances/weaknesses and bounded behavior policies for attack, heal, Defend, targeting, and resource use. Tier changes must not automatically grant moves or capabilities.
+2. Add identity-based elemental/alchemical resistance and weakness through the existing physical/magical damage paths. Preserve the current legal-affordable random move selection and random living-target policy; tier does not grant moves or capabilities.
 3. Author additional specialized enemy kits only where encounters need them; reuse existing archetypes rather than rebuilding the catalog.
-4. Extend existing XP/gold/item drops into the required reward tables. Connect discovery bonuses to an approved probability/quality rule, without guaranteed rare rewards or reroll-on-reload exploits.
-5. Prove formation behavior and a boss phase transition where selected for the first content slice. Do not mistake existing target order for tactical formations.
+4. Extend existing XP/gold/item drops into authored reward tables. Apply the selected active searcher's Intuition bonus to authored discovery chances, and persist search/drop outcomes to prevent reload or repeated-input rerolls.
+5. Defer formations and boss phases. They are not part of the approved M4A Floor II slice or the M4B Floor III readiness proof.
 6. Add one authored environmental pressure and its preparation/counterplay loop. Durability and persistent injuries need separate approval if selected.
 7. Build a small next-floor slice using these systems and legitimate next-grade material sources. It need not wait for the entire later campaign.
 
 **Proof:** The same archetype scales without gaining unauthorized capability; enemy instances remain independent; illegal actions cannot be selected; a prepared pair can counter the new threat; rewards enter unsecured state and bank only under the correct return rule.
 
-**Decide at entry:** Initial scaling policies, resistance rules, readable AI behavior, selected formation/phase/hazard mechanics, and which next-floor content to author first. Use editable first-pass values, not an exhaustive balance exercise.
+**Gate 0 approved:** See [M4 Enemy Progression](m4-enemy-progression.md) for M4-D1 through D7 and [the bounded Floor II implementation plan](m4-floor-ii-implementation.md) for M4A. Delivery remains M4A -> M5 -> M4B; initial authored values are tunable, and formations/boss phases are deferred.
 
 ## M5 - Persistent Armor And Accessories
 
