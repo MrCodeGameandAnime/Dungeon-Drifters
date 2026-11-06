@@ -1,9 +1,34 @@
 import { chromium } from "playwright";
+import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = (process.argv[2] || "http://127.0.0.1:8765").replace(/\/$/, "");
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const pythonCandidates = [
+  process.env.PYTHON,
+  ...(process.platform === "win32"
+    ? [path.resolve(repositoryRoot, "..", ".venv", "Scripts", "python.exe"), "python3"]
+    : ["python3"]),
+].filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index);
+let floorTwoProfileEnvelope;
+for (const pythonExecutable of pythonCandidates) {
+  try {
+    floorTwoProfileEnvelope = execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "floor_two_browser_save_fixture.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ).trim();
+    break;
+  } catch (error) {
+    if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
+  }
+}
+if (!floorTwoProfileEnvelope) {
+  throw new Error(`could not generate the Floor II browser save fixture with: ${pythonCandidates.join(", ")}`);
+}
 const errors = [];
 const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
@@ -257,7 +282,7 @@ async function clickVisibleOption(page, containerSelector, label) {
   for (let index = 0; index < await buttons.count(); index += 1) {
     const button = buttons.nth(index);
     const text = await button.evaluate((element) =>
-      element.querySelector(".choice-label")?.textContent ?? element.textContent,
+      element.querySelector(".choice-label")?.textContent?.trim() || element.textContent.trim(),
     );
     if (text?.trim() === label && await button.isEnabled()) {
       await button.click();
@@ -3001,6 +3026,556 @@ try {
     `browser save/reload changed or repeated Azhvielle's confirmed respec: ${JSON.stringify({ growthAfterRespec, restoredRespecGrowth, restoredRespecStrength, restoredPassiveState, restoredActiveState })}`,
   );
   console.log("M3_BROWSER|RESPEC_SAVE_RELOAD|PASS");
+
+  const floorTwoProfileKey =
+    "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  const readFloorTwoDiscoveryBonuses = async () => page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    const members = [payload.player, ...payload.party.companions];
+    return Object.fromEntries(members.map((member) => [
+      member.identity.profile.drifter_id,
+      member.permanent_discovery_bonuses,
+    ]));
+  }, floorTwoProfileKey);
+  await page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: floorTwoProfileKey,
+    envelope: floorTwoProfileEnvelope,
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "HUB" &&
+      await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      await page.locator("#hub-shared-gold").innerText() === "Shared gold: 64",
+    "the Floor II browser fixture did not load as an insufficient-gold cleared-Hub save",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-targets", "Azhvielle, the Unconfessed");
+  const azhvielleHpAtHub = Number(
+    (await page.locator("#character-progression").innerText()).match(/HP\s+\d+\/(\d+)/)?.[1] || 0,
+  );
+  requireCondition(azhvielleHpAtHub > 0, "the qualifying save omitted Azhvielle's starting HP maximum");
+  await clickVisibleOption(page, "#character-options", "Back");
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const floorTwoPackText = await page.locator("#items-list").innerText();
+  requireCondition(
+    floorTwoPackText.includes("Healing Potion x6 | Carried Pack"),
+    `the Floor II qualifying save did not load its six carried potions: ${floorTwoPackText}`,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  console.log("M4_BROWSER|LOAD_QUALIFYING_SAVE|PASS");
+
+  const floorTwoPotionUses = [];
+  const floorTwoBattleLogs = new Map();
+  const readFloorTwoActivePartyResources = async () => {
+    await clickVisibleOption(page, "#overworld-options", "Character");
+    await page.locator("#character-panel").waitFor({ state: "visible" });
+    const resources = {};
+    for (const [drifterId, label] of [
+      ["branoc", "Ser Branoc, the Unbroken Crest"],
+      ["azhvielle", "Azhvielle, the Unconfessed"],
+    ]) {
+      await clickVisibleOption(page, "#character-targets", label);
+      await page.locator("#character-targets button[aria-pressed='true']")
+        .filter({ hasText: label }).waitFor({ state: "visible" });
+      const text = await page.locator("#character-resources").innerText();
+      resources[drifterId] = Object.fromEntries(
+        [...text.matchAll(/(HP|Mana|Super)\s+(\d+)\/(\d+)/g)]
+          .map((match) => [match[1].toLowerCase(), [Number(match[2]), Number(match[3])]]),
+      );
+    }
+    await clickVisibleOption(page, "#character-options", "Back");
+    await page.locator("#character-panel").waitFor({ state: "hidden" });
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    return resources;
+  };
+  const verifyFloorTwoRestRecovery = (before, after, restLabel) => {
+    for (const drifterId of ["branoc", "azhvielle"]) {
+      for (const resource of ["hp", "mana"]) {
+        requireCondition(
+          after[drifterId][resource][0] === after[drifterId][resource][1],
+          `${restLabel} did not fully restore ${drifterId} ${resource}: ${JSON.stringify(after[drifterId])}`,
+        );
+      }
+      requireCondition(
+        after[drifterId].super[0] === before[drifterId].super[0],
+        `${restLabel} changed ${drifterId} Super: ${JSON.stringify({ before: before[drifterId], after: after[drifterId] })}`,
+      );
+    }
+  };
+  const clearFloorTwoBattle = async (battleNumber) => {
+    const observedBattleLog = new Set();
+    const captureBattleLog = async () => {
+      const log = await page.locator("#battle-log").innerText();
+      for (const line of log.split("\n").map((entry) => entry.trim()).filter(Boolean)) {
+        observedBattleLog.add(line);
+      }
+      return [...observedBattleLog].join("\n");
+    };
+    const defendAndWait = async () => {
+      const button = page.locator("#actions button").filter({ hasText: "Defend" }).first();
+      await button.evaluate((node) => { window.__DD_FLOOR_TWO_DEFEND_BUTTON__ = node; });
+      await button.click();
+      await page.waitForFunction(() => {
+        const button = window.__DD_FLOOR_TWO_DEFEND_BUTTON__;
+        const battle = document.getElementById("battle-screen");
+        const overworld = document.getElementById("overworld-screen");
+        return !button || !button.isConnected || !battle || battle.hidden ||
+          (overworld && !overworld.hidden);
+      });
+      await captureBattleLog();
+    };
+    const chooseFloorTwoEnemy = async () => {
+      const targets = page.locator("#targets .target-choice:not([disabled])");
+      const labels = await targets.allInnerTexts();
+      const priority = (label) => {
+        if (/\bGoblin\b/i.test(label) && !/\b(Lord|Warrior|Shaman)\b/i.test(label)) return 0;
+        if (/\bGoblin Warrior\b/i.test(label)) return 1;
+        if (/\bGoblin Shaman\b/i.test(label)) return 2;
+        if (/\bGoblin Lord\b/i.test(label)) return 3;
+        return 10;
+      };
+      const targetIndex = labels
+        .map((label, index) => ({ label, index, priority: priority(label) }))
+        .sort((first, second) => first.priority - second.priority)[0]?.index ?? -1;
+      requireCondition(targetIndex >= 0, "Floor II attack had no enabled target");
+      const target = targets.nth(targetIndex);
+      await target.evaluate((node) => { window.__DD_FLOOR_TWO_TARGET_BUTTON__ = node; });
+      await target.click();
+      await page.waitForFunction(
+        () => !window.__DD_FLOOR_TWO_TARGET_BUTTON__?.isConnected,
+      );
+    };
+    const resolveFloorTwoAttackChoice = async () => {
+      await page.waitForFunction(() =>
+        document.querySelector("#moves .move-choice:not([disabled])") !== null ||
+          document.querySelector("#targets .target-choice:not([disabled])") !== null,
+      );
+      if (await page.locator("#targets .target-choice:not([disabled])").count()) {
+        await chooseFloorTwoEnemy();
+        return;
+      }
+      const activeActor = await page.locator("#party-members .party-member.is-active h3").innerText();
+      const preferredMoves = /Branoc/i.test(activeActor)
+        ? ["Ironwake Dismemberment", "Crestgrave Reaping", "Cinderlung Vesper"]
+        : /Azhvielle/i.test(activeActor)
+          ? ["Gloamweight Sepulcher", "Mournglass Bloom", "Scepter Sweep"]
+          : [];
+      const enabledMoves = page.locator("#moves .move-choice:not([disabled])");
+      const moveLabels = await enabledMoves.allInnerTexts();
+      const preferredMove = preferredMoves.find((name) =>
+        moveLabels.some((label) => label.includes(name)),
+      );
+      if (preferredMove) {
+        const button = enabledMoves.filter({ hasText: preferredMove }).first();
+        await button.evaluate((node) => { window.__DD_LAST_BATTLE_CHOICE__ = node; });
+        await button.click();
+        await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+      } else {
+        await clickFirstBattleChoice("#moves .move-choice");
+      }
+      if (await page.locator("#app").getAttribute("data-interaction-phase") === "targets") {
+        await chooseFloorTwoEnemy();
+      }
+    };
+    const attackWithFloorTwoTargeting = async () => {
+      await clickVisibleOption(page, "#actions", "Attack");
+      await resolveFloorTwoAttackChoice();
+    };
+
+    for (let action = 0; action < 120 && await page.locator("#overworld-screen").isHidden(); action += 1) {
+      await captureBattleLog();
+      const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+      if (phase === "actions") {
+        const caveInResolved = [...observedBattleLog].some((line) => line.includes("Falling stone struck"));
+        if (battleNumber === 5 && !caveInResolved) {
+          await defendAndWait();
+          continue;
+        }
+        const lowestPartyHealth = await page.locator(
+          "#party-members .party-member-status",
+        ).evaluateAll((statuses) => Math.min(...statuses.map((status) => {
+          const match = status.textContent.match(/HP\s+(\d+)\/(\d+)/);
+          return match ? Number(match[1]) / Number(match[2]) : 1;
+        })));
+        const activePartyHealth = await page.locator(
+          "#party-members .party-member.is-active .party-member-status",
+        ).evaluate((status) => {
+          const match = status.textContent.match(/HP\s+(\d+)\/(\d+)/);
+          return match ? Number(match[1]) / Number(match[2]) : 1;
+        });
+        const potion = page.locator("#actions button").filter({ hasText: "Healing Potion" });
+        const potionOffered = await potion.count() > 0;
+        if (lowestPartyHealth <= 0.5 && potionOffered && await potion.isEnabled()) {
+          const healthBeforePotion = await page.locator(
+            "#party-members .party-member-status",
+          ).allInnerTexts();
+          await clickVisibleOption(page, "#actions", "Healing Potion");
+          await page.waitForFunction(
+            () => document.getElementById("app").dataset.interactionPhase === "healing_targets",
+          );
+          const targetIndex = await page.locator("#targets .target-choice:not([disabled])")
+            .evaluateAll((targets) => targets
+              .map((target, index) => {
+                const match = target.textContent.match(/HP\s+(\d+)\/(\d+)/);
+                return { index, ratio: match ? Number(match[1]) / Number(match[2]) : 1 };
+              })
+              .sort((first, second) => first.ratio - second.ratio)[0]?.index ?? -1);
+          requireCondition(targetIndex >= 0, "Healing Potion had no eligible Floor II target");
+          await page.locator("#targets .target-choice:not([disabled])").nth(targetIndex).click();
+          await page.waitForFunction(
+            () => document.getElementById("app").dataset.interactionPhase === "actions",
+          );
+          await captureBattleLog();
+          floorTwoPotionUses.push({
+            battleNumber,
+            before: healthBeforePotion,
+            after: await page.locator("#party-members .party-member-status").allInnerTexts(),
+          });
+        } else if (activePartyHealth <= 0.65) {
+          await defendAndWait();
+        } else {
+          const superAction = page.locator("#actions button").filter({ hasText: /^Super$/ });
+          if (await superAction.count() && await superAction.isEnabled()) {
+            await clickVisibleOption(page, "#actions", "Super");
+            await resolveFloorTwoAttackChoice();
+          } else {
+            await attackWithFloorTwoTargeting();
+          }
+          await captureBattleLog();
+        }
+      } else if (phase === "regular_moves") {
+        await resolveFloorTwoAttackChoice();
+        await captureBattleLog();
+      } else if (phase === "targets") {
+        await chooseFloorTwoEnemy();
+        await captureBattleLog();
+      } else {
+        const screenState = await page.evaluate(() => ({
+          badge: document.getElementById("screen-badge")?.textContent.trim(),
+          adventure: document.getElementById("adventure-text")?.textContent.trim(),
+          notice: document.getElementById("notice")?.textContent.trim(),
+          selectionHidden: document.getElementById("selection-screen")?.hidden,
+          overworldHidden: document.getElementById("overworld-screen")?.hidden,
+          battleHidden: document.getElementById("battle-screen")?.hidden,
+          routeActions: [...document.querySelectorAll("#route-actions button")]
+            .map((button) => button.textContent.trim()),
+          party: [...document.querySelectorAll("#party-members .party-member")]
+            .map((member) => member.innerText.trim()),
+          battleLog: document.getElementById("battle-log")?.innerText,
+          actions: [...document.querySelectorAll("#actions button")]
+            .map((button) => ({ text: button.textContent.trim(), disabled: button.disabled })),
+        }));
+        throw new Error(
+          `unexpected Floor II Battle ${battleNumber} phase: ${phase}; state=${JSON.stringify(screenState)}`,
+        );
+      }
+    }
+    await page.locator("#overworld-screen").waitFor({ state: "visible", timeout: 10000 }).catch(async (error) => {
+      const state = await page.evaluate(() => ({
+        badge: document.getElementById("screen-badge")?.textContent.trim(),
+        phase: document.getElementById("app")?.dataset.interactionPhase,
+        party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+          name: member.querySelector("h3")?.textContent.trim(),
+          status: member.querySelector(".party-member-status")?.textContent.trim(),
+        })),
+        enemies: [...document.querySelectorAll("#enemy-panel .enemy")].map((enemy) => enemy.innerText.trim()),
+        battleLog: document.getElementById("battle-log")?.innerText,
+        actions: [...document.querySelectorAll("#actions button")].map((button) => ({
+          label: button.textContent.trim(),
+          disabled: button.disabled,
+        })),
+      }));
+      throw new Error(
+        `Floor II Battle ${battleNumber} did not finish within the action budget: ${JSON.stringify(state)}; ${error.message}`,
+      );
+    });
+    const outcome = await page.evaluate(({ potionUses, battleLog }) => ({
+      badge: document.getElementById("screen-badge").textContent.trim(),
+      adventure: document.getElementById("adventure-text").textContent.trim(),
+      battleLog,
+      potionUses,
+      party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+        id: member.dataset.targetId,
+        status: member.querySelector(".party-member-status")?.textContent.trim(),
+      })),
+    }), {
+      potionUses: floorTwoPotionUses,
+      battleLog: [...observedBattleLog].join("\n"),
+    });
+    const floorTwoBossVictory = battleNumber === 10
+      && outcome.badge === "HUB"
+      && outcome.adventure.includes("Floor 2 is cleared");
+    requireCondition(
+      outcome.badge !== "DRIFTER SELECTION"
+        && (outcome.badge !== "HUB" || floorTwoBossVictory),
+      `Floor II Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
+    );
+    floorTwoBattleLogs.set(battleNumber, outcome.battleLog);
+  };
+
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 2");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+      if (battleNumber === 5) {
+        await page.locator("#battle-log").filter({ hasText: "Cave-in is imminent." }).waitFor({ state: "visible" });
+      }
+    }
+    await clearFloorTwoBattle(battleNumber);
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+      const caveInLog = floorTwoBattleLogs.get(5) || "";
+      requireCondition(
+        caveInLog.toLowerCase().includes("a cave-in is imminent.") &&
+          caveInLog.includes("used Defend.") &&
+          caveInLog.includes("Falling stone struck"),
+        `Floor II's cave-in warning and response were not both recorded: ${caveInLog}`,
+      );
+    }
+  }
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const blockedCompanions = page.locator("#companion-choices .companion-choice");
+  requireCondition(
+    (await page.locator("#companion-funds").innerText()).includes("Shared gold: 64") &&
+      await blockedCompanions.count() === 2 &&
+      await blockedCompanions.evaluateAll((buttons) => buttons.every((button) => button.disabled)),
+    "the browser did not block D3 recruitment below its 65-gold cost",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Extract");
+  await page.locator("#extraction-rewards").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Return to Hub");
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const returnedGold = Number(
+    (await page.locator("#hub-shared-gold").innerText()).match(/\d+/)?.[0] || 0,
+  );
+  requireCondition(
+    returnedGold >= 65,
+    `Floor II early extraction did not leave enough secured gold to retry D3 recruitment: ${returnedGold}`,
+  );
+  console.log("M4_BROWSER|D3_UNAFFORDABLE_EXTRACT_RETRY|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  let storedHealingPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  while (storedHealingPotions > 0 && await quantityInSupplyRow("Healing Potion", "Carried") < 6) {
+    await updateSupply("Healing Potion", "Load");
+    storedHealingPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  }
+  requireCondition(
+    await quantityInSupplyRow("Healing Potion", "Carried") === 6,
+    "the Floor II replay did not reload a full Healing Potion pack from secured Hub storage",
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 2");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorTwoBattle(battleNumber);
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const zhaivraChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Zhaivra" });
+  requireCondition(await zhaivraChoice.isEnabled(), "D3 was not recruitable after returning with sufficient gold");
+  await zhaivraChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("Zhaivra") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "D3 recruitment did not join the roster while preserving the active pair",
+  );
+  console.log("M4_BROWSER|D3_RECRUITMENT|PASS");
+
+  const midwayResourcesBeforeRecover = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  const midwayResourcesAfterRecover = await readFloorTwoActivePartyResources();
+  verifyFloorTwoRestRecovery(
+    midwayResourcesBeforeRecover,
+    midwayResourcesAfterRecover,
+    "Floor II Midway Rest",
+  );
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+    await page.locator("#party-panel").waitFor({ state: "visible" });
+    await clearFloorTwoBattle(battleNumber);
+    if (battleNumber === 9) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+
+  const preSearchResources = await readFloorTwoActivePartyResources();
+  const discoveryBonusesBefore = await readFloorTwoDiscoveryBonuses();
+  await clickVisibleOption(page, "#overworld-options", "Search Site");
+  await page.locator("#discovery-selection").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#discovery-choices", "Ser Branoc, the Unbroken Crest");
+  await page.waitForFunction(() => ["CLAIM DISCOVERY", "REST"].includes(
+    document.getElementById("screen-badge").textContent.trim(),
+  ));
+  const searchBadge = await page.locator("#screen-badge").innerText();
+  let wellClaimed = false;
+  if (searchBadge === "CLAIM DISCOVERY") {
+    await clickVisibleOption(page, "#discovery-choices", "Azhvielle, the Unconfessed");
+    await page.locator("#screen-badge").filter({ hasText: "CONFIRM DISCOVERY" }).waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#overworld-options", "Confirm");
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    requireCondition(
+      (await page.locator("#notice").innerText()).includes(
+        "Ancient Well claimed by Azhvielle, the Unconfessed",
+      ),
+      `the Well claim did not confirm Azhvielle as its recipient: ${await page.locator("#notice").innerText()}`,
+    );
+    wellClaimed = true;
+  } else {
+    requireCondition(
+      searchBadge === "REST" && (await page.locator("#notice").innerText()).length > 0,
+      `Floor II search did not produce a persisted result screen: ${searchBadge}`,
+    );
+  }
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      await page.locator("#location-label").innerText() === "Pre-Boss Rest" &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Search Site") &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Claim Discovery"),
+    "Floor II reload lost the pre-boss search outcome or re-offered its one-time search/claim",
+  );
+  if (wellClaimed) {
+    await clickVisibleOption(page, "#overworld-options", "Character");
+    await page.locator("#character-panel").waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#character-targets", "Azhvielle, the Unconfessed");
+    const azhvielleHpAfterWell = Number(
+      (await page.locator("#character-progression").innerText()).match(/HP\s+\d+\/(\d+)/)?.[1] || 0,
+    );
+    const discoveryBonusesAfter = await readFloorTwoDiscoveryBonuses();
+    requireCondition(
+      azhvielleHpAfterWell >= preSearchResources.azhvielle.hp[1] + 5 &&
+        discoveryBonusesAfter.azhvielle.max_hp === discoveryBonusesBefore.azhvielle.max_hp + 5 &&
+        discoveryBonusesAfter.branoc.max_hp === discoveryBonusesBefore.branoc.max_hp,
+      `Azhvielle did not retain the Well's targeted +5 Max HP: ` +
+        `${preSearchResources.azhvielle.hp[1]} -> ${azhvielleHpAfterWell}; ` +
+        `bonuses ${JSON.stringify(discoveryBonusesBefore)} -> ${JSON.stringify(discoveryBonusesAfter)}`,
+    );
+    await clickVisibleOption(page, "#character-options", "Back");
+  }
+  console.log(`M4_BROWSER|SEARCH_SAVE_RELOAD|${wellClaimed ? "CLAIMED" : "FAILED_OUTCOME_PERSISTED"}|PASS`);
+
+  const preBossResourcesBeforeRecover = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  const preBossResourcesAfterRecover = await readFloorTwoActivePartyResources();
+  verifyFloorTwoRestRecovery(
+    preBossResourcesBeforeRecover,
+    preBossResourcesAfterRecover,
+    "Floor II Pre-Boss Rest",
+  );
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  await clearFloorTwoBattle(10);
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "HUB",
+    null,
+    { timeout: 10000 },
+  ).catch(async (error) => {
+    const state = await page.evaluate(() => ({
+      badge: document.getElementById("screen-badge")?.textContent.trim(),
+      location: document.getElementById("location-label")?.textContent.trim(),
+      adventure: document.getElementById("adventure-text")?.textContent.trim(),
+      notice: document.getElementById("notice")?.textContent.trim(),
+      battleLog: document.getElementById("battle-log")?.innerText,
+      party: [...document.querySelectorAll("#party-members .party-member")].map((member) =>
+        member.innerText.trim(),
+      ),
+      routeActions: [...document.querySelectorAll("#route-actions button")].map((button) =>
+        button.textContent.trim(),
+      ),
+    }));
+    throw new Error(`Floor II boss did not return to Hub: ${JSON.stringify(state)}; ${error.message}`);
+  });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#adventure-text").innerText()).includes("Floor 2 is cleared"),
+    "the Floor II boss did not secure the clear and return the roster to the Hub",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const floorTwoItems = await page.locator("#items-list").innerText();
+  requireCondition(
+    floorTwoItems.includes("Hub Storage") &&
+      /\b(?:Iron|Cotton|Hardwood|Elemental core)\s+x\d+\s+\|\s+Hub Storage\b/i.test(floorTwoItems),
+    `Floor II boss return did not expose secured inventory and Grade-II materials: ${floorTwoItems}`,
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS");
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));

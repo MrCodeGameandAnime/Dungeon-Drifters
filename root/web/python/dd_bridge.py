@@ -36,6 +36,8 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
@@ -216,6 +218,10 @@ def _command_to_input(command):
         )
     if kind == "active_pair":
         return ChooseActivePair(tuple(_required(command, "drifter_ids")))
+    if kind == "discovery_searcher":
+        return ChooseDiscoverySearcher(_required(command, "drifter_id"))
+    if kind == "discovery_target":
+        return ChooseDiscoveryTarget(_required(command, "drifter_id"))
     if kind == "character_target":
         return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":

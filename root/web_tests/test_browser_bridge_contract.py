@@ -25,6 +25,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
@@ -69,6 +71,11 @@ class MemoryBrowserStorage:
 
     def setItem(self, key, value):
         self.values[key] = value
+
+
+class FirstRollRng:
+    def randint(self, _minimum, _maximum):
+        return 1
 
 
 def test_browser_store_treats_pyodide_jsnull_as_a_missing_profile(monkeypatch):
@@ -478,6 +485,14 @@ def test_bridge_command_decoder_returns_existing_input_types():
             ChooseActivePair,
         ),
         (
+            {"kind": "discovery_searcher", "drifter_id": "branoc"},
+            ChooseDiscoverySearcher,
+        ),
+        (
+            {"kind": "discovery_target", "drifter_id": "azhvielle"},
+            ChooseDiscoveryTarget,
+        ),
+        (
             {
                 "kind": "companion",
                 "drifter_id": "azhvielle",
@@ -562,6 +577,77 @@ def test_browser_projects_and_submits_an_exact_recruited_pair():
     )
     assert updated["screen"] == OverworldScreen.HUB.value
     assert game.party_state.active_drifter_ids == ("joruun", "azhvielle")
+
+
+def test_browser_bridge_searches_and_claims_for_exact_active_drifter():
+    game = three_member_hub_game()
+    branoc_hp = game.member_for_drifter_id("branoc").health.maximum
+    azhvielle_hp = game.member_for_drifter_id("azhvielle").health.maximum
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(run_id_factory=lambda: "browser-discovery") == 100
+    game.overworld_state.begin_route("floor_two")
+    route = get_route_spec("floor_two")
+    for node in route.nodes[1:11]:
+        current = get_route_spec("floor_two").nodes[
+            tuple(item.node_id for item in route.nodes).index(
+                game.overworld_state.current_route_node_id
+            )
+        ]
+        if current.kind.value == "rest":
+            game.overworld_state.record_resolved_rest_node(current.node_id)
+        game.overworld_state.advance_to(node.node_id)
+
+    runtime = bridge.BrowserRuntime()
+    runtime._game = game
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
+        run_event_rng=FirstRollRng(),
+    )
+
+    rest = runtime.current_view()
+    assert any(option["action"] == "search_site" for option in rest["options"])
+    searchers = runtime.submit(
+        {"kind": "overworld_action", "action": "search_site"}
+    )
+    assert searchers["screen"] == "discovery_searchers"
+    assert [choice["drifter_id"] for choice in searchers["discovery_choices"]] == [
+        "branoc",
+        "azhvielle",
+    ]
+
+    rejected = runtime.submit(
+        {"kind": "discovery_searcher", "drifter_id": "joruun"}
+    )
+    assert rejected["screen"] == "discovery_searchers"
+    assert "not available" in rejected["notice"]
+
+    found = runtime.submit(
+        {"kind": "discovery_searcher", "drifter_id": "branoc"}
+    )
+    assert found["screen"] == "discovery_targets"
+    confirmation = runtime.submit(
+        {"kind": "discovery_target", "drifter_id": "azhvielle"}
+    )
+    assert confirmation["screen"] == "discovery_confirmation"
+    claimed = runtime.submit(
+        {"kind": "overworld_action", "action": "confirm"}
+    )
+
+    assert claimed["screen"] == OverworldScreen.REST.value
+    committed_game = runtime._session.game_state
+    assert committed_game.world_state.permanent_discovery_claims == (
+        "ancient_well_floor2_01",
+    )
+    assert (
+        committed_game.member_for_drifter_id("azhvielle").health.maximum
+        == azhvielle_hp + 5
+    )
+    assert committed_game.member_for_drifter_id("branoc").health.maximum == branoc_hp
 
 
 def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():

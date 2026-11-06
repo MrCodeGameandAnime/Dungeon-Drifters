@@ -260,6 +260,12 @@
         break;
       case "status":
         break;
+      case "hazard_warning":
+        lines.push(entry.reason || "A hazard is imminent.");
+        break;
+      case "hazard_damage":
+        lines.push(`Falling stone struck ${target || "the party"} for ${entry.amount} damage.`);
+        break;
       default:
         lines.push(String(entry.event_type || "Battle event").replace(/_/g, " "));
     }
@@ -1024,6 +1030,28 @@
     }
   }
 
+  function renderDiscoveryChoices(view) {
+    const section = $("discovery-selection");
+    const searcherSelection = view.screen === "discovery_searchers";
+    const targetSelection = view.screen === "discovery_targets";
+    section.hidden = !(searcherSelection || targetSelection);
+    clear($("discovery-choices"));
+    if (section.hidden) return;
+    setText("discovery-reward", view.discovery_reward_text);
+    for (const choice of view.discovery_choices || []) {
+      $("discovery-choices").append(makeButton(
+        choice.display_name,
+        {
+          kind: searcherSelection ? "discovery_searcher" : "discovery_target",
+          drifter_id: choice.drifter_id,
+        },
+        true,
+        null,
+        "discovery-choice",
+      ));
+    }
+  }
+
   function renderOutingRewards(view) {
     const section = $("extraction-rewards");
     const rewards = view.screen === "extraction" ? view.outing_rewards : null;
@@ -1117,6 +1145,9 @@
     const screenLabels = {
       companion_selection: "RECRUITMENT",
       party_selection: "PARTY SELECTION",
+      discovery_searchers: "SEARCH SITE",
+      discovery_targets: "CLAIM DISCOVERY",
+      discovery_confirmation: "CONFIRM DISCOVERY",
       party_ready: "PARTY READY",
       extraction: "EXTRACTION",
     };
@@ -1145,6 +1176,7 @@
     );
     renderCompanionChoices(view);
     renderActivePartyChoices(view);
+    renderDiscoveryChoices(view);
     renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),
