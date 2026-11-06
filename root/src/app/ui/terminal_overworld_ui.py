@@ -59,6 +59,7 @@ class TerminalOverworldUI:
         OverworldAction.CANCEL: "N",
         OverworldAction.ENTER_ENCOUNTER: "E",
         OverworldAction.START_FLOOR_ONE: "F",
+        OverworldAction.START_FLOOR_TWO: "2",
         OverworldAction.SET_OUT: "Y",
         OverworldAction.RETRY: "R",
         OverworldAction.REST: "R",
@@ -870,6 +871,12 @@ class TerminalOverworldUI:
         return f"[{key}] {option.label}{suffix}"
 
     def _option_key(self, option, view):
+        if (
+            view is not None
+            and view.screen is OverworldScreen.REST
+            and option.action is OverworldAction.RECRUIT_COMPANION
+        ):
+            return "J"
         if (
             view is not None
             and view.screen is OverworldScreen.REST
