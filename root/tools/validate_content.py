@@ -113,24 +113,23 @@ def _duplicates(records, attribute, label, errors):
 
 def _validate_moves(records, errors):
     for _, spec, path in records["enemy"]:
-        try:
-            if spec.supported_tiers != (0,):
-                _error(errors, path, "supported_tiers must remain exactly (0,)")
-            definition = spec.create_definition()
-            second_definition = spec.create_definition()
-            first = EnemyState(definition)
-            second = EnemyState(second_definition)
-            if (
-                definition is second_definition
-                or first is second
-                or first.health is second.health
-                or first.mana_resource is second.mana_resource
-                or first.super_resource is second.super_resource
-                or first.permanent_stats is second.permanent_stats
-            ):
-                _error(errors, path, "enemy construction must return fresh runtime owners")
-        except (KeyError, TypeError, ValueError) as error:
-            _error(errors, path, f"enemy construction failed: {error}")
+        for tier in spec.supported_tiers:
+            try:
+                definition = spec.create_definition(tier=tier)
+                second_definition = spec.create_definition(tier=tier)
+                first = EnemyState(definition, tier=tier)
+                second = EnemyState(second_definition, tier=tier)
+                if (
+                    definition is second_definition
+                    or first is second
+                    or first.health is second.health
+                    or first.mana_resource is second.mana_resource
+                    or first.super_resource is second.super_resource
+                    or first.permanent_stats is second.permanent_stats
+                ):
+                    _error(errors, path, "enemy construction must return fresh runtime owners")
+            except (KeyError, TypeError, ValueError) as error:
+                _error(errors, path, f"enemy tier {tier} construction failed: {error}")
         for move in spec.moves:
             reason = authored_move_rejection_reason(move)
             if reason is not None:

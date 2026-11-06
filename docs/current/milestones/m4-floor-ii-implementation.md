@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document plans M4A only; it does not authorize starting M5 or M4B.
 
-**Status:** Gate 0 approved; M4A plan ready, 2026-11-05.
+**Status:** Gate 0 approved; M4A-1 implementation and local proof complete, 2026-11-05. Remaining M4A gates are open.
 
 **Goal:** Add authored enemy Tier 1 behavior and a bounded, replayable Floor II route that introduces D3, Grade-II materials, persisted search/drop outcomes, and one counterable environmental threat without changing sealed Floor I behavior.
 
@@ -60,7 +60,7 @@ These are tunable first-pass content values, not locked balance targets:
 
 ## State And Persistence
 
-Current entry versions are runtime snapshot schema 16 and disk schema 17. M4A needs persisted floor-local clear/replay tracking and run-scoped search/drop outcome evidence. Extend the runtime and disk schemas through the existing migration chain as needed; determine the exact next schema numbers from the repository at implementation entry rather than preassigning them in this plan. Keep the profile API, envelope version, and database schema unchanged.
+At M4A entry, the versions were runtime snapshot schema 16 and disk schema 17. M4A-3 advances these to runtime schema 17 and disk schema 18 for persisted floor-local clear/replay tracking and run-scoped search/drop outcome evidence. Continue through the existing migration chain; keep the profile API, envelope version, and database schema unchanged.
 
 - `PartyState` owns the active run identity, floor-two clear/replay state, pending run rewards, and run-scoped resolved event outcomes.
 - `WorldState` owns globally found/claimed permanent discovery source IDs. Use the existing M3 permanent-discovery claim service and preserve its atomic reward/claim contract.
@@ -89,12 +89,12 @@ Reconfirm exact call sites at implementation entry; do not create parallel owner
 
 ### M4A-1: Enemy Tier Data And Catalog Validation
 
-- [ ] Add failing tests that pin the current Tier 0 stats/moves/rewards for all five existing archetypes and reject bool, negative, unsupported, duplicate, or malformed tier data.
-- [ ] Add per-archetype Tier 1 numeric values in the existing authored enemy content model. Tier 1 creation must be deterministic; it must not change archetype ID, rank, role, behavior, capabilities, or move list.
-- [ ] Replace the current `(0,)`-only validation in `EnemySpec` and `root/tools/validate_content.py` with the approved authored tier policy. Keep Tier 2 content deferred to M4B.
-- [ ] Prove fresh `EnemyState` instances created from one definition do not share HP, Mana, Super, or status mutation.
+- [x] Add failing tests that pin the current Tier 0 stats/moves/rewards for all five existing archetypes and reject bool, negative, unsupported, duplicate, or malformed tier data.
+- [x] Add per-archetype Tier 1 numeric values in the existing authored enemy content model. Tier 1 creation must be deterministic; it must not change archetype ID, rank, role, behavior, capabilities, or move list.
+- [x] Replace the current `(0,)`-only validation in `EnemySpec` and `root/tools/validate_content.py` with the approved authored tier policy. Keep Tier 2 content deferred to M4B.
+- [x] Prove fresh `EnemyState` instances created from one definition do not share HP, Mana, or Super mutation; retain separate-`CombatState` status isolation at its owning encounter boundary.
 
-Proof: focused enemy/content tests pass; Tier 0 golden outputs are unchanged; content validation accepts only authored supported tiers.
+Proof: the tiered fresh-instance test covers independent HP, Mana, and Super resources; separate-`CombatState` tests cover encounter-scoped status isolation. Tier 0 golden outputs remain unchanged. Local verification on Python 3.12.14: 183 focused enemy/content/tooling tests and 44 combat-state/status tests passed; content validation passed (`5 enemies, 4 weapons, 4 drifters, 10 encounters, 2 routes, 1 recruitment_event`); generated dataclass manifest check passed (144 entries); `git diff --check` passed. Pinned MicroPython and cumulative hosted qualification remain in M4A-6.
 
 ### M4A-2: Identity Resistance And Cave-In Counter
 

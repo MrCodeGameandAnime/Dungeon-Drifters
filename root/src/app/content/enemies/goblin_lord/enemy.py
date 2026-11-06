@@ -9,7 +9,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 
 
@@ -33,6 +33,22 @@ ENEMY = EnemySpec(
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset(
         {EnemyCapability.BASIC_ATTACKS, EnemyCapability.MAGIC}
+    ),
+    supported_tiers=(0, 1),
+    tier_profiles=(
+        EnemyTierSpec(
+            tier=1,
+            stats=StatBlockSpec(
+                constitution=12,
+                spirit=8,
+                intelligence=8,
+                strength=13,
+                dexterity=7,
+                intuition=10,
+            ),
+            hp=265,
+            mana=35,
+        ),
     ),
     moves=(
         Move(

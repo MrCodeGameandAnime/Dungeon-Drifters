@@ -70,6 +70,14 @@ class EnemyState:
         return self._definition.capabilities
 
     @property
+    def damage_resistances(self):
+        return self._definition.damage_resistances
+
+    @property
+    def damage_weaknesses(self):
+        return self._definition.damage_weaknesses
+
+    @property
     def generates_super(self):
         return EnemyCapability.SUPER in self.capabilities
 

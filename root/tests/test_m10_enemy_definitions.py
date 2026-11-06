@@ -142,11 +142,49 @@ def test_m10_enemy_descriptions_match_authored_contract(archetype_id):
     assert tuple(move.description for move in state.combat_moves) == DESCRIPTIONS[archetype_id]
 
 
-@pytest.mark.parametrize("archetype_id", EXPECTED)
-def test_m10_archetypes_support_only_tier_zero(archetype_id):
+EXPECTED_TIER_ONE = {
+    "goblin": {"hp": 75, "mana": 0, "stats": (3, 1, 1, 4, 2, 1)},
+    "goblin_warrior": {"hp": 100, "mana": 0, "stats": (5, 1, 1, 6, 3, 2)},
+    "goblin_shaman": {"hp": 75, "mana": 30, "stats": (3, 6, 7, 1, 4, 5)},
+    "goblin_elite": {"hp": 155, "mana": 0, "stats": (8, 3, 2, 9, 6, 4)},
+    "goblin_lord": {"hp": 265, "mana": 35, "stats": (12, 8, 8, 13, 7, 10)},
+}
+
+
+@pytest.mark.parametrize("archetype_id, expected", EXPECTED_TIER_ONE.items())
+def test_m4_tier_one_is_authored_numeric_data_only(archetype_id, expected):
+    base = create_enemy_definition(archetype_id, tier=0)
+    tier_one = create_enemy_definition(archetype_id, tier=1)
+
+    assert tier_one.archetype_id == base.archetype_id == archetype_id
+    assert tier_one.name == base.name
+    assert (tier_one.hp, tier_one.mana) == (expected["hp"], expected["mana"])
+    assert (
+        tier_one.constitution,
+        tier_one.spirit,
+        tier_one.intelligence,
+        tier_one.strength,
+        tier_one.dexterity,
+        tier_one.intuition,
+    ) == expected["stats"]
+    assert tier_one.rank is base.rank
+    assert tier_one.role is base.role
+    assert tier_one.behavior is base.behavior
+    assert tier_one.capabilities == base.capabilities
+    assert tier_one.combat_moves == base.combat_moves
+    assert (tier_one.exp_reward, tier_one.gold_reward) == (
+        base.exp_reward,
+        base.gold_reward,
+    )
+    assert create_enemy_state(archetype_id, tier=1).tier == 1
+
+
+@pytest.mark.parametrize("archetype_id", EXPECTED_TIER_ONE)
+def test_m4_archetypes_support_tier_zero_and_one_only(archetype_id):
     assert create_enemy_state(archetype_id, tier=0).tier == 0
-    with pytest.raises(ValueError, match="does not support tier 1"):
-        create_enemy_state(archetype_id, tier=1)
+    assert create_enemy_state(archetype_id, tier=1).tier == 1
+    with pytest.raises(ValueError, match="does not support tier 2"):
+        create_enemy_state(archetype_id, tier=2)
 
 
 def test_ordinary_goblin_values_remain_unchanged():

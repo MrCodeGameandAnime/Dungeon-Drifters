@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.combat.move import (
+    DamageComponentIdentity,
     DamageType,
     Move,
     MoveKind,
@@ -17,9 +18,12 @@ from app.content.catalog import (
     create_enemy_definition,
     create_enemy_state,
     get_enemy_spec,
+    get_encounter_spec,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.encounter_spec import EncounterSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
+from app.enemies.state import EnemyState
 from tools.generate_content_catalog import (
     OUTPUT_PATH,
     discover_drifter_ids,
@@ -227,8 +231,92 @@ def test_catalog_rejects_directory_mismatch_and_duplicate_ids():
 def test_unknown_enemy_and_unsupported_tier_fail_explicitly():
     with pytest.raises(ValueError, match="unknown enemy archetype"):
         get_enemy_spec("unknown")
-    with pytest.raises(ValueError, match="does not support tier 1"):
-        create_enemy_definition("goblin", tier=1)
+    with pytest.raises(ValueError, match="does not support tier 2"):
+        create_enemy_definition("goblin", tier=2)
+
+
+@pytest.mark.parametrize(
+    "field, value, error",
+    (
+        ("tier", True, TypeError),
+        ("tier", 0, ValueError),
+        ("tier", -1, ValueError),
+        ("stats", object(), TypeError),
+        ("hp", 0, ValueError),
+        ("mana", -1, ValueError),
+    ),
+)
+def test_enemy_tier_profile_rejects_invalid_authored_values(field, value, error):
+    values = {
+        "tier": 1,
+        "stats": StatBlockSpec(2, 2, 2, 2, 2, 2),
+        "hp": 2,
+        "mana": 0,
+    }
+    values[field] = value
+
+    with pytest.raises(error):
+        EnemyTierSpec(**values)
+
+
+def test_enemy_spec_requires_tier_profiles_to_match_supported_tiers():
+    profile = EnemyTierSpec(
+        tier=1,
+        stats=StatBlockSpec(2, 2, 2, 2, 2, 2),
+        hp=2,
+        mana=0,
+    )
+
+    with pytest.raises(ValueError, match="match supported_tiers"):
+        sample_spec(supported_tiers=(0, 1))
+
+    with pytest.raises(ValueError, match="match supported_tiers"):
+        sample_spec(tier_profiles=(profile,))
+
+    with pytest.raises(ValueError, match="unique"):
+        sample_spec(
+            supported_tiers=(0, 1),
+            tier_profiles=(profile, profile),
+        )
+
+    with pytest.raises(ValueError, match="ordered"):
+        sample_spec(
+            supported_tiers=(0, 1, 2),
+            tier_profiles=(
+                profile,
+                EnemyTierSpec(
+                    tier=2,
+                    stats=StatBlockSpec(3, 3, 3, 3, 3, 3),
+                    hp=3,
+                    mana=0,
+                ),
+            )[::-1],
+        )
+
+
+def test_enemy_spec_rejects_resistance_and_weakness_for_same_identity():
+    identity = (DamageComponentIdentity.ELEMENTAL, "fire")
+
+    with pytest.raises(ValueError, match="cannot resist and be weak"):
+        sample_spec(
+            damage_resistances=(identity,),
+            damage_weaknesses=(identity,),
+        )
+
+
+def test_enemy_identity_modifiers_are_preserved_in_runtime_state():
+    spec = sample_spec(
+        damage_resistances=((DamageComponentIdentity.ELEMENTAL, "fire"),),
+        damage_weaknesses=((DamageComponentIdentity.ALCHEMICAL, "poison"),),
+    )
+    state = EnemyState(spec.create_definition())
+
+    assert state.damage_resistances == (
+        (DamageComponentIdentity.ELEMENTAL, "fire"),
+    )
+    assert state.damage_weaknesses == (
+        (DamageComponentIdentity.ALCHEMICAL, "poison"),
+    )
 
 
 def test_definition_creation_preserves_unknown_id_precedence():

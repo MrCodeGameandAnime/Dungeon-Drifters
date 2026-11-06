@@ -218,6 +218,32 @@ def _validate_damage_components(value):
     return value
 
 
+def validate_damage_identity_keys(name, value):
+    if not isinstance(value, tuple):
+        raise TypeError(f"{name} must be a tuple")
+
+    normalized = []
+    for entry in value:
+        if not isinstance(entry, tuple) or len(entry) != 2:
+            raise TypeError(f"{name} entries must be (identity, subtype) tuples")
+        identity = _validate_enum(
+            f"{name} identity",
+            entry[0],
+            DamageComponentIdentity,
+        )
+        if identity not in {
+            DamageComponentIdentity.ELEMENTAL,
+            DamageComponentIdentity.ALCHEMICAL,
+        }:
+            raise ValueError(f"{name} supports only elemental or alchemical identities")
+        subtype = _validate_nonempty_string(f"{name} subtype", entry[1])
+        normalized.append((identity, subtype))
+
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{name} entries must be unique")
+    return tuple(normalized)
+
+
 def _validate_bool(name, value):
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a boolean")
