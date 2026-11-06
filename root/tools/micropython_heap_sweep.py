@@ -117,6 +117,10 @@ def parse_probe_output(stdout, stderr="", *, requested_heap_kib=None, returncode
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
         "FLOOR_ONE_FINAL_STATE",
+        "M4_FLOOR_TWO_PROBE",
+        "M4_FLOOR_TWO_BATTLE_10_BOSS",
+        "M4_FLOOR_TWO_FINAL_STATE",
+        "M4_PROBE_TEARDOWN",
         "ROUTE_SESSION_TEARDOWN",
     }
     complete = (
@@ -297,7 +301,11 @@ def main(argv=None):
     nearest_lower = max(lower_limits) if lower_limits else None
 
     if smallest_pass is not None and nearest_lower is not None:
-        for heap_kib in refinement_heaps(smallest_pass, nearest_lower):
+        for heap_kib in refinement_heaps(
+            smallest_pass,
+            nearest_lower,
+            step_kib=8,
+        ):
             result = run_probe(executable, bootstrap, source, heap_kib)
             results[heap_kib] = result
             _print_result("%sK" % heap_kib, result)

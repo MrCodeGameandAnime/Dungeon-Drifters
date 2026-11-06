@@ -40,6 +40,10 @@ def _successful_output():
             "MYP|MEMORY|ROUTE_FINAL_STATE|AFTER|FREE|620512|ALLOC|404000",
             "MYP|ROUTE_EVIDENCE_RELEASE|PASS",
             "MYP|MEMORY|ROUTE_EVIDENCE_RELEASE|AFTER|FREE|700000|ALLOC|300000",
+            "MYP|M4_FLOOR_TWO_PROBE|PASS",
+            "MYP|M4_FLOOR_TWO_BATTLE_10_BOSS|PASS",
+            "MYP|M4_FLOOR_TWO_FINAL_STATE|PASS",
+            "MYP|M4_PROBE_TEARDOWN|PASS",
             "MYP|ROUTE_SESSION_TEARDOWN|PASS",
             "MYP|MEMORY|ROUTE_SESSION_TEARDOWN|AFTER|FREE|710000|ALLOC|200000",
             "MYP|RESULT|RAW_PROBE_STAGES_COMPLETE",
@@ -110,6 +114,22 @@ def test_output_without_floor_one_final_state_is_not_a_complete_probe():
     assert result.complete is False
 
 
+def test_output_without_floor_two_boss_is_not_a_complete_probe():
+    _load_tool()
+
+    output = _successful_output().replace(
+        "MYP|M4_FLOOR_TWO_BATTLE_10_BOSS|PASS\n", ""
+    )
+    result = heap_sweep.parse_probe_output(
+        output,
+        requested_heap_kib=1024,
+        returncode=0,
+    )
+
+    assert result.classification == "UNEXPECTED_FAILURE"
+    assert result.complete is False
+
+
 def test_route_memory_error_is_classified_and_preserves_frontier():
     _load_tool()
 
@@ -169,6 +189,14 @@ def test_refinement_grid_uses_descending_32k_steps():
     _load_tool()
 
     assert heap_sweep.refinement_heaps(640, 512) == [608, 576, 544]
+
+
+def test_refinement_grid_can_measure_the_eight_kib_heap_boundary():
+    _load_tool()
+
+    assert heap_sweep.refinement_heaps(960, 896, step_kib=8) == list(
+        range(952, 896, -8)
+    )
 
 
 def test_repeated_results_distinguish_stable_pass_and_transition():

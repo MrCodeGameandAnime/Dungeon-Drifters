@@ -196,6 +196,7 @@ class _RouteBattleFactory:
         party=(),
         party_state=None,
         smoke_escape_allowed=False,
+        cave_in_power=None,
     ):
         from app.combat.battle import Battle
 
@@ -212,6 +213,7 @@ class _RouteBattleFactory:
             party=party,
             party_state=party_state,
             smoke_escape_allowed=smoke_escape_allowed,
+            cave_in_power=cave_in_power,
         )
         return battle
 
@@ -242,10 +244,12 @@ class _RouteEnemyFactory:
     def __init__(self, factory):
         self._factory = factory
         self.enemies = []
+        self.tiers = []
 
     def __call__(self, archetype_id, *, tier):
         enemy = self._factory(archetype_id, tier=tier)
         self.enemies.append(enemy)
+        self.tiers.append(tier)
         return enemy
 
 
@@ -411,6 +415,7 @@ def _construct_route_qualification():
         ui=None,
         battle_ui_factory=None,
         save_port=battle_factory,
+        run_event_rng=_DeterministicRng(),
     )
     STATE["route_game"] = game
     STATE["route_session"] = session
@@ -652,6 +657,19 @@ def _run_hub_tutorial():
     _emit_memory("HUB_PROBE_RELEASED")
 
 
+def _run_floor_two_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_floor_two_probe
+
+        micropython_floor_two_probe.run(STATE, _complete_route_battle, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_floor_two_probe", None)
+    _emit_memory("FLOOR_TWO_PROBE_RELEASED")
+
+
 def _assert_route_live_state():
     from app.presentation.overworld_models import OverworldScreen
 
@@ -696,6 +714,7 @@ def _release_route_evidence():
     del battle_factory.battle_compositions[:]
     battle_factory.completed_count = 0
     del STATE["route_enemy_factory"].enemies[:]
+    del STATE["route_enemy_factory"].tiers[:]
     del STATE["route_initial_view"]
 
 
@@ -750,8 +769,13 @@ def main():
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
     _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
-    _run_hub_tutorial()
+    try:
+        _run_hub_tutorial()
+    except MemoryError as error:
+        _emit_heap_map_on_memory_error(error)
+        raise
     _assert_route_live_state()
+    _run_stage("M4_FLOOR_TWO_PROBE", _run_floor_two_probe)
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")

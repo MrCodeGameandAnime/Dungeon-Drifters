@@ -357,7 +357,9 @@ def get_known_permanent_discovery_source(source_id):
 
 
 def get_permanent_discovery_search_node_id(source_id):
-    return _PERMANENT_DISCOVERY_SEARCH_NODE_IDS.get(source_id)
+    if source_id not in _PERMANENT_DISCOVERY_SEARCH_NODE_IDS:
+        return None
+    return _PERMANENT_DISCOVERY_SEARCH_NODE_IDS[source_id]
 
 
 def is_known_floor_two_route_node_id(node_id):

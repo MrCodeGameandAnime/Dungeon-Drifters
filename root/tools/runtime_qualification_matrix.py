@@ -64,6 +64,23 @@ EXPECTED_STAGES = (
     "M3_ADVANCEMENT_ROUNDTRIP",
     "M3_ADVANCEMENT_MOVE_EFFECT",
     "M3_ADVANCEMENT_FINAL_STATE",
+    "M4_TIER_ONE_CONTENT",
+    "M4_FLOOR_TWO_START",
+    "M4_FLOOR_TWO_BATTLE_01",
+    "M4_FLOOR_TWO_BATTLE_02",
+    "M4_FLOOR_TWO_BATTLE_03",
+    "M4_FLOOR_TWO_BATTLE_04",
+    "M4_FLOOR_TWO_BATTLE_05",
+    "M4_D3_RECRUITMENT",
+    "M4_FLOOR_TWO_BATTLE_06",
+    "M4_FLOOR_TWO_BATTLE_07",
+    "M4_FLOOR_TWO_BATTLE_08",
+    "M4_FLOOR_TWO_BATTLE_09",
+    "M4_DISCOVERY_SEARCH_ROUNDTRIP",
+    "M4_FLOOR_TWO_BATTLE_10_BOSS",
+    "M4_FLOOR_TWO_FINAL_STATE",
+    "M4_PROBE_TEARDOWN",
+    "M4_FLOOR_TWO_PROBE",
     "ROUTE_SESSION_TEARDOWN",
 )
 
@@ -87,7 +104,9 @@ COMPLETION_MARKER = "MYP|RESULT|RAW_PROBE_STAGES_COMPLETE"
 CPYTHON_NATIVE = "CPYTHON_NATIVE"
 CPYTHON_FORCED_OVERLAY = "CPYTHON_FORCED_OVERLAY"
 MICROPYTHON_DEFAULT = "MICROPYTHON_DEFAULT"
-MICROPYTHON_816K = "MICROPYTHON_816K"
+MICROPYTHON_1024K = "MICROPYTHON_1024K"
+STABLE_HEAP_KIB = 1024
+MEMORY_LIMIT_HEAP_KIB = 944
 
 _IMPLEMENTATION_PREFIX = "MYP|IMPLEMENTATION|"
 _VERSION_PREFIX = "MYP|VERSION|"
@@ -148,11 +167,11 @@ def build_command(mode, python, micropython, probe, bootstrap, source):
         return [str(python), str(bootstrap), str(source)]
     if mode == MICROPYTHON_DEFAULT:
         return [str(micropython), str(bootstrap), str(source)]
-    if mode == MICROPYTHON_816K:
+    if mode == MICROPYTHON_1024K:
         return [
             str(micropython),
             "-X",
-            "heapsize=816K",
+            "heapsize=1024K",
             str(bootstrap),
             str(source),
         ]
@@ -380,7 +399,7 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
                 returncode=result.returncode,
             )
             validate_semantic_contract(observation, returncode=result.returncode)
-            _validate_identity(observation, MICROPYTHON_816K)
+            _validate_identity(observation, MICROPYTHON_1024K)
         except SemanticContractError:
             return PressureObservation("UNEXPECTED_FAILURE", result)
         return PressureObservation("PASS", result)
@@ -391,11 +410,11 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
 
 def classify_pressure_confirmation(heap_kib, observations):
     classifications = [value.classification for value in observations]
-    if heap_kib == 816:
+    if heap_kib == STABLE_HEAP_KIB:
         if classifications == ["PASS"] * 3:
             return "STABLE_PASS", "3/3"
         count = sum(value == "PASS" for value in classifications)
-    elif heap_kib == 784:
+    elif heap_kib == MEMORY_LIMIT_HEAP_KIB:
         if classifications == ["MEMORY_LIMIT"] * 3:
             return "MEMORY_LIMIT_CONFIRMED", "3/3"
         count = sum(value == "MEMORY_LIMIT" for value in classifications)
@@ -408,14 +427,14 @@ def closure_complete(
     *,
     runtime_passed,
     semantic_parity,
-    heap_816_status,
-    heap_784_status,
+    heap_1024_status,
+    heap_944_status,
 ):
     return (
         runtime_passed
         and semantic_parity
-        and heap_816_status == "STABLE_PASS"
-        and heap_784_status == "MEMORY_LIMIT_CONFIRMED"
+        and heap_1024_status == "STABLE_PASS"
+        and heap_944_status == "MEMORY_LIMIT_CONFIRMED"
     )
 
 
@@ -490,7 +509,7 @@ def main(argv=None):
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
         MICROPYTHON_DEFAULT,
-        MICROPYTHON_816K,
+        MICROPYTHON_1024K,
     )
     results = {}
     for mode in modes:
@@ -515,31 +534,31 @@ def main(argv=None):
         return 1
 
     heap_sweep = _load_heap_sweep()
-    heap_816_status = _run_pressure_confirmation(
+    heap_1024_status = _run_pressure_confirmation(
         heap_sweep,
         args.micropython,
         args.bootstrap,
         args.source,
-        816,
+        STABLE_HEAP_KIB,
     )
-    if heap_816_status != "STABLE_PASS":
+    if heap_1024_status != "STABLE_PASS":
         return 1
 
-    heap_784_status = _run_pressure_confirmation(
+    heap_944_status = _run_pressure_confirmation(
         heap_sweep,
         args.micropython,
         args.bootstrap,
         args.source,
-        784,
+        MEMORY_LIMIT_HEAP_KIB,
     )
-    if heap_784_status != "MEMORY_LIMIT_CONFIRMED":
+    if heap_944_status != "MEMORY_LIMIT_CONFIRMED":
         return 1
 
     if closure_complete(
         runtime_passed=True,
         semantic_parity=parity,
-        heap_816_status=heap_816_status,
-        heap_784_status=heap_784_status,
+        heap_1024_status=heap_1024_status,
+        heap_944_status=heap_944_status,
     ):
         print("MYP20|RESULT|CLOSURE_COMPLETE")
         return 0

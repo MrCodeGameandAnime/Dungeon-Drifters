@@ -10,6 +10,9 @@ PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_probe.py"
 HUB_PROBE_PATH = (
     Path(__file__).parents[1] / "tools" / "micropython_hub_probe.py"
 )
+FLOOR_TWO_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_floor_two_probe.py"
+)
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -61,6 +64,14 @@ def _hub_probe_tree():
     return ast.parse(_hub_probe_source(), filename=str(HUB_PROBE_PATH))
 
 
+def _floor_two_probe_source():
+    return FLOOR_TWO_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _floor_two_probe_tree():
+    return ast.parse(_floor_two_probe_source(), filename=str(FLOOR_TWO_PROBE_PATH))
+
+
 def _assigned_literal(tree, name):
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -89,12 +100,13 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 6]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 7]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
+        "M4_FLOOR_TWO_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
@@ -102,7 +114,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "ROUTE_FINAL_STATE"
     )
     assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
-        "ROUTE_EVIDENCE_RELEASE"
+        "M4_FLOOR_TWO_PROBE"
     )
 
 
@@ -259,6 +271,61 @@ def test_m3_probe_purchases_roundtrips_and_uses_an_authored_move():
         assert required in source
 
 
+def test_m4_probe_covers_tier_one_floor_two_events_recruitment_and_roundtrip():
+    source = _floor_two_probe_source()
+    tree = _floor_two_probe_tree()
+    stages = _assigned_literal(tree, "_M4_STAGE_NAMES")
+    assert stages == (
+        "M4_TIER_ONE_CONTENT",
+        "M4_FLOOR_TWO_START",
+        "M4_FLOOR_TWO_BATTLE_01",
+        "M4_FLOOR_TWO_BATTLE_02",
+        "M4_FLOOR_TWO_BATTLE_03",
+        "M4_FLOOR_TWO_BATTLE_04",
+        "M4_FLOOR_TWO_BATTLE_05",
+        "M4_D3_RECRUITMENT",
+        "M4_FLOOR_TWO_BATTLE_06",
+        "M4_FLOOR_TWO_BATTLE_07",
+        "M4_FLOOR_TWO_BATTLE_08",
+        "M4_FLOOR_TWO_BATTLE_09",
+        "M4_DISCOVERY_SEARCH_ROUNDTRIP",
+        "M4_FLOOR_TWO_BATTLE_10_BOSS",
+        "M4_FLOOR_TWO_FINAL_STATE",
+        "M4_PROBE_TEARDOWN",
+    )
+
+    for required in (
+        'get_route_spec("floor_two")',
+        'tier=1',
+        'OverworldAction.START_FLOOR_TWO',
+        'state["floor_two_battle_view"] = view',
+        'state["m4_first_tier_start"] = tier_start',
+        'battle_view = state.pop("floor_two_battle_view")',
+        'ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")',
+        'OverworldAction.SEARCH_SITE',
+        'OverworldAction.SKIP_REST',
+        'ChooseDiscoverySearcher("branoc")',
+        'ChooseDiscoveryTarget("azhvielle")',
+        'OverworldAction.CONFIRM',
+        'RunEventService',
+        '"encounter_rewards"',
+        'game.clone()',
+        'restored.snapshot() != snapshot',
+        'floor_two_cleared',
+        'gc.collect()',
+    ):
+        assert required in source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    start = expected_stages.index("M3_ADVANCEMENT_FINAL_STATE") + 1
+    assert tuple(expected_stages[start : start + len(stages) + 1]) == (
+        *stages,
+        "M4_FLOOR_TWO_PROBE",
+    )
+
+
 @pytest.mark.parametrize(
     "retained_evidence",
     ("compositions", "enemies", "initial_view", "completion_count"),
@@ -300,6 +367,20 @@ def test_probe_records_battle_summaries_without_retaining_completed_battles():
     assert "self.battles.append(battle)" not in factory
     assert "party=()" in factory
     assert "party=party" in factory
+    assert "cave_in_power=None" in factory
+    assert "cave_in_power=cave_in_power" in factory
+
+
+def test_floor_two_probe_reads_readonly_bonus_mapping_portably():
+    from app.readonly_mapping import _ReadonlyMapping
+
+    probe = run_path(str(FLOOR_TWO_PROBE_PATH))
+    member = SimpleNamespace(
+        permanent_discovery_bonuses=_ReadonlyMapping({"max_hp": 5})
+    )
+
+    assert probe["_has_bonus_at_least"](member, "max_hp", 5)
+    assert not probe["_has_bonus_at_least"](member, "max_mana", 5)
 
 
 def test_probe_releases_route_evidence_only_after_final_state():
@@ -349,6 +430,38 @@ def test_memory_error_dumps_heap_map_before_logging_or_collection():
         and node.func.attr == "mem_info"
     )
     assert ast.literal_eval(heap_map_call.args[0]) == 1
+
+
+def test_hub_probe_boundary_dumps_heap_map_for_pre_stage_memory_error():
+    tree = _probe_tree()
+    main = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    boundary = next(
+        node
+        for node in ast.walk(main)
+        if isinstance(node, ast.Try)
+        and any(
+            isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Name)
+            and statement.value.func.id == "_run_hub_tutorial"
+            for statement in node.body
+        )
+    )
+    handler = next(
+        handler
+        for handler in boundary.handlers
+        if isinstance(handler.type, ast.Name)
+        and handler.type.id == "MemoryError"
+    )
+    first_statement = handler.body[0]
+    assert isinstance(first_statement, ast.Expr)
+    assert isinstance(first_statement.value, ast.Call)
+    assert isinstance(first_statement.value.func, ast.Name)
+    assert first_statement.value.func.id == "_emit_heap_map_on_memory_error"
 
 
 def test_completed_first_battle_evidence_is_released_before_session_import():

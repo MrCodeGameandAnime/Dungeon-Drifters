@@ -2,6 +2,7 @@ import importlib
 
 import pytest
 
+from app.readonly_mapping import _ReadonlyMapping
 from app.content.permanent_discovery_spec import (
     PermanentDiscoverySource,
     PermanentDiscoveryType,
@@ -35,6 +36,21 @@ def test_unknown_permanent_discovery_source_is_not_cataloged():
         assert "unknown permanent discovery source" in str(error)
     else:
         raise AssertionError("unknown discovery source was returned by the catalog")
+
+
+def test_discovery_search_node_lookup_supports_readonly_mapping(monkeypatch):
+    catalog = importlib.import_module("app.content.catalog")
+    monkeypatch.setattr(
+        catalog,
+        "_PERMANENT_DISCOVERY_SEARCH_NODE_IDS",
+        _ReadonlyMapping({"ancient_well_test_01": "floor_two_pre_boss_rest"}),
+    )
+
+    assert (
+        catalog.get_permanent_discovery_search_node_id("ancient_well_test_01")
+        == "floor_two_pre_boss_rest"
+    )
+    assert catalog.get_permanent_discovery_search_node_id("unknown_source") is None
 
 
 @pytest.mark.parametrize(
