@@ -361,3 +361,47 @@ The exact-commit hosted qualification passed on `703502a5aeff74ea83f8cde09162936
 ([Actions run 42083678861](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42083678861)). The `Tests` job passed 1,983 root tests and 65 web tests, content validation, compileall, a 156-file browser build, and the complete Chromium smoke. The smoke included advancement purchase/equip/save/reload, actual advancement-move use, respec save/reload, Floor One, weapon persistence, and full-route markers. The `Profile Service (PostgreSQL)` job passed all 37 service tests, migrations from zero, and Alembic model parity (`No new upgrade operations detected`).
 
 The local Docker engine was inaccessible, so PostgreSQL/migration evidence is hosted rather than local. The pinned MicroPython matrix was run locally against the Gate 5 implementation: 816K stable pass 3/3 and 784K expected memory limit 3/3. The hosted workflow does not run the pinned MicroPython binary; keep that distinction explicit. Gate 5 cumulative qualification is complete, and M3 is sealed on `dungeon`.
+
+## M4 Floor II Pinned Runtime Qualification (2026-11-06)
+
+This qualification extends the M3 Gate 5 probe through the Floor II loop on
+`dungeon`. The implementation is committed as
+`f2f378563d96bf94e9dd37b57e9238665f32e2b1` (`M4A-6: qualify Floor II on
+pinned MicroPython`). It includes a pinned-runtime compatibility fix for
+permanent-discovery route-node lookup through the read-only catalog mapping.
+
+The exact pinned Windows MicroPython v1.29.0 executable was re-identified:
+
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+- Runtime: MicroPython v1.29.0, `win32`
+
+The extended route probe traverses Floor II battles, D3 recruitment, discovery
+search/claim and save round-trip, Grade-II material checks, boss settlement,
+and teardown. The runtime matrix passed native CPython, forced-overlay CPython,
+default MicroPython, and semantic parity. Heap confirmation reported:
+
+- 1024K: stable full-probe pass, 3/3.
+- 944K: expected memory-limit classification, 3/3.
+
+Intermediate heap points were variable and are not represented as a stable
+frontier. These values qualify this exact pinned Windows probe, not a product
+memory ceiling or a claim about other platforms. A diagnostic heap map at 816K
+showed only 496 bytes free and a largest free block of 8 blocks when a 136-byte
+allocation was requested; this is diagnostic evidence, not a formal matrix
+point.
+
+Local cumulative verification passed: **2,102 root tests**, **66 web tests**,
+content validation, compileall, the **161-file browser build**, and the full
+Playwright smoke including `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`. The local
+browser smoke used the installed Chrome executable. The hosted exact-SHA
+qualification passed in [Actions run 42305392988](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42305392988):
+2,102 root tests, 66 web tests, 39 PostgreSQL tests, content validation,
+compile, browser build/smoke, migration-from-zero, and Alembic parity all
+passed. The hosted browser build also contained 161 files.
+
+The preceding recovery corrections, including rejection of Return Talisman
+while a committed boss victory awaits settlement, were independently hosted
+green on exact SHA `a48903f2456adff075a00453fb43c79449a5e0c3` in
+[Actions run 42296351933](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42296351933).
+M4A is qualified and closed; M5 is next, while M4B remains sequenced after M5.
