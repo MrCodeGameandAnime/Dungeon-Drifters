@@ -67,12 +67,12 @@ def test_floor_two_run_identity_cannot_be_reused_after_recorded_outcome():
     party.record_run_event(
         {
             "event_key": (
-                "floor_two:reused-floor-two-run:floor_two_midway_rest:"
+                "floor_two:reused-floor-two-run:floor_two_pre_boss_rest:"
                 "discovery_search"
             ),
             "run_id": "reused-floor-two-run",
             "floor_id": "floor_two",
-            "node_id": "floor_two_midway_rest",
+            "node_id": "floor_two_pre_boss_rest",
             "kind": "discovery_search",
             "position": None,
             "result": {
@@ -194,10 +194,10 @@ def test_run_event_outcomes_and_found_sources_round_trip():
     assert "discovered_permanent_discovery_sources" in game.world_state.snapshot()
 
     event = {
-        "event_key": "floor_two:floor-two-run:floor_two_rest_search:discovery_search",
+        "event_key": "floor_two:floor-two-run:floor_two_pre_boss_rest:discovery_search",
         "run_id": "floor-two-run",
         "floor_id": "floor_two",
-        "node_id": "floor_two_rest_search",
+        "node_id": "floor_two_pre_boss_rest",
         "kind": "discovery_search",
         "position": None,
         "result": {
@@ -231,10 +231,10 @@ def test_run_event_rejects_outcome_that_disagrees_with_its_roll():
     party = game.party_state
     party.start_floor_two_run(run_id_factory=lambda: "floor-two-run")
     event = {
-        "event_key": "floor_two:floor-two-run:floor_two_battle_01:discovery_search",
+        "event_key": "floor_two:floor-two-run:floor_two_pre_boss_rest:discovery_search",
         "run_id": "floor-two-run",
         "floor_id": "floor_two",
-        "node_id": "floor_two_battle_01",
+        "node_id": "floor_two_pre_boss_rest",
         "kind": "discovery_search",
         "position": None,
         "result": {
@@ -259,10 +259,10 @@ def test_run_event_rejects_malformed_discovery_source_id():
     party = game.party_state
     party.start_floor_two_run(run_id_factory=lambda: "floor-two-run")
     event = {
-        "event_key": "floor_two:floor-two-run:floor_two_battle_01:discovery_search",
+        "event_key": "floor_two:floor-two-run:floor_two_pre_boss_rest:discovery_search",
         "run_id": "floor-two-run",
         "floor_id": "floor_two",
-        "node_id": "floor_two_battle_01",
+        "node_id": "floor_two_pre_boss_rest",
         "kind": "discovery_search",
         "position": None,
         "result": {

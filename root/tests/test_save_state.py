@@ -113,6 +113,52 @@ def _game_at_floor_one_rest(rest_index=0):
     return game
 
 
+def _floor_two_discovery_game(*, found=True, searcher="branoc"):
+    game = completed_hub_game()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    party.start_floor_two_run(run_id_factory=lambda: "save-validation-run")
+    game.overworld_state.begin_route("floor_two")
+    route = get_route_spec("floor_two")
+    for index, node in enumerate(route.nodes[1:], start=1):
+        previous = route.nodes[index - 1]
+        if previous.kind.value == "rest":
+            game.overworld_state.record_resolved_rest_node(previous.node_id)
+        phase = (
+            ContextualRoutePhase.ENTER_ENCOUNTER
+            if node.encounter_id is not None
+            else ContextualRoutePhase.NONE
+        )
+        game.overworld_state.advance_to(node.node_id, contextual_phase=phase)
+        if node.node_id == "floor_two_pre_boss_rest":
+            break
+
+    event = {
+        "event_key": (
+            "floor_two:save-validation-run:floor_two_pre_boss_rest:discovery_search"
+        ),
+        "run_id": "save-validation-run",
+        "floor_id": "floor_two",
+        "node_id": "floor_two_pre_boss_rest",
+        "kind": "discovery_search",
+        "position": None,
+        "result": {
+            "source_id": "ancient_well_floor2_01",
+            "searcher_drifter_id": searcher,
+            "effective_chance_bps": 1000,
+            "roll": 1 if found else 1001,
+            "found": found,
+        },
+    }
+    party.record_run_event(event)
+    if found:
+        game.world_state.discover_permanent_discovery_source(
+            "ancient_well_floor2_01"
+        )
+    return game
+
+
 def test_schema18_document_has_only_persistent_state_and_schema17_stays_runtime_only():
     game = _create_populated_game("1")
 
@@ -399,6 +445,61 @@ def test_schema18_requires_the_complete_floor_two_party_shape():
 
     with pytest.raises(SaveStateValidationError, match="party has an invalid shape"):
         validate_save_document(document)
+
+
+@pytest.mark.parametrize("include_claim", (False, True))
+def test_current_profile_rejects_unknown_permanent_discovery_source(include_claim):
+    document = build_save_document(_create_populated_game("1"))
+    unknown_source = "ancient_well_unknown_01"
+    document["world"]["discovered_permanent_discovery_sources"] = [unknown_source]
+    if include_claim:
+        document["world"]["permanent_discovery_claims"] = [unknown_source]
+
+    with pytest.raises(SaveStateValidationError, match="unknown.*discovery|discovery.*unknown"):
+        validate_profile_payload(document)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("unknown_source", "unknown.*discovery|discovery.*unknown"),
+        ("unknown_node", "node"),
+        ("wrong_source_node", "source.*node|node.*source"),
+        ("inactive_searcher", "searcher|active"),
+        ("missing_found_source", "discovered|found"),
+    ),
+)
+def test_current_profile_rejects_inconsistent_discovery_event_evidence(
+    mutation,
+    message,
+):
+    document = build_save_document(_floor_two_discovery_game())
+    event = document["party"]["resolved_run_events"][0]
+    result = event["result"]
+
+    if mutation == "unknown_source":
+        result["source_id"] = "ancient_well_unknown_01"
+        document["world"]["discovered_permanent_discovery_sources"] = [
+            "ancient_well_unknown_01"
+        ]
+    elif mutation == "unknown_node":
+        event["node_id"] = "floor_two_unauthored_site"
+        event["event_key"] = (
+            "floor_two:save-validation-run:floor_two_unauthored_site:discovery_search"
+        )
+    elif mutation == "wrong_source_node":
+        event["node_id"] = "floor_two_midway_rest"
+        event["event_key"] = (
+            "floor_two:save-validation-run:floor_two_midway_rest:discovery_search"
+        )
+    elif mutation == "inactive_searcher":
+        result["searcher_drifter_id"] = "joruun"
+    else:
+        document["world"]["discovered_permanent_discovery_sources"] = []
+
+    for validate in (validate_profile_payload, reconstruct_game_state):
+        with pytest.raises(SaveStateValidationError, match=message):
+            validate(document)
 
 
 @pytest.mark.parametrize(

@@ -5,6 +5,7 @@ from copy import deepcopy
 from app.content.catalog import (
     create_weapon_from_persistence_key,
     get_drifter_spec_by_choice,
+    get_known_permanent_discovery_source,
     get_route_node_spec,
     get_route_spec,
     get_weapon_spec,
@@ -691,6 +692,9 @@ def _validate_document(
         require_discovered_permanent_discovery_sources=(
             schema_version >= DISK_SCHEMA_VERSION
         ),
+        require_authored_discovery_sources=(
+            schema_version >= DISK_SCHEMA_VERSION
+        ),
     )
     _validate_overworld(
         document["overworld"],
@@ -718,6 +722,10 @@ def _validate_document(
         require_floor_two_state=schema_version >= DISK_SCHEMA_VERSION,
     )
     _validate_route_party_relationship(document["overworld"], document["party"])
+    if schema_version >= DISK_SCHEMA_VERSION:
+        _validate_discovery_event_world_relationship(
+            document["world"], document["party"]
+        )
     validate_plain_value(document["metadata"], "game.metadata")
 
 
@@ -1222,7 +1230,10 @@ def _validate_party(
                 "party.resolved_run_events must be a list"
             )
         try:
-            validate_run_event_history(events)
+            validate_run_event_history(
+                events,
+                active_drifter_ids=active_ids,
+            )
         except (TypeError, ValueError) as error:
             raise SaveStateValidationError(
                 f"party.resolved_run_events is invalid: {error}"
@@ -1746,6 +1757,7 @@ def _validate_world(
     *,
     require_permanent_discovery_claims=False,
     require_discovered_permanent_discovery_sources=False,
+    require_authored_discovery_sources=False,
 ):
     _require_mapping(world, "world")
     expected_keys = {
@@ -1774,6 +1786,10 @@ def _validate_world(
             raise SaveStateValidationError(
                 "world contains a malformed permanent discovery source ID"
             )
+        if require_authored_discovery_sources:
+            _validate_authored_discovery_source_ids(
+                world["permanent_discovery_claims"]
+            )
     if require_discovered_permanent_discovery_sources:
         _validate_unique_string_list(
             world["discovered_permanent_discovery_sources"],
@@ -1787,6 +1803,8 @@ def _validate_world(
             raise SaveStateValidationError(
                 "world contains a malformed discovered discovery source ID"
             )
+        if require_authored_discovery_sources:
+            _validate_authored_discovery_source_ids(discovered_sources)
         if not set(world["permanent_discovery_claims"]).issubset(
             discovered_sources
         ):
@@ -1795,6 +1813,29 @@ def _validate_world(
             )
     _require_mapping(world["dungeon_changes"], "world.dungeon_changes")
     validate_plain_value(world["dungeon_changes"], "world.dungeon_changes")
+
+
+def _validate_authored_discovery_source_ids(source_ids):
+    for source_id in source_ids:
+        try:
+            get_known_permanent_discovery_source(source_id)
+        except ValueError as error:
+            raise SaveStateValidationError(
+                f"world contains an unknown permanent discovery source: {source_id}"
+            ) from error
+
+
+def _validate_discovery_event_world_relationship(world, party):
+    discovered = set(world["discovered_permanent_discovery_sources"])
+    found = {
+        event["result"]["source_id"]
+        for event in party["resolved_run_events"]
+        if event["kind"] == "discovery_search" and event["result"]["found"]
+    }
+    if not found.issubset(discovered):
+        raise SaveStateValidationError(
+            "successful discovery events must be recorded as discovered sources"
+        )
 
 
 def _validate_legacy_overworld(overworld, world):

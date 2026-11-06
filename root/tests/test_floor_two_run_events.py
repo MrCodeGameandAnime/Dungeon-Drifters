@@ -445,6 +445,27 @@ def test_search_rejects_unauthored_source_without_rolling_or_writing():
     assert save_port.saved_states == []
 
 
+def test_search_rejects_authored_source_at_the_wrong_route_node():
+    events = load_event_module()
+    source = searchable_well()
+    game = floor_two_game()
+    rng = SequenceRng([1])
+    save_port = MemorySavePort()
+    service = events.RunEventService(save_port=save_port, rng=rng)
+
+    result = service.search_discovery(
+        game,
+        node_id="floor_two_midway_rest",
+        searcher_drifter_id="branoc",
+        source=source,
+    )
+
+    assert result.status.value == "invalid_source"
+    assert result.game_state is game
+    assert rng.calls == 0
+    assert save_port.saved_states == []
+
+
 def test_search_rejects_modified_authored_source_without_rolling_or_writing():
     events = load_event_module()
     authored = searchable_well()

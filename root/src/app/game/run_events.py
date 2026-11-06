@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.content.enemy_spec import ItemDropSpec
-from app.content.catalog import get_permanent_discovery_source
+from app.content.catalog import (
+    get_permanent_discovery_search_node_id,
+    get_permanent_discovery_source,
+)
 from app.content.permanent_discovery_spec import PermanentDiscoverySource
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase
@@ -194,7 +197,10 @@ class RunEventService:
             authored_source = get_permanent_discovery_source(source.source_id)
         except ValueError:
             return RunEventResult(RunEventStatus.INVALID_SOURCE, game_state)
-        if source != authored_source:
+        if (
+            source != authored_source
+            or get_permanent_discovery_search_node_id(source.source_id) != node_id
+        ):
             return RunEventResult(RunEventStatus.INVALID_SOURCE, game_state)
         party = game_state.party_state
         if party.phase is not DungeonPhase.OUTING or party.floor_two_run_id is None:

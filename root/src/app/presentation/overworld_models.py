@@ -63,6 +63,7 @@ class OverworldAction(StrEnum):
     RETURN_TO_HUB = "return_to_hub"
     START_FLOOR_ONE = "start_floor_one"
     START_FLOOR_TWO = "start_floor_two"
+    FINALIZE_FLOOR_TWO_CLEAR = "finalize_floor_two_clear"
     SET_OUT = "set_out"
     EXTRACT = "extract"
     RETURN_WITH_TALISMAN = "return_with_talisman"

@@ -73,6 +73,15 @@ class GameState:
         )
 
     @property
+    def floor_two_boss_settlement_pending(self):
+        return (
+            self.overworld_state.active_route_id == "floor_two"
+            and self.overworld_state.current_route_node_id == "floor_two_battle_10"
+            and self.party_state.phase is DungeonPhase.OUTING
+            and self.party_state.floor_two_boss_reward_committed
+        )
+
+    @property
     def members_available_to_party(self):
         if self.party_state.phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
             return self.recruited_members

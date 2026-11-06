@@ -1039,6 +1039,12 @@ class OverworldSession:
             return None
         if action is OverworldAction.START_FLOOR_TWO:
             return self._start_floor_two()
+        if action is OverworldAction.FINALIZE_FLOOR_TWO_CLEAR:
+            if not self.game_state.floor_two_boss_settlement_pending:
+                self._notice = "That option is not available."
+                return None
+            self._finalize_floor_two_boss_clear()
+            return None
         if action is OverworldAction.SET_OUT:
             return self._start_floor_one()
         if action is OverworldAction.RETURN_WITH_TALISMAN:
@@ -1766,6 +1772,8 @@ class OverworldSession:
 
     @staticmethod
     def _initial_screen(game_state):
+        if game_state.floor_two_boss_settlement_pending:
+            return OverworldScreen.MAIN
         if game_state.party_state.phase in {
             DungeonPhase.HUB,
             DungeonPhase.PARTY_READY,
@@ -1844,6 +1852,7 @@ class OverworldSession:
                 gold_reward,
                 party_members,
                 checkpoints,
+                None,
             )
             return self._active_battle
 
@@ -1904,6 +1913,11 @@ class OverworldSession:
             gold_reward,
             party_members,
             checkpoints,
+            (
+                self.game_state.party_state.carried_items
+                if is_floor_two
+                else None
+            ),
         )
         return self._active_battle
 
@@ -1919,6 +1933,7 @@ class OverworldSession:
             gold_reward,
             party_members,
             checkpoints,
+            carried_supplies_checkpoint,
         ) = context
         overworld = self.game_state.overworld_state
         if winner is None:
@@ -1993,6 +2008,7 @@ class OverworldSession:
                 gold_reward=gold_reward,
                 party_members=party_members,
                 checkpoints=checkpoints,
+                carried_supplies_checkpoint=carried_supplies_checkpoint,
             )
             return None
 
@@ -2072,6 +2088,7 @@ class OverworldSession:
         gold_reward,
         party_members,
         checkpoints,
+        carried_supplies_checkpoint,
     ):
         party_state = self.game_state.party_state
         overworld = self.game_state.overworld_state
@@ -2136,6 +2153,9 @@ class OverworldSession:
             }:
                 for member, checkpoint in zip(party_members, checkpoints):
                     member.restore_battle_checkpoint(checkpoint)
+                party_state.restore_carried_supplies_checkpoint(
+                    carried_supplies_checkpoint
+                )
                 overworld.set_contextual_route_phase(ContextualRoutePhase.RETRY)
                 self._screen = OverworldScreen.MAIN
                 self._adventure_text = (
@@ -2149,34 +2169,8 @@ class OverworldSession:
 
             committed = result.game_state
             if current_node.kind is RouteNodeKind.BOSS:
-                settled = committed.clone()
-                if not settled.party_state.complete_floor_two_boss(
-                    settled.active_party_members
-                ):
-                    raise RuntimeError("Floor 2 boss rewards could not be secured")
-                self._restore_members(settled.recruited_members)
-                settled.overworld_state.return_to_surface_entrance()
-                try:
-                    save_result = self._save_port_instance().save(settled)
-                except (SavePortError, TypeError, ValueError):
-                    save_result = None
-                if save_result is None or save_result.status is not SaveLoadStatus.SAVED:
-                    self._game_state = committed
-                    self._screen = OverworldScreen.MAIN
-                    self._adventure_text = (
-                        "The Goblin Lord is defeated, but the Hub return could "
-                        "not be saved. Retry the final encounter to finish the run."
-                    )
-                    self._notice = "The Floor 2 clear could not be saved."
-                else:
-                    self._game_state = settled
-                    self._screen = OverworldScreen.HUB
-                    self._adventure_text = (
-                        "The Goblin Lord is defeated. Floor 2 is cleared; all "
-                        "run rewards are secured and your recruited party returns "
-                        "fully restored to the Hub."
-                    )
-                    self._notice = None
+                self._game_state = committed
+                self._finalize_floor_two_boss_clear()
             else:
                 self._game_state = committed
                 next_node = get_route_node_spec(next_node_id)
@@ -2200,6 +2194,40 @@ class OverworldSession:
         self._selected_item_key = None
         self._active_battle = None
         self._active_battle_context = None
+
+    def _finalize_floor_two_boss_clear(self):
+        committed = self.game_state
+        if not committed.floor_two_boss_settlement_pending:
+            self._notice = "That option is not available."
+            return False
+        settled = committed.clone()
+        if not settled.party_state.complete_floor_two_boss(
+            settled.active_party_members
+        ):
+            raise RuntimeError("Floor 2 boss rewards could not be secured")
+        self._restore_members(settled.recruited_members)
+        settled.overworld_state.return_to_surface_entrance()
+        try:
+            save_result = self._save_port_instance().save(settled)
+        except (OSError, SavePortError, TypeError, ValueError):
+            save_result = None
+        if save_result is None or save_result.status is not SaveLoadStatus.SAVED:
+            self._screen = OverworldScreen.MAIN
+            self._adventure_text = (
+                "The Goblin Lord's victory is saved, but the Hub return could "
+                "not be saved. Finalize the Floor 2 clear to retry."
+            )
+            self._notice = "The Floor 2 clear could not be saved."
+            return False
+
+        self._game_state = settled
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = (
+            "The Goblin Lord is defeated. Floor 2 is cleared; all run rewards "
+            "are secured and your recruited party returns fully restored to the Hub."
+        )
+        self._notice = None
+        return True
 
     def _finalize_floor_one_battle(
         self,

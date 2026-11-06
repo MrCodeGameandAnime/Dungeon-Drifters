@@ -6,6 +6,7 @@ from app.content.permanent_discovery_spec import (
     PermanentDiscoverySource,
     PermanentDiscoveryType,
 )
+from app.content.catalog import get_permanent_discovery_search_node_id
 
 
 def test_floor_two_search_source_has_approved_authored_defaults():
@@ -18,6 +19,10 @@ def test_floor_two_search_source_has_approved_authored_defaults():
     assert source.discovery_type.value == "ancient_well"
     assert source.amount == 5
     assert source.search_chance_bps == 1000
+    assert (
+        get_permanent_discovery_search_node_id(source.source_id)
+        == "floor_two_pre_boss_rest"
+    )
 
 
 def test_unknown_permanent_discovery_source_is_not_cataloged():

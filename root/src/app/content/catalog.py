@@ -59,6 +59,19 @@ PERMANENT_DISCOVERY_SOURCES = validate_permanent_discovery_sources(
 _PERMANENT_DISCOVERY_CATALOG = readonly_mapping(
     {source.source_id: source for source in PERMANENT_DISCOVERY_SOURCES}
 )
+_PERMANENT_DISCOVERY_SEARCH_NODE_IDS = readonly_mapping(
+    {"ancient_well_floor2_01": "floor_two_pre_boss_rest"}
+)
+
+# Retired authored IDs stay recognizable so immutable saved event evidence remains valid.
+_RETIRED_PERMANENT_DISCOVERY_SOURCES = (
+    PermanentDiscoverySource(
+        "ancient_well_floor1_01",
+        PermanentDiscoveryType.ANCIENT_WELL,
+        5,
+    ),
+)
+_RETIRED_FLOOR_TWO_ROUTE_NODE_IDS = frozenset()
 
 
 def _build_weapon_catalog(records):
@@ -209,6 +222,9 @@ def _build_route_catalog(records, *, encounter_catalog=None):
     _ROUTE_NODE_CATALOG,
     _ROUTE_SUCCESSOR_CATALOG,
 ) = _build_route_catalog(GENERATED_ROUTE_SPECS)
+_FLOOR_TWO_ROUTE_NODE_IDS = frozenset(
+    node.node_id for node in _ROUTE_CATALOG["floor_two"].nodes
+)
 
 
 def _build_recruitment_event_catalog(
@@ -330,6 +346,24 @@ def get_permanent_discovery_source(source_id):
         ) from error
 
 
+def get_known_permanent_discovery_source(source_id):
+    try:
+        return _PERMANENT_DISCOVERY_CATALOG[source_id]
+    except (KeyError, TypeError):
+        for source in _RETIRED_PERMANENT_DISCOVERY_SOURCES:
+            if source.source_id == source_id:
+                return source
+    raise ValueError(f"unknown permanent discovery source: {source_id}")
+
+
+def get_permanent_discovery_search_node_id(source_id):
+    return _PERMANENT_DISCOVERY_SEARCH_NODE_IDS.get(source_id)
+
+
+def is_known_floor_two_route_node_id(node_id):
+    return node_id in _FLOOR_TWO_ROUTE_NODE_IDS or node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
+
+
 def get_drifter_spec_by_choice(choice):
     try:
         return _DRIFTER_CHOICE_CATALOG[choice]
@@ -440,6 +474,9 @@ __all__ = [
     "get_drifter_spec",
     "get_recruitment_event",
     "get_permanent_discovery_source",
+    "get_known_permanent_discovery_source",
+    "get_permanent_discovery_search_node_id",
+    "is_known_floor_two_route_node_id",
     "get_drifter_spec_by_choice",
     "get_route_spec",
     "get_route_node_spec",

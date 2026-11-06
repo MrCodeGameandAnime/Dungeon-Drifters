@@ -41,8 +41,6 @@ class PermanentDiscoverySource:
                 raise TypeError("search_chance_bps must be an integer")
             if not 0 <= self.search_chance_bps <= 10000:
                 raise ValueError("search_chance_bps must be between 0 and 10000")
-
-
 def validate_permanent_discovery_sources(sources):
     try:
         values = tuple(sources)

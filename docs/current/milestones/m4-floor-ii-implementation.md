@@ -2,11 +2,11 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document plans M4A only; it does not authorize starting M5 or M4B.
 
-**Status:** Gate 0 approved. M4A-1 through M4A-5 are implemented and locally verified. M4A-6 remains open for hosted CI, PostgreSQL/migration qualification, and pinned MicroPython (2026-11-06).
+**Status:** Gate 0 approved. M4A-1 through M4A-5 are implemented. The cumulative baseline at `b57ca41fec21988718605b211e56e7a6a5950ce0` passed hosted CI, PostgreSQL, and migration/Alembic qualification. Review corrections R1-R3 are now in the working tree and require qualification on their accepted commit. Pinned MicroPython remains open (2026-11-06).
 
 ### Local Review Checkpoints
 
-The implementation is split into these reviewable commits on the existing `dungeon` branch. M4A-3 and M4A-4 share the party/session/persistence transaction boundary and are intentionally one commit; browser integration is separate. These are local commits; no hosted run has qualified their resulting tree.
+The implementation is split into these reviewable commits on the existing `dungeon` branch. M4A-3 and M4A-4 share the party/session/persistence transaction boundary and are intentionally one commit; browser integration is separate. The hosted run below qualifies the cumulative baseline at `b57ca41`; the intermediate commits were not independently qualified.
 
 | Gate | Commit | Scope |
 | --- | --- | --- |
@@ -14,9 +14,22 @@ The implementation is split into these reviewable commits on the existing `dunge
 | M4A-2 | `c3ddac5` | Identity modifiers and the cave-in response |
 | M4A-3 / M4A-4 | `6377eb4` | Persisted Floor II run/events, route, D3, rewards, and schema 18 |
 | M4A-5 | `70c55c4` | Browser bridge and built-browser Floor II journey |
+| M4 checkpoint | `9c6a70e` | Record gate checkpoint and qualification status |
 | M4A-5 | `b110923` | Terminal Floor II journey and terminal action-key routing |
+| M4A-6 | `b57ca41` | Record cumulative local qualification checkpoint |
 
-Local cumulative evidence at this checkpoint: the M4-focused root selection passed (**492 tests**), full root pytest passed (**2,084 tests**), and web pytest passed (**66 tests**). Content validation passed (**5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events**); `compileall` passed; generated dataclass manifest check passed (**147 entries**); browser build produced **161 files**; full browser smoke passed through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`; `git diff --check` passed. The new terminal journey traverses all ten Floor II encounters, recruits D3, resolves the discovery, and clears the Goblin Lord. PostgreSQL/migration checks were not run: Docker is unreachable and both dedicated database URL variables are unset. Pinned MicroPython and hosted CI have not run on this checkpoint.
+The cumulative baseline was qualified by [GitHub Actions run 42273495771](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42273495771) on exact SHA `b57ca41fec21988718605b211e56e7a6a5950ce0`. Hosted results: **2,084 root Python tests**, **66 web tests**, and **39 PostgreSQL tests** passed. Content validation, compile, migration-from-zero, Alembic model/parity checks, and the **161-file browser build** passed; built-browser smoke reached `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`. The terminal journey traverses all ten Floor II encounters, recruits D3, resolves the discovery, and clears the Goblin Lord. The local M4-focused selection passed (**492 tests**), generated dataclass manifest check passed (**147 entries**), and `git diff --check` passed on that baseline. These results do not qualify the current uncommitted R1-R3 corrections. The prescribed pinned MicroPython qualification was not run and remains open.
+
+### Review Corrections Pending Qualification
+
+The current working tree contains corrections for the three review findings:
+
+- **R1:** Validate current schema-18 discovery sources, route-node references, source/node associations, active searchers, and durable discovery evidence while retaining known historical source IDs for older saves.
+- **R2:** Restore the encounter-local carried-supply checkpoint when a victorious Floor II reward save fails, without rewinding earlier committed progress.
+- **R3:** Recover a persisted Floor II boss victory through an idempotent settlement action rather than requiring a boss refight, including same-session retry and reload.
+- The browser smoke's discovery-bonus lookup now keys Drifters by canonical profile choice; the save profile does not expose a `drifter_id` field there.
+
+Current local rerun: **2,095 root tests** and **66 web tests** passed; content validation, compile, 161-file browser build, and the complete built-browser smoke through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS` passed. The browser smoke used the installed Chrome executable because Playwright's bundled Chromium is absent. PostgreSQL/migration/Alembic checks could not be rerun locally because Docker is unavailable and no database endpoint is listening. These results are not hosted qualification: run the hosted workflow on the accepted correction SHA, then complete the prescribed pinned MicroPython matrix before marking M4A closed.
 
 **Goal:** Add authored enemy Tier 1 behavior and a bounded, replayable Floor II route that introduces D3, Grade-II materials, persisted search/drop outcomes, and one counterable environmental threat without changing sealed Floor I behavior.
 
@@ -154,14 +167,15 @@ Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_disc
 
 ### M4A-6: Qualification And M5 Handoff
 
-- [x] Run focused enemy, combat, search/drop transaction, recruitment, route, save migration, presenter, and terminal journey tests (492 passed); run web pytest (66 passed).
-- [x] Complete full root pytest (2,084 passed on the current M4A-5 tree).
-- [x] Run content validation, compile/build, and built-browser Playwright smoke (161-file build; Floor II boss-clear marker passed).
-- [ ] Run profile-service PostgreSQL tests, migration-from-zero, and Alembic model parity. Not run: Docker engine is unreachable and dedicated database URL variables are unset.
+- [x] Baseline: focused M4 selection (492), full root pytest (2,084), and web pytest (66) passed locally; hosted cumulative qualification is recorded for exact SHA `b57ca41fec21988718605b211e56e7a6a5950ce0`.
+- [x] Baseline: content validation, compile, generated dataclass manifest check, 161-file browser build, and built-browser smoke passed through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`.
+- [x] Baseline hosted profile-service PostgreSQL tests (39), migration-from-zero, and Alembic checks passed in [run 42273495771](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42273495771).
+- [x] Current correction working tree: full root pytest (2,095), web pytest (66), content validation, compile, 161-file browser build, and complete built-browser smoke passed locally.
+- [ ] Rerun focused and cumulative qualification for R1-R3 on the accepted correction SHA, including browser smoke and PostgreSQL/migration/Alembic checks.
 - [ ] Extend and run the actual pinned MicroPython qualification for Tier 0/Tier 1 content loading, Floor II route/recruitment/drop/search snapshots, teardown, semantic parity, and the established heap frontier. Record exact memory values and distinguish expected limits from failures.
-- [x] Run `git diff --check` and inspect the gate commits listed above.
-- [ ] Record the final exact tree SHA and hosted results in this plan and the probe record after qualification. No hosted run is claimed for the current checkpoint.
-- [ ] M4A is ready for M5 only after exact-SHA hosted CI is green and the Floor II browser route is proven. Stop there; do not start M4B until M5 is complete.
+- [ ] Run `git diff --check` and inspect the final correction diff.
+- [ ] Record the accepted correction SHA and its hosted results here and in the probe record; do not use baseline run 42273495771 as qualification for R1-R3.
+- [ ] M4A is ready for M5 only after exact-SHA hosted CI, PostgreSQL/migration qualification, pinned MicroPython, and the Floor II browser route are all proven. Stop there; do not start M4B until M5 is complete.
 
 ## Regression And Acceptance Matrix
 

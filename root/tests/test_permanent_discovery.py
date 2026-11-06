@@ -8,6 +8,7 @@ from app.game.permanent_discovery import (
     DiscoveryClaimStatus,
     PermanentDiscoveryService,
 )
+from app.persistence import save_document
 from app.persistence.save_port_contract import SaveLoadStatus
 from tests.game_test_support import completed_hub_game, three_member_hub_game
 from tests.persistence_test_support import make_test_save_port
@@ -30,6 +31,23 @@ SOURCES = (
         "spirit_relic_ruins_03", PermanentDiscoveryType.SPIRIT_RELIC, 3
     ),
 )
+
+
+@pytest.fixture(autouse=True)
+def register_controlled_discovery_sources(monkeypatch):
+    lookup = save_document.get_known_permanent_discovery_source
+    controlled = {source.source_id: source for source in SOURCES}
+
+    def get_known_source(source_id):
+        if source_id in controlled:
+            return controlled[source_id]
+        return lookup(source_id)
+
+    monkeypatch.setattr(
+        save_document,
+        "get_known_permanent_discovery_source",
+        get_known_source,
+    )
 
 
 class _NoOpSavePort:

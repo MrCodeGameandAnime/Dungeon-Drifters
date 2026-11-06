@@ -3032,8 +3032,14 @@ try {
   const readFloorTwoDiscoveryBonuses = async () => page.evaluate((key) => {
     const payload = JSON.parse(localStorage.getItem(key)).payload;
     const members = [payload.player, ...payload.party.companions];
+    const drifterIdByChoice = {
+      "1": "branoc",
+      "2": "azhvielle",
+      "3": "zhaivra",
+      "4": "joruun",
+    };
     return Object.fromEntries(members.map((member) => [
-      member.identity.profile.drifter_id,
+      drifterIdByChoice[member.identity.profile.choice],
       member.permanent_discovery_bonuses,
     ]));
   }, floorTwoProfileKey);

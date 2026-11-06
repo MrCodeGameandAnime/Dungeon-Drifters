@@ -163,6 +163,15 @@ class PartyState:
         return self._floor_two_run_id
 
     @property
+    def floor_two_boss_reward_committed(self):
+        return self._floor_two_run_id is not None and any(
+            event["run_id"] == self._floor_two_run_id
+            and event["node_id"] == "floor_two_battle_10"
+            and event["kind"] == "encounter_rewards"
+            for event in self._resolved_run_events
+        )
+
+    @property
     def floor_two_outing_xp_multiplier_percent(self):
         return self._floor_two_outing_xp_multiplier_percent
 
@@ -344,6 +353,17 @@ class PartyState:
         self._carried_items = remaining
         return True
 
+    def restore_carried_supplies_checkpoint(self, items):
+        checkpoint = _item_stacks(items)
+        if sum(checkpoint.values()) > MAX_CARRIED_SUPPLY_UNITS:
+            raise ValueError("carried supplies exceed the six-unit capacity")
+        if any(
+            (spec := get_supply_item(item_id)) is None or not spec.carryable
+            for item_id in checkpoint
+        ):
+            raise ValueError("carried supplies must contain only carryable items")
+        self._carried_items = checkpoint
+
     def use_healing_potion(self, target, *, deployed_members):
         if self._phase not in {
             DungeonPhase.HUB,
@@ -474,6 +494,13 @@ class PartyState:
             if existing != normalized:
                 raise ValueError("run event key was reused with a different outcome")
             return False
+        candidate_events = list(self._resolved_run_events)
+        candidate_events.append(normalized)
+        validate_run_event_history(
+            candidate_events,
+            active_drifter_ids=self._active_drifter_ids,
+            require_complete=False,
+        )
         self._resolved_run_events.append(normalized)
         return True
 
@@ -775,7 +802,10 @@ class PartyState:
         if not isinstance(raw_events, list):
             raise TypeError("resolved_run_events must be a list")
         state._resolved_run_events = [_run_event(event) for event in raw_events]
-        validate_run_event_history(state._resolved_run_events)
+        validate_run_event_history(
+            state._resolved_run_events,
+            active_drifter_ids=state._active_drifter_ids,
+        )
         active_floor_two_run = state._floor_two_run_id is not None
         if active_floor_two_run:
             if not state._floor_two_cleared and state._floor_two_runs_started_after_clear:
@@ -1149,13 +1179,50 @@ def validate_run_event(value):
     return _run_event(value)
 
 
-def validate_run_event_history(events):
+def validate_run_event_history(
+    events,
+    *,
+    active_drifter_ids=None,
+    require_complete=True,
+):
     if not isinstance(events, (tuple, list)):
         raise TypeError("resolved run events must be a sequence")
     normalized = tuple(_run_event(event) for event in events)
     by_key = {event["event_key"]: event for event in normalized}
     if len(by_key) != len(normalized):
         raise ValueError("resolved run event keys must be unique")
+
+    from app.content.catalog import (
+        get_known_permanent_discovery_source,
+        get_permanent_discovery_search_node_id,
+        get_route_node_spec,
+        is_known_floor_two_route_node_id,
+    )
+    from app.content.route_spec import RouteNodeKind
+
+    for event in normalized:
+        node_id = event["node_id"]
+        if not is_known_floor_two_route_node_id(node_id):
+            raise ValueError("run event references an unknown Floor 2 route node")
+        node = get_route_node_spec(node_id)
+        if event["kind"] in {"enemy_drop", "encounter_rewards"}:
+            if (
+                node.kind not in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}
+                or node.encounter_id is None
+            ):
+                raise ValueError("combat event references a non-encounter route node")
+        elif event["kind"] == "discovery_search":
+            result = event["result"]
+            try:
+                source = get_known_permanent_discovery_source(result["source_id"])
+            except ValueError as error:
+                raise ValueError("discovery event references an unknown source") from error
+            if get_permanent_discovery_search_node_id(result["source_id"]) != node_id:
+                raise ValueError("discovery source does not belong to this route node")
+            if active_drifter_ids is not None and (
+                result["searcher_drifter_id"] not in active_drifter_ids
+            ):
+                raise ValueError("discovery searcher is not in the active party")
 
     referenced_drop_keys = set()
     for event in normalized:
@@ -1182,7 +1249,7 @@ def validate_run_event_history(events):
     actual_drop_keys = {
         event["event_key"] for event in normalized if event["kind"] == "enemy_drop"
     }
-    if actual_drop_keys != referenced_drop_keys:
+    if require_complete and actual_drop_keys != referenced_drop_keys:
         raise ValueError("enemy drop evidence must belong to a resolved encounter")
     return normalized
 

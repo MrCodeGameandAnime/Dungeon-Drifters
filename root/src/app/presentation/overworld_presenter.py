@@ -443,6 +443,11 @@ class OverworldPresenter:
 
     @staticmethod
     def _default_adventure_text(game_state):
+        if game_state.floor_two_boss_settlement_pending:
+            return (
+                "The Goblin Lord's victory is saved. Finalize the Floor 2 clear "
+                "to return to the Hub."
+            )
         current_label = get_route_node_spec(
             game_state.overworld_state.current_route_node_id
         ).display_label
@@ -1222,8 +1227,18 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
+            settlement_action = (
+                (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
+                        "Finalize Floor II Clear",
+                    ),
+                )
+                if game_state.floor_two_boss_settlement_pending
+                else ()
+            )
             talisman_option = self._return_talisman_option(game_state)
-            return talisman_option + (
+            return settlement_action + talisman_option + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
@@ -1503,6 +1518,8 @@ class OverworldPresenter:
                 "Continue Without Rest",
             )
         if screen is not OverworldScreen.MAIN:
+            return None
+        if game_state.floor_two_boss_settlement_pending:
             return None
         phase = game_state.overworld_state.current_contextual_route_phase
         if phase is ContextualRoutePhase.ENTER_ENCOUNTER:
