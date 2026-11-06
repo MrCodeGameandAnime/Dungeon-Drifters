@@ -598,6 +598,12 @@ class TerminalBattleUI:
                 lines.append("That inventory action is not available.")
         elif entry.event_type == BattleEventType.STATUS:
             pass
+        elif entry.event_type == BattleEventType.HAZARD_WARNING:
+            lines.append(entry.reason or "A hazard is imminent.")
+        elif entry.event_type == BattleEventType.HAZARD_DAMAGE:
+            lines.append(
+                f"Falling stone struck {target} for {entry.amount} damage."
+            )
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
             target_context = self._target_context(actor, entry.target_name)
             lines.append(

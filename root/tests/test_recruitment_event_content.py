@@ -1,9 +1,12 @@
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
 
 import pytest
 
 from app.content import catalog
 from app.content.recruitment_event_spec import RecruitmentEventSpec
+from app.game.party_state import DungeonPhase
+from app.game.recruitment import available_recruitment_event
 
 
 def test_floor_one_recruitment_event_is_authored_in_the_content_catalog():
@@ -23,6 +26,56 @@ def test_floor_one_recruitment_event_is_authored_in_the_content_catalog():
 
     with pytest.raises(FrozenInstanceError):
         event.cost = 1
+
+
+def test_floor_two_d3_recruitment_event_is_authored_at_midway_rest():
+    event = catalog.get_recruitment_event("floor_two_d3_recruitment")
+
+    assert event.route_id == "floor_two"
+    assert event.route_node_id == "floor_two_midway_rest"
+    assert event.candidate_drifter_ids == (
+        "branoc",
+        "azhvielle",
+        "zhaivra",
+        "joruun",
+    )
+    assert event.cost == 65
+
+
+def test_unrelated_route_node_does_not_resolve_recruited_roster():
+    class GameState:
+        party_state = SimpleNamespace()
+        story_state = SimpleNamespace(completed_events=())
+        overworld_state = SimpleNamespace(
+            active_route_id="surface",
+            current_route_node_id="not_a_recruitment_node",
+        )
+
+        @property
+        def recruited_members(self):
+            raise AssertionError("unrelated node must not resolve the recruited roster")
+
+    assert available_recruitment_event(GameState()) is None
+
+
+def test_completed_tutorial_at_d1_node_does_not_resolve_recruited_roster():
+    class GameState:
+        party_state = SimpleNamespace(
+            phase=DungeonPhase.HUB,
+            tutorial_complete=True,
+            companions=(),
+        )
+        story_state = SimpleNamespace(completed_events=())
+        overworld_state = SimpleNamespace(
+            active_route_id="surface",
+            current_route_node_id="surface_dungeon_entrance",
+        )
+
+        @property
+        def recruited_members(self):
+            raise AssertionError("ineligible D1 event must not resolve the recruited roster")
+
+    assert available_recruitment_event(GameState()) is None
 
 
 @pytest.mark.parametrize(

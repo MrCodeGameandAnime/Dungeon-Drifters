@@ -8,6 +8,7 @@ from app.content.catalog import (
     get_encounter_spec,
     get_inspectable_encounter_spec,
     get_route_node_spec,
+    get_route_spec,
     get_route_successor_id,
 )
 from app.content.route_spec import RouteNodeKind
@@ -105,13 +106,26 @@ def test_surface_route_manifest_matches_the_approved_contract_exactly():
     assert manifest_values() == EXPECTED_MANIFEST
 
 
-def test_encounter_counts_rewards_and_unique_boss_match_the_contract():
-    assert len(ENCOUNTER_SPECS) == 10
+def test_surface_and_floor_one_encounters_keep_the_approved_contract():
+    route_encounter_ids = {
+        node.encounter_id
+        for route_id in ("surface", "floor_one")
+        for node in get_route_spec(route_id).nodes
+        if node.encounter_id is not None
+    }
+    existing_route_encounters = tuple(
+        encounter
+        for encounter in ENCOUNTER_SPECS
+        if encounter.encounter_id in route_encounter_ids
+    )
+    assert len(existing_route_encounters) == 10
     assert sum(
-        get_encounter_rewards(spec.encounter_id)[0] for spec in ENCOUNTER_SPECS
+        get_encounter_rewards(spec.encounter_id)[0]
+        for spec in existing_route_encounters
     ) == 1340
     assert sum(
-        get_encounter_rewards(spec.encounter_id)[1] for spec in ENCOUNTER_SPECS
+        get_encounter_rewards(spec.encounter_id)[1]
+        for spec in existing_route_encounters
     ) == 96
     assert tuple(
         node.encounter_id
@@ -120,7 +134,7 @@ def test_encounter_counts_rewards_and_unique_boss_match_the_contract():
     ) == ("surface_goblin_lord",)
     assert sum(
         archetype_id == "goblin_lord"
-        for encounter in ENCOUNTER_SPECS
+        for encounter in existing_route_encounters
         for archetype_id in encounter.enemy_archetype_ids
     ) == 1
 

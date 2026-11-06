@@ -6,10 +6,12 @@ from typing import TypeAlias, Union
 from app.content.catalog import (
     get_encounter_spec,
     get_encounter_item_rewards,
+    get_encounter_item_drop_tables,
     get_encounter_rewards,
     get_drifter_spec,
     get_route_node_spec,
     get_route_successor_id,
+    get_permanent_discovery_source,
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
@@ -17,6 +19,11 @@ from app.game.hub_economy import HubEconomyService
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.game.recruitment import available_recruitment_event
+from app.game.permanent_discovery import (
+    DiscoveryClaimStatus,
+    PermanentDiscoveryService,
+)
+from app.game.run_events import RunEventService, RunEventStatus
 from app.game.respec import RespecService, RespecStatus
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
@@ -38,6 +45,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseCompanion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
@@ -111,6 +120,7 @@ class OverworldSession:
         battle_ui_factory=None,
         presenter=None,
         save_port=None,
+        run_event_rng=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -132,6 +142,10 @@ class OverworldSession:
             raise TypeError("presenter must be an OverworldPresenter")
         if save_port is not None and not is_save_port(save_port):
             raise TypeError("save_port must satisfy SavePort")
+        if run_event_rng is not None and not callable(
+            getattr(run_event_rng, "randint", None)
+        ):
+            raise TypeError("run_event_rng must provide randint")
 
         self._game_state = game_state
         self._ui = ui
@@ -140,6 +154,7 @@ class OverworldSession:
         self._battle_ui_factory = battle_ui_factory
         self._presenter = presenter
         self._save_port = save_port
+        self._run_event_rng = run_event_rng
         self._screen = self._initial_screen(game_state)
         self._selected_item_key = None
         self._selected_character_target_id = None
@@ -151,6 +166,8 @@ class OverworldSession:
         self._notice = None
         self._quit_return_screen = None
         self._rest_return_screen = None
+        self._discovery_source_id = None
+        self._discovery_target_id = None
         self._active_battle = None
         self._active_battle_context = None
         self._last_presented_view = None
@@ -218,6 +235,12 @@ class OverworldSession:
             return self._build_view()
         if isinstance(session_input, ChooseActivePair):
             self._select_active_pair(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseDiscoverySearcher):
+            self._select_discovery_searcher(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseDiscoveryTarget):
+            self._select_discovery_target(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChooseCharacterTarget):
             self._select_character_target(view, session_input)
@@ -410,6 +433,8 @@ class OverworldSession:
                 and self.game_state.party_state.phase is DungeonPhase.HUB
             ),
             respec_preview=self._respec_preview,
+            discovery_source_id=self._discovery_source_id,
+            discovery_target_id=self._discovery_target_id,
         )
 
     def _save_available(self):
@@ -569,6 +594,40 @@ class OverworldSession:
         try:
             profile = get_drifter_spec(choice.drifter_id)
             companion = PlayerState(profile.create_character())
+            if event.route_id == "floor_two":
+                candidate = self.game_state.clone()
+                recruited = candidate.party_state.recruit_floor_two_companion(
+                    companion,
+                    recruited_ids=tuple(
+                        member.character.profile.drifter_id
+                        for member in candidate.recruited_members
+                    ),
+                    cost=event.cost,
+                )
+                if not recruited:
+                    self._notice = (
+                        f"You need {event.cost} shared gold to recruit a Drifter."
+                    )
+                    return
+                candidate.story_state.complete_event(event.event_id)
+                try:
+                    result = self._save_port_instance().save(candidate)
+                except (SavePortError, TypeError, ValueError):
+                    result = None
+                if result is None or result.status is not SaveLoadStatus.SAVED:
+                    self._notice = (
+                        "The recruitment could not be saved. Nothing changed."
+                    )
+                    return
+                self._game_state = candidate
+                self._screen = OverworldScreen.REST
+                self._rest_return_screen = None
+                self._adventure_text = (
+                    f"{profile.display_name} joins the roster at Midway Rest. "
+                    "Your active party remains unchanged."
+                )
+                self._notice = None
+                return
             recruited = self.game_state.party_state.recruit_companion(
                 self.game_state.player_state,
                 companion,
@@ -906,6 +965,9 @@ class OverworldSession:
         result = self._dispatch_floor_one_action(action)
         if result is not _UNHANDLED_ACTION:
             return result
+        result = self._dispatch_discovery_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
         if action is OverworldAction.RETURN_TO_HUB:
             self._return_to_hub()
             return None
@@ -940,7 +1002,7 @@ class OverworldSession:
             if (
                 self._screen is OverworldScreen.REST
                 and self.game_state.overworld_state.active_route_id
-                == "floor_one"
+                in {"floor_one", "floor_two"}
                 and navigation[action]
                 in {OverworldScreen.CHARACTER, OverworldScreen.ITEMS}
             ):
@@ -953,6 +1015,11 @@ class OverworldSession:
 
     def _dispatch_party_action(self, action):
         if action is OverworldAction.RECRUIT_COMPANION:
+            if available_recruitment_event(self.game_state) is None:
+                self._notice = "Recruitment is not available here."
+                return None
+            if self._screen is OverworldScreen.REST:
+                self._rest_return_screen = OverworldScreen.REST
             self._screen = OverworldScreen.COMPANION_SELECTION
             self._adventure_text = "Choose one Drifter to join your party."
             return None
@@ -970,6 +1037,8 @@ class OverworldSession:
             self._screen = OverworldScreen.FLOOR_ONE_WARNING
             self._adventure_text = self.FLOOR_ONE_WARNING
             return None
+        if action is OverworldAction.START_FLOOR_TWO:
+            return self._start_floor_two()
         if action is OverworldAction.SET_OUT:
             return self._start_floor_one()
         if action is OverworldAction.RETURN_WITH_TALISMAN:
@@ -978,8 +1047,9 @@ class OverworldSession:
         if action is not OverworldAction.EXTRACT:
             return _UNHANDLED_ACTION
         party_state = self.game_state.party_state
+        route_id = self.game_state.overworld_state.active_route_id
         if (
-            self.game_state.overworld_state.active_route_id != "floor_one"
+            route_id not in {"floor_one", "floor_two"}
             or self._screen is not OverworldScreen.REST
             or party_state.phase is not DungeonPhase.OUTING
         ):
@@ -987,34 +1057,271 @@ class OverworldSession:
             return None
         if not self._persist_floor_one_rest_fallback(extraction=True):
             return None
-        if not party_state.begin_floor_one_extraction(partial=True):
+        begin_extraction = (
+            party_state.begin_floor_two_extraction
+            if route_id == "floor_two"
+            else party_state.begin_floor_one_extraction
+        )
+        if not begin_extraction(partial=True):
             self._notice = "Extraction is not available here."
             return None
         self._screen = OverworldScreen.EXTRACTION
+        floor_label = "Floor 2" if route_id == "floor_two" else "Floor 1"
         self._adventure_text = (
-            "You extract from Floor 1 early. Half of adjusted XP and gold "
+            f"You extract from {floor_label} early. Half of adjusted XP and gold "
             "are secured, and all run items are kept."
         )
         return None
 
+    def _dispatch_discovery_action(self, action):
+        if action not in {
+            OverworldAction.SEARCH_SITE,
+            OverworldAction.CLAIM_DISCOVERY,
+        }:
+            return _UNHANDLED_ACTION
+        overworld = self.game_state.overworld_state
+        party = self.game_state.party_state
+        source_id = "ancient_well_floor2_01"
+        if (
+            self._screen is not OverworldScreen.REST
+            or overworld.active_route_id != "floor_two"
+            or overworld.current_route_node_id != "floor_two_pre_boss_rest"
+            or party.phase is not DungeonPhase.OUTING
+        ):
+            self._notice = "That discovery is not available here."
+            return None
+        source = get_permanent_discovery_source(source_id)
+        discovered = (
+            source_id in self.game_state.world_state.discovered_permanent_discovery_sources
+        )
+        claimed = source_id in self.game_state.world_state.permanent_discovery_claims
+        if action is OverworldAction.SEARCH_SITE:
+            already_searched = any(
+                event["run_id"] == party.floor_two_run_id
+                and event["node_id"] == overworld.current_route_node_id
+                and event["kind"] == "discovery_search"
+                for event in party.resolved_run_events
+            )
+            if discovered or claimed or already_searched:
+                self._notice = "This site has already been searched in this run."
+                return None
+            self._discovery_source_id = source_id
+            self._discovery_target_id = None
+            self._screen = OverworldScreen.DISCOVERY_SEARCHERS
+            self._adventure_text = (
+                "Choose an active Drifter to search the Ancient Well. "
+                "Their Intuition affects the search."
+            )
+            self._notice = None
+            return None
+        if claimed or not discovered:
+            self._notice = "There is no unclaimed discovery here."
+            return None
+        self._discovery_source_id = source.source_id
+        self._discovery_target_id = None
+        self._screen = OverworldScreen.DISCOVERY_TARGETS
+        self._adventure_text = (
+            "The Ancient Well is revealed. Choose one active Drifter to "
+            "receive its permanent +5 Max HP."
+        )
+        self._notice = None
+        return None
+
+    def _select_discovery_searcher(self, view, session_input):
+        if (
+            view.screen is not OverworldScreen.DISCOVERY_SEARCHERS
+            or self._discovery_source_id is None
+            or not any(
+                choice.drifter_id == session_input.drifter_id
+                for choice in view.discovery_choices
+            )
+        ):
+            self._notice = "That searcher is not available."
+            return
+        source = get_permanent_discovery_source(self._discovery_source_id)
+        rng = self._run_event_rng
+        if rng is None:
+            from app import randomness
+
+            rng = randomness
+        try:
+            result = RunEventService(
+                save_port=self._save_port_instance(),
+                rng=rng,
+            ).search_discovery(
+                self.game_state,
+                node_id=self.game_state.overworld_state.current_route_node_id,
+                searcher_drifter_id=session_input.drifter_id,
+                source=source,
+            )
+        except (OSError, SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is RunEventStatus.SAVE_FAILED:
+            self._screen = OverworldScreen.REST
+            self._notice = "The search could not be saved. Nothing changed."
+            return
+        if result.status is RunEventStatus.INVALID_TARGET:
+            self._notice = "Only an active Drifter can search this site."
+            return
+        if result.status is RunEventStatus.INVALID_SOURCE:
+            self._screen = OverworldScreen.REST
+            self._notice = "This discovery source is unavailable."
+            return
+        if result.status is RunEventStatus.ALREADY_FOUND:
+            self._game_state = result.game_state
+            self._screen = OverworldScreen.DISCOVERY_TARGETS
+            self._adventure_text = (
+                "The Ancient Well is already revealed. Choose one active "
+                "Drifter to receive its permanent +5 Max HP."
+            )
+            return
+        if result.status not in {
+            RunEventStatus.RESOLVED,
+            RunEventStatus.ALREADY_RESOLVED,
+        }:
+            self._screen = OverworldScreen.REST
+            self._notice = "The search could not be completed."
+            return
+        self._game_state = result.game_state
+        if result.found:
+            self._screen = OverworldScreen.DISCOVERY_TARGETS
+            self._adventure_text = (
+                "You found the Ancient Well. Choose one active Drifter to "
+                "receive its permanent +5 Max HP."
+            )
+            self._notice = None
+        else:
+            self._screen = OverworldScreen.REST
+            self._discovery_source_id = None
+            self._notice = (
+                "The search found nothing. This site cannot be searched "
+                "again until a later Floor II run."
+            )
+
+    def _select_discovery_target(self, view, session_input):
+        if (
+            view.screen is not OverworldScreen.DISCOVERY_TARGETS
+            or self._discovery_source_id is None
+            or not any(
+                choice.drifter_id == session_input.drifter_id
+                for choice in view.discovery_choices
+            )
+        ):
+            self._notice = "Only an active Drifter can receive this discovery."
+            return
+        target = self.game_state.member_for_drifter_id(session_input.drifter_id)
+        self._discovery_target_id = session_input.drifter_id
+        self._screen = OverworldScreen.DISCOVERY_CONFIRMATION
+        self._adventure_text = (
+            f"Consume the Ancient Well for {target.character.full_display_name}? "
+            "This permanently grants +5 Max HP to that Drifter only."
+        )
+        self._notice = None
+
+    def _confirm_discovery_claim(self):
+        if (
+            self._screen is not OverworldScreen.DISCOVERY_CONFIRMATION
+            or self._discovery_source_id is None
+            or self._discovery_target_id is None
+        ):
+            self._notice = "That discovery claim is not available."
+            return
+        source = get_permanent_discovery_source(self._discovery_source_id)
+        try:
+            result = PermanentDiscoveryService(
+                (source,),
+                save_port=self._save_port_instance(),
+            ).consume(
+                self.game_state,
+                source.source_id,
+                self._discovery_target_id,
+                confirmed=True,
+            )
+        except (OSError, SavePortError, TypeError, ValueError):
+            result = None
+        if result is not None and result.status is DiscoveryClaimStatus.CLAIMED:
+            target = result.game_state.member_for_drifter_id(
+                self._discovery_target_id
+            )
+            self._game_state = result.game_state
+            self._screen = OverworldScreen.REST
+            self._notice = (
+                f"Ancient Well claimed by {target.character.full_display_name}: "
+                "+5 Max HP."
+            )
+            self._discovery_source_id = None
+            self._discovery_target_id = None
+            return
+        if result is not None and result.status is DiscoveryClaimStatus.SAVE_FAILED:
+            self._notice = "The discovery could not be saved. Nothing changed."
+            return
+        self._screen = OverworldScreen.REST
+        self._discovery_source_id = None
+        self._discovery_target_id = None
+        self._notice = "That discovery is no longer available."
+
+    def _start_floor_two(self):
+        party_state = self.game_state.party_state
+        overworld = self.game_state.overworld_state
+        party_snapshot = party_state.snapshot()
+        overworld_snapshot = overworld.snapshot()
+        party_members = self.game_state.active_party_members
+        checkpoints = tuple(
+            member.create_battle_checkpoint() for member in party_members
+        )
+        try:
+            party_state.start_floor_two_run()
+            self._select_party_target(party_members[0])
+            overworld.begin_route("floor_two")
+            self._screen = OverworldScreen.MAIN
+            self._adventure_text = "Your party sets out into Floor 2."
+            battle = self._create_active_battle(ui=None)
+            if battle is None:
+                raise RuntimeError("the first Floor 2 encounter is unavailable")
+        except Exception:
+            for member, checkpoint in zip(party_members, checkpoints):
+                member.restore_battle_checkpoint(checkpoint)
+            self.game_state._party_state = PartyState.from_snapshot(
+                party_snapshot,
+                companions=party_state.companions,
+                active_drifter_ids=party_state.active_drifter_ids,
+            )
+            self.game_state._overworld_state = OverworldState.from_snapshot(
+                overworld_snapshot
+            )
+            self._active_battle = None
+            self._active_battle_context = None
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = None
+            self._notice = "The Floor 2 run could not be started."
+            return None
+
+        battle_view = battle.current_view()
+        if battle.is_complete:
+            self._finalize_active_battle()
+        return battle_view
+
     def _return_to_hub(self):
         party_state = self.game_state.party_state
-        floor_one_extraction = (
-            self.game_state.overworld_state.active_route_id == "floor_one"
-        )
+        route_id = self.game_state.overworld_state.active_route_id
+        dungeon_extraction = route_id in {"floor_one", "floor_two"}
         secured_items = dict(party_state.outing_rewards.items)
-        if not party_state.complete_extraction(
-            self.game_state.active_party_members
-        ):
+        complete_extraction = (
+            party_state.complete_floor_two_extraction
+            if route_id == "floor_two"
+            else party_state.complete_extraction
+        )
+        if not complete_extraction(self.game_state.active_party_members):
             self._notice = "Those rewards are no longer available."
             return
         self._restore_recruited_party()
-        if floor_one_extraction:
+        if dungeon_extraction:
             self.game_state.overworld_state.return_to_surface_entrance()
         self._screen = OverworldScreen.HUB
-        if floor_one_extraction:
+        if dungeon_extraction:
             self._adventure_text = (
-                "You extract to the Hub. Your run rewards are secured and your "
+                f"You extract from Floor {2 if route_id == 'floor_two' else 1} to the Hub. "
+                "Your run rewards are secured and your "
                 + "recruited Drifters are fully restored. "
                 + _item_reward_text(secured_items, prefix="Items secured:")
             )
@@ -1023,13 +1330,14 @@ class OverworldSession:
                 "You return to the Floor 1 Hub. The tutorial rewards are secured. "
                 + _item_reward_text(secured_items, prefix="Items secured:")
             )
-        if floor_one_extraction:
+        if dungeon_extraction:
             self._persist_floor_one_hub_outcome()
 
     def _return_with_talisman(self):
         party_state = self.game_state.party_state
         if (
-            self.game_state.overworld_state.active_route_id != "floor_one"
+            self.game_state.overworld_state.active_route_id
+            not in {"floor_one", "floor_two"}
             or party_state.phase is not DungeonPhase.OUTING
         ):
             self._notice = "The Return Talisman cannot be used here."
@@ -1204,6 +1512,9 @@ class OverworldSession:
             )
             return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+                self._navigate_back()
+                return None
             if self._screen is OverworldScreen.RESPEC_CONFIRMATION:
                 self._screen = OverworldScreen.SKILLS
                 self._respec_preview = None
@@ -1220,6 +1531,9 @@ class OverworldSession:
             self._quit_return_screen = None
             return None
         if action is OverworldAction.CONFIRM:
+            if self._screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+                self._confirm_discovery_claim()
+                return None
             if self._screen is OverworldScreen.LOAD_CONFIRMATION:
                 self._load_saved_session()
                 return None
@@ -1303,16 +1617,33 @@ class OverworldSession:
         fallback = self.game_state.clone()
         party_state = fallback.party_state
         party_members = fallback.active_party_members
+        floor_two = fallback.overworld_state.active_route_id == "floor_two"
         if extraction:
-            if not party_state.begin_floor_one_extraction(partial=True):
+            begin_extraction = (
+                party_state.begin_floor_two_extraction
+                if floor_two
+                else party_state.begin_floor_one_extraction
+            )
+            complete_extraction = (
+                party_state.complete_floor_two_extraction
+                if floor_two
+                else party_state.complete_extraction
+            )
+            if not begin_extraction(partial=True):
                 self._notice = "The next step could not be saved. You remain at this Rest."
                 return False
-            if not party_state.complete_extraction(party_members):
+            if not complete_extraction(party_members):
                 self._notice = "The next step could not be saved. You remain at this Rest."
                 return False
-        elif not party_state.fail_floor_one_run(party_members):
-            self._notice = "The next step could not be saved. You remain at this Rest."
-            return False
+        else:
+            fail_run = (
+                party_state.fail_floor_two_run
+                if floor_two
+                else party_state.fail_floor_one_run
+            )
+            if not fail_run(party_members):
+                self._notice = "The next step could not be saved. You remain at this Rest."
+                return False
 
         self._restore_members(fallback.recruited_members)
 
@@ -1360,6 +1691,25 @@ class OverworldSession:
         self._adventure_text = None
 
     def _navigate_back(self):
+        if self._screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            self._screen = OverworldScreen.DISCOVERY_TARGETS
+            self._discovery_target_id = None
+            self._adventure_text = (
+                "Choose one active Drifter to receive the Ancient Well's "
+                "permanent +5 Max HP."
+            )
+            self._notice = None
+            return
+        if self._screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            self._screen = OverworldScreen.REST
+            self._discovery_source_id = None
+            self._discovery_target_id = None
+            self._adventure_text = None
+            self._notice = None
+            return
         if self._screen is OverworldScreen.RESPEC_CONFIRMATION:
             self._screen = OverworldScreen.SKILLS
             self._respec_preview = None
@@ -1371,7 +1721,13 @@ class OverworldSession:
             OverworldScreen.PARTY_SELECTION,
             OverworldScreen.PARTY_READY,
         }:
-            self._screen = OverworldScreen.HUB
+            self._screen = (
+                OverworldScreen.REST
+                if self._screen is OverworldScreen.COMPANION_SELECTION
+                and self._rest_return_screen is OverworldScreen.REST
+                else OverworldScreen.HUB
+            )
+            self._rest_return_screen = None
             self._adventure_text = None
             return
         if self._screen in {
@@ -1419,7 +1775,7 @@ class OverworldSession:
             return OverworldScreen.EXTRACTION
         if game_state.party_state.phase is DungeonPhase.OUTING:
             overworld = game_state.overworld_state
-            if overworld.active_route_id == "floor_one":
+            if overworld.active_route_id in {"floor_one", "floor_two"}:
                 current_node = get_route_node_spec(
                     overworld.current_route_node_id
                 )
@@ -1501,18 +1857,21 @@ class OverworldSession:
         exp_reward, gold_reward = get_encounter_rewards(encounter.encounter_id)
 
         is_floor_one = overworld.active_route_id == "floor_one"
+        is_floor_two = overworld.active_route_id == "floor_two"
+        is_party_run = is_floor_one or is_floor_two
         party_members = (
             self.game_state.active_party_members
-            if is_floor_one
+            if is_party_run
             else (self.game_state.player_state,)
         )
         checkpoints = tuple(
             member.create_battle_checkpoint() for member in party_members
         )
-        if not is_floor_one:
+        if not is_party_run:
             overworld.begin_surface_route()
+        tier = 1 if is_floor_two else 0
         enemies = tuple(
-            self._enemy_factory(archetype_id, tier=0)
+            self._enemy_factory(archetype_id, tier=tier)
             for archetype_id in encounter.enemy_archetype_ids
         )
         try:
@@ -1520,7 +1879,9 @@ class OverworldSession:
                 "ui": ui,
                 "encounter_label": current_node.display_label,
             }
-            if is_floor_one:
+            if encounter.cave_in_power is not None:
+                battle_kwargs["cave_in_power"] = encounter.cave_in_power
+            if is_party_run:
                 battle_kwargs["party"] = party_members[1:]
                 battle_kwargs["party_state"] = self.game_state.party_state
                 battle_kwargs["smoke_escape_allowed"] = (
@@ -1564,7 +1925,7 @@ class OverworldSession:
             winner = battle.winner
         if winner == "escaped":
             if (
-                overworld.active_route_id != "floor_one"
+                overworld.active_route_id not in {"floor_one", "floor_two"}
                 or current_node_id is None
                 or not self.game_state.party_state.tutorial_complete
             ):
@@ -1619,6 +1980,19 @@ class OverworldSession:
                 exp_reward=exp_reward,
                 gold_reward=gold_reward,
                 party_members=party_members,
+            )
+            return None
+
+        if overworld.active_route_id == "floor_two":
+            self._finalize_floor_two_battle(
+                battle,
+                winner=winner,
+                current_node_id=current_node_id,
+                encounter_id=encounter_id,
+                exp_reward=exp_reward,
+                gold_reward=gold_reward,
+                party_members=party_members,
+                checkpoints=checkpoints,
             )
             return None
 
@@ -1686,6 +2060,146 @@ class OverworldSession:
         self._active_battle = None
         self._active_battle_context = None
         return None
+
+    def _finalize_floor_two_battle(
+        self,
+        battle,
+        *,
+        winner,
+        current_node_id,
+        encounter_id,
+        exp_reward,
+        gold_reward,
+        party_members,
+        checkpoints,
+    ):
+        party_state = self.game_state.party_state
+        overworld = self.game_state.overworld_state
+        current_node = get_route_node_spec(current_node_id)
+
+        if winner != "player":
+            if not party_state.fail_floor_two_run(party_members):
+                raise RuntimeError("the Floor 2 defeat could not be cleared")
+            overworld.return_to_surface_entrance()
+            self._restore_recruited_party()
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = (
+                "The party was defeated. All unsecured XP, gold, items, and "
+                "carried supplies were lost. Your recruited party returns "
+                "fully restored to the Hub."
+            )
+            self._persist_floor_one_hub_outcome()
+        else:
+            if not self._battle_enemies_are_defeated(battle):
+                raise RuntimeError(
+                    "Battle reported victory before every enemy was defeated"
+                )
+            next_node_id = get_route_successor_id(current_node_id)
+            candidate = self.game_state.clone()
+            if current_node.kind is not RouteNodeKind.BOSS:
+                if next_node_id is None:
+                    raise RuntimeError(
+                        "a Floor 2 encounter must have an authored successor"
+                    )
+                next_node = get_route_node_spec(next_node_id)
+                candidate.overworld_state.advance_to(
+                    next_node_id,
+                    contextual_phase=self._contextual_phase_for_node(
+                        next_node.kind
+                    ),
+                )
+
+            from app.game.run_events import RunEventService, RunEventStatus
+
+            rng = self._run_event_rng
+            if rng is None:
+                from app import randomness
+
+                rng = randomness
+            service = RunEventService(
+                save_port=self._save_port_instance(),
+                rng=rng,
+            )
+            result = service.resolve_encounter_rewards(
+                candidate,
+                node_id=current_node_id,
+                experience=exp_reward,
+                gold=gold_reward,
+                enemy_drop_tables=get_encounter_item_drop_tables(
+                    encounter_id,
+                    tier=1,
+                ),
+            )
+            if result.status not in {
+                RunEventStatus.RESOLVED,
+                RunEventStatus.ALREADY_RESOLVED,
+            }:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                overworld.set_contextual_route_phase(ContextualRoutePhase.RETRY)
+                self._screen = OverworldScreen.MAIN
+                self._adventure_text = (
+                    f"{current_node.display_label} is defeated, but its "
+                    "rewards could not be saved. Retry the encounter."
+                )
+                self._notice = "The Floor 2 encounter outcome could not be saved."
+                self._active_battle = None
+                self._active_battle_context = None
+                return
+
+            committed = result.game_state
+            if current_node.kind is RouteNodeKind.BOSS:
+                settled = committed.clone()
+                if not settled.party_state.complete_floor_two_boss(
+                    settled.active_party_members
+                ):
+                    raise RuntimeError("Floor 2 boss rewards could not be secured")
+                self._restore_members(settled.recruited_members)
+                settled.overworld_state.return_to_surface_entrance()
+                try:
+                    save_result = self._save_port_instance().save(settled)
+                except (SavePortError, TypeError, ValueError):
+                    save_result = None
+                if save_result is None or save_result.status is not SaveLoadStatus.SAVED:
+                    self._game_state = committed
+                    self._screen = OverworldScreen.MAIN
+                    self._adventure_text = (
+                        "The Goblin Lord is defeated, but the Hub return could "
+                        "not be saved. Retry the final encounter to finish the run."
+                    )
+                    self._notice = "The Floor 2 clear could not be saved."
+                else:
+                    self._game_state = settled
+                    self._screen = OverworldScreen.HUB
+                    self._adventure_text = (
+                        "The Goblin Lord is defeated. Floor 2 is cleared; all "
+                        "run rewards are secured and your recruited party returns "
+                        "fully restored to the Hub."
+                    )
+                    self._notice = None
+            else:
+                self._game_state = committed
+                next_node = get_route_node_spec(next_node_id)
+                self._screen = (
+                    OverworldScreen.REST
+                    if next_node.kind is RouteNodeKind.REST
+                    else OverworldScreen.MAIN
+                )
+                drop_text = _item_reward_text(
+                    dict(result.items),
+                    prefix="Items found:",
+                )
+                self._adventure_text = (
+                    f"{current_node.display_label} is defeated. Unsecured "
+                    f"rewards: {exp_reward} EXP and {gold_reward} gold. "
+                    f"{drop_text} The route continues toward "
+                    f"{next_node.display_label}."
+                )
+                self._notice = None
+
+        self._selected_item_key = None
+        self._active_battle = None
+        self._active_battle_context = None
 
     def _finalize_floor_one_battle(
         self,
@@ -1805,13 +2319,13 @@ class OverworldSession:
 
         if recover:
             members = (self.game_state.player_state,)
-            if overworld.active_route_id == "floor_one":
+            if overworld.active_route_id in {"floor_one", "floor_two"}:
                 members = self.game_state.active_party_members
             for member in members:
                 member.health.heal(member.health.maximum)
                 member.mana_resource.restore(member.mana_resource.maximum)
 
-            if overworld.active_route_id == "floor_one":
+            if overworld.active_route_id in {"floor_one", "floor_two"}:
                 self._screen = OverworldScreen.REST
                 self._notice = None
                 self._adventure_text = (
@@ -1821,7 +2335,7 @@ class OverworldSession:
                 return
 
         if (
-            overworld.active_route_id == "floor_one"
+            overworld.active_route_id in {"floor_one", "floor_two"}
             and not self._persist_floor_one_rest_fallback()
         ):
             return

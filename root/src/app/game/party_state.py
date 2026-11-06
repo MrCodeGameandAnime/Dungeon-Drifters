@@ -1,7 +1,11 @@
 """Persistent shared party and dungeon progress state."""
 
 from enum import StrEnum
+from uuid import UUID, uuid4
 
+from app.content.permanent_discovery_spec import (
+    is_valid_permanent_discovery_source_id,
+)
 from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
     crafting_level_for_experience,
@@ -9,6 +13,7 @@ from app.content.weapon_progression_spec import (
 from app.player.player_state import PlayerState
 from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.content.hub_economy import get_supply_item
+from app.snapshot import to_plain_value
 
 
 COMPANION_RECRUITMENT_COST = 65
@@ -74,6 +79,11 @@ class PartyState:
         self._floor_one_cleared = False
         self._floor_one_runs_started_after_clear = 0
         self._outing_xp_multiplier_percent = 100
+        self._floor_two_cleared = False
+        self._floor_two_runs_started_after_clear = 0
+        self._floor_two_run_id = None
+        self._floor_two_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
 
     @property
     def companions(self):
@@ -140,6 +150,26 @@ class PartyState:
     def outing_xp_multiplier_percent(self):
         return self._outing_xp_multiplier_percent
 
+    @property
+    def floor_two_cleared(self):
+        return self._floor_two_cleared
+
+    @property
+    def floor_two_runs_started_after_clear(self):
+        return self._floor_two_runs_started_after_clear
+
+    @property
+    def floor_two_run_id(self):
+        return self._floor_two_run_id
+
+    @property
+    def floor_two_outing_xp_multiplier_percent(self):
+        return self._floor_two_outing_xp_multiplier_percent
+
+    @property
+    def resolved_run_events(self):
+        return tuple(to_plain_value(event, "party.resolved_run_events") for event in self._resolved_run_events)
+
     def arrive_at_hub(self, lead):
         _require_player_state(lead, "lead")
         if self._phase is not DungeonPhase.OUTSIDE:
@@ -181,6 +211,39 @@ class PartyState:
         if first_companion and not self._tutorial_complete:
             self._set_active_drifter_ids((lead_id, companion_id))
             self._phase = DungeonPhase.PARTY_READY
+        return True
+
+    def recruit_floor_two_companion(
+        self,
+        companion,
+        *,
+        recruited_ids,
+        cost=COMPANION_RECRUITMENT_COST,
+    ):
+        _require_player_state(companion, "companion")
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            raise ValueError("Floor 2 recruitment requires an active run")
+        if not isinstance(recruited_ids, (tuple, list)):
+            raise TypeError("recruited_ids must be a sequence of canonical IDs")
+        roster_ids = tuple(
+            _canonical_id(value, "recruited Drifter ID")
+            for value in recruited_ids
+        )
+        if len(roster_ids) != len(set(roster_ids)):
+            raise ValueError("recruited Drifter IDs must be unique")
+        companion_id = _drifter_id(companion)
+        if companion_id in roster_ids:
+            raise ValueError("the Drifter was already recruited")
+        if len(roster_ids) >= 4:
+            raise ValueError("the permanent roster is full")
+        if not set(self._active_drifter_ids).issubset(roster_ids):
+            raise ValueError("active Drifters must belong to the recruited roster")
+        cost = _nonnegative("recruitment cost", cost)
+        if self._shared_gold < cost:
+            return False
+
+        self._shared_gold -= cost
+        self._companions = self._companions + (companion,)
         return True
 
     def select_active_pair(self, drifter_ids, *, recruited_ids):
@@ -363,6 +426,138 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return rate
 
+    def start_floor_two_run(self, *, run_id_factory=uuid4):
+        if not callable(run_id_factory):
+            raise TypeError("run_id_factory must be callable")
+        if not self.tutorial_complete or not self.floor_one_cleared:
+            raise ValueError("Floor 1 must be cleared before Floor 2")
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("a Floor 2 run can only start from the Hub")
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("a Floor 2 run requires the two-Drifter party")
+        run_id = run_id_factory()
+        if isinstance(run_id, UUID):
+            run_id = str(run_id)
+        if not _valid_run_id(run_id):
+            raise ValueError("run ID must be a non-empty lowercase token")
+        if any(event["run_id"] == run_id for event in self._resolved_run_events):
+            raise ValueError("Floor 2 run ID has already been used")
+
+        rate = 100
+        if self.floor_two_cleared:
+            rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                min(
+                    self._floor_two_runs_started_after_clear,
+                    len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                )
+            ]
+            rate = max(rate, _FLOOR_ONE_MINIMUM_REPLAY_XP_RATE)
+            self._floor_two_runs_started_after_clear += 1
+
+        self._floor_two_run_id = run_id
+        self._floor_two_outing_xp_multiplier_percent = rate
+        self._outing_rewards = OutingRewards()
+        self._phase = DungeonPhase.OUTING
+        return rate
+
+    def add_floor_two_rewards(self, *, experience, gold, items=None):
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            raise ValueError("Floor 2 rewards require an active Floor 2 run")
+        self._add_outing_rewards(experience=experience, gold=gold, items=items)
+
+    def record_run_event(self, event):
+        normalized = _run_event(event)
+        if normalized["run_id"] != self._floor_two_run_id:
+            raise ValueError("run event must belong to the active Floor 2 run")
+        existing = self.run_event(normalized["event_key"])
+        if existing is not None:
+            if existing != normalized:
+                raise ValueError("run event key was reused with a different outcome")
+            return False
+        self._resolved_run_events.append(normalized)
+        return True
+
+    def run_event(self, event_key):
+        for event in self._resolved_run_events:
+            if event["event_key"] == event_key:
+                return to_plain_value(event, "party.run_event")
+        return None
+
+    def fail_floor_two_run(self, party_members):
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        self._validate_party_members(party_members)
+        self._outing_rewards = OutingRewards()
+        self.discard_carried_supplies()
+        self._restore_party(party_members)
+        self._floor_two_run_id = None
+        self._floor_two_outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def complete_floor_two_boss(self, party_members):
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        self._validate_party_members(party_members)
+        rewards = self._outing_rewards
+        party_size = len(self._active_drifter_ids)
+        experience_each = (
+            rewards.experience
+            * self._floor_two_outing_xp_multiplier_percent
+            // (100 * party_size)
+        )
+        payout = OutingRewards(
+            experience=experience_each * party_size,
+            gold=rewards.gold,
+            items=rewards.items,
+        )
+        self._bank_rewards(party_members, payout)
+        self.return_carried_supplies()
+        self._floor_two_cleared = True
+        self._outing_rewards = OutingRewards()
+        self._floor_two_run_id = None
+        self._floor_two_outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def begin_floor_two_extraction(self, *, partial):
+        if not isinstance(partial, bool):
+            raise TypeError("partial must be a boolean")
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("Floor 2 extraction requires the two-Drifter party")
+        self._outing_rewards = self._floor_two_payout(partial=partial)
+        self._phase = DungeonPhase.EXTRACTION
+        return True
+
+    def complete_floor_two_extraction(self, party_members):
+        if (
+            self._floor_two_run_id is None
+            or self._phase is not DungeonPhase.EXTRACTION
+        ):
+            return False
+        self._validate_party_members(party_members)
+        self._bank_rewards(party_members, self._outing_rewards)
+        self.return_carried_supplies()
+        self._outing_rewards = OutingRewards()
+        self._floor_two_run_id = None
+        self._floor_two_outing_xp_multiplier_percent = 100
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def _add_outing_rewards(self, *, experience, gold, items=None):
+        additions = OutingRewards(experience, gold, items)
+        current = self._outing_rewards
+        combined_items = current.items
+        for item_id, quantity in additions.items.items():
+            combined_items[item_id] = combined_items.get(item_id, 0) + quantity
+        self._outing_rewards = OutingRewards(
+            current.experience + additions.experience,
+            current.gold + additions.gold,
+            combined_items,
+        )
+
     def add_floor_one_rewards(self, *, experience, gold, items=None):
         if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
             raise ValueError("Floor 1 rewards require an active dangerous run")
@@ -408,7 +603,12 @@ class PartyState:
         if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
             return False
         self._validate_party_members(party_members)
-        rewards = self._floor_one_payout(partial=False)
+        floor_two_extraction = self._floor_two_run_id is not None
+        rewards = (
+            self._floor_two_payout(partial=False)
+            if floor_two_extraction
+            else self._floor_one_payout(partial=False)
+        )
         self._bank_rewards(party_members, rewards)
         self.return_carried_supplies()
         self._floor_one_cleared = True
@@ -468,7 +668,12 @@ class PartyState:
         ):
             return False
         self._validate_party_members(party_members)
-        rewards = self._floor_one_payout(partial=False)
+        floor_two_run = self._floor_two_run_id is not None
+        rewards = (
+            self._floor_two_payout(partial=False)
+            if floor_two_run
+            else self._floor_one_payout(partial=False)
+        )
         experience_awards = self.secured_xp_awards(
             party_members,
             rewards.experience,
@@ -484,6 +689,9 @@ class PartyState:
         self.return_carried_supplies()
         self._outing_rewards = OutingRewards()
         self._outing_xp_multiplier_percent = 100
+        if floor_two_run:
+            self._floor_two_run_id = None
+            self._floor_two_outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
         return True
 
@@ -543,9 +751,58 @@ class PartyState:
         )
         if state._outing_xp_multiplier_percent not in {20, 30, 40, 50, 100}:
             raise ValueError("outing XP multiplier is not an authored rate")
+        state._floor_two_cleared = snapshot.get("floor_two_cleared", False)
+        if not isinstance(state._floor_two_cleared, bool):
+            raise ValueError("floor_two_cleared must be a boolean")
+        state._floor_two_runs_started_after_clear = _nonnegative(
+            "floor_two_runs_started_after_clear",
+            snapshot.get("floor_two_runs_started_after_clear", 0),
+        )
+        if state._floor_two_runs_started_after_clear and not state._floor_two_cleared:
+            raise ValueError("Floor 2 replay runs require a cleared floor")
+        state._floor_two_run_id = snapshot.get("floor_two_run_id")
+        if state._floor_two_run_id is not None and not _valid_run_id(
+            state._floor_two_run_id
+        ):
+            raise ValueError("floor_two_run_id is invalid")
+        state._floor_two_outing_xp_multiplier_percent = _nonnegative(
+            "floor_two_outing_xp_multiplier_percent",
+            snapshot.get("floor_two_outing_xp_multiplier_percent", 100),
+        )
+        if state._floor_two_outing_xp_multiplier_percent not in {20, 30, 40, 50, 100}:
+            raise ValueError("Floor 2 outing XP multiplier is not an authored rate")
+        raw_events = snapshot.get("resolved_run_events", [])
+        if not isinstance(raw_events, list):
+            raise TypeError("resolved_run_events must be a list")
+        state._resolved_run_events = [_run_event(event) for event in raw_events]
+        validate_run_event_history(state._resolved_run_events)
+        active_floor_two_run = state._floor_two_run_id is not None
+        if active_floor_two_run:
+            if not state._floor_two_cleared and state._floor_two_runs_started_after_clear:
+                raise ValueError("active Floor 2 run has inconsistent replay state")
+            if state._phase not in {
+                DungeonPhase.OUTING,
+                DungeonPhase.EXTRACTION,
+            } or not state.tutorial_complete:
+                raise ValueError(
+                    "active Floor 2 run must be an outing or extraction after tutorial"
+                )
+            expected_rate = 100
+            if state._floor_two_cleared:
+                expected_rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                    min(
+                        max(state._floor_two_runs_started_after_clear - 1, 0),
+                        len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                    )
+                ]
+            if state._floor_two_outing_xp_multiplier_percent != expected_rate:
+                raise ValueError("active Floor 2 run has an inconsistent XP rate")
+        elif state._floor_two_outing_xp_multiplier_percent != 100:
+            raise ValueError("inactive Floor 2 runs must use the default XP rate")
         active_floor_one_run = (
             state._tutorial_complete
             and state._phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
+            and state._floor_two_run_id is None
         )
         if active_floor_one_run:
             expected_rate = 100
@@ -589,6 +846,15 @@ class PartyState:
             "outing_xp_multiplier_percent": (
                 self.outing_xp_multiplier_percent
             ),
+            "floor_two_cleared": self.floor_two_cleared,
+            "floor_two_runs_started_after_clear": (
+                self.floor_two_runs_started_after_clear
+            ),
+            "floor_two_run_id": self.floor_two_run_id,
+            "floor_two_outing_xp_multiplier_percent": (
+                self.floor_two_outing_xp_multiplier_percent
+            ),
+            "resolved_run_events": list(self.resolved_run_events),
         }
         return snapshot
 
@@ -606,6 +872,23 @@ class PartyState:
         experience_each = (
             self._outing_rewards.experience
             * self.outing_xp_multiplier_percent
+            // denominator
+        )
+        gold = self._outing_rewards.gold
+        if partial:
+            gold = (gold + 1) // 2
+        return OutingRewards(
+            experience=experience_each * party_size,
+            gold=gold,
+            items=self._outing_rewards.items,
+        )
+
+    def _floor_two_payout(self, *, partial):
+        party_size = len(self._active_drifter_ids)
+        denominator = 100 * party_size * (2 if partial else 1)
+        experience_each = (
+            self._outing_rewards.experience
+            * self._floor_two_outing_xp_multiplier_percent
             // denominator
         )
         gold = self._outing_rewards.gold
@@ -699,10 +982,217 @@ def _item_stacks(items):
     return normalized
 
 
+def _valid_run_id(value):
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 80
+        and (value[0].islower() or value[0].isdigit())
+        and all(character.islower() or character.isdigit() or character in "-_" for character in value)
+    )
+
+
+def _run_event(value):
+    if not isinstance(value, dict):
+        raise TypeError("run event must be a mapping")
+    expected = {
+        "event_key",
+        "run_id",
+        "floor_id",
+        "node_id",
+        "kind",
+        "position",
+        "result",
+    }
+    if set(value) != expected:
+        raise ValueError("run event has an invalid shape")
+    if not _valid_run_id(value["run_id"]):
+        raise ValueError("run event ID is invalid")
+    if value["floor_id"] != "floor_two":
+        raise ValueError("run event floor is invalid")
+    if not _valid_event_part(value["node_id"]):
+        raise ValueError("run event node_id is invalid")
+    if value["kind"] not in {"enemy_drop", "encounter_rewards", "discovery_search"}:
+        raise ValueError("run event kind is invalid")
+    position = value["position"]
+    if position is not None and (
+        isinstance(position, bool) or not isinstance(position, int) or position < 0
+    ):
+        raise ValueError("run event position is invalid")
+    if not isinstance(value["result"], dict):
+        raise TypeError("run event result must be a mapping")
+    expected_position = value["kind"] == "enemy_drop"
+    if expected_position != (position is not None):
+        raise ValueError("run event position does not match its kind")
+    event_key = _run_event_key(
+        value["run_id"],
+        value["node_id"],
+        value["kind"],
+        position,
+    )
+    if value["event_key"] != event_key:
+        raise ValueError("run event key is inconsistent with its identity")
+    _validate_run_event_result(value["kind"], value["result"], value)
+    return to_plain_value(value, "party.run_event")
+
+
+def _validate_run_event_result(kind, result, event):
+    if kind == "enemy_drop":
+        if set(result) != {"entries", "items"}:
+            raise ValueError("enemy-drop event result has an invalid shape")
+        if not isinstance(result["entries"], list):
+            raise TypeError("enemy-drop entries must be a list")
+        item_totals = {}
+        for entry in result["entries"]:
+            if not isinstance(entry, dict) or set(entry) != {
+                "item_id", "quantity", "chance_bps", "roll", "awarded"
+            }:
+                raise ValueError("enemy-drop entry has an invalid shape")
+            if not _valid_event_part(entry["item_id"]):
+                raise ValueError("enemy-drop item ID is invalid")
+            _positive("enemy-drop quantity", entry["quantity"])
+            chance = _nonnegative("enemy-drop chance", entry["chance_bps"])
+            roll = _nonnegative("enemy-drop roll", entry["roll"])
+            if chance > 10000 or not 1 <= roll <= 10000:
+                raise ValueError("enemy-drop chance or roll is outside its range")
+            if not isinstance(entry["awarded"], bool):
+                raise TypeError("enemy-drop awarded must be a boolean")
+            awarded = roll <= chance
+            if entry["awarded"] is not awarded:
+                raise ValueError("enemy-drop result disagrees with its roll")
+            if awarded:
+                item_totals[entry["item_id"]] = (
+                    item_totals.get(entry["item_id"], 0) + entry["quantity"]
+                )
+        if _event_item_stacks(result["items"]) != item_totals:
+            raise ValueError("enemy-drop item totals disagree with entry outcomes")
+        return
+
+    if kind == "encounter_rewards":
+        if set(result) != {
+            "experience", "gold", "items", "enemy_count", "drop_event_keys"
+        }:
+            raise ValueError("encounter reward result has an invalid shape")
+        _nonnegative("encounter experience", result["experience"])
+        _nonnegative("encounter gold", result["gold"])
+        _positive("encounter enemy count", result["enemy_count"])
+        items = _event_item_stacks(result["items"])
+        keys = result["drop_event_keys"]
+        if not isinstance(keys, list) or len(keys) != result["enemy_count"]:
+            raise ValueError("encounter reward event keys do not match enemy count")
+        expected_keys = [
+            _run_event_key(event["run_id"], event["node_id"], "enemy_drop", index)
+            for index in range(result["enemy_count"])
+        ]
+        if keys != expected_keys:
+            raise ValueError("encounter reward event keys are invalid")
+        if any(not _valid_event_part(item_id) for item_id in items):
+            raise ValueError("encounter reward item ID is invalid")
+        return
+
+    if set(result) != {
+        "source_id",
+        "searcher_drifter_id",
+        "effective_chance_bps",
+        "roll",
+        "found",
+    }:
+        raise ValueError("discovery search result has an invalid shape")
+    if not is_valid_permanent_discovery_source_id(result["source_id"]):
+        raise ValueError("discovery source ID is invalid")
+    if not _valid_event_part(result["searcher_drifter_id"]):
+        raise ValueError("discovery searcher ID is invalid")
+    chance = _nonnegative("discovery chance", result["effective_chance_bps"])
+    roll = _nonnegative("discovery roll", result["roll"])
+    if chance > 10000 or not 1 <= roll <= 10000:
+        raise ValueError("discovery chance or roll is outside its range")
+    if not isinstance(result["found"], bool):
+        raise TypeError("discovery found must be a boolean")
+    if result["found"] is not (roll <= chance):
+        raise ValueError("discovery outcome disagrees with its roll")
+
+
+def _event_item_stacks(items):
+    if not isinstance(items, dict):
+        raise TypeError("event item totals must be a mapping")
+    normalized = {}
+    for item_id, quantity in items.items():
+        if not isinstance(item_id, str) or not item_id:
+            raise ValueError("event item ID must be a non-empty string")
+        normalized[item_id] = _positive("event item quantity", quantity)
+    return normalized
+
+
+def _valid_event_part(value):
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 80
+        and "a" <= value[0] <= "z"
+        and all("a" <= char <= "z" or "0" <= char <= "9" or char == "_" for char in value)
+    )
+
+
+def _run_event_key(run_id, node_id, kind, position=None):
+    key = f"floor_two:{run_id}:{node_id}:{kind}"
+    if position is not None:
+        key += f":{position}"
+    return key
+
+
+def _positive(name, value):
+    value = _nonnegative(name, value)
+    if value == 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def validate_run_event(value):
+    return _run_event(value)
+
+
+def validate_run_event_history(events):
+    if not isinstance(events, (tuple, list)):
+        raise TypeError("resolved run events must be a sequence")
+    normalized = tuple(_run_event(event) for event in events)
+    by_key = {event["event_key"]: event for event in normalized}
+    if len(by_key) != len(normalized):
+        raise ValueError("resolved run event keys must be unique")
+
+    referenced_drop_keys = set()
+    for event in normalized:
+        if event["kind"] != "encounter_rewards":
+            continue
+        result = event["result"]
+        drop_events = [by_key.get(key) for key in result["drop_event_keys"]]
+        if any(drop is None for drop in drop_events):
+            raise ValueError("encounter reward evidence is missing an enemy drop")
+        aggregate = {}
+        for drop in drop_events:
+            if (
+                drop["kind"] != "enemy_drop"
+                or drop["run_id"] != event["run_id"]
+                or drop["node_id"] != event["node_id"]
+            ):
+                raise ValueError("encounter reward references unrelated drop evidence")
+            referenced_drop_keys.add(drop["event_key"])
+            for item_id, quantity in drop["result"]["items"].items():
+                aggregate[item_id] = aggregate.get(item_id, 0) + quantity
+        if aggregate != result["items"]:
+            raise ValueError("encounter rewards disagree with enemy drop evidence")
+
+    actual_drop_keys = {
+        event["event_key"] for event in normalized if event["kind"] == "enemy_drop"
+    }
+    if actual_drop_keys != referenced_drop_keys:
+        raise ValueError("enemy drop evidence must belong to a resolved encounter")
+    return normalized
+
+
 __all__ = [
     "COMPANION_RECRUITMENT_COST",
     "MAX_CARRIED_SUPPLY_UNITS",
     "DungeonPhase",
     "OutingRewards",
     "PartyState",
+    "validate_run_event",
+    "validate_run_event_history",
 ]

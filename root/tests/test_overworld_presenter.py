@@ -181,6 +181,25 @@ def test_two_member_completed_hub_offers_both_ordered_party_choices():
     )
 
 
+def test_floor_two_is_offered_only_after_floor_one_clear():
+    game = completed_hub_game()
+    presenter = OverworldPresenter()
+
+    before_clear = presenter.build(game, screen=OverworldScreen.HUB)
+    assert not any(
+        option.action is OverworldAction.START_FLOOR_TWO
+        for option in before_clear.options
+    )
+
+    party = game.party_state
+    party.start_floor_one_run()
+    assert party.complete_floor_one_boss(game.active_party_members)
+
+    after_clear = presenter.build(game, screen=OverworldScreen.HUB)
+    assert option(after_clear, OverworldAction.START_FLOOR_ONE).enabled
+    assert option(after_clear, OverworldAction.START_FLOOR_TWO).enabled
+
+
 def test_skills_view_projects_exact_drifter_advancement_and_normal_move_loadout():
     game = completed_hub_game()
     branoc = game.member_for_drifter_id("branoc")

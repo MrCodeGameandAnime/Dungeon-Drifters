@@ -22,6 +22,9 @@ class OverworldScreen(StrEnum):
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     HEALING_TARGETS = "healing_targets"
+    DISCOVERY_SEARCHERS = "discovery_searchers"
+    DISCOVERY_TARGETS = "discovery_targets"
+    DISCOVERY_CONFIRMATION = "discovery_confirmation"
     MAP = "map"
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
@@ -59,9 +62,12 @@ class OverworldAction(StrEnum):
     READY = "ready"
     RETURN_TO_HUB = "return_to_hub"
     START_FLOOR_ONE = "start_floor_one"
+    START_FLOOR_TWO = "start_floor_two"
     SET_OUT = "set_out"
     EXTRACT = "extract"
     RETURN_WITH_TALISMAN = "return_with_talisman"
+    SEARCH_SITE = "search_site"
+    CLAIM_DISCOVERY = "claim_discovery"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -125,6 +131,16 @@ class PartyPairChoiceView:
         for value in self.drifter_ids + self.display_names:
             _validate_text("party choice value", value)
         _validate_bool("selected", self.selected)
+
+
+@dataclass(frozen=True)
+class DiscoveryDrifterChoiceView:
+    drifter_id: str
+    display_name: str
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
 
 
 class MapNodeState(StrEnum):
@@ -863,6 +879,10 @@ class OverworldView:
     recruitment_cost: int | None = None
     outing_rewards: OutingRewardsView | None = None
     healing_targets: tuple[SupplyHealingTargetView, ...] = ()
+    discovery_choices: tuple[DiscoveryDrifterChoiceView, ...] = ()
+    discovery_source_id: str | None = None
+    discovery_reward_text: str | None = None
+    discovery_target_id: str | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -883,6 +903,11 @@ class OverworldView:
             "healing_targets",
             self.healing_targets,
             SupplyHealingTargetView,
+        )
+        _validate_instance_tuple(
+            "discovery_choices",
+            self.discovery_choices,
+            DiscoveryDrifterChoiceView,
         )
         if not isinstance(self.active_drifter_ids, tuple):
             raise TypeError("active_drifter_ids must be a tuple")
@@ -939,8 +964,8 @@ class OverworldView:
         if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
             raise ValueError("Hub economy data belongs only to the Merchant screen")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
-            if len(self.companion_choices) != 3:
-                raise ValueError("companion selection must offer three choices")
+            if not 1 <= len(self.companion_choices) <= 3:
+                raise ValueError("companion selection must offer one to three choices")
             if self.shared_gold is None or self.recruitment_cost is None:
                 raise ValueError("companion selection must show shared gold and cost")
         elif self.companion_choices:
@@ -967,6 +992,27 @@ class OverworldView:
                 raise ValueError("healing target selection requires a selected supply")
         elif self.healing_targets:
             raise ValueError("healing targets are only valid on their selection screen")
+        discovery_screens = {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+            OverworldScreen.DISCOVERY_CONFIRMATION,
+        }
+        if self.screen in discovery_screens:
+            _validate_text("discovery_source_id", self.discovery_source_id)
+            _validate_text("discovery_reward_text", self.discovery_reward_text)
+            if self.screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+                _validate_text("discovery_target_id", self.discovery_target_id)
+                if self.discovery_choices:
+                    raise ValueError("confirmation must not include target choices")
+            elif self.discovery_target_id is not None or len(self.discovery_choices) != 2:
+                raise ValueError("discovery selection requires the active pair")
+        elif any((
+            self.discovery_choices,
+            self.discovery_source_id is not None,
+            self.discovery_reward_text is not None,
+            self.discovery_target_id is not None,
+        )):
+            raise ValueError("discovery data is only valid on discovery screens")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),

@@ -7,6 +7,7 @@ from app.content.catalog import (
     get_encounter_spec,
     get_enemy_spec,
     get_inspectable_route_node_spec,
+    get_permanent_discovery_source,
     get_route_node_spec,
     get_route_spec,
     get_weapon_spec,
@@ -40,6 +41,7 @@ from app.presentation.overworld_models import (
     AccessorySlotView,
     CharacterOverviewView,
     CompanionChoiceView,
+    DiscoveryDrifterChoiceView,
     EquipmentView,
     HubAlchemyRecipeView,
     HubEconomyView,
@@ -130,6 +132,8 @@ class OverworldPresenter:
         load_available=False,
         respec_available=False,
         respec_preview=None,
+        discovery_source_id=None,
+        discovery_target_id=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -174,7 +178,8 @@ class OverworldPresenter:
             screen=screen,
             location_label=(
                 node.display_label
-                if game_state.overworld_state.active_route_id == "floor_one"
+                if game_state.overworld_state.active_route_id
+                in {"floor_one", "floor_two"}
                 and game_state.party_state.phase
                 in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
                 else (
@@ -304,6 +309,37 @@ class OverworldPresenter:
                 if screen is OverworldScreen.HEALING_TARGETS
                 else ()
             ),
+            discovery_choices=(
+                self._discovery_choices(game_state)
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                }
+                else ()
+            ),
+            discovery_source_id=(
+                discovery_source_id
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                    OverworldScreen.DISCOVERY_CONFIRMATION,
+                }
+                else None
+            ),
+            discovery_reward_text=(
+                self._discovery_reward_text(discovery_source_id)
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                    OverworldScreen.DISCOVERY_CONFIRMATION,
+                }
+                else None
+            ),
+            discovery_target_id=(
+                discovery_target_id
+                if screen is OverworldScreen.DISCOVERY_CONFIRMATION
+                else None
+            ),
         )
 
     @staticmethod
@@ -385,6 +421,25 @@ class OverworldPresenter:
                     )
                 )
         return tuple(choices)
+
+    @staticmethod
+    def _discovery_choices(game_state):
+        return tuple(
+            DiscoveryDrifterChoiceView(
+                drifter_id=member.character.profile.drifter_id,
+                display_name=member.character.full_display_name,
+            )
+            for member in game_state.active_party_members
+        )
+
+    @staticmethod
+    def _discovery_reward_text(source_id):
+        source = get_permanent_discovery_source(source_id)
+        if source.discovery_type.value == "ancient_well":
+            return f"Ancient Well: +{source.amount} Max HP"
+        if source.discovery_type.value == "forgotten_altar":
+            return f"Forgotten Altar: +{source.amount} Max Mana"
+        return f"Spirit Relic: +{source.amount} Growth Points"
 
     @staticmethod
     def _default_adventure_text(game_state):
@@ -1186,6 +1241,10 @@ class OverworldPresenter:
                         else ()
                     ) + (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
+                    ) + (
+                        (enabled(OverworldAction.START_FLOOR_TWO, "Start Floor 2"),)
+                        if party_state.floor_one_cleared
+                        else ()
                     )
                 elif (
                     available_recruitment_event(game_state) is not None
@@ -1215,6 +1274,16 @@ class OverworldPresenter:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.PARTY_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
+        if screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
         if screen is OverworldScreen.FLOOR_ONE_WARNING:
             return (
                 enabled(OverworldAction.SET_OUT, "Set Out"),
@@ -1331,9 +1400,46 @@ class OverworldPresenter:
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
         if screen is OverworldScreen.REST:
-            if game_state.overworld_state.active_route_id == "floor_one":
+            if game_state.overworld_state.active_route_id in {
+                "floor_one",
+                "floor_two",
+            }:
+                discovery_actions = ()
+                if (
+                    game_state.overworld_state.active_route_id == "floor_two"
+                    and game_state.overworld_state.current_route_node_id
+                    == "floor_two_pre_boss_rest"
+                    and game_state.party_state.phase is DungeonPhase.OUTING
+                ):
+                    source_id = "ancient_well_floor2_01"
+                    world = game_state.world_state
+                    if (
+                        source_id in world.discovered_permanent_discovery_sources
+                        and source_id not in world.permanent_discovery_claims
+                    ):
+                        discovery_actions = (
+                            enabled(OverworldAction.CLAIM_DISCOVERY, "Claim Discovery"),
+                        )
+                    elif source_id not in world.discovered_permanent_discovery_sources:
+                        run_id = game_state.party_state.floor_two_run_id
+                        already_searched = any(
+                            event["run_id"] == run_id
+                            and event["node_id"] == "floor_two_pre_boss_rest"
+                            and event["kind"] == "discovery_search"
+                            for event in game_state.party_state.resolved_run_events
+                        )
+                        if not already_searched:
+                            discovery_actions = (
+                                enabled(OverworldAction.SEARCH_SITE, "Search Site"),
+                            )
+                midway_recruitment = (
+                    (enabled(OverworldAction.RECRUIT_COMPANION, "Recruit Companion"),)
+                    if available_recruitment_event(game_state) is not None
+                    else ()
+                )
                 return self._return_talisman_option(game_state) + (
                     enabled(OverworldAction.REST, "Recover"),
+                ) + midway_recruitment + discovery_actions + (
                     (
                         enabled(OverworldAction.SAVE, "Save")
                         if save_available
@@ -1366,7 +1472,8 @@ class OverworldPresenter:
     def _return_talisman_option(self, game_state):
         party_state = game_state.party_state
         if (
-            game_state.overworld_state.active_route_id == "floor_one"
+            game_state.overworld_state.active_route_id
+            in {"floor_one", "floor_two"}
             and party_state.phase is DungeonPhase.OUTING
             and party_state.carried_items.get("return_talisman", 0) > 0
         ):

@@ -53,6 +53,7 @@ def _legacy_schema9_payload(gold=0):
     payload["player"].pop("advancement")
     payload["player"].pop("permanent_discovery_bonuses")
     payload["world"].pop("permanent_discovery_claims")
+    payload["world"].pop("discovered_permanent_discovery_sources")
     payload["player"].pop("signature_weapon")
     payload["party"].pop("active_drifter_ids")
     payload["party"].pop("carried_items")
@@ -62,6 +63,11 @@ def _legacy_schema9_payload(gold=0):
         "floor_one_runs_started_after_clear",
         "outing_xp_multiplier_percent",
         "crafting_experience",
+        "floor_two_cleared",
+        "floor_two_runs_started_after_clear",
+        "floor_two_run_id",
+        "floor_two_outing_xp_multiplier_percent",
+        "resolved_run_events",
     ):
         payload["party"].pop(field)
     return payload
@@ -125,12 +131,12 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 17
+    assert local_pending.payload["schema_version"] == 18
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 17
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 18
 
 
 def test_respec_history_survives_profile_sync_and_keeps_free_use_spent(tmp_path):

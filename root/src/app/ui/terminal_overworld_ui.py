@@ -16,6 +16,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseAlchemyRecipe,
     ChooseCompanion,
     ChooseCharacterTarget,
@@ -67,6 +69,8 @@ class TerminalOverworldUI:
         OverworldAction.READY: "Y",
         OverworldAction.RETURN_TO_HUB: "H",
         OverworldAction.EXTRACT: "X",
+        OverworldAction.SEARCH_SITE: "S",
+        OverworldAction.CLAIM_DISCOVERY: "C",
     }
 
     def __init__(
@@ -278,6 +282,20 @@ class TerminalOverworldUI:
                     continue
                 return ChooseActivePair(choice_view.drifter_ids)
 
+        if view.screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            for number, target in enumerate(view.discovery_choices, start=1):
+                if choice != str(number):
+                    continue
+                input_type = (
+                    ChooseDiscoverySearcher
+                    if view.screen is OverworldScreen.DISCOVERY_SEARCHERS
+                    else ChooseDiscoveryTarget
+                )
+                return input_type(target.drifter_id)
+
         for option in self._input_options(view):
             key = self._option_key(option, view).lower()
             if choice != key:
@@ -377,6 +395,26 @@ class TerminalOverworldUI:
                     f"{number}. {choice.display_names[0]} + "
                     f"{choice.display_names[1]}{selected}"
                 )
+        elif view.screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            lines = [
+                "CHOOSE A DRIFTER",
+                view.discovery_reward_text,
+                "",
+            ]
+            lines.extend(
+                f"{number}. {choice.display_name}"
+                for number, choice in enumerate(view.discovery_choices, start=1)
+            )
+        elif view.screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            lines = [
+                "CONFIRM DISCOVERY",
+                view.discovery_reward_text,
+                f"Target: {view.discovery_target_id}",
+                "Consume the source permanently for this Drifter?",
+            ]
         elif view.screen is OverworldScreen.PARTY_READY:
             lines = ["PARTY READY", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
@@ -947,6 +985,9 @@ class TerminalOverworldUI:
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
             OverworldScreen.HEALING_TARGETS: "USE HEALING POTION",
+            OverworldScreen.DISCOVERY_SEARCHERS: "SEARCH SITE",
+            OverworldScreen.DISCOVERY_TARGETS: "CLAIM DISCOVERY",
+            OverworldScreen.DISCOVERY_CONFIRMATION: "CONFIRM DISCOVERY",
             OverworldScreen.MAP: "MAP",
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",

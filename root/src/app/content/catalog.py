@@ -11,6 +11,11 @@ from app.content._generated_catalog import (
 from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
+from app.content.permanent_discovery_spec import (
+    PermanentDiscoverySource,
+    PermanentDiscoveryType,
+    validate_permanent_discovery_sources,
+)
 from app.content.route_spec import RouteSpec
 from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
@@ -40,6 +45,20 @@ def _build_enemy_catalog(records):
 
 
 ENEMY_SPECS, _ENEMY_CATALOG = _build_enemy_catalog(GENERATED_ENEMY_SPECS)
+
+PERMANENT_DISCOVERY_SOURCES = validate_permanent_discovery_sources(
+    (
+        PermanentDiscoverySource(
+            "ancient_well_floor2_01",
+            PermanentDiscoveryType.ANCIENT_WELL,
+            5,
+            search_chance_bps=1000,
+        ),
+    )
+)
+_PERMANENT_DISCOVERY_CATALOG = readonly_mapping(
+    {source.source_id: source for source in PERMANENT_DISCOVERY_SOURCES}
+)
 
 
 def _build_weapon_catalog(records):
@@ -302,6 +321,15 @@ def get_recruitment_event(event_id):
         raise ValueError(f"unknown recruitment event ID: {event_id}") from error
 
 
+def get_permanent_discovery_source(source_id):
+    try:
+        return _PERMANENT_DISCOVERY_CATALOG[source_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(
+            f"unknown permanent discovery source: {source_id}"
+        ) from error
+
+
 def get_drifter_spec_by_choice(choice):
     try:
         return _DRIFTER_CHOICE_CATALOG[choice]
@@ -348,6 +376,14 @@ def get_encounter_item_rewards(encounter_id):
     return tuple(sorted(item_totals.items()))
 
 
+def get_encounter_item_drop_tables(encounter_id, *, tier):
+    encounter = get_encounter_spec(encounter_id)
+    return tuple(
+        get_enemy_spec(archetype_id).item_drop_table_for_tier(tier)
+        for archetype_id in encounter.enemy_archetype_ids
+    )
+
+
 def get_route_node_spec(node_id):
     try:
         return _ROUTE_NODE_CATALOG[node_id]
@@ -386,6 +422,7 @@ __all__ = [
     "ENCOUNTER_SPECS",
     "DRIFTER_SPECS",
     "RECRUITMENT_EVENT_SPECS",
+    "PERMANENT_DISCOVERY_SOURCES",
     "ROUTE_SPECS",
     "WEAPON_SPECS",
     "create_enemy_definition",
@@ -397,10 +434,12 @@ __all__ = [
     "get_encounter_spec",
     "get_encounter_rewards",
     "get_encounter_item_rewards",
+    "get_encounter_item_drop_tables",
     "get_inspectable_encounter_spec",
     "get_inspectable_route_node_spec",
     "get_drifter_spec",
     "get_recruitment_event",
+    "get_permanent_discovery_source",
     "get_drifter_spec_by_choice",
     "get_route_spec",
     "get_route_node_spec",

@@ -721,7 +721,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 16
+    assert snapshot["schema_version"] == 17
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
@@ -901,6 +901,33 @@ def test_rest_is_rejected_at_a_combat_node_without_mutation():
     assert battles.instances == []
     assert game.snapshot() == before
     assert ui.views[1].notice == "That option is not available."
+
+
+def test_floor_two_rest_returns_to_rest_after_character_inspection():
+    game = completed_hub_game()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(
+        run_id_factory=lambda: "character-inspection-rest"
+    ) == 100
+    game.overworld_state.begin_route("floor_two")
+    for node in get_route_spec("floor_two").nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.node_id == "floor_two_midway_rest":
+            break
+
+    session = make_step_session(game)
+    assert session.current_view().screen is OverworldScreen.REST
+
+    character = session.submit(
+        ChooseOverworldAction(OverworldAction.CHARACTER)
+    )
+    assert character.screen is OverworldScreen.CHARACTER
+    returned = session.submit(ChooseOverworldAction(OverworldAction.BACK))
+
+    assert returned.screen is OverworldScreen.REST
+    assert returned.location_label == "Midway Rest"
 
 
 def test_navigation_covers_every_shell_and_back_returns_one_level():

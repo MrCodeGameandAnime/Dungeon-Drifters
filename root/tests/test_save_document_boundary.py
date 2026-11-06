@@ -28,9 +28,9 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 2627
+    assert len(canonical_bytes) == 2830
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "22bda31ba3ce30b679d6a7f4924cb0e1f633f488f4bdc140f1852362d93fa63e"
+        "22a17ec7c8ee8d80d4be64bb47fe870a4387b4b8f51c44f8b7ce45b4f804cd31"
     )
 
 
@@ -53,7 +53,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 17
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 18
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -83,13 +83,22 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     schema13["player"].pop("advancement")
     schema13["player"].pop("permanent_discovery_bonuses")
     schema13["world"].pop("permanent_discovery_claims")
+    schema13["world"].pop("discovered_permanent_discovery_sources")
+    for field in (
+        "floor_two_cleared",
+        "floor_two_runs_started_after_clear",
+        "floor_two_run_id",
+        "floor_two_outing_xp_multiplier_percent",
+        "resolved_run_events",
+    ):
+        schema13["party"].pop(field)
     original = deepcopy(schema13)
 
     restored = reconstruct_game_state(schema13)
 
     assert schema13 == original
     assert restored.party_state.carried_items == {}
-    assert build_save_document(restored)["schema_version"] == 17
+    assert build_save_document(restored)["schema_version"] == 18
 
 
 def test_signature_weapon_progress_survives_save_round_trip():

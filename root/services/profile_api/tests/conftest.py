@@ -68,6 +68,23 @@ def remove_m3_respec_state(payload):
     return payload
 
 
+def remove_m4_run_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_two_cleared",
+            "floor_two_runs_started_after_clear",
+            "floor_two_run_id",
+            "floor_two_outing_xp_multiplier_percent",
+            "resolved_run_events",
+        ):
+            party.pop(field, None)
+    world = payload.get("world")
+    if isinstance(world, dict):
+        world.pop("discovered_permanent_discovery_sources", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

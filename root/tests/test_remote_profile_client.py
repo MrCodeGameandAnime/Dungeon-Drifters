@@ -51,6 +51,7 @@ def _legacy_schema8_payload(gold=0):
     payload["player"].pop("advancement")
     payload["player"].pop("permanent_discovery_bonuses")
     payload["world"].pop("permanent_discovery_claims")
+    payload["world"].pop("discovered_permanent_discovery_sources")
     payload.pop("party")
     payload["overworld"].pop("active_route_id")
     return payload

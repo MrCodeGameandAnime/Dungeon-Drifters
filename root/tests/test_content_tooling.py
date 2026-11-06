@@ -211,9 +211,9 @@ def test_builtin_validation_is_read_only_and_has_no_todo_markers():
         "enemy": 5,
         "weapon": 4,
         "drifter": 4,
-        "encounter": 10,
-        "route": 2,
-        "recruitment_event": 1,
+        "encounter": 11,
+        "route": 3,
+        "recruitment_event": 2,
     }
 
 

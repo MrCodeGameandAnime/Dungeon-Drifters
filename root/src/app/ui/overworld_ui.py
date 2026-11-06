@@ -97,6 +97,24 @@ class ChooseActivePair:
 
 
 @dataclass(frozen=True)
+class ChooseDiscoverySearcher:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseDiscoveryTarget:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChooseMerchantTarget:
     drifter_id: str
 
@@ -209,6 +227,8 @@ OverworldInput: TypeAlias = Union[
     ChooseAdvancementEquip,
     ChooseCompanion,
     ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseCharacterTarget,
     ChooseMerchantTarget,
     ChooseHubSupplyAction,

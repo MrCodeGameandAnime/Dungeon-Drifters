@@ -371,6 +371,28 @@ def test_burn_lifecycle_outcomes_render_as_status_damage_then_expiration():
     )
 
 
+def test_cave_in_warning_and_impact_are_rendered_as_battle_messages():
+    ui, _ = _ui(())
+    warning = BattleLogEntry(
+        event_type=BattleEventType.HAZARD_WARNING,
+        action_name="Cave-in",
+        reason="The ceiling groans. A cave-in is imminent.",
+    )
+    impact = BattleLogEntry(
+        event_type=BattleEventType.HAZARD_DAMAGE,
+        target_name="Ser Branoc",
+        action_name="Falling stone",
+        amount=7,
+    )
+
+    assert ui._log_lines(warning) == (
+        "The ceiling groans. A cave-in is imminent.",
+    )
+    assert ui._log_lines(impact) == (
+        "Falling stone struck Ser Branoc for 7 damage.",
+    )
+
+
 def test_burn_application_and_refresh_render_against_exact_target():
     entry = BattleLogEntry(
         event_type=BattleEventType.DAMAGE,

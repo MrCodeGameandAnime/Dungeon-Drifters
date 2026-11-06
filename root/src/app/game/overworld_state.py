@@ -128,7 +128,7 @@ class OverworldState:
         self._current_contextual_route_phase = phase
         if self.active_route_id == _DEFAULT_ROUTE_ID and node.node_id == _DUNGEON_ENTRANCE_NODE_ID:
             self._dungeon_entrance_reached = True
-        if next_index == len(route_node_ids) - 1:
+        if next_index == len(route_node_ids) - 1 and node.kind is not RouteNodeKind.BOSS:
             self._route_complete = True
 
     def record_resolved_rest_node(self, node_id):

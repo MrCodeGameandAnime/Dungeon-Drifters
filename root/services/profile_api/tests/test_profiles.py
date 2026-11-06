@@ -19,6 +19,7 @@ from conftest import (
     make_payload,
     remove_m3_advancement,
     remove_m3_discovery_state,
+    remove_m4_run_state,
 )
 
 
@@ -79,7 +80,7 @@ def test_profile_claim_listing_and_head_read_are_account_scoped(service, valid_p
     assert hidden.json()["error"]["code"] == "not_found"
 
 
-def test_schema8_remote_head_remains_readable_and_advances_to_schema17(
+def test_schema8_remote_head_remains_readable_and_advances_to_schema18(
     service, valid_payload
 ):
     client, session_factory = service
@@ -95,6 +96,7 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema17(
     legacy_payload["player"].pop("signature_weapon")
     remove_m3_advancement(legacy_payload)
     remove_m3_discovery_state(legacy_payload)
+    remove_m4_run_state(legacy_payload)
     legacy_payload["overworld"].pop("active_route_id")
     legacy_digest = payload_sha256(legacy_payload)
     with session_factory() as session:
@@ -125,14 +127,14 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema17(
     assert legacy_head.json()["head"]["payload_sha256"] == legacy_digest
     assert advanced.status_code == 200
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 17
+    assert advanced.json()["head"]["payload"]["schema_version"] == 18
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == legacy_payload
         assert historical.payload_sha256 == legacy_digest
 
 
-def test_schema9_remote_head_advances_to_schema17_without_rewriting_history(
+def test_schema9_remote_head_advances_to_schema18_without_rewriting_history(
     service,
     valid_payload,
 ):
@@ -148,6 +150,7 @@ def test_schema9_remote_head_advances_to_schema17_without_rewriting_history(
     legacy_payload["player"].pop("signature_weapon")
     remove_m3_advancement(legacy_payload)
     remove_m3_discovery_state(legacy_payload)
+    remove_m4_run_state(legacy_payload)
     legacy_payload["party"].pop("active_drifter_ids")
     legacy_payload["party"].pop("carried_items")
     legacy_payload["overworld"].pop("active_route_id")
@@ -187,7 +190,7 @@ def test_schema9_remote_head_advances_to_schema17_without_rewriting_history(
     assert historical_head.json()["head"]["payload_sha256"] == legacy_digest
     assert advanced.status_code == 200
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 17
+    assert advanced.json()["head"]["payload"]["schema_version"] == 18
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == legacy_payload

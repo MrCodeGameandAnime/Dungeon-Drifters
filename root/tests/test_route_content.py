@@ -73,6 +73,7 @@ EXPECTED_SURFACE_ROUTE = (
 EXPECTED_ENCOUNTERS = (
     ("dungeon_goblin_quad", ("goblin", "goblin", "goblin", "goblin")),
     ("dungeon_goblin_trio", ("goblin", "goblin", "goblin")),
+    ("floor_two_cave_in", ("goblin", "goblin_warrior")),
     ("surface_goblin_solo", ("goblin",)),
     ("surface_goblin_pair", ("goblin", "goblin")),
     ("surface_warrior_solo", ("goblin_warrior",)),
@@ -120,9 +121,10 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     assert sum(node.kind is RouteNodeKind.REST for node in route.nodes) == 3
     assert tuple(spec.route_id for spec in ROUTE_SPECS) == (
         "floor_one",
+        "floor_two",
         "surface",
     )
-    assert discover_route_ids() == ("floor_one", "surface")
+    assert discover_route_ids() == ("floor_one", "floor_two", "surface")
 
 
 def test_encounter_packages_match_the_independent_authored_contract():
@@ -396,7 +398,7 @@ def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 17
+    assert rebuilt["schema_version"] == 18
     assert rebuilt["overworld"] == {
         "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",
@@ -451,3 +453,32 @@ def test_floor_one_route_matches_the_approved_ten_battle_contract():
         node.node_id for node in route.nodes if node.kind is RouteNodeKind.REST
     ) == ("floor_one_midway_rest", "floor_one_pre_boss_rest")
     assert route.nodes[-1].encounter_id == "surface_goblin_lord"
+
+
+def test_floor_two_route_matches_the_approved_ten_battle_contract():
+    route = get_route_spec("floor_two")
+
+    assert len(route.nodes) == 12
+    assert tuple(node.kind for node in route.nodes) == (
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.REST,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.COMBAT,
+        RouteNodeKind.REST,
+        RouteNodeKind.BOSS,
+    )
+    assert tuple(
+        node.node_id for node in route.nodes if node.kind is RouteNodeKind.REST
+    ) == ("floor_two_midway_rest", "floor_two_pre_boss_rest")
+    assert tuple(
+        node.encounter_id for node in route.nodes if node.kind is RouteNodeKind.BOSS
+    ) == ("surface_goblin_lord",)
+    assert sum(
+        node.encounter_id == "floor_two_cave_in" for node in route.nodes
+    ) == 1

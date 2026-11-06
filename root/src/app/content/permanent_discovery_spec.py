@@ -15,6 +15,7 @@ class PermanentDiscoverySource:
     source_id: str
     discovery_type: PermanentDiscoveryType
     amount: int
+    search_chance_bps: int | None = None
 
     def __post_init__(self):
         if not is_valid_permanent_discovery_source_id(self.source_id):
@@ -33,6 +34,13 @@ class PermanentDiscoverySource:
         }
         if self.amount not in allowed_amounts[discovery_type]:
             raise ValueError("discovery amount is not authored for its type")
+        if self.search_chance_bps is not None:
+            if isinstance(self.search_chance_bps, bool) or not isinstance(
+                self.search_chance_bps, int
+            ):
+                raise TypeError("search_chance_bps must be an integer")
+            if not 0 <= self.search_chance_bps <= 10000:
+                raise ValueError("search_chance_bps must be between 0 and 10000")
 
 
 def validate_permanent_discovery_sources(sources):

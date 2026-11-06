@@ -20,6 +20,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseAlchemyRecipe,
     ChooseHubSupplyAction,
     ChooseMerchantCraftComponent,
@@ -140,6 +142,29 @@ def test_party_selection_lists_ordered_pairs_and_reads_selected_identity():
     assert "Ser Branoc, the Unbroken Crest + Azhvielle" in text
     assert "[Selected]" in text
     assert selected == ChooseActivePair(("joruun", "azhvielle"))
+
+
+def test_terminal_discovery_choices_are_active_and_target_the_selected_drifter():
+    game = completed_hub_game()
+    source_id = "ancient_well_floor2_01"
+    searcher_view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.DISCOVERY_SEARCHERS,
+        discovery_source_id=source_id,
+    )
+    searcher_text = "\n".join(rendered(searcher_view))
+
+    assert "Ancient Well: +5 Max HP" in searcher_text
+    searcher, _ = read(searcher_view, ["2"])
+    assert searcher == ChooseDiscoverySearcher("azhvielle")
+
+    target_view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.DISCOVERY_TARGETS,
+        discovery_source_id=source_id,
+    )
+    target, _ = read(target_view, ["1"])
+    assert target == ChooseDiscoveryTarget("branoc")
 
 
 def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
