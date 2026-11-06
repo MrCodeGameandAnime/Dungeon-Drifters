@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document plans M4A only; it does not authorize starting M5 or M4B.
 
-**Status:** Gate 0 approved. M4A-1 through M4A-4 are implemented and locally verified; M4A-5 has a passing built-browser journey, with its terminal end-to-end journey still open. M4A-6 hosted, PostgreSQL, and pinned-MicroPython qualification remains open (2026-11-06).
+**Status:** Gate 0 approved. M4A-1 through M4A-5 are implemented and locally verified. M4A-6 remains open for hosted CI, PostgreSQL/migration qualification, and pinned MicroPython (2026-11-06).
 
 ### Local Review Checkpoints
 
@@ -14,8 +14,9 @@ The implementation is split into these reviewable commits on the existing `dunge
 | M4A-2 | `c3ddac5` | Identity modifiers and the cave-in response |
 | M4A-3 / M4A-4 | `6377eb4` | Persisted Floor II run/events, route, D3, rewards, and schema 18 |
 | M4A-5 | `70c55c4` | Browser bridge and built-browser Floor II journey |
+| M4A-5 | `b110923` | Terminal Floor II journey and terminal action-key routing |
 
-Local cumulative evidence at this checkpoint: the M4-focused root selection passed (**491 tests**) and web pytest passed (**66 tests**). The latest full-root attempt had **2,048 passed and 35 failed**, all at Windows `WinError 6` while creating subprocesses; no application assertion failure was reported. Content validation passed (**5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events**); `compileall` passed; generated dataclass manifest check passed (**147 entries**); browser build produced **161 files**; full browser smoke passed through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`; `git diff --check` passed. PostgreSQL and migration/Alembic checks could not run because the local Docker engine and PostgreSQL endpoint were unavailable. Pinned MicroPython and hosted CI have not run on this checkpoint.
+Local cumulative evidence at this checkpoint: the M4-focused root selection passed (**492 tests**), full root pytest passed (**2,084 tests**), and web pytest passed (**66 tests**). Content validation passed (**5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events**); `compileall` passed; generated dataclass manifest check passed (**147 entries**); browser build produced **161 files**; full browser smoke passed through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`; `git diff --check` passed. The new terminal journey traverses all ten Floor II encounters, recruits D3, resolves the discovery, and clears the Goblin Lord. PostgreSQL/migration checks were not run: Docker is unreachable and both dedicated database URL variables are unset. Pinned MicroPython and hosted CI have not run on this checkpoint.
 
 **Goal:** Add authored enemy Tier 1 behavior and a bounded, replayable Floor II route that introduces D3, Grade-II materials, persisted search/drop outcomes, and one counterable environmental threat without changing sealed Floor I behavior.
 
@@ -147,16 +148,16 @@ Proof: full session-flow tests cover insufficient-gold extraction/retry, D3 recr
 - [x] Expose the same floor choices, searcher selection, D3 candidates, blocked reasons, hazard warning, and actual reward results in terminal and browser presenters. Clients submit semantic IDs only; they do not roll or calculate outcomes.
 - [x] Add presenter/bridge tests for exact Drifter IDs, unoffered/benched targets, stale recruitment offers, duplicate submits, and responsive Rest actions.
 - [x] Add a built-browser semantic journey: load a qualifying save, enter Floor II, reach the midway Rest, reject D3 for insufficient gold without mutation, return to Hub, obtain gold, replay, recruit D3, reach a Rest search, save/reload the revealed/claimed state, complete the boss, and inspect secured materials/rewards.
-- [ ] Add a terminal UI journey with the same rules and Floor II completion. Keep a separate regression for the unchanged Floor I clear/replay route.
+- [x] Add a terminal UI journey with the same rules and Floor II completion. Keep a separate regression for the unchanged Floor I clear/replay route.
 
-Proof: terminal presenter/semantic session tests and the built-browser smoke cover their respective boundaries. The browser journey emits `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`; the explicit terminal UI end-to-end journey remains open, so M4A-5 is not yet fully closed.
+Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_discovery` exercises the actual terminal key mapping and full session, including ten encounters, D3 recruitment, discovery claim, and boss clear. The built-browser journey emits `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`. Floor I clear/replay remains separately covered.
 
 ### M4A-6: Qualification And M5 Handoff
 
-- [x] Run focused enemy, combat, search/drop transaction, recruitment, route, save migration, and presenter tests (491 passed); run web pytest (66 passed).
-- [ ] Complete full root pytest. Latest local attempt: 2,048 passed, 35 failed with Windows `WinError 6` while subprocesses were being created; rerun in hosted CI or a non-restricted Windows test environment.
+- [x] Run focused enemy, combat, search/drop transaction, recruitment, route, save migration, presenter, and terminal journey tests (492 passed); run web pytest (66 passed).
+- [x] Complete full root pytest (2,084 passed on the current M4A-5 tree).
 - [x] Run content validation, compile/build, and built-browser Playwright smoke (161-file build; Floor II boss-clear marker passed).
-- [ ] Run profile-service PostgreSQL tests, migration-from-zero, and Alembic model parity. Not run: local Docker engine/PostgreSQL endpoint were unavailable.
+- [ ] Run profile-service PostgreSQL tests, migration-from-zero, and Alembic model parity. Not run: Docker engine is unreachable and dedicated database URL variables are unset.
 - [ ] Extend and run the actual pinned MicroPython qualification for Tier 0/Tier 1 content loading, Floor II route/recruitment/drop/search snapshots, teardown, semantic parity, and the established heap frontier. Record exact memory values and distinguish expected limits from failures.
 - [x] Run `git diff --check` and inspect the gate commits listed above.
 - [ ] Record the final exact tree SHA and hosted results in this plan and the probe record after qualification. No hosted run is claimed for the current checkpoint.
