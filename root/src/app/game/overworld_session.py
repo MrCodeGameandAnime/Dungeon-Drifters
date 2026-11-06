@@ -1342,8 +1342,11 @@ class OverworldSession:
     def _return_with_talisman(self):
         party_state = self.game_state.party_state
         if (
-            self.game_state.overworld_state.active_route_id
-            not in {"floor_one", "floor_two"}
+            self.game_state.floor_two_boss_settlement_pending
+            or (
+                self.game_state.overworld_state.active_route_id
+                not in {"floor_one", "floor_two"}
+            )
             or party_state.phase is not DungeonPhase.OUTING
         ):
             self._notice = "The Return Talisman cannot be used here."

@@ -1491,6 +1491,7 @@ class OverworldPresenter:
             in {"floor_one", "floor_two"}
             and party_state.phase is DungeonPhase.OUTING
             and party_state.carried_items.get("return_talisman", 0) > 0
+            and not game_state.floor_two_boss_settlement_pending
         ):
             return (
                 self._enabled_option(

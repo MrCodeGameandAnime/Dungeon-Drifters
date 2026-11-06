@@ -191,11 +191,14 @@ def reach_floor_two_midway_rest(session):
     return session.current_view()
 
 
-def floor_two_pre_boss_rest_game():
+def floor_two_pre_boss_rest_game(*, carried_supplies=None):
     game = game_at_completed_hub()
     party = game.party_state
     assert party.start_floor_one_run() == 100
     assert party.complete_floor_one_boss(game.active_party_members)
+    if carried_supplies:
+        party.add_shared_items(carried_supplies)
+        assert party.load_carried_supplies(carried_supplies)
     assert party.start_floor_two_run(
         run_id_factory=lambda: "floor-two-discovery-run"
     ) == 100
@@ -210,8 +213,8 @@ def floor_two_pre_boss_rest_game():
     return game
 
 
-def floor_two_boss_game():
-    game = floor_two_pre_boss_rest_game()
+def floor_two_boss_game(*, carried_supplies=None):
+    game = floor_two_pre_boss_rest_game(carried_supplies=carried_supplies)
     game.overworld_state.record_resolved_rest_node("floor_two_pre_boss_rest")
     game.overworld_state.advance_to(
         "floor_two_battle_10",
@@ -220,8 +223,8 @@ def floor_two_boss_game():
     return game
 
 
-def floor_two_boss_settlement_failure():
-    game = floor_two_boss_game()
+def floor_two_boss_settlement_failure(*, carried_supplies=None):
+    game = floor_two_boss_game(carried_supplies=carried_supplies)
     save_port = RecordingSavePort()
     save_port.fail_on_attempts.add(2)
     session = make_session(game, save_port, run_event_rng=StableRng())
@@ -350,6 +353,59 @@ def test_floor_two_boss_settlement_recovers_after_save_reload():
     assert progression_for(resumed.game_state.recruited_members) != before_xp
     assert len(_committed_boss_reward_event(resumed.game_state)) == 1
     assert len(retry_save.saved_states) == 1
+
+
+def test_return_talisman_is_rejected_during_pending_boss_settlement():
+    _game, save_port, session = floor_two_boss_settlement_failure(
+        carried_supplies={"return_talisman": 1}
+    )
+    pending = session.game_state
+    assert pending.floor_two_boss_settlement_pending
+
+    before = pending.snapshot()
+    saved_count = len(save_port.saved_states)
+    attempts = len(save_port.save_attempts)
+    view = session.current_view()
+    assert any(
+        option.action is OverworldAction.FINALIZE_FLOOR_TWO_CLEAR
+        and option.enabled
+        for option in view.options
+    )
+    assert not any(
+        option.action is OverworldAction.RETURN_WITH_TALISMAN
+        for option in view.options
+    )
+
+    rejected = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_WITH_TALISMAN)
+    )
+
+    assert rejected.notice == "That option is not available."
+    assert pending.snapshot() == before
+    assert len(save_port.saved_states) == saved_count
+    assert len(save_port.save_attempts) == attempts
+    assert pending.party_state.carried_items == {"return_talisman": 1}
+
+    reloaded = reconstruct_game_state(
+        build_save_document(save_port.saved_states[0])
+    )
+    retry_save = RecordingSavePort()
+    resumed = make_session(reloaded, retry_save, run_event_rng=StableRng())
+    resumed_before = reloaded.snapshot()
+    resumed_view = resumed.current_view()
+    assert not any(
+        option.action is OverworldAction.RETURN_WITH_TALISMAN
+        for option in resumed_view.options
+    )
+
+    rejected_after_reload = resumed.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_WITH_TALISMAN)
+    )
+
+    assert rejected_after_reload.notice == "That option is not available."
+    assert reloaded.snapshot() == resumed_before
+    assert retry_save.saved_states == []
+    assert retry_save.save_attempts == []
 
 
 def test_floor_two_pre_boss_rest_offers_search_site():
