@@ -59,6 +59,8 @@ class BattleEventType(StrEnum):
     INVENTORY = "inventory"
     ESCAPE = "escape"
     STATUS = "status"
+    HAZARD_WARNING = "hazard_warning"
+    HAZARD_DAMAGE = "hazard_damage"
 
 
 class ActionAvailabilityReason(StrEnum):

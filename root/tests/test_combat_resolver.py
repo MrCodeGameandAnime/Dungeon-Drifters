@@ -47,7 +47,9 @@ class SimpleCombatant:
             generates_super=True,
             can_defend=False,
             effective_stats=None,
-            defend_reductions=None):
+            defend_reductions=None,
+            damage_resistances=(),
+            damage_weaknesses=()):
         self.display_name = "Simple"
         self.health = PlayerState(create_drifter("branoc")).health
         self.mana_resource = PlayerState(create_drifter("branoc")).mana_resource
@@ -64,6 +66,8 @@ class SimpleCombatant:
             "intuition": 8,
         }
         self._defend_reductions = defend_reductions or {}
+        self.damage_resistances = tuple(damage_resistances)
+        self.damage_weaknesses = tuple(damage_weaknesses)
 
     @property
     def combat_moves(self):
@@ -2225,3 +2229,141 @@ def test_split_components_apply_minimum_once_after_sum_and_critical_once_per_mov
     assert result.damage == 1
     assert result.critical is True
     assert rng.calls == [(1, 100), (1, 100)]
+
+
+@pytest.mark.parametrize(
+    "identity, subtype, resistances, weaknesses, expected",
+    (
+        (
+            DamageComponentIdentity.ELEMENTAL,
+            "fire",
+            ((DamageComponentIdentity.ELEMENTAL, "fire"),),
+            (),
+            15,
+        ),
+        (
+            DamageComponentIdentity.ALCHEMICAL,
+            "poison",
+            ((DamageComponentIdentity.ALCHEMICAL, "poison"),),
+            (),
+            15,
+        ),
+        (
+            DamageComponentIdentity.ELEMENTAL,
+            "fire",
+            (),
+            ((DamageComponentIdentity.ELEMENTAL, "fire"),),
+            25,
+        ),
+        (
+            DamageComponentIdentity.ELEMENTAL,
+            "fire",
+            ((DamageComponentIdentity.ELEMENTAL, "ice"),),
+            (),
+            20,
+        ),
+        (
+            DamageComponentIdentity.ELEMENTAL,
+            "fire",
+            ((DamageComponentIdentity.ALCHEMICAL, "fire"),),
+            (),
+            20,
+        ),
+    ),
+)
+def test_elemental_and_alchemical_identity_modifiers_match_exactly(
+    identity, subtype, resistances, weaknesses, expected
+):
+    move = _split_test_move(
+        (
+            _damage_component(
+                identity,
+                DamageDefenseClass.MAGICAL,
+                20,
+                subtype=subtype,
+            ),
+        ),
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 1,
+            "strength": 1,
+            "dexterity": 1,
+            "intuition": 1,
+        },
+        damage_resistances=resistances,
+        damage_weaknesses=weaknesses,
+    )
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(actor, target, move.name)
+
+    assert result.damage == expected
+
+
+def test_component_identity_multiplier_follows_generic_mitigation_before_brace_and_defend():
+    move = _split_test_move(
+        (
+            _damage_component(
+                DamageComponentIdentity.ELEMENTAL,
+                DamageDefenseClass.PHYSICAL,
+                20,
+                subtype="fire",
+            ),
+        ),
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 8,
+            "spirit": 1,
+            "intelligence": 1,
+            "strength": 10,
+            "dexterity": 1,
+            "intuition": 1,
+        },
+        defend_reductions={DamageType.PHYSICAL: 50},
+        damage_resistances=((DamageComponentIdentity.ELEMENTAL, "fire"),),
+    )
+    combat_state = CombatState()
+    combat_state.activate_brace(target, incoming_reduction_percent=40)
+    combat_state.activate_defend(target)
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=combat_state,
+    )
+
+    assert result.damage == 4
+
+
+def test_environmental_physical_damage_uses_existing_mitigation_brace_and_defend():
+    target = SimpleCombatant(
+        effective_stats={
+            "constitution": 8,
+            "spirit": 8,
+            "intelligence": 8,
+            "strength": 10,
+            "dexterity": 8,
+            "intuition": 8,
+        },
+        defend_reductions={DamageType.PHYSICAL: 50},
+    )
+    state = CombatState()
+    state.activate_brace(target, incoming_reduction_percent=40)
+    state.activate_defend(target)
+    before = target.health.current
+
+    result = CombatResolver(rng=ScriptedRng(1)).resolve_environmental_physical_damage(
+        target,
+        20,
+        combat_state=state,
+    )
+
+    # 20 - 2 CON mitigation = 18; Brace leaves 11; Defend leaves 6.
+    assert result.damage == 6
+    assert target.health.current == before - 6

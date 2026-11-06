@@ -9,6 +9,7 @@ from app.content.route_spec import validate_content_id
 class EncounterSpec:
     encounter_id: str
     enemy_archetype_ids: tuple[str, ...]
+    cave_in_power: int | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -30,6 +31,14 @@ class EncounterSpec:
                 for archetype_id in self.enemy_archetype_ids
             ),
         )
+        if self.cave_in_power is not None:
+            if isinstance(self.cave_in_power, bool) or not isinstance(
+                self.cave_in_power,
+                int,
+            ):
+                raise TypeError("cave_in_power must be a positive integer or None")
+            if self.cave_in_power < 1:
+                raise ValueError("cave_in_power must be positive")
 
 
 __all__ = ["EncounterSpec"]

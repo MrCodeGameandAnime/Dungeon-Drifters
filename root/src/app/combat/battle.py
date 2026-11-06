@@ -67,6 +67,7 @@ class Battle:
         party=(),
         party_state=None,
         smoke_escape_allowed=False,
+        cave_in_power=None,
     ):
         if not isinstance(player_state, PlayerState):
             raise TypeError("player_state must be a PlayerState")
@@ -92,8 +93,18 @@ class Battle:
             raise TypeError("party_state must provide carried-supply operations")
         if not isinstance(smoke_escape_allowed, bool):
             raise TypeError("smoke_escape_allowed must be a boolean")
+        if cave_in_power is not None and (
+            isinstance(cave_in_power, bool)
+            or not isinstance(cave_in_power, int)
+        ):
+            raise TypeError("cave_in_power must be a positive integer or None")
+        if cave_in_power is not None and cave_in_power < 1:
+            raise ValueError("cave_in_power must be positive")
         self._party_state = party_state
         self._smoke_escape_allowed = smoke_escape_allowed
+        self._cave_in_power = cave_in_power
+        self._cave_in_response_seen = False
+        self._cave_in_resolved = False
         self.player = player_state.character
         self._enemies = self._normalize_enemies(enemies)
         self._enemy_target_ids = tuple(
@@ -236,6 +247,8 @@ class Battle:
 
         accepted_action = self._process_player_input(view, battle_input)
         if accepted_action:
+            if self._cave_in_power is not None:
+                self._cave_in_response_seen = True
             if self.is_complete:
                 return self._final_view
             if self._party_mode:
@@ -268,6 +281,14 @@ class Battle:
                 target_name=self._enemy_group_label(),
             )
         )
+        if self._cave_in_power is not None:
+            self.presentation_session.record(
+                BattleLogEntry(
+                    event_type=BattleEventType.HAZARD_WARNING,
+                    action_name="Cave-in",
+                    reason="The ceiling groans. A cave-in is imminent.",
+                )
+            )
 
         if self._party_mode:
             self._start_party_round()
@@ -322,6 +343,11 @@ class Battle:
                 if self._skip_action_opportunity_suppression(actor):
                     self._consume_party_turn(actor)
                     continue
+                return
+            self._resolve_pending_cave_in()
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
                 return
             if self._skip_action_opportunity_suppression(actor):
                 self._consume_party_turn(actor)
@@ -1180,11 +1206,57 @@ class Battle:
                 return
             if not enemy.is_alive():
                 continue
+            self._resolve_pending_cave_in()
+            if self._winner() is not None:
+                return
             if self._skip_action_opportunity_suppression(enemy):
                 continue
             self._process_enemy_action(enemy)
             if self._winner() is not None:
                 return
+
+    def _resolve_pending_cave_in(self):
+        if (
+            self._cave_in_power is None
+            or self._cave_in_resolved
+            or not self._cave_in_response_seen
+        ):
+            return False
+        members = self._party_members if self._party_mode else (self.player_state,)
+        living_party = tuple(member for member in members if member.is_alive())
+        if not living_party:
+            return False
+
+        target = self.rng.choice(living_party)
+        result = self.resolver.resolve_environmental_physical_damage(
+            target,
+            self._cave_in_power,
+            combat_state=self.combat_state,
+        )
+        if not result.accepted:
+            raise RuntimeError("the authored cave-in damage was rejected")
+        self._cave_in_resolved = True
+        self.presentation_session.record(
+            BattleLogEntry(
+                event_type=BattleEventType.HAZARD_DAMAGE,
+                target_name=self._display_name_for(target),
+                action_name="Falling stone",
+                accepted=True,
+                hit=True,
+                amount=result.damage,
+            )
+        )
+        outcomes = self.combat_state.clear_defeated_combatant(target)
+        if outcomes:
+            self.presentation_session.record(
+                BattleLogEntry(
+                    event_type=BattleEventType.STATUS,
+                    actor_name="The cave-in",
+                    target_name=self._display_name_for(target),
+                    outcomes=outcomes,
+                )
+            )
+        return True
 
     def enemy_phase(self):
         return self._advance_enemy_phase()

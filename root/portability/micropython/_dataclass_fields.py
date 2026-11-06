@@ -29,7 +29,7 @@ FIELD_MANIFEST = {
     ('app.content.drifter_spec', 'ClassMechanicSpec'): ('name', 'description'),
     ('app.content.drifter_spec', 'DrifterSpec'): ('drifter_id', 'choice', 'archetype_name', 'stats', 'combat_moves', 'class_mechanic', 'starting_weapon_id', 'short_name', 'display_name', 'ascii_art', 'origin_title', 'biography', 'dungeon_motive', 'combat_role', 'combat_summary', 'strengths', 'weaknesses', 'weapon', 'discipline', 'quote', 'selection_summary', 'starting_run_inventory', 'starting_prepared_payloads'),
     ('app.content.drifter_spec', 'DrifterStatSpec'): ('constitution', 'spirit', 'intelligence', 'strength', 'dexterity', 'intuition'),
-    ('app.content.encounter_spec', 'EncounterSpec'): ('encounter_id', 'enemy_archetype_ids'),
+    ('app.content.encounter_spec', 'EncounterSpec'): ('encounter_id', 'enemy_archetype_ids', 'cave_in_power'),
     ('app.content.enemy_spec', 'EnemySpec'): ('archetype_id', 'name', 'stats', 'hp', 'mana', 'exp_reward', 'gold_reward', 'rank', 'role', 'behavior', 'capabilities', 'moves', 'supported_tiers', 'item_drops', 'tier_profiles', 'damage_resistances', 'damage_weaknesses'),
     ('app.content.enemy_spec', 'EnemyTierSpec'): ('tier', 'stats', 'hp', 'mana', 'item_drops'),
     ('app.content.enemy_spec', 'ItemDropSpec'): ('item_id', 'quantity', 'chance_bps'),

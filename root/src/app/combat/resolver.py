@@ -8,6 +8,7 @@ from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
 from app.combat.combatant import is_combatant
 from app.combat.move import (
+    DamageComponentIdentity,
     DamageDefenseClass,
     DamageType,
     MoveKind,
@@ -433,6 +434,83 @@ class CombatResolver:
             move_name="Defend",
             resource_spent=0,
             damage=0,
+            healing=0,
+            statuses_applied=(),
+            reason=None,
+            critical=False,
+        )
+
+    def resolve_environmental_physical_damage(
+        self,
+        target,
+        power,
+        *,
+        combat_state=None,
+    ):
+        if not _is_valid_combatant(target):
+            return _rejected("Cave-in", "invalid_target")
+        if not target.is_alive():
+            return _rejected("Cave-in", "target_defeated")
+        if isinstance(power, bool) or not isinstance(power, int) or power < 1:
+            return _rejected("Cave-in", "invalid_power")
+        if not _is_valid_optional_combat_state(combat_state):
+            return _rejected("Cave-in", "invalid_combat_state")
+
+        condition_context = _capture_passive_context(
+            target,
+            None,
+            None,
+            combat_state,
+        )
+        mitigation = _mitigation(target, DamageType.PHYSICAL)
+        mitigation += _passive_mitigation_bonus(
+            target,
+            None,
+            None,
+            combat_state,
+            condition_context,
+            DamageType.PHYSICAL,
+        )
+        damage = max(1, power - mitigation)
+        damage = _strength_negated_damage(
+            target,
+            DamageType.PHYSICAL,
+            damage,
+        )
+        damage = _arcane_instability_damage(
+            target,
+            DamageType.PHYSICAL,
+            damage,
+            combat_state,
+        )
+        damage = _brace_reduced_damage(
+            target,
+            DamageType.PHYSICAL,
+            damage,
+            combat_state,
+            additional_reduction_percent=_brace_incoming_bonus(
+                target,
+                None,
+                None,
+                combat_state,
+                condition_context,
+                DamageType.PHYSICAL,
+            ),
+        )
+        damage = _defended_damage(
+            target,
+            DamageType.PHYSICAL,
+            damage,
+            combat_state,
+        )
+        before = target.health.current
+        target.health.take_damage(damage)
+        return MoveResult(
+            accepted=True,
+            hit=True,
+            move_name="Cave-in",
+            resource_spent=0,
+            damage=before - target.health.current,
             healing=0,
             statuses_applied=(),
             reason=None,
@@ -989,6 +1067,7 @@ def _landed_component_damage(
         damage,
         minimum_damage=0,
     )
+    damage = _damage_identity_modified_damage(target, component, damage)
     damage = _arcane_instability_damage(
         target,
         defense_type,
@@ -1027,6 +1106,21 @@ def _arcane_instability_damage(target, damage_type, damage, combat_state):
         combat_state.arcane_instability_physical_vulnerability_percent(target)
     )
     return damage * (100 + vulnerability_percent) // 100
+
+
+def _damage_identity_modified_damage(target, component, damage):
+    if component.identity not in {
+        DamageComponentIdentity.ELEMENTAL,
+        DamageComponentIdentity.ALCHEMICAL,
+    }:
+        return damage
+
+    identity_key = (component.identity, component.subtype)
+    if identity_key in getattr(target, "damage_resistances", ()):
+        return damage * 75 // 100
+    if identity_key in getattr(target, "damage_weaknesses", ()):
+        return damage * 125 // 100
+    return damage
 
 
 def _scaled_damage_power(actor, move, passive_output_bonus_bps=0):

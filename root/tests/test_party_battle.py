@@ -11,6 +11,7 @@ from app.content.catalog import (
 )
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType
+from app.presentation.battle_session import BattlePresentationSession
 from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, GoBack
 from tests.game_test_support import completed_hub_game
 
@@ -380,3 +381,66 @@ def test_enemy_selects_only_living_drifters_for_its_target():
         for entry in view.log_entries
         if entry.actor_name == "Goblin"
     )
+
+
+def test_cave_in_warning_allows_response_and_resolves_once_before_normal_enemy_action():
+    class RecordingSession(BattlePresentationSession):
+        def __init__(self):
+            super().__init__()
+            self.recorded = []
+
+        def record(self, entry):
+            self.recorded.append(entry)
+            super().record(entry)
+
+    lead = player("branoc", 20)
+    companion = player("azhvielle", 19)
+    enemy = goblin(5)
+    presentation = RecordingSession()
+    battle = Battle(
+        lead,
+        (enemy,),
+        party=(companion,),
+        presentation_session=presentation,
+        rng=StableRng(),
+        cave_in_power=20,
+    )
+
+    opening = battle.current_view()
+    assert any(
+        entry.event_type.value == "hazard_warning"
+        for entry in opening.log_entries
+    )
+
+    rejected = battle.submit(ChooseMove("not an offered move"))
+    assert rejected.active_player_id == "drifter_branoc"
+    assert not any(
+        entry.event_type.value == "hazard_damage"
+        for entry in presentation.recorded
+    )
+
+    first_response = defend(battle)
+    assert first_response.active_player_id == "drifter_azhvielle"
+    second_response = defend(battle)
+    assert second_response.active_player_id == "drifter_branoc"
+
+    hazard_entries = [
+        entry
+        for entry in presentation.recorded
+        if entry.event_type.value == "hazard_damage"
+    ]
+    assert len(hazard_entries) == 1
+    assert hazard_entries[0].target_name == lead.display_name
+    assert 0 < hazard_entries[0].amount < 20
+    assert any(
+        entry.event_type is BattleEventType.DAMAGE
+        and entry.actor_name == "Goblin"
+        for entry in presentation.recorded
+    )
+
+    defend(battle)
+    defend(battle)
+    assert sum(
+        entry.event_type.value == "hazard_damage"
+        for entry in presentation.recorded
+    ) == 1
