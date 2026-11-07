@@ -16,6 +16,7 @@ class OverworldScreen(StrEnum):
     CHARACTER = "character"
     SKILLS = "skills"
     RESPEC_CONFIRMATION = "respec_confirmation"
+    EQUIPMENT_CONFIRMATION = "equipment_confirmation"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
@@ -720,22 +721,108 @@ class AccessorySlotView:
 
 
 @dataclass(frozen=True)
+class EquipmentInstanceView:
+    instance_id: str
+    display_name: str
+    slot_id: str
+    category: str
+    rarity: str | None
+    upgrade_rank: int
+    secured: bool
+    stat_summary: tuple[str, ...]
+    modifier_summary: tuple[str, ...]
+    equipped_by_drifter_id: str | None
+    equipped_by_name: str | None
+
+    def __post_init__(self):
+        for name in ("instance_id", "display_name", "slot_id", "category"):
+            _validate_text(name, getattr(self, name))
+        if self.rarity is not None:
+            _validate_text("rarity", self.rarity)
+        _validate_nonnegative("upgrade_rank", self.upgrade_rank)
+        _validate_bool("secured", self.secured)
+        _validate_text_tuple("stat_summary", self.stat_summary)
+        _validate_text_tuple("modifier_summary", self.modifier_summary)
+        for name in ("equipped_by_drifter_id", "equipped_by_name"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
+        if (self.equipped_by_drifter_id is None) != (self.equipped_by_name is None):
+            raise ValueError("equipment owner ID and name must appear together")
+
+
+@dataclass(frozen=True)
+class EquipmentModifierView:
+    instance_id: str
+    display_name: str
+    grade: str
+    secured: bool
+
+    def __post_init__(self):
+        for name in ("instance_id", "display_name", "grade"):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("secured", self.secured)
+
+
+@dataclass(frozen=True)
+class EquipmentActionView:
+    operation: str
+    label: str
+    enabled: bool
+    disabled_reason: str | None = None
+    summary: str = ""
+    modifier_instance_id: str | None = None
+
+    def __post_init__(self):
+        for name in ("operation", "label", "summary"):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("enabled", self.enabled)
+        for name in ("disabled_reason", "modifier_instance_id"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("equipment action availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class EquipmentConfirmationView:
+    title: str
+    details: tuple[str, ...]
+
+    def __post_init__(self):
+        _validate_text("title", self.title)
+        _validate_text_tuple("details", self.details)
+
+
+@dataclass(frozen=True)
 class EquipmentView:
-    necklace: AccessorySlotView
+    pendant: AccessorySlotView
     ring: AccessorySlotView
     benefits: tuple[str, ...]
     targets: tuple = ()
     selected_target_id: str | None = None
+    instances: tuple[EquipmentInstanceView, ...] = ()
+    selected_instance_id: str | None = None
+    modifiers: tuple[EquipmentModifierView, ...] = ()
+    actions: tuple[EquipmentActionView, ...] = ()
 
     def __post_init__(self):
-        if not isinstance(self.necklace, AccessorySlotView):
-            raise TypeError("necklace must be an AccessorySlotView")
+        if not isinstance(self.pendant, AccessorySlotView):
+            raise TypeError("pendant must be an AccessorySlotView")
         if not isinstance(self.ring, AccessorySlotView):
             raise TypeError("ring must be an AccessorySlotView")
         _validate_text_tuple("benefits", self.benefits)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_instance_tuple("instances", self.instances, EquipmentInstanceView)
+        _validate_instance_tuple("modifiers", self.modifiers, EquipmentModifierView)
+        _validate_instance_tuple("actions", self.actions, EquipmentActionView)
         if self.targets:
             _validate_selected_target(self.targets, self.selected_target_id)
+        if self.selected_instance_id is not None and not any(
+            item.instance_id == self.selected_instance_id for item in self.instances
+        ):
+            raise ValueError("selected equipment must be present in the inventory")
 
 
 @dataclass(frozen=True)
@@ -870,6 +957,7 @@ class OverworldView:
     merchant: MerchantView | None = None
     hub_economy: HubEconomyView | None = None
     equipment: EquipmentView | None = None
+    equipment_confirmation: EquipmentConfirmationView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
@@ -960,6 +1048,10 @@ class OverworldView:
             self.respec_preview is not None
         ):
             raise ValueError("respec preview belongs only to its confirmation screen")
+        if (self.screen is OverworldScreen.EQUIPMENT_CONFIRMATION) != (
+            self.equipment_confirmation is not None
+        ):
+            raise ValueError("equipment preview belongs only to its confirmation screen")
         if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
             raise ValueError("merchant data belongs only to the Merchant screen")
         if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
@@ -1022,6 +1114,7 @@ class OverworldView:
             ("merchant", MerchantView),
             ("hub_economy", HubEconomyView),
             ("equipment", EquipmentView),
+            ("equipment_confirmation", EquipmentConfirmationView),
             ("inventory", InventoryView),
             ("route_map", MapView),
             ("encounter_inspection", MapEncounterInspectionView),

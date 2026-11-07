@@ -45,6 +45,7 @@ def test_schema8_legacy_save_is_wrapped_without_modifying_original(tmp_path):
     original_payload = build_save_document(_game_state())
     original_payload["schema_version"] = 8
     original_payload.pop("party")
+    original_payload["player"].pop("equipment_refs")
     original_payload["player"].pop("signature_weapon")
     original_payload["player"].pop("advancement")
     original_payload["player"].pop("permanent_discovery_bonuses")
@@ -64,7 +65,7 @@ def test_schema8_legacy_save_is_wrapped_without_modifying_original(tmp_path):
     loaded = store.load(PROFILE_ID)
     assert loaded.status is ProfileStoreStatus.VALID
     assert loaded.envelope.sync_state is SyncState.LOCAL_ONLY
-    assert loaded.envelope.payload["schema_version"] == 18
+    assert loaded.envelope.payload["schema_version"] == 21
     assert loaded.envelope.payload == build_save_document(
         reconstruct_game_state(original_payload)
     )
@@ -75,6 +76,7 @@ def test_schema7_legacy_save_migrates_in_memory_before_enveloping(tmp_path):
     original_payload = _game_state().snapshot()
     original_payload["schema_version"] = 7
     original_payload.pop("party", None)
+    original_payload["player"].pop("equipment_refs")
     original_payload["player"].pop("signature_weapon")
     original_payload["player"].pop("advancement")
     original_payload["player"].pop("permanent_discovery_bonuses")
@@ -90,7 +92,7 @@ def test_schema7_legacy_save_migrates_in_memory_before_enveloping(tmp_path):
     assert result.migrated_from_schema_7 is True
     assert legacy_path.read_bytes() == original_bytes
     loaded = store.load(PROFILE_ID)
-    assert loaded.envelope.payload["schema_version"] == 18
+    assert loaded.envelope.payload["schema_version"] == 21
     assert build_save_document(reconstruct_game_state(loaded.envelope.payload)) == (
         build_save_document(reconstruct_game_state(original_payload))
     )

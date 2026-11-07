@@ -54,6 +54,22 @@ def test_equipment_slots_exist_and_start_empty():
     )
 
 
+def test_armor_and_accessory_references_are_separate_from_legacy_equipment():
+    player_state = PlayerState(create_drifter("branoc"))
+
+    expected = {
+        "helm": None,
+        "chest": None,
+        "gloves": None,
+        "boots": None,
+        "ring": None,
+        "pendant": None,
+    }
+    assert getattr(player_state, "equipped_equipment_ids", None) == expected
+    assert player_state.snapshot()["equipment_refs"] == expected
+    assert player_state.get_equipped("weapon").item_id == "sunder_spire"
+
+
 def test_foreign_equipped_weapon_keeps_moves_unmodified_by_signature_components():
     player_state = PlayerState(create_drifter("branoc"))
     baseline_moves = player_state.character.combat_moves

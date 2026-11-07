@@ -106,6 +106,7 @@ def test_all_approved_screen_values_are_typed():
         "character",
         "skills",
         "respec_confirmation",
+        "equipment_confirmation",
         "weapon",
         "equipment",
         "merchant",

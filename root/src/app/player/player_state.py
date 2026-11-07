@@ -10,6 +10,7 @@ from app.content.weapon_progression_spec import (
 )
 from app.player import resources
 from app.player import progression
+from app.player import scaling
 from app.snapshot import to_plain_value
 from app.player.character import Character
 from app.player.character_run_state import (
@@ -34,6 +35,14 @@ class PlayerBattleCheckpoint:
 
 
 class PlayerState:
+    EQUIPMENT_REFERENCE_SLOTS = (
+        "helm",
+        "chest",
+        "gloves",
+        "boots",
+        "ring",
+        "pendant",
+    )
     EQUIPMENT_SLOTS = (
         "weapon",
         "off_hand",
@@ -61,6 +70,12 @@ class PlayerState:
             slot: None
             for slot in self.EQUIPMENT_SLOTS
         }
+        self._equipped_equipment_ids = {
+            slot: None
+            for slot in self.EQUIPMENT_REFERENCE_SLOTS
+        }
+        self._equipment_stat_bonuses = {}
+        self._equipment_combat_effects = ()
         for slot, item in getattr(character, "starting_equipment", {}).items():
             self._validate_equipment_slot(slot)
             self._equipment[slot] = item
@@ -135,6 +150,10 @@ class PlayerState:
     @property
     def equipment(self):
         return dict(self._equipment)
+
+    @property
+    def equipped_equipment_ids(self):
+        return dict(self._equipped_equipment_ids)
 
     @property
     def health(self):
@@ -272,8 +291,9 @@ class PlayerState:
             get_advancement_passive_effects,
         )
 
-        return get_advancement_passive_effects(
-            self.purchased_passive_skill_ids
+        return (
+            get_advancement_passive_effects(self.purchased_passive_skill_ids)
+            + self._equipment_combat_effects
         )
 
     @property
@@ -286,6 +306,7 @@ class PlayerState:
 
     def effective_stat(self, name):
         base_value = self.stats.effective_stat(name)
+        equipment_bonus = self._equipment_stat_bonuses.get(name, 0)
         weapon = self.get_equipped("weapon")
         if isinstance(weapon, Weapon):
             if weapon.item_id == self.signature_weapon_state.weapon_id:
@@ -299,10 +320,14 @@ class PlayerState:
                         self.signature_weapon_state.slot_progress,
                         tier_v_success=self.signature_weapon_state.tier_v_success,
                     )
-                    return base_value + bonuses.get(name, 0)
-            return base_value + weapon.stat_bonuses.get(name, 0)
+                    return (
+                        base_value
+                        + equipment_bonus
+                        + bonuses.get(name, 0)
+                    )
+            return base_value + equipment_bonus + weapon.stat_bonuses.get(name, 0)
 
-        return base_value
+        return base_value + equipment_bonus
 
     def defend_reduction_percent(self, damage_type):
         if damage_type == DamageType.PHYSICAL:
@@ -324,7 +349,7 @@ class PlayerState:
             self._growth_points += (
                 levels_gained * progression.GROWTH_POINTS_PER_LEVEL
             )
-            self.character.recalculate_resource_maximums(
+            self._recalculate_resource_maximums(
                 increase_current=True,
             )
 
@@ -352,7 +377,7 @@ class PlayerState:
         self._advancement_state.record_stat_point(stat_name)
         self._growth_points -= 1
         if stat_name in {"constitution", "spirit"}:
-            self.character.recalculate_resource_maximums(
+            self._recalculate_resource_maximums(
                 increase_current=True,
             )
 
@@ -376,7 +401,7 @@ class PlayerState:
             if amount:
                 self.character.permanent_stats.decrease_stat(stat_name, amount)
         self._growth_points += refund
-        self.character.recalculate_resource_maximums()
+        self._recalculate_resource_maximums()
         return refund
 
     def increase_permanent_max_hp(self, amount):
@@ -384,7 +409,7 @@ class PlayerState:
         if amount == 0:
             return self.health.maximum
         self.character.permanent_max_hp_bonus += amount
-        self.character.recalculate_resource_maximums()
+        self._recalculate_resource_maximums()
         return self.health.maximum
 
     def increase_permanent_max_mana(self, amount):
@@ -392,7 +417,7 @@ class PlayerState:
         if amount == 0:
             return self.mana_resource.maximum
         self.character.permanent_max_mana_bonus += amount
-        self.character.recalculate_resource_maximums()
+        self._recalculate_resource_maximums()
         return self.mana_resource.maximum
 
     def gain_permanent_discovery_growth_points(self, amount):
@@ -413,6 +438,62 @@ class PlayerState:
 
     def equip_normal_move(self, move_id, *, slot):
         return self._advancement_state.equip_normal_move(move_id, slot=slot)
+
+    def _set_equipped_equipment_ids(self, values):
+        if (
+            not isinstance(values, dict)
+            or set(values) != set(self.EQUIPMENT_REFERENCE_SLOTS)
+            or any(
+                value is not None and (not isinstance(value, str) or not value)
+                for value in values.values()
+            )
+        ):
+            raise ValueError("equipment references must map every slot to an ID or null")
+        self._equipped_equipment_ids = dict(values)
+
+    def _set_equipment_stat_bonuses(self, bonuses):
+        if not isinstance(bonuses, dict):
+            raise TypeError("equipment stat bonuses must be a mapping")
+        if any(name not in self.character.permanent_stats.STAT_NAMES for name in bonuses):
+            raise ValueError("equipment contains an unknown stat bonus")
+        if any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in bonuses.values()
+        ):
+            raise TypeError("equipment stat bonuses must be integers")
+        self._equipment_stat_bonuses = dict(bonuses)
+        self._recalculate_resource_maximums()
+
+    def _set_equipment_combat_effects(self, effects):
+        from app.combat.passive_effect import PassiveCombatEffect
+
+        if not isinstance(effects, tuple) or any(
+            not isinstance(effect, PassiveCombatEffect) for effect in effects
+        ):
+            raise TypeError("equipment combat effects must be passive effects")
+        self._equipment_combat_effects = effects
+
+    def _recalculate_resource_maximums(self, *, increase_current=False):
+        health_maximum = scaling.maximum_hp_from_constitution(
+            self.stats.effective_stat("constitution")
+            + self._equipment_stat_bonuses.get("constitution", 0),
+            level=self.level_state.current,
+        ) + self.character.permanent_max_hp_bonus
+        mana_maximum = scaling.maximum_mana_from_spirit(
+            self.stats.effective_stat("spirit")
+            + self._equipment_stat_bonuses.get("spirit", 0),
+            level=self.level_state.current,
+        ) + self.character.permanent_max_mana_bonus
+        self.character._set_resource_maximum(
+            self.health,
+            health_maximum,
+            increase_current=increase_current,
+        )
+        self.character._set_resource_maximum(
+            self.mana_resource,
+            mana_maximum,
+            increase_current=increase_current,
+        )
 
     def add_gold(self, amount):
         self._gold += self._validate_gold_amount(amount)
@@ -511,7 +592,7 @@ class PlayerState:
         for stat_name, value in snapshot["attributes"].items():
             character.permanent_stats.set_stat(stat_name, value)
         character.level = snapshot["progression"]["level"]
-        character.recalculate_resource_maximums()
+        player_state._recalculate_resource_maximums()
         character.exp_state.current = snapshot["progression"]["exp"]
         player_state._growth_points = snapshot["progression"]["growth_points"]
         discovery_bonuses = snapshot.get(
@@ -523,7 +604,7 @@ class PlayerState:
         player_state._discovery_growth_points_awarded = discovery_bonuses[
             "growth_points_awarded"
         ]
-        character.recalculate_resource_maximums()
+        player_state._recalculate_resource_maximums()
         if "advancement" in snapshot:
             normal_move_ids, super_move_ids = move_ids_for_kit(
                 player_state.drifter_id,
@@ -541,6 +622,20 @@ class PlayerState:
         player_state.super_resource.current = snapshot["resources"]["super"]["current"]
         player_state._inventory._items = list(inventory_items)
         player_state._equipment = dict(equipment_items)
+        equipment_refs = snapshot.get(
+            "equipment_refs",
+            {slot: None for slot in cls.EQUIPMENT_REFERENCE_SLOTS},
+        )
+        if (
+            not isinstance(equipment_refs, dict)
+            or set(equipment_refs) != set(cls.EQUIPMENT_REFERENCE_SLOTS)
+            or any(
+                value is not None and (not isinstance(value, str) or not value)
+                for value in equipment_refs.values()
+            )
+        ):
+            raise ValueError("equipment_refs must map every equipment slot to an ID or null")
+        player_state._equipped_equipment_ids = dict(equipment_refs)
         signature_snapshot = snapshot.get("signature_weapon")
         if signature_snapshot is not None:
             from app.content.catalog import get_weapon_spec
@@ -595,6 +690,7 @@ class PlayerState:
                 slot: self._snapshot_item(item, f"player.equipment.{slot}")
                 for slot, item in self.equipment.items()
             },
+            "equipment_refs": self.equipped_equipment_ids,
             "combat": {
                 "moves": [
                     self._snapshot_move(move)

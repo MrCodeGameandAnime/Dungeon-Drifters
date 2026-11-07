@@ -170,15 +170,34 @@
 
         <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
           <div class="detail-page-content">
-            <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+            <h2 id="equipment-title" class="detail-title">Equipment</h2>
+            <div id="equipment-content">
             <p class="eyebrow detail-heading">DRIFTER</p>
             <div id="equipment-targets" class="merchant-targets"></div>
-            <p class="eyebrow detail-heading">ACCESSORIES</p>
-            <div id="equipment-slots" class="detail-list"></div>
+            <p class="eyebrow detail-heading">OWNED GEAR</p>
+            <div id="equipment-inventory" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">AVAILABLE MODIFIERS</p>
+            <div id="equipment-modifiers" class="merchant-list"></div>
+            <section id="equipment-inspection" class="items-inspection" hidden aria-label="Equipment details">
+              <h3 id="equipment-inspection-name" class="detail-title"></h3>
+              <p id="equipment-inspection-state" class="detail-line"></p>
+              <div id="equipment-inspection-stats" class="detail-list"></div>
+              <div id="equipment-inspection-modifiers" class="detail-list"></div>
+              <p class="eyebrow detail-heading">ACTIONS</p>
+              <div id="equipment-actions" class="merchant-list"></div>
+            </section>
+            <p class="eyebrow detail-heading">STATIC ACCESSORIES</p>
+            <div id="equipment-accessories" class="detail-list"></div>
             <p class="eyebrow detail-heading">BENEFITS</p>
             <div id="equipment-benefits" class="detail-list"></div>
+            </div>
+            <section id="equipment-confirmation-content" class="items-inspection" hidden aria-label="Confirm equipment action">
+              <h3 id="equipment-confirmation-title" class="detail-title"></h3>
+              <div id="equipment-confirmation-details" class="detail-list"></div>
+            </section>
           </div>
           <div id="equipment-options" class="button-grid detail-options"></div>
+          <div id="equipment-confirmation-options" class="button-grid detail-options" hidden></div>
         </section>
 
         <section id="items-panel" class="overworld-detail-panel" hidden aria-labelledby="items-title">

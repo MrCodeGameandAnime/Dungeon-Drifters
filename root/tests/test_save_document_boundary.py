@@ -7,6 +7,7 @@ from app.content.catalog import get_drifter_spec_by_choice, get_route_spec
 from app.game.overworld_state import OverworldState
 from app.game.weapon_progression import WeaponProgressionService
 from app.game.game_state import GameState
+from app.items.equipment import EquipmentInstance
 from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
     SaveStateValidationError,
@@ -14,7 +15,7 @@ from app.persistence.save_document import (
     reconstruct_game_state,
 )
 from app.player.player_state import PlayerState
-from game_test_support import hub_game
+from game_test_support import completed_hub_game, hub_game
 
 
 def test_storage_neutral_codec_preserves_starting_payload_bytes():
@@ -28,9 +29,9 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 2830
+    assert len(canonical_bytes) == 2977
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "22a17ec7c8ee8d80d4be64bb47fe870a4387b4b8f51c44f8b7ce45b4f804cd31"
+        "9fb54dde4ebb9c4db4423a20954c28a068db64661ea56a9db094d86ad62f787a"
     )
 
 
@@ -53,7 +54,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 18
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 21
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -79,6 +80,9 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     )
     schema13 = build_save_document(game_state)
     schema13["schema_version"] = 13
+    schema13["player"].pop("equipment_refs")
+    schema13["party"].pop("equipment_instances")
+    schema13["party"].pop("modifier_instances")
     schema13["party"].pop("carried_items")
     schema13["player"].pop("advancement")
     schema13["player"].pop("permanent_discovery_bonuses")
@@ -98,7 +102,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
 
     assert schema13 == original
     assert restored.party_state.carried_items == {}
-    assert build_save_document(restored)["schema_version"] == 18
+    assert build_save_document(restored)["schema_version"] == 21
 
 
 def test_signature_weapon_progress_survives_save_round_trip():
@@ -174,3 +178,60 @@ def test_crafted_and_installed_component_survives_save_document_round_trip():
     assert restored.party_state.crafting_experience == 10
     assert restored.party_state.shared_items == {}
     assert restored.player_state.combat_moves[0].power == 11
+
+
+def test_equipment_instance_and_exact_loadout_survive_save_round_trip():
+    game_state = completed_hub_game()
+    helm = EquipmentInstance.from_snapshot(
+        {
+            "instance_id": "00000000-0000-4000-8000-000000000021",
+            "definition_id": "field_helm",
+            "source_id": "test_reward_01",
+            "secured": False,
+            "stat_bonuses": {"constitution": 1},
+            "rarity": "common",
+            "upgrade_rank": 0,
+            "modifier_slots": {},
+        }
+    )
+    ring = EquipmentInstance.from_snapshot(
+        {
+            "instance_id": "00000000-0000-4000-8000-000000000022",
+            "definition_id": "iron_ring",
+            "source_id": "surface_reward_01",
+            "secured": True,
+            "stat_bonuses": {"intuition": 1},
+            "rarity": None,
+            "upgrade_rank": 0,
+            "modifier_slots": {},
+        }
+    )
+    game_state.party_state.add_equipment_instance(helm)
+    game_state.party_state.add_equipment_instance(ring)
+    refs = game_state.player_state.equipped_equipment_ids
+    refs["helm"] = helm.instance_id
+    game_state.player_state._set_equipped_equipment_ids(refs)
+    companion = game_state.member_for_drifter_id("azhvielle")
+    companion_refs = companion.equipped_equipment_ids
+    companion_refs["ring"] = ring.instance_id
+    companion._set_equipped_equipment_ids(companion_refs)
+    game_state._bind_equipment_state()
+
+    document = build_save_document(game_state)
+    restored = reconstruct_game_state(document)
+
+    assert document["schema_version"] == 21
+    assert {
+        item.instance_id: item.snapshot()
+        for item in restored.party_state.equipment_instances
+    } == {
+        item.instance_id: item.snapshot() for item in (helm, ring)
+    }
+    assert restored.player_state.equipped_equipment_ids["helm"] == helm.instance_id
+    assert restored.member_for_drifter_id(
+        "azhvielle"
+    ).equipped_equipment_ids["ring"] == ring.instance_id
+    assert restored.player_state.effective_stat("constitution") == 16
+    assert restored.member_for_drifter_id("azhvielle").effective_stat("intuition") == (
+        companion.effective_stat("intuition")
+    )

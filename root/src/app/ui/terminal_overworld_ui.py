@@ -5,6 +5,7 @@ import shutil
 import sys
 import textwrap
 
+from app.iteration import first_or_none
 from app.presentation.overworld_models import (
     MapNodeState,
     OverworldAction,
@@ -21,6 +22,10 @@ from app.ui.overworld_ui import (
     ChooseAlchemyRecipe,
     ChooseCompanion,
     ChooseCharacterTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
@@ -136,6 +141,35 @@ class TerminalOverworldUI:
             party_targets = view.skills.targets
         elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
             party_targets = view.equipment.targets
+            equipment = view.equipment
+            if choice.startswith("e") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(equipment.instances):
+                    return ChooseEquipmentInstance(
+                        equipment.instances[index].instance_id
+                    )
+            if choice.startswith("a") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(equipment.actions):
+                    action = equipment.actions[index]
+                    if not action.enabled:
+                        self._output(action.disabled_reason or "That action is unavailable.")
+                        return self._REJECTED
+                    if equipment.selected_instance_id is None:
+                        self._output("Select equipment first.")
+                        return self._REJECTED
+                    return ChooseEquipmentAction(
+                        target_drifter_id=equipment.selected_target_id,
+                        equipment_instance_id=equipment.selected_instance_id,
+                        operation=EquipmentOperation(action.operation),
+                        modifier_instance_id=action.modifier_instance_id,
+                    )
+
+        if view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
+            if choice == "y":
+                return ChooseEquipmentConfirmation(True)
+            if choice == "n":
+                return ChooseEquipmentConfirmation(False)
         if party_targets is not None and choice.startswith("t") and choice[1:].isdigit():
             index = int(choice[1:]) - 1
             if 0 <= index < len(party_targets):
@@ -454,6 +488,9 @@ class TerminalOverworldUI:
             lines = list(self._merchant_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT:
             lines = list(self._equipment_lines(view))
+        elif view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
+            lines = [view.equipment_confirmation.title, ""]
+            lines.extend(view.equipment_confirmation.details)
         elif view.screen is OverworldScreen.HEALING_TARGETS:
             lines = ["CHOOSE A DRIFTER TO HEAL", ""]
             lines.extend(
@@ -779,8 +816,6 @@ class TerminalOverworldUI:
     def _equipment_lines(view):
         equipment = view.equipment
         lines = [
-            "ACCESSORIES",
-            "",
             "CHOOSE DRIFTER",
         ]
         lines.extend(
@@ -790,13 +825,70 @@ class TerminalOverworldUI:
         lines.extend(
             (
                 "",
-                f"[ Necklace ]  {equipment.necklace.item_name}",
-                f"[ Ring     ]  {equipment.ring.item_name}",
+                "OWNED EQUIPMENT",
+            )
+        )
+        if equipment.instances:
+            for index, item in enumerate(equipment.instances, start=1):
+                marker = ">" if item.instance_id == equipment.selected_instance_id else " "
+                security = "Secured" if item.secured else "Unsecured"
+                detail = [item.slot_id.title(), security]
+                if item.rarity is not None:
+                    detail.append(f"{item.rarity.title()} +{item.upgrade_rank}")
+                if item.equipped_by_name is not None:
+                    detail.append(f"Equipped by {item.equipped_by_name}")
+                lines.append(
+                    f"E{index}. {marker} {item.display_name} | "
+                    + " | ".join(detail)
+                )
+            selected = first_or_none(
+                (
+                    item
+                    for item in equipment.instances
+                    if item.instance_id == equipment.selected_instance_id
+                )
+            )
+            if selected is not None:
+                lines.extend(("", f"INSPECTING: {selected.display_name}"))
+                lines.extend(selected.stat_summary or ("No stat bonuses.",))
+                lines.extend(
+                    selected.modifier_summary or ("No installed modifiers.",)
+                )
+        else:
+            lines.append("No owned equipment.")
+        lines.extend(
+            (
+                "",
+                "AVAILABLE MODIFIERS",
+            )
+        )
+        if equipment.modifiers:
+            lines.extend(
+                f"M{index}. {modifier.display_name} | Grade {modifier.grade} | "
+                f"{'Secured' if modifier.secured else 'Unsecured'}"
+                for index, modifier in enumerate(equipment.modifiers, start=1)
+            )
+        else:
+            lines.append("No available modifiers.")
+        lines.extend(
+            (
+                "",
+                "STATIC ACCESSORIES",
+                f"Pendant: {equipment.pendant.item_name}",
+                f"Ring: {equipment.ring.item_name}",
                 "",
                 "BENEFITS",
             )
         )
         lines.extend(equipment.benefits)
+        if equipment.actions:
+            lines.extend(("", "ACTIONS"))
+            lines.extend(
+                f"A{index}. {action.label}"
+                f"{' [Unavailable: ' + action.disabled_reason + ']' if not action.enabled else ''}"
+                f"{' | ' + action.summary if action.summary else ''}"
+                for index, action in enumerate(equipment.actions, start=1)
+            )
         return tuple(lines)
 
     def _inventory_lines(self, view, width):
@@ -989,6 +1081,7 @@ class TerminalOverworldUI:
             OverworldScreen.SKILLS: "SKILLS",
             OverworldScreen.WEAPON: "WEAPON",
             OverworldScreen.EQUIPMENT: "EQUIPMENT",
+            OverworldScreen.EQUIPMENT_CONFIRMATION: "CONFIRM EQUIPMENT ACTION",
             OverworldScreen.MERCHANT: "MERCHANT",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",

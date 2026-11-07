@@ -17,6 +17,7 @@ from app.content.catalog import (
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
+from app.items.equipment import EquipmentInstance
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
@@ -36,6 +37,10 @@ from app.ui.overworld_ui import (
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
 )
 from tests.game_test_support import completed_hub_game, three_member_hub_game
 
@@ -392,6 +397,77 @@ def test_bridge_rejects_the_removed_inventory_component_install_command():
                 "component_id": "sunder_spire_blade_reinforced",
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    (
+        (
+            {
+                "kind": "equipment_instance",
+                "instance_id": "00000000-0000-4000-8000-000000000881",
+            },
+            ChooseEquipmentInstance,
+        ),
+        (
+            {
+                "kind": "equipment_action",
+                "target_drifter_id": "azhvielle",
+                "equipment_instance_id": "00000000-0000-4000-8000-000000000881",
+                "operation": "equip",
+            },
+            ChooseEquipmentAction,
+        ),
+        (
+            {"kind": "equipment_confirmation", "confirmed": False},
+            ChooseEquipmentConfirmation,
+        ),
+    ),
+)
+def test_equipment_commands_map_to_exact_semantic_inputs(command, expected):
+    assert isinstance(bridge._command_to_input(command), expected)
+
+
+def test_browser_equipment_action_targets_exact_selected_drifter():
+    runtime = bridge.BrowserRuntime(storage=MemoryBrowserStorage())
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000883",
+        definition_id="field_helm",
+        source_id="browser_equipment_reward",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    game.party_state.add_equipment_instance(armor)
+    bridge._activate_session(runtime, game, "branoc")
+
+    character = runtime.submit(
+        {"kind": "overworld_action", "action": "character"}
+    )
+    equipment = runtime.submit(
+        {"kind": "overworld_action", "action": "equipment"}
+    )
+    assert equipment["equipment"]["selected_target_id"] == "branoc"
+    assert equipment["equipment"]["instances"][0]["instance_id"] == armor.instance_id
+
+    selected_target = runtime.submit(
+        {"kind": "character_target", "drifter_id": "azhvielle"}
+    )
+    assert selected_target["equipment"]["selected_target_id"] == "azhvielle"
+
+    equipped = runtime.submit(
+        {
+            "kind": "equipment_action",
+            "target_drifter_id": "azhvielle",
+            "equipment_instance_id": armor.instance_id,
+            "operation": "equip",
+        }
+    )
+    assert equipped["notice"] == "Equipment assigned to the selected Drifter."
+
+    updated = runtime._session.game_state
+    assert updated.member_for_drifter_id("azhvielle").equipped_equipment_ids["helm"] == armor.instance_id
+    assert updated.member_for_drifter_id("branoc").equipped_equipment_ids["helm"] is None
 
 
 def test_bridge_exposes_shared_loot_in_items_and_item_inspection():

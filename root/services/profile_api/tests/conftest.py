@@ -85,6 +85,22 @@ def remove_m4_run_state(payload):
     return payload
 
 
+def remove_m5_equipment_state(payload, historical_schema):
+    party = payload.get("party")
+    players = [payload.get("player")]
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    if historical_schema < 19:
+        for player in players:
+            if isinstance(player, dict):
+                player.pop("equipment_refs", None)
+        if isinstance(party, dict):
+            party.pop("equipment_instances", None)
+    if historical_schema < 21 and isinstance(party, dict):
+        party.pop("modifier_instances", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

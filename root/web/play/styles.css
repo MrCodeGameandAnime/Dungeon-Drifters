@@ -362,6 +362,9 @@ button:disabled {
 .merchant-empty { margin: 0; }
 .inventory-item-choice { width: min(100%, 34rem); min-height: 2.5rem; text-align: left; }
 .inventory-item-choice.selected { border-color: var(--accent); background: #28473d; }
+.equipment-choice { display: grid; width: 100%; min-height: 2.6rem; text-align: left; }
+.equipment-action { width: min(100%, 38rem); min-height: 2.35rem; text-align: left; }
+.equipment-action:disabled { opacity: .68; }
 .items-inspection { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--line); }
 .items-inspection h3, .items-inspection p { margin-block: .25rem; }
 .character-options button:focus-visible, .detail-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

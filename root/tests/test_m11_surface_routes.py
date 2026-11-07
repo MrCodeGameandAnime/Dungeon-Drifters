@@ -373,7 +373,7 @@ def test_four_drifters_complete_the_full_surface_route(
                 player.character.archetype_name
             ]
         elif screen is OverworldScreen.EQUIPMENT:
-            assert view.equipment.necklace.item_name == "Empty"
+            assert view.equipment.pendant.item_name == "Empty"
             assert view.equipment.ring.item_name == "Empty"
             assert view.equipment.benefits == ("None",)
         elif screen is OverworldScreen.ITEMS:

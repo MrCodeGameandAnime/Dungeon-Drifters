@@ -29,6 +29,18 @@ from app.combat.resolver import authored_move_rejection_reason
 from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
+from app.content.armor_spec import (
+    ARMOR_RARITIES,
+    FLOOR_RARITY_POLICIES,
+    MODIFIER_DEFINITIONS,
+    validate_armor_content,
+)
+from app.content.armor_progression_spec import (
+    ARMOR_UPGRADE_STEPS,
+    RARITY_ADVANCEMENT_SPECS,
+    validate_armor_progression_content,
+)
+from app.content.equipment_spec import EQUIPMENT_TEMPLATES
 from app.content.route_spec import RouteNodeKind, RouteSpec
 from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
@@ -292,6 +304,22 @@ def _validate_schema_round_trips(records, errors):
 def validate_content():
     """Return deterministic validation errors without changing repository files."""
     errors = []
+    try:
+        validate_armor_content(
+            templates=EQUIPMENT_TEMPLATES,
+            rarities=ARMOR_RARITIES,
+            modifiers=MODIFIER_DEFINITIONS,
+            policies=FLOOR_RARITY_POLICIES,
+        )
+    except (TypeError, ValueError) as error:
+        errors.append(f"armor content: {error}")
+    try:
+        validate_armor_progression_content(
+            upgrade_steps=ARMOR_UPGRADE_STEPS,
+            rarity_advancements=RARITY_ADVANCEMENT_SPECS,
+        )
+    except (TypeError, ValueError) as error:
+        errors.append(f"armor progression content: {error}")
     _validate_catalog(errors)
     records = _discover_and_import(errors)
     _duplicates(records["enemy"], "archetype_id", "enemy ID", errors)

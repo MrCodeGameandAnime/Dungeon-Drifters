@@ -35,6 +35,10 @@ def _payload():
 def _remove_m4_state(payload):
     party = payload.get("party")
     if isinstance(party, dict):
+        party.pop("equipment_instances", None)
+        party.pop("modifier_instances", None)
+        for member in party.get("companions", ()):
+            member.pop("equipment_refs", None)
         for field in (
             "floor_two_cleared",
             "floor_two_runs_started_after_clear",
@@ -43,6 +47,9 @@ def _remove_m4_state(payload):
             "resolved_run_events",
         ):
             party.pop(field, None)
+    player = payload.get("player")
+    if isinstance(player, dict):
+        player.pop("equipment_refs", None)
     payload.get("world", {}).pop(
         "discovered_permanent_discovery_sources", None
     )
@@ -97,8 +104,44 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "22a17ec7c8ee8d80d4be64bb47fe870a4387b4b8f51c44f8b7ce45b4f804cd31"
+        "9fb54dde4ebb9c4db4423a20954c28a068db64661ea56a9db094d86ad62f787a"
     )
+
+
+def test_schema19_equipment_history_remains_envelope_immutable():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 19
+    payload["party"].pop("modifier_instances")
+    original = copy.deepcopy(payload)
+
+    envelope = build_profile_envelope(
+        payload,
+        profile_id=PROFILE_ID,
+        client_save_id=SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    restored = parse_profile_envelope(serialize_profile_envelope(envelope))
+
+    assert payload == original
+    assert restored.payload == original
+
+
+def test_schema20_equipment_history_remains_envelope_immutable():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 20
+    payload["party"].pop("modifier_instances")
+    original = copy.deepcopy(payload)
+
+    envelope = build_profile_envelope(
+        payload,
+        profile_id=PROFILE_ID,
+        client_save_id=SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    restored = parse_profile_envelope(serialize_profile_envelope(envelope))
+
+    assert payload == original
+    assert restored.payload == original
 
 
 @pytest.mark.parametrize(

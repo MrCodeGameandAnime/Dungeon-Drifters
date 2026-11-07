@@ -18,6 +18,10 @@ from app.content.advancement_spec import (
     AdvancementSkillKind,
     get_drifter_advancement_skills,
 )
+from app.content.armor_spec import get_armor_modifier, get_armor_rarity
+from app.content.equipment_spec import get_equipment_template
+from app.game.alchemist import AlchemistService
+from app.game.armor_progression import ArmorProgressionService
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
@@ -43,6 +47,9 @@ from app.presentation.overworld_models import (
     CompanionChoiceView,
     DiscoveryDrifterChoiceView,
     EquipmentView,
+    EquipmentActionView,
+    EquipmentInstanceView,
+    EquipmentModifierView,
     HubAlchemyRecipeView,
     HubEconomyView,
     HubSupplyItemView,
@@ -92,6 +99,89 @@ _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
 
 
+def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
+    details = []
+    if preview.gold_cost:
+        details.append(f"Cost: {preview.gold_cost} gold")
+    gold_award = getattr(preview, "gold_award", 0)
+    if gold_award:
+        details.append(f"Gain: {gold_award} gold")
+    material_costs = getattr(preview, "material_costs", ())
+    if not material_costs and getattr(preview, "material_id", None) is not None:
+        material_costs = ((preview.material_id, preview.material_quantity),)
+    if material_costs:
+        details.append(
+            "Materials: "
+            + ", ".join(
+                f"{quantity} {get_material_spec(item_id).display_name}"
+                for item_id, quantity in material_costs
+            )
+        )
+    material_yields = getattr(preview, "material_yields", ())
+    if material_yields:
+        details.append(
+            "Salvage: "
+            + ", ".join(
+                f"{quantity} {get_material_spec(item_id).display_name}"
+                for item_id, quantity in material_yields
+            )
+        )
+    if preview.action == "stat_upgrade" and preview.projected_stat_bonuses:
+        details.append(
+            "Next stats: "
+            + ", ".join(
+                f"{name.title()} {value:+d}"
+                for name, value in preview.projected_stat_bonuses
+            )
+        )
+    next_rarity = getattr(preview, "next_rarity", None)
+    current_rarity = getattr(preview, "current_rarity", None)
+    if next_rarity is not None and next_rarity != current_rarity:
+        details.append(f"Rarity: {current_rarity} -> {next_rarity}")
+    incoming_modifier = getattr(preview, "incoming_modifier", None)
+    if incoming_modifier is not None:
+        name = get_armor_modifier(incoming_modifier).name
+        details.append(f"Incoming modifier consumed: {name}")
+    destroyed_modifiers = getattr(preview, "destroyed_modifiers", ())
+    if destroyed_modifiers:
+        names = ", ".join(
+            get_armor_modifier(modifier_id).name
+            for modifier_id in destroyed_modifiers
+        )
+        details.append(f"Permanently destroyed modifiers: {names}")
+    extracted_modifiers = getattr(preview, "extracted_modifiers", ())
+    if extracted_modifiers:
+        names = ", ".join(
+            get_armor_modifier(modifier_id).name
+            for modifier_id in extracted_modifiers
+        )
+        details.append(f"Modifiers recovered: {names}")
+    if getattr(preview, "destroys_equipment", False):
+        details.append("Donor armor will be destroyed.")
+    if preview.action == "sell":
+        details.append(
+            "Only authored gold is awarded; installed modifiers are not returned."
+        )
+    elif preview.action == "dismantle":
+        details.append(
+            "Only authored salvage is awarded; installed modifiers are not returned."
+        )
+    elif preview.action == "extract":
+        details.append("Modifiers are recovered by sacrificing the donor armor.")
+    elif preview.action == "affix":
+        details.append("The incoming modifier and listed costs will be consumed.")
+        if getattr(preview, "displaced_modifiers", ()):
+            details.append("The displaced modifier will be permanently destroyed.")
+    return EquipmentActionView(
+        operation=operation,
+        label=label,
+        enabled=preview.can_apply,
+        disabled_reason=None if preview.can_apply else preview.status.value,
+        summary="; ".join(details) or preview.status.value.replace("_", " "),
+        modifier_instance_id=modifier_instance_id,
+    )
+
+
 def _adjacent_run_counts(values):
     groups = []
     for value in values:
@@ -134,6 +224,8 @@ class OverworldPresenter:
         respec_preview=None,
         discovery_source_id=None,
         discovery_target_id=None,
+        selected_equipment_instance_id=None,
+        equipment_confirmation=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
@@ -192,6 +284,7 @@ class OverworldPresenter:
             notice=notice,
             options=options,
             respec_preview=respec_preview,
+            equipment_confirmation=equipment_confirmation,
             contextual_route_option=contextual_route_option,
             character=(
                 self._character_view(game_state, selected_character_target_id)
@@ -223,7 +316,11 @@ class OverworldPresenter:
                 else None
             ),
             equipment=(
-                self._equipment_view(game_state, selected_character_target_id)
+                self._equipment_view(
+                    game_state,
+                    selected_character_target_id,
+                    selected_equipment_instance_id,
+                )
                 if screen is OverworldScreen.EQUIPMENT
                 else None
             ),
@@ -1009,17 +1106,184 @@ class OverworldPresenter:
         return tuple(effects)
 
     @staticmethod
-    def _equipment_view(game_state, selected_target_id):
-        _member, selected_target_id, targets = OverworldPresenter._selected_party_member(
+    def _equipment_view(game_state, selected_target_id, selected_instance_id=None):
+        member, selected_target_id, targets = OverworldPresenter._selected_party_member(
             game_state,
             selected_target_id,
         )
+        owner_by_instance = {}
+        for owner in game_state.recruited_members:
+            owner_id = _member_drifter_spec(owner).drifter_id
+            for slot_id, instance_id in owner.equipped_equipment_ids.items():
+                if instance_id is not None:
+                    owner_by_instance[instance_id] = (
+                        owner_id,
+                        owner.character.full_display_name,
+                    )
+        instances = tuple(
+            EquipmentInstanceView(
+                instance_id=instance.instance_id,
+                display_name=get_equipment_template(instance.definition_id).name,
+                slot_id=instance.slot_id,
+                category=instance.category,
+                rarity=(
+                    get_armor_rarity(instance.rarity).rarity_id
+                    if instance.rarity is not None
+                    else None
+                ),
+                upgrade_rank=instance.upgrade_rank,
+                secured=instance.secured,
+                stat_summary=tuple(
+                    f"{name.replace('_', ' ').title()} {value:+d}"
+                    for name, value in sorted(instance.stat_bonuses.items())
+                ),
+                modifier_summary=tuple(
+                    f"Grade {grade}: {get_armor_modifier(modifier_id).name}"
+                    for grade, modifier_id in instance.modifier_slots.items()
+                ),
+                equipped_by_drifter_id=owner_by_instance.get(
+                    instance.instance_id, (None, None)
+                )[0],
+                equipped_by_name=owner_by_instance.get(
+                    instance.instance_id, (None, None)
+                )[1],
+            )
+            for instance in game_state.party_state.equipment_instances
+        )
+        if selected_instance_id is None and instances:
+            selected_instance_id = instances[0].instance_id
+        if selected_instance_id is not None and not any(
+            item.instance_id == selected_instance_id for item in instances
+        ):
+            selected_instance_id = None
+        selected_item = first_or_none(
+            (item for item in instances if item.instance_id == selected_instance_id),
+        )
+        equipped = member.equipped_equipment_ids
+        instance_by_id = {
+            item.instance_id: item for item in game_state.party_state.equipment_instances
+        }
+        pendant = instance_by_id.get(equipped.get("pendant"))
+        ring = instance_by_id.get(equipped.get("ring"))
+        benefits = (
+            selected_item.stat_summary
+            if selected_item is not None and selected_item.equipped_by_drifter_id == selected_target_id
+            else tuple(
+                f"{name.replace('_', ' ').title()} {value:+d}"
+                for name, value in sorted(
+                    {
+                        stat: bonus
+                        for instance_id in equipped.values()
+                        if instance_id is not None
+                        for stat, bonus in instance_by_id[instance_id].stat_bonuses.items()
+                    }.items()
+                )
+            ) or ("None",)
+        )
+        actions = ()
+        if selected_item is not None:
+            item = game_state.party_state.equipment_instance(
+                selected_item.instance_id
+            )
+            already_equipped = (
+                equipped.get(selected_item.slot_id) == selected_item.instance_id
+            )
+            action_rows = [
+                EquipmentActionView(
+                    operation="equip",
+                    label="Equip",
+                    enabled=not already_equipped,
+                    disabled_reason="already_equipped" if already_equipped else None,
+                    summary=f"Equip on {member.character.full_display_name}",
+                )
+            ]
+            if item.category == "armor":
+                action_rows.extend(
+                    (
+                        _equipment_action(
+                            "upgrade",
+                            "Upgrade",
+                            ArmorProgressionService.preview_stat_upgrade(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "advance_rarity",
+                            "Advance Rarity",
+                            ArmorProgressionService.preview_rarity_advance(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "extract",
+                            "Extract Modifiers",
+                            AlchemistService.preview_extraction(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "sell",
+                            "Sell",
+                            AlchemistService.preview_sale(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "dismantle",
+                            "Dismantle",
+                            AlchemistService.preview_dismantle(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                    )
+                )
+                action_rows.extend(
+                    _equipment_action(
+                        "affix",
+                        f"Affix {get_armor_modifier(modifier.definition_id).name}",
+                        AlchemistService.preview_affix(
+                            game_state,
+                            instance_id=item.instance_id,
+                            modifier_instance_id=modifier.instance_id,
+                        ),
+                        modifier_instance_id=modifier.instance_id,
+                    )
+                    for modifier in game_state.party_state.modifier_instances
+                )
+            actions = tuple(action_rows)
         return EquipmentView(
-            necklace=AccessorySlotView("Necklace", "Empty"),
-            ring=AccessorySlotView("Ring", "Empty"),
-            benefits=("None",),
+            pendant=AccessorySlotView(
+                "Pendant",
+                get_equipment_template(pendant.definition_id).name if pendant else "Empty",
+            ),
+            ring=AccessorySlotView(
+                "Ring",
+                get_equipment_template(ring.definition_id).name if ring else "Empty",
+            ),
+            benefits=benefits,
             targets=targets,
             selected_target_id=selected_target_id,
+            instances=instances,
+            selected_instance_id=selected_instance_id,
+            modifiers=tuple(
+                EquipmentModifierView(
+                    instance_id=modifier.instance_id,
+                    display_name=get_armor_modifier(
+                        modifier.definition_id
+                    ).name,
+                    grade=get_armor_modifier(
+                        modifier.definition_id
+                    ).grade,
+                    secured=modifier.secured,
+                )
+                for modifier in game_state.party_state.modifier_instances
+            ),
+            actions=actions,
         )
 
     @staticmethod
@@ -1295,6 +1559,11 @@ class OverworldPresenter:
         }:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
+        if screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
             return (
                 enabled(OverworldAction.CONFIRM, "Confirm"),
                 enabled(OverworldAction.CANCEL, "Cancel"),

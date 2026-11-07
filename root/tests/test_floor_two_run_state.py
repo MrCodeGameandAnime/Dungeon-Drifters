@@ -1,11 +1,14 @@
+import pytest
+
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase, PartyState
 from app.game.world_state import WorldState
+from app.items.equipment import EquipmentInstance
 from app.persistence.save_document import (
     build_save_document,
     reconstruct_game_state,
 )
-from tests.game_test_support import completed_hub_game
+from tests.game_test_support import completed_hub_game, three_member_hub_game
 
 
 def floor_one_cleared_game():
@@ -14,6 +17,42 @@ def floor_one_cleared_game():
     assert party.start_floor_one_run() == 100
     assert party.complete_floor_one_boss(game.active_party_members)
     return game
+
+
+def floor_two_game_with_benched_lead(*, carry_talisman=False):
+    game = three_member_hub_game()
+    party = game.party_state
+    party.select_active_pair(
+        ("azhvielle", "joruun"),
+        recruited_ids=("branoc", "azhvielle", "joruun"),
+    )
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    if carry_talisman:
+        party.add_shared_items({"return_talisman": 1})
+        assert party.load_carried_supplies({"return_talisman": 1})
+    assert party.start_floor_two_run(run_id_factory=lambda: "equipment-run") == 100
+    game.overworld_state.begin_route("floor_two")
+    return game
+
+
+def add_test_armor(game, *, instance_id, definition_id, secured, owner_id):
+    armor = EquipmentInstance.create(
+        instance_id=instance_id,
+        definition_id=definition_id,
+        source_id="floor_two_armor_reward",
+        secured=secured,
+        stat_bonuses={"constitution": 1},
+        rarity="uncommon",
+        modifier_slots={"I": "bastion_grade_i"},
+    )
+    game.party_state.add_equipment_instance(armor)
+    owner = game.member_for_drifter_id(owner_id)
+    refs = owner.equipped_equipment_ids
+    refs[armor.slot_id] = armor.instance_id
+    owner._set_equipped_equipment_ids(refs)
+    game._bind_equipment_state()
+    return armor
 
 
 def test_floor_two_run_identity_is_new_for_each_genuine_run():
@@ -193,6 +232,106 @@ def test_floor_two_partial_extraction_banks_half_rewards_and_returns_supplies():
     assert tuple(
         member.exp_state.current - old for member, old in zip(members, initial_xp)
     ) == expected_awards
+
+
+@pytest.mark.parametrize("settlement", ("extraction", "boss"))
+def test_safe_floor_two_settlement_secures_generated_armor_and_preserves_loadout(
+    settlement,
+):
+    game = floor_two_game_with_benched_lead()
+    party = game.party_state
+    active = game.active_party_members
+    found = add_test_armor(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000801",
+        definition_id="field_helm",
+        secured=False,
+        owner_id="azhvielle",
+    )
+    preexisting = add_test_armor(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000802",
+        definition_id="field_chest",
+        secured=True,
+        owner_id="branoc",
+    )
+
+    if settlement == "extraction":
+        party.add_floor_two_rewards(experience=40, gold=5)
+        assert party.begin_floor_two_extraction(partial=True)
+        assert party.complete_floor_two_extraction(
+            active,
+        )
+    else:
+        party.add_floor_two_rewards(experience=40, gold=5)
+        assert party.complete_floor_two_boss(
+            active,
+        )
+
+    banked = party.equipment_instance(found.instance_id)
+    kept = party.equipment_instance(preexisting.instance_id)
+    assert banked.secured is True
+    assert banked.modifier_slots == {"I": "bastion_grade_i"}
+    assert kept.snapshot() == preexisting.snapshot()
+    assert game.member_for_drifter_id("azhvielle").equipped_equipment_ids[
+        "helm"
+    ] == found.instance_id
+    assert game.member_for_drifter_id("branoc").equipped_equipment_ids[
+        "chest"
+    ] == preexisting.instance_id
+
+
+@pytest.mark.parametrize("exit_kind", ("defeat", "talisman"))
+def test_dangerous_floor_two_exit_discards_only_unsecured_armor_and_clears_roster_refs(
+    exit_kind,
+):
+    game = floor_two_game_with_benched_lead(
+        carry_talisman=exit_kind == "talisman"
+    )
+    party = game.party_state
+    active = game.active_party_members
+    lost = add_test_armor(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000811",
+        definition_id="field_helm",
+        secured=False,
+        owner_id="branoc",
+    )
+    kept = add_test_armor(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000812",
+        definition_id="field_chest",
+        secured=True,
+        owner_id="azhvielle",
+    )
+    party.add_floor_two_rewards(
+        experience=40,
+        gold=5,
+        items={"goblin_scrap": 2},
+    )
+
+    if exit_kind == "defeat":
+        assert party.fail_floor_two_run(
+            active,
+            recruited_members=game.recruited_members,
+        )
+    else:
+        assert party.return_with_talisman(
+            active,
+            recruited_members=game.recruited_members,
+        )
+
+    assert tuple(item.instance_id for item in party.equipment_instances) == (
+        kept.instance_id,
+    )
+    assert party.equipment_instance(kept.instance_id).snapshot() == kept.snapshot()
+    assert game.member_for_drifter_id("branoc").equipped_equipment_ids[
+        "helm"
+    ] is None
+    assert game.member_for_drifter_id("azhvielle").equipped_equipment_ids[
+        "chest"
+    ] == kept.instance_id
+    assert lost.instance_id != kept.instance_id
 
 
 def test_floor_two_return_talisman_banks_only_full_adjusted_xp():

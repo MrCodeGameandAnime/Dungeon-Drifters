@@ -3,6 +3,7 @@
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID, uuid4
 
 from app.content.enemy_spec import ItemDropSpec
 from app.content.catalog import (
@@ -11,6 +12,7 @@ from app.content.catalog import (
 )
 from app.content.permanent_discovery_spec import PermanentDiscoverySource
 from app.game.game_state import GameState
+from app.game.armor_generation import ArmorGenerationService
 from app.game.party_state import DungeonPhase
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
@@ -18,6 +20,8 @@ from app.persistence.save_port_contract import (
     is_save_port,
 )
 from app.player.scaling import discovery_bonus_bps_from_intuition
+from app.content.route_spec import RouteNodeKind
+from app.content.catalog import get_route_node_spec
 
 
 _EVENT_PART_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -41,6 +45,7 @@ class RunEventResult:
     source_id: str | None = None
     effective_chance_bps: int | None = None
     roll: int | None = None
+    equipment_instance_id: str | None = None
 
 
 class RunEventService:
@@ -277,6 +282,82 @@ class RunEventService:
             source_id=source.source_id,
             effective_chance_bps=chance,
             roll=roll,
+        )
+
+    def resolve_armor_reward(
+        self,
+        game_state,
+        *,
+        node_id,
+        template_id,
+        source_id,
+        instance_id_factory=uuid4,
+    ):
+        _validate_game_and_node(game_state, node_id)
+        if not callable(instance_id_factory):
+            raise TypeError("instance_id_factory must be callable")
+        party = game_state.party_state
+        if party.phase is not DungeonPhase.OUTING or party.floor_two_run_id is None:
+            raise ValueError("armor rewards require an active Floor II run")
+        node = get_route_node_spec(node_id)
+        if node.kind not in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
+            return RunEventResult(RunEventStatus.INVALID_TARGET, game_state)
+
+        event_key = _event_key(party.floor_two_run_id, node_id, "armor_reward")
+        existing = party.run_event(event_key)
+        if existing is not None:
+            result = existing["result"]
+            if (
+                result["template_id"] != template_id
+                or result["source_id"] != source_id
+            ):
+                raise ValueError("armor reward event key was reused with different inputs")
+            instance_snapshot = result["instance"]
+            instance_id = instance_snapshot["instance_id"]
+            instance = party.equipment_instance(instance_id)
+            if instance.snapshot() != instance_snapshot:
+                raise ValueError("armor reward event disagrees with its owned instance")
+            return RunEventResult(
+                RunEventStatus.ALREADY_RESOLVED,
+                game_state,
+                equipment_instance_id=instance_id,
+            )
+
+        instance_id = instance_id_factory()
+        if isinstance(instance_id, UUID):
+            instance_id = str(instance_id)
+        item = ArmorGenerationService(rng=self._rng).generate(
+            template_id=template_id,
+            floor=2,
+            source_id=source_id,
+            instance_id=instance_id,
+            secured=False,
+        )
+        candidate = game_state.clone()
+        candidate_party = candidate.party_state
+        candidate_party.add_equipment_instance(item)
+        candidate_party.record_run_event(
+            _event_record(
+                event_key=event_key,
+                run_id=party.floor_two_run_id,
+                node_id=node_id,
+                kind="armor_reward",
+                position=None,
+                result={
+                    "template_id": template_id,
+                    "floor": 2,
+                    "source_id": source_id,
+                    "instance": item.snapshot(),
+                },
+            )
+        )
+        status, committed = self._commit(candidate)
+        if status is not RunEventStatus.RESOLVED:
+            return RunEventResult(status, game_state)
+        return RunEventResult(
+            RunEventStatus.RESOLVED,
+            committed,
+            equipment_instance_id=item.instance_id,
         )
 
     def _commit(self, candidate):

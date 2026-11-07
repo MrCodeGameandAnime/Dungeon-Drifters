@@ -11,6 +11,8 @@ from app.content.weapon_progression_spec import (
     crafting_level_for_experience,
 )
 from app.player.player_state import PlayerState
+from app.items.equipment import EquipmentInstance
+from app.items.armor_modifier import ArmorModifierInstance
 from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.content.hub_economy import get_supply_item
 from app.snapshot import to_plain_value
@@ -69,6 +71,8 @@ class PartyState:
     def __init__(self):
         self._companions = ()
         self._active_drifter_ids = ()
+        self._equipment_instances = []
+        self._modifier_instances = []
         self._shared_gold = 0
         self._shared_items = {}
         self._carried_items = {}
@@ -92,6 +96,80 @@ class PartyState:
     @property
     def active_drifter_ids(self):
         return self._active_drifter_ids
+
+    @property
+    def equipment_instances(self):
+        return tuple(self._equipment_instances)
+
+    def add_equipment_instance(self, instance):
+        if not isinstance(instance, EquipmentInstance):
+            raise TypeError("instance must be an EquipmentInstance")
+        if any(
+            existing.instance_id == instance.instance_id
+            for existing in self._equipment_instances
+        ):
+            raise ValueError("equipment instance ID is already owned")
+        self._equipment_instances.append(instance)
+        return instance
+
+    def equipment_instance(self, instance_id):
+        for instance in self._equipment_instances:
+            if instance.instance_id == instance_id:
+                return instance
+        raise ValueError(f"equipment instance is not owned: {instance_id}")
+
+    def replace_equipment_instance(self, instance):
+        if not isinstance(instance, EquipmentInstance):
+            raise TypeError("instance must be an EquipmentInstance")
+        for index, existing in enumerate(self._equipment_instances):
+            if existing.instance_id == instance.instance_id:
+                self._equipment_instances[index] = instance
+                return instance
+        raise ValueError(f"equipment instance is not owned: {instance.instance_id}")
+
+    @property
+    def modifier_instances(self):
+        return tuple(self._modifier_instances)
+
+    def add_modifier_instance(self, instance):
+        if not isinstance(instance, ArmorModifierInstance):
+            raise TypeError("instance must be an ArmorModifierInstance")
+        if any(
+            existing.instance_id == instance.instance_id
+            for existing in self._modifier_instances
+        ):
+            raise ValueError("modifier instance ID is already owned")
+        if any(
+            item.instance_id == instance.instance_id
+            for item in self._equipment_instances
+        ):
+            raise ValueError("modifier ID collides with an equipment instance")
+        self._modifier_instances.append(instance)
+        return instance
+
+    def modifier_instance(self, instance_id):
+        for instance in self._modifier_instances:
+            if instance.instance_id == instance_id:
+                return instance
+        raise ValueError(f"modifier instance is not owned: {instance_id}")
+
+    def remove_modifier_instance(self, instance_id):
+        for index, instance in enumerate(self._modifier_instances):
+            if instance.instance_id == instance_id:
+                return self._modifier_instances.pop(index)
+        raise ValueError(f"modifier instance is not owned: {instance_id}")
+
+    def remove_equipment_instance(self, instance_id):
+        for index, instance in enumerate(self._equipment_instances):
+            if instance.instance_id == instance_id:
+                return self._equipment_instances.pop(index)
+        raise ValueError(f"equipment instance is not owned: {instance_id}")
+
+    def secure_outing_equipment(self):
+        if self._phase not in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
+            return False
+        self._secure_unsecured_equipment()
+        return True
 
     @property
     def shared_gold(self):
@@ -508,10 +586,15 @@ class PartyState:
                 return to_plain_value(event, "party.run_event")
         return None
 
-    def fail_floor_two_run(self, party_members):
+    def fail_floor_two_run(self, party_members, *, recruited_members=None):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             return False
         self._validate_party_members(party_members)
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
+        self._discard_unsecured_equipment(equipment_members)
         self._outing_rewards = OutingRewards()
         self.discard_carried_supplies()
         self._restore_party(party_members)
@@ -538,6 +621,7 @@ class PartyState:
             items=rewards.items,
         )
         self._bank_rewards(party_members, payout)
+        self._secure_unsecured_equipment()
         self.return_carried_supplies()
         self._floor_two_cleared = True
         self._outing_rewards = OutingRewards()
@@ -558,7 +642,10 @@ class PartyState:
         self._phase = DungeonPhase.EXTRACTION
         return True
 
-    def complete_floor_two_extraction(self, party_members):
+    def complete_floor_two_extraction(
+        self,
+        party_members,
+    ):
         if (
             self._floor_two_run_id is None
             or self._phase is not DungeonPhase.EXTRACTION
@@ -566,6 +653,7 @@ class PartyState:
             return False
         self._validate_party_members(party_members)
         self._bank_rewards(party_members, self._outing_rewards)
+        self._secure_unsecured_equipment()
         self.return_carried_supplies()
         self._outing_rewards = OutingRewards()
         self._floor_two_run_id = None
@@ -638,6 +726,7 @@ class PartyState:
             else self._floor_one_payout(partial=False)
         )
         self._bank_rewards(party_members, rewards)
+        self._secure_unsecured_equipment()
         self.return_carried_supplies()
         self._floor_one_cleared = True
         self._outing_rewards = OutingRewards()
@@ -645,10 +734,15 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
-    def fail_floor_one_run(self, party_members):
+    def fail_floor_one_run(self, party_members, *, recruited_members=None):
         if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
             return False
         self._validate_party_members(party_members)
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
+        self._discard_unsecured_equipment(equipment_members)
         self._outing_rewards = OutingRewards()
         self.discard_carried_supplies()
         self._restore_party(party_members)
@@ -681,6 +775,7 @@ class PartyState:
 
         rewards = self._outing_rewards
         self._bank_rewards(party_members, rewards)
+        self._secure_unsecured_equipment()
         self.return_carried_supplies()
         self._tutorial_complete = True
         self._outing_rewards = OutingRewards()
@@ -688,7 +783,7 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
-    def return_with_talisman(self, party_members):
+    def return_with_talisman(self, party_members, *, recruited_members=None):
         if (
             not self.tutorial_complete
             or self._phase is not DungeonPhase.OUTING
@@ -706,9 +801,14 @@ class PartyState:
             party_members,
             rewards.experience,
         )
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
         if not self.consume_carried_supplies({"return_talisman": 1}):
             return False
 
+        self._discard_unsecured_equipment(equipment_members)
         self._bank_rewards(
             party_members,
             OutingRewards(experience=rewards.experience, gold=0, items={}),
@@ -737,6 +837,30 @@ class PartyState:
     def from_snapshot(cls, snapshot, *, companions, active_drifter_ids=None):
         state = cls()
         state._companions = tuple(companions)
+        raw_equipment = snapshot.get("equipment_instances", [])
+        if not isinstance(raw_equipment, list):
+            raise TypeError("equipment_instances must be a list")
+        state._equipment_instances = [
+            EquipmentInstance.from_snapshot(item)
+            for item in raw_equipment
+        ]
+        instance_ids = tuple(
+            item.instance_id for item in state._equipment_instances
+        )
+        if len(instance_ids) != len(set(instance_ids)):
+            raise ValueError("equipment instance IDs must be unique")
+        raw_modifiers = snapshot.get("modifier_instances", [])
+        if not isinstance(raw_modifiers, list):
+            raise TypeError("modifier_instances must be a list")
+        state._modifier_instances = [
+            ArmorModifierInstance.from_snapshot(item)
+            for item in raw_modifiers
+        ]
+        modifier_ids = tuple(item.instance_id for item in state._modifier_instances)
+        if len(modifier_ids) != len(set(modifier_ids)):
+            raise ValueError("modifier instance IDs must be unique")
+        if set(instance_ids) & set(modifier_ids):
+            raise ValueError("equipment and modifier instance IDs must be unique")
         if active_drifter_ids is None:
             active_drifter_ids = snapshot.get("active_drifter_ids")
         if active_drifter_ids is not None:
@@ -872,6 +996,12 @@ class PartyState:
     def snapshot(self):
         snapshot = {
             "companions": [member.snapshot() for member in self.companions],
+            "equipment_instances": [
+                item.snapshot() for item in self.equipment_instances
+            ],
+            "modifier_instances": [
+                item.snapshot() for item in self.modifier_instances
+            ],
             "active_drifter_ids": list(self.active_drifter_ids),
             "shared_gold": self.shared_gold,
             "shared_items": self.shared_items,
@@ -974,6 +1104,55 @@ class PartyState:
         for item_id, quantity in rewards.items.items():
             self._shared_items[item_id] = self._shared_items.get(item_id, 0) + quantity
 
+    def _secure_unsecured_equipment(self):
+        self._equipment_instances = [
+            item if item.secured else item.with_security(secured=True)
+            for item in self._equipment_instances
+        ]
+
+    def _discard_unsecured_equipment(self, members):
+        lost_ids = {
+            item.instance_id
+            for item in self._equipment_instances
+            if not item.secured
+        }
+        if not lost_ids:
+            return
+        for member in members:
+            refs = member.equipped_equipment_ids
+            changed = False
+            for slot_id, instance_id in refs.items():
+                if instance_id in lost_ids:
+                    refs[slot_id] = None
+                    changed = True
+            if changed:
+                member._set_equipped_equipment_ids(refs)
+        self._equipment_instances = [
+            item
+            for item in self._equipment_instances
+            if item.instance_id not in lost_ids
+        ]
+
+    def _equipment_members(self, party_members, recruited_members):
+        if recruited_members is None:
+            members = tuple(party_members) + self._companions
+        else:
+            if not isinstance(recruited_members, (tuple, list)):
+                raise TypeError("recruited_members must be a sequence")
+            members = tuple(recruited_members)
+        if any(not isinstance(member, PlayerState) for member in members):
+            raise TypeError("recruited_members must contain PlayerState values")
+        unique = []
+        seen = set()
+        for member in members:
+            identity = id(member)
+            if identity not in seen:
+                seen.add(identity)
+                unique.append(member)
+        if any(id(member) not in seen for member in party_members):
+            raise ValueError("recruited_members must include the active party")
+        return tuple(unique)
+
     @staticmethod
     def _restore_party(party_members):
         for member in party_members:
@@ -1052,7 +1231,12 @@ def _run_event(value):
         raise ValueError("run event floor is invalid")
     if not _valid_event_part(value["node_id"]):
         raise ValueError("run event node_id is invalid")
-    if value["kind"] not in {"enemy_drop", "encounter_rewards", "discovery_search"}:
+    if value["kind"] not in {
+        "enemy_drop",
+        "encounter_rewards",
+        "discovery_search",
+        "armor_reward",
+    }:
         raise ValueError("run event kind is invalid")
     position = value["position"]
     if position is not None and (
@@ -1106,6 +1290,28 @@ def _validate_run_event_result(kind, result, event):
                 )
         if _event_item_stacks(result["items"]) != item_totals:
             raise ValueError("enemy-drop item totals disagree with entry outcomes")
+        return
+
+    if kind == "armor_reward":
+        if set(result) != {"template_id", "floor", "source_id", "instance"}:
+            raise ValueError("armor reward result has an invalid shape")
+        if not _valid_event_part(result["template_id"]):
+            raise ValueError("armor reward template ID is invalid")
+        if type(result["floor"]) is not int or result["floor"] != 2:
+            raise ValueError("armor reward floor is invalid")
+        if not _valid_event_part(result["source_id"]):
+            raise ValueError("armor reward source ID is invalid")
+        try:
+            instance = EquipmentInstance.from_snapshot(result["instance"])
+        except (TypeError, ValueError, KeyError) as error:
+            raise ValueError("armor reward instance is invalid") from error
+        if (
+            instance.definition_id != result["template_id"]
+            or instance.source_id != result["source_id"]
+            or instance.secured
+            or instance.category != "armor"
+        ):
+            raise ValueError("armor reward instance disagrees with its authored outcome")
         return
 
     if kind == "encounter_rewards":
@@ -1217,7 +1423,7 @@ def validate_run_event_history(
         if not is_known_floor_two_route_node_id(node_id):
             raise ValueError("run event references an unknown Floor 2 route node")
         node = get_route_node_spec(node_id)
-        if event["kind"] in {"enemy_drop", "encounter_rewards"}:
+        if event["kind"] in {"enemy_drop", "encounter_rewards", "armor_reward"}:
             if (
                 node.kind not in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}
                 or node.encounter_id is None

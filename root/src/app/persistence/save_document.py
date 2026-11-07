@@ -1,6 +1,7 @@
-"""Schema-17 save documents and canonical in-memory reconstruction."""
+"""Schema-21 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
+from uuid import UUID
 
 from app.content.catalog import (
     create_weapon_from_persistence_key,
@@ -11,6 +12,7 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.hub_economy import get_supply_item
+from app.content.equipment_spec import get_equipment_template
 from app.content.permanent_discovery_spec import (
     is_valid_permanent_discovery_source_id,
 )
@@ -28,6 +30,8 @@ from app.game.party_state import (
 )
 from app.game.story_state import StoryState
 from app.game.world_state import WorldState
+from app.items.equipment import EquipmentInstance
+from app.items.armor_modifier import ArmorModifierInstance
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     InfusionKind,
@@ -91,7 +95,10 @@ _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 14
 _LATEST_PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT = 15
 _PRE_RESPEC_DISK_SCHEMA_VERSION = 16
 _PRE_RUN_EVENT_DISK_SCHEMA_VERSION = 17
-DISK_SCHEMA_VERSION = 18
+_PRE_EQUIPMENT_DISK_SCHEMA_VERSION = 18
+_PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION = 19
+_PRE_ALCHEMIST_DISK_SCHEMA_VERSION = 20
+DISK_SCHEMA_VERSION = 21
 
 
 class SaveStateValidationError(ValueError):
@@ -164,6 +171,7 @@ def migrate_schema_7(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -181,6 +189,7 @@ def migrate_schema_8(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -208,6 +217,7 @@ def migrate_schema_11(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -222,6 +232,7 @@ def migrate_schema_12(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -235,6 +246,7 @@ def migrate_schema_13(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -247,6 +259,7 @@ def migrate_schema14(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -259,6 +272,7 @@ def migrate_schema15(document):
     _add_permanent_discovery_defaults(migrated)
     _add_respec_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -270,6 +284,7 @@ def migrate_schema16(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_respec_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -280,6 +295,37 @@ def migrate_schema17(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema18(document):
+    """Add empty equipment ownership state to an immutable schema-18 save."""
+    validate_legacy_schema18_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_equipment_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema19(document):
+    """Add rarity, modifier slots, and upgrade rank to M5 equipment."""
+    validate_legacy_schema19_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_armor_generation_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema20(document):
+    """Add empty loose-modifier ownership to an immutable schema-20 save."""
+    validate_legacy_schema20_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    migrated["party"]["modifier_instances"] = []
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -329,6 +375,7 @@ def validate_legacy_schema11_document(document):
     _add_advancement_defaults(historical)
     _add_permanent_discovery_defaults(historical)
     _add_floor_two_defaults(historical)
+    _add_equipment_defaults(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
@@ -387,6 +434,33 @@ def validate_legacy_schema17_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema18_document(document):
+    """Validate schema-18 profile history without changing its shape."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_EQUIPMENT_DISK_SCHEMA_VERSION,
+    )
+    return deepcopy(document)
+
+
+def validate_legacy_schema19_document(document):
+    """Validate immutable schema-19 equipment payloads without changing shape."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION,
+    )
+    return deepcopy(document)
+
+
+def validate_legacy_schema20_document(document):
+    """Validate immutable schema-20 equipment and event history."""
+    _validate_plain_document(document)
+    _validate_document(document, schema_version=_PRE_ALCHEMIST_DISK_SCHEMA_VERSION)
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -395,7 +469,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate current payloads or immutable schema-8 through schema-17 history."""
+    """Validate current payloads or immutable schema-8 through schema-20 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -446,6 +520,22 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _PRE_RUN_EVENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema17_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema18_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema19_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PRE_ALCHEMIST_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema20_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -523,6 +613,12 @@ def validate_save_document(document):
         return migrate_schema16(document)
     if schema_version == _PRE_RUN_EVENT_DISK_SCHEMA_VERSION:
         return migrate_schema17(document)
+    if schema_version == _PRE_EQUIPMENT_DISK_SCHEMA_VERSION:
+        return migrate_schema18(document)
+    if schema_version == _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION:
+        return migrate_schema19(document)
+    if schema_version == _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
+        return migrate_schema20(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -670,6 +766,21 @@ def _validate_document(
         raise SaveStateValidationError("save schema version mismatch")
     if require_signature_weapon is None:
         require_signature_weapon = schema_version >= _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
+    equipment_by_id = {}
+    equipment_bonuses_by_member = None
+    if schema_version >= _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION:
+        raw_party = document.get("party")
+        if not isinstance(raw_party, dict):
+            raise SaveStateValidationError("game.party must be an object")
+        equipment_by_id = _validate_equipment_instances(
+            raw_party.get("equipment_instances"),
+            require_generation_state=(
+                schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION
+            ),
+        )
+        equipment_bonuses_by_member = _validate_equipment_relationships(
+            document["player"], raw_party, equipment_by_id
+        )
     _validate_player(
         document["player"],
         require_signature_weapon=require_signature_weapon,
@@ -682,6 +793,14 @@ def _validate_document(
         require_discovery_bonuses=(
             schema_version >= _PRE_RESPEC_DISK_SCHEMA_VERSION
         ),
+        require_equipment_refs=(
+            schema_version >= _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION
+        ),
+        equipment_stat_bonuses=(
+            None
+            if equipment_bonuses_by_member is None
+            else equipment_bonuses_by_member[0]
+        ),
     )
     _validate_story(document["story"])
     _validate_world(
@@ -690,17 +809,24 @@ def _validate_document(
             schema_version >= _PRE_RESPEC_DISK_SCHEMA_VERSION
         ),
         require_discovered_permanent_discovery_sources=(
-            schema_version >= DISK_SCHEMA_VERSION
+            schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
         ),
         require_authored_discovery_sources=(
-            schema_version >= DISK_SCHEMA_VERSION
+            schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
         ),
     )
     _validate_overworld(
         document["overworld"],
         document["world"],
     )
-    _validate_party(
+    if schema_version < _PRE_ALCHEMIST_DISK_SCHEMA_VERSION and any(
+        isinstance(event, dict) and event.get("kind") == "armor_reward"
+        for event in document["party"].get("resolved_run_events", [])
+    ):
+        raise SaveStateValidationError(
+            "legacy run history cannot contain M5 armor reward events"
+        )
+    equipment_by_id = _validate_party(
         document["party"],
         document["player"],
         require_signature_weapon=require_signature_weapon,
@@ -719,10 +845,29 @@ def _validate_document(
         require_carried_supplies=(
             schema_version >= _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION_CURRENT
         ),
-        require_floor_two_state=schema_version >= DISK_SCHEMA_VERSION,
+        require_floor_two_state=(
+            schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
+        ),
+        require_equipment_instances=(
+            schema_version >= _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION
+        ),
+        require_generated_equipment_state=(
+            schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION
+        ),
+        require_modifier_instances=(schema_version >= DISK_SCHEMA_VERSION),
+        equipment_by_id=equipment_by_id,
+        equipment_bonuses_by_member=(
+            None
+            if equipment_bonuses_by_member is None
+            else equipment_bonuses_by_member[1:]
+        ),
     )
     _validate_route_party_relationship(document["overworld"], document["party"])
-    if schema_version >= DISK_SCHEMA_VERSION:
+    if schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
+        _validate_armor_reward_event_relationship(
+            document["party"], equipment_by_id
+        )
+    if schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION:
         _validate_discovery_event_world_relationship(
             document["world"], document["party"]
         )
@@ -784,6 +929,7 @@ def _migrate_previous_current_document(document):
     _add_advancement_defaults(migrated)
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
+    _add_equipment_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -967,6 +1113,11 @@ def _validate_party(
     require_active_drifter_ids=False,
     require_carried_supplies=False,
     require_floor_two_state=False,
+    require_equipment_instances=False,
+    require_generated_equipment_state=False,
+    require_modifier_instances=False,
+    equipment_by_id=None,
+    equipment_bonuses_by_member=None,
 ):
     _require_mapping(party, "party")
     expected_keys = {
@@ -995,7 +1146,24 @@ def _validate_party(
                 "resolved_run_events",
             }
         )
+    if require_equipment_instances:
+        expected_keys.add("equipment_instances")
+    if require_modifier_instances:
+        expected_keys.add("modifier_instances")
     _require_exact_keys(party, expected_keys, "party")
+    if require_equipment_instances and equipment_by_id is None:
+        equipment_by_id = _validate_equipment_instances(
+            party["equipment_instances"],
+            require_generation_state=require_generated_equipment_state,
+        )
+    if equipment_by_id is None:
+        equipment_by_id = {}
+    if require_modifier_instances:
+        modifier_by_id = _validate_modifier_instances(party["modifier_instances"])
+        if set(modifier_by_id) & set(equipment_by_id):
+            raise SaveStateValidationError(
+                "modifier and equipment instance IDs must be unique"
+            )
     companions = party["companions"]
     max_companions = 3 if require_active_drifter_ids else 1
     if not isinstance(companions, list) or len(companions) > max_companions:
@@ -1004,13 +1172,19 @@ def _validate_party(
         )
     lead_profile = _canonical_profile(player)
     companion_ids = set()
-    for companion in companions:
+    for index, companion in enumerate(companions):
         _validate_player(
             companion,
             require_signature_weapon=require_signature_weapon,
             require_advancement=require_advancement,
             require_respec_state=require_respec_state,
             require_discovery_bonuses=require_discovery_bonuses,
+            require_equipment_refs=require_equipment_instances,
+            equipment_stat_bonuses=(
+                None
+                if equipment_bonuses_by_member is None
+                else equipment_bonuses_by_member[index]
+            ),
         )
         choice = _canonical_profile(companion).choice
         if choice == lead_profile.choice or choice in companion_ids:
@@ -1268,6 +1442,8 @@ def _validate_party(
                 "inactive Floor 2 runs must use the default XP rate"
             )
 
+    return equipment_by_id
+
 
 def _valid_persisted_run_id(value):
     return (
@@ -1289,6 +1465,149 @@ def _validate_item_stacks(items, path):
         if not isinstance(item_id, str) or not item_id:
             raise SaveStateValidationError(f"{path} contains an invalid item ID")
         _require_int_min(quantity, 1, f"{path}.{item_id}")
+
+
+def _validate_equipment_references(references, path):
+    _require_mapping(references, path)
+    expected_slots = set(PlayerState.EQUIPMENT_REFERENCE_SLOTS)
+    _require_exact_keys(references, expected_slots, path)
+    for slot, instance_id in references.items():
+        if instance_id is None:
+            continue
+        if not isinstance(instance_id, str):
+            raise SaveStateValidationError(
+                f"{path}.{slot} must be a canonical equipment UUID or null"
+            )
+        try:
+            canonical_id = str(UUID(instance_id))
+        except (TypeError, ValueError, AttributeError) as error:
+            raise SaveStateValidationError(
+                f"{path}.{slot} must be a canonical equipment UUID or null"
+            ) from error
+        if canonical_id != instance_id:
+            raise SaveStateValidationError(
+                f"{path}.{slot} must be a canonical equipment UUID or null"
+            )
+
+
+def _validate_equipment_instances(instances, *, require_generation_state=True):
+    if not isinstance(instances, list):
+        raise SaveStateValidationError("party.equipment_instances must be a list")
+    by_id = {}
+    for index, snapshot in enumerate(instances):
+        try:
+            if not require_generation_state and isinstance(snapshot, dict):
+                historical_keys = {
+                    "instance_id",
+                    "definition_id",
+                    "source_id",
+                    "secured",
+                    "stat_bonuses",
+                }
+                if set(snapshot) != historical_keys:
+                    raise ValueError(
+                        "schema-19 equipment instance has an invalid shape"
+                    )
+                snapshot = deepcopy(snapshot)
+                template = get_equipment_template(snapshot.get("definition_id"))
+                snapshot["rarity"] = "common" if template.is_armor else None
+                snapshot["upgrade_rank"] = 0
+                snapshot["modifier_slots"] = {}
+            instance = EquipmentInstance.from_snapshot(snapshot)
+        except (TypeError, ValueError, KeyError) as error:
+            raise SaveStateValidationError(
+                f"party.equipment_instances[{index}] is invalid: {error}"
+            ) from error
+        if instance.instance_id in by_id:
+            raise SaveStateValidationError(
+                "party.equipment_instances IDs must be unique"
+            )
+        by_id[instance.instance_id] = instance
+    return by_id
+
+
+def _validate_modifier_instances(instances):
+    if not isinstance(instances, list):
+        raise SaveStateValidationError("party.modifier_instances must be a list")
+    by_id = {}
+    for index, snapshot in enumerate(instances):
+        try:
+            instance = ArmorModifierInstance.from_snapshot(snapshot)
+        except (TypeError, ValueError, KeyError) as error:
+            raise SaveStateValidationError(
+                f"party.modifier_instances[{index}] is invalid: {error}"
+            ) from error
+        if instance.instance_id in by_id:
+            raise SaveStateValidationError(
+                "party.modifier_instances IDs must be unique"
+            )
+        by_id[instance.instance_id] = instance
+    return by_id
+
+
+def _validate_equipment_relationships(player, party, equipment_by_id):
+    companions = party.get("companions")
+    if not isinstance(companions, list):
+        raise SaveStateValidationError("party.companions must be a list")
+    members = [player] + companions
+    referenced_ids = set()
+    member_bonuses = []
+    for member_index, member in enumerate(members):
+        if not isinstance(member, dict):
+            raise SaveStateValidationError("party contains an invalid Drifter")
+        path = "player.equipment_refs" if member_index == 0 else (
+            f"party.companions[{member_index - 1}].equipment_refs"
+        )
+        references = member.get("equipment_refs")
+        _validate_equipment_references(references, path)
+        bonuses = {}
+        for slot, instance_id in references.items():
+            if instance_id is None:
+                continue
+            instance = equipment_by_id.get(instance_id)
+            if instance is None:
+                raise SaveStateValidationError(
+                    f"{path}.{slot} refers to an unowned equipment instance"
+                )
+            if instance_id in referenced_ids:
+                raise SaveStateValidationError(
+                    "equipment instance cannot be referenced more than once"
+                )
+            if instance.slot_id != slot:
+                raise SaveStateValidationError(
+                    f"{path}.{slot} references equipment for another slot"
+                )
+            referenced_ids.add(instance_id)
+            for stat, value in instance.stat_bonuses.items():
+                bonuses[stat] = bonuses.get(stat, 0) + value
+        member_bonuses.append(bonuses)
+    return tuple(member_bonuses)
+
+
+def _validate_armor_reward_event_relationship(party, equipment_by_id):
+    events = party.get("resolved_run_events")
+    if not isinstance(events, list):
+        return
+    rewarded_instances = set()
+    for event in events:
+        if event.get("kind") != "armor_reward":
+            continue
+        snapshot = event["result"]["instance"]
+        instance_id = snapshot["instance_id"]
+        if instance_id in rewarded_instances:
+            raise SaveStateValidationError(
+                "armor reward events cannot award the same instance twice"
+            )
+        rewarded_instances.add(instance_id)
+        instance = equipment_by_id.get(instance_id)
+        if instance is None:
+            raise SaveStateValidationError(
+                "armor reward event instance is not owned by the party"
+            )
+        if instance.snapshot() != snapshot:
+            raise SaveStateValidationError(
+                "armor reward event outcome disagrees with its owned instance"
+            )
 
 
 def _add_legacy_party_state(document):
@@ -1428,6 +1747,73 @@ def _add_floor_two_defaults(document):
     world["discovered_permanent_discovery_sources"] = list(claims)
 
 
+def _add_equipment_defaults(document):
+    player = document.get("player")
+    party = document.get("party")
+    if not isinstance(player, dict) or not isinstance(party, dict):
+        raise SaveStateValidationError("legacy game is missing equipment owners")
+    players = [player]
+    companions = party.get("companions")
+    if not isinstance(companions, list):
+        raise SaveStateValidationError("legacy party companions are invalid")
+    players.extend(companions)
+    for member in players:
+        if not isinstance(member, dict):
+            raise SaveStateValidationError("legacy Drifter is invalid")
+        if "equipment_refs" in member:
+            raise SaveStateValidationError(
+                "legacy Drifter already contains M5 equipment references"
+            )
+        member["equipment_refs"] = {
+            slot: None for slot in PlayerState.EQUIPMENT_REFERENCE_SLOTS
+        }
+    if "equipment_instances" in party:
+        raise SaveStateValidationError(
+            "legacy party already contains M5 equipment instances"
+        )
+    party["equipment_instances"] = []
+    if "modifier_instances" in party:
+        raise SaveStateValidationError(
+            "legacy party already contains M5 modifier instances"
+        )
+    party["modifier_instances"] = []
+
+
+def _add_armor_generation_defaults(document):
+    party = document.get("party")
+    instances = party.get("equipment_instances") if isinstance(party, dict) else None
+    if not isinstance(instances, list):
+        raise SaveStateValidationError(
+            "legacy party equipment instances are invalid"
+        )
+    historical_keys = {
+        "instance_id",
+        "definition_id",
+        "source_id",
+        "secured",
+        "stat_bonuses",
+    }
+    for index, instance in enumerate(instances):
+        if not isinstance(instance, dict) or set(instance) != historical_keys:
+            raise SaveStateValidationError(
+                f"legacy equipment instance {index} has an invalid schema-19 shape"
+            )
+        try:
+            template = get_equipment_template(instance.get("definition_id"))
+        except (TypeError, ValueError) as error:
+            raise SaveStateValidationError(
+                f"legacy equipment instance {index} has an unknown definition"
+            ) from error
+        instance["rarity"] = "common" if template.is_armor else None
+        instance["upgrade_rank"] = 0
+        instance["modifier_slots"] = {}
+    if "modifier_instances" in party:
+        raise SaveStateValidationError(
+            "schema-19 party already contains M5 modifier instances"
+        )
+    party["modifier_instances"] = []
+
+
 def _strip_companion_combat(party):
     if not isinstance(party, dict):
         return
@@ -1445,6 +1831,8 @@ def _validate_player(
     require_advancement=False,
     require_respec_state=False,
     require_discovery_bonuses=False,
+    require_equipment_refs=False,
+    equipment_stat_bonuses=None,
 ):
     _require_mapping(player, "player")
     allowed_keys = {
@@ -1463,6 +1851,8 @@ def _validate_player(
         allowed_keys.add("advancement")
     if require_discovery_bonuses:
         allowed_keys.add("permanent_discovery_bonuses")
+    if require_equipment_refs:
+        allowed_keys.add("equipment_refs")
     _require_exact_keys(
         {key for key in player if key != "combat"},
         allowed_keys,
@@ -1490,6 +1880,10 @@ def _validate_player(
     )
     if require_discovery_bonuses:
         _validate_permanent_discovery_bonuses(discovery_bonuses)
+    if require_equipment_refs:
+        _validate_equipment_references(
+            player["equipment_refs"], "player.equipment_refs"
+        )
     if progression["growth_points"] > (
         (progression["level"] - 1) * 3
         + discovery_bonuses["growth_points_awarded"]
@@ -1500,6 +1894,7 @@ def _validate_player(
         player["attributes"],
         progression,
         discovery_bonuses,
+        equipment_stat_bonuses,
     )
     _require_int_min(player["gold"], 0, "player.gold")
     if not isinstance(player["inventory"], list):
@@ -1668,16 +2063,31 @@ def _validate_stats(attributes):
         _require_int_range(attributes[name], 1, 100, f"player.attributes.{name}")
 
 
-def _validate_resources(resources, attributes, progression, discovery_bonuses=None):
+def _validate_resources(
+    resources,
+    attributes,
+    progression,
+    discovery_bonuses=None,
+    equipment_stat_bonuses=None,
+):
     _require_mapping(resources, "player.resources")
     _require_exact_keys(resources, {"health", "mana", "super"}, "player.resources")
     level = progression["level"]
     bonuses = discovery_bonuses or {"max_hp": 0, "max_mana": 0}
+    equipment_bonuses = equipment_stat_bonuses or {}
     expected_health = (
-        _maximum_hp(attributes["constitution"], level) + bonuses["max_hp"]
+        _maximum_hp(
+            attributes["constitution"] + equipment_bonuses.get("constitution", 0),
+            level,
+        )
+        + bonuses["max_hp"]
     )
     expected_mana = (
-        _maximum_mana(attributes["spirit"], level) + bonuses["max_mana"]
+        _maximum_mana(
+            attributes["spirit"] + equipment_bonuses.get("spirit", 0),
+            level,
+        )
+        + bonuses["max_mana"]
     )
     for name, expected_maximum in (("health", expected_health), ("mana", expected_mana)):
         resource = resources[name]

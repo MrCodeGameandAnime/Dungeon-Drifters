@@ -60,7 +60,8 @@ class GameState:
     def member_for_drifter_id(self, drifter_id):
         if not isinstance(drifter_id, str) or not drifter_id:
             raise ValueError("drifter_id must be a canonical Drifter ID")
-        for member in self.recruited_members:
+        members = (self.player_state,) + self.party_state.companions
+        for member in members:
             if _canonical_drifter_id(member) == drifter_id:
                 return member
         raise ValueError(f"Drifter is not recruited: {drifter_id}")
@@ -145,8 +146,38 @@ class GameState:
                 if default_active_ids:
                     party_state._set_active_drifter_ids(default_active_ids)
             game_state._validate_active_membership()
+        game_state._bind_equipment_state()
         game_state._metadata = dict(metadata)
         return game_state
+
+    def _bind_equipment_state(self):
+        instances = {
+            instance.instance_id: instance
+            for instance in self.party_state.equipment_instances
+        }
+        if len(instances) != len(self.party_state.equipment_instances):
+            raise ValueError("equipment instance IDs must be unique")
+        referenced = set()
+        members = (self.player_state,) + self.party_state.companions
+        for member in members:
+            bonuses = {}
+            combat_effects = []
+            for slot_id, instance_id in member.equipped_equipment_ids.items():
+                if instance_id is None:
+                    continue
+                instance = instances.get(instance_id)
+                if instance is None:
+                    raise ValueError("equipped equipment reference is not owned by the party")
+                if instance_id in referenced:
+                    raise ValueError("equipment instance cannot be equipped more than once")
+                if instance.slot_id != slot_id:
+                    raise ValueError("equipped equipment does not match its slot")
+                referenced.add(instance_id)
+                for stat_name, value in instance.stat_bonuses.items():
+                    bonuses[stat_name] = bonuses.get(stat_name, 0) + value
+                combat_effects.extend(instance.combat_effects)
+            member._set_equipment_stat_bonuses(bonuses)
+            member._set_equipment_combat_effects(tuple(combat_effects))
 
     def _validate_active_membership(self):
         member_ids = tuple(

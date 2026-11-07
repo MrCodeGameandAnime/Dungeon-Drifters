@@ -1,8 +1,8 @@
 # M5 Armor, Procedural Loot, And Modifier Progression Plan
 
-> Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. This plan is planning only; it does not authorize production implementation until the user reviews the revised scope. M4B and Floor III content remain out of scope.
+> Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. M4B and Floor III content remain out of scope.
 
-**Status:** M5-D1 through D5 remain approved, with the accessory/disenchant clarification below. The expanded procedural-armor direction was supplied 2026-11-07. Planning is being revised; implementation has not started.
+**Status:** M5-D1 through D7 approved. Gates 0-5 are implemented and locally verified; Gate 6 is in progress. The revised procedural-armor scope and destructive Alchemist contracts were approved 2026-11-07.
 
 **Goal:** Build persistent armor instances with reproducible authored generation, deterministic investment, grade-aware modifiers, and a distinct Alchemist service, while preserving exact ownership, extraction risk, and fixed accessories.
 
@@ -22,9 +22,9 @@ Non-goals: signature-weapon redesign, armor sets, transmog, cosmetics, degradati
 
 ## Revalidated Entry Baseline
 
-The current branch is `dungeon` at `421189c0d608ce5d21644534428dde1fc90c47c2`, a documentation-only M5/M4A-review commit on top of the accepted M4A implementation baseline `614586e615e456d2facb778828582c6e9bddbff1`. Production code has not advanced beyond that M4A baseline. Revalidate these versions and owners again when implementation starts.
+The current branch is `dungeon` at `ab1988b0a534beaef2c574c46d661a6ed507b3e3`, a documentation-only M5 contract update on top of the accepted M4A implementation baseline `614586e615e456d2facb778828582c6e9bddbff1`. Production code has not advanced beyond that M4A baseline. Revalidate these versions and owners at each gate entry.
 
-- Runtime game-state schema is 17; disk schema is 18; profile envelope version is 1. The M5 model needs a forward game/disk migration using the existing migration architecture. Do not assume a profile API, envelope, or database version change is needed.
+- M5 entry: runtime game-state schema 17; disk schema 18; profile envelope version 1. Gate 1 advanced runtime/disk schemas to 18/19 using the existing migration architecture. Do not assume a profile API, envelope, or database version change is needed.
 - `PlayerState` has generic slots (`weapon`, `off_hand`, `head`, `body`, `accessory`) and persists the existing weapon, but there is no armor/modifier instance inventory. Signature-weapon progression remains separate and unchanged.
 - `PlayerState.effective_stat()` composes permanent stats with weapon bonuses. M3 combat/passive effects have their own existing projection. M5 must use those boundaries, not add a parallel combat-effect or resistance framework.
 - Maximum HP/Mana currently derive from permanent Constitution/Spirit, level, and discovery bonuses. Equipment changes never heal/refill. If an allowed equipment effect later changes a maximum, recalculate and clamp current resources only when the maximum decreases.
@@ -78,6 +78,8 @@ These are tunable implementation defaults, not additional balance approvals:
 - Keep armor rarity, modifier grade, and weapon material grade as distinct data dimensions.
 - Keep generation's RNG injectable; author one canonical floor-to-rarity policy for floors 1-10 and persist generated results, not a recipe for rerolling them.
 - Start with four deterministic armor stat-upgrade steps (rank 0 through rank 4) and one configurable shared cap. This is a tunable implementation default, not a permanent balance law. Keep rarity advancement separate and deterministic.
+- Initial stat-upgrade costs by resulting rank are 10/20/40/80 gold and 1/2/3/4 units of the armor template's Grade-I material. Each armor template authors the stat bonus gained per rank; the current catalog grants +1 to its designated stat.
+- Initial rarity-advancement costs are 25/50/100/200 gold plus one Grade-I/II/III/IV core for Common-to-Uncommon through Epic-to-Legendary. These are authored tuning values, not balance locks.
 - Use the existing shared gold/material inventory and existing atomic transaction patterns. Do not add new currencies, random upgrade failure, or Alchemy XP.
 - Keep ordinary consumable alchemy and weapon Crafting XP unchanged. The new Alchemist owns only armor modifier extraction/affixing and any explicitly scoped equipment operations.
 - If an armor has no eligible installed modifiers, extraction should be unavailable rather than destroy it for no modifier result. This is a conservative implementation default, not a broader alchemy rule.
@@ -87,71 +89,83 @@ These are tunable implementation defaults, not additional balance approvals:
 
 ### Gate 0 - Planning And Contract Reconciliation
 
-- [x] Record the inherited M5-D1 through D5 ownership/equip/security approvals and the user's static Ring/Pendant/Necklace, armor-only disenchant clarification.
+- [x] Record M5-D1 through D7, including static Ring/Pendant/Necklace rules and armor-only modifier extraction.
 - [x] Revalidate the current M4A code baseline, migration versions, reward boundary, exits, and test/client owners.
-- [ ] Resolve the open modifier replacement/recovery and disposal-of-attached-modifier contracts below before starting the Alchemist gate.
+- [x] Resolve modifier replacement, sale, and dismantle behavior for installed modifiers.
 
-Proof: this plan distinguishes inherited rules, revised scope, tunable authored data, and remaining product decisions. No production implementation starts until this revised plan is reviewed.
+Proof: the approved scope, destructive-operation confirmations, and transaction outcomes are explicit. No product decisions remain open for these operations.
 
 ### Gate 1 - Persistent Instance Ownership And Equip
 
-- [ ] Define validated armor-template, static-accessory, and instance records; define party-owned equipment storage and per-Drifter slot references.
-- [ ] Prove exact targeting, ownership transfer, compatible slots, no duplicate references, active-pair restrictions during outings, and no security change on equip/swap.
-- [ ] Add a forward runtime/disk schema migration from the actual entry version. Legacy saves receive no equipment; preserve current weapon, M3, and M4A state. Keep envelope/API/database unchanged unless implementation review establishes a necessary change.
-- [ ] Prove save/reload preserves exact IDs, provenance/security, ownership, and equipped references. Reject malformed references and unknown definitions without partial reconstruction.
-- [ ] Implement supported equipment-stat composition through existing M3 boundaries. Equipping never heals; when an effect decreases a maximum resource, clamp current value only as required.
+- [x] Define validated armor-template, static-accessory, and instance records; define party-owned equipment storage and per-Drifter slot references.
+- [x] Prove exact targeting, ownership transfer, compatible slots, no duplicate references, active-pair restrictions during outings, and no security change on equip/swap.
+- [x] Add a forward runtime/disk schema migration from the actual entry version. Legacy saves receive no equipment; preserve current weapon, M3, and M4A state. Keep envelope/API/database unchanged unless implementation review establishes a necessary change.
+- [x] Prove save/reload preserves exact IDs, provenance/security, ownership, and equipped references. Reject malformed references and unknown definitions without partial reconstruction.
+- [x] Implement supported equipment-stat composition through existing M3 boundaries. Equipping never heals; when an effect decreases a maximum resource, clamp current value only as required.
 
-Proof: two distinct armor instances can be transferred and swapped between exact recruited Drifters, then save/reload with no duplication, loss, or security promotion.
+Proof: two distinct armor instances can be transferred and swapped between exact recruited Drifters, then save/reload with no duplication, loss, or security promotion. Runtime schema 18 and disk schema 19 are covered; schema-18 migration adds empty equipment ownership without changing historical state. Focused persistence/ownership suite: 279 passed before the final swap case; final full root suite: 2,129 passed. MicroPython portability tests pass against the updated 149-record dataclass manifest; cumulative pinned-binary evidence is recorded in Gate 6.
 
 ### Gate 2 - Authored Templates, Modifiers, And Reproducible Generation
 
-- [ ] Define content schemas/validators for armor templates, families, rarity, stat ranges, modifier pools, modifier grades, effect compatibility, and generation policy.
-- [ ] Author a small usable catalog that exercises Helm, Chest, Gloves, and Boots; all five modifier grades; and one static Ring plus one static Pendant/Necklace. Use controlled fixtures for rare edge cases; do not author future-floor encounter placements here.
-- [ ] Implement injected-RNG generation that returns one fully materialized unique armor instance. Identical authored input plus identical RNG stream gives identical results; generated values remain bounded and compatible.
-- [ ] Implement rarity capacity/grade rules: Common 1, Uncommon 2, Rare 3, Epic 4, Legendary 5; each item has at most one modifier of each eligible grade.
-- [ ] Persist and reconstruct exact generated stats/modifiers without another random draw. Test duplicate calls/reloads against event evidence and prove one reward event creates at most one instance.
-- [ ] Add content validation for duplicate IDs, invalid ranges/grades, unsupported effects, bad slot/family references, impossible capacities, and malformed RNG result data.
+- [x] Define content schemas/validators for armor templates, families, rarity, stat ranges, modifier pools, modifier grades, effect compatibility, and generation policy.
+- [x] Author a small usable catalog that exercises Helm, Chest, Gloves, and Boots; all five modifier grades; and one static Ring plus one static Pendant/Necklace. Use controlled fixtures for rare edge cases; do not author future-floor encounter placements here.
+- [x] Implement injected-RNG generation that returns one fully materialized unique armor instance. Identical authored input plus identical RNG stream gives identical results; generated values remain bounded and compatible.
+- [x] Implement rarity capacity/grade rules: Common 1, Uncommon 2, Rare 3, Epic 4, Legendary 5; each item has at most one modifier of each eligible grade.
+- [x] Persist and reconstruct exact generated stats/modifiers without another random draw. Test duplicate calls/reloads against event evidence and prove one reward event creates at most one instance.
+- [x] Add content validation for duplicate IDs, invalid ranges/grades, unsupported effects, bad slot/family references, impossible capacities, and malformed RNG result data.
 
-Proof: seeded generation is reproducible; the saved instance round-trips byte-for-byte in gameplay-relevant identity/effects; invalid content fails validation.
+Proof: seeded generation is reproducible; the saved instance round-trips byte-for-byte in gameplay-relevant identity/effects; event replay returns the same owned instance without consuming RNG; malformed catalog and RNG values fail closed. Focused armor/equipment/event/persistence set: 191 passed; content validation passed. Gate 6 records cumulative pinned MicroPython evidence and owns the remaining hosted qualification.
 
 ### Gate 3 - Deterministic Armor Upgrades And Rarity Advancement
 
-- [ ] Implement Hub stat upgrades as a deterministic authored rank track, separate from rarity. One configurable shared maximum applies to all armor; early armor can reach it.
-- [ ] Implement Hub rarity advancement as a separate deterministic transaction with authored gold/material costs, preserving instance identity, stat investment, and compatible modifiers while unlocking the new grade capacity.
-- [ ] Prove upgrade/advancement preview matches commit, exact resource spending, insufficient-resource rejection, rank/rarity caps, retries, failed-write rollback, and no random outcome on load/retry.
-- [ ] Verify stat/effect projection changes once, never writes permanent character stats, never heals/refills, and cannot alter signature-weapon progression.
+- [x] Implement Hub stat upgrades as a deterministic authored rank track, separate from rarity. One configurable shared maximum applies to all armor; early armor can reach it.
+- [x] Implement Hub rarity advancement as a separate deterministic transaction with authored gold/material costs, preserving instance identity, stat investment, and compatible modifiers while unlocking the new grade capacity.
+- [x] Prove upgrade/advancement preview matches commit, exact resource spending, insufficient-resource rejection, rank/rarity caps, retries, failed-write rollback, and no random outcome on load/retry.
+- [x] Verify stat/effect projection changes once, never writes permanent character stats, never heals/refills, and cannot alter signature-weapon progression.
 
-Proof: one early armor instance advances through its authored stat track and rarity path without replacement, reroll, investment loss, or partial resource spend.
+Proof: one early armor instance advances through its authored stat track and rarity path without replacement, reroll, investment loss, or partial resource spend. Focused progression/equipment/portability set: 63 passed; content validation passed. Final cumulative qualification remains in Gate 6.
 
 ### Gate 4 - Alchemist: Armor Modifier Extraction, Affixing, And Replacement
 
-- [ ] Add a distinct equipment-modifier service; keep `HubEconomyService` consumable recipes and weapon Crafting XP unchanged.
-- [ ] Implement separate Hub sale and material-dismantle actions for secured, unreferenced instances, with authored per-item eligibility/results, preview, explicit confirmation, and atomic gold/material accounting. These actions never extract modifiers; static accessories participate only when their authored definitions permit that action.
-- [ ] Extraction accepts secured, unequipped armor only, consumes authored gold/alchemical materials, destroys exactly one donor, and creates persistent modifier instances for its eligible installed modifiers. Accessories reject extraction regardless of caller/client.
-- [ ] Affixing accepts a compatible modifier instance and armor grade slot, consumes the modifier exactly once plus authored costs, and commits atomically.
-- [ ] Implement the approved replacement/recovery behavior only after the open decisions below are answered. Do not guess whether a displaced modifier returns, is destroyed, or can be extracted again.
-- [ ] Prove extraction/affix/replacement save/reload, ownership/provenance, sufficient and insufficient gold/materials, invalid compatibility, repeated submission, failed persistence, and no partial mutation.
-- [ ] Prove sale/dismantle rejects unsecured, equipped, unknown, stale, and unauthorized instances without mutation; a confirmed action consumes only one instance and grants only its authored result.
+- [x] Add a distinct equipment-modifier service; keep `HubEconomyService` consumable recipes and weapon Crafting XP unchanged.
+- [x] Implement separate Hub sale and material-dismantle actions for secured, unreferenced instances, with authored per-item eligibility/results, preview, explicit confirmation, and atomic gold/material accounting. These actions never extract modifiers; static accessories participate only when their authored definitions permit that action.
+- [x] Extraction accepts secured, unequipped armor only, consumes authored gold/alchemical materials, destroys exactly one donor, and creates persistent modifier instances for its eligible installed modifiers. Accessories reject extraction regardless of caller/client.
+- [x] Affixing accepts a compatible modifier instance and armor grade slot, consumes the modifier exactly once plus authored costs, and commits atomically.
+- [x] Replacing an installed modifier requires explicit confirmation naming the incoming modifier, displaced modifier, and permanent loss. On confirmation, destroy the displaced modifier, consume the incoming modifier and authored gold/material costs, and commit atomically. Recovering an installed modifier otherwise requires extraction that destroys its donor armor.
+- [x] Selling modified armor destroys all attached modifiers and awards only its authored gold value. Dismantling modified armor destroys all attached modifiers and awards only its authored salvage materials. Neither operation returns modifiers; the player must choose armor extraction to preserve them.
+- [x] Sale, dismantle, extraction, affix, and replacement confirmation states state their destructive consequences. Cancellation and failed writes leave armor, modifiers, gold, and materials unchanged.
+- [x] Prove extraction/affix/replacement save/reload, ownership/provenance, sufficient and insufficient gold/materials, invalid compatibility, repeated submission, failed persistence, and no partial mutation.
+- [x] Prove sale/dismantle rejects unsecured, equipped, unknown, stale, and unauthorized instances without mutation; a confirmed action consumes only one instance and grants only its authored result.
 
 Proof: only armor can be disenchanted; sale, dismantle, extraction, and affixing remain distinct; successful transactions consume exact inputs and preserve the defined output; every rejection is mutation-free.
 
+Proof: Alchemist previews explicitly identify destroyed armor/modifiers and extracted modifier IDs. Confirmation is required for sale, dismantle, extraction, and affixing; stale quotes and cancellation are inert. Replacement consumes the exact incoming modifier and authored resources while permanently losing the displaced definition. Save failure rolls back every operation. Secured gear can be affixed while worn; disposal/extraction remains limited to unreferenced donors. Sale, dismantling, extraction, and replacement round-trip through save/load. Focused Alchemist tests: 34 passed; cumulative M5/equipment/save suites and content validation are recorded below after the gate verification run. No profile API or envelope bump; disk schema 21 adds party-owned modifier instances.
+
 ### Gate 5 - Ten-Floor Rarity Policy And M4A Reward Integration
 
-- [ ] Author one tunable floor 1-10 eligibility/weight policy. Legendary is ineligible at the opening and becomes progressively available; final-floor policy makes it a meaningful normal reward possibility. Keep precise percentages provisional.
-- [ ] Test every floor's allowed rarity set, progression direction, valid weight totals, modifier pools, and generated stat-quality ranges using deterministic RNG fixtures. Do not require unbuilt floor encounter content.
-- [ ] Integrate the generated armor result with `RunEventService` at its authoritative event boundary and persist event/result/instance evidence.
-- [ ] Extend existing exits: safe Rest/extraction/boss return banks eligible gear; death and Return Talisman remove unsecured gear plus attached modifiers and clear only affected equipped references atomically. Secured gear/modifiers and unrelated Drifter investment survive.
-- [ ] Verify gear remains unsecured when equipped and that carrying capacity still counts consumable supply units only.
+- [x] Author one tunable floor 1-10 eligibility/weight policy. Legendary is ineligible at the opening and becomes progressively available; final-floor policy makes it a meaningful normal reward possibility. Keep precise percentages provisional.
+- [x] Test every floor's rarity ceiling, progression direction, valid weight totals, modifier compatibility, and generated stat-quality ranges using deterministic RNG fixtures. Do not require unbuilt floor encounter content.
+- [x] Integrate the generated armor result with `RunEventService` at its authoritative event boundary and persist event/result/instance evidence.
+- [x] Extend existing exits: safe Rest/extraction/boss return banks eligible gear; death and Return Talisman remove unsecured gear plus attached modifiers and clear only affected equipped references. Secured gear/modifiers and unrelated Drifter investment survive.
+- [x] Verify gear remains unsecured when equipped and that carrying capacity still counts consumable supply units only.
 
-Proof: a seeded reward is stable across event retry/load, extraction banks it, death/Talisman removes the unsecured item and attached modifiers with no dangling ref, and secured items remain intact.
+Proof: deterministic generation checks cover all ten floor policies and their eligible rarity ceilings; `RunEventService` replay/load returns the same materialized instance without rerolling; safe Rest/extraction/boss settlement secures eligible armor; defeat/Talisman discard unsecured armor and clear references across active and benched Drifters while preserving secured gear; equipping does not secure armor or consume supply capacity. Related progression/equipment/run-event/persistence suites: 361 passed. Content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events). Hosted profile-service, migration, and CI qualification remain in Gate 6; pinned MicroPython results are recorded below.
 
 ### Gate 6 - Terminal/Browser Parity And Cumulative Qualification
 
-- [ ] Add terminal/browser projections and semantic controls for equipment, exact Drifter selection, item inspection, upgrades, rarity advancement, alchemist extraction/affix/replacement, sale, and dismantling. Keep static accessories free of upgrade/modifier/disenchant controls.
-- [ ] Add representative browser journey: generate/receive armor -> equip -> upgrade/advance -> save/reload -> inspect/swap -> extract/affix -> safe return; prove the key failed/atomic cases at domain/service boundaries rather than duplicating the full matrix in Playwright.
-- [ ] Extend the actual pinned MicroPython probe with bounded equipment/modifier/generation/reconstruction operations and record measured memory results; do not claim qualification without running the pinned binary.
-- [ ] Run focused tests, full root/web suites, content validation, compile/build, browser smoke, save migration/profile validation, PostgreSQL service tests, migration-from-zero, Alembic parity, pinned MicroPython matrix, and exact-SHA hosted CI.
-- [ ] Review unchanged M1-M4A behavior: party targeting, secured/unsecured exits, M3 effect semantics, weapon progression, and historical save compatibility.
+- [x] Add terminal/browser projections and semantic controls for equipment, exact Drifter selection, item inspection, upgrades, rarity advancement, alchemist extraction/affix/replacement, sale, and dismantling. Keep static accessories free of upgrade/modifier/disenchant controls.
+- [x] Add representative browser journey: generate/receive armor -> equip -> upgrade/advance -> save/reload -> inspect/swap -> extract/affix -> safe return; prove the key failed/atomic cases at domain/service boundaries rather than duplicating the full matrix in Playwright.
+- [x] Extend the actual pinned MicroPython probe with bounded equipment/modifier/generation/reconstruction operations and record measured memory results; do not claim qualification without running the pinned binary.
+- [x] Run focused tests, full root/web suites, content validation, compile/build, browser smoke, and local save migration/profile validation.
+- [x] Run PostgreSQL profile-service tests, migration-from-zero, and Alembic parity locally against a dedicated PostgreSQL 17 test container.
+- [ ] Run hosted CI against the exact pushed M5 SHA.
+- [x] Review unchanged M1-M4A behavior: party targeting, secured/unsecured exits, M3 effect semantics, weapon progression, and historical save compatibility.
+
+Gate 6 local evidence (uncommitted working tree): root pytest **2,225 passed**; web pytest **70 passed**; profile-service suite **45 passed** against dedicated PostgreSQL 17; content validation passed; compileall passed; browser build produced **170 files**; full Playwright smoke passed through M1-M5, including `M5_BROWSER|ARMOR_PROGRESS_TRANSFER_RELOAD_ALCHEMIST_STATIC_ACCESSORIES|PASS` and `M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS`. The fresh PostgreSQL migration database upgraded from zero, and `alembic check` reported no new upgrade operations. Historical profile fixtures now match their schema-era equipment shape; current schema 21 advances are covered from schemas 8, 9, 11, 12, and 15-20. The current save-migration/profile contract tests are included in the root suite.
+
+Pinned MicroPython evidence: executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` (v1.29.0, Windows). Native CPython, forced overlay, and pinned MicroPython semantic parity passed. The complete M1-M5 probe passed at **1152K, 3/3**; **1024K** produced the expected memory limit **3/3**. Frontier observations were non-monotonic near the limit: 1048K passed 3/3, 1032K memory-limited 3/3, and 1040K was a transition (2/3 pass). The qualification profile therefore remains the conservative 1152K setting; no sharper heap cutoff is claimed.
+
+Local PostgreSQL service tests, migration-from-zero, and Alembic parity are complete. Hosted exact-SHA CI remains pending until this working tree is committed and pushed. Do not treat Gate 6 or M5 as sealed until hosted checks pass on the accepted exact SHA.
 
 Closure: armor instances and modifiers are persistent and reproducible; fixed accessories remain fixed; armor upgrades and rarity advancement are deterministic; extraction/affixing/disposal are atomic; ten-floor rarity policy is validated; terminal/browser agree; old saves and M1-M4A behavior remain intact; all applicable qualifications pass on the exact accepted SHA.
 
@@ -164,15 +178,10 @@ Closure: armor instances and modifiers are persistent and reproducible; fixed ac
 | M5-D3 | One Ring and one Pendant/Necklace per Drifter. Fixed authored/static equipment: no procedural generation, upgrades, rarity advancement, modifier slots, or disenchanting. | Approved, clarified |
 | M5-D4 | Hub sale/dismantle/extraction are distinct authored, confirmed, atomic actions on secured unreferenced items. Modifier extraction/disenchant is armor-only; accessory sale/material dismantle remains definition-gated and never yields modifiers. | Approved, clarified |
 | M5-D5 | Equipping never secures outing gear. Existing safe exits bank it; death/Talisman atomically remove unsecured gear and clear only its refs, preserving secured gear and all unrelated character/weapon investment. Attached modifiers follow their armor instance. | Approved, retained |
+| M5-D6 | Replacing an installed modifier permanently destroys the displaced modifier. Explicit confirmation is required; the transaction consumes the incoming modifier and authored gold/material costs atomically. Installed modifiers can otherwise be recovered only by extracting and destroying the donor armor. | Approved |
+| M5-D7 | Selling modified armor destroys its attached modifiers and yields only authored gold. Dismantling modified armor destroys its attached modifiers and yields only authored salvage materials. Neither returns modifiers; preserving them requires Alchemist extraction. Confirm destructive consequences; roll back completely on failure. | Approved |
 
-## Open Product Contracts
-
-These affect ownership or gameplay and must be resolved before Gate 4, not guessed by the implementer:
-
-1. **Replacing an installed modifier:** what happens to the displaced modifier: returned to stored inventory, destroyed, or another explicit recovery path? What costs, if any, apply to replacement?
-2. **Selling/dismantling armor with installed modifiers:** are attached modifiers destroyed with the armor, or is any recovery allowed? Modifier extraction is a separate armor-only action, but the interaction with sale/material dismantle needs an explicit rule.
-
-Other numeric content (prices, material quantities, stat values, rarity weights, modifier effects, salvage yields) remains authored and tunable and does not block the architecture gates. The existing plan does not introduce a new resistance system or an Alchemy XP/level system.
+All remaining numeric content (prices, material quantities, stat values, rarity weights, modifier effects, salvage yields) remains authored and tunable. The existing plan does not introduce a new resistance system or an Alchemy XP/level system.
 
 ## Deferred Beyond M5
 

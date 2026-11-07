@@ -13,6 +13,7 @@ HUB_PROBE_PATH = (
 FLOOR_TWO_PROBE_PATH = (
     Path(__file__).parents[1] / "tools" / "micropython_floor_two_probe.py"
 )
+M5_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m5_probe.py"
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -100,13 +101,14 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 7]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 8]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
         "M4_FLOOR_TWO_PROBE",
+        "M5_EQUIPMENT_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
@@ -114,8 +116,33 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "ROUTE_FINAL_STATE"
     )
     assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
-        "M4_FLOOR_TWO_PROBE"
+        "M5_EQUIPMENT_PROBE"
     )
+
+
+def test_m5_probe_covers_generated_equipment_upgrade_modifier_and_snapshot():
+    source = M5_PROBE_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(M5_PROBE_PATH))
+    stages = _assigned_literal(tree, "_M5_STAGE_NAMES")
+    assert stages == (
+        "M5_ARMOR_GENERATION",
+        "M5_ARMOR_UPGRADE",
+        "M5_MODIFIER_REPLACEMENT",
+        "M5_EQUIPMENT_RECONSTRUCTION",
+        "M5_STATIC_ACCESSORY_BOUNDARY",
+        "M5_PROBE_TEARDOWN",
+    )
+    for required in (
+        "ArmorGenerationService",
+        "ArmorProgressionService",
+        "AlchemistService",
+        "EquipmentInstance.from_snapshot",
+        "game.clone()",
+        "preview.displaced_modifiers",
+        "AlchemistStatus.NOT_ARMOR",
+        "get_equipment_template(\"iron_ring\")",
+    ):
+        assert required in source
 
 
 def test_probe_route_contract_contains_the_authored_surface_route():

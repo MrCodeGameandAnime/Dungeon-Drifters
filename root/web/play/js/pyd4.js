@@ -714,15 +714,152 @@
   }
 
   function renderEquipment(view) {
+    const confirmation = view.screen === "equipment_confirmation";
+    $("equipment-content").hidden = confirmation;
+    $("equipment-confirmation-content").hidden = !confirmation;
+    $("equipment-options").hidden = confirmation;
+    $("equipment-confirmation-options").hidden = !confirmation;
+    if (confirmation) {
+      const preview = view.equipment_confirmation;
+      setText("equipment-title", "Confirm Equipment Action");
+      setText("equipment-confirmation-title", preview.title);
+      const details = $("equipment-confirmation-details");
+      clear(details);
+      for (const detail of preview.details || []) {
+        const line = document.createElement("div");
+        line.textContent = detail;
+        details.append(line);
+      }
+      renderOptions(
+        $("equipment-confirmation-options"),
+        view.options,
+        (option) => ({
+          kind: "equipment_confirmation",
+          confirmed: option.action === "confirm",
+        }),
+        (option) => option.label,
+        "overworld-option",
+      );
+      return;
+    }
+
     const equipment = view.equipment;
     if (!equipment) return;
+    setText("equipment-title", "Equipment");
     renderPartyTargets("equipment-targets", equipment.targets);
-    const slots = $("equipment-slots");
-    clear(slots);
-    for (const slot of [equipment.necklace, equipment.ring]) {
+
+    const inventory = $("equipment-inventory");
+    clear(inventory);
+    for (const [index, item] of (equipment.instances || []).entries()) {
+      const state = [
+        item.slot_id,
+        item.secured ? "Secured" : "Unsecured",
+        item.rarity ? `${item.rarity} +${item.upgrade_rank}` : null,
+        item.equipped_by_name ? `Equipped by ${item.equipped_by_name}` : null,
+      ].filter(Boolean).join(" | ");
+      const button = makeButton(
+        `${index + 1}. ${item.display_name} | ${state}`,
+        { kind: "equipment_instance", instance_id: item.instance_id },
+        true,
+        null,
+        item.instance_id === equipment.selected_instance_id
+          ? "inventory-item-choice selected equipment-choice"
+          : "inventory-item-choice equipment-choice",
+      );
+      button.setAttribute(
+        "aria-pressed",
+        String(item.instance_id === equipment.selected_instance_id),
+      );
+      inventory.append(button);
+    }
+    if (!inventory.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No owned armor or accessories.";
+      inventory.append(empty);
+    }
+
+    const modifiers = $("equipment-modifiers");
+    clear(modifiers);
+    for (const [index, modifier] of (equipment.modifiers || []).entries()) {
+      const row = document.createElement("div");
+      row.className = "merchant-row-description equipment-modifier";
+      const title = document.createElement("strong");
+      title.textContent = `${index + 1}. ${modifier.display_name} | Grade ${modifier.grade}`;
+      const state = document.createElement("span");
+      state.textContent = modifier.secured ? "Secured" : "Unsecured";
+      row.append(title, state);
+      modifiers.append(row);
+    }
+    if (!modifiers.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No available modifiers.";
+      modifiers.append(empty);
+    }
+
+    const selected = (equipment.instances || []).find(
+      (item) => item.instance_id === equipment.selected_instance_id,
+    );
+    const inspection = $("equipment-inspection");
+    inspection.hidden = !selected;
+    if (selected) {
+      setText("equipment-inspection-name", selected.display_name);
+      const owner = selected.equipped_by_name
+        ? `Equipped by ${selected.equipped_by_name}`
+        : "Not equipped";
+      setText(
+        "equipment-inspection-state",
+        `${selected.secured ? "Secured" : "Unsecured"} | ${selected.slot_id} | ${owner}`,
+      );
+      const stats = $("equipment-inspection-stats");
+      clear(stats);
+      for (const value of selected.stat_summary || []) {
+        const line = document.createElement("div");
+        line.textContent = value;
+        stats.append(line);
+      }
+      const modifiers = $("equipment-inspection-modifiers");
+      clear(modifiers);
+      for (const value of selected.modifier_summary || []) {
+        const line = document.createElement("div");
+        line.textContent = value;
+        modifiers.append(line);
+      }
+      if (!(selected.modifier_summary || []).length) {
+        const line = document.createElement("div");
+        line.textContent = "No installed modifiers.";
+        modifiers.append(line);
+      }
+
+      const actions = $("equipment-actions");
+      clear(actions);
+      for (const action of equipment.actions || []) {
+        const button = makeButton(
+          action.summary ? `${action.label} | ${action.summary}` : action.label,
+          {
+            kind: "equipment_action",
+            target_drifter_id: equipment.selected_target_id,
+            equipment_instance_id: selected.instance_id,
+            operation: action.operation,
+            ...(action.modifier_instance_id
+              ? { modifier_instance_id: action.modifier_instance_id }
+              : {}),
+          },
+          action.enabled,
+          action.disabled_reason,
+          "merchant-action equipment-action",
+        );
+        actions.append(button);
+      }
+    }
+
+    const accessories = $("equipment-accessories");
+    clear(accessories);
+    for (const slot of [equipment.pendant, equipment.ring]) {
       const line = document.createElement("div");
-      line.textContent = `[ ${slot.label} ]  ${slot.item_name}`;
-      slots.append(line);
+      line.textContent = `${slot.label}: ${slot.item_name}`;
+      accessories.append(line);
     }
     const benefits = $("equipment-benefits");
     clear(benefits);
@@ -1133,7 +1270,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "respec_confirmation", "weapon", "equipment", "merchant", "items", "item_inspect", "healing_targets",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "merchant", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -1190,14 +1327,14 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("respec-panel").hidden = view.screen !== "respec_confirmation";
     $("weapon-panel").hidden = view.screen !== "weapon";
-    $("equipment-panel").hidden = view.screen !== "equipment";
+    $("equipment-panel").hidden = !["equipment", "equipment_confirmation"].includes(view.screen);
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "respec_confirmation") renderRespec(view);
     else if (view.screen === "weapon") renderWeapon(view);
-    else if (view.screen === "equipment") renderEquipment(view);
+    else if (["equipment", "equipment_confirmation"].includes(view.screen)) renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
     else if (view.screen === "merchant") renderMerchant(view);
 

@@ -49,6 +49,10 @@ from app.ui.overworld_ui import (
     ChooseMerchantTierV,
     ChooseHubSupplyAction,
     ChooseAlchemyRecipe,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
     ChooseOverworldAction,
     ChooseOverworldHealingTarget,
     ChooseOverworldItem,
@@ -266,6 +270,17 @@ def _command_to_input(command):
         return ChooseAlchemyRecipe(_required(command, "recipe_id"))
     if kind == "weapon_target":
         return ChooseWeaponTarget(_required(command, "drifter_id"))
+    if kind == "equipment_instance":
+        return ChooseEquipmentInstance(_required(command, "instance_id"))
+    if kind == "equipment_action":
+        return ChooseEquipmentAction(
+            _required(command, "target_drifter_id"),
+            _required(command, "equipment_instance_id"),
+            EquipmentOperation(_required(command, "operation")),
+            command.get("modifier_instance_id"),
+        )
+    if kind == "equipment_confirmation":
+        return ChooseEquipmentConfirmation(_required(command, "confirmed"))
     if kind == "action":
         return ChooseAction(_required(command, "intent"))
     if kind == "move":

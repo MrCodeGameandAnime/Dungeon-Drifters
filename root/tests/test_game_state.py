@@ -35,6 +35,12 @@ def test_new_game_has_empty_dungeon_party_progress():
     assert party.outing_rewards.items == {}
 
 
+def test_party_snapshot_starts_with_empty_unique_equipment_inventory():
+    game_state = GameState(PlayerState(create_drifter("branoc")))
+
+    assert game_state.snapshot()["party"].get("equipment_instances") == []
+
+
 def test_invalid_player_state_is_rejected():
     with pytest.raises(TypeError):
         GameState(create_drifter("branoc"))

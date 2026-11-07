@@ -81,6 +81,13 @@ EXPECTED_STAGES = (
     "M4_FLOOR_TWO_FINAL_STATE",
     "M4_PROBE_TEARDOWN",
     "M4_FLOOR_TWO_PROBE",
+    "M5_ARMOR_GENERATION",
+    "M5_ARMOR_UPGRADE",
+    "M5_MODIFIER_REPLACEMENT",
+    "M5_EQUIPMENT_RECONSTRUCTION",
+    "M5_STATIC_ACCESSORY_BOUNDARY",
+    "M5_PROBE_TEARDOWN",
+    "M5_EQUIPMENT_PROBE",
     "ROUTE_SESSION_TEARDOWN",
 )
 
@@ -103,10 +110,9 @@ COMPLETION_MARKER = "MYP|RESULT|RAW_PROBE_STAGES_COMPLETE"
 
 CPYTHON_NATIVE = "CPYTHON_NATIVE"
 CPYTHON_FORCED_OVERLAY = "CPYTHON_FORCED_OVERLAY"
-MICROPYTHON_DEFAULT = "MICROPYTHON_DEFAULT"
-MICROPYTHON_1024K = "MICROPYTHON_1024K"
-STABLE_HEAP_KIB = 1024
-MEMORY_LIMIT_HEAP_KIB = 944
+MICROPYTHON_1152K = "MICROPYTHON_1152K"
+STABLE_HEAP_KIB = 1152
+MEMORY_LIMIT_HEAP_KIB = 1024
 
 _IMPLEMENTATION_PREFIX = "MYP|IMPLEMENTATION|"
 _VERSION_PREFIX = "MYP|VERSION|"
@@ -165,13 +171,11 @@ def build_command(mode, python, micropython, probe, bootstrap, source):
         return [str(python), str(probe), str(source)]
     if mode == CPYTHON_FORCED_OVERLAY:
         return [str(python), str(bootstrap), str(source)]
-    if mode == MICROPYTHON_DEFAULT:
-        return [str(micropython), str(bootstrap), str(source)]
-    if mode == MICROPYTHON_1024K:
+    if mode == MICROPYTHON_1152K:
         return [
             str(micropython),
             "-X",
-            "heapsize=1024K",
+            "heapsize=1152K",
             str(bootstrap),
             str(source),
         ]
@@ -356,7 +360,7 @@ def compare_primary_signatures(results):
     signatures = [results[mode].signature for mode in (
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
-        MICROPYTHON_DEFAULT,
+        MICROPYTHON_1152K,
     )]
     if any(signature is None for signature in signatures):
         return False, "one or more primary runtimes did not pass"
@@ -399,7 +403,7 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
                 returncode=result.returncode,
             )
             validate_semantic_contract(observation, returncode=result.returncode)
-            _validate_identity(observation, MICROPYTHON_1024K)
+            _validate_identity(observation, MICROPYTHON_1152K)
         except SemanticContractError:
             return PressureObservation("UNEXPECTED_FAILURE", result)
         return PressureObservation("PASS", result)
@@ -427,14 +431,14 @@ def closure_complete(
     *,
     runtime_passed,
     semantic_parity,
-    heap_1024_status,
-    heap_944_status,
+    stable_heap_status,
+    lower_heap_status,
 ):
     return (
         runtime_passed
         and semantic_parity
-        and heap_1024_status == "STABLE_PASS"
-        and heap_944_status == "MEMORY_LIMIT_CONFIRMED"
+        and stable_heap_status == "STABLE_PASS"
+        and lower_heap_status == "MEMORY_LIMIT_CONFIRMED"
     )
 
 
@@ -508,8 +512,7 @@ def main(argv=None):
     modes = (
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
-        MICROPYTHON_DEFAULT,
-        MICROPYTHON_1024K,
+        MICROPYTHON_1152K,
     )
     results = {}
     for mode in modes:
@@ -534,31 +537,31 @@ def main(argv=None):
         return 1
 
     heap_sweep = _load_heap_sweep()
-    heap_1024_status = _run_pressure_confirmation(
+    stable_heap_status = _run_pressure_confirmation(
         heap_sweep,
         args.micropython,
         args.bootstrap,
         args.source,
         STABLE_HEAP_KIB,
     )
-    if heap_1024_status != "STABLE_PASS":
+    if stable_heap_status != "STABLE_PASS":
         return 1
 
-    heap_944_status = _run_pressure_confirmation(
+    lower_heap_status = _run_pressure_confirmation(
         heap_sweep,
         args.micropython,
         args.bootstrap,
         args.source,
         MEMORY_LIMIT_HEAP_KIB,
     )
-    if heap_944_status != "MEMORY_LIMIT_CONFIRMED":
+    if lower_heap_status != "MEMORY_LIMIT_CONFIRMED":
         return 1
 
     if closure_complete(
         runtime_passed=True,
         semantic_parity=parity,
-        heap_1024_status=heap_1024_status,
-        heap_944_status=heap_944_status,
+        stable_heap_status=stable_heap_status,
+        lower_heap_status=lower_heap_status,
     ):
         print("MYP20|RESULT|CLOSURE_COMPLETE")
         return 0

@@ -218,6 +218,58 @@ class ChooseWeaponTarget:
             raise ValueError("drifter_id must be a nonempty string")
 
 
+class EquipmentOperation(StrEnum):
+    EQUIP = "equip"
+    UPGRADE = "upgrade"
+    ADVANCE_RARITY = "advance_rarity"
+    EXTRACT = "extract"
+    AFFIX = "affix"
+    SELL = "sell"
+    DISMANTLE = "dismantle"
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentInstance:
+    instance_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.instance_id, str) or not self.instance_id.strip():
+            raise ValueError("instance_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentAction:
+    target_drifter_id: str
+    equipment_instance_id: str
+    operation: EquipmentOperation
+    modifier_instance_id: str | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "operation", EquipmentOperation(self.operation))
+        for name in ("target_drifter_id", "equipment_instance_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        if self.modifier_instance_id is not None and (
+            not isinstance(self.modifier_instance_id, str)
+            or not self.modifier_instance_id.strip()
+        ):
+            raise ValueError("modifier_instance_id must be nonempty when provided")
+        if (self.operation is EquipmentOperation.AFFIX) != (
+            self.modifier_instance_id is not None
+        ):
+            raise ValueError("only affix actions require a modifier instance")
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentConfirmation:
+    confirmed: bool
+
+    def __post_init__(self):
+        if not isinstance(self.confirmed, bool):
+            raise TypeError("confirmed must be a boolean")
+
+
 OverworldInput: TypeAlias = Union[
     ChooseOverworldAction,
     ChooseOverworldItem,
@@ -238,6 +290,9 @@ OverworldInput: TypeAlias = Union[
     ChooseMerchantCraftComponent,
     ChooseMerchantTierV,
     ChooseWeaponTarget,
+    ChooseEquipmentInstance,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
 ]
 
 

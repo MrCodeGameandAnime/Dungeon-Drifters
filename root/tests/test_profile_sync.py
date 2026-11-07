@@ -50,6 +50,9 @@ def _save_local(store, gold=0):
 def _legacy_schema9_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 9
+    payload["player"].pop("equipment_refs")
+    payload["party"].pop("equipment_instances")
+    payload["party"].pop("modifier_instances")
     payload["player"].pop("advancement")
     payload["player"].pop("permanent_discovery_bonuses")
     payload["world"].pop("permanent_discovery_claims")
@@ -131,12 +134,12 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 18
+    assert local_pending.payload["schema_version"] == 21
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 18
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 21
 
 
 def test_respec_history_survives_profile_sync_and_keeps_free_use_spent(tmp_path):

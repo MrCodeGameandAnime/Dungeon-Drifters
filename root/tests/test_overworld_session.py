@@ -5,10 +5,13 @@ import pytest
 from app.content.catalog import create_drifter, get_drifter_spec, get_route_spec
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
+from app.snapshot import STATE_SCHEMA_VERSION
 from app.game.weapon_progression import WeaponProgressionService
 from tests.content_test_support import FIRST_SURFACE_NODE_ID, SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from tests.persistence_test_support import make_test_save_port
+from app.items.equipment import EquipmentInstance
+from app.items.armor_modifier import ArmorModifierInstance
 from app.player.character_run_state import (
     CharacterRunCheckpoint,
     FIRE_INFUSION_REQUIREMENTS,
@@ -24,6 +27,9 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCharacterTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
     ChooseMerchantCraftComponent,
     ChooseOverworldAction,
     ChooseOverworldItem,
@@ -31,6 +37,7 @@ from app.ui.overworld_ui import (
     ChooseHubSupplyAction,
     ChooseAlchemyRecipe,
     ChoosePermanentStatIncrease,
+    EquipmentOperation,
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
@@ -721,7 +728,7 @@ def test_all_resolved_rest_ids_remain_in_authored_order_in_snapshot():
 
     snapshot = game.snapshot()
 
-    assert snapshot["schema_version"] == 17
+    assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
     assert snapshot["overworld"]["resolved_rest_node_ids"] == [
         "surface_rest_after_warrior_solo",
         "surface_rest_after_shaman_pair",
@@ -930,8 +937,219 @@ def test_floor_two_rest_returns_to_rest_after_character_inspection():
     assert returned.location_label == "Midway Rest"
 
 
+def test_floor_two_recovery_rest_secures_outing_armor_without_resolving_run():
+    game = completed_hub_game()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(
+        run_id_factory=lambda: "armor-rest-checkpoint"
+    ) == 100
+    game.overworld_state.begin_route("floor_two")
+    for node in get_route_spec("floor_two").nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.node_id == "floor_two_midway_rest":
+            break
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000831",
+        definition_id="field_helm",
+        source_id="floor_two_armor_reward",
+        secured=False,
+        stat_bonuses={"constitution": 1},
+        rarity="uncommon",
+        modifier_slots={"I": "bastion_grade_i"},
+    )
+    party.add_equipment_instance(armor)
+
+    session = make_step_session(game)
+    assert session.current_view().screen is OverworldScreen.REST
+    recovered = session.submit(ChooseOverworldAction(OverworldAction.REST))
+
+    assert recovered.screen is OverworldScreen.REST
+    assert recovered.location_label == "Midway Rest"
+    assert game.party_state.phase.value == "outing"
+    assert game.party_state.floor_two_run_id == "armor-rest-checkpoint"
+    assert game.party_state.equipment_instance(armor.instance_id).secured is True
+    assert game.party_state.equipment_instance(
+        armor.instance_id
+    ).modifier_slots == {"I": "bastion_grade_i"}
+
+
+def test_equipment_screen_inspects_and_equips_exact_selected_armor(tmp_path):
+    game = completed_hub_game()
+    boots = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000840",
+        definition_id="field_boots",
+        source_id="floor_two_reward_armor_00",
+        secured=True,
+        stat_bonuses={"dexterity": 1},
+    )
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000841",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_01",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+        rarity="uncommon",
+        modifier_slots={"I": "bastion_grade_i"},
+    )
+    game.party_state.add_equipment_instance(boots)
+    game.party_state.add_equipment_instance(armor)
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        save_port=make_test_save_port(tmp_path / "dungeon_drifters.json"),
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    equipment = session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+
+    assert equipment.equipment.selected_target_id == "branoc"
+    assert any(
+        item.instance_id == armor.instance_id
+        for item in equipment.equipment.instances
+    )
+
+    inspected = session.submit(ChooseEquipmentInstance(armor.instance_id))
+    assert inspected.equipment.selected_instance_id == armor.instance_id
+    selected = next(
+        item
+        for item in inspected.equipment.instances
+        if item.instance_id == armor.instance_id
+    )
+    assert selected.display_name == "Field Helm"
+    assert selected.rarity == "uncommon"
+    assert selected.stat_summary == ("Constitution +2",)
+    assert selected.modifier_summary == ("Grade I: Bastion",)
+
+    equipped = session.submit(
+        ChooseEquipmentAction(
+            target_drifter_id="branoc",
+            equipment_instance_id=armor.instance_id,
+            operation=EquipmentOperation.EQUIP,
+        )
+    )
+    assert equipped.screen is OverworldScreen.EQUIPMENT
+    assert session.game_state.member_for_drifter_id(
+        "branoc"
+    ).equipped_equipment_ids["helm"] == armor.instance_id
+    assert session.game_state.member_for_drifter_id(
+        "azhvielle"
+    ).equipped_equipment_ids["helm"] is None
+
+
+def test_replacing_modifier_requires_confirmation_and_destroys_displaced_modifier(
+    tmp_path,
+):
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000861",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_replace",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+        modifier_slots={"I": "bastion_grade_i"},
+    )
+    incoming = ArmorModifierInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000862",
+        definition_id="vanguard_grade_i",
+        source_id="modifier_reward_replace",
+        secured=True,
+    )
+    game.party_state.add_equipment_instance(armor)
+    game.party_state.add_modifier_instance(incoming)
+    game.party_state.add_shared_gold(3)
+    game.party_state.add_shared_items({"grade_i_cores": 1})
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        save_port=make_test_save_port(tmp_path / "replace.json"),
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+    session.submit(ChooseEquipmentInstance(armor.instance_id))
+
+    confirmation = session.submit(
+        ChooseEquipmentAction(
+            target_drifter_id="branoc",
+            equipment_instance_id=armor.instance_id,
+            operation=EquipmentOperation.AFFIX,
+            modifier_instance_id=incoming.instance_id,
+        )
+    )
+
+    assert confirmation.screen is OverworldScreen.EQUIPMENT_CONFIRMATION
+    assert any("permanently destroys" in line.lower() for line in confirmation.equipment_confirmation.details)
+    assert session.game_state.party_state.equipment_instance(
+        armor.instance_id
+    ).modifier_slots == {"I": "bastion_grade_i"}
+    assert session.game_state.party_state.modifier_instance(
+        incoming.instance_id
+    ).definition_id == "vanguard_grade_i"
+
+    replaced = session.submit(ChooseEquipmentConfirmation(True))
+
+    assert replaced.screen is OverworldScreen.EQUIPMENT
+    assert session.game_state.party_state.equipment_instance(
+        armor.instance_id
+    ).modifier_slots == {"I": "vanguard_grade_i"}
+    assert session.game_state.party_state.modifier_instances == ()
+    assert session.game_state.party_state.shared_gold == game.party_state.shared_gold - 3
+    assert session.game_state.party_state.shared_items.get("grade_i_cores", 0) == 0
+    assert "permanently destroyed" in replaced.notice
+
+
+def test_selling_modified_armor_requires_confirmation_and_never_returns_modifiers(
+    tmp_path,
+):
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000863",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_sale",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+        modifier_slots={"I": "bastion_grade_i"},
+    )
+    game.party_state.add_equipment_instance(armor)
+    initial_gold = game.party_state.shared_gold
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        save_port=make_test_save_port(tmp_path / "sale.json"),
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+    session.submit(ChooseEquipmentInstance(armor.instance_id))
+
+    confirmation = session.submit(
+        ChooseEquipmentAction(
+            target_drifter_id="branoc",
+            equipment_instance_id=armor.instance_id,
+            operation=EquipmentOperation.SELL,
+        )
+    )
+
+    assert confirmation.screen is OverworldScreen.EQUIPMENT_CONFIRMATION
+    assert any("only authored gold" in line.lower() for line in confirmation.equipment_confirmation.details)
+    assert session.game_state.party_state.equipment_instance(
+        armor.instance_id
+    ).modifier_slots == {"I": "bastion_grade_i"}
+    assert session.game_state.party_state.shared_gold == initial_gold
+
+    sold = session.submit(ChooseEquipmentConfirmation(True))
+
+    assert sold.screen is OverworldScreen.EQUIPMENT
+    assert session.game_state.party_state.equipment_instances == ()
+    assert session.game_state.party_state.modifier_instances == ()
+    assert session.game_state.party_state.shared_gold == initial_gold + 6
+    assert "modifiers were destroyed" in sold.notice
+
+
 def test_navigation_covers_every_shell_and_back_returns_one_level():
-    game = GameState(PlayerState(create_drifter("branoc")))
+    game = GameState(PlayerState(get_drifter_spec("branoc").create_character()))
     inputs = [
         ChooseOverworldAction(OverworldAction.CHARACTER),
         ChooseOverworldAction(OverworldAction.SKILLS),

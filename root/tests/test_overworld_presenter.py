@@ -2,6 +2,8 @@ import pytest
 
 from app.content.catalog import get_drifter_spec
 from app.game.game_state import GameState
+from app.items.armor_modifier import ArmorModifierInstance
+from app.items.equipment import EquipmentInstance
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
@@ -570,13 +572,67 @@ def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
         screen=OverworldScreen.EQUIPMENT,
     )
 
-    assert view.equipment.necklace.label == "Necklace"
-    assert view.equipment.necklace.item_name == "Empty"
+    assert view.equipment.pendant.label == "Pendant"
+    assert view.equipment.pendant.item_name == "Empty"
     assert view.equipment.ring.label == "Ring"
     assert view.equipment.ring.item_name == "Empty"
     assert view.equipment.benefits == ("None",)
     assert "Off Hand" not in repr(view)
     assert "Body" not in repr(view)
+
+
+def test_equipment_view_offers_armor_actions_but_keeps_accessories_static():
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000851",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_02",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+    )
+    ring = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000852",
+        definition_id="iron_ring",
+        source_id="fixed_ring_reward_01",
+        secured=True,
+        stat_bonuses={"intuition": 1},
+    )
+    modifier = ArmorModifierInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000853",
+        definition_id="bastion_grade_i",
+        source_id="floor_two_reward_modifier_01",
+        secured=True,
+    )
+    game.party_state.add_equipment_instance(armor)
+    game.party_state.add_equipment_instance(ring)
+    game.party_state.add_modifier_instance(modifier)
+    presenter = OverworldPresenter()
+
+    armor_view = presenter.build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=armor.instance_id,
+    ).equipment
+    ring_view = presenter.build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=ring.instance_id,
+    ).equipment
+
+    assert {action.operation for action in armor_view.actions} == {
+        "equip",
+        "upgrade",
+        "advance_rarity",
+        "extract",
+        "sell",
+        "dismantle",
+        "affix",
+    }
+    assert armor_view.pendant.label == "Pendant"
+    assert [(item.display_name, item.grade) for item in armor_view.modifiers] == [
+        ("Bastion", "I")
+    ]
+    assert {action.operation for action in ring_view.actions} == {"equip"}
 
 
 def test_zh_aivra_items_are_selected_and_inspected_without_mutation():

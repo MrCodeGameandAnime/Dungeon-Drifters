@@ -14,6 +14,7 @@ const pythonCandidates = [
     : ["python3"]),
 ].filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index);
 let floorTwoProfileEnvelope;
+let m5EquipmentFixtures;
 for (const pythonExecutable of pythonCandidates) {
   try {
     floorTwoProfileEnvelope = execFileSync(
@@ -21,6 +22,11 @@ for (const pythonExecutable of pythonCandidates) {
       [path.join(repositoryRoot, "web_tests", "floor_two_browser_save_fixture.py")],
       { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
     ).trim();
+    m5EquipmentFixtures = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m5_browser_save_fixtures.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
     break;
   } catch (error) {
     if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
@@ -28,6 +34,9 @@ for (const pythonExecutable of pythonCandidates) {
 }
 if (!floorTwoProfileEnvelope) {
   throw new Error(`could not generate the Floor II browser save fixture with: ${pythonCandidates.join(", ")}`);
+}
+if (!m5EquipmentFixtures?.hub || !m5EquipmentFixtures?.outing) {
+  throw new Error("could not generate the M5 equipment browser save fixtures");
 }
 const errors = [];
 const pendingRequests = new Map();
@@ -279,15 +288,19 @@ async function controlSignature(page) {
 
 async function clickVisibleOption(page, containerSelector, label) {
   const buttons = page.locator(`${containerSelector} button`);
-  for (let index = 0; index < await buttons.count(); index += 1) {
-    const button = buttons.nth(index);
-    const text = await button.evaluate((element) =>
-      element.querySelector(".choice-label")?.textContent?.trim() || element.textContent.trim(),
-    );
-    if (text?.trim() === label && await button.isEnabled()) {
-      await button.click();
-      return;
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    for (let index = 0; index < await buttons.count(); index += 1) {
+      const button = buttons.nth(index);
+      const text = await button.evaluate((element) =>
+        element.querySelector(".choice-label")?.textContent?.trim() || element.textContent.trim(),
+      );
+      if (text?.trim() === label && await button.isEnabled()) {
+        await button.click();
+        return;
+      }
     }
+    await page.waitForTimeout(50);
   }
   const state = await page.evaluate(({ selector }) => {
     const buttons = [...document.querySelectorAll(`${selector} button`)].map((button) => ({
@@ -1226,8 +1239,11 @@ try {
   await page.locator("#equipment-panel").waitFor({ state: "visible" });
   requireCondition(
     await page.locator("#equipment-panel").isVisible() &&
-      (await page.locator("#equipment-panel").innerText()).includes("Necklace") &&
+      (await page.locator("#equipment-panel").innerText()).includes("Pendant") &&
       (await page.locator("#equipment-panel").innerText()).includes("Ring") &&
+      (await page.locator("#equipment-panel").innerText()).includes("OWNED GEAR") &&
+      (await page.locator("#equipment-panel").innerText()).includes("AVAILABLE MODIFIERS") &&
+      (await page.locator("#equipment-panel").innerText()).includes("STATIC ACCESSORIES") &&
       (await page.locator("#equipment-panel").innerText()).includes("BENEFITS"),
     "Equipment action did not render its authoritative detail view",
   );
@@ -3582,6 +3598,220 @@ try {
     `Floor II boss return did not expose secured inventory and Grade-II materials: ${floorTwoItems}`,
   );
   console.log("M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS");
+
+  const m5Page = await browser.newPage();
+  m5Page.setDefaultNavigationTimeout(120000);
+  m5Page.on("pageerror", (error) => errors.push(error.message));
+  await m5Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  const m5HubProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m5Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m5HubProfileKey,
+    envelope: m5EquipmentFixtures.hub,
+  });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator("#selection-screen").waitFor({ state: "visible" });
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  const m5EquipmentButton = (name) =>
+    m5Page.locator("#equipment-inventory button").filter({ hasText: name });
+  const m5ActionButton = (name) =>
+    m5Page.locator("#equipment-actions button").filter({ hasText: name });
+  const selectM5Equipment = async (name) => {
+    await m5EquipmentButton(name).click();
+    await m5Page.locator("#equipment-inspection-name").filter({ hasText: name }).waitFor({ state: "visible" });
+  };
+  await selectM5Equipment("Field Helm");
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Secured") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Not equipped"),
+    "the generated Hub armor did not preserve its secured, unassigned ownership state",
+  );
+  await m5ActionButton("Equip").click();
+  await m5Page.locator("#notice").filter({ hasText: "assigned to the selected Drifter" }).waitFor({ state: "visible" });
+  await m5ActionButton("Upgrade").click();
+  await m5Page.locator("#notice").filter({ hasText: "Armor stats upgraded." }).waitFor({ state: "visible" });
+  await m5ActionButton("Advance Rarity").click();
+  await m5Page.locator("#notice").filter({ hasText: "Armor rarity advanced." }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5EquipmentButton("Field Helm").innerText()).includes("uncommon +1") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Ser Branoc"),
+    "armor upgrade/rarity advancement or exact-target equip did not update its owned instance",
+  );
+  await clickVisibleOption(m5Page, "#equipment-options", "Back");
+  await clickVisibleOption(m5Page, "#character-options", "Back");
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Save");
+  await m5Page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await selectM5Equipment("Field Helm");
+  requireCondition(
+    (await m5EquipmentButton("Field Helm").innerText()).includes("uncommon +1") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Ser Branoc"),
+    "armor ownership, investment, or rarity did not survive browser save/reload",
+  );
+  await clickVisibleOption(m5Page, "#equipment-targets", "Azhvielle, the Unconfessed");
+  await selectM5Equipment("Field Helm");
+  await m5ActionButton("Equip").click();
+  await m5Page.locator("#notice").filter({ hasText: "assigned to the selected Drifter" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Azhvielle"),
+    "equipment transfer did not target the selected Drifter",
+  );
+
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await selectM5Equipment("Field Helm");
+  await m5ActionButton("Affix Vanguard").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  const replacementConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    replacementConfirmation.includes("Bastion") && replacementConfirmation.includes("permanently destroyed"),
+    `modifier replacement omitted its destructive warning: ${replacementConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Cancel");
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Bastion") &&
+      (await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "cancelling modifier replacement changed installed or loose modifiers",
+  );
+  await m5ActionButton("Affix Vanguard").click();
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Bastion was permanently destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Vanguard") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "confirmed modifier replacement did not consume the incoming modifier and destroy the displaced one",
+  );
+
+  await selectM5Equipment("Field Chest");
+  await m5ActionButton("Extract Modifiers").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Extract" }).waitFor({ state: "visible" });
+  const extractionConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    extractionConfirmation.includes("Ward") && extractionConfirmation.includes("Donor armor will be destroyed"),
+    `modifier extraction did not explain its armor sacrifice: ${extractionConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "donor armor was destroyed" }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Chest") &&
+      (await m5Page.locator("#equipment-modifiers").innerText()).includes("Ward"),
+    "confirmed extraction did not destroy the donor while preserving its modifier",
+  );
+
+  for (const [name, forbiddenActions] of [
+    ["Iron Ring", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+    ["Wayfinder Pendant", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+  ]) {
+    await selectM5Equipment(name);
+    const actions = await m5Page.locator("#equipment-actions button").allInnerTexts();
+    requireCondition(
+      actions.length === 1 && !forbiddenActions.test(actions.join(" ")) && actions[0].includes("Equip"),
+      `${name} exposed armor-only or destructive actions: ${JSON.stringify(actions)}`,
+    );
+  }
+
+  await selectM5Equipment("Field Gloves");
+  await m5ActionButton("Sell").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Sell" }).waitFor({ state: "visible" });
+  const saleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    saleConfirmation.includes("authored gold") && saleConfirmation.includes("not returned") && saleConfirmation.includes("Vanguard"),
+    `modified armor sale did not warn of modifier loss: ${saleConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Installed modifiers were destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Gloves") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "selling modified armor returned or retained its installed modifier",
+  );
+
+  await selectM5Equipment("Field Boots");
+  await m5ActionButton("Dismantle").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Dismantle" }).waitFor({ state: "visible" });
+  const dismantleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    dismantleConfirmation.includes("authored salvage") && dismantleConfirmation.includes("not returned") && dismantleConfirmation.includes("Bastion"),
+    `modified armor dismantle did not warn of modifier loss: ${dismantleConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Installed modifiers were destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Boots") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Bastion"),
+    "dismantling modified armor returned or retained its installed modifier",
+  );
+  console.log("M5_BROWSER|ARMOR_PROGRESS_TRANSFER_RELOAD_ALCHEMIST_STATIC_ACCESSORIES|PASS");
+
+  const m5OutingProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m5Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await m5Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m5OutingProfileKey,
+    envelope: m5EquipmentFixtures.outing,
+  });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await m5Page.locator("#screen-badge").innerText() === "REST" &&
+      await m5Page.locator("#location-label").innerText() === "Pre-Boss Rest",
+    "the M5 safe-return fixture did not load at the Floor II Rest",
+  );
+  await clickVisibleOption(m5Page, "#overworld-options", "Extract");
+  await m5Page.locator("#screen-badge").filter({ hasText: "EXTRACTION" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Return to Hub");
+  await m5Page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inventory").innerText()).includes("Secured") &&
+      (await m5Page.locator("#equipment-inventory").innerText()).includes("Field Helm"),
+    "safe extraction did not secure and retain the generated armor instance",
+  );
+  console.log("M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS");
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));

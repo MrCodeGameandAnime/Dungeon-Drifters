@@ -1,4 +1,7 @@
+import copy
 import importlib
+
+import pytest
 
 from app.content.permanent_discovery_spec import (
     PermanentDiscoverySource,
@@ -10,6 +13,7 @@ from app.game.permanent_discovery import (
     PermanentDiscoveryService,
 )
 from app.persistence.save_document import (
+    SaveStateValidationError,
     build_save_document,
     reconstruct_game_state,
 )
@@ -37,6 +41,21 @@ class SequenceRng:
         return self.rolls.pop(0)
 
 
+class ScriptedArmorRng:
+    def __init__(self, rolls):
+        self.rolls = list(rolls)
+        self.calls = 0
+
+    def randrange(self, stop):
+        self.calls += 1
+        value = self.rolls.pop(0)
+        assert 0 <= value < stop
+        return value
+
+    def randint(self, minimum, maximum):
+        return self.randrange(maximum - minimum + 1) + minimum
+
+
 class MemorySavePort:
     def __init__(self, status=SaveLoadStatus.SAVED):
         self.status = status
@@ -60,6 +79,7 @@ def floor_two_game():
     assert party.start_floor_one_run() == 100
     assert party.complete_floor_one_boss(game.active_party_members)
     assert party.start_floor_two_run(run_id_factory=lambda: "floor-two-run") == 100
+    game.overworld_state.begin_route("floor_two")
     return game
 
 
@@ -396,6 +416,106 @@ def test_failed_search_can_be_retried_in_a_new_run():
     assert rng.calls == 2
 
 
+def test_armor_reward_event_persists_generated_result_and_replay_after_reload_does_not_reroll():
+    events = load_event_module()
+    game = floor_two_game()
+    save_port = MemorySavePort()
+    rng = ScriptedArmorRng([0, 2, 1, 99])
+    service = events.RunEventService(save_port=save_port, rng=rng)
+    instance_id = "00000000-0000-4000-8000-000000000351"
+
+    first = service.resolve_armor_reward(
+        game,
+        node_id="floor_two_battle_01",
+        template_id="field_chest",
+        source_id="floor_two_battle_01_armor_01",
+        instance_id_factory=lambda: instance_id,
+    )
+    reloaded = reconstruct_game_state(
+        build_save_document(save_port.saved_states[0])
+    )
+    replay = service.resolve_armor_reward(
+        reloaded,
+        node_id="floor_two_battle_01",
+        template_id="field_chest",
+        source_id="floor_two_battle_01_armor_01",
+        instance_id_factory=lambda: "00000000-0000-4000-8000-000000000352",
+    )
+
+    assert first.status.value == "resolved"
+    assert replay.status.value == "already_resolved"
+    assert first.equipment_instance_id == replay.equipment_instance_id == instance_id
+    assert len(first.game_state.party_state.equipment_instances) == 1
+    assert len(replay.game_state.party_state.equipment_instances) == 1
+    assert replay.game_state.party_state.equipment_instance(instance_id).snapshot() == (
+        first.game_state.party_state.equipment_instance(instance_id).snapshot()
+    )
+    assert rng.calls == 4
+    assert len(save_port.saved_states) == 1
+
+    saved_payload = build_save_document(save_port.saved_states[0])
+    missing_item = copy.deepcopy(saved_payload)
+    missing_item["party"]["equipment_instances"] = []
+    with pytest.raises(SaveStateValidationError, match="not owned by the party"):
+        reconstruct_game_state(missing_item)
+
+    mismatched_item = copy.deepcopy(saved_payload)
+    mismatched_item["party"]["equipment_instances"][0]["rarity"] = "uncommon"
+    with pytest.raises(SaveStateValidationError, match="disagrees with its owned instance"):
+        reconstruct_game_state(mismatched_item)
+
+
+def test_armor_reward_event_rejects_reused_key_with_different_authored_inputs():
+    events = load_event_module()
+    game = floor_two_game()
+    rng = ScriptedArmorRng([0, 0, 99])
+    service = events.RunEventService(save_port=MemorySavePort(), rng=rng)
+    first = service.resolve_armor_reward(
+        game,
+        node_id="floor_two_battle_01",
+        template_id="field_helm",
+        source_id="floor_two_battle_01_armor_02",
+        instance_id_factory=lambda: "00000000-0000-4000-8000-000000000353",
+    )
+
+    try:
+        service.resolve_armor_reward(
+            first.game_state,
+            node_id="floor_two_battle_01",
+            template_id="field_chest",
+            source_id="floor_two_battle_01_armor_02",
+            instance_id_factory=lambda: "00000000-0000-4000-8000-000000000354",
+        )
+    except ValueError as error:
+        assert "different inputs" in str(error)
+    else:
+        raise AssertionError("changed armor inputs reused an existing reward key")
+
+    assert rng.calls == 3
+
+
+def test_failed_armor_reward_commit_leaves_no_item_or_event_evidence():
+    events = load_event_module()
+    game = floor_two_game()
+    rng = ScriptedArmorRng([0, 0, 99])
+    save_port = MemorySavePort(SaveLoadStatus.INVALID)
+    service = events.RunEventService(save_port=save_port, rng=rng)
+
+    result = service.resolve_armor_reward(
+        game,
+        node_id="floor_two_battle_01",
+        template_id="field_helm",
+        source_id="floor_two_battle_01_armor_03",
+        instance_id_factory=lambda: "00000000-0000-4000-8000-000000000355",
+    )
+
+    assert result.status.value == "save_failed"
+    assert result.game_state is game
+    assert game.party_state.equipment_instances == ()
+    assert game.party_state.resolved_run_events == ()
+    assert save_port.saved_states == []
+
+
 def test_search_rejects_a_benched_searcher_without_writing():
     event_module = load_event_module()
     assert event_module is not None
@@ -521,6 +641,7 @@ def test_run_event_evidence_and_discovered_source_survive_save_reload():
     assert search_result.game_state.party_state.complete_floor_two_boss(
         search_result.game_state.active_party_members
     )
+    search_result.game_state.overworld_state.return_to_surface_entrance()
 
     restored = reconstruct_game_state(build_save_document(search_result.game_state))
     assert restored.party_state.resolved_run_events == (
