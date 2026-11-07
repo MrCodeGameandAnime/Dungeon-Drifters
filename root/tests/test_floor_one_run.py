@@ -295,7 +295,7 @@ def test_floor_two_boss_settlement_can_retry_without_refighting():
     assert progression_for(session.game_state.recruited_members) == progression_for(
         expected.recruited_members
     )
-    assert len(_committed_boss_reward_event(session.game_state)) == 1
+    assert _committed_boss_reward_event(session.game_state) == ()
     assert len(save_port.saved_states) == 2
     assert len(save_port.save_attempts) == 3
     completed_progression = progression_for(session.game_state.recruited_members)
@@ -351,7 +351,7 @@ def test_floor_two_boss_settlement_recovers_after_save_reload():
         expected.recruited_members
     )
     assert progression_for(resumed.game_state.recruited_members) != before_xp
-    assert len(_committed_boss_reward_event(resumed.game_state)) == 1
+    assert _committed_boss_reward_event(resumed.game_state) == ()
     assert len(retry_save.saved_states) == 1
 
 
@@ -1158,6 +1158,54 @@ def test_floor_two_midway_recruitment_is_atomic_and_keeps_active_pair():
         for member in restored.recruited_members
     ) == ("branoc", "azhvielle", "zhaivra")
     assert "floor_two_d3_recruitment" in restored.story_state.completed_events
+
+
+def test_floor_two_recruit_matches_lower_active_level_with_unspent_growth_points():
+    game = game_at_completed_hub()
+    party = game.party_state
+    party.add_shared_gold(65)
+    active_members = game.active_party_members
+    for member, target_level in zip(active_members, (5, 3)):
+        while member.level_state.current < target_level:
+            member.gain_experience(member.level_state.next_threshold)
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(active_members)
+
+    save_port = RecordingSavePort()
+    session = make_session(game, save_port, run_event_rng=StableRng())
+    reach_floor_two_midway_rest(session)
+    session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
+    recruited = session.submit(
+        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
+    )
+
+    newcomer = session.game_state.member_for_drifter_id("zhaivra")
+    expected = PlayerState(get_drifter_spec("zhaivra").create_character())
+    for _ in range(2):
+        expected.gain_experience(expected.level_state.next_threshold)
+
+    assert recruited.screen is OverworldScreen.REST
+    assert newcomer.level_state.current == 3
+    assert newcomer.exp_state.current == 0
+    assert newcomer.growth_points == 6
+    assert newcomer.character.permanent_stats.as_dict() == (
+        expected.character.permanent_stats.as_dict()
+    )
+    assert newcomer.health.maximum == expected.health.maximum
+    assert newcomer.mana_resource.maximum == expected.mana_resource.maximum
+    assert all(
+        value == 0
+        for value in newcomer.signature_weapon_state.slot_progress.values()
+    )
+    assert newcomer.signature_weapon_state.tier_v_success is False
+    assert not any(newcomer.purchased_stat_points.values())
+    assert newcomer.purchased_passive_skill_ids == ()
+    assert newcomer.purchased_active_skill_ids == ()
+    restored = reconstruct_game_state(build_save_document(save_port.saved_states[-1]))
+    restored_newcomer = restored.member_for_drifter_id("zhaivra")
+    assert restored_newcomer.level_state.current == 3
+    assert restored_newcomer.exp_state.current == 0
+    assert restored_newcomer.growth_points == 6
 
 
 def test_floor_two_midway_recruitment_cannot_spend_missing_gold():

@@ -232,12 +232,21 @@ def _complete_battle(state, complete_battle, battle_number):
     game = _game(state)
     if session.active_battle is not None:
         raise AssertionError("completed Floor II Battle remained active")
-    _assert_encounter_event(state, node, len(composition))
 
     if battle_number == 10:
+        if state["route_battle_factory"].floor_two_boss_pending_event_counts != (
+            1,
+            len(composition),
+        ):
+            raise AssertionError(
+                "Floor II boss event evidence was not saved before settlement"
+            )
+        if game.party_state.resolved_run_events:
+            raise AssertionError("settled Floor II run retained event history")
         if final_view.screen is not OverworldScreen.HUB:
             raise AssertionError("Floor II boss did not settle at the Hub")
     else:
+        _assert_encounter_event(state, node, len(composition))
         route_node_index = route.nodes.index(node)
         following = route.nodes[route_node_index + 1]
         expected_screen = (

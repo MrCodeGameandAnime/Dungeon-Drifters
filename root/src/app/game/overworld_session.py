@@ -596,6 +596,14 @@ class OverworldSession:
             companion = PlayerState(profile.create_character())
             if event.route_id == "floor_two":
                 candidate = self.game_state.clone()
+                target_level = min(
+                    member.level_state.current
+                    for member in candidate.active_party_members
+                )
+                while companion.level_state.current < target_level:
+                    companion.gain_experience(
+                        companion.level_state.next_threshold
+                    )
                 recruited = candidate.party_state.recruit_floor_two_companion(
                     companion,
                     recruited_ids=tuple(

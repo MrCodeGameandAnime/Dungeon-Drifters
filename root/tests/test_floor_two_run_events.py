@@ -15,7 +15,7 @@ from app.persistence.save_document import (
 )
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
-from tests.game_test_support import completed_hub_game
+from tests.game_test_support import completed_hub_game, three_member_hub_game
 
 
 def load_event_module():
@@ -548,3 +548,81 @@ def test_run_event_evidence_and_discovered_source_survive_save_reload():
     )
     assert retry.status.value == "already_found"
     assert retry_rng.calls == 0
+
+
+def test_settled_run_event_history_does_not_block_a_new_active_pair():
+    events = load_event_module()
+    game = three_member_hub_game()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(run_id_factory=lambda: "search-run") == 100
+
+    source = searchable_well()
+    search = events.RunEventService(
+        save_port=MemorySavePort(),
+        rng=SequenceRng([10000]),
+    ).search_discovery(
+        game,
+        node_id="floor_two_pre_boss_rest",
+        searcher_drifter_id="branoc",
+        source=source,
+    )
+    assert search.status.value == "resolved"
+    assert not search.found
+
+    party = search.game_state.party_state
+    assert party.fail_floor_two_run(search.game_state.active_party_members)
+    search.game_state.overworld_state.return_to_surface_entrance()
+    party.select_active_pair(
+        ("azhvielle", "joruun"),
+        recruited_ids=("branoc", "azhvielle", "joruun"),
+    )
+
+    document = build_save_document(search.game_state)
+    restored = reconstruct_game_state(document)
+
+    assert restored.party_state.active_drifter_ids == ("azhvielle", "joruun")
+    assert restored.party_state.resolved_run_events == ()
+
+
+def test_legacy_settled_search_history_is_ignored_after_pair_change():
+    game = three_member_hub_game()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    run_id = party.start_floor_two_run(run_id_factory=lambda: "legacy-search-run")
+    assert run_id == 100
+    search_event = {
+        "event_key": (
+            "floor_two:legacy-search-run:floor_two_pre_boss_rest:"
+            "discovery_search"
+        ),
+        "run_id": "legacy-search-run",
+        "floor_id": "floor_two",
+        "node_id": "floor_two_pre_boss_rest",
+        "kind": "discovery_search",
+        "position": None,
+        "result": {
+            "source_id": "ancient_well_floor2_01",
+            "searcher_drifter_id": "branoc",
+            "effective_chance_bps": 1000,
+            "roll": 10000,
+            "found": False,
+        },
+    }
+    party.record_run_event(search_event)
+    assert party.fail_floor_two_run(game.active_party_members)
+    game.overworld_state.return_to_surface_entrance()
+    party.select_active_pair(
+        ("azhvielle", "joruun"),
+        recruited_ids=("branoc", "azhvielle", "joruun"),
+    )
+
+    legacy_save = build_save_document(game)
+    legacy_save["party"]["resolved_run_events"] = [search_event]
+
+    restored = reconstruct_game_state(legacy_save)
+
+    assert restored.party_state.active_drifter_ids == ("azhvielle", "joruun")
+    assert restored.party_state.resolved_run_events == ()

@@ -58,7 +58,7 @@ def test_floor_two_safe_encounter_checkpoint_round_trips_run_and_route_cursor():
     assert restored.party_state.phase is DungeonPhase.OUTING
 
 
-def test_floor_two_run_identity_cannot_be_reused_after_recorded_outcome():
+def test_failed_floor_two_run_discards_its_event_evidence():
     game = floor_one_cleared_game()
     party = game.party_state
     assert party.start_floor_two_run(
@@ -86,17 +86,63 @@ def test_floor_two_run_identity_cannot_be_reused_after_recorded_outcome():
     )
     assert party.fail_floor_two_run(game.active_party_members)
 
-    try:
-        party.start_floor_two_run(
-            run_id_factory=lambda: "reused-floor-two-run"
-        )
-    except ValueError as error:
-        assert "already been used" in str(error)
-    else:
-        raise AssertionError("a previous Floor II run identity was reused")
+    assert party.resolved_run_events == ()
+    assert party.start_floor_two_run(
+        run_id_factory=lambda: "retry-floor-two-run"
+    ) == 100
+    assert party.floor_two_run_id == "retry-floor-two-run"
+    assert party.floor_two_run_id != "reused-floor-two-run"
 
-    assert party.phase is DungeonPhase.HUB
-    assert party.floor_two_run_id is None
+
+def test_floor_two_event_evidence_is_kept_until_each_run_settlement():
+    def add_search_evidence(party, run_id):
+        party.record_run_event({
+            "event_key": (
+                f"floor_two:{run_id}:floor_two_pre_boss_rest:discovery_search"
+            ),
+            "run_id": run_id,
+            "floor_id": "floor_two",
+            "node_id": "floor_two_pre_boss_rest",
+            "kind": "discovery_search",
+            "position": None,
+            "result": {
+                "source_id": "ancient_well_floor2_01",
+                "searcher_drifter_id": "branoc",
+                "effective_chance_bps": 1000,
+                "roll": 10000,
+                "found": False,
+            },
+        })
+
+    game = floor_one_cleared_game()
+    party = game.party_state
+    assert party.start_floor_two_run(run_id_factory=lambda: "retained-search") == 100
+    add_search_evidence(party, "retained-search")
+    assert len(party.resolved_run_events) == 1
+    assert party.fail_floor_two_run(game.active_party_members)
+    assert party.resolved_run_events == ()
+
+    assert party.start_floor_two_run(run_id_factory=lambda: "extract-search") == 100
+    add_search_evidence(party, "extract-search")
+    assert party.begin_floor_two_extraction(partial=True)
+    assert len(party.resolved_run_events) == 1
+    restored = reconstruct_game_state(build_save_document(game))
+    assert len(restored.party_state.resolved_run_events) == 1
+    assert party.complete_floor_two_extraction(game.active_party_members)
+    assert party.resolved_run_events == ()
+
+    party.add_shared_items({"return_talisman": 1})
+    assert party.load_carried_supplies({"return_talisman": 1})
+    assert party.start_floor_two_run(run_id_factory=lambda: "talisman-search") == 100
+    add_search_evidence(party, "talisman-search")
+    assert party.return_with_talisman(game.active_party_members)
+    assert party.resolved_run_events == ()
+
+    assert party.start_floor_two_run(run_id_factory=lambda: "boss-search") == 100
+    add_search_evidence(party, "boss-search")
+    assert party.resolved_run_events
+    assert party.complete_floor_two_boss(game.active_party_members)
+    assert party.resolved_run_events == ()
 
 
 def test_floor_two_run_identity_requires_the_floor_one_unlock():

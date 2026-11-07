@@ -460,9 +460,6 @@ class PartyState:
             run_id = str(run_id)
         if not _valid_run_id(run_id):
             raise ValueError("run ID must be a non-empty lowercase token")
-        if any(event["run_id"] == run_id for event in self._resolved_run_events):
-            raise ValueError("Floor 2 run ID has already been used")
-
         rate = 100
         if self.floor_two_cleared:
             rate = _FLOOR_ONE_REPLAY_XP_RATES[
@@ -499,6 +496,7 @@ class PartyState:
         validate_run_event_history(
             candidate_events,
             active_drifter_ids=self._active_drifter_ids,
+            active_run_id=self._floor_two_run_id,
             require_complete=False,
         )
         self._resolved_run_events.append(normalized)
@@ -519,6 +517,7 @@ class PartyState:
         self._restore_party(party_members)
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
 
@@ -544,6 +543,7 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
 
@@ -570,6 +570,7 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
 
@@ -719,6 +720,7 @@ class PartyState:
         if floor_two_run:
             self._floor_two_run_id = None
             self._floor_two_outing_xp_multiplier_percent = 100
+            self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
 
@@ -805,7 +807,16 @@ class PartyState:
         validate_run_event_history(
             state._resolved_run_events,
             active_drifter_ids=state._active_drifter_ids,
+            active_run_id=state._floor_two_run_id,
         )
+        if state._floor_two_run_id is None:
+            state._resolved_run_events = []
+        else:
+            state._resolved_run_events = [
+                event
+                for event in state._resolved_run_events
+                if event["run_id"] == state._floor_two_run_id
+            ]
         active_floor_two_run = state._floor_two_run_id is not None
         if active_floor_two_run:
             if not state._floor_two_cleared and state._floor_two_runs_started_after_clear:
@@ -1183,6 +1194,7 @@ def validate_run_event_history(
     events,
     *,
     active_drifter_ids=None,
+    active_run_id=None,
     require_complete=True,
 ):
     if not isinstance(events, (tuple, list)):
@@ -1219,8 +1231,10 @@ def validate_run_event_history(
                 raise ValueError("discovery event references an unknown source") from error
             if get_permanent_discovery_search_node_id(result["source_id"]) != node_id:
                 raise ValueError("discovery source does not belong to this route node")
-            if active_drifter_ids is not None and (
-                result["searcher_drifter_id"] not in active_drifter_ids
+            if (
+                event["run_id"] == active_run_id
+                and active_drifter_ids is not None
+                and result["searcher_drifter_id"] not in active_drifter_ids
             ):
                 raise ValueError("discovery searcher is not in the active party")
 

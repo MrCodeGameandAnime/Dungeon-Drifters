@@ -1233,6 +1233,7 @@ def _validate_party(
             validate_run_event_history(
                 events,
                 active_drifter_ids=active_ids,
+                active_run_id=run_id,
             )
         except (TypeError, ValueError) as error:
             raise SaveStateValidationError(

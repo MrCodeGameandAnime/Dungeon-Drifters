@@ -185,6 +185,7 @@ class _RouteBattleFactory:
     def __init__(self):
         self.battle_compositions = []
         self.completed_count = 0
+        self.floor_two_boss_pending_event_counts = None
 
     def __call__(
         self,
@@ -229,6 +230,20 @@ class _RouteBattleFactory:
     def save(self, game_state):
         from app.persistence.save_port_contract import SaveLoadStatus
 
+        if game_state.floor_two_boss_settlement_pending:
+            events = game_state.party_state.resolved_run_events
+            self.floor_two_boss_pending_event_counts = (
+                sum(
+                    event["kind"] == "encounter_rewards"
+                    and event["node_id"] == "floor_two_battle_10"
+                    for event in events
+                ),
+                sum(
+                    event["kind"] == "enemy_drop"
+                    and event["node_id"] == "floor_two_battle_10"
+                    for event in events
+                ),
+            )
         self.saved_game_state = game_state
         self.status = SaveLoadStatus.SAVED
         return self
