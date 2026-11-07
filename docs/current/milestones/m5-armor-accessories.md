@@ -2,7 +2,7 @@
 
 > Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. M4B and Floor III content remain out of scope.
 
-**Status:** M5-D1 through D7 approved. Gates 0-6 are complete and qualified; M5 implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4c9` is sealed. The revised procedural-armor scope and destructive Alchemist contracts were approved 2026-11-07.
+**Status:** M5-D1 through D7 approved. The original implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4c9` passed qualification. Post-review correction `9c7ca7a0a729a317bd802f0f471c4248d82691b6` is hosted-green, but M5 is not sealed on that SHA: the exact pinned MicroPython matrix has not been rerun after the code correction. The ordinary Floor II route also has no authored armor-drop source; this plan now records that as deferred scope. The revised procedural-armor scope and destructive Alchemist contracts were approved 2026-11-07.
 
 **Goal:** Build persistent armor instances with reproducible authored generation, deterministic investment, grade-aware modifiers, and a distinct Alchemist service, while preserving exact ownership, extraction risk, and fixed accessories.
 
@@ -141,20 +141,20 @@ Proof: only armor can be disenchanted; sale, dismantle, extraction, and affixing
 
 Proof: Alchemist previews explicitly identify destroyed armor/modifiers and extracted modifier IDs. Confirmation is required for sale, dismantle, extraction, and affixing; stale quotes and cancellation are inert. Replacement consumes the exact incoming modifier and authored resources while permanently losing the displaced definition. Save failure rolls back every operation. Secured gear can be affixed while worn; disposal/extraction remains limited to unreferenced donors. Sale, dismantling, extraction, and replacement round-trip through save/load. Focused Alchemist tests: 34 passed; cumulative M5/equipment/save suites and content validation are recorded below after the gate verification run. No profile API or envelope bump; disk schema 21 adds party-owned modifier instances.
 
-### Gate 5 - Ten-Floor Rarity Policy And M4A Reward Integration
+### Gate 5 - Ten-Floor Rarity Policy And Reward Event Support
 
 - [x] Author one tunable floor 1-10 eligibility/weight policy. Legendary is ineligible at the opening and becomes progressively available; final-floor policy makes it a meaningful normal reward possibility. Keep precise percentages provisional.
 - [x] Test every floor's rarity ceiling, progression direction, valid weight totals, modifier compatibility, and generated stat-quality ranges using deterministic RNG fixtures. Do not require unbuilt floor encounter content.
-- [x] Integrate the generated armor result with `RunEventService` at its authoritative event boundary and persist event/result/instance evidence.
+- [x] Implement `RunEventService.resolve_armor_reward` as a persisted, replay-safe reward boundary for an authored caller-supplied Floor II source. No ordinary encounter handler or route node invokes this service yet; generated armor is therefore not currently awarded by normal Floor II battle victories.
 - [x] Extend existing exits: safe Rest/extraction/boss return banks eligible gear; death and Return Talisman remove unsecured gear plus attached modifiers and clear only affected equipped references. Secured gear/modifiers and unrelated Drifter investment survive.
 - [x] Verify gear remains unsecured when equipped and that carrying capacity still counts consumable supply units only.
 
-Proof: deterministic generation checks cover all ten floor policies and their eligible rarity ceilings; `RunEventService` replay/load returns the same materialized instance without rerolling; safe Rest/extraction/boss settlement secures eligible armor; defeat/Talisman discard unsecured armor and clear references across active and benched Drifters while preserving secured gear; equipping does not secure armor or consume supply capacity. Related progression/equipment/run-event/persistence suites: 361 passed. Content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events). Hosted profile-service, migration, and CI qualification passed on the exact M5 implementation SHA; pinned MicroPython results are recorded below.
+Proof: deterministic generation checks cover all ten floor policies and their eligible rarity ceilings; the service replay/load contract returns the same materialized instance without rerolling; safe Rest/extraction/boss settlement secures eligible armor; defeat/Talisman discard unsecured armor and clear references across active and benched Drifters while preserving secured gear; equipping does not secure armor or consume supply capacity. The current browser armor-reward journey uses a controlled save fixture, not a live Floor II drop. Related progression/equipment/run-event/persistence suites: 361 passed. Content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events). Hosted profile-service, migration, and CI qualification passed on the original M5 implementation SHA; post-review hosted evidence is recorded below.
 
 ### Gate 6 - Terminal/Browser Parity And Cumulative Qualification
 
 - [x] Add terminal/browser projections and semantic controls for equipment, exact Drifter selection, item inspection, upgrades, rarity advancement, alchemist extraction/affix/replacement, sale, and dismantling. Keep static accessories free of upgrade/modifier/disenchant controls.
-- [x] Add representative browser journey: generate/receive armor -> equip -> upgrade/advance -> save/reload -> inspect/swap -> extract/affix -> safe return; prove the key failed/atomic cases at domain/service boundaries rather than duplicating the full matrix in Playwright.
+- [x] Add representative browser journey using a controlled generated-armor save fixture: equip -> upgrade/advance -> save/reload -> inspect/swap -> extract/affix -> safe return; prove the key failed/atomic cases at domain/service boundaries rather than duplicating the full matrix in Playwright.
 - [x] Extend the actual pinned MicroPython probe with bounded equipment/modifier/generation/reconstruction operations and record measured memory results; do not claim qualification without running the pinned binary.
 - [x] Run focused tests, full root/web suites, content validation, compile/build, browser smoke, and local save migration/profile validation.
 - [x] Run PostgreSQL profile-service tests, migration-from-zero, and Alembic parity locally against a dedicated PostgreSQL 17 test container.
@@ -167,9 +167,11 @@ Hosted qualification: implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4
 
 Pinned MicroPython evidence: executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` (v1.29.0, Windows). Native CPython, forced overlay, and pinned MicroPython semantic parity passed. The complete M1-M5 probe passed at **1152K, 3/3**; **1024K** produced the expected memory limit **3/3**. Frontier observations were non-monotonic near the limit: 1048K passed 3/3, 1032K memory-limited 3/3, and 1040K was a transition (2/3 pass). The qualification profile therefore remains the conservative 1152K setting; no sharper heap cutoff is claimed.
 
-Local and hosted PostgreSQL service tests, migration-from-zero, Alembic parity, pinned MicroPython, and browser qualification are complete for the M5 implementation SHA above. M5 is sealed; any later code change requires fresh qualification on its resulting SHA.
+The pinned MicroPython evidence above applies to original implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4c9`; it has not been rerun on post-review code SHA `9c7ca7a0a729a317bd802f0f471c4248d82691b6`. The exact recorded executable path was unavailable during review, and a nearby executable had a different SHA-256, so it was not substituted.
 
-Closure: armor instances and modifiers are persistent and reproducible; fixed accessories remain fixed; armor upgrades and rarity advancement are deterministic; extraction/affixing/disposal are atomic; ten-floor rarity policy is validated; terminal/browser agree; old saves and M1-M4A behavior remain intact; all applicable qualifications pass on the exact accepted SHA.
+Post-review correction: commit `9c7ca7a0a729a317bd802f0f471c4248d82691b6` fixes Rest security changing a live armor instance while its immutable generation event remains unsecured. Its regression covers Floor II victories, Rest recovery, save/reload, replay without reroll, continuing to another encounter, and persisting that victory. Exact-SHA hosted CI passed root pytest **2,226**, web pytest **70**, PostgreSQL service tests **45**, content validation, compile, 170-file browser build and full smoke, migration-from-zero, and Alembic parity: [Actions run 42410870669](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42410870669). The pinned MicroPython matrix remains pending on this correction SHA.
+
+M5 remains unsealed until the pinned MicroPython qualification is rerun on the corrected code SHA. Live Floor II armor-drop placement is explicitly deferred: no ordinary battle currently awards generated armor, and the browser reward journey is fixture-backed. Any future placement must add an authored source and connect it to the authoritative reward transaction.
 
 ## Approved Decisions And Scope Changes
 
@@ -187,4 +189,4 @@ All remaining numeric content (prices, material quantities, stat values, rarity 
 
 ## Deferred Beyond M5
 
-M4B/Floor III encounter authoring and actual later-floor source placement, accessory upgrades/modifiers/procedural generation, armor sets, transmog, cosmetics, degradation, PvP normalization, resistance mechanics, and broad balance tuning remain deferred. M5 may define and validate the ten-floor rarity policy but does not author future-floor encounters.
+M4B/Floor III encounter authoring, live generated-armor source placement (including ordinary Floor II encounter drops), accessory upgrades/modifiers/procedural generation, armor sets, transmog, cosmetics, degradation, PvP normalization, resistance mechanics, and broad balance tuning remain deferred. M5 defines and validates the ten-floor rarity policy but does not author live armor-drop sources or future-floor encounters.

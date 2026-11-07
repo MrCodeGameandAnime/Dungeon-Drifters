@@ -425,3 +425,37 @@ hosted workflow in [Actions run 42320829998](https://github.com/MrCodeGameandAni
 2,106 root tests, 66 web tests, the 161-file browser build and full Floor II
 smoke, 39 PostgreSQL tests, migration-from-zero, and Alembic parity. The
 pinned MicroPython matrix was run locally; it is not part of hosted CI.
+
+## M5 Post-Review Correction (2026-11-07)
+
+Correction SHA `9c7ca7a0a729a317bd802f0f471c4248d82691b6` fixes generated armor
+reward evidence after safe Rest changes the owned instance from unsecured to
+secured. The persisted generation event remains immutable and records its
+original unsecured state; save validation and event replay compare all
+generation fields while allowing the live security state to advance. A real
+Floor II session regression covers generation, five victories, Rest recovery,
+save/reload, replay without RNG use, continuing to another encounter, and
+persisting its victory.
+
+The exact-SHA hosted workflow passed in
+[Actions run 42410870669](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42410870669):
+2,226 root tests, 70 web tests, content validation, compile, the 170-file
+browser build and full smoke, 45 PostgreSQL tests, migration-from-zero, and
+Alembic model parity. The local root and web suites, content validation,
+compile, and browser build also passed. Local Playwright could not launch
+because the bundled Chromium was absent and system Edge could not start under
+the sandbox.
+
+The recorded pinned MicroPython executable was not available at its documented
+path. A nearby executable had a different SHA-256, so the pinned matrix was
+not rerun or substituted for this correction SHA. The previous 1152K 3/3
+qualification remains evidence for implementation SHA
+`195049845cbfd09b5ef3cdf5e3927cb339efb4c9`, not this correction.
+
+Scope clarification: `RunEventService.resolve_armor_reward` is exercised by
+service tests and a controlled browser save fixture, but ordinary Floor II
+battle victories do not call it and no live route armor source is authored.
+The existing armor generation, ownership, and persistence systems therefore
+do not imply that the player currently receives procedural armor from normal
+Floor II encounters. Live source placement is deferred; M5 remains unsealed
+until the corrected SHA receives its pinned MicroPython qualification.
