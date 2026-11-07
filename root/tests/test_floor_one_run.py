@@ -41,6 +41,7 @@ from tests.game_test_support import (
     completed_hub_game as game_at_completed_hub,
     three_member_hub_game,
 )
+from tests.persistence_test_support import make_test_save_port
 
 
 def completed_tutorial_party():
@@ -1004,6 +1005,114 @@ def test_floor_two_recover_stays_at_rest_and_keeps_extract_available():
     )
     assert any(option.action is OverworldAction.EXTRACT for option in recovered.options)
     assert recovered.contextual_route_option.action is OverworldAction.SKIP_REST
+
+
+def test_floor_two_generated_armor_survives_recovery_save_reload_and_next_victory(
+    tmp_path,
+):
+    from app.game.run_events import RunEventService, RunEventStatus
+
+    class ArmorRng(StableRng):
+        def __init__(self):
+            self.calls = 0
+
+        def randrange(self, stop):
+            self.calls += 1
+            return 0
+
+    game = game_at_completed_hub()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(
+        run_id_factory=lambda: "armor-rest-save-reload"
+    ) == 100
+    game.overworld_state.begin_route("floor_two")
+    game.overworld_state.set_contextual_route_phase(
+        ContextualRoutePhase.ENTER_ENCOUNTER
+    )
+
+    save_port = make_test_save_port(tmp_path / "armor-rest-save-reload.json")
+    reward = RunEventService(save_port=save_port, rng=ArmorRng()).resolve_armor_reward(
+        game,
+        node_id="floor_two_battle_01",
+        template_id="field_chest",
+        source_id="floor_two_battle_01_armor_01",
+        instance_id_factory=lambda: "00000000-0000-4000-8000-000000000891",
+    )
+    assert reward.status is RunEventStatus.RESOLVED
+    armor_id = reward.equipment_instance_id
+    armor_event_before_rest = next(
+        event
+        for event in reward.game_state.party_state.resolved_run_events
+        if event["kind"] == "armor_reward"
+    )
+    assert armor_event_before_rest["result"]["instance"]["secured"] is False
+
+    session = make_session(
+        reward.game_state,
+        save_port,
+        run_event_rng=StableRng(),
+    )
+    session._screen = OverworldScreen.MAIN
+    for _ in range(5):
+        session.submit(ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER))
+        win_current_battle(session)
+
+    assert session.current_view().screen is OverworldScreen.REST
+    recovered = session.submit(ChooseOverworldAction(OverworldAction.REST))
+    assert recovered.screen is OverworldScreen.REST
+    assert session.game_state.party_state.equipment_instance(armor_id).secured
+
+    saved = session.submit(ChooseOverworldAction(OverworldAction.SAVE))
+    assert saved.notice == "Game saved."
+    loaded = save_port.load()
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.party_state.equipment_instance(armor_id).secured
+    armor_event_after_reload = next(
+        event
+        for event in loaded.game_state.party_state.resolved_run_events
+        if event["kind"] == "armor_reward"
+    )
+    assert armor_event_after_reload == armor_event_before_rest
+
+    replay_rng = ArmorRng()
+    replay = RunEventService(save_port=save_port, rng=replay_rng).resolve_armor_reward(
+        loaded.game_state,
+        node_id="floor_two_battle_01",
+        template_id="field_chest",
+        source_id="floor_two_battle_01_armor_01",
+        instance_id_factory=lambda: "00000000-0000-4000-8000-000000000892",
+    )
+    assert replay.status is RunEventStatus.ALREADY_RESOLVED
+    assert replay.equipment_instance_id == armor_id
+    assert replay_rng.calls == 0
+
+    resumed = make_session(
+        loaded.game_state,
+        save_port,
+        run_event_rng=StableRng(),
+    )
+    resumed.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
+    assert resumed.game_state.overworld_state.current_route_node_id == (
+        "floor_two_battle_06"
+    )
+    resumed.submit(ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER))
+    win_current_battle(resumed)
+
+    final_save = save_port.load()
+    assert final_save.status is SaveLoadStatus.LOADED
+    assert final_save.game_state.party_state.equipment_instance(armor_id).secured
+    assert next(
+        event
+        for event in final_save.game_state.party_state.resolved_run_events
+        if event["kind"] == "armor_reward"
+    ) == armor_event_before_rest
+    assert any(
+        event["kind"] == "encounter_rewards"
+        and event["node_id"] == "floor_two_battle_06"
+        for event in final_save.game_state.party_state.resolved_run_events
+    )
 
 
 def test_floor_two_extract_from_rest_secures_rewards_and_supersedes_run_save():

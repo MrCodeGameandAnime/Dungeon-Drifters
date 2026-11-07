@@ -1604,7 +1604,11 @@ def _validate_armor_reward_event_relationship(party, equipment_by_id):
             raise SaveStateValidationError(
                 "armor reward event instance is not owned by the party"
             )
-        if instance.snapshot() != snapshot:
+        current_snapshot = instance.snapshot()
+        expected_snapshot = dict(snapshot)
+        # Reward evidence records acquisition-time security; Rest can later secure it.
+        expected_snapshot["secured"] = current_snapshot["secured"]
+        if current_snapshot != expected_snapshot:
             raise SaveStateValidationError(
                 "armor reward event outcome disagrees with its owned instance"
             )

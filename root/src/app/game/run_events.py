@@ -315,7 +315,11 @@ class RunEventService:
             instance_snapshot = result["instance"]
             instance_id = instance_snapshot["instance_id"]
             instance = party.equipment_instance(instance_id)
-            if instance.snapshot() != instance_snapshot:
+            current_snapshot = instance.snapshot()
+            expected_snapshot = dict(instance_snapshot)
+            # The event keeps its acquisition-time state after a safe Rest secures gear.
+            expected_snapshot["secured"] = current_snapshot["secured"]
+            if current_snapshot != expected_snapshot:
                 raise ValueError("armor reward event disagrees with its owned instance")
             return RunEventResult(
                 RunEventStatus.ALREADY_RESOLVED,
