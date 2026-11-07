@@ -405,3 +405,23 @@ while a committed boss victory awaits settlement, were independently hosted
 green on exact SHA `a48903f2456adff075a00453fb43c79449a5e0c3` in
 [Actions run 42296351933](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42296351933).
 M4A is qualified and closed; M5 is next, while M4B remains sequenced after M5.
+
+## M4A Post-Review Correction (2026-11-06)
+
+The exact pinned MicroPython v1.29.0 executable was rerun after bounding
+Floor II event history and updating the D3 catch-up rule. The artifact matched
+the recorded 488,960-byte SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+The revised Floor II probe passed native CPython, forced-overlay CPython,
+default MicroPython, and semantic parity. Heap confirmation reported 1024K
+stable pass 3/3 and the expected 944K memory-limit classification 3/3. The
+probe also verified that pending boss reward/drop evidence exists before
+settlement and that completed Floor II state has no retained per-run event
+history.
+
+Correction commit `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba` passed the exact-SHA
+hosted workflow in [Actions run 42320829998](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42320829998):
+2,106 root tests, 66 web tests, the 161-file browser build and full Floor II
+smoke, 39 PostgreSQL tests, migration-from-zero, and Alembic parity. The
+pinned MicroPython matrix was run locally; it is not part of hosted CI.

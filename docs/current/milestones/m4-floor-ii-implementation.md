@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document plans M4A only; it does not authorize starting M5 or M4B.
 
-**Status:** M4A implementation and qualification are complete on `f2f378563d96bf94e9dd37b57e9238665f32e2b1`. The Floor II corrections, pending-boss settlement guard, full browser route, PostgreSQL/migration checks, and pinned MicroPython matrix are verified. M5 is next in the roadmap; M4B remains sequenced after M5.
+**Status:** M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`. The post-review run-history and D3 recruitment corrections, pending-boss settlement guard, full browser route, PostgreSQL/migration checks, and pinned MicroPython matrix are verified. M5 is next in the roadmap; M4B remains sequenced after M5.
 
 ### Local Review Checkpoints
 
@@ -19,6 +19,7 @@ The implementation is split into these reviewable commits on the existing `dunge
 | M4A-6 | `b57ca41` | Record cumulative local qualification checkpoint |
 | M4A-6 | `fcc97ae`, `a48903f` | Harden Floor II recovery and protect pending boss settlement |
 | M4A-6 | `f2f3785` | Extend and qualify the pinned MicroPython Floor II probe |
+| M4A corrective review | `a0aaa53` | Bound settled run-event evidence and catch up D3 to the lower active level |
 
 The original cumulative baseline was qualified by [GitHub Actions run 42273495771](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42273495771) on exact SHA `b57ca41fec21988718605b211e56e7a6a5950ce0`: 2,084 root tests, 66 web tests, and 39 PostgreSQL tests passed, with migration/Alembic checks and the 161-file browser build. This is historical baseline evidence; final qualification is recorded below.
 
@@ -199,3 +200,15 @@ Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_disc
 ## M4A Closure
 
 M4A is closed on the qualified tree: the Floor II loop is playable from Hub through boss and back, D3 can be recruited or safely retried, the approved hazard and identity behavior are exercised, event outcomes survive reload without duplication, Grade-II materials are gated to Floor II, Floor I regression tests remain green, and hosted plus pinned-runtime qualification is recorded. M5 is next; M4B remains open and sequenced after M5.
+
+### Post-Review Correction And Final Qualification (2026-11-06)
+
+The post-closure review found three contract issues, corrected without changing the Floor II architecture or save schema:
+
+- Settled Floor II event evidence is cleared at each terminal outcome. A pending boss settlement retains its event evidence until the victory is durably finalized. Loading a legacy settled save validates its recorded events, then discards stale run history so a later active-pair change cannot invalidate the save. Active searcher membership is checked against the participants of the active run, not the currently selected pair after settlement.
+- D3 catches up through ordinary level-ups to the lower-level member of the active pair. Normal HP/Mana growth and earned GP are retained; GP stays unspent. The recruit starts with no additional XP progress, purchases, or weapon progression and keeps its authored kit/base weapon.
+- The pinned Floor II probe now asserts boss reward/drop evidence before settlement and verifies that settled state no longer retains per-run history.
+
+The correction is committed as `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba` (`M4A: fix event history and recruitment catch-up`). Local verification passed 2,106 root tests, 66 web tests, content validation, compileall, the 161-file browser build, full Playwright smoke through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`, and `git diff --check`. The exact pinned MicroPython v1.29.0 matrix passed native/overlay CPython, default MicroPython, semantic parity, 1024K stable 3/3, and the expected 944K memory-limit result 3/3.
+
+Hosted qualification passed on the exact corrective SHA in [Actions run 42320829998](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42320829998): 2,106 root tests, 66 web tests, browser build and full smoke, 39 PostgreSQL tests, migration-from-zero, and Alembic parity (`No new upgrade operations detected`). The pinned MicroPython matrix is local evidence; the hosted workflow does not execute that binary.
