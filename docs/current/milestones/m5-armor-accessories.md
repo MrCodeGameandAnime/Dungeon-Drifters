@@ -2,7 +2,7 @@
 
 > Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. M4B and Floor III content remain out of scope.
 
-**Status:** M5-D1 through D7 approved. Gates 0-5 are implemented and locally verified; Gate 6 is in progress. The revised procedural-armor scope and destructive Alchemist contracts were approved 2026-11-07.
+**Status:** M5-D1 through D7 approved. Gates 0-6 are complete and qualified; M5 implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4c9` is sealed. The revised procedural-armor scope and destructive Alchemist contracts were approved 2026-11-07.
 
 **Goal:** Build persistent armor instances with reproducible authored generation, deterministic investment, grade-aware modifiers, and a distinct Alchemist service, while preserving exact ownership, extraction risk, and fixed accessories.
 
@@ -149,7 +149,7 @@ Proof: Alchemist previews explicitly identify destroyed armor/modifiers and extr
 - [x] Extend existing exits: safe Rest/extraction/boss return banks eligible gear; death and Return Talisman remove unsecured gear plus attached modifiers and clear only affected equipped references. Secured gear/modifiers and unrelated Drifter investment survive.
 - [x] Verify gear remains unsecured when equipped and that carrying capacity still counts consumable supply units only.
 
-Proof: deterministic generation checks cover all ten floor policies and their eligible rarity ceilings; `RunEventService` replay/load returns the same materialized instance without rerolling; safe Rest/extraction/boss settlement secures eligible armor; defeat/Talisman discard unsecured armor and clear references across active and benched Drifters while preserving secured gear; equipping does not secure armor or consume supply capacity. Related progression/equipment/run-event/persistence suites: 361 passed. Content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events). Hosted profile-service, migration, and CI qualification remain in Gate 6; pinned MicroPython results are recorded below.
+Proof: deterministic generation checks cover all ten floor policies and their eligible rarity ceilings; `RunEventService` replay/load returns the same materialized instance without rerolling; safe Rest/extraction/boss settlement secures eligible armor; defeat/Talisman discard unsecured armor and clear references across active and benched Drifters while preserving secured gear; equipping does not secure armor or consume supply capacity. Related progression/equipment/run-event/persistence suites: 361 passed. Content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 2 recruitment events). Hosted profile-service, migration, and CI qualification passed on the exact M5 implementation SHA; pinned MicroPython results are recorded below.
 
 ### Gate 6 - Terminal/Browser Parity And Cumulative Qualification
 
@@ -158,14 +158,16 @@ Proof: deterministic generation checks cover all ten floor policies and their el
 - [x] Extend the actual pinned MicroPython probe with bounded equipment/modifier/generation/reconstruction operations and record measured memory results; do not claim qualification without running the pinned binary.
 - [x] Run focused tests, full root/web suites, content validation, compile/build, browser smoke, and local save migration/profile validation.
 - [x] Run PostgreSQL profile-service tests, migration-from-zero, and Alembic parity locally against a dedicated PostgreSQL 17 test container.
-- [ ] Run hosted CI against the exact pushed M5 SHA.
+- [x] Run hosted CI against the exact pushed M5 SHA.
 - [x] Review unchanged M1-M4A behavior: party targeting, secured/unsecured exits, M3 effect semantics, weapon progression, and historical save compatibility.
 
-Gate 6 local evidence (uncommitted working tree): root pytest **2,225 passed**; web pytest **70 passed**; profile-service suite **45 passed** against dedicated PostgreSQL 17; content validation passed; compileall passed; browser build produced **170 files**; full Playwright smoke passed through M1-M5, including `M5_BROWSER|ARMOR_PROGRESS_TRANSFER_RELOAD_ALCHEMIST_STATIC_ACCESSORIES|PASS` and `M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS`. The fresh PostgreSQL migration database upgraded from zero, and `alembic check` reported no new upgrade operations. Historical profile fixtures now match their schema-era equipment shape; current schema 21 advances are covered from schemas 8, 9, 11, 12, and 15-20. The current save-migration/profile contract tests are included in the root suite.
+Gate 6 qualification evidence: root pytest **2,225 passed**; web pytest **70 passed**; profile-service suite **45 passed** against PostgreSQL 17; content validation and compileall passed; browser build produced **170 files**; full Playwright smoke passed through M1-M5, including `M5_BROWSER|ARMOR_PROGRESS_TRANSFER_RELOAD_ALCHEMIST_STATIC_ACCESSORIES|PASS` and `M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS`. Historical profile fixtures match their schema-era equipment shape; current schema 21 advances are covered from schemas 8, 9, 11, 12, and 15-20.
+
+Hosted qualification: implementation SHA `195049845cbfd09b5ef3cdf5e3927cb339efb4c9`; [GitHub Actions run 42379807072](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42379807072) completed successfully. The Tests job passed root/web tests, content validation, compile, the 170-file browser build, and full browser smoke. The Profile Service (PostgreSQL) job passed all 45 service tests, migration-from-zero, and Alembic model parity (`No new upgrade operations detected`).
 
 Pinned MicroPython evidence: executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` (v1.29.0, Windows). Native CPython, forced overlay, and pinned MicroPython semantic parity passed. The complete M1-M5 probe passed at **1152K, 3/3**; **1024K** produced the expected memory limit **3/3**. Frontier observations were non-monotonic near the limit: 1048K passed 3/3, 1032K memory-limited 3/3, and 1040K was a transition (2/3 pass). The qualification profile therefore remains the conservative 1152K setting; no sharper heap cutoff is claimed.
 
-Local PostgreSQL service tests, migration-from-zero, and Alembic parity are complete. Hosted exact-SHA CI remains pending until this working tree is committed and pushed. Do not treat Gate 6 or M5 as sealed until hosted checks pass on the accepted exact SHA.
+Local and hosted PostgreSQL service tests, migration-from-zero, Alembic parity, pinned MicroPython, and browser qualification are complete for the M5 implementation SHA above. M5 is sealed; any later code change requires fresh qualification on its resulting SHA.
 
 Closure: armor instances and modifiers are persistent and reproducible; fixed accessories remain fixed; armor upgrades and rarity advancement are deterministic; extraction/affixing/disposal are atomic; ten-floor rarity policy is validated; terminal/browser agree; old saves and M1-M4A behavior remain intact; all applicable qualifications pass on the exact accepted SHA.
 
