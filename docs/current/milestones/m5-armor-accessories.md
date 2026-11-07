@@ -1,135 +1,179 @@
-# M5 Persistent Armor And Accessories Implementation Plan
+# M5 Armor, Procedural Loot, And Modifier Progression Plan
 
-> Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. This plan does not authorize starting M4B, creating a branch, or changing production behavior before implementation is approved.
+> Implementation method: native, gate-by-gate execution on the existing `dungeon` branch. This plan is planning only; it does not authorize production implementation until the user reviews the revised scope. M4B and Floor III content remain out of scope.
 
-**Status:** M5-D1 through D5 approved 2026-11-07. Entry baseline revalidated at `614586e615e456d2facb778828582c6e9bddbff1`. Implementation has not started.
+**Status:** M5-D1 through D5 remain approved, with the accessory/disenchant clarification below. The expanded procedural-armor direction was supplied 2026-11-07. Planning is being revised; implementation has not started.
 
-**Goal:** Add persistent, swappable armor and accessories whose individual investment survives swaps and whose early pieces can reach the same maximum progression as later pieces.
+**Goal:** Build persistent armor instances with reproducible authored generation, deterministic investment, grade-aware modifiers, and a distinct Alchemist service, while preserving exact ownership, extraction risk, and fixed accessories.
 
-**Architecture:** Authored equipment definitions are separate from unique owned instances. The party owns one shared equipment inventory; each recruited Drifter equips instance IDs in legal slots. Instance provenance remains authoritative through Hub, outing, extraction, death, and Return Talisman settlement. Equipment effects use M3's effective-stat/combat-effect boundaries; no derived bonuses are saved.
+**Architecture:** Authored armor templates, modifier definitions, and floor rarity tables feed an injected-RNG generator at an authoritative reward boundary. Generated outcomes become unique persisted equipment instances; equipped references remain per Drifter. Armor upgrades, rarity advancement, and modifier extraction/affixing are separate authoritative transactions using existing inventory, resource, save, and combat-effect boundaries.
 
-**Tech Stack:** Existing Python content, player/game/presentation layers, shared-item economy, validated saves, terminal/Pyodide clients, pytest/Playwright, and the pinned MicroPython qualification.
+**Tech Stack:** Existing Python domain/content/persistence layers, current shared inventory and run-event services, terminal/Pyodide clients, pytest/Playwright, PostgreSQL profile service, and pinned MicroPython qualification.
 
-## Authority And Dependencies
+## Scope And Authority
 
-- [Armor design](../../future/armor.md) owns permanent viability, equipment separation, and the narrow first slice.
-- [Dungeon economy](../../future/dungeon-progression-difficulty-and-economy.md) owns secured/unsecured rewards, exits, and accessory context.
-- [Roadmap](development-roadmap.md) owns milestone order and shared constraints. M1 roster, M2 trade/exit rules, M3 stat/effect composition, and accepted M4A reward/event behavior are prerequisites.
-- M5 follows accepted M4A and does not depend on M4B. M4B consumes the accepted M5 equipment contract afterward. Do not implement M4B or Floor III content as part of M5.
+- This plan expands the former bounded authored-equipment slice. It retains the approved ownership, transfer, security, and deterministic-upgrade contracts except where the new rarity direction explicitly refines the old assumption that early and late pieces must have identical total endgame power.
+- [Armor design](../../future/armor.md) supplies the permanent-viability and equipment-identity principles. This M5 plan is the more specific implementation contract for procedural armor, rarity, modifiers, and static accessories.
+- [Dungeon economy](../../future/dungeon-progression-difficulty-and-economy.md) remains authoritative for secured/unsecured rewards, exits, and the Ring/Pendant slots. This plan narrows its generic accessory-dismantling direction: accessories cannot be modifier-extracted/disenchanted.
+- [Roadmap](development-roadmap.md) owns milestone order. M5 consumes M1-M4A ownership, trade, progression, and event contracts. It does not implement M4B, Floor III, or later floor encounters.
+- M5 defines a ten-floor rarity-policy/data contract and tests it across floors 1-10. Actual future-floor enemy/source placements remain owned by the milestones that author those floors.
 
-Non-goals: replacing signature weapons, sets, transmog, cosmetics, degradation, PvP normalization, accessory upgrades, new resistance mechanics, broad balance work, or visual armor rendering. M5 authors only the content needed to prove its contracts; later-floor catalogs remain with their owning milestones.
+Non-goals: signature-weapon redesign, armor sets, transmog, cosmetics, degradation, PvP normalization, new damage/resistance systems, broad balance tuning, and authoring future-floor encounter content.
 
-## Revalidated M4A Baseline
+## Revalidated Entry Baseline
 
-The current branch is `dungeon`, tracking `origin/dungeon`, at `614586e615e456d2facb778828582c6e9bddbff1`. Its M4A code includes the post-review Floor II fixes; the latest M4A code correction in its history is `a0aaa53`. The existing untracked `.codex-remote-attachments/` directory is unrelated and is not part of this plan.
+The current branch is `dungeon` at `421189c0d608ce5d21644534428dde1fc90c47c2`, a documentation-only M5/M4A-review commit on top of the accepted M4A implementation baseline `614586e615e456d2facb778828582c6e9bddbff1`. Production code has not advanced beyond that M4A baseline. Revalidate these versions and owners again when implementation starts.
 
-- `PlayerState.EQUIPMENT_SLOTS` is still the generic `weapon`, `off_hand`, `head`, `body`, `accessory` tuple. Equipment is stored per Drifter; there is no armor/accessory instance catalog or shared equipment inventory. The signature weapon has its own separately persisted progression state and must remain untouched.
-- `PlayerState.effective_stat()` currently composes permanent stats with the equipped weapon's bonuses. M3 passive effects are a separate combat-effect projection. M5 equipment stat bonuses are additive through the effective-stat path, not writes to permanent stats. Scaling helpers retain their M3 cap behavior; direct mitigation continues to read the actual effective stat.
-- Current max HP/Mana are derived from permanent Constitution/Spirit, level, and permanent discovery bonuses. Ordinary equipment stat bonuses do not change those maxima. Equip/swap therefore must not heal or refill resources; any later direct max-resource equipment effect is outside this initial M5 effect set.
-- `PartyState` owns shared stackable items, carried supply stacks, shared gold, and `OutingRewards` item stacks. The six-unit limit applies to carried supplies, not equipment or found loot. M2's `HubEconomyService` buys/sells stack items at the Hub; weapon progression consumes shared materials.
-- M4A Floor II run events resolve encounter drops at the victory boundary and persist the run/event result in `resolved_run_events`. Current event drops and pending rewards are stack item IDs and quantities, not equipment instances.
-- Current exit owners are `PartyState` and `OverworldSession`: death discards unsecured rewards and carried supplies, restores the recruited party, and returns to Hub; Return Talisman banks adjusted XP only, loses run gold/items, and returns unused carried supplies; safe Rest extraction and boss settlement bank items under their existing M2/M4A rules. M5 must extend these same transitions for equipment without changing their existing payout semantics.
-- Current in-memory game-state schema is 17, disk game-state schema is 18, and profile-envelope version is 1. M5's persisted equipment state requires a forward runtime/disk schema increment (planned 18/19); keep the profile API, envelope version, and database schema unchanged. Revalidate exact migration hooks at implementation entry.
+- Runtime game-state schema is 17; disk schema is 18; profile envelope version is 1. The M5 model needs a forward game/disk migration using the existing migration architecture. Do not assume a profile API, envelope, or database version change is needed.
+- `PlayerState` has generic slots (`weapon`, `off_hand`, `head`, `body`, `accessory`) and persists the existing weapon, but there is no armor/modifier instance inventory. Signature-weapon progression remains separate and unchanged.
+- `PlayerState.effective_stat()` composes permanent stats with weapon bonuses. M3 combat/passive effects have their own existing projection. M5 must use those boundaries, not add a parallel combat-effect or resistance framework.
+- Maximum HP/Mana currently derive from permanent Constitution/Spirit, level, and discovery bonuses. Equipment changes never heal/refill. If an allowed equipment effect later changes a maximum, recalculate and clamp current resources only when the maximum decreases.
+- `PartyState` owns shared stack items, carried supplies, gold, and `OutingRewards`; the six-unit limit applies to carried supplies only. `HubEconomyService` handles shop and consumable alchemy recipes. Armor modifier services must be a distinct responsibility and must not change weapon Crafting XP or ordinary consumable alchemy.
+- `RunEventService` resolves Floor II drops at the victory boundary and stores event results in `resolved_run_events`; current drops are stack item IDs and quantities. M5 must add equipment-instance evidence to this existing authoritative boundary so load/retry cannot reroll or duplicate a drop.
+- Existing death, Return Talisman, Rest extraction, and boss-return owners are `PartyState` and `OverworldSession`. Preserve their reward semantics and extend their candidate-state transactions to equipment instances and equipped references.
 
-There is no persistent equipment-instance ownership, provenance, upgrade rank, equipment-specific drop result, or exact instance reference in the current M4A save model. M5 must add those contracts rather than treating armor as a stack item or serializing derived stats.
+Current code/test entry map (revalidate exact APIs on implementation entry): `root/src/app/player/player_state.py`; `root/src/app/game/party_state.py`, `overworld_session.py`, `run_events.py`, and `hub_economy.py`; `root/src/app/content/catalog.py` and content validators; `root/src/app/presentation/overworld_presenter.py` and `overworld_models.py`; `root/src/app/snapshot.py` and `root/src/app/persistence/save_document.py` / `envelope.py`.
 
-Entry implementation/test map (revalidate exact APIs at each gate): `PlayerState` and per-Drifter equipment in `root/src/app/player/player_state.py`; party inventory/provenance and exit settlement in `root/src/app/game/party_state.py` and `overworld_session.py`; event-boundary drops in `root/src/app/game/run_events.py`; merchant actions in `root/src/app/game/hub_economy.py`; current content in `root/src/app/content/catalog.py` and the authored content/validation tools; presenter models in `root/src/app/presentation/overworld_presenter.py` and `overworld_models.py`; runtime/disk validation in `root/src/app/snapshot.py`, `root/src/app/persistence/save_document.py`, and `root/src/app/persistence/envelope.py`.
-
-Existing test owners to extend before adding new modules: `root/tests/test_player_state.py`, `test_party_state.py`, `test_floor_two_run_events.py`, `test_hub_economy.py`, `test_overworld_session.py`, `test_overworld_presenter.py`, `test_save_document_boundary.py`, and `test_legacy_save_migration.py`. Browser boundaries are `root/web_tests/test_browser_bridge_contract.py`, `test_browser_smoke_contract.py`, and `root/web_tests/browser_smoke.mjs`.
+Existing test owners to extend before adding new modules: `root/tests/test_player_state.py`, `test_party_state.py`, `test_floor_two_run_events.py`, `test_hub_economy.py`, `test_overworld_session.py`, `test_overworld_presenter.py`, `test_save_document_boundary.py`, and `test_legacy_save_migration.py`. Browser boundaries include `root/web_tests/test_browser_bridge_contract.py`, `test_browser_smoke_contract.py`, and `browser_smoke.mjs`.
 
 ## Approved Equipment Contract
 
-Every item instance has a stable unique instance ID, an authored definition ID, authored acquisition/source provenance, security state, and its persistent upgrade rank. A definition describes legal slot(s), stat/effect profile, upgrade costs/changes, sale value, and salvage output. Derived effective stats are recomputed, never persisted.
+### Ownership And Security
 
-The party owns one shared equipment inventory. Each recruited Drifter can equip any compatible authored item; no Drifter-specific restriction is introduced unless a later authored definition explicitly requires one. Equipment may be managed at the Hub or a safe Rest. During an outing, only the active pair may change loadouts. One instance cannot be equipped twice, duplicated, transferred into two owners, or disposed while referenced.
+- The party owns a shared equipment inventory of unique instances. Every instance has a stable instance ID, authored definition/template identity, source provenance, secured/unsecured status, and persistent progression/generated state. Drifters persist slot-to-instance references.
+- Equipment can transfer among recruited Drifters. Equip, swap, inspect, and other per-Drifter actions require the exact target ID. At Hub or a safe Rest, any recruited Drifter may be managed; during an outing only the active pair may change loadouts.
+- One instance cannot be duplicated, equipped in multiple slots/owners, or disposed while referenced. All failed/stale operations reject without partial mutation.
+- Equipping unsecured gear never secures it. Safe Rest/extraction/boss returns bank it under the existing rules. Death and Return Talisman remove lost unsecured instances and clear only references to those IDs atomically. Secured gear, other equipment, character progression/resources, and signature-weapon investments remain unchanged. Attached modifiers on lost unsecured armor are part of that lost instance; separately stored secured modifiers survive.
 
-Primary armor slots are **Helm, Chest, Gloves, Boots**. Accessory slots are **one Ring and one Pendant per Drifter**. The existing signature-weapon slot/state is independent; do not reinterpret `off_hand` or migrate a generic legacy `accessory` into Ring or Pendant without an unambiguous authored mapping.
+### Armor, Rarity, And Modifiers
 
-Armor uses a finite deterministic upgrade track with one shared maximum for every armor piece. The initial implementation default is four authored upgrade steps (rank 0 through rank 4), recorded as a tunable system setting rather than a permanent balance law. Each step consumes its authored shared-material costs and applies its authored stat/effect change; no RNG, rarity lockout, or floor-origin ceiling. Item prices, material quantities, salvage yields, and effect magnitudes stay in authored data and are tunable. Accessories are equipable/persistent in M5 but are not upgradeable in this milestone.
+- Only **armor** is procedural and modifier-bearing in M5. Armor slots are Helm, Chest, Gloves, and Boots.
+- Armor instances combine authored slot/family/template/material, rarity, base-stat profile, generated modifier results, unique identity, and investment. Use an injected RNG at the authoritative generation event; persist the actual result so load, retry, view rebuild, and repeated input never reroll it.
+- Rarity grades are Common, Uncommon, Rare, Epic, and Legendary. Modifier capacity is respectively 1, 2, 3, 4, and 5. A capacity slot corresponds to its grade: a Legendary item can hold one modifier of each grade, not five arbitrary modifiers. Armor rarity is separate from weapon material grade.
+- Modifier definitions are authored and validated with grade, supported effect values, and compatibility. Generated or extracted modifier instances retain exact authored identity/effect values and compatibility when stored or attached.
+- Armor stat upgrades and rarity advancement are distinct deterministic operations with separately authored costs. Every armor piece uses the same configurable stat-upgrade cap; early armor can receive full stat investment. Rarity advancement preserves the armor instance identity, its investment, and compatible installed modifiers while increasing rarity/capacity. It is not a random success roll and does not reroll the item.
+- Rarity offers more customization, not an automatic universal power multiplier. An early item can remain viable through investment and modifiers, but need not equal every later item's raw profile. Higher rarity appears progressively by dungeon depth; Legendary is unavailable at the opening and is a meaningful normal reward possibility on the final floors. Exact weights, costs, stat ranges, and effect magnitudes are authored/tunable rather than balance locks.
+- Use M3-supported stats and combat effects only. M5 does not add elemental, alchemical, status, or other resistance calculations or a second effect engine.
 
-The first content slice uses two Helm definitions with distinct, M3-supported stat bonuses and at least one real authored acquisition source. No new resistance channel or passive-effect engine is added. Equipment bonuses join the existing effective-stat composition once; M3 scaling and mitigation semantics remain authoritative. Weapon progression behavior is unchanged.
+### Static Accessories And Disposal
 
-Hub disposal accepts secured items only. An equipped item must first be unequipped or replaced; sale/dismantle requires explicit confirmation and removes exactly that instance. Sale and salvage availability/output are authored per definition. Failed or stale transactions make no partial changes.
+- Each Drifter has one Ring and one Pendant/Necklace slot. Accessories are fixed authored equipment: they are not procedurally generated, upgraded, rarity-advanced, or given modifier slots in M5.
+- Rings and Pendants/Necklaces **cannot be modifier-extracted or disenchanted**. Modifier extraction is armor-only. This does not by itself prohibit an accessory sale or material dismantle; those remain available only if its authored definition explicitly permits them, and neither can produce a modifier.
+- Merchant and Alchemist services operate at the Hub on secured gear; disposal requires an unreferenced instance and explicit confirmation. Sell, dismantle, and modifier extraction are different actions with authored outcomes. Extraction destroys one secured armor donor and stores its eligible modifiers; it is never an accessory operation. Sale/salvage availability and proceeds remain definition data.
+- Any operation consuming an instance, modifier, gold, or materials is atomic. Never duplicate or partially lose gear, modifiers, or resources on failure.
 
-Equipment found during an outing is an individual unsecured instance. Equipping it never changes its security state. Safe extraction, Rest extraction, and boss return apply existing item-banking rules. Death and Return Talisman remove unsecured gear and clear only equipped references to those removed instance IDs in the same state transition. All secured instances, unrelated equipped references, signature weapons/components/progression, and all other Drifter investment remain unchanged. If a secured item was displaced by the lost item, it remains owned and secured; the loss operation does not silently destroy or duplicate it.
+## Save, Event, And Client Boundaries
 
-## State, Save, And Client Boundaries
-
-- The party is the canonical owner of equipment instances and their secured/unsecured provenance. Drifters hold slot-to-instance references. Run-event settlement owns the creation of dropped unsecured instances; party return/death/Talisman settlement owns banking or removal.
-- Exact target IDs are required for equip, swap, inspect, and all other per-Drifter actions. Clients send IDs/actions and display authoritative previews; they do not compute prices, derived stats, or final upgrade outcomes.
-- Use candidate-state transactions for multi-owner changes. Applying an equipment drop, upgrading, disposing, extracting, dying, or using a Return Talisman must not leave costs/rewards and item references out of sync if validation or required persistence fails.
-- Add a forward-only game-state migration from runtime schema 17 / disk schema 18 to runtime 18 / disk 19. Preserve current weapon state and every valid existing object; old saves gain no free armor or rolls. Map only unambiguous legacy equipment fields, leave new slots empty, and reject malformed/unknown references rather than inventing replacements. Preserve immutable remote revisions; profile envelope/API/database versions remain unchanged.
-- Strictly validate instance-ID uniqueness, definition and slot validity, rank bounds, authored effect fields, source/security state, one-owner/one-reference rules, and the rule that an unsecured reference cannot be made secured by equip/swap. A missing definition is a load error, not a loot-table replacement.
-- Terminal and browser expose the same inventory/loadout, exact Drifter selection, item inspection, equip/swap, upgrade preview, merchant sale/salvage confirmation, and rejection reasons. Visual rendering is not required.
-
-## Gate 0 - Approved Policy And Entry Map
-
-- [x] Record M5-D1 through D5 below.
-- [x] Revalidate the current M4A baseline and record owners, state/schema versions, exit behavior, client/test locations, and migration boundaries.
-
-Proof: all five product decisions and the current `614586e` entry baseline are recorded; no additional product decisions are required.
+- Persist exact generated armor outcomes, modifier instances and attachment, rarity, stat-upgrade investment, ownership, provenance/security, and equipped references. Do not reconstruct random outcomes during loading or store derived effective stats.
+- Use the normal forward-only runtime/disk save migration. Legacy saves gain no armor, modifiers, rarity, or random rolls; preserve all valid existing equipment/weapon state. Do not guess-map the generic legacy `accessory` into Ring or Pendant/Necklace. Preserve immutable remote revisions and profile-envelope semantics.
+- Validate unique IDs, known definitions, generated value bounds, rarity/capacity/grade compatibility, source/security, resource accounting, and one-owner/one-reference consistency. Missing definitions and malformed saved outcomes fail closed.
+- Resolve generated equipment at the persisted reward event. Persist enough event/result evidence to prevent rerolls or duplicate drops across retry, reload, and repeated inputs.
+- Candidate-state transactions cover equip/swap, upgrade, rarity advancement, sale, dismantle, extract, affix/replace, reward generation, safe banking, death, and Talisman settlement.
+- Terminal and browser clients request semantic actions with exact IDs and display authoritative item/effect/cost previews. Both expose equivalent ownership, loadout, inspection, upgrades, rarity advancement, alchemist actions, disposal, and rejection feedback. Clients do not implement RNG, legality, prices, or derived-stat calculations.
 
 ## Implementation Defaults
 
-These are first-pass, data-driven implementation choices, not additional locked balance decisions:
+These are tunable implementation defaults, not additional balance approvals:
 
-- Use four deterministic armor upgrade steps (rank 0 through rank 4) for the initial system. Keep the shared cap configurable so later tuning can change it without changing save ownership semantics.
-- Use the existing shared-material inventory for upgrade costs; do not add a new currency or upgrade RNG.
-- Keep the initial effects to authored bonuses supported by the current M3 effective-stat/combat paths. Exact names, amounts, prices, costs, and salvage outputs remain content data and may be tuned later.
-- Use authored fixed salvage outputs for the initial armor items. Do not introduce another random reward roll for dismantling equipment.
+- Keep armor rarity, modifier grade, and weapon material grade as distinct data dimensions.
+- Keep generation's RNG injectable; author one canonical floor-to-rarity policy for floors 1-10 and persist generated results, not a recipe for rerolling them.
+- Start with four deterministic armor stat-upgrade steps (rank 0 through rank 4) and one configurable shared cap. This is a tunable implementation default, not a permanent balance law. Keep rarity advancement separate and deterministic.
+- Use the existing shared gold/material inventory and existing atomic transaction patterns. Do not add new currencies, random upgrade failure, or Alchemy XP.
+- Keep ordinary consumable alchemy and weapon Crafting XP unchanged. The new Alchemist owns only armor modifier extraction/affixing and any explicitly scoped equipment operations.
+- If an armor has no eligible installed modifiers, extraction should be unavailable rather than destroy it for no modifier result. This is a conservative implementation default, not a broader alchemy rule.
+- Exact armor templates, modifier values, costs, weights, and sale/salvage outputs stay in authored data and remain tunable.
 
-## Gate 1 - Instance Ownership, Equip, Swap, And Save
+## Gates
 
-- [ ] Author two distinct Helm definitions with supported M3 stat bonuses, rank 0-4 effect/cost data, authored values, and a real acquisition source. Record the exact sample data in the content spec; values are tunable.
-- [ ] Map existing save fixtures and valid equipment payloads so the forward migration preserves current data and creates no armor for legacy players.
-- [ ] Add focused model/content tests for authored definitions, unique instances, legal slots, compatibility, upgrade rank bounds, source/provenance, and strict invalid-ID rejection.
-- [ ] Add red/green ownership tests: same definition creates distinct instances; exact recruited Drifter targeting; wrong-slot, unowned, unknown, duplicate-reference, and inactive-during-outing actions reject with zero mutation.
-- [ ] Implement shared equipment storage and Drifter slot references. Equip/swap retains the displaced instance and its upgrade rank; no action changes security state.
-- [ ] Add runtime 17 -> 18 and disk 18 -> 19 forward migration, strict current-schema validation, save/reload, and remote-payload rejection/advance coverage. Existing signatures, weapons, Tier V, learned techniques, M3 advancement, and legacy state remain unchanged.
-- [ ] Verify old saves create no armor and preserve all valid prior data; do not map the old generic `accessory` placeholder to Ring/Pendant by guess.
+### Gate 0 - Planning And Contract Reconciliation
 
-Proof: own two distinct Helms -> equip A -> swap to B -> equip A on another recruited Drifter -> save/reload -> exact IDs, rank, provenance, and legal references remain correct.
+- [x] Record the inherited M5-D1 through D5 ownership/equip/security approvals and the user's static Ring/Pendant/Necklace, armor-only disenchant clarification.
+- [x] Revalidate the current M4A code baseline, migration versions, reward boundary, exits, and test/client owners.
+- [ ] Resolve the open modifier replacement/recovery and disposal-of-attached-modifier contracts below before starting the Alchemist gate.
 
-## Gate 2 - Deterministic Upgrade And Merchant Disposal
+Proof: this plan distinguishes inherited rules, revised scope, tunable authored data, and remaining product decisions. No production implementation starts until this revised plan is reviewed.
 
-- [ ] Add focused upgrade tests for each authored rank, preview-versus-commit equality, exact material spend, insufficient material, maximum rank, repeated input, and zero partial mutation on rejection/failure.
-- [ ] Implement Hub-only deterministic armor upgrades using the shared-material economy and authored rank data. The early and later Helm both reach rank 4; no floor or rarity condition prevents the early piece from reaching the cap.
-- [ ] Integrate authored sale and salvage for secured equipment instances. Equipped items reject disposal until unequipped/replaced; confirm once, remove one instance, grant only authored proceeds/output, and reject stale repeated disposal.
-- [ ] Verify upgrades and disposal do not duplicate effects, alter permanent stats, grant HP/Mana, or affect weapon progression.
-- [ ] Add terminal/browser merchant views for item inspection, upgrade preview, costs/effects, and explicit sale/salvage confirmation for the one-slot slice.
+### Gate 1 - Persistent Instance Ownership And Equip
 
-Proof: both Helms traverse the complete deterministic progression; cancellation/rejection is mutation-free; a disposed instance never returns after save/reload.
+- [ ] Define validated armor-template, static-accessory, and instance records; define party-owned equipment storage and per-Drifter slot references.
+- [ ] Prove exact targeting, ownership transfer, compatible slots, no duplicate references, active-pair restrictions during outings, and no security change on equip/swap.
+- [ ] Add a forward runtime/disk schema migration from the actual entry version. Legacy saves receive no equipment; preserve current weapon, M3, and M4A state. Keep envelope/API/database unchanged unless implementation review establishes a necessary change.
+- [ ] Prove save/reload preserves exact IDs, provenance/security, ownership, and equipped references. Reject malformed references and unknown definitions without partial reconstruction.
+- [ ] Implement supported equipment-stat composition through existing M3 boundaries. Equipping never heals; when an effect decreases a maximum resource, clamp current value only as required.
 
-## Gate 3 - Full Slots, Accessories, And Outing Provenance
+Proof: two distinct armor instances can be transferred and swapped between exact recruited Drifters, then save/reload with no duplication, loss, or security promotion.
 
-- [ ] Extend authored definitions and legal equipped references to Helm/Chest/Gloves/Boots plus one Ring and one Pendant. Add only the content needed to prove each slot and the shared stat-effect path; accessory upgrades remain absent.
-- [ ] Extend the M4A run-event reward boundary to create an equipment instance exactly once at the authored drop event. Persist event/result/instance evidence so view rebuild, repeated input, save/reload, and retry cannot reroll or duplicate gear.
-- [ ] Implement security transitions using existing exit owners: safe extraction/Rest/boss returns bank equipment according to current rules; death and Return Talisman atomically remove unsecured instances and clear only their equipped references.
-- [ ] Test equipped unsecured gear on death and Talisman; secured equipped and unequipped gear survives; the displaced secured item remains intact; unrelated characters' stats, resources, advancement, weapon/component state, and equipment remain unchanged.
-- [ ] Test gear acquired before/at Rest, after continuing from Rest, at boss settlement, after load, and through all applicable Floor II exit methods. Floor I route, rewards, and difficulty remain unchanged.
+### Gate 2 - Authored Templates, Modifiers, And Reproducible Generation
 
-Proof: a run drop remains unsecured after equip and reload; extraction banks it; death/Talisman lose it with no dangling reference or mutation to secured equipment.
+- [ ] Define content schemas/validators for armor templates, families, rarity, stat ranges, modifier pools, modifier grades, effect compatibility, and generation policy.
+- [ ] Author a small usable catalog that exercises Helm, Chest, Gloves, and Boots; all five modifier grades; and one static Ring plus one static Pendant/Necklace. Use controlled fixtures for rare edge cases; do not author future-floor encounter placements here.
+- [ ] Implement injected-RNG generation that returns one fully materialized unique armor instance. Identical authored input plus identical RNG stream gives identical results; generated values remain bounded and compatible.
+- [ ] Implement rarity capacity/grade rules: Common 1, Uncommon 2, Rare 3, Epic 4, Legendary 5; each item has at most one modifier of each eligible grade.
+- [ ] Persist and reconstruct exact generated stats/modifiers without another random draw. Test duplicate calls/reloads against event evidence and prove one reward event creates at most one instance.
+- [ ] Add content validation for duplicate IDs, invalid ranges/grades, unsupported effects, bad slot/family references, impossible capacities, and malformed RNG result data.
 
-## Gate 4 - Client Parity And Cumulative Qualification
+Proof: seeded generation is reproducible; the saved instance round-trips byte-for-byte in gameplay-relevant identity/effects; invalid content fails validation.
 
-- [ ] Align terminal and browser action availability, exact target selection, previews, inventory/loadout projection, and failure feedback. The bridge submits semantic IDs/actions only.
-- [ ] Add one built-browser journey: acquire two Helms -> equip/upgrade -> inspect the other active Drifter -> save/reload -> swap -> equip a Floor II drop -> use an approved safe return and verify banking. Add focused death/Talisman browser proof only where it remains deterministic and does not duplicate the domain matrix.
-- [ ] Extend the real pinned MicroPython probe with bounded definition/instance, equip/swap, upgrade, snapshot/reload, and teardown coverage; record the actual memory frontier and do not claim a runtime result that was not run.
-- [ ] Run focused tests, full root pytest, web pytest, content validation, compile/build, browser smoke, save/migration/profile validation, PostgreSQL service tests, migration-from-zero, Alembic parity, pinned MicroPython matrix, and exact-SHA hosted CI.
-- [ ] Re-review every removed or replaced behavior assumption against M2 exits, M3 effect/resource rules, and M4A Floor II run-event settlement. Record exact SHA and observed results before marking M5 complete.
+### Gate 3 - Deterministic Armor Upgrades And Rarity Advancement
 
-Closure: all four armor slots and Ring/Pendant are persistent and usable; exact item investment survives swaps; early armor reaches the shared cap; disposal and run-loss behavior are atomic; terminal/browser agree; saves migrate without free gear; signature weapons and M4A behavior remain intact; all required qualification is green.
+- [ ] Implement Hub stat upgrades as a deterministic authored rank track, separate from rarity. One configurable shared maximum applies to all armor; early armor can reach it.
+- [ ] Implement Hub rarity advancement as a separate deterministic transaction with authored gold/material costs, preserving instance identity, stat investment, and compatible modifiers while unlocking the new grade capacity.
+- [ ] Prove upgrade/advancement preview matches commit, exact resource spending, insufficient-resource rejection, rank/rarity caps, retries, failed-write rollback, and no random outcome on load/retry.
+- [ ] Verify stat/effect projection changes once, never writes permanent character stats, never heals/refills, and cannot alter signature-weapon progression.
 
-## Approved Product Decisions
+Proof: one early armor instance advances through its authored stat track and rarity path without replacement, reroll, investment loss, or partial resource spend.
 
-| ID | Approved decision |
-| --- | --- |
-| M5-D1 | One shared equipment inventory with unique persistent instances and exact Drifter equipped references. Any recruited Drifter may equip a compatible item. Loadouts change at Hub or safe Rest; during an outing only the active pair may change gear. |
-| M5-D2 | Armor upgrades are deterministic, finite, authored, and tunable. Every armor piece shares the same maximum; an early piece can reach it. Prices, costs, bonuses, and effects remain authored data. There are no random upgrade rolls or rarity/floor lockouts; use M3-supported stat/effect behavior only. No accessory upgrade curve is assumed. The initial four-step rank count is a tunable implementation default, not a separate product decision. |
-| M5-D3 | Each Drifter has one Ring and one Pendant slot. They are persistent and swappable; accessory upgrades are deferred for M5. |
-| M5-D4 | Sell/dismantle only secured items at the Hub merchant. Equipped items must first be unequipped or replaced. Disposal is explicitly confirmed, authored per item, and atomic. |
-| M5-D5 | Outing equipment stays unsecured when equipped. Existing Rest/extraction/boss rules bank it; death and Return Talisman lose it. Loss removes unsecured instances and clears only their equipped references atomically, preserving secured equipment and all other character investment. |
+### Gate 4 - Alchemist: Armor Modifier Extraction, Affixing, And Replacement
+
+- [ ] Add a distinct equipment-modifier service; keep `HubEconomyService` consumable recipes and weapon Crafting XP unchanged.
+- [ ] Implement separate Hub sale and material-dismantle actions for secured, unreferenced instances, with authored per-item eligibility/results, preview, explicit confirmation, and atomic gold/material accounting. These actions never extract modifiers; static accessories participate only when their authored definitions permit that action.
+- [ ] Extraction accepts secured, unequipped armor only, consumes authored gold/alchemical materials, destroys exactly one donor, and creates persistent modifier instances for its eligible installed modifiers. Accessories reject extraction regardless of caller/client.
+- [ ] Affixing accepts a compatible modifier instance and armor grade slot, consumes the modifier exactly once plus authored costs, and commits atomically.
+- [ ] Implement the approved replacement/recovery behavior only after the open decisions below are answered. Do not guess whether a displaced modifier returns, is destroyed, or can be extracted again.
+- [ ] Prove extraction/affix/replacement save/reload, ownership/provenance, sufficient and insufficient gold/materials, invalid compatibility, repeated submission, failed persistence, and no partial mutation.
+- [ ] Prove sale/dismantle rejects unsecured, equipped, unknown, stale, and unauthorized instances without mutation; a confirmed action consumes only one instance and grants only its authored result.
+
+Proof: only armor can be disenchanted; sale, dismantle, extraction, and affixing remain distinct; successful transactions consume exact inputs and preserve the defined output; every rejection is mutation-free.
+
+### Gate 5 - Ten-Floor Rarity Policy And M4A Reward Integration
+
+- [ ] Author one tunable floor 1-10 eligibility/weight policy. Legendary is ineligible at the opening and becomes progressively available; final-floor policy makes it a meaningful normal reward possibility. Keep precise percentages provisional.
+- [ ] Test every floor's allowed rarity set, progression direction, valid weight totals, modifier pools, and generated stat-quality ranges using deterministic RNG fixtures. Do not require unbuilt floor encounter content.
+- [ ] Integrate the generated armor result with `RunEventService` at its authoritative event boundary and persist event/result/instance evidence.
+- [ ] Extend existing exits: safe Rest/extraction/boss return banks eligible gear; death and Return Talisman remove unsecured gear plus attached modifiers and clear only affected equipped references atomically. Secured gear/modifiers and unrelated Drifter investment survive.
+- [ ] Verify gear remains unsecured when equipped and that carrying capacity still counts consumable supply units only.
+
+Proof: a seeded reward is stable across event retry/load, extraction banks it, death/Talisman removes the unsecured item and attached modifiers with no dangling ref, and secured items remain intact.
+
+### Gate 6 - Terminal/Browser Parity And Cumulative Qualification
+
+- [ ] Add terminal/browser projections and semantic controls for equipment, exact Drifter selection, item inspection, upgrades, rarity advancement, alchemist extraction/affix/replacement, sale, and dismantling. Keep static accessories free of upgrade/modifier/disenchant controls.
+- [ ] Add representative browser journey: generate/receive armor -> equip -> upgrade/advance -> save/reload -> inspect/swap -> extract/affix -> safe return; prove the key failed/atomic cases at domain/service boundaries rather than duplicating the full matrix in Playwright.
+- [ ] Extend the actual pinned MicroPython probe with bounded equipment/modifier/generation/reconstruction operations and record measured memory results; do not claim qualification without running the pinned binary.
+- [ ] Run focused tests, full root/web suites, content validation, compile/build, browser smoke, save migration/profile validation, PostgreSQL service tests, migration-from-zero, Alembic parity, pinned MicroPython matrix, and exact-SHA hosted CI.
+- [ ] Review unchanged M1-M4A behavior: party targeting, secured/unsecured exits, M3 effect semantics, weapon progression, and historical save compatibility.
+
+Closure: armor instances and modifiers are persistent and reproducible; fixed accessories remain fixed; armor upgrades and rarity advancement are deterministic; extraction/affixing/disposal are atomic; ten-floor rarity policy is validated; terminal/browser agree; old saves and M1-M4A behavior remain intact; all applicable qualifications pass on the exact accepted SHA.
+
+## Approved Decisions And Scope Changes
+
+| ID | Decision | Status |
+| --- | --- | --- |
+| M5-D1 | Shared party equipment inventory with unique instances and exact Drifter equipped references; transfers among recruited Drifters; Hub/safe Rest management and active-pair-only changes during outings. | Approved, retained |
+| M5-D2 | Armor stat upgrades remain deterministic, finite, authored, tunable, and share one configurable maximum. Add a separate deterministic rarity-advancement path. Early armor remains viable through investment/customization but is not promised identical raw power to every later item. | Approved, refined by expansion |
+| M5-D3 | One Ring and one Pendant/Necklace per Drifter. Fixed authored/static equipment: no procedural generation, upgrades, rarity advancement, modifier slots, or disenchanting. | Approved, clarified |
+| M5-D4 | Hub sale/dismantle/extraction are distinct authored, confirmed, atomic actions on secured unreferenced items. Modifier extraction/disenchant is armor-only; accessory sale/material dismantle remains definition-gated and never yields modifiers. | Approved, clarified |
+| M5-D5 | Equipping never secures outing gear. Existing safe exits bank it; death/Talisman atomically remove unsecured gear and clear only its refs, preserving secured gear and all unrelated character/weapon investment. Attached modifiers follow their armor instance. | Approved, retained |
+
+## Open Product Contracts
+
+These affect ownership or gameplay and must be resolved before Gate 4, not guessed by the implementer:
+
+1. **Replacing an installed modifier:** what happens to the displaced modifier: returned to stored inventory, destroyed, or another explicit recovery path? What costs, if any, apply to replacement?
+2. **Selling/dismantling armor with installed modifiers:** are attached modifiers destroyed with the armor, or is any recovery allowed? Modifier extraction is a separate armor-only action, but the interaction with sale/material dismantle needs an explicit rule.
+
+Other numeric content (prices, material quantities, stat values, rarity weights, modifier effects, salvage yields) remains authored and tunable and does not block the architecture gates. The existing plan does not introduce a new resistance system or an Alchemy XP/level system.
 
 ## Deferred Beyond M5
 
-M4B Floor III, later-floor equipment catalogs and drop tables, accessory upgrades, sets, transmog, cosmetics, degradation, PvP normalization, new resistance systems, and broad balance tuning remain with their owning milestones or future decisions. The four-step cap is an editable initial default, not a locked long-term balance law.
+M4B/Floor III encounter authoring and actual later-floor source placement, accessory upgrades/modifiers/procedural generation, armor sets, transmog, cosmetics, degradation, PvP normalization, resistance mechanics, and broad balance tuning remain deferred. M5 may define and validate the ten-floor rarity policy but does not author future-floor encounters.
