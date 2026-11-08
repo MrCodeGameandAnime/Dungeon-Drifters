@@ -41,7 +41,13 @@ from app.ui.overworld_ui import (
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
 from app.game.overworld_session import OverworldSession, OverworldSessionResult
-from tests.game_test_support import completed_hub_game, hub_game, recruited_pair_game
+from tests.game_test_support import (
+    completed_hub_game,
+    enter_floor_one_rest,
+    hub_game,
+    recruited_pair_game,
+    three_member_hub_game,
+)
 from tests.game_test_support import advance_surface_to as move_to_authored_rest
 
 
@@ -1036,6 +1042,56 @@ def test_equipment_screen_inspects_and_equips_exact_selected_armor(tmp_path):
     assert session.game_state.member_for_drifter_id(
         "azhvielle"
     ).equipped_equipment_ids["helm"] is None
+
+
+def test_safe_rest_equipment_target_persists_for_benched_drifter_only(tmp_path):
+    game = three_member_hub_game()
+    enter_floor_one_rest(game)
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000858",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_08",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    game.party_state.add_equipment_instance(armor)
+    save_port = make_test_save_port(tmp_path / "safe-rest-equipment.json")
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *args, **kwargs: None,
+        enemy_factory=lambda *args, **kwargs: None,
+        save_port=save_port,
+    )
+
+    assert session.current_view().screen is OverworldScreen.REST
+    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+    selected = session.submit(ChooseCharacterTarget("joruun"))
+    assert selected.equipment.selected_target_id == "joruun"
+    session.submit(ChooseEquipmentInstance(armor.instance_id))
+    equipped = session.submit(
+        ChooseEquipmentAction(
+            target_drifter_id="joruun",
+            equipment_instance_id=armor.instance_id,
+            operation=EquipmentOperation.EQUIP,
+        )
+    )
+
+    assert equipped.notice == "Equipment assigned to the selected Drifter."
+    assert session.game_state.member_for_drifter_id(
+        "joruun"
+    ).equipped_equipment_ids["helm"] == armor.instance_id
+    assert session.game_state.member_for_drifter_id(
+        "branoc"
+    ).equipped_equipment_ids["helm"] is None
+    loaded = save_port.load().game_state
+    assert loaded.member_for_drifter_id("joruun").equipped_equipment_ids[
+        "helm"
+    ] == armor.instance_id
+
+    character = session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    assert character.screen is OverworldScreen.CHARACTER
+    assert character.character.selected_target_id == "branoc"
 
 
 def test_replacing_modifier_requires_confirmation_and_destroys_displaced_modifier(

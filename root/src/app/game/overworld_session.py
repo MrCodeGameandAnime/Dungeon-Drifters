@@ -168,6 +168,7 @@ class OverworldSession:
         self._screen = self._initial_screen(game_state)
         self._selected_item_key = None
         self._selected_character_target_id = None
+        self._selected_equipment_target_id = None
         self._selected_merchant_target_id = None
         self._selected_weapon_target_id = None
         self._respec_preview = None
@@ -437,7 +438,11 @@ class OverworldSession:
             self.game_state,
             screen=self._screen,
             selected_item_key=self._selected_item_key,
-            selected_character_target_id=self._selected_character_target_id,
+            selected_character_target_id=(
+                self._selected_equipment_target_id
+                if self._screen is OverworldScreen.EQUIPMENT
+                else self._selected_character_target_id
+            ),
             selected_merchant_target_id=(
                 self._selected_merchant_target_id
                 or self._selected_character_target_id
@@ -827,9 +832,12 @@ class OverworldSession:
         ):
             self._notice = "That Drifter is not available."
             return
-        self._selected_character_target_id = session_input.drifter_id
-        self._selected_weapon_target_id = session_input.drifter_id
-        self._selected_merchant_target_id = session_input.drifter_id
+        if view.screen is OverworldScreen.EQUIPMENT:
+            self._selected_equipment_target_id = session_input.drifter_id
+        else:
+            self._selected_character_target_id = session_input.drifter_id
+            self._selected_weapon_target_id = session_input.drifter_id
+            self._selected_merchant_target_id = session_input.drifter_id
         self._notice = None
 
     def _select_equipment_instance(self, view, session_input):

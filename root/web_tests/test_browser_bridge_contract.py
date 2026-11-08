@@ -42,7 +42,11 @@ from app.ui.overworld_ui import (
     ChooseEquipmentInstance,
     EquipmentOperation,
 )
-from tests.game_test_support import completed_hub_game, three_member_hub_game
+from tests.game_test_support import (
+    completed_hub_game,
+    enter_floor_one_rest,
+    three_member_hub_game,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -468,6 +472,55 @@ def test_browser_equipment_action_targets_exact_selected_drifter():
     updated = runtime._session.game_state
     assert updated.member_for_drifter_id("azhvielle").equipped_equipment_ids["helm"] == armor.instance_id
     assert updated.member_for_drifter_id("branoc").equipped_equipment_ids["helm"] is None
+
+
+def test_browser_equipment_can_target_benched_drifter_at_safe_rest():
+    runtime = bridge.BrowserRuntime(storage=MemoryBrowserStorage())
+    game = three_member_hub_game()
+    enter_floor_one_rest(game)
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000884",
+        definition_id="field_helm",
+        source_id="browser_safe_rest_equipment_reward",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    game.party_state.add_equipment_instance(armor)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
+    )
+
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    equipment = runtime.submit(
+        {"kind": "overworld_action", "action": "equipment"}
+    )
+    assert tuple(
+        target["drifter_id"] for target in equipment["equipment"]["targets"]
+    ) == ("branoc", "azhvielle", "joruun")
+
+    selected = runtime.submit(
+        {"kind": "character_target", "drifter_id": "joruun"}
+    )
+    assert selected["equipment"]["selected_target_id"] == "joruun"
+    runtime.submit(
+        {"kind": "equipment_instance", "instance_id": armor.instance_id}
+    )
+    equipped = runtime.submit(
+        {
+            "kind": "equipment_action",
+            "target_drifter_id": "joruun",
+            "equipment_instance_id": armor.instance_id,
+            "operation": "equip",
+        }
+    )
+
+    assert equipped["notice"] == "Equipment assigned to the selected Drifter."
+    assert runtime._session.game_state.member_for_drifter_id(
+        "joruun"
+    ).equipped_equipment_ids["helm"] == armor.instance_id
 
 
 def test_bridge_exposes_shared_loot_in_items_and_item_inspection():

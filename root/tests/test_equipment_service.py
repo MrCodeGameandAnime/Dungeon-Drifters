@@ -281,6 +281,50 @@ def test_benched_recruited_drifter_can_manage_equipment_at_safe_rest():
     ).equipped_equipment_ids["helm"] == item.instance_id
 
 
+def test_floor_one_equipment_change_outside_saveable_rest_is_rejected_without_save():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    game.overworld_state.begin_route("floor_one")
+    item = _field_helm()
+    game.party_state.add_equipment_instance(item)
+    save_port = MemorySavePort()
+    before = game.snapshot()
+
+    result = EquipmentService(save_port=save_port).equip(
+        game,
+        target_drifter_id="branoc",
+        instance_id=item.instance_id,
+    )
+
+    assert result.status is EquipmentActionStatus.NOT_AVAILABLE
+    assert result.game_state is game
+    assert save_port.saved_states == []
+    assert game.snapshot() == before
+
+
+def test_active_pair_can_change_equipment_between_floor_two_encounters():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    assert game.party_state.complete_floor_one_boss(game.active_party_members)
+    assert game.party_state.start_floor_two_run(
+        run_id_factory=lambda: "equipment-run"
+    ) == 100
+    game.overworld_state.begin_route("floor_two")
+    item = _field_helm()
+    game.party_state.add_equipment_instance(item)
+
+    result = EquipmentService(save_port=MemorySavePort()).equip(
+        game,
+        target_drifter_id="branoc",
+        instance_id=item.instance_id,
+    )
+
+    assert result.status is EquipmentActionStatus.EQUIPPED
+    assert result.game_state.member_for_drifter_id(
+        "branoc"
+    ).equipped_equipment_ids["helm"] == item.instance_id
+
+
 def test_benched_recruited_drifter_cannot_change_loadout_after_rest():
     game, route, rest = _three_member_floor_one_rest()
     next_node = route.nodes[route.nodes.index(rest) + 1]

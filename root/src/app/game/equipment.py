@@ -29,6 +29,44 @@ class EquipmentActionResult:
     game_state: GameState
 
 
+def equipment_target_members(game_state):
+    if _is_unresolved_safe_rest(game_state):
+        return game_state.recruited_members
+    return game_state.members_available_to_party
+
+
+def can_manage_equipment_target(game_state, target_drifter_id):
+    try:
+        game_state.member_for_drifter_id(target_drifter_id)
+    except (TypeError, ValueError):
+        return False
+    party = game_state.party_state
+    if party.phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
+        return True
+    if party.phase not in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
+        return False
+    if _is_unresolved_safe_rest(game_state):
+        return True
+    if game_state.overworld_state.active_route_id != "floor_two":
+        return False
+    return target_drifter_id in party.active_drifter_ids
+
+
+def _is_unresolved_safe_rest(game_state):
+    party = game_state.party_state
+    if party.phase is not DungeonPhase.OUTING:
+        return False
+    node_id = game_state.overworld_state.current_route_node_id
+    try:
+        current_node = get_route_node_spec(node_id)
+    except (TypeError, ValueError):
+        return False
+    return (
+        current_node.kind is RouteNodeKind.REST
+        and node_id not in game_state.overworld_state.resolved_rest_node_ids
+    )
+
+
 class EquipmentService:
     def __init__(self, *, save_port):
         if not is_save_port(save_port):
@@ -89,31 +127,13 @@ class EquipmentService:
 
     @staticmethod
     def _target_can_manage(game_state, target_drifter_id):
-        try:
-            game_state.member_for_drifter_id(target_drifter_id)
-        except ValueError:
-            return False
-        party = game_state.party_state
-        if party.phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
-            return True
-        if party.phase not in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
-            return False
-        node_id = game_state.overworld_state.current_route_node_id
-        try:
-            current_node = get_route_node_spec(node_id)
-        except (TypeError, ValueError):
-            return False
-        safe_rest = (
-            current_node.kind is RouteNodeKind.REST
-            and node_id not in game_state.overworld_state.resolved_rest_node_ids
-        )
-        if safe_rest:
-            return True
-        return target_drifter_id in party.active_drifter_ids
+        return can_manage_equipment_target(game_state, target_drifter_id)
 
 
 __all__ = [
     "EquipmentActionResult",
     "EquipmentActionStatus",
     "EquipmentService",
+    "can_manage_equipment_target",
+    "equipment_target_members",
 ]

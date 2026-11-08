@@ -22,6 +22,10 @@ from app.content.armor_spec import get_armor_modifier, get_armor_rarity
 from app.content.equipment_spec import get_equipment_template
 from app.game.alchemist import AlchemistService
 from app.game.armor_progression import ArmorProgressionService
+from app.game.equipment import (
+    can_manage_equipment_target,
+    equipment_target_members,
+)
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
@@ -1107,7 +1111,27 @@ class OverworldPresenter:
 
     @staticmethod
     def _equipment_view(game_state, selected_target_id, selected_instance_id=None):
-        member, selected_target_id, targets = OverworldPresenter._selected_party_member(
+        member_specs = tuple(
+            (member, _member_drifter_spec(member))
+            for member in equipment_target_members(game_state)
+        )
+        target_ids = {spec.drifter_id for _member, spec in member_specs}
+        if selected_target_id not in target_ids:
+            selected_target_id = member_specs[0][1].drifter_id
+        member = next(
+            member
+            for member, spec in member_specs
+            if spec.drifter_id == selected_target_id
+        )
+        targets = tuple(
+            MerchantTargetView(
+                drifter_id=spec.drifter_id,
+                display_name=member.character.full_display_name,
+                selected=spec.drifter_id == selected_target_id,
+            )
+            for member, spec in member_specs
+        )
+        target_can_manage = can_manage_equipment_target(
             game_state,
             selected_target_id,
         )
@@ -1165,19 +1189,18 @@ class OverworldPresenter:
         }
         pendant = instance_by_id.get(equipped.get("pendant"))
         ring = instance_by_id.get(equipped.get("ring"))
+        equipped_bonuses = {}
+        for instance_id in equipped.values():
+            if instance_id is None:
+                continue
+            for stat, bonus in instance_by_id[instance_id].stat_bonuses.items():
+                equipped_bonuses[stat] = equipped_bonuses.get(stat, 0) + bonus
         benefits = (
             selected_item.stat_summary
             if selected_item is not None and selected_item.equipped_by_drifter_id == selected_target_id
             else tuple(
                 f"{name.replace('_', ' ').title()} {value:+d}"
-                for name, value in sorted(
-                    {
-                        stat: bonus
-                        for instance_id in equipped.values()
-                        if instance_id is not None
-                        for stat, bonus in instance_by_id[instance_id].stat_bonuses.items()
-                    }.items()
-                )
+                for name, value in sorted(equipped_bonuses.items())
             ) or ("None",)
         )
         actions = ()
@@ -1192,8 +1215,16 @@ class OverworldPresenter:
                 EquipmentActionView(
                     operation="equip",
                     label="Equip",
-                    enabled=not already_equipped,
-                    disabled_reason="already_equipped" if already_equipped else None,
+                    enabled=not already_equipped and target_can_manage,
+                    disabled_reason=(
+                        "already_equipped"
+                        if already_equipped
+                        else (
+                            None
+                            if target_can_manage
+                            else "save_checkpoint_required"
+                        )
+                    ),
                     summary=f"Equip on {member.character.full_display_name}",
                 )
             ]
@@ -1405,14 +1436,14 @@ class OverworldPresenter:
         resolved_rest_nodes = set(
             overworld.resolved_rest_node_ids
         )
-        floor_one_cursor = (
+        dungeon_route_cursor = (
             tuple(node.node_id for node in route_nodes).index(current_id)
-            if overworld.active_route_id == "floor_one"
+            if overworld.active_route_id in {"floor_one", "floor_two"}
             else None
         )
-        floor_one_node_indexes = (
+        dungeon_route_node_indexes = (
             {node.node_id: index for index, node in enumerate(route_nodes)}
-            if floor_one_cursor is not None
+            if dungeon_route_cursor is not None
             else None
         )
 
@@ -1439,9 +1470,9 @@ class OverworldPresenter:
                         else (
                             MapNodeState.COMPLETED
                             if (
-                                floor_one_node_indexes[node.node_id]
-                                < floor_one_cursor
-                                if floor_one_cursor is not None
+                                dungeon_route_node_indexes[node.node_id]
+                                < dungeon_route_cursor
+                                if dungeon_route_cursor is not None
                                 else is_completed(node)
                             )
                             else MapNodeState.REMAINING

@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import get_drifter_spec
+from app.content.catalog import get_drifter_spec, get_route_spec
 from app.game.game_state import GameState
 from app.items.armor_modifier import ArmorModifierInstance
 from app.items.equipment import EquipmentInstance
@@ -20,7 +20,9 @@ from app.content.catalog import DRIFTER_SPECS, get_weapon_spec
 from tests.game_test_support import (
     advance_surface_to,
     completed_hub_game,
+    enter_floor_one_rest,
     recruited_pair_game,
+    three_member_hub_game,
     hub_game,
 )
 
@@ -581,6 +583,48 @@ def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
     assert "Body" not in repr(view)
 
 
+def test_equipment_view_offers_all_recruits_at_an_unresolved_safe_rest():
+    game = three_member_hub_game()
+    enter_floor_one_rest(game)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_character_target_id="joruun",
+    )
+
+    assert tuple(target.drifter_id for target in view.equipment.targets) == (
+        "branoc",
+        "azhvielle",
+        "joruun",
+    )
+    assert view.equipment.selected_target_id == "joruun"
+
+
+def test_equipment_view_disables_floor_one_equip_outside_saveable_rest():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    game.overworld_state.begin_route("floor_one")
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000854",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_04",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+    )
+    game.party_state.add_equipment_instance(armor)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=armor.instance_id,
+    )
+    equip = next(action for action in view.equipment.actions if action.operation == "equip")
+
+    assert equip.enabled is False
+    assert equip.disabled_reason == "save_checkpoint_required"
+
+
 def test_equipment_view_offers_armor_actions_but_keeps_accessories_static():
     game = completed_hub_game()
     armor = EquipmentInstance.create(
@@ -633,6 +677,51 @@ def test_equipment_view_offers_armor_actions_but_keeps_accessories_static():
         ("Bastion", "I")
     ]
     assert {action.operation for action in ring_view.actions} == {"equip"}
+
+
+def test_equipment_benefits_add_same_stat_across_equipped_pieces():
+    game = completed_hub_game()
+    helm = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000855",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_05",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    chest = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000856",
+        definition_id="field_chest",
+        source_id="floor_two_reward_armor_06",
+        secured=True,
+        stat_bonuses={"constitution": 3},
+    )
+    unequipped = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000857",
+        definition_id="field_boots",
+        source_id="floor_two_reward_armor_07",
+        secured=True,
+        stat_bonuses={"dexterity": 1},
+    )
+    for item in (helm, chest, unequipped):
+        game.party_state.add_equipment_instance(item)
+    game.player_state._set_equipped_equipment_ids(
+        {
+            "helm": helm.instance_id,
+            "chest": chest.instance_id,
+            "gloves": None,
+            "boots": None,
+            "ring": None,
+            "pendant": None,
+        }
+    )
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=unequipped.instance_id,
+    )
+
+    assert view.equipment.benefits == ("Constitution +5",)
 
 
 def test_zh_aivra_items_are_selected_and_inspected_without_mutation():
@@ -717,6 +806,29 @@ def test_map_uses_overworld_state_as_the_rest_completion_owner():
     assert states["Ritual Clearing Rest"] is MapNodeState.REMAINING
     assert states["Final Approach Rest"] is MapNodeState.REMAINING
     assert "surface_rest" not in " ".join(states)
+
+
+def test_floor_two_map_uses_route_progress_for_completed_battle_nodes():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    assert game.party_state.complete_floor_one_boss(game.active_party_members)
+    assert game.party_state.start_floor_two_run(
+        run_id_factory=lambda: "map-progress-run"
+    ) == 100
+    route = get_route_spec("floor_two")
+    game.overworld_state.begin_route(route.route_id)
+    for current in route.nodes[1:4]:
+        game.overworld_state.advance_to(
+            current.node_id,
+            contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+        )
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+
+    assert view.route_map.nodes[0].state is MapNodeState.COMPLETED
+    assert view.route_map.nodes[2].state is MapNodeState.COMPLETED
+    assert view.route_map.nodes[3].state is MapNodeState.CURRENT
+    assert view.route_map.nodes[4].state is MapNodeState.REMAINING
 
 
 @pytest.mark.parametrize(
