@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, and earlier M3 records below remain historical checkpoints. The latest M3 Gate 5 extension passed the pinned MicroPython matrix on 2026-11-05 at an 816K/784K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, and earlier M3 records below remain historical checkpoints. The latest M5 review-fix code SHA `f9bf1ae1af34d0d0402553db60d1391c62f8a826` passed the exact pinned MicroPython v1.29.0 matrix on 2026-11-08: 1152K stable 3/3 and the expected 1024K memory limit 3/3. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -446,16 +446,38 @@ compile, and browser build also passed. Local Playwright could not launch
 because the bundled Chromium was absent and system Edge could not start under
 the sandbox.
 
-The recorded pinned MicroPython executable was not available at its documented
-path. A nearby executable had a different SHA-256, so the pinned matrix was
-not rerun or substituted for this correction SHA. The previous 1152K 3/3
-qualification remains evidence for implementation SHA
-`195049845cbfd09b5ef3cdf5e3927cb339efb4c9`, not this correction.
+At the time this correction was recorded, the documented executable lookup
+resolved through a sandbox-specific `%LOCALAPPDATA%` path, so the pinned matrix
+was not rerun or substituted. The qualification was later completed on the
+review-fix code SHA, as recorded below.
 
 Scope clarification: `RunEventService.resolve_armor_reward` is exercised by
 service tests and a controlled browser save fixture, but ordinary Floor II
 battle victories do not call it and no live route armor source is authored.
 The existing armor generation, ownership, and persistence systems therefore
 do not imply that the player currently receives procedural armor from normal
-Floor II encounters. Live source placement is deferred; M5 remains unsealed
-until the corrected SHA receives its pinned MicroPython qualification.
+Floor II encounters. Live source placement is deferred.
+
+## M5 Review-Fix Qualification (2026-11-08)
+
+Code SHA `f9bf1ae1af34d0d0402553db60d1391c62f8a826` contains the M5 review
+fixes for safe-Rest benched-Drifter equipment access, Floor I saveable-Rest
+equipment boundaries, Floor II map progress, and additive display of repeated
+equipment bonuses. The exact pinned MicroPython executable was found at
+`C:\Users\User\AppData\Local\DungeonDrifters\micropython\v1.29.0\source\ports\windows\build-standard\micropython.exe`;
+it is 488,960 bytes with SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` and
+reports MicroPython v1.29.0 on `win32`.
+
+The cumulative matrix used CPython 3.12.14 for the native and forced-overlay
+legs and the exact pinned executable for the MicroPython leg. All three
+completed the M1-M5 probe, semantic parity passed, 1152K was stable 3/3, and
+1024K produced the expected memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The exact-SHA hosted workflow passed in
+[Actions run 42453945121](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42453945121):
+2,233 root tests, 71 web tests, 45 PostgreSQL service tests, content
+validation, compile, the 170-file browser build and full M1-M5 browser smoke,
+migration-from-zero, and Alembic parity. M5 is sealed on this code SHA. Live
+Floor II armor-drop placement remains deferred as specified in the M5 plan.
