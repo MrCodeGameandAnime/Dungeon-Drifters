@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. This is a planning contract, not authorization to select every possible enemy or hazard mechanic.
 
-**Status:** The original Gate 0 was approved on 2026-11-05. The M4 Floor II/III Boss Party Revision was approved on 2026-11-09 and is implemented and locally qualified in the current `dungeon` worktree. Exact-SHA hosted qualification remains pending the implementation push. It supersedes the original M4-D5/D6/D7 provisions on recruitment timing/level and boss XP, and reopens the affected M4A and M4B integration gates. See the revision authority below and the updated [Floor II plan](m4-floor-ii-implementation.md) for evidence. The reported review baseline is `a64f4461c606dc88698fa45138d5f8a89a231868` on `dungeon`.
+**Status:** The original Gate 0 was approved on 2026-11-05. The M4 Floor II/III Boss Party Revision was approved on 2026-11-09 and its Floor II implementation is locally and hosted-qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` ([Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577)). It supersedes the original M4-D5/D6/D7 provisions on recruitment timing/level and boss XP. M4A is closed under the revised Floor II contract; M4B remains open for the Floor III implementation. See the updated [Floor II plan](m4-floor-ii-implementation.md) for evidence. The reported review baseline was `a64f4461c606dc88698fa45138d5f8a89a231868` on `dungeon`.
 
 **Goal:** Deliver authored enemy scaling, bounded decision policies, reward/discovery integration, and meaningful counterplay, then prove staged recruitment through the first full-roster boss.
 
@@ -132,7 +132,7 @@ Closure: M4A enemy/Floor II and M4B Floor III proofs both pass; material/recruit
 
 ## Approved Product Decisions
 
-All M4-D1 through M4-D4 and the revised M4-D5 through M4-D7 product decisions are approved. The 2026-11-09 party revision is implemented and locally qualified: root/web suites, browser smoke, PostgreSQL/migrations/Alembic, and pinned MicroPython have passed. Exact-SHA hosted browser/service/migration evidence remains pending the push. M4B implementation remains sequenced after the M4A correction and M5; integration details are revalidated at entry.
+All M4-D1 through M4-D4 and the revised M4-D5 through M4-D7 product decisions are approved. The Floor II party revision is implemented and qualified: exact-SHA hosted root/web/PostgreSQL tests, browser smoke, migration-from-zero, and Alembic parity passed; the pinned MicroPython matrix passed locally. M4A is closed. M4B implementation remains sequenced after the M4A correction and M5; integration details are revalidated at entry.
 
 | ID | Approved decision |
 | --- | --- |
@@ -146,4 +146,4 @@ All M4-D1 through M4-D4 and the revised M4-D5 through M4-D7 product decisions ar
 
 Durability/persistent injuries remain unapproved optional M9 dispositions; no decision here silently selects them.
 
-The 2026-11-09 revision is implemented and locally qualified; exact-SHA hosted qualification is pending. The previous M4A midway D3 recruitment, permanent recruitment catch-up, Floor III D4 pre-boss recruitment, and full per-member Floor III boss XP wording are superseded and must not be preserved as current requirements. Historical implementation/CI evidence remains valid only for behavior unaffected by this revision.
+The 2026-11-09 Floor II revision is implemented and qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b`; the Floor III portion remains planned, not implemented. The previous M4A midway D3 recruitment, permanent recruitment catch-up, Floor III D4 pre-boss recruitment, and full per-member Floor III boss XP wording are superseded and must not be preserved as current requirements. Historical implementation/CI evidence remains valid only for behavior unaffected by this revision.

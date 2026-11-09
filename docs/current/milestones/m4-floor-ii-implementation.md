@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document records the approved M4A party-size correction; it does not authorize unrelated M4B scope.
 
-**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is implemented and locally qualified in the current worktree on the existing `dungeon` branch. Exact-SHA hosted qualification remains pending the implementation commit and push. It supersedes the earlier midway D3 recruitment and reopens the affected Floor II boss/recruitment/client gates. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
+**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is implemented and qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` in [GitHub Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). It supersedes the earlier midway D3 recruitment and reopens the affected Floor II boss/recruitment/client gates. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
 
 ### Local Review Checkpoints
 
@@ -25,9 +25,9 @@ The original cumulative baseline was qualified by [GitHub Actions run 4227349577
 
 ### 2026-11-09 Party Revision - Local Status
 
-Implemented locally: the scripted pre-boss D3/D4 helper choice, persisted selection, three-member Floor II boss composition, pair-only boss XP, independent Level 1 Hub recruitment for 65 gold, atomic underfunded retry, browser/terminal controls, runtime/disk schema 21/22 migration, and the updated pinned-runtime probe. The current full root suite passed **2,240 tests**; web passed **72**; profile-service/PostgreSQL passed **47**; content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 3 recruitment events); compileall passed; browser build produced **172 runtime files**; full Playwright smoke passed through the M4 helper, recruitment, Floor II boss, and existing M5 journeys. Migration-from-zero and Alembic parity passed. The exact pinned MicroPython matrix passed on this worktree: native/forced-overlay CPython, default MicroPython, semantic parity, 1152K stable 3/3, 1024K expected memory-limit classification 3/3, with final marker `MYP20|RESULT|CLOSURE_COMPLETE`.
+Implemented and qualified: the scripted pre-boss D3/D4 helper choice, persisted selection, three-member Floor II boss composition, pair-only boss XP, independent Level 1 Hub recruitment for 65 gold, atomic underfunded retry, browser/terminal controls, runtime/disk schema 21/22 migration, and the updated pinned-runtime probe. Exact-SHA hosted CI passed **2,240 root tests**, **72 web tests**, and **47 PostgreSQL tests**; content validation, compileall, the **172-runtime-file browser build**, complete Playwright smoke (including helper save/reload, Hub recruitment, and Floor II boss clear), migration-from-zero, and Alembic parity also passed in [run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). The exact pinned MicroPython matrix passed locally on the same source tree: native/forced-overlay CPython, default MicroPython, semantic parity, 1152K stable 3/3, 1024K expected memory-limit classification 3/3, with final marker `MYP20|RESULT|CLOSURE_COMPLETE`.
 
-The remaining qualification item is the hosted workflow on the exact pushed SHA. Local PostgreSQL 17, migrations-from-zero, Alembic parity, built-browser smoke, and pinned MicroPython all passed on the current working tree; none of those local results substitutes for exact-SHA hosted evidence.
+The M4A party revision is hosted-qualified on the exact pushed SHA above. The pinned MicroPython matrix is local evidence; the hosted workflow does not execute that binary. M4B remains a separate future implementation gate and is not claimed complete by this Floor II correction.
 
 ### Review Corrections And Final Qualification
 
@@ -197,7 +197,7 @@ Proof: the terminal journey exercises the actual key mapping and revised helper/
 - [x] Preserve the historical accepted code SHA and hosted results here and in the probe record.
 - [x] Historical baseline: original M4A closure criteria were met and M5 was unblocked.
 - [x] Revised party-size/recruitment contract is implemented locally and has focused regression coverage.
-- [ ] Push the reviewed implementation and obtain exact-SHA hosted browser/PostgreSQL/migration qualification. Local browser, PostgreSQL/migration, and pinned MicroPython qualification are complete; hosted evidence remains required before closing this correction.
+- [x] Push the reviewed implementation and obtain exact-SHA hosted browser/PostgreSQL/migration qualification: run 42704099577 passed on `0aa4ecd5c15013af9c1456db8a53ada50e58357b`.
 
 ## Regression And Acceptance Matrix
 
@@ -220,7 +220,7 @@ Proof: the terminal journey exercises the actual key mapping and revised helper/
 
 ## M4A Closure
 
-The original M4A tree remains historically qualified for its implemented contract. The approved 2026-11-09 party revision is implemented and all local gameplay, terminal/browser, PostgreSQL/migration, and pinned MicroPython checks pass. It remains open only for exact-SHA hosted qualification and recording that evidence. Existing enemy, hazard, discovery, and Grade-II evidence may be reused only where the corrected flow does not change its boundary. M4B remains open.
+The original M4A tree remains historically qualified for its implemented contract. The approved 2026-11-09 party revision is implemented, locally qualified, and hosted-qualified on `0aa4ecd5c15013af9c1456db8a53ada50e58357b`. Existing enemy, hazard, discovery, and Grade-II evidence may be reused only where the corrected flow does not change its boundary. M4A is closed; M4B remains open.
 
 ### Post-Review Correction And Final Qualification (2026-11-06)
 

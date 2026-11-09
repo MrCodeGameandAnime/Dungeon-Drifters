@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, M3, M4A baseline, and M5 records below remain historical checkpoints. The 2026-11-09 M4 temporary-helper/Hub-recruitment revision has also passed the pinned MicroPython v1.29.0 matrix locally on the current uncommitted `dungeon` worktree: 1152K stable 3/3 and the expected 1024K memory-limit classification 3/3. Exact-SHA hosted qualification is pending. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, M3, M4A baseline, and M5 records below remain historical checkpoints. The 2026-11-09 M4 temporary-helper/Hub-recruitment revision passed pinned MicroPython v1.29.0 locally: 1152K stable 3/3 and the expected 1024K memory-limit classification 3/3. Its exact-SHA hosted workflow also passed on `0aa4ecd5c15013af9c1456db8a53ada50e58357b` ([run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577)). These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -499,5 +499,7 @@ passed. Heap qualification reported 1152K stable pass 3/3 and the expected
 1024K memory-limit classification 3/3. Final marker:
 `MYP20|RESULT|CLOSURE_COMPLETE`.
 
-This is local evidence from the current uncommitted worktree, not an
-exact-commit or hosted qualification. Exact-SHA hosted CI remains pending.
+This was local MicroPython evidence from the worktree committed as
+`0aa4ecd5c15013af9c1456db8a53ada50e58357b`; the exact-SHA hosted workflow
+passed in [Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577).
+Hosted CI does not execute the pinned MicroPython binary.
