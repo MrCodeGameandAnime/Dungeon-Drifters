@@ -3401,23 +3401,13 @@ try {
   );
   requireCondition(
     returnedGold >= 65,
-    `Floor II early extraction did not leave enough secured gold to retry D3 recruitment: ${returnedGold}`,
+    `Floor II early extraction did not secure its earned gold: ${returnedGold}`,
   );
-  console.log("M4_BROWSER|EXTRACTION_GOLD_RETRY|PASS");
-
-  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
-  await page.locator("#companion-selection").waitFor({ state: "visible" });
-  const zhaivraChoice = page.locator("#companion-choices .companion-choice")
-    .filter({ hasText: "Zhaivra" });
-  requireCondition(await zhaivraChoice.isEnabled(), "D3 was not recruitable at the Hub after the Floor II return");
-  await zhaivraChoice.click();
-  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
   requireCondition(
-    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
-      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
-    "Hub recruitment did not add D3 at Level 1 while preserving the active pair",
+    !(await page.locator("#overworld-options button").allInnerTexts()).includes("Recruit Companion"),
+    "early Floor II extraction exposed permanent recruitment before the floor was cleared",
   );
-  console.log("M4_BROWSER|D3_HUB_RECRUITMENT|PASS");
+  console.log("M4_BROWSER|EARLY_EXTRACTION_NO_RECRUITMENT|PASS");
 
   await clickVisibleOption(page, "#overworld-options", "Merchant");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
@@ -3638,8 +3628,27 @@ try {
   await page.locator("#items-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
   await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const zhaivraRecruitmentChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Zhaivra" });
   const joruunRecruitmentChoice = page.locator("#companion-choices .companion-choice")
     .filter({ hasText: "Joruun Veyr" });
+  requireCondition(
+    await page.locator("#companion-choices .companion-choice").count() === 2 &&
+      await zhaivraRecruitmentChoice.isEnabled() &&
+      await joruunRecruitmentChoice.isEnabled(),
+    "Floor II clear did not independently offer both D3 and D4 for permanent recruitment",
+  );
+  await zhaivraRecruitmentChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "D3 Hub recruitment did not start at Level 1 while preserving the active pair",
+  );
+  console.log("M4_BROWSER|D3_HUB_RECRUITMENT|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
   requireCondition(
     await page.locator("#companion-choices .companion-choice").count() === 1 &&
       await joruunRecruitmentChoice.isEnabled(),
