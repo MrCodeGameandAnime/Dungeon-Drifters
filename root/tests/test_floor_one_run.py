@@ -34,6 +34,7 @@ from app.ui.overworld_ui import (
     ChooseCompanion,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
+    ChooseFloorTwoBossHelper,
     ChooseOverworldAction,
     ChooseOverworldItem,
 )
@@ -214,8 +215,13 @@ def floor_two_pre_boss_rest_game(*, carried_supplies=None):
     return game
 
 
-def floor_two_boss_game(*, carried_supplies=None):
+def floor_two_boss_game(*, carried_supplies=None, boss_helper_id="zhaivra"):
     game = floor_two_pre_boss_rest_game(carried_supplies=carried_supplies)
+    if boss_helper_id is not None:
+        game.party_state.select_floor_two_boss_helper(
+            boss_helper_id,
+            node_id="floor_two_pre_boss_rest",
+        )
     game.overworld_state.record_resolved_rest_node("floor_two_pre_boss_rest")
     game.overworld_state.advance_to(
         "floor_two_battle_10",
@@ -356,6 +362,48 @@ def test_floor_two_boss_settlement_recovers_after_save_reload():
     assert len(retry_save.saved_states) == 1
 
 
+def test_floor_two_boss_uses_three_combatants_but_only_active_pair_receive_xp():
+    game = floor_two_boss_game(boss_helper_id="joruun")
+    active_ids = game.party_state.active_drifter_ids
+    active_members = game.active_party_members
+    xp_before = tuple(member.exp_state.current for member in active_members)
+    save_port = RecordingSavePort()
+    session = make_session(game, save_port, run_event_rng=StableRng())
+    session._screen = OverworldScreen.MAIN
+
+    battle = session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+
+    assert isinstance(battle, BattleView)
+    assert tuple(member.target_id.removeprefix("drifter_") for member in battle.party_members) == (
+        *active_ids,
+        "joruun",
+    )
+    helper = session.active_battle.party_states[-1]
+    helper_level = helper.level_state.current
+    helper_exp = helper.exp_state.current
+    assert helper_level == min(member.level_state.current for member in active_members)
+    assert "joruun" not in tuple(
+        member.character.profile.drifter_id
+        for member in session.game_state.recruited_members
+    )
+
+    for enemy in session.active_battle.enemies:
+        enemy.health.take_damage(enemy.health.current)
+    session.submit(ChooseAction(ActionIntent.DEFEND))
+
+    assert session.active_battle is None
+    assert session.game_state.party_state.floor_two_cleared
+    assert session.game_state.party_state.active_drifter_ids == active_ids
+    assert all(
+        member.exp_state.current != before or member.level_state.current > 1
+        for member, before in zip(session.game_state.active_party_members, xp_before)
+    )
+    assert helper.level_state.current == helper_level
+    assert helper.exp_state.current == helper_exp
+
+
 def test_return_talisman_is_rejected_during_pending_boss_settlement():
     _game, save_port, session = floor_two_boss_settlement_failure(
         carried_supplies={"return_talisman": 1}
@@ -420,6 +468,68 @@ def test_floor_two_pre_boss_rest_offers_search_site():
     assert view.screen is OverworldScreen.REST
     assert view.location_label == "Pre-Boss Rest"
     assert any(option.label == "Search Site" for option in view.options)
+
+
+def test_floor_two_boss_helper_selection_is_atomic_and_survives_reload():
+    game = floor_two_pre_boss_rest_game()
+    for member, target_level in zip(game.active_party_members, (5, 3)):
+        while member.level_state.current < target_level:
+            member.gain_experience(member.level_state.next_threshold)
+    save_port = RecordingSavePort()
+    session = make_session(game, save_port, run_event_rng=StableRng())
+
+    rest = session.current_view()
+    helper_action = next(
+        option for option in rest.options
+        if option.action is OverworldAction.CHOOSE_FLOOR_TWO_HELPER
+    )
+    assert helper_action.enabled
+    assert "difficult battle lies ahead" in rest.adventure_text
+    blocked_continue = session.submit(
+        ChooseOverworldAction(OverworldAction.SKIP_REST)
+    )
+    assert blocked_continue.screen is OverworldScreen.REST
+    assert session.game_state.overworld_state.current_route_node_id == (
+        "floor_two_pre_boss_rest"
+    )
+
+    selection = session.submit(
+        ChooseOverworldAction(OverworldAction.CHOOSE_FLOOR_TWO_HELPER)
+    )
+    assert selection.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+    assert "D3 and D4 warn" in selection.adventure_text
+    assert tuple(choice.drifter_id for choice in selection.temporary_helper_choices) == (
+        "zhaivra",
+        "joruun",
+    )
+    assert all(choice.level == 3 for choice in selection.temporary_helper_choices)
+    before_failed_save = session.game_state.snapshot()
+    save_port.fail_next_save = True
+
+    failed = session.submit(ChooseFloorTwoBossHelper("zhaivra"))
+
+    assert failed.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+    assert failed.notice == "The helper choice could not be saved. Nothing changed."
+    assert session.game_state.snapshot() == before_failed_save
+
+    chosen = session.submit(ChooseFloorTwoBossHelper("zhaivra"))
+    assert chosen.screen is OverworldScreen.REST
+    assert session.game_state.party_state.floor_two_boss_helper_id == "zhaivra"
+    assert len(save_port.saved_states) == 1
+
+    restored = reconstruct_game_state(build_save_document(save_port.saved_states[-1]))
+    resumed = make_session(restored, RecordingSavePort(), run_event_rng=StableRng())
+    resumed_view = resumed.current_view()
+    assert resumed_view.screen is OverworldScreen.REST
+    assert not any(
+        option.action is OverworldAction.CHOOSE_FLOOR_TWO_HELPER
+        for option in resumed_view.options
+    )
+    assert restored.party_state.floor_two_boss_helper_id == "zhaivra"
+    before_replay = restored.snapshot()
+    rejected_repeat = resumed.submit(ChooseFloorTwoBossHelper("joruun"))
+    assert rejected_repeat.screen is OverworldScreen.REST
+    assert restored.snapshot() == before_replay
 
 
 def test_floor_two_search_site_selects_searcher_before_resolving():
@@ -524,6 +634,8 @@ def test_floor_two_death_cannot_reload_the_pre_boss_rest_checkpoint(tmp_path):
         "Game saved."
     )
 
+    session.submit(ChooseOverworldAction(OverworldAction.CHOOSE_FLOOR_TWO_HELPER))
+    session.submit(ChooseFloorTwoBossHelper("zhaivra"))
     session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
     session.submit(ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER))
     for member in game.active_party_members:
@@ -1211,7 +1323,7 @@ def test_floor_two_return_talisman_after_smoke_saves_xp_only_hub_return():
     assert fallback.overworld_state.active_route_id == "surface"
 
 
-def test_floor_two_midway_recruitment_is_atomic_and_keeps_active_pair():
+def test_floor_two_midway_recruitment_is_unavailable_and_cannot_mutate_roster():
     game = game_at_completed_hub()
     party = game.party_state
     party.add_shared_gold(65)
@@ -1222,150 +1334,156 @@ def test_floor_two_midway_recruitment_is_atomic_and_keeps_active_pair():
     rest = reach_floor_two_midway_rest(session)
     active_ids = session.game_state.party_state.active_drifter_ids
 
-    assert any(
+    assert not any(
         option.action is OverworldAction.RECRUIT_COMPANION
         for option in rest.options
     )
-    selection = session.submit(
+    before = session.game_state.snapshot()
+    rejected_action = session.submit(
         ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
     )
-    assert selection.screen is OverworldScreen.COMPANION_SELECTION
-    assert selection.recruitment_cost == 65
-    assert tuple(
-        choice.drifter_id for choice in selection.companion_choices
-    ) == ("zhaivra", "joruun")
-
-    before_failed_save = session.game_state.snapshot()
-    save_port.fail_next_save = True
-    failed = session.submit(
+    assert rejected_action.screen is OverworldScreen.REST
+    assert rejected_action.notice == "That option is not available."
+    rejected_stale_choice = session.submit(
         ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
     )
-    assert failed.screen is OverworldScreen.COMPANION_SELECTION
-    assert failed.notice == "The recruitment could not be saved. Nothing changed."
-    assert session.game_state.snapshot() == before_failed_save
-    assert "floor_two_d3_recruitment" not in session.game_state.story_state.completed_events
-
-    recruited = session.submit(
-        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
-    )
-
-    assert recruited.screen is OverworldScreen.REST
+    assert rejected_stale_choice.screen is OverworldScreen.REST
+    assert session.game_state.snapshot() == before
     assert session.game_state.party_state.active_drifter_ids == active_ids
     assert tuple(
         member.character.profile.drifter_id
         for member in session.game_state.recruited_members
-    ) == ("branoc", "azhvielle", "zhaivra")
-    assert session.game_state.party_state.shared_gold == (
-        before_failed_save["party"]["shared_gold"] - 65
-    )
-    assert "floor_two_d3_recruitment" in session.game_state.story_state.completed_events
-    committed = save_port.saved_states[-1]
-    restored = reconstruct_game_state(build_save_document(committed))
-    assert restored.party_state.active_drifter_ids == active_ids
-    assert tuple(
-        member.character.profile.drifter_id
-        for member in restored.recruited_members
-    ) == ("branoc", "azhvielle", "zhaivra")
-    assert "floor_two_d3_recruitment" in restored.story_state.completed_events
+    ) == ("branoc", "azhvielle")
 
 
-def test_floor_two_recruit_matches_lower_active_level_with_unspent_growth_points():
+def test_floor_two_recruits_both_remaining_drifters_at_hub_level_one_atomically():
     game = game_at_completed_hub()
     party = game.party_state
-    party.add_shared_gold(65)
-    active_members = game.active_party_members
-    for member, target_level in zip(active_members, (5, 3)):
-        while member.level_state.current < target_level:
-            member.gain_experience(member.level_state.next_threshold)
     assert party.start_floor_one_run() == 100
-    assert party.complete_floor_one_boss(active_members)
+    assert party.complete_floor_one_boss(game.active_party_members)
+    party.add_shared_gold(200)
+    starting_shared_gold = party.shared_gold
+    active_ids = party.active_drifter_ids
+    for member in game.active_party_members:
+        while member.level_state.current < 5:
+            member.gain_experience(member.level_state.next_threshold)
+    assert party.start_floor_two_run(run_id_factory=lambda: "hub-recruit-run") == 100
+    party.add_floor_two_rewards(experience=0, gold=0)
+    assert party.complete_floor_two_boss(game.active_party_members)
+    game.overworld_state.return_to_surface_entrance()
 
     save_port = RecordingSavePort()
-    session = make_session(game, save_port, run_event_rng=StableRng())
-    reach_floor_two_midway_rest(session)
-    session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
-    recruited = session.submit(
-        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
-    )
-
-    newcomer = session.game_state.member_for_drifter_id("zhaivra")
-    expected = PlayerState(get_drifter_spec("zhaivra").create_character())
-    for _ in range(2):
-        expected.gain_experience(expected.level_state.next_threshold)
-
-    assert recruited.screen is OverworldScreen.REST
-    assert newcomer.level_state.current == 3
-    assert newcomer.exp_state.current == 0
-    assert newcomer.growth_points == 6
-    assert newcomer.character.permanent_stats.as_dict() == (
-        expected.character.permanent_stats.as_dict()
-    )
-    assert newcomer.health.maximum == expected.health.maximum
-    assert newcomer.mana_resource.maximum == expected.mana_resource.maximum
-    assert all(
-        value == 0
-        for value in newcomer.signature_weapon_state.slot_progress.values()
-    )
-    assert newcomer.signature_weapon_state.tier_v_success is False
-    assert not any(newcomer.purchased_stat_points.values())
-    assert newcomer.purchased_passive_skill_ids == ()
-    assert newcomer.purchased_active_skill_ids == ()
-    restored = reconstruct_game_state(build_save_document(save_port.saved_states[-1]))
-    restored_newcomer = restored.member_for_drifter_id("zhaivra")
-    assert restored_newcomer.level_state.current == 3
-    assert restored_newcomer.exp_state.current == 0
-    assert restored_newcomer.growth_points == 6
-
-
-def test_floor_two_midway_recruitment_cannot_spend_missing_gold():
-    game = game_at_completed_hub()
-    party = game.party_state
-    party.start_floor_one_run()
-    assert party.complete_floor_one_boss(game.active_party_members)
-    if party.shared_gold:
-        assert party.spend_shared_gold(party.shared_gold)
-    party.add_shared_gold(64)
-    session = make_session(game, run_event_rng=StableRng())
-    reach_floor_two_midway_rest(session)
-    selection = session.submit(
-        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
-    )
-    assert all(not choice.enabled for choice in selection.companion_choices)
-    before = session.game_state.snapshot()
-
-    rejected = session.submit(
-        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
-    )
-
-    assert rejected.screen is OverworldScreen.COMPANION_SELECTION
-    assert rejected.notice == "You need 65 shared gold to recruit a Drifter."
-    assert session.game_state.snapshot() == before
-    assert "floor_two_d3_recruitment" not in session.game_state.story_state.completed_events
-
-    rest = session.submit(ChooseOverworldAction(OverworldAction.BACK))
-    assert rest.screen is OverworldScreen.REST
-    extracted = session.submit(
-        ChooseOverworldAction(OverworldAction.EXTRACT)
-    )
-    assert extracted.screen is OverworldScreen.EXTRACTION
-    returned = session.submit(
-        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
-    )
-    assert returned.screen is OverworldScreen.HUB
-    assert "floor_two_d3_recruitment" not in session.game_state.story_state.completed_events
-    assert session.game_state.party_state.shared_gold >= 65
-
-    rest = reach_floor_two_midway_rest(session)
-    assert rest.screen is OverworldScreen.REST
+    session = make_session(game, save_port)
     selection = session.submit(
         ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
     )
     assert selection.screen is OverworldScreen.COMPANION_SELECTION
-    recruited = session.submit(
-        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
+    assert tuple(choice.drifter_id for choice in selection.companion_choices) == (
+        "zhaivra",
+        "joruun",
     )
-    assert recruited.screen is OverworldScreen.REST
-    assert "floor_two_d3_recruitment" in session.game_state.story_state.completed_events
+    before_failed_save = session.game_state.snapshot()
+    save_port.fail_next_save = True
+
+    failed = session.submit(
+        ChooseCompanion("zhaivra", event_id="floor_two_hub_recruitment")
+    )
+
+    assert failed.screen is OverworldScreen.COMPANION_SELECTION
+    assert failed.notice == "The recruitment could not be saved. Nothing changed."
+    assert session.game_state.snapshot() == before_failed_save
+
+    recruited = session.submit(
+        ChooseCompanion("zhaivra", event_id="floor_two_hub_recruitment")
+    )
+    newcomer = session.game_state.member_for_drifter_id("zhaivra")
+    assert recruited.screen is OverworldScreen.HUB
+    assert newcomer.level_state.current == 1
+    assert newcomer.exp_state.current == 0
+    assert newcomer.growth_points == 0
+    assert session.game_state.party_state.active_drifter_ids == active_ids
+    assert session.game_state.party_state.shared_gold == starting_shared_gold - 65
+    assert "floor_two_hub_recruitment" not in (
+        session.game_state.story_state.completed_events
+    )
+
+    next_selection = session.submit(
+        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
+    )
+    assert tuple(
+        choice.drifter_id for choice in next_selection.companion_choices
+    ) == ("joruun",)
+    recruited_again = session.submit(
+        ChooseCompanion("joruun", event_id="floor_two_hub_recruitment")
+    )
+
+    assert recruited_again.screen is OverworldScreen.HUB
+    assert session.game_state.member_for_drifter_id("joruun").level_state.current == 1
+    assert session.game_state.party_state.shared_gold == starting_shared_gold - 130
+    assert session.game_state.party_state.active_drifter_ids == active_ids
+    restored = reconstruct_game_state(
+        build_save_document(save_port.saved_states[-1])
+    )
+    assert tuple(
+        member.character.profile.drifter_id for member in restored.recruited_members
+    ) == ("branoc", "azhvielle", "zhaivra", "joruun")
+    assert restored.member_for_drifter_id("zhaivra").level_state.current == 1
+    assert restored.member_for_drifter_id("joruun").level_state.current == 1
+
+
+def test_floor_two_hub_recruitment_underfunding_is_atomic_and_retryable():
+    game = game_at_completed_hub()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run() == 100
+    party.add_floor_two_rewards(experience=0, gold=0)
+    assert party.complete_floor_two_boss(game.active_party_members)
+    game.overworld_state.return_to_surface_entrance()
+    if party.shared_gold > 64:
+        assert party.spend_shared_gold(party.shared_gold - 64)
+    elif party.shared_gold < 64:
+        party.add_shared_gold(64 - party.shared_gold)
+    save_port = RecordingSavePort()
+    session = make_session(game, save_port)
+
+    hub_view = session.current_view()
+    assert any(
+        option.action is OverworldAction.RECRUIT_COMPANION
+        and option.label == "Recruit Companion"
+        for option in hub_view.options
+    )
+    selection = session.submit(
+        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
+    )
+    assert selection.screen is OverworldScreen.COMPANION_SELECTION
+    before_rejection = session.game_state.snapshot()
+    rejected = session.submit(
+        ChooseCompanion("zhaivra", event_id="floor_two_hub_recruitment")
+    )
+
+    assert rejected.screen is OverworldScreen.COMPANION_SELECTION
+    assert rejected.notice == "You need 65 shared gold to recruit a Drifter."
+    assert selection.companion_choices[0].enabled is False
+    assert session.game_state.snapshot() == before_rejection
+    assert save_port.saved_states == []
+
+    party.add_shared_gold(1)
+    recruited = session.submit(
+        ChooseCompanion("zhaivra", event_id="floor_two_hub_recruitment")
+    )
+
+    assert recruited.screen is OverworldScreen.HUB
+    assert session.game_state.party_state.shared_gold == 0
+    assert (
+        session.game_state.member_for_drifter_id("zhaivra").level_state.current
+        == 1
+    )
+    assert session.game_state.party_state.active_drifter_ids == (
+        "branoc",
+        "azhvielle",
+    )
+    assert len(save_port.saved_states) == 1
 
 
 def test_floor_two_full_route_recruits_searches_and_banks_grade_two_materials():
@@ -1383,23 +1501,7 @@ def test_floor_two_full_route_recruits_searches_and_banks_grade_two_materials():
     for battle_number in range(1, 11):
         if battle_number > 1:
             rest = session.current_view()
-            if rest.screen is OverworldScreen.REST and battle_number == 6:
-                selection = session.submit(
-                    ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
-                )
-                assert selection.screen is OverworldScreen.COMPANION_SELECTION
-                recruited = session.submit(
-                    ChooseCompanion(
-                        "zhaivra",
-                        event_id="floor_two_d3_recruitment",
-                    )
-                )
-                assert recruited.screen is OverworldScreen.REST, (
-                    recruited.notice,
-                    session.game_state.party_state.shared_gold,
-                )
-                assert session.game_state.party_state.active_drifter_ids == active_ids
-            elif rest.screen is OverworldScreen.REST and battle_number == 10:
+            if rest.screen is OverworldScreen.REST and battle_number == 10:
                 searchers = session.submit(
                     ChooseOverworldAction(OverworldAction.SEARCH_SITE)
                 )
@@ -1411,6 +1513,12 @@ def test_floor_two_full_route_recruits_searches_and_banks_grade_two_materials():
                     ChooseOverworldAction(OverworldAction.CONFIRM)
                 )
                 assert claimed.screen is OverworldScreen.REST
+                helper_selection = session.submit(
+                    ChooseOverworldAction(OverworldAction.CHOOSE_FLOOR_TWO_HELPER)
+                )
+                assert helper_selection.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+                helper = session.submit(ChooseFloorTwoBossHelper("zhaivra"))
+                assert helper.screen is OverworldScreen.REST
             if rest.screen is OverworldScreen.REST:
                 session.submit(ChooseOverworldAction(OverworldAction.SKIP_REST))
             battle = session.submit(
@@ -1430,8 +1538,7 @@ def test_floor_two_full_route_recruits_searches_and_banks_grade_two_materials():
     assert tuple(
         member.character.profile.drifter_id
         for member in cleared.recruited_members
-    ) == ("branoc", "azhvielle", "zhaivra")
-    assert "floor_two_d3_recruitment" in cleared.story_state.completed_events
+    ) == ("branoc", "azhvielle")
     assert cleared.world_state.permanent_discovery_claims == (
         "ancient_well_floor2_01",
     )

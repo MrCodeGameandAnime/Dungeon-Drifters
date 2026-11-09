@@ -3145,6 +3145,16 @@ try {
     }
   };
   const clearFloorTwoBattle = async (battleNumber) => {
+    const deployedIds = await page.locator("#party-members .party-member").evaluateAll(
+      (members) => members.map((member) => member.dataset.targetId),
+    );
+    const expectedParty = battleNumber === 10
+      ? ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"]
+      : ["drifter_branoc", "drifter_azhvielle"];
+    requireCondition(
+      JSON.stringify(deployedIds) === JSON.stringify(expectedParty),
+      `Floor II Battle ${battleNumber} deployed ${JSON.stringify(deployedIds)} instead of ${JSON.stringify(expectedParty)}`,
+    );
     const observedBattleLog = new Set();
     const captureBattleLog = async () => {
       const log = await page.locator("#battle-log").innerText();
@@ -3377,17 +3387,11 @@ try {
       );
     }
   }
-  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
-  await page.locator("#companion-selection").waitFor({ state: "visible" });
-  const blockedCompanions = page.locator("#companion-choices .companion-choice");
   requireCondition(
-    (await page.locator("#companion-funds").innerText()).includes("Shared gold: 64") &&
-      await blockedCompanions.count() === 2 &&
-      await blockedCompanions.evaluateAll((buttons) => buttons.every((button) => button.disabled)),
-    "the browser did not block D3 recruitment below its 65-gold cost",
+    !(await page.locator("#overworld-options button").allInnerTexts()).includes("Recruit Companion"),
+    "the Floor II Midway Rest exposed permanent recruitment",
   );
-  await clickVisibleOption(page, "#overworld-options", "Back");
-  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  console.log("M4_BROWSER|MIDWAY_NO_PERMANENT_RECRUITMENT|PASS");
   await clickVisibleOption(page, "#overworld-options", "Extract");
   await page.locator("#extraction-rewards").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Return to Hub");
@@ -3399,7 +3403,21 @@ try {
     returnedGold >= 65,
     `Floor II early extraction did not leave enough secured gold to retry D3 recruitment: ${returnedGold}`,
   );
-  console.log("M4_BROWSER|D3_UNAFFORDABLE_EXTRACT_RETRY|PASS");
+  console.log("M4_BROWSER|EXTRACTION_GOLD_RETRY|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const zhaivraChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Zhaivra" });
+  requireCondition(await zhaivraChoice.isEnabled(), "D3 was not recruitable at the Hub after the Floor II return");
+  await zhaivraChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "Hub recruitment did not add D3 at Level 1 while preserving the active pair",
+  );
+  console.log("M4_BROWSER|D3_HUB_RECRUITMENT|PASS");
 
   await clickVisibleOption(page, "#overworld-options", "Merchant");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
@@ -3427,20 +3445,6 @@ try {
       await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
     }
   }
-  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
-  await page.locator("#companion-selection").waitFor({ state: "visible" });
-  const zhaivraChoice = page.locator("#companion-choices .companion-choice")
-    .filter({ hasText: "Zhaivra" });
-  requireCondition(await zhaivraChoice.isEnabled(), "D3 was not recruitable after returning with sufficient gold");
-  await zhaivraChoice.click();
-  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
-  requireCondition(
-    (await page.locator("#adventure-text").innerText()).includes("Zhaivra") &&
-      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
-    "D3 recruitment did not join the roster while preserving the active pair",
-  );
-  console.log("M4_BROWSER|D3_RECRUITMENT|PASS");
-
   const midwayResourcesBeforeRecover = await readFloorTwoActivePartyResources();
   await clickVisibleOption(page, "#overworld-options", "Recover");
   await page.waitForFunction(() =>
@@ -3556,6 +3560,39 @@ try {
     preBossResourcesAfterRecover,
     "Floor II Pre-Boss Rest",
   );
+  await clickVisibleOption(page, "#overworld-options", "Choose Boss Helper");
+  await page.locator("#boss-helper-selection").waitFor({ state: "visible" });
+  const joruunHelperChoice = page.locator("#boss-helper-choices button")
+    .filter({ hasText: "Joruun Veyr" });
+  await joruunHelperChoice.waitFor({ state: "visible" });
+  await joruunHelperChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Choose Boss Helper"),
+    "Floor II helper choice did not persist across browser save/reload",
+  );
+  console.log("M4_BROWSER|BOSS_HELPER_SAVE_RELOAD|PASS");
   await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
   await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
     (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
@@ -3596,6 +3633,24 @@ try {
     floorTwoItems.includes("Hub Storage") &&
       /\b(?:Iron|Cotton|Hardwood|Elemental core)\s+x\d+\s+\|\s+Hub Storage\b/i.test(floorTwoItems),
     `Floor II boss return did not expose secured inventory and Grade-II materials: ${floorTwoItems}`,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const joruunRecruitmentChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Joruun Veyr" });
+  requireCondition(
+    await page.locator("#companion-choices .companion-choice").count() === 1 &&
+      await joruunRecruitmentChoice.isEnabled(),
+    "temporary D4 participation incorrectly counted as permanent recruitment",
+  );
+  await joruunRecruitmentChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "D4 Hub recruitment did not start at Level 1 without changing the active pair",
   );
   console.log("M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS");
 

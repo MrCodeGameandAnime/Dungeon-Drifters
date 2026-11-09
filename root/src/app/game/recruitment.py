@@ -22,20 +22,19 @@ def available_recruitment_event(game_state):
                 and not party.tutorial_complete
                 and not party.companions
             )
-        elif event.event_id == "floor_two_d3_recruitment":
+        elif event.event_id == "floor_two_hub_recruitment":
             eligible = (
-                party.phase is DungeonPhase.OUTING
-                and party.floor_two_run_id is not None
+                party.phase is DungeonPhase.HUB
                 and party.tutorial_complete
-                and overworld.current_route_node_id
-                not in overworld.resolved_rest_node_ids
+                and party.floor_one_cleared
+                and party.floor_two_run_id is None
             )
         else:
             continue
         if not eligible:
             continue
         if (
-            event.event_id == "floor_two_d3_recruitment"
+            event.event_id == "floor_two_hub_recruitment"
             and len(game_state.recruited_members) >= 4
         ):
             return None

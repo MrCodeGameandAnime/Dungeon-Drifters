@@ -32,12 +32,13 @@ _M4_STAGE_NAMES = (
     "M4_FLOOR_TWO_BATTLE_03",
     "M4_FLOOR_TWO_BATTLE_04",
     "M4_FLOOR_TWO_BATTLE_05",
-    "M4_D3_RECRUITMENT",
+    "M4_MIDWAY_REST",
     "M4_FLOOR_TWO_BATTLE_06",
     "M4_FLOOR_TWO_BATTLE_07",
     "M4_FLOOR_TWO_BATTLE_08",
     "M4_FLOOR_TWO_BATTLE_09",
     "M4_DISCOVERY_SEARCH_ROUNDTRIP",
+    "M4_BOSS_HELPER_SELECTION",
     "M4_FLOOR_TWO_BATTLE_10_BOSS",
     "M4_FLOOR_TWO_FINAL_STATE",
     "M4_PROBE_TEARDOWN",
@@ -225,8 +226,16 @@ def _complete_battle(state, complete_battle, battle_number):
         raise AssertionError("Floor II Battle composition differed from authored data")
     if tuple(enemy_factory.tiers[tier_start:]) != (1,) * len(composition):
         raise AssertionError("Floor II Battle did not construct Tier I enemies")
-    if len(battle_view.party_members) != 2:
-        raise AssertionError("Floor II Battle changed the deployed pair")
+    expected_party_size = 3 if battle_number == 10 else 2
+    if len(battle_view.party_members) != expected_party_size:
+        raise AssertionError("Floor II Battle used the wrong party size")
+    if battle_number == 10:
+        party_ids = tuple(
+            member.target_id[len("drifter_") :]
+            for member in battle_view.party_members
+        )
+        if party_ids != state["m4_active_drifter_ids"] + ("zhaivra",):
+            raise AssertionError("Floor II boss party was not pair plus selected helper")
 
     final_view = complete_battle(battle_view)
     game = _game(state)
@@ -269,9 +278,9 @@ def _has_bonus_at_least(member, bonus_id, minimum):
     return bonus_id in bonuses and bonuses[bonus_id] >= minimum
 
 
-def _recruit_d3_at_midway_rest(state):
+def _continue_from_midway_rest(state):
     from app.presentation.overworld_models import OverworldAction, OverworldScreen
-    from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
+    from app.ui.overworld_ui import ChooseOverworldAction
 
     session = state["route_session"]
     game = _game(state)
@@ -280,26 +289,20 @@ def _recruit_d3_at_midway_rest(state):
     if view.screen is not OverworldScreen.REST:
         raise AssertionError("Floor II midway node did not present Rest")
     if game.overworld_state.current_route_node_id != "floor_two_midway_rest":
-        raise AssertionError("Floor II recruitment was offered at the wrong node")
-    view = session.submit(
-        ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
-    )
-    if view.screen is not OverworldScreen.COMPANION_SELECTION:
-        raise AssertionError("Floor II recruitment did not open D3 selection")
-    view = session.submit(
-        ChooseCompanion("zhaivra", event_id="floor_two_d3_recruitment")
-    )
-    game = _game(state)
-    if view.screen is not OverworldScreen.REST:
-        raise AssertionError("Floor II recruitment did not return to Rest")
-    if game.party_state.active_drifter_ids != active_ids:
-        raise AssertionError("D3 recruitment changed the locked active pair")
-    if "zhaivra" not in tuple(
-        member.character.profile.drifter_id for member in game.recruited_members
+        raise AssertionError("Floor II midway Rest node changed")
+    if any(
+        option.action is OverworldAction.RECRUIT_COMPANION
+        for option in view.options
     ):
-        raise AssertionError("Zhaivra was not added to the recruited roster")
-    if "floor_two_d3_recruitment" not in game.story_state.completed_events:
-        raise AssertionError("D3 recruitment event was not durably recorded")
+        raise AssertionError("midway Rest offered permanent recruitment")
+    view = session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
+    if view.screen is not OverworldScreen.REST:
+        raise AssertionError("midway recruitment submission left Rest")
+    if (
+        game.party_state.active_drifter_ids != active_ids
+        or len(game.recruited_members) != 2
+    ):
+        raise AssertionError("midway recruitment changed the permanent party")
     view = session.submit(ChooseOverworldAction(OverworldAction.REST))
     if view.screen is not OverworldScreen.REST:
         raise AssertionError("midway recovery unexpectedly advanced the route")
@@ -380,6 +383,55 @@ def _search_and_roundtrip(state):
     )
     if result.status.value != "already_resolved" or rng.calls:
         raise AssertionError("Floor II search reload rerolled its saved outcome")
+    del snapshot
+    del restored
+
+
+def _select_boss_helper(state):
+    from app.game.floor_two_boss_helper import create_floor_two_boss_helper
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import ChooseFloorTwoBossHelper, ChooseOverworldAction
+
+    session = state["route_session"]
+    game = _game(state)
+    active_ids = state["m4_active_drifter_ids"]
+    target_level = min(
+        member.level_state.current for member in game.active_party_members
+    )
+    view = session.current_view()
+    if view.screen is not OverworldScreen.REST:
+        raise AssertionError("Floor II pre-boss node did not present Rest")
+    if game.overworld_state.current_route_node_id != "floor_two_pre_boss_rest":
+        raise AssertionError("temporary helper was offered at the wrong node")
+    view = session.submit(
+        ChooseOverworldAction(OverworldAction.CHOOSE_FLOOR_TWO_HELPER)
+    )
+    if view.screen is not OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+        raise AssertionError("Floor II did not open temporary helper selection")
+    view = session.submit(ChooseFloorTwoBossHelper("zhaivra"))
+    game = _game(state)
+    if view.screen is not OverworldScreen.REST:
+        raise AssertionError("helper selection did not return to the Rest")
+    if game.party_state.floor_two_boss_helper_id != "zhaivra":
+        raise AssertionError("selected temporary helper was not retained")
+    if game.party_state.active_drifter_ids != active_ids:
+        raise AssertionError("helper selection changed the active pair")
+    if tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    ) != active_ids:
+        raise AssertionError("temporary helper changed the permanent roster")
+
+    helper = create_floor_two_boss_helper("zhaivra", target_level)
+    if helper.level_state.current != target_level:
+        raise AssertionError("temporary helper did not match the lower active level")
+    if helper.growth_points != 0:
+        raise AssertionError("temporary helper retained unspent catch-up GP")
+    event_key = "floor_two:%s:floor_two_pre_boss_rest:boss_helper_selection" % (
+        state["m4_floor_two_run_id"],
+    )
+    if game.party_state.run_event(event_key) is None:
+        raise AssertionError("temporary helper selection lacks run-event evidence")
+
     view = session.submit(ChooseOverworldAction(OverworldAction.REST))
     if view.screen is not OverworldScreen.REST:
         raise AssertionError("pre-boss recovery unexpectedly advanced the route")
@@ -389,8 +441,6 @@ def _search_and_roundtrip(state):
         raise AssertionError("Pre-boss Rest did not resume Floor II")
     if game.overworld_state.current_route_node_id != "floor_two_battle_10":
         raise AssertionError("Pre-boss Rest advanced to the wrong encounter")
-    del snapshot
-    del restored
 
 
 def _assert_floor_two_clear(state):
@@ -447,7 +497,7 @@ def run(state, complete_battle, run_stage):
                 battle_number,
             ),
         )
-    run_stage(_M4_STAGE_NAMES[7], lambda: _recruit_d3_at_midway_rest(state))
+    run_stage(_M4_STAGE_NAMES[7], lambda: _continue_from_midway_rest(state))
     for battle_number in range(6, 10):
         run_stage(
             _M4_STAGE_NAMES[battle_number + 2],
@@ -460,7 +510,11 @@ def run(state, complete_battle, run_stage):
     run_stage(_M4_STAGE_NAMES[12], lambda: _search_and_roundtrip(state))
     run_stage(
         _M4_STAGE_NAMES[13],
+        lambda: _select_boss_helper(state),
+    )
+    run_stage(
+        _M4_STAGE_NAMES[14],
         lambda: _complete_battle(state, complete_battle, 10),
     )
-    run_stage(_M4_STAGE_NAMES[14], lambda: _assert_floor_two_clear(state))
-    run_stage(_M4_STAGE_NAMES[15], lambda: _release_probe_evidence(state))
+    run_stage(_M4_STAGE_NAMES[15], lambda: _assert_floor_two_clear(state))
+    run_stage(_M4_STAGE_NAMES[16], lambda: _release_probe_evidence(state))

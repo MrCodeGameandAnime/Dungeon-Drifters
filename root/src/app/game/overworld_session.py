@@ -31,6 +31,10 @@ from app.game.respec import RespecService, RespecStatus
 from app.game.equipment import EquipmentActionStatus, EquipmentService
 from app.game.armor_progression import ArmorProgressionService, ArmorProgressionStatus
 from app.game.alchemist import AlchemistService, AlchemistStatus
+from app.game.floor_two_boss_helper import (
+    available_floor_two_boss_helper_ids,
+    create_floor_two_boss_helper,
+)
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -55,6 +59,7 @@ from app.ui.overworld_ui import (
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
@@ -246,6 +251,9 @@ class OverworldSession:
             return self._build_view()
         if isinstance(session_input, ChooseCompanion):
             self._select_companion(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseFloorTwoBossHelper):
+            self._select_floor_two_boss_helper(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChooseActivePair):
             self._select_active_pair(view, session_input)
@@ -693,6 +701,35 @@ class OverworldSession:
         try:
             profile = get_drifter_spec(choice.drifter_id)
             companion = PlayerState(profile.create_character())
+            if event.event_id == "floor_two_hub_recruitment":
+                candidate = self.game_state.clone()
+                recruited = candidate.party_state.recruit_companion(
+                    candidate.player_state,
+                    companion,
+                    cost=event.cost,
+                )
+                if not recruited:
+                    self._notice = (
+                        f"You need {event.cost} shared gold to recruit a Drifter."
+                    )
+                    return
+                try:
+                    result = self._save_port_instance().save(candidate)
+                except (SavePortError, TypeError, ValueError):
+                    result = None
+                if result is None or result.status is not SaveLoadStatus.SAVED:
+                    self._notice = (
+                        "The recruitment could not be saved. Nothing changed."
+                    )
+                    return
+                self._game_state = candidate
+                self._screen = OverworldScreen.HUB
+                self._adventure_text = (
+                    f"{profile.display_name} joins the roster at Level 1. "
+                    "Your active party remains unchanged."
+                )
+                self._notice = None
+                return
             if event.route_id == "floor_two":
                 candidate = self.game_state.clone()
                 target_level = min(
@@ -753,6 +790,40 @@ class OverworldSession:
             f"{profile.display_name} joins {lead_name}. "
             "Your party is ready to set out."
         )
+        self._notice = None
+
+    def _select_floor_two_boss_helper(self, view, session_input):
+        if (
+            view.screen is not OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+            or not any(
+                choice.drifter_id == session_input.drifter_id
+                for choice in view.temporary_helper_choices
+            )
+        ):
+            self._notice = "That temporary helper is not available."
+            return
+        candidate = self.game_state.clone()
+        node_id = candidate.overworld_state.current_route_node_id
+        try:
+            if not candidate.party_state.select_floor_two_boss_helper(
+                session_input.drifter_id,
+                node_id=node_id,
+            ):
+                self._notice = "A Floor II boss helper has already been selected."
+                return
+            result = self._save_port_instance().save(candidate)
+        except (OSError, SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is not SaveLoadStatus.SAVED:
+            self._notice = "The helper choice could not be saved. Nothing changed."
+            return
+        self._game_state = candidate
+        self._screen = (
+            OverworldScreen.REST
+            if node_id == "floor_two_pre_boss_rest"
+            else OverworldScreen.MAIN
+        )
+        self._adventure_text = None
         self._notice = None
 
     def _select_active_pair(self, view, session_input):
@@ -1322,6 +1393,28 @@ class OverworldSession:
         return _UNHANDLED_ACTION
 
     def _dispatch_party_action(self, action):
+        if action is OverworldAction.CHOOSE_FLOOR_TWO_HELPER:
+            overworld = self.game_state.overworld_state
+            party = self.game_state.party_state
+            if (
+                self._screen is not OverworldScreen.REST
+                or overworld.active_route_id != "floor_two"
+                or overworld.current_route_node_id != "floor_two_pre_boss_rest"
+                or party.phase is not DungeonPhase.OUTING
+                or party.floor_two_boss_helper_id is not None
+                or not available_floor_two_boss_helper_ids(
+                    party.active_drifter_ids
+                )
+            ):
+                self._notice = "Temporary help is not available here."
+                return None
+            self._screen = OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+            self._adventure_text = (
+                "At the Rest, D3 and D4 warn that a difficult battle lies ahead "
+                "and offer to help. Choose one for the Floor II boss only."
+            )
+            self._notice = None
+            return None
         if action is OverworldAction.RECRUIT_COMPANION:
             if available_recruitment_event(self.game_state) is None:
                 self._notice = "Recruitment is not available here."
@@ -2078,6 +2171,16 @@ class OverworldSession:
             self._rest_return_screen = None
             self._adventure_text = None
             return
+        if self._screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            self._screen = (
+                OverworldScreen.REST
+                if self.game_state.overworld_state.current_route_node_id
+                == "floor_two_pre_boss_rest"
+                else OverworldScreen.MAIN
+            )
+            self._adventure_text = None
+            self._notice = None
+            return
         if self._screen in {
             OverworldScreen.SKILLS,
             OverworldScreen.WEAPON,
@@ -2215,6 +2318,28 @@ class OverworldSession:
             if is_party_run
             else (self.game_state.player_state,)
         )
+        if is_floor_two and current_node.kind is RouteNodeKind.BOSS:
+            helper_id = self.game_state.party_state.floor_two_boss_helper_id
+            if helper_id is None:
+                if available_floor_two_boss_helper_ids(
+                    self.game_state.party_state.active_drifter_ids
+                ):
+                    self._screen = OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+                    self._adventure_text = (
+                        "At the Rest, D3 and D4 warn that a difficult battle lies "
+                        "ahead and offer to help. Choose one for the Floor II boss only."
+                    )
+                else:
+                    self._notice = (
+                        "Return to the Hub and choose an active pair that leaves "
+                        "D3 or D4 available to help."
+                    )
+                return None
+            helper = create_floor_two_boss_helper(
+                helper_id,
+                min(member.level_state.current for member in party_members),
+            )
+            party_members += (helper,)
         checkpoints = tuple(
             member.create_battle_checkpoint() for member in party_members
         )
@@ -2438,7 +2563,7 @@ class OverworldSession:
 
         if winner != "player":
             if not party_state.fail_floor_two_run(
-                party_members,
+                self.game_state.active_party_members,
                 recruited_members=self.game_state.recruited_members,
             ):
                 raise RuntimeError("the Floor 2 defeat could not be cleared")

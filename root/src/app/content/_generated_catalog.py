@@ -29,6 +29,7 @@ from app.content.routes.floor_two.route import ROUTE as floor_two_route
 from app.content.routes.surface.route import ROUTE as surface_route
 from app.content.recruitment_events.floor_one_d2_recruitment.recruitment_event import RECRUITMENT_EVENT as floor_one_d2_recruitment_recruitment_event
 from app.content.recruitment_events.floor_two_d3_recruitment.recruitment_event import RECRUITMENT_EVENT as floor_two_d3_recruitment_recruitment_event
+from app.content.recruitment_events.floor_two_hub_recruitment.recruitment_event import RECRUITMENT_EVENT as floor_two_hub_recruitment_recruitment_event
 
 
 GENERATED_ENEMY_SPECS = (
@@ -81,6 +82,7 @@ GENERATED_ROUTE_SPECS = (
 GENERATED_RECRUITMENT_EVENT_SPECS = (
     ("floor_one_d2_recruitment", floor_one_d2_recruitment_recruitment_event),
     ("floor_two_d3_recruitment", floor_two_d3_recruitment_recruitment_event),
+    ("floor_two_hub_recruitment", floor_two_hub_recruitment_recruitment_event),
 )
 
 

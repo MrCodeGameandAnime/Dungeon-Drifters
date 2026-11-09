@@ -26,6 +26,7 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseMerchantCraftComponent,
@@ -259,6 +260,14 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
         InteractionPhase.COMPLETE.value,
     }
     assert runtime._session.active_battle is not None
+
+
+def test_bridge_maps_floor_two_helper_command_to_exact_drifter():
+    command = bridge._command_to_input(
+        {"kind": "floor_two_boss_helper", "drifter_id": "joruun"}
+    )
+
+    assert command == ChooseFloorTwoBossHelper("joruun")
 
 
 def test_bridge_projects_and_submits_hub_merchant_actions():

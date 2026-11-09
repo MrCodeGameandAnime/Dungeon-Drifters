@@ -1,4 +1,4 @@
-"""Schema-21 save documents and canonical in-memory reconstruction."""
+"""Schema-22 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -98,7 +98,8 @@ _PRE_RUN_EVENT_DISK_SCHEMA_VERSION = 17
 _PRE_EQUIPMENT_DISK_SCHEMA_VERSION = 18
 _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION = 19
 _PRE_ALCHEMIST_DISK_SCHEMA_VERSION = 20
-DISK_SCHEMA_VERSION = 21
+_PRE_BOSS_HELPER_DISK_SCHEMA_VERSION = 21
+DISK_SCHEMA_VERSION = 22
 
 
 class SaveStateValidationError(ValueError):
@@ -330,6 +331,15 @@ def migrate_schema20(document):
     return migrated
 
 
+def migrate_schema21(document):
+    """Preserve schema-21 saves while enabling validated helper events."""
+    validate_legacy_schema21_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
@@ -461,6 +471,13 @@ def validate_legacy_schema20_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema21_document(document):
+    """Validate immutable schema-21 saves without helper-selection events."""
+    _validate_plain_document(document)
+    _validate_document(document, schema_version=_PRE_BOSS_HELPER_DISK_SCHEMA_VERSION)
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -536,6 +553,11 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _PRE_ALCHEMIST_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema20_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version") == _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema21_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -619,6 +641,8 @@ def validate_save_document(document):
         return migrate_schema19(document)
     if schema_version == _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
         return migrate_schema20(document)
+    if schema_version == _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION:
+        return migrate_schema21(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -826,6 +850,13 @@ def _validate_document(
         raise SaveStateValidationError(
             "legacy run history cannot contain M5 armor reward events"
         )
+    if schema_version < DISK_SCHEMA_VERSION and any(
+        isinstance(event, dict) and event.get("kind") == "boss_helper_selection"
+        for event in document["party"].get("resolved_run_events", [])
+    ):
+        raise SaveStateValidationError(
+            "legacy run history cannot contain boss-helper selection events"
+        )
     equipment_by_id = _validate_party(
         document["party"],
         document["player"],
@@ -854,7 +885,9 @@ def _validate_document(
         require_generated_equipment_state=(
             schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION
         ),
-        require_modifier_instances=(schema_version >= DISK_SCHEMA_VERSION),
+        require_modifier_instances=(
+            schema_version >= _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
+        ),
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
             None

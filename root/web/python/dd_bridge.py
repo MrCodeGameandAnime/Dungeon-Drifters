@@ -41,6 +41,7 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
@@ -220,6 +221,8 @@ def _command_to_input(command):
             _required(command, "drifter_id"),
             _required(command, "event_id"),
         )
+    if kind == "floor_two_boss_helper":
+        return ChooseFloorTwoBossHelper(_required(command, "drifter_id"))
     if kind == "active_pair":
         return ChooseActivePair(tuple(_required(command, "drifter_ids")))
     if kind == "discovery_searcher":

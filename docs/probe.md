@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, and earlier M3 records below remain historical checkpoints. The latest M5 review-fix code SHA `f9bf1ae1af34d0d0402553db60d1391c62f8a826` passed the exact pinned MicroPython v1.29.0 matrix on 2026-11-08: 1152K stable 3/3 and the expected 1024K memory limit 3/3. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, M3, M4A baseline, and M5 records below remain historical checkpoints. The 2026-11-09 M4 temporary-helper/Hub-recruitment revision has also passed the pinned MicroPython v1.29.0 matrix locally on the current uncommitted `dungeon` worktree: 1152K stable 3/3 and the expected 1024K memory-limit classification 3/3. Exact-SHA hosted qualification is pending. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -481,3 +481,23 @@ The exact-SHA hosted workflow passed in
 validation, compile, the 170-file browser build and full M1-M5 browser smoke,
 migration-from-zero, and Alembic parity. M5 is sealed on this code SHA. Live
 Floor II armor-drop placement remains deferred as specified in the M5 plan.
+
+## M4 Floor II/III Party Revision (2026-11-09)
+
+The approved revision adds a scripted D3/D4 helper choice at the Floor II
+pre-boss Rest, uses the selected temporary helper only in the three-member
+Floor II boss, awards Floor II secured XP only to the regular active pair, and
+offers independent Level 1 Hub recruitment for D3/D4 at 65 gold each. The
+runtime/disk schema is 21/22. The helper choice, boss composition, recruitment,
+and pair-only XP are exercised by the extended route probe.
+
+The pinned MicroPython v1.29.0 Windows executable was re-identified at
+488,960 bytes with SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+Native and forced-overlay CPython, default MicroPython, and semantic parity
+passed. Heap qualification reported 1152K stable pass 3/3 and the expected
+1024K memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+This is local evidence from the current uncommitted worktree, not an
+exact-commit or hosted qualification. Exact-SHA hosted CI remains pending.

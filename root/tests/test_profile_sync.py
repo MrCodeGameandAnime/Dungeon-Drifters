@@ -11,6 +11,7 @@ from app.persistence.remote_client import RemoteRequestRejected
 from app.game.respec import RespecService, RespecStatus
 from tests.game_test_support import completed_hub_game
 from app.persistence.sync import ProfileSyncCoordinator, SyncResult
+from app.persistence.save_document import DISK_SCHEMA_VERSION
 from tests.remote_sync_test_support import (
     ACCOUNT_ID,
     DEVICE_A,
@@ -134,12 +135,12 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 21
+    assert local_pending.payload["schema_version"] == DISK_SCHEMA_VERSION
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 21
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == DISK_SCHEMA_VERSION
 
 
 def test_respec_history_survives_profile_sync_and_keeps_free_use_spent(tmp_path):

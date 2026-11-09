@@ -77,6 +77,7 @@ from app.presentation.overworld_models import (
     OutingItemRewardView,
     OutingRewardsView,
     SupplyHealingTargetView,
+    TemporaryBossHelperChoiceView,
     OverworldScreen,
     OverworldView,
     PartyPairChoiceView,
@@ -362,6 +363,11 @@ class OverworldPresenter:
                 if screen is OverworldScreen.COMPANION_SELECTION
                 else ()
             ),
+            temporary_helper_choices=(
+                self._temporary_helper_choices(game_state)
+                if screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+                else ()
+            ),
             active_party_choices=(
                 self._active_party_choices(game_state)
                 if screen is OverworldScreen.PARTY_SELECTION
@@ -524,6 +530,29 @@ class OverworldPresenter:
         return tuple(choices)
 
     @staticmethod
+    def _temporary_helper_choices(game_state):
+        from app.game.floor_two_boss_helper import available_floor_two_boss_helper_ids
+
+        helper_ids = available_floor_two_boss_helper_ids(
+            game_state.party_state.active_drifter_ids
+        )
+        if not helper_ids:
+            return ()
+        level = min(
+            member.level_state.current
+            for member in game_state.active_party_members
+        )
+        return tuple(
+            TemporaryBossHelperChoiceView(
+                drifter_id=spec.drifter_id,
+                display_name=spec.display_name,
+                archetype_label=spec.archetype_name,
+                level=level,
+            )
+            for spec in (get_drifter_spec(helper_id) for helper_id in helper_ids)
+        )
+
+    @staticmethod
     def _discovery_choices(game_state):
         return tuple(
             DiscoveryDrifterChoiceView(
@@ -548,6 +577,22 @@ class OverworldPresenter:
             return (
                 "The Goblin Lord's victory is saved. Finalize the Floor 2 clear "
                 "to return to the Hub."
+            )
+        if (
+            game_state.overworld_state.active_route_id == "floor_two"
+            and game_state.overworld_state.current_route_node_id
+            in {"floor_two_pre_boss_rest", "floor_two_battle_10"}
+        ):
+            helper_id = game_state.party_state.floor_two_boss_helper_id
+            if helper_id is not None:
+                helper = get_drifter_spec(helper_id)
+                return (
+                    f"{helper.display_name} will join the Floor II boss battle "
+                    "only."
+                )
+            return (
+                "At the Rest, D3 and D4 warn that a difficult battle lies ahead "
+                "and offer to help. Choose one for the Floor II boss only."
             )
         current_label = get_route_node_spec(
             game_state.overworld_state.current_route_node_id
@@ -1545,6 +1590,16 @@ class OverworldPresenter:
             if party_state.phase is DungeonPhase.HUB:
                 merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
                 if party_state.tutorial_complete:
+                    recruitment_actions = (
+                        (
+                            enabled(
+                                OverworldAction.RECRUIT_COMPANION,
+                                "Recruit Companion",
+                            ),
+                        )
+                        if available_recruitment_event(game_state) is not None
+                        else ()
+                    )
                     party_actions = (
                         (enabled(OverworldAction.SELECT_PARTY, "Choose Party"),)
                         if len(game_state.recruited_members) >= 2
@@ -1555,7 +1610,7 @@ class OverworldPresenter:
                         (enabled(OverworldAction.START_FLOOR_TWO, "Start Floor 2"),)
                         if party_state.floor_one_cleared
                         else ()
-                    )
+                    ) + recruitment_actions
                 elif (
                     available_recruitment_event(game_state) is not None
                 ):
@@ -1581,6 +1636,8 @@ class OverworldPresenter:
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
         if screen is OverworldScreen.COMPANION_SELECTION:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.PARTY_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
@@ -1720,12 +1777,23 @@ class OverworldPresenter:
                 "floor_two",
             }:
                 discovery_actions = ()
+                helper_action = ()
                 if (
                     game_state.overworld_state.active_route_id == "floor_two"
                     and game_state.overworld_state.current_route_node_id
                     == "floor_two_pre_boss_rest"
                     and game_state.party_state.phase is DungeonPhase.OUTING
                 ):
+                    if (
+                        game_state.party_state.floor_two_boss_helper_id is None
+                        and self._temporary_helper_choices(game_state)
+                    ):
+                        helper_action = (
+                            enabled(
+                                OverworldAction.CHOOSE_FLOOR_TWO_HELPER,
+                                "Choose Boss Helper",
+                            ),
+                        )
                     source_id = "ancient_well_floor2_01"
                     world = game_state.world_state
                     if (
@@ -1747,14 +1815,9 @@ class OverworldPresenter:
                             discovery_actions = (
                                 enabled(OverworldAction.SEARCH_SITE, "Search Site"),
                             )
-                midway_recruitment = (
-                    (enabled(OverworldAction.RECRUIT_COMPANION, "Recruit Companion"),)
-                    if available_recruitment_event(game_state) is not None
-                    else ()
-                )
                 return self._return_talisman_option(game_state) + (
                     enabled(OverworldAction.REST, "Recover"),
-                ) + midway_recruitment + discovery_actions + (
+                ) + helper_action + discovery_actions + (
                     (
                         enabled(OverworldAction.SAVE, "Save")
                         if save_available
@@ -1814,6 +1877,12 @@ class OverworldPresenter:
         if screen is OverworldScreen.REST and (
             current_node.kind is RouteNodeKind.REST and unresolved_rest
         ):
+            if (
+                game_state.overworld_state.active_route_id == "floor_two"
+                and current_node_id == "floor_two_pre_boss_rest"
+                and game_state.party_state.floor_two_boss_helper_id is None
+            ):
+                return None
             return self._enabled_option(
                 OverworldAction.SKIP_REST,
                 "Continue Without Rest",

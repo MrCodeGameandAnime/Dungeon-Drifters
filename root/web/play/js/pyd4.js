@@ -1167,6 +1167,27 @@
     }
   }
 
+  function renderTemporaryBossHelperChoices(view) {
+    const section = $("boss-helper-selection");
+    const visible = view.screen === "floor_two_helper_selection";
+    section.hidden = !visible;
+    if (!visible) return;
+    const container = $("boss-helper-choices");
+    clear(container);
+    for (const choice of view.temporary_helper_choices || []) {
+      const button = makeButton(
+        choice.display_name,
+        { kind: "floor_two_boss_helper", drifter_id: choice.drifter_id },
+        true,
+        null,
+        "party-pair-choice",
+      );
+      appendChoiceDetail(button, "companion-role", choice.archetype_label);
+      appendChoiceDetail(button, "companion-summary", `Level ${choice.level} | Floor II boss only`);
+      container.append(button);
+    }
+  }
+
   function renderDiscoveryChoices(view) {
     const section = $("discovery-selection");
     const searcherSelection = view.screen === "discovery_searchers";
@@ -1313,6 +1334,7 @@
     );
     renderCompanionChoices(view);
     renderActivePartyChoices(view);
+    renderTemporaryBossHelperChoices(view);
     renderDiscoveryChoices(view);
     renderOutingRewards(view);
     renderOptions(

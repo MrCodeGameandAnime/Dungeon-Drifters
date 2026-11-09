@@ -19,6 +19,7 @@ from app.ui.overworld_ui import (
     ChooseActivePair,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
+    ChooseFloorTwoBossHelper,
     ChooseAlchemyRecipe,
     ChooseCompanion,
     ChooseCharacterTarget,
@@ -72,6 +73,7 @@ class TerminalOverworldUI:
         OverworldAction.SKIP_REST: "C",
         OverworldAction.MENU: "M",
         OverworldAction.RECRUIT_COMPANION: "R",
+        OverworldAction.CHOOSE_FLOOR_TWO_HELPER: "B",
         OverworldAction.SELECT_PARTY: "P",
         OverworldAction.READY: "Y",
         OverworldAction.RETURN_TO_HUB: "H",
@@ -312,6 +314,14 @@ class TerminalOverworldUI:
                 self._output(self._disabled_message(candidate.disabled_reason))
                 return self._REJECTED
 
+        if (
+            view.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+            and view.temporary_helper_choices
+        ):
+            for number, candidate in enumerate(view.temporary_helper_choices, start=1):
+                if choice == str(number):
+                    return ChooseFloorTwoBossHelper(candidate.drifter_id)
+
         if view.screen is OverworldScreen.PARTY_SELECTION:
             for number, choice_view in enumerate(view.active_party_choices, start=1):
                 if choice != str(number):
@@ -423,6 +433,16 @@ class TerminalOverworldUI:
                     f"{availability}"
                 )
                 lines.extend(self._wrapped(candidate.summary, width))
+        elif view.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            lines = ["TEMPORARY FLOOR II BOSS HELPER", ""]
+            lines.extend(
+                f"{number}. {candidate.display_name} | "
+                f"{candidate.archetype_label} | Level {candidate.level}"
+                for number, candidate in enumerate(
+                    view.temporary_helper_choices,
+                    start=1,
+                )
+            )
         elif view.screen is OverworldScreen.PARTY_SELECTION:
             lines = ["CHOOSE YOUR PARTY", ""]
             for number, choice in enumerate(view.active_party_choices, start=1):
@@ -1073,6 +1093,7 @@ class TerminalOverworldUI:
             OverworldScreen.MAIN: "OVERWORLD",
             OverworldScreen.HUB: "HUB",
             OverworldScreen.COMPANION_SELECTION: "RECRUITMENT",
+            OverworldScreen.FLOOR_TWO_HELPER_SELECTION: "BOSS HELPER",
             OverworldScreen.PARTY_SELECTION: "PARTY SELECTION",
             OverworldScreen.PARTY_READY: "PARTY READY",
             OverworldScreen.OUTING: "OUTING",

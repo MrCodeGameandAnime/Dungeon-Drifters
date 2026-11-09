@@ -254,6 +254,19 @@ class PartyState:
         return self._floor_two_outing_xp_multiplier_percent
 
     @property
+    def floor_two_boss_helper_id(self):
+        run_id = self._floor_two_run_id
+        if run_id is None:
+            return None
+        for event in self._resolved_run_events:
+            if (
+                event["run_id"] == run_id
+                and event["kind"] == "boss_helper_selection"
+            ):
+                return event["result"]["drifter_id"]
+        return None
+
+    @property
     def resolved_run_events(self):
         return tuple(to_plain_value(event, "party.resolved_run_events") for event in self._resolved_run_events)
 
@@ -449,7 +462,8 @@ class PartyState:
             DungeonPhase.OUTING,
         }:
             return False
-        self._validate_party_members(deployed_members)
+        if not self._is_floor_two_helper_party(deployed_members):
+            self._validate_party_members(deployed_members)
         if not isinstance(target, PlayerState) or not any(
             target is member for member in deployed_members
         ):
@@ -470,6 +484,21 @@ class PartyState:
             return False
         target.health.heal(amount)
         return True
+
+    def _is_floor_two_helper_party(self, party_members):
+        if (
+            not isinstance(party_members, tuple)
+            or len(party_members) != 3
+            or self._phase is not DungeonPhase.OUTING
+            or self._floor_two_run_id is None
+        ):
+            return False
+        helper_id = self.floor_two_boss_helper_id
+        return (
+            helper_id is not None
+            and tuple(_drifter_id(member) for member in party_members)
+            == self._active_drifter_ids + (helper_id,)
+        )
 
     def unload_carried_supplies(self, items):
         if self._phase not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
@@ -585,6 +614,24 @@ class PartyState:
             if event["event_key"] == event_key:
                 return to_plain_value(event, "party.run_event")
         return None
+
+    def select_floor_two_boss_helper(self, drifter_id, *, node_id):
+        if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
+            raise ValueError("a Floor 2 helper requires an active outing")
+        event = {
+            "event_key": _run_event_key(
+                self._floor_two_run_id,
+                node_id,
+                "boss_helper_selection",
+            ),
+            "run_id": self._floor_two_run_id,
+            "floor_id": "floor_two",
+            "node_id": node_id,
+            "kind": "boss_helper_selection",
+            "position": None,
+            "result": {"drifter_id": drifter_id},
+        }
+        return self.record_run_event(event)
 
     def fail_floor_two_run(self, party_members, *, recruited_members=None):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
@@ -1236,6 +1283,7 @@ def _run_event(value):
         "encounter_rewards",
         "discovery_search",
         "armor_reward",
+        "boss_helper_selection",
     }:
         raise ValueError("run event kind is invalid")
     position = value["position"]
@@ -1312,6 +1360,13 @@ def _validate_run_event_result(kind, result, event):
             or instance.category != "armor"
         ):
             raise ValueError("armor reward instance disagrees with its authored outcome")
+        return
+
+    if kind == "boss_helper_selection":
+        if set(result) != {"drifter_id"}:
+            raise ValueError("boss-helper result has an invalid shape")
+        if result["drifter_id"] not in {"zhaivra", "joruun"}:
+            raise ValueError("boss-helper Drifter ID is invalid")
         return
 
     if kind == "encounter_rewards":
@@ -1443,6 +1498,16 @@ def validate_run_event_history(
                 and result["searcher_drifter_id"] not in active_drifter_ids
             ):
                 raise ValueError("discovery searcher is not in the active party")
+        elif event["kind"] == "boss_helper_selection":
+            if node_id not in {"floor_two_pre_boss_rest", "floor_two_battle_10"}:
+                raise ValueError("boss-helper selection is outside its route checkpoint")
+            helper_id = event["result"]["drifter_id"]
+            if (
+                event["run_id"] == active_run_id
+                and active_drifter_ids is not None
+                and helper_id in active_drifter_ids
+            ):
+                raise ValueError("boss helper duplicates an active Drifter")
 
     referenced_drop_keys = set()
     for event in normalized:

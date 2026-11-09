@@ -49,7 +49,7 @@ class ScriptedTerminalOverworldUI(TerminalOverworldUI):
         self._game_state_provider = game_state_provider
         self.current_view = None
         self.views = []
-        self._recruitment_input_sent = False
+        self._helper_input_sent = False
         self._search_input_sent = False
         self._input_count = 0
         super().__init__(
@@ -79,20 +79,33 @@ class ScriptedTerminalOverworldUI(TerminalOverworldUI):
             return "2"
         if view.screen is OverworldScreen.REST:
             node_id = self.game_state.overworld_state.current_route_node_id
-            if node_id == "floor_two_midway_rest" and not self._recruitment_input_sent:
-                self._recruitment_input_sent = True
-                return "j"
             if (
                 node_id == "floor_two_pre_boss_rest"
                 and not self._search_input_sent
             ):
                 self._search_input_sent = True
                 return "s"
+            if (
+                node_id == "floor_two_pre_boss_rest"
+                and not self._helper_input_sent
+            ):
+                self._helper_input_sent = True
+                return "b"
             return "n"
         if view.screen is OverworldScreen.COMPANION_SELECTION:
             index = next(
                 index
                 for index, choice in enumerate(view.companion_choices, start=1)
+                if choice.drifter_id == "zhaivra"
+            )
+            return str(index)
+        if view.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            index = next(
+                index
+                for index, choice in enumerate(
+                    view.temporary_helper_choices,
+                    start=1,
+                )
                 if choice.drifter_id == "zhaivra"
             )
             return str(index)
@@ -144,7 +157,7 @@ class ScriptedTerminalBattleUI(TerminalBattleUI):
         return "1"
 
 
-def test_terminal_can_start_and_complete_floor_two_with_recruitment_and_discovery(
+def test_terminal_can_start_and_complete_floor_two_with_temporary_helper_and_discovery(
     tmp_path,
 ):
     game = completed_hub_game()
@@ -181,14 +194,17 @@ def test_terminal_can_start_and_complete_floor_two_with_recruitment_and_discover
     assert len(encounters) == 10
     assert encounters[-1] == "Goblin Lord"
     assert session.game_state.party_state.floor_two_cleared
-    assert "zhaivra" in {
+    assert tuple(
         member.character.profile.drifter_id
         for member in session.game_state.recruited_members
-    }
+    ) == ("branoc", "azhvielle")
     assert session.game_state.world_state.permanent_discovery_claims == (
         "ancient_well_floor2_01",
     )
-    assert OverworldScreen.COMPANION_SELECTION in tuple(
+    assert OverworldScreen.FLOOR_TWO_HELPER_SELECTION in tuple(
+        view.screen for view in overworld_ui.views
+    )
+    assert OverworldScreen.COMPANION_SELECTION not in tuple(
         view.screen for view in overworld_ui.views
     )
     assert OverworldScreen.DISCOVERY_CONFIRMATION in tuple(

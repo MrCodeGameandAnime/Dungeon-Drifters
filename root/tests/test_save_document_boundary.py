@@ -31,7 +31,7 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
 
     assert len(canonical_bytes) == 2977
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "9fb54dde4ebb9c4db4423a20954c28a068db64661ea56a9db094d86ad62f787a"
+        "e76ea1669ef4f9751325e70498565ac889a261e44f36786b28f9af8bf1892e96"
     )
 
 
@@ -54,7 +54,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 21
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 22
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -102,7 +102,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
 
     assert schema13 == original
     assert restored.party_state.carried_items == {}
-    assert build_save_document(restored)["schema_version"] == 21
+    assert build_save_document(restored)["schema_version"] == DISK_SCHEMA_VERSION
 
 
 def test_signature_weapon_progress_survives_save_round_trip():
@@ -220,7 +220,7 @@ def test_equipment_instance_and_exact_loadout_survive_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == 21
+    assert document["schema_version"] == DISK_SCHEMA_VERSION
     assert {
         item.instance_id: item.snapshot()
         for item in restored.party_state.equipment_instances

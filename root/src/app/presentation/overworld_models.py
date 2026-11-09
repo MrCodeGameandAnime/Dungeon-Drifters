@@ -9,6 +9,7 @@ class OverworldScreen(StrEnum):
     HUB = "hub"
     FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
+    FLOOR_TWO_HELPER_SELECTION = "floor_two_helper_selection"
     PARTY_SELECTION = "party_selection"
     PARTY_READY = "party_ready"
     OUTING = "outing"
@@ -59,6 +60,7 @@ class OverworldAction(StrEnum):
     SKIP_REST = "skip_rest"
     MENU = "menu"
     RECRUIT_COMPANION = "recruit_companion"
+    CHOOSE_FLOOR_TWO_HELPER = "choose_floor_two_helper"
     SELECT_PARTY = "select_party"
     READY = "ready"
     RETURN_TO_HUB = "return_to_hub"
@@ -143,6 +145,21 @@ class DiscoveryDrifterChoiceView:
     def __post_init__(self):
         _validate_text("drifter_id", self.drifter_id)
         _validate_text("display_name", self.display_name)
+
+
+@dataclass(frozen=True)
+class TemporaryBossHelperChoiceView:
+    drifter_id: str
+    display_name: str
+    archetype_label: str
+    level: int
+
+    def __post_init__(self):
+        for name in ("drifter_id", "display_name", "archetype_label"):
+            _validate_text(name, getattr(self, name))
+        _validate_nonnegative("level", self.level)
+        if self.level < 1:
+            raise ValueError("helper level must be at least 1")
 
 
 class MapNodeState(StrEnum):
@@ -962,6 +979,7 @@ class OverworldView:
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
     companion_choices: tuple[CompanionChoiceView, ...] = ()
+    temporary_helper_choices: tuple[TemporaryBossHelperChoiceView, ...] = ()
     active_party_choices: tuple[PartyPairChoiceView, ...] = ()
     active_drifter_ids: tuple[str, ...] = ()
     shared_gold: int | None = None
@@ -982,6 +1000,11 @@ class OverworldView:
             "companion_choices",
             self.companion_choices,
             CompanionChoiceView,
+        )
+        _validate_instance_tuple(
+            "temporary_helper_choices",
+            self.temporary_helper_choices,
+            TemporaryBossHelperChoiceView,
         )
         _validate_instance_tuple(
             "active_party_choices",
@@ -1063,6 +1086,11 @@ class OverworldView:
                 raise ValueError("companion selection must show shared gold and cost")
         elif self.companion_choices:
             raise ValueError("companion choices are only valid on their selection screen")
+        if self.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            if not 1 <= len(self.temporary_helper_choices) <= 2:
+                raise ValueError("helper selection must offer one or two Drifters")
+        elif self.temporary_helper_choices:
+            raise ValueError("temporary helper choices belong only to their selection screen")
         if self.screen is OverworldScreen.PARTY_SELECTION:
             if len(self.active_party_choices) < 1:
                 raise ValueError("party selection must offer at least one pair")

@@ -28,17 +28,80 @@ def test_floor_one_recruitment_event_is_authored_in_the_content_catalog():
         event.cost = 1
 
 
-def test_floor_two_d3_recruitment_event_is_authored_at_midway_rest():
-    event = catalog.get_recruitment_event("floor_two_d3_recruitment")
+def test_floor_two_hub_recruitment_event_is_authored_at_surface_hub():
+    event = catalog.get_recruitment_event("floor_two_hub_recruitment")
 
-    assert event.route_id == "floor_two"
-    assert event.route_node_id == "floor_two_midway_rest"
+    assert event.route_id == "surface"
+    assert event.route_node_id == "surface_dungeon_entrance"
     assert event.candidate_drifter_ids == (
         "branoc",
         "azhvielle",
         "zhaivra",
         "joruun",
     )
+    assert event.cost == 65
+
+
+def test_floor_two_hub_recruitment_is_available_after_clear_but_not_during_run():
+    party = SimpleNamespace(
+        phase=DungeonPhase.HUB,
+        tutorial_complete=True,
+        floor_one_cleared=True,
+        floor_two_cleared=True,
+        floor_two_run_id=None,
+    )
+    game_state = SimpleNamespace(
+        party_state=party,
+        story_state=SimpleNamespace(completed_events=()),
+        overworld_state=SimpleNamespace(
+            active_route_id="surface",
+            current_route_node_id="surface_dungeon_entrance",
+        ),
+        recruited_members=(
+            SimpleNamespace(character=SimpleNamespace(profile=SimpleNamespace(drifter_id="branoc"))),
+            SimpleNamespace(character=SimpleNamespace(profile=SimpleNamespace(drifter_id="azhvielle"))),
+        ),
+    )
+
+    event = available_recruitment_event(game_state)
+
+    assert event is not None
+    assert event.event_id == "floor_two_hub_recruitment"
+    assert event.cost == 65
+
+    party.phase = DungeonPhase.OUTING
+    party.floor_two_run_id = "active-run"
+    game_state.overworld_state.active_route_id = "floor_two"
+    game_state.overworld_state.current_route_node_id = "floor_two_midway_rest"
+
+    assert available_recruitment_event(game_state) is None
+
+
+def test_floor_two_hub_recruitment_is_available_after_floor_one_before_floor_two_clear():
+    party = SimpleNamespace(
+        phase=DungeonPhase.HUB,
+        tutorial_complete=True,
+        floor_one_cleared=True,
+        floor_two_cleared=False,
+        floor_two_run_id=None,
+    )
+    game_state = SimpleNamespace(
+        party_state=party,
+        story_state=SimpleNamespace(completed_events=()),
+        overworld_state=SimpleNamespace(
+            active_route_id="surface",
+            current_route_node_id="surface_dungeon_entrance",
+        ),
+        recruited_members=(
+            SimpleNamespace(character=SimpleNamespace(profile=SimpleNamespace(drifter_id="branoc"))),
+            SimpleNamespace(character=SimpleNamespace(profile=SimpleNamespace(drifter_id="azhvielle"))),
+        ),
+    )
+
+    event = available_recruitment_event(game_state)
+
+    assert event is not None
+    assert event.event_id == "floor_two_hub_recruitment"
     assert event.cost == 65
 
 
@@ -64,6 +127,9 @@ def test_completed_tutorial_at_d1_node_does_not_resolve_recruited_roster():
             phase=DungeonPhase.HUB,
             tutorial_complete=True,
             companions=(),
+            floor_one_cleared=False,
+            floor_two_cleared=False,
+            floor_two_run_id=None,
         )
         story_state = SimpleNamespace(completed_events=())
         overworld_state = SimpleNamespace(

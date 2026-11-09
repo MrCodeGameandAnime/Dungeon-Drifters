@@ -85,6 +85,15 @@ class ChooseCompanion:
 
 
 @dataclass(frozen=True)
+class ChooseFloorTwoBossHelper:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChooseActivePair:
     drifter_ids: tuple[str, str]
 
@@ -278,6 +287,7 @@ OverworldInput: TypeAlias = Union[
     ChooseAdvancementPurchase,
     ChooseAdvancementEquip,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
     ChooseActivePair,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,

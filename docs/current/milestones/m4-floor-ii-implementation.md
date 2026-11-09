@@ -1,8 +1,8 @@
 # M4A Floor II Implementation Plan
 
-> Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document plans M4A only; it does not authorize starting M5 or M4B.
+> Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document records the approved M4A party-size correction; it does not authorize unrelated M4B scope.
 
-**Status:** M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`. The post-review run-history and D3 recruitment corrections, pending-boss settlement guard, full browser route, PostgreSQL/migration checks, and pinned MicroPython matrix are verified. M5 is next in the roadmap; M4B remains sequenced after M5.
+**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is implemented and locally qualified in the current worktree on the existing `dungeon` branch. Exact-SHA hosted qualification remains pending the implementation commit and push. It supersedes the earlier midway D3 recruitment and reopens the affected Floor II boss/recruitment/client gates. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
 
 ### Local Review Checkpoints
 
@@ -12,16 +12,22 @@ The implementation is split into these reviewable commits on the existing `dunge
 | --- | --- | --- |
 | M4A-1 | `dcacc08` | Tier I enemy profiles, authored data, and catalog validation |
 | M4A-2 | `c3ddac5` | Identity modifiers and the cave-in response |
-| M4A-3 / M4A-4 | `6377eb4` | Persisted Floor II run/events, route, D3, rewards, and schema 18 |
+| M4A-3 / M4A-4 | `6377eb4` | Historical baseline: persisted Floor II run/events, route, midway D3 recruitment, rewards, and schema 18 |
 | M4A-5 | `70c55c4` | Browser bridge and built-browser Floor II journey |
 | M4 checkpoint | `9c6a70e` | Record gate checkpoint and qualification status |
 | M4A-5 | `b110923` | Terminal Floor II journey and terminal action-key routing |
 | M4A-6 | `b57ca41` | Record cumulative local qualification checkpoint |
 | M4A-6 | `fcc97ae`, `a48903f` | Harden Floor II recovery and protect pending boss settlement |
 | M4A-6 | `f2f3785` | Extend and qualify the pinned MicroPython Floor II probe |
-| M4A corrective review | `a0aaa53` | Bound settled run-event evidence and catch up D3 to the lower active level |
+| M4A corrective review | `a0aaa53` | Historical correction: bounded settled run-event evidence and permanent-recruit catch-up (now superseded) |
 
 The original cumulative baseline was qualified by [GitHub Actions run 42273495771](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42273495771) on exact SHA `b57ca41fec21988718605b211e56e7a6a5950ce0`: 2,084 root tests, 66 web tests, and 39 PostgreSQL tests passed, with migration/Alembic checks and the 161-file browser build. This is historical baseline evidence; final qualification is recorded below.
+
+### 2026-11-09 Party Revision - Local Status
+
+Implemented locally: the scripted pre-boss D3/D4 helper choice, persisted selection, three-member Floor II boss composition, pair-only boss XP, independent Level 1 Hub recruitment for 65 gold, atomic underfunded retry, browser/terminal controls, runtime/disk schema 21/22 migration, and the updated pinned-runtime probe. The current full root suite passed **2,240 tests**; web passed **72**; profile-service/PostgreSQL passed **47**; content validation passed (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 3 routes, 3 recruitment events); compileall passed; browser build produced **172 runtime files**; full Playwright smoke passed through the M4 helper, recruitment, Floor II boss, and existing M5 journeys. Migration-from-zero and Alembic parity passed. The exact pinned MicroPython matrix passed on this worktree: native/forced-overlay CPython, default MicroPython, semantic parity, 1152K stable 3/3, 1024K expected memory-limit classification 3/3, with final marker `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The remaining qualification item is the hosted workflow on the exact pushed SHA. Local PostgreSQL 17, migrations-from-zero, Alembic parity, built-browser smoke, and pinned MicroPython all passed on the current working tree; none of those local results substitutes for exact-SHA hosted evidence.
 
 ### Review Corrections And Final Qualification
 
@@ -34,7 +40,7 @@ The review corrections address the three findings:
 
 The corrections and talisman guard are hosted-qualified on exact SHA `a48903f2456adff075a00453fb43c79449a5e0c3` in [Actions run 42296351933](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42296351933). The final M4A-6 code commit is `f2f378563d96bf94e9dd37b57e9238665f32e2b1`; [Actions run 42305392988](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42305392988) passed on that exact SHA. Hosted results: **2,102 root tests**, **66 web tests**, and **39 PostgreSQL tests** passed; content validation and compile passed; migration-from-zero and Alembic parity passed (`No new upgrade operations detected`); the **161-file browser build** and complete headless browser smoke passed through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`.
 
-**Goal:** Add authored enemy Tier 1 behavior and a bounded, replayable Floor II route that introduces D3, Grade-II materials, persisted search/drop outcomes, and one counterable environmental threat without changing sealed Floor I behavior.
+**Goal:** Add authored enemy Tier 1 behavior and a bounded, replayable Floor II route with the revised temporary boss helper, independent Hub recruitment for D3/D4, Grade-II materials, persisted search/drop outcomes, and one counterable environmental threat without changing sealed Floor I behavior.
 
 **Architecture:** Extend the existing enemy/content catalogs, combat resolver, party/run state, route/session, persistence, and semantic presentation owners. Keep all rules Python-authoritative and preserve existing Floor I behavior through explicit regression tests. Persist resolved event outcomes; do not add live-battle save snapshots.
 
@@ -51,13 +57,13 @@ This plan covers M4A only:
 - Elemental/alchemical resistance and weakness use identity multipliers only. They do not add defense stats, immunity, or a new mitigation class.
 - Existing enemy move selection remains random among legal affordable moves; target selection remains random among living active Drifters.
 - Floor II has ten battles, a midway Rest after battle 5, a pre-boss Rest after battle 9, and the boss at battle 10.
-- D3 is offered at the midway Rest for 65 secured shared gold. Recruitment adds the roster member without changing the locked active pair.
+- The midway Rest does not recruit D3. At the pre-boss Rest, the player chooses D3 or D4 as a temporary helper for the Floor II boss only. After returning to the Hub, D3 and D4 are independently recruitable for 65 secured shared gold each, at Level 1.
 - Floor II is the first source of Grade-II Metal, Fiber, Timber, and Cores. Use the existing generic Grade-II weapon-improvement recipes; do not add alternate component storage or replace the sealed weapon system.
 - One telegraphed physical cave-in uses existing Brace/Defend as its counter. No status effects, injuries, durability, formations, or boss phases.
 - Discovery search and enemy-drop outcomes are authored, resolved at their event boundary, and persisted so reloads or repeated inputs cannot reroll or duplicate them.
 - Preserve the approved floor-local replay XP schedule: initial clear at 100%; after that, 50%, 40%, 30%, then 20% minimum on later runs. Gold does not dwindle. Do not change Floor I's route or payout behavior.
 
-Out of scope: Floor III content or D4 implementation, M5 armor, four-Drifter combat, formations, boss phases, new enemy archetypes unless existing content cannot fulfill a required role, rebalancing sealed systems, broad discovery placement, or any M6 expedition work.
+Out of scope: Floor III content and four-Drifter combat (M4B), formations, boss phases, new enemy archetypes unless existing content cannot fulfill a required role, rebalancing sealed systems, broad discovery placement, or any M6 expedition work.
 
 ## Approved Floor II Contract
 
@@ -66,16 +72,19 @@ Hub, after Floor I boss clear
   -> choose Floor I replay or Start Floor II
   -> keep the currently selected two-member active pair
   -> Floor II battles 1-5
-  -> Midway Rest: Recover / Continue / Extract, plus D3 event
+  -> Midway Rest: Recover / Continue / Extract
   -> Floor II battles 6-9
-  -> Pre-Boss Rest: Recover / Continue / Extract, plus one Search site
-  -> Floor II boss (battle 10)
-  -> full eligible boss payout, restore party, return to Hub
+  -> Pre-Boss Rest: Recover / Continue / Extract, Search site, and scripted D3/D4 helper choice
+  -> Floor II boss (battle 10): active pair plus the selected temporary helper
+  -> eligible boss rewards (Floor II XP goes only to the active pair), restore party, return to Hub
+  -> independently recruit D3 and/or D4 for 65 shared gold each; each permanent recruit starts at Level 1
 ```
 
 The Floor II route uses M2's existing payout semantics: Rest extraction banks 50% of already-adjusted XP and gold and all pending items; Return Talisman banks 100% of already-adjusted XP only; boss clear banks all eligible rewards; death loses unsecured XP/gold/items and carried supplies, returns the recruited roster fully restored, and cannot rewind through a Rest save. Continue remains available after Rest recovery.
 
-D3 uses the exact 65-gold secured shared-gold cost. The event offers only unrecruited canonical Drifters. If the party has less than 65 secured gold, the attempt changes nothing: it does not charge, add a member, or mark the event complete. The party may continue or extract. Floor I replay remains available as an existing gold source, and Floor II remains launchable/replayable, so the player can return to Hub, obtain sufficient secured gold through existing rewards or permitted sales, and retry. D3 remains recruitable after Floor II is cleared; Floor III progression must not bypass the D3 recruitment position. A successful mid-run recruit joins the permanent roster but cannot replace either active Drifter until Hub return. The recruit catches up through normal level-ups to the lower of the two active Drifters' levels, receiving the corresponding normal HP/Mana growth and Growth Points, all left unspent. Catch-up starts at that level with zero progress toward its next level; it grants no additional XP, purchases, or weapon progress. The recruit keeps its authored kit and base signature weapon.
+At the pre-boss Rest, D3 and D4 offer to help with the Floor II boss. The player selects one helper. The helper is included only in that battle: they do not join the permanent roster, alter the active pair, receive XP, or carry any battle-only progression forward. Construct the temporary helper at the lower active Drifter's level using normal level-derived HP/Mana growth and the helper's authored kit/base signature weapon. Distribute the Growth Points earned by catch-up as evenly as possible across all six stats; handle any remainder deterministically. Persist the helper selection across supported Rest save/reload so it cannot produce duplicate battle participants or a partial transition. Keep the Floor II boss XP recipient set equal to the regular active pair; split secured XP between those two, then apply each member's own Intuition bonus independently.
+
+After returning to the Hub, D3 and D4 are independently recruitable for exactly 65 secured shared gold each, regardless of which one helped. Permanent recruits start at Level 1 with their authored starting state; do not carry over temporary level, GP allocation, XP, or other temporary battle state. An insufficient-gold attempt changes nothing and remains retryable. Preserve the existing Floor II replay/gold path so recruitment affordability cannot softlock progression. Floor III's four-member boss requires the four permanent roster members; do not substitute the temporary Floor II helper for permanent recruitment.
 
 ## Authored Initial Values
 
@@ -90,7 +99,7 @@ These are tunable first-pass content values, not locked balance targets:
 
 ## State And Persistence
 
-At M4A entry, the versions were runtime snapshot schema 16 and disk schema 17. M4A-3 advances these to runtime schema 17 and disk schema 18 for persisted floor-local clear/replay tracking and run-scoped search/drop outcome evidence. Continue through the existing migration chain; keep the profile API, envelope version, and database schema unchanged.
+Historical M4A entry versions were runtime snapshot schema 16 and disk schema 17; the original M4A-3 advanced them to 17/18. At the reported current baseline, the repository is runtime schema 20/disk schema 21; re-read actual constants at implementation entry. The helper choice must persist across supported Rest save/reload. Add a deliberate schema/migration change if the current shape cannot represent it; preserve immutable history and do not change the profile API, envelope version, or database schema without separate approval.
 
 - `PartyState` owns the active run identity, floor-two clear/replay state, pending run rewards, and run-scoped resolved event outcomes.
 - `WorldState` owns globally found/claimed permanent discovery source IDs. Use the existing M3 permanent-discovery claim service and preserve its atomic reward/claim contract.
@@ -98,7 +107,7 @@ At M4A entry, the versions were runtime snapshot schema 16 and disk schema 17. M
 - At enemy victory, resolve all item-drop entries once, atomically apply the encounter rewards and event record, then present the result. At confirmed search, resolve once, persist the result, and reveal the source if found. A canceled claim does not consume it.
 - Persist the resolved result at the authoritative boundary before acknowledging success. Failed persistence must not leave reward without evidence, evidence without reward, or a success message for an uncommitted outcome. Rest saves remain checkpoints; this does not enable saving a live battle.
 - Schema-16/runtime and schema-17/disk documents migrate with no Floor II clear, zero Floor II replay runs, no active Floor II run/outcomes, and no fabricated discoveries. Preserve every existing field and historical profile revision/digest.
-- Reject impossible states: Floor II cleared before Floor I, active Floor II without the required Floor I unlock, duplicate/malformed event keys, unknown discovery IDs, invalid item/quantity/chance data, and D3 completion without a recruited identity. Rejection occurs before reconstruction or partial mutation.
+- Reject impossible states: Floor II cleared before Floor I, active Floor II without the required Floor I unlock, duplicate/malformed event keys, unknown discovery IDs, invalid item/quantity/chance data, and helper selection that is unknown, stale, duplicated in the boss party, or detached from its active Floor II run. Rejection occurs before reconstruction or partial mutation.
 
 ## File Ownership Map
 
@@ -107,7 +116,7 @@ Reconfirm exact call sites at implementation entry; do not create parallel owner
 | Responsibility | Existing owner(s) to extend |
 | --- | --- |
 | Tier values, resistances, encounter drops | `root/src/app/content/enemy_spec.py`, `encounter_spec.py`, `catalog.py`, `root/src/app/enemies/definition.py`, `state.py`, `validation.py` |
-| Authored Floor II route and D3 event | `root/src/app/content/route_spec.py`, `routes/`, `encounters/`, `recruitment_event_spec.py`, `recruitment_events/`, `catalog.py` |
+| Authored Floor II route, temporary boss helper, and Hub recruitment | `root/src/app/content/route_spec.py`, `routes/`, `encounters/`, recruitment content/catalog owners, and their validation tools |
 | Tier validation and generated content checks | `root/tools/validate_content.py`, `root/tools/generate_content_catalog.py`, `root/tests/test_enemy_content.py`, `test_route_content.py`, `test_recruitment_event_content.py`, `test_content_tooling.py` |
 | Combat identities and cave-in response | `root/src/app/combat/resolver.py`, `battle.py`, `combat_state.py`, existing Brace/Defend owners and focused combat tests |
 | Route launch, settlement, replay, recruitment and search | `root/src/app/game/party_state.py`, `overworld_state.py`, `overworld_session.py`, `recruitment.py`, `permanent_discovery.py`, `world_state.py`, `story_state.py` |
@@ -136,7 +145,7 @@ Proof: the tiered fresh-instance test covers independent HP, Mana, and Super res
 
 Proof: deterministic resolver/Battle tests show the component identity changes only its multiplier and a player can counter the visible hazard with existing actions. Focused combat tests passed (104 tests).
 
-### M4A-3: Run Identity, Drop/Search Outcomes, And Schema 18
+### M4A-3: Run Identity, Drop/Search Outcomes, And Historical Schema 17/18 Baseline
 
 - [x] Add transaction tests for encounter drop resolution and confirmed search: first resolution records the outcome and reward/source; repeated input returns the same result and grants nothing extra.
 - [x] Add a run identity and stable event keys to the existing party/run state. A new genuine Floor II run has distinct event keys; reload, UI rebuild, duplicate submit, and Rest checkpoint load do not.
@@ -145,28 +154,34 @@ Proof: deterministic resolver/Battle tests show the component identity changes o
 - [x] Use the M3 permanent-discovery claim transaction for target selection, confirmation, and source claim. Persist the found source separately from claim state so cancel/reload does not lose or duplicate it.
 - [x] Bump runtime/disk schemas to 17/18; add migration, exact shape validation, round-trip, malformed-state rejection, source immutability, and current remote-profile advancement tests. Do not change profile API/envelope/database versions.
 
-Proof: event outcome, pending reward/source, and durable evidence agree after success; persistence failure leaves no partial committed transaction; all pre-M4 saves migrate without changing their old state. Covered by `test_floor_two_run_events.py`, `test_floor_two_run_state.py`, save migration tests, and profile-service history fixtures. The M4-focused root selection passed (491); full-root hosted/PostgreSQL migration qualification remains open in M4A-6.
+Historical proof: event outcome, pending reward/source, and durable evidence agree after success; persistence failure leaves no partial committed transaction; pre-M4 saves migrate without changing their old state. Covered by `test_floor_two_run_events.py`, `test_floor_two_run_state.py`, save migration tests, and profile-service history fixtures. Any new helper-selection persistence must be qualified separately against the current schema.
 
-### M4A-4: Floor Selection, Route, D3, And Settlement
+### M4A-4: Floor Selection, Route, Boss Helper, Hub Recruitment, And Settlement
 
 - [x] Add Floor II route nodes for battles 1-5, midway Rest, battles 6-9, pre-boss Rest, and battle 10 boss. The Hub offers Floor I replay or Floor II only after Floor I clear; Floor I route content and payout tests remain unchanged.
 - [x] Add floor-two start/clear/replay state. Use the approved floor-local XP replay rates of 100%, then 50%, 40%, 30%, and 20% minimum; do not reduce gold.
-- [x] Add D3 recruitment at the midway Rest for 65 secured shared gold. The candidate list excludes recruited identities. Insufficient gold leaves all state and event evidence unchanged and offers a return/retry path; successful recruitment leaves the active pair unchanged until Hub.
-- [x] Ensure skipped D3 recruitment remains available on later Floor II runs and after Floor II clear. Floor III cannot bypass the D3 recruitment position. Do not block extraction, death recovery, or Floor II replay when the player cannot pay.
+- [x] Remove permanent D3 recruitment from the midway Rest while preserving that Rest's recovery/continue/extract behavior.
+- [x] Add the scripted D3/D4 choice at the pre-boss Rest. Persist one selected helper across supported checkpoint save/reload; reject stale choices and never duplicate an active Drifter in the boss battle.
+- [x] Construct the Floor II boss battle with the two active Drifters plus exactly one temporary helper. The helper matches the lower active level, receives normal level-derived HP/Mana growth, and has catch-up GP allocated evenly across six stats with deterministic remainder handling. Use the helper's authored kit/base signature weapon. Do not mutate roster membership, active IDs, permanent helper progression, or XP.
+- [x] Keep Floor II boss XP recipients limited to the regular active pair; split secured XP between them and apply each member's personal Intuition bonus after the split.
+- [x] Offer D3 and D4 as independent 65-gold Hub recruits after Floor II return, regardless of helper choice. Permanent recruits start at Level 1; temporary level/GP/XP never carries over. Insufficient gold is atomic and retryable; retain the existing gold-earning/replay path.
+- [x] Keep the Floor III four-member boss dependent on permanent recruitment; the temporary Floor II helper cannot satisfy that requirement.
 - [x] Author Grade-II sources for all four families, using existing IDs and improvement recipes. No Grade-II materials come from Floor I. Do not add new weapon component variants.
-- [x] Preserve Rest Recover + Continue + Extract, Return Talisman, boss full payout, death loss/recovery, carried supply handling, and secured/unsecured separation. Floor II boss clear returns the party to Hub and records the clear once.
-- [x] Prove route cursor, outcome evidence, party, pending rewards, replay counter, recruitment event, and discovered/claimed state round-trip at supported checkpoints.
+- [x] Preserve Rest Recover + Continue + Extract, Return Talisman, boss eligible non-XP payout, death loss/recovery, carried supply handling, and secured/unsecured separation. Floor II boss clear returns the party to Hub and records the clear once.
+- [x] Historical baseline: route cursor, outcome evidence, party, pending rewards, replay counter, original recruitment event, and discovered/claimed state round-trip at supported checkpoints.
+- [x] Prove the revised temporary-helper selection and exact three-member boss participant set round-trip at supported Rest checkpoints without duplicating participants or changing permanent party state.
 
-Proof: full session-flow tests cover insufficient-gold extraction/retry, D3 recruitment, search/claim, Floor II boss clear, Grade-II rewards, and save reconstruction. Floor II has ten battles with the approved Rest placement; sealed Floor I tests remain in the cumulative suite.
+Proof: add full session-flow tests for the pre-boss helper choice and checkpoint round-trip; exact three-member boss composition; no active-pair/roster mutation; no helper XP or progression carry-over; two-member Floor II XP split and personal Intuition; independent Level 1 D3/D4 Hub recruitment at 65 gold with atomic insufficient-funds retry; search/claim, Floor II boss clear, Grade-II rewards, and save reconstruction. Floor I behavior remains unchanged and stays in cumulative regression coverage.
 
 ### M4A-5: Terminal/Browser Parity And End-To-End Flow
 
-- [x] Expose the same floor choices, searcher selection, D3 candidates, blocked reasons, hazard warning, and actual reward results in terminal and browser presenters. Clients submit semantic IDs only; they do not roll or calculate outcomes.
-- [x] Add presenter/bridge tests for exact Drifter IDs, unoffered/benched targets, stale recruitment offers, duplicate submits, and responsive Rest actions.
-- [x] Add a built-browser semantic journey: load a qualifying save, enter Floor II, reach the midway Rest, reject D3 for insufficient gold without mutation, return to Hub, obtain gold, replay, recruit D3, reach a Rest search, save/reload the revealed/claimed state, complete the boss, and inspect secured materials/rewards.
-- [x] Add a terminal UI journey with the same rules and Floor II completion. Keep a separate regression for the unchanged Floor I clear/replay route.
+- [x] Expose the same floor choices, searcher selection, temporary-helper candidates, Hub recruitment choices, blocked reasons, hazard warning, and actual reward results in terminal and browser presenters. Clients submit semantic IDs only; they do not roll or calculate outcomes.
+- [x] Historical baseline: presenter/bridge tests cover exact Drifter IDs, unoffered/benched targets, original recruitment offers, duplicate submits, and Rest actions.
+- [x] Add presenter/session and bridge tests for the offered D3/D4 temporary-helper choices, stale/duplicate helper submissions, and independent Hub recruitment for each unrecruited Drifter.
+- [x] Update and execute the built-browser semantic journey for helper save/reload, three-member boss participation, pair-only XP, and Hub recruitment.
+- [x] Update the terminal UI journey to cover the revised helper and Hub recruitment flow through Floor II completion. Keep a separate regression for the unchanged Floor I clear/replay route.
 
-Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_discovery` exercises the actual terminal key mapping and full session, including ten encounters, D3 recruitment, discovery claim, and boss clear. The built-browser journey emits `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`. Floor I clear/replay remains separately covered.
+Proof: the terminal journey exercises the actual key mapping and revised helper/recruitment flow, including ten encounters, discovery claim, three-member boss, pair-only XP, and Hub recruitment. The full built-browser smoke passed the same helper save/reload, boss, and Hub recruitment boundaries. Floor I clear/replay remains separately covered.
 
 ### M4A-6: Qualification And M5 Handoff
 
@@ -175,10 +190,14 @@ Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_disc
 - [x] Baseline hosted profile-service PostgreSQL tests (39), migration-from-zero, and Alembic checks passed in [run 42273495771](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42273495771).
 - [x] Pre-commit correction-tree local verification: full root pytest (2,095), web pytest (66), content validation, compile, 161-file browser build, and complete built-browser smoke passed.
 - [x] Rerun focused and cumulative qualification for the recovery corrections, including browser smoke and PostgreSQL/migration/Alembic checks.
-- [x] Extend and run the actual pinned MicroPython qualification for Tier 0/Tier 1 content loading, Floor II route/recruitment/drop/search snapshots, teardown, and semantic parity. The formal repeated heap check passed at 1024K (3/3); 944K produced the expected memory-limit classification (3/3). Intermediate heap results varied and are not claimed as a stable frontier.
+- [x] Historical pinned MicroPython qualification covers Tier 0/Tier 1 content loading, the original Floor II route/recruitment/drop/search snapshots, teardown, and semantic parity. The formal repeated heap check passed at 1024K (3/3); 944K produced the expected memory-limit classification (3/3). Intermediate heap results varied and are not claimed as a stable frontier.
+- [x] Extend the pinned MicroPython probe source for the revised helper, participant composition, Level 1 Hub recruitment, and pair-only Floor II XP attribution.
+- [x] Run the pinned MicroPython qualification for the revised helper, three-member participant composition, Level 1 Hub recruitment, and pair-only Floor II XP attribution. The exact pinned executable passed native/overlay CPython, default MicroPython, semantic parity, 1152K stable 3/3, and expected 1024K memory-limit classification 3/3.
 - [x] Run `git diff --check` and inspect the final correction diff before commit.
-- [x] Record the accepted code SHA and hosted results here and in the probe record.
-- [x] M4A closure criteria are met and the M5 handoff is unblocked. Do not start M4B until M5 is complete.
+- [x] Preserve the historical accepted code SHA and hosted results here and in the probe record.
+- [x] Historical baseline: original M4A closure criteria were met and M5 was unblocked.
+- [x] Revised party-size/recruitment contract is implemented locally and has focused regression coverage.
+- [ ] Push the reviewed implementation and obtain exact-SHA hosted browser/PostgreSQL/migration qualification. Local browser, PostgreSQL/migration, and pinned MicroPython qualification are complete; hosted evidence remains required before closing this correction.
 
 ## Regression And Acceptance Matrix
 
@@ -191,22 +210,24 @@ Proof: `test_terminal_can_start_and_complete_floor_two_with_recruitment_and_disc
 | Drop/search | Event outcome resolves once, persists before acknowledgment, and is not rerolled by reload/repeat; a later genuine run has a new event identity. |
 | Intuition | Only the selected active searcher affects their search chance via the existing helper; no party average. |
 | Discovery claim | Found source persists; claim target is one active Drifter; M3 atomic claim prevents repeat award. |
-| D3 | 65 secured shared gold; insufficient funds changes nothing; retry remains possible; active pair stays locked. |
+| Floor II helper | D3 or D4 is selected at pre-boss Rest; only the boss has three participants; helper receives no XP or persistent progression; active pair/roster stay unchanged; saved choice round-trips without duplicates. |
+| Hub recruitment | D3 and D4 are independently recruitable for 65 secured shared gold each; each permanent recruit starts at Level 1; insufficient funds changes nothing and retry remains possible. |
+| Floor II XP | Only the regular active pair receives the secured-XP split and personal Intuition bonuses. |
 | Economy | Rest, talisman, boss, death, and carried supplies match M2; Floor I remains unchanged. |
 | Grade gates | Only Floor II yields Grade II; all four families have an authored source; existing weapon recipe machinery is reused. |
-| Saves | Runtime 17/disk 18 migration is additive and immutable history is preserved. |
+| Saves | Historical M4A runtime 17/disk 18 migration remains qualified; the helper choice must round-trip under the current schema with immutable history preserved. |
 | Clients | Terminal and built browser share legal actions, result text, and exact-target rules. |
 
 ## M4A Closure
 
-M4A is closed on the qualified tree: the Floor II loop is playable from Hub through boss and back, D3 can be recruited or safely retried, the approved hazard and identity behavior are exercised, event outcomes survive reload without duplication, Grade-II materials are gated to Floor II, Floor I regression tests remain green, and hosted plus pinned-runtime qualification is recorded. M5 is next; M4B remains open and sequenced after M5.
+The original M4A tree remains historically qualified for its implemented contract. The approved 2026-11-09 party revision is implemented and all local gameplay, terminal/browser, PostgreSQL/migration, and pinned MicroPython checks pass. It remains open only for exact-SHA hosted qualification and recording that evidence. Existing enemy, hazard, discovery, and Grade-II evidence may be reused only where the corrected flow does not change its boundary. M4B remains open.
 
 ### Post-Review Correction And Final Qualification (2026-11-06)
 
 The post-closure review found three contract issues, corrected without changing the Floor II architecture or save schema:
 
 - Settled Floor II event evidence is cleared at each terminal outcome. A pending boss settlement retains its event evidence until the victory is durably finalized. Loading a legacy settled save validates its recorded events, then discards stale run history so a later active-pair change cannot invalidate the save. Active searcher membership is checked against the participants of the active run, not the currently selected pair after settlement.
-- D3 catches up through ordinary level-ups to the lower-level member of the active pair. Normal HP/Mana growth and earned GP are retained; GP stays unspent. The recruit starts with no additional XP progress, purchases, or weapon progression and keeps its authored kit/base weapon.
+- Historical behavior: D3 caught up to the lower active level during mid-run recruitment. This was qualified for the original M4A contract and is now superseded. Under the approved revision, the temporary boss helper is scaled for that battle with evenly distributed GP; permanent D3/D4 Hub recruits start at Level 1.
 - The pinned Floor II probe now asserts boss reward/drop evidence before settlement and verifies that settled state no longer retains per-run history.
 
 The correction is committed as `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba` (`M4A: fix event history and recruitment catch-up`). Local verification passed 2,106 root tests, 66 web tests, content validation, compileall, the 161-file browser build, full Playwright smoke through `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`, and `git diff --check`. The exact pinned MicroPython v1.29.0 matrix passed native/overlay CPython, default MicroPython, semantic parity, 1024K stable 3/3, and the expected 944K memory-limit result 3/3.
