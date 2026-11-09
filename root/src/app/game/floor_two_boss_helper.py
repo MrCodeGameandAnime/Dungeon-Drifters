@@ -16,6 +16,10 @@ def available_floor_two_boss_helper_ids(active_drifter_ids):
     )
 
 
+def floor_two_replay_requires_available_helper(active_drifter_ids):
+    return not available_floor_two_boss_helper_ids(active_drifter_ids)
+
+
 def create_floor_two_boss_helper(drifter_id, target_level):
     if drifter_id not in _HELPER_IDS:
         raise ValueError("Floor II boss helper must be D3 or D4")
@@ -50,4 +54,5 @@ def create_floor_two_boss_helper(drifter_id, target_level):
 __all__ = [
     "available_floor_two_boss_helper_ids",
     "create_floor_two_boss_helper",
+    "floor_two_replay_requires_available_helper",
 ]

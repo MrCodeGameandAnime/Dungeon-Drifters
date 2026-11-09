@@ -77,7 +77,7 @@ def test_floor_two_hub_recruitment_is_available_after_clear_but_not_during_run()
     assert available_recruitment_event(game_state) is None
 
 
-def test_floor_two_hub_recruitment_is_available_after_floor_one_before_floor_two_clear():
+def test_floor_two_hub_recruitment_requires_floor_two_clear():
     party = SimpleNamespace(
         phase=DungeonPhase.HUB,
         tutorial_complete=True,
@@ -98,6 +98,9 @@ def test_floor_two_hub_recruitment_is_available_after_floor_one_before_floor_two
         ),
     )
 
+    assert available_recruitment_event(game_state) is None
+
+    party.floor_two_cleared = True
     event = available_recruitment_event(game_state)
 
     assert event is not None

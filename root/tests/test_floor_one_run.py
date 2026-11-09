@@ -230,6 +230,27 @@ def floor_two_boss_game(*, carried_supplies=None, boss_helper_id="zhaivra"):
     return game
 
 
+def floor_two_replay_hub_game(*, active_drifter_ids):
+    game = game_at_completed_hub()
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run() == 100
+    assert party.complete_floor_two_boss(game.active_party_members)
+    game.overworld_state.return_to_surface_entrance()
+
+    for drifter_id in ("zhaivra", "joruun"):
+        companion = PlayerState(get_drifter_spec(drifter_id).create_character())
+        assert party.recruit_companion(game.player_state, companion, cost=0)
+
+    recruited_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
+    party.select_active_pair(active_drifter_ids, recruited_ids=recruited_ids)
+    return game
+
+
 def floor_two_boss_settlement_failure(*, carried_supplies=None):
     game = floor_two_boss_game(carried_supplies=carried_supplies)
     save_port = RecordingSavePort()
@@ -489,8 +510,21 @@ def test_floor_two_boss_helper_selection_is_atomic_and_survives_reload():
         ChooseOverworldAction(OverworldAction.SKIP_REST)
     )
     assert blocked_continue.screen is OverworldScreen.REST
+    assert blocked_continue.notice == "That Rest is not available."
+    assert session.game_state.snapshot() == game.snapshot()
     assert session.game_state.overworld_state.current_route_node_id == (
         "floor_two_pre_boss_rest"
+    )
+    assert session.game_state.party_state.floor_two_boss_helper_id is None
+    assert not any(
+        event["kind"] == "boss_helper_selection"
+        for event in session.game_state.party_state.resolved_run_events
+    )
+    before_internal_skip = session.game_state.snapshot()
+    session._resolve_current_rest(recover=False)
+    assert session.game_state.snapshot() == before_internal_skip
+    assert session.current_view().notice == (
+        "Choose D3 or D4 at the Pre-Boss Rest before continuing."
     )
 
     selection = session.submit(
@@ -530,6 +564,128 @@ def test_floor_two_boss_helper_selection_is_atomic_and_survives_reload():
     rejected_repeat = resumed.submit(ChooseFloorTwoBossHelper("joruun"))
     assert rejected_repeat.screen is OverworldScreen.REST
     assert restored.snapshot() == before_replay
+
+
+def test_floor_two_boss_entry_without_rest_helper_does_not_open_selection_at_boss():
+    game = floor_two_boss_game(boss_helper_id=None)
+    session = make_session(game)
+    session._screen = OverworldScreen.MAIN
+    before = game.snapshot()
+
+    blocked = session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+
+    assert blocked.screen is OverworldScreen.MAIN
+    assert blocked.notice == (
+        "Choose D3 or D4 at the Pre-Boss Rest before entering this boss."
+    )
+    assert session.active_battle is None
+    assert session.game_state.snapshot() == before
+    assert session.game_state.party_state.floor_two_boss_helper_id is None
+    assert not any(
+        event["kind"] == "boss_helper_selection"
+        for event in session.game_state.party_state.resolved_run_events
+    )
+
+
+def test_floor_two_helper_selection_rejects_boss_node_event():
+    game = floor_two_boss_game(boss_helper_id=None)
+    party = game.party_state
+    before = party.snapshot()
+
+    with pytest.raises(ValueError, match="pre-boss Rest"):
+        party.select_floor_two_boss_helper(
+            "zhaivra",
+            node_id="floor_two_battle_10",
+        )
+
+    run_id = party.floor_two_run_id
+    event = {
+        "event_key": (
+            f"floor_two:{run_id}:floor_two_battle_10:boss_helper_selection"
+        ),
+        "run_id": run_id,
+        "floor_id": "floor_two",
+        "node_id": "floor_two_battle_10",
+        "kind": "boss_helper_selection",
+        "position": None,
+        "result": {"drifter_id": "zhaivra"},
+    }
+    with pytest.raises(ValueError, match="outside its route checkpoint"):
+        party.record_run_event(event)
+
+    assert party.snapshot() == before
+
+
+def test_floor_two_replay_requires_d3_or_d4_outside_active_pair_before_start():
+    game = floor_two_replay_hub_game(active_drifter_ids=("zhaivra", "joruun"))
+    session = make_session(game)
+    hub = session.current_view()
+    start_floor_two = next(
+        option for option in hub.options
+        if option.action is OverworldAction.START_FLOOR_TWO
+    )
+
+    assert not start_floor_two.enabled
+    assert start_floor_two.disabled_reason.value == (
+        "floor_two_replay_requires_available_helper"
+    )
+    assert next(
+        option for option in hub.options
+        if option.action is OverworldAction.START_FLOOR_ONE
+    ).enabled
+    assert next(
+        option for option in hub.options
+        if option.action is OverworldAction.SELECT_PARTY
+    ).enabled
+
+    before = session.game_state.snapshot()
+    with pytest.raises(ValueError, match="leaves D3 or D4 available"):
+        session.game_state.party_state.start_floor_two_run()
+    assert session.game_state.snapshot() == before
+
+    blocked = session.submit(
+        ChooseOverworldAction(OverworldAction.START_FLOOR_TWO)
+    )
+
+    assert blocked.notice == (
+        "Choose an active pair that leaves D3 or D4 available for the Floor II boss."
+    )
+    assert session.game_state.snapshot() == before
+    assert session.game_state.party_state.phase is DungeonPhase.HUB
+    assert session.game_state.party_state.floor_two_run_id is None
+
+    selection = session.submit(
+        ChooseOverworldAction(OverworldAction.SELECT_PARTY)
+    )
+    assert selection.screen is OverworldScreen.PARTY_SELECTION
+    assert ("zhaivra", "joruun") in tuple(
+        choice.drifter_ids for choice in selection.active_party_choices
+    )
+    session.submit(ChooseActivePair(("branoc", "azhvielle")))
+
+    available = session.current_view()
+    assert next(
+        option for option in available.options
+        if option.action is OverworldAction.START_FLOOR_TWO
+    ).enabled
+    assert isinstance(
+        session.submit(ChooseOverworldAction(OverworldAction.START_FLOOR_TWO)),
+        BattleView,
+    )
+
+
+def test_floor_two_replay_pair_rule_does_not_restrict_floor_one_pair_selection():
+    game = floor_two_replay_hub_game(active_drifter_ids=("zhaivra", "joruun"))
+    session = make_session(game)
+
+    assert next(
+        option for option in session.current_view().options
+        if option.action is OverworldAction.START_FLOOR_ONE
+    ).enabled
+    assert isinstance(set_out(session), BattleView)
+    assert game.party_state.active_drifter_ids == ("zhaivra", "joruun")
 
 
 def test_floor_two_search_site_selects_searcher_before_resolving():

@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document records the approved M4A party-size correction; it does not authorize unrelated M4B scope.
 
-**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is implemented and qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` in [GitHub Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). It supersedes the earlier midway D3 recruitment and reopens the affected Floor II boss/recruitment/client gates. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
+**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is hosted-qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` in [GitHub Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). A subsequent review approved corrections to recruitment timing, Rest-only helper selection, and Floor II replay eligibility. M4A is reopened pending implementation and exact-SHA requalification of those corrections. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
 
 ### Local Review Checkpoints
 
@@ -28,6 +28,16 @@ The original cumulative baseline was qualified by [GitHub Actions run 4227349577
 Implemented and qualified: the scripted pre-boss D3/D4 helper choice, persisted selection, three-member Floor II boss composition, pair-only boss XP, independent Level 1 Hub recruitment for 65 gold, atomic underfunded retry, browser/terminal controls, runtime/disk schema 21/22 migration, and the updated pinned-runtime probe. Exact-SHA hosted CI passed **2,240 root tests**, **72 web tests**, and **47 PostgreSQL tests**; content validation, compileall, the **172-runtime-file browser build**, complete Playwright smoke (including helper save/reload, Hub recruitment, and Floor II boss clear), migration-from-zero, and Alembic parity also passed in [run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). The exact pinned MicroPython matrix passed locally on the same source tree: native/forced-overlay CPython, default MicroPython, semantic parity, 1152K stable 3/3, 1024K expected memory-limit classification 3/3, with final marker `MYP20|RESULT|CLOSURE_COMPLETE`.
 
 The M4A party revision is hosted-qualified on the exact pushed SHA above. The pinned MicroPython matrix is local evidence; the hosted workflow does not execute that binary. M4B remains a separate future implementation gate and is not claimed complete by this Floor II correction.
+
+### 2026-11-09 Diff-Review Corrections
+
+The approved correction contract is:
+
+- D3/D4 Hub recruitment is unavailable until `floor_two_cleared` is true. Both recruits remain independently available for 65 secured shared gold and start at Level 1.
+- The temporary helper must be selected at `floor_two_pre_boss_rest`; continuing without a selection is blocked. The boss node never opens helper selection, and persisted helper evidence must reference the Rest.
+- On a cleared Floor II replay, at least one of D3/D4 must be outside the active pair. Disable Start Floor 2 at the Hub with an actionable reason and reject direct attempts before any outing state changes. The restriction is Floor II replay-specific; D3+D4 remains a legal pair for other content.
+
+The implementation and exact-SHA qualification for these review corrections are pending.
 
 ### Review Corrections And Final Qualification
 
@@ -57,7 +67,7 @@ This plan covers M4A only:
 - Elemental/alchemical resistance and weakness use identity multipliers only. They do not add defense stats, immunity, or a new mitigation class.
 - Existing enemy move selection remains random among legal affordable moves; target selection remains random among living active Drifters.
 - Floor II has ten battles, a midway Rest after battle 5, a pre-boss Rest after battle 9, and the boss at battle 10.
-- The midway Rest does not recruit D3. At the pre-boss Rest, the player chooses D3 or D4 as a temporary helper for the Floor II boss only. After returning to the Hub, D3 and D4 are independently recruitable for 65 secured shared gold each, at Level 1.
+- The midway Rest does not recruit D3. At the pre-boss Rest, the player chooses D3 or D4 as a temporary helper for the Floor II boss only and must record that choice before continuing. Permanent D3/D4 Hub recruitment for 65 secured shared gold each, at Level 1, unlocks only after Floor II clear.
 - Floor II is the first source of Grade-II Metal, Fiber, Timber, and Cores. Use the existing generic Grade-II weapon-improvement recipes; do not add alternate component storage or replace the sealed weapon system.
 - One telegraphed physical cave-in uses existing Brace/Defend as its counter. No status effects, injuries, durability, formations, or boss phases.
 - Discovery search and enemy-drop outcomes are authored, resolved at their event boundary, and persisted so reloads or repeated inputs cannot reroll or duplicate them.
@@ -71,6 +81,7 @@ Out of scope: Floor III content and four-Drifter combat (M4B), formations, boss 
 Hub, after Floor I boss clear
   -> choose Floor I replay or Start Floor II
   -> keep the currently selected two-member active pair
+  -> on Floor II replay, leave at least one of D3/D4 outside the active pair
   -> Floor II battles 1-5
   -> Midway Rest: Recover / Continue / Extract
   -> Floor II battles 6-9
@@ -84,7 +95,9 @@ The Floor II route uses M2's existing payout semantics: Rest extraction banks 50
 
 At the pre-boss Rest, D3 and D4 offer to help with the Floor II boss. The player selects one helper. The helper is included only in that battle: they do not join the permanent roster, alter the active pair, receive XP, or carry any battle-only progression forward. Construct the temporary helper at the lower active Drifter's level using normal level-derived HP/Mana growth and the helper's authored kit/base signature weapon. Distribute the Growth Points earned by catch-up as evenly as possible across all six stats; handle any remainder deterministically. Persist the helper selection across supported Rest save/reload so it cannot produce duplicate battle participants or a partial transition. Keep the Floor II boss XP recipient set equal to the regular active pair; split secured XP between those two, then apply each member's own Intuition bonus independently.
 
-After returning to the Hub, D3 and D4 are independently recruitable for exactly 65 secured shared gold each, regardless of which one helped. Permanent recruits start at Level 1 with their authored starting state; do not carry over temporary level, GP allocation, XP, or other temporary battle state. An insufficient-gold attempt changes nothing and remains retryable. Preserve the existing Floor II replay/gold path so recruitment affordability cannot softlock progression. Floor III's four-member boss requires the four permanent roster members; do not substitute the temporary Floor II helper for permanent recruitment.
+The player cannot continue from the pre-boss Rest until the helper choice is recorded; helper selection is never offered at the boss node. After Floor II has been cleared, a replay can start only if the active pair leaves at least one of D3/D4 available as a temporary helper. This is checked at Hub entry before the outing begins, is recoverable by changing the pair at the Hub, and does not restrict D3+D4 as an active pair for Floor I or other content.
+
+After returning to the Hub following Floor II clear, D3 and D4 are independently recruitable for exactly 65 secured shared gold each, regardless of which one helped. Permanent recruits start at Level 1 with their authored starting state; do not carry over temporary level, GP allocation, XP, or other temporary battle state. An insufficient-gold attempt changes nothing and remains retryable. Preserve the existing Floor II replay/gold path so recruitment affordability cannot softlock progression. Floor III's four-member boss requires the four permanent roster members; do not substitute the temporary Floor II helper for permanent recruitment.
 
 ## Authored Initial Values
 

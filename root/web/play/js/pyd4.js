@@ -129,7 +129,11 @@
     if (!available && reason) {
       const detail = document.createElement("span");
       detail.className = "option-reason";
-      detail.textContent = `Unavailable: ${String(reason).replace(/_/g, " ")}`;
+      const reasonText = {
+        floor_two_replay_requires_available_helper:
+          "Choose an active pair that leaves D3 or D4 available for the Floor II boss.",
+      };
+      detail.textContent = `Unavailable: ${reasonText[reason] || String(reason).replace(/_/g, " ")}`;
       button.title = detail.textContent;
       button.append(detail);
     }

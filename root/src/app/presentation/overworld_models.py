@@ -85,6 +85,9 @@ class OverworldAvailabilityReason(StrEnum):
     SAVE_UNAVAILABLE = "save_unavailable"
     LOAD_UNAVAILABLE = "load_unavailable"
     INSUFFICIENT_SHARED_GOLD = "insufficient_shared_gold"
+    FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER = (
+        "floor_two_replay_requires_available_helper"
+    )
 
 
 @dataclass(frozen=True)

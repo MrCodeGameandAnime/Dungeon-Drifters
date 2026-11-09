@@ -1152,4 +1152,7 @@ class TerminalOverworldUI:
             OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD: (
                 "You need 65 shared gold to recruit a Drifter."
             ),
+            OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER: (
+                "Choose an active pair that leaves D3 or D4 available for the Floor II boss."
+            ),
         }[reason]

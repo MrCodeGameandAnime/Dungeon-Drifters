@@ -37,6 +37,9 @@ from app.content.weapon_progression_spec import (
 )
 from app.game.party_state import DungeonPhase
 from app.game.recruitment import available_recruitment_event
+from app.game.floor_two_boss_helper import (
+    floor_two_replay_requires_available_helper,
+)
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
@@ -1607,9 +1610,22 @@ class OverworldPresenter:
                     ) + (
                         enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
                     ) + (
-                        (enabled(OverworldAction.START_FLOOR_TWO, "Start Floor 2"),)
-                        if party_state.floor_one_cleared
-                        else ()
+                        (
+                            self._disabled_option(
+                                OverworldAction.START_FLOOR_TWO,
+                                "Start Floor 2",
+                                OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER,
+                            ),
+                        )
+                        if party_state.floor_two_cleared
+                        and floor_two_replay_requires_available_helper(
+                            party_state.active_drifter_ids
+                        )
+                        else (
+                            (enabled(OverworldAction.START_FLOOR_TWO, "Start Floor 2"),)
+                            if party_state.floor_one_cleared
+                            else ()
+                        )
                     ) + recruitment_actions
                 elif (
                     available_recruitment_event(game_state) is not None

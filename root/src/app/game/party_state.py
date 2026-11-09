@@ -15,6 +15,9 @@ from app.items.equipment import EquipmentInstance
 from app.items.armor_modifier import ArmorModifierInstance
 from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.content.hub_economy import get_supply_item
+from app.game.floor_two_boss_helper import (
+    floor_two_replay_requires_available_helper,
+)
 from app.snapshot import to_plain_value
 
 
@@ -562,6 +565,15 @@ class PartyState:
             raise ValueError("a Floor 2 run can only start from the Hub")
         if len(self._active_drifter_ids) != 2:
             raise ValueError("a Floor 2 run requires the two-Drifter party")
+        if (
+            self.floor_two_cleared
+            and floor_two_replay_requires_available_helper(
+                self._active_drifter_ids
+            )
+        ):
+            raise ValueError(
+                "a Floor 2 replay requires an active pair that leaves D3 or D4 available"
+            )
         run_id = run_id_factory()
         if isinstance(run_id, UUID):
             run_id = str(run_id)
@@ -618,6 +630,8 @@ class PartyState:
     def select_floor_two_boss_helper(self, drifter_id, *, node_id):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             raise ValueError("a Floor 2 helper requires an active outing")
+        if node_id != "floor_two_pre_boss_rest":
+            raise ValueError("a Floor 2 helper must be selected at the pre-boss Rest")
         event = {
             "event_key": _run_event_key(
                 self._floor_two_run_id,
@@ -1499,7 +1513,7 @@ def validate_run_event_history(
             ):
                 raise ValueError("discovery searcher is not in the active party")
         elif event["kind"] == "boss_helper_selection":
-            if node_id not in {"floor_two_pre_boss_rest", "floor_two_battle_10"}:
+            if node_id != "floor_two_pre_boss_rest":
                 raise ValueError("boss-helper selection is outside its route checkpoint")
             helper_id = event["result"]["drifter_id"]
             if (

@@ -34,6 +34,7 @@ from app.game.alchemist import AlchemistService, AlchemistStatus
 from app.game.floor_two_boss_helper import (
     available_floor_two_boss_helper_ids,
     create_floor_two_boss_helper,
+    floor_two_replay_requires_available_helper,
 )
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
@@ -300,17 +301,32 @@ class OverworldSession:
             view,
             session_input.action,
         ) and not self._stale_load_was_offered(session_input.action):
-            self._notice = (
-                "That Rest is not available."
-                if session_input.action
-                in {OverworldAction.REST, OverworldAction.SKIP_REST}
-                and (
-                    view.screen is OverworldScreen.REST
-                    or getattr(self._last_presented_view, "screen", None)
-                    is OverworldScreen.REST
-                )
-                else "That option is not available."
+            disabled_option = first_or_none(
+                option
+                for option in view.options
+                if option.action is session_input.action and not option.enabled
             )
+            if (
+                disabled_option is not None
+                and disabled_option.disabled_reason
+                is OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER
+            ):
+                self._notice = (
+                    "Choose an active pair that leaves D3 or D4 available "
+                    "for the Floor II boss."
+                )
+            else:
+                self._notice = (
+                    "That Rest is not available."
+                    if session_input.action
+                    in {OverworldAction.REST, OverworldAction.SKIP_REST}
+                    and (
+                        view.screen is OverworldScreen.REST
+                        or getattr(self._last_presented_view, "screen", None)
+                        is OverworldScreen.REST
+                    )
+                    else "That option is not available."
+                )
             return self._build_view()
         if session_input.action in {
             OverworldAction.ENTER_ENCOUNTER,
@@ -1670,6 +1686,17 @@ class OverworldSession:
     def _start_floor_two(self):
         party_state = self.game_state.party_state
         overworld = self.game_state.overworld_state
+        if (
+            party_state.floor_two_cleared
+            and floor_two_replay_requires_available_helper(
+                party_state.active_drifter_ids
+            )
+        ):
+            self._notice = (
+                "Choose an active pair that leaves D3 or D4 available "
+                "for the Floor II boss."
+            )
+            return None
         party_snapshot = party_state.snapshot()
         overworld_snapshot = overworld.snapshot()
         party_members = self.game_state.active_party_members
@@ -2321,19 +2348,9 @@ class OverworldSession:
         if is_floor_two and current_node.kind is RouteNodeKind.BOSS:
             helper_id = self.game_state.party_state.floor_two_boss_helper_id
             if helper_id is None:
-                if available_floor_two_boss_helper_ids(
-                    self.game_state.party_state.active_drifter_ids
-                ):
-                    self._screen = OverworldScreen.FLOOR_TWO_HELPER_SELECTION
-                    self._adventure_text = (
-                        "At the Rest, D3 and D4 warn that a difficult battle lies "
-                        "ahead and offer to help. Choose one for the Floor II boss only."
-                    )
-                else:
-                    self._notice = (
-                        "Return to the Hub and choose an active pair that leaves "
-                        "D3 or D4 available to help."
-                    )
+                self._notice = (
+                    "Choose D3 or D4 at the Pre-Boss Rest before entering this boss."
+                )
                 return None
             helper = create_floor_two_boss_helper(
                 helper_id,
@@ -2814,6 +2831,16 @@ class OverworldSession:
             or current_node_id in overworld.resolved_rest_node_ids
         ):
             self._notice = "That Rest is not available."
+            return
+        if (
+            not recover
+            and overworld.active_route_id == "floor_two"
+            and current_node_id == "floor_two_pre_boss_rest"
+            and self.game_state.party_state.floor_two_boss_helper_id is None
+        ):
+            self._notice = (
+                "Choose D3 or D4 at the Pre-Boss Rest before continuing."
+            )
             return
 
         next_node_id = get_route_successor_id(current_node_id)

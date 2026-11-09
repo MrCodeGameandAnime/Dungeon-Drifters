@@ -27,6 +27,7 @@ def available_recruitment_event(game_state):
                 party.phase is DungeonPhase.HUB
                 and party.tutorial_complete
                 and party.floor_one_cleared
+                and party.floor_two_cleared
                 and party.floor_two_run_id is None
             )
         else:
