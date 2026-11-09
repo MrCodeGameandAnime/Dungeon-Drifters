@@ -2,7 +2,7 @@
 
 > Implementation method: execute this plan gate by gate on the existing `dungeon` branch. This document records the approved M4A party-size correction; it does not authorize unrelated M4B scope.
 
-**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision is hosted-qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` in [GitHub Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). A subsequent review approved corrections to recruitment timing, Rest-only helper selection, and Floor II replay eligibility. M4A is reopened pending implementation and exact-SHA requalification of those corrections. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
+**Status:** The original M4A implementation and qualification are complete on `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba`; that evidence remains valid only for unaffected behavior. The 2026-11-09 Floor II/III party revision was hosted-qualified on exact SHA `0aa4ecd5c15013af9c1456db8a53ada50e58357b` in [GitHub Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577). A subsequent review reopened M4A for corrections to recruitment timing, Rest-only helper selection, and Floor II replay eligibility. Those corrections are implemented in `10363110a8bf226a88dc871c70880f94f7727c19`, with a browser-smoke-only follow-up in `14286ecf63c8d7f4662271f7e0bc20e1399c1afc`. The final corrected SHA passed hosted CI in [Actions run 42721683794](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42721683794) and the pinned MicroPython matrix locally. M4A is closed under the revised contract; M4B remains open. The implementation baseline reported at entry was `a64f4461c606dc88698fa45138d5f8a89a231868`.
 
 ### Local Review Checkpoints
 
@@ -37,9 +37,9 @@ The approved correction contract is:
 - The temporary helper must be selected at `floor_two_pre_boss_rest`; continuing without a selection is blocked. The boss node never opens helper selection, and persisted helper evidence must reference the Rest.
 - On a cleared Floor II replay, at least one of D3/D4 must be outside the active pair. Disable Start Floor 2 at the Hub with an actionable reason and reject direct attempts before any outing state changes. The restriction is Floor II replay-specific; D3+D4 remains a legal pair for other content.
 
-The implementation and exact-SHA qualification for these review corrections are pending.
+The review corrections are qualified on the final corrected tree. Hosted results for exact SHA `14286ecf63c8d7f4662271f7e0bc20e1399c1afc` in [Actions run 42721683794](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42721683794): **2,244 root tests**, **72 web tests**, and **47 PostgreSQL tests** passed; authored-content validation, Python compile, the **172-file browser build**, full Playwright smoke, migration-from-zero, and Alembic parity passed. The browser smoke confirms recruitment is unavailable after early Floor II extraction and independently offers D3/D4 after the Floor II boss clear. The pinned MicroPython v1.29.0 matrix was rerun on the same corrected source tree: native/forced-overlay CPython and default MicroPython passed, semantic parity passed, 1152K stable 3/3, 1024K expected memory-limit classification 3/3, with `MYP20|RESULT|CLOSURE_COMPLETE`. The exact executable remains 488,960 bytes with SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
 
-### Review Corrections And Final Qualification
+### Earlier Recovery Corrections (R1-R3)
 
 The review corrections address the three findings:
 
@@ -211,6 +211,7 @@ Proof: the terminal journey exercises the actual key mapping and revised helper/
 - [x] Historical baseline: original M4A closure criteria were met and M5 was unblocked.
 - [x] Revised party-size/recruitment contract is implemented locally and has focused regression coverage.
 - [x] Push the reviewed implementation and obtain exact-SHA hosted browser/PostgreSQL/migration qualification: run 42704099577 passed on `0aa4ecd5c15013af9c1456db8a53ada50e58357b`.
+- [x] Close the subsequent recruitment/helper diff review: hosted run 42721683794 passed on `14286ecf63c8d7f4662271f7e0bc20e1399c1afc`; the pinned MicroPython matrix passed on the corrected source tree.
 
 ## Regression And Acceptance Matrix
 
@@ -233,7 +234,7 @@ Proof: the terminal journey exercises the actual key mapping and revised helper/
 
 ## M4A Closure
 
-The original M4A tree remains historically qualified for its implemented contract. The approved 2026-11-09 party revision is implemented, locally qualified, and hosted-qualified on `0aa4ecd5c15013af9c1456db8a53ada50e58357b`. Existing enemy, hazard, discovery, and Grade-II evidence may be reused only where the corrected flow does not change its boundary. M4A is closed; M4B remains open.
+The original M4A tree remains historically qualified for its implemented contract. The approved 2026-11-09 party revision was initially qualified on `0aa4ecd5c15013af9c1456db8a53ada50e58357b`; its recruitment-timing, Rest-only helper, and replay-eligibility corrections are qualified on final SHA `14286ecf63c8d7f4662271f7e0bc20e1399c1afc` in [Actions run 42721683794](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42721683794), with the pinned MicroPython matrix rerun locally. Existing enemy, hazard, discovery, and Grade-II evidence may be reused only where the corrected flow does not change its boundary. M4A is closed; M4B remains open.
 
 ### Post-Review Correction And Final Qualification (2026-11-06)
 

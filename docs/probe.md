@@ -503,3 +503,31 @@ This was local MicroPython evidence from the worktree committed as
 `0aa4ecd5c15013af9c1456db8a53ada50e58357b`; the exact-SHA hosted workflow
 passed in [Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577).
 Hosted CI does not execute the pinned MicroPython binary.
+
+## M4A Recruitment And Helper Review Closure (2026-11-09)
+
+The follow-up review corrections gate permanent D3/D4 Hub recruitment until
+Floor II is cleared, require the temporary helper choice at the pre-boss Rest,
+and block a Floor II replay at the Hub when both D3 and D4 are already the
+active pair. The replay restriction does not affect D3+D4 pair selection for
+other content. Implementation is in
+`10363110a8bf226a88dc871c70880f94f7727c19`; commit
+`14286ecf63c8d7f4662271f7e0bc20e1399c1afc` updates the browser smoke to assert
+no recruitment after early extraction and independent D3/D4 recruitment after
+the Floor II boss clear.
+
+The exact corrected SHA passed hosted qualification in
+[Actions run 42721683794](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42721683794):
+2,244 root tests, 72 web tests, and 47 PostgreSQL tests passed. Authored-content
+validation, compile, the 172-file browser build, the full browser smoke,
+migration-from-zero, and Alembic parity passed. The smoke confirmed the helper
+save/reload path, early-extraction recruitment gate, Floor II boss clear, and
+both post-clear Hub recruitment choices.
+
+The pinned MicroPython v1.29.0 executable was rerun against this corrected
+source tree. The 488,960-byte executable matched SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. Native
+and forced-overlay CPython (3.14.6), default MicroPython, and semantic parity
+passed. Heap qualification reported 1152K stable pass 3/3 and the expected
+1024K memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
