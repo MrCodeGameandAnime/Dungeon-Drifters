@@ -131,7 +131,11 @@ def build_save_document(game_state):
     player.pop("combat", None)
     _strip_companion_combat(source.get("party"))
     source["schema_version"] = DISK_SCHEMA_VERSION
-    _validate_document(source, schema_version=DISK_SCHEMA_VERSION)
+    _validate_document(
+        source,
+        schema_version=DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
     return source
 
 
@@ -605,6 +609,9 @@ def validate_profile_payload(document):
 
 
 def reconstruct_game_state(document):
+    source_schema_version = (
+        document.get("schema_version") if isinstance(document, dict) else None
+    )
     document = validate_save_document(document)
 
     try:
@@ -621,7 +628,11 @@ def reconstruct_game_state(document):
             )
             for snapshot in document["party"]["companions"]
         )
-        party = PartyState.from_snapshot(document["party"], companions=companions)
+        party = PartyState.from_snapshot(
+            document["party"],
+            companions=companions,
+            require_active_run_scope=(source_schema_version == DISK_SCHEMA_VERSION),
+        )
         return GameState.from_persistent_parts(
             player,
             story,
@@ -685,7 +696,11 @@ def validate_save_document(document):
         if isinstance(normalized.get("player"), dict):
             normalized["player"].pop("combat", None)
         _strip_companion_combat(normalized.get("party"))
-        _validate_document(normalized, schema_version=DISK_SCHEMA_VERSION)
+        _validate_document(
+            normalized,
+            schema_version=DISK_SCHEMA_VERSION,
+            require_active_run_scope=True,
+        )
         return normalized
     raise SaveStateValidationError(
         f"unsupported save schema: {schema_version!r}"
@@ -811,6 +826,7 @@ def _validate_document(
     *,
     schema_version,
     require_signature_weapon=None,
+    require_active_run_scope=False,
 ):
     allowed_keys = {
         "schema_version",
@@ -927,6 +943,7 @@ def _validate_document(
             schema_version >= _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
         ),
         require_floor_three_state=(schema_version >= DISK_SCHEMA_VERSION),
+        require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
             None
@@ -1190,6 +1207,7 @@ def _validate_party(
     require_carried_supplies=False,
     require_floor_two_state=False,
     require_floor_three_state=False,
+    require_active_run_scope=False,
     require_equipment_instances=False,
     require_generated_equipment_state=False,
     require_modifier_instances=False,
@@ -1511,6 +1529,7 @@ def _validate_party(
                 active_drifter_ids=active_ids,
                 active_run_id=active_run_id,
                 active_floor_id=active_floor_id,
+                require_active_run_scope=require_active_run_scope,
             )
         except (TypeError, ValueError) as error:
             raise SaveStateValidationError(

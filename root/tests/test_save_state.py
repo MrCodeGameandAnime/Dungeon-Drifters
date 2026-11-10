@@ -14,8 +14,10 @@ from app.persistence.save_document import (
     validate_profile_payload,
     validate_save_document,
 )
-from app.content.catalog import create_weapon, get_route_spec
+from app.content.catalog import create_weapon, get_drifter_spec, get_route_spec
+from app.content.route_spec import RouteNodeKind
 from app.items.equipment import EquipmentInstance
+from app.game.run_events import RunEventService
 from app.player.character_run_state import (
     InfusionKind,
     PreparedPayloadId,
@@ -191,6 +193,98 @@ def _floor_two_discovery_game(*, found=True, searcher="branoc"):
             "ancient_well_floor2_01"
         )
     return game
+
+
+class _SavedRunEventPort:
+    def inspect(self):
+        from app.persistence.ports import SaveLoadResult
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def load(self):
+        return self.inspect()
+
+    def save(self, _game_state):
+        from app.persistence.ports import SaveLoadResult
+        from app.persistence.save_port_contract import SaveLoadStatus
+
+        return SaveLoadResult(SaveLoadStatus.SAVED)
+
+
+class _NoDropRng:
+    def randint(self, minimum, _maximum):
+        return minimum
+
+
+def _floor_three_rest_game_with_rewards():
+    game = three_member_hub_game()
+    zhaivra = PlayerState(get_drifter_spec("zhaivra").create_character())
+    assert game.party_state.recruit_companion(
+        game.player_state,
+        zhaivra,
+        cost=0,
+    )
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run() == 100
+    assert party.complete_floor_two_boss(game.active_party_members)
+    assert party.start_floor_three_run(
+        run_id_factory=lambda: "save-validation-floor-three"
+    ) == 100
+
+    game.overworld_state.begin_route("floor_three")
+    route = get_route_spec("floor_three")
+    for index, node in enumerate(route.nodes[1:], start=1):
+        previous = route.nodes[index - 1]
+        if previous.kind is RouteNodeKind.REST:
+            game.overworld_state.record_resolved_rest_node(previous.node_id)
+        game.overworld_state.advance_to(
+            node.node_id,
+            contextual_phase=(
+                ContextualRoutePhase.ENTER_ENCOUNTER
+                if node.encounter_id is not None
+                else ContextualRoutePhase.NONE
+            ),
+        )
+        if node.kind is RouteNodeKind.REST:
+            break
+    else:
+        raise AssertionError("Floor 3 route has no Rest")
+
+    result = RunEventService(
+        save_port=_SavedRunEventPort(),
+        rng=_NoDropRng(),
+    ).resolve_encounter_rewards(
+        game,
+        node_id="floor_three_battle_01",
+        experience=24,
+        gold=6,
+        enemy_drop_tables=((),),
+    )
+    assert result.status.value == "resolved"
+    return result.game_state
+
+
+def _remap_event_run_id(event, run_id):
+    event = copy.deepcopy(event)
+    old_token = f":{event['run_id']}:"
+    new_token = f":{run_id}:"
+    event["run_id"] = run_id
+    event["event_key"] = event["event_key"].replace(old_token, new_token, 1)
+    if event["kind"] == "encounter_rewards":
+        event["result"]["drop_event_keys"] = [
+            key.replace(old_token, new_token, 1)
+            for key in event["result"]["drop_event_keys"]
+        ]
+    return event
+
+
+def _assert_current_save_rejects_run_event_scope(document):
+    for validate in (validate_profile_payload, reconstruct_game_state):
+        with pytest.raises(SaveStateValidationError, match="active run|active floor"):
+            validate(document)
 
 
 def test_current_document_has_only_persistent_state_and_runtime_snapshot_stays_separate():
@@ -724,6 +818,82 @@ def test_current_profile_rejects_inconsistent_discovery_event_evidence(
     for validate in (validate_profile_payload, reconstruct_game_state):
         with pytest.raises(SaveStateValidationError, match=message):
             validate(document)
+
+
+def test_active_floor_three_save_rejects_floor_two_event_with_same_run_id():
+    document = build_save_document(_floor_three_rest_game_with_rewards())
+    active_run_id = document["party"]["floor_three_run_id"]
+    floor_two_event = build_save_document(
+        _floor_two_discovery_game(found=False)
+    )["party"]["resolved_run_events"][0]
+    document["party"]["resolved_run_events"] = [
+        _remap_event_run_id(floor_two_event, active_run_id)
+    ]
+
+    _assert_current_save_rejects_run_event_scope(document)
+
+
+def test_active_floor_three_save_rejects_event_from_another_run_id():
+    document = build_save_document(_floor_three_rest_game_with_rewards())
+    document["party"]["resolved_run_events"] = [
+        _remap_event_run_id(event, "stale-floor-three-run")
+        for event in document["party"]["resolved_run_events"]
+    ]
+
+    _assert_current_save_rejects_run_event_scope(document)
+
+
+def test_active_floor_two_save_rejects_floor_three_event_with_same_run_id():
+    game = _floor_two_discovery_game(found=False)
+    game.party_state.add_floor_two_rewards(experience=24, gold=6)
+    document = build_save_document(game)
+    active_run_id = document["party"]["floor_two_run_id"]
+    floor_three_events = build_save_document(
+        _floor_three_rest_game_with_rewards()
+    )["party"]["resolved_run_events"]
+    document["party"]["resolved_run_events"] = [
+        _remap_event_run_id(event, active_run_id)
+        for event in floor_three_events
+    ]
+
+    _assert_current_save_rejects_run_event_scope(document)
+
+
+def test_inactive_current_save_rejects_orphaned_run_event_evidence():
+    document = build_save_document(completed_hub_game())
+    orphaned_event = build_save_document(
+        _floor_two_discovery_game(found=False)
+    )["party"]["resolved_run_events"][0]
+    document["party"]["resolved_run_events"] = [orphaned_event]
+
+    _assert_current_save_rejects_run_event_scope(document)
+
+
+def test_floor_two_and_floor_three_rest_event_saves_round_trip_unchanged():
+    for game in (
+        _floor_two_discovery_game(found=False),
+        _floor_three_rest_game_with_rewards(),
+    ):
+        document = build_save_document(game)
+
+        assert document["party"]["resolved_run_events"]
+        assert build_save_document(reconstruct_game_state(document)) == document
+
+
+def test_schema22_event_history_remains_accepted_and_migrates_without_mutation():
+    historical = copy.deepcopy(
+        build_save_document(_floor_two_discovery_game(found=False))
+    )
+    historical["schema_version"] = 22
+    _remove_floor_three_state(historical)
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert len(restored.party_state.resolved_run_events) == 1
+    assert build_save_document(restored) == validate_save_document(original)
 
 
 @pytest.mark.parametrize(

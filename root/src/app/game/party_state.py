@@ -1143,7 +1143,14 @@ class PartyState:
         return True
 
     @classmethod
-    def from_snapshot(cls, snapshot, *, companions, active_drifter_ids=None):
+    def from_snapshot(
+        cls,
+        snapshot,
+        *,
+        companions,
+        active_drifter_ids=None,
+        require_active_run_scope=True,
+    ):
         state = cls()
         state._companions = tuple(companions)
         raw_equipment = snapshot.get("equipment_instances", [])
@@ -1269,15 +1276,17 @@ class PartyState:
             active_drifter_ids=state._active_drifter_ids,
             active_run_id=state.active_run_id,
             active_floor_id=state.active_run_floor_id,
+            require_active_run_scope=require_active_run_scope,
         )
-        if state.active_run_id is None:
-            state._resolved_run_events = []
-        else:
-            state._resolved_run_events = [
-                event
-                for event in state._resolved_run_events
-                if event["run_id"] == state.active_run_id
-            ]
+        if not require_active_run_scope:
+            if state.active_run_id is None:
+                state._resolved_run_events = []
+            else:
+                state._resolved_run_events = [
+                    event
+                    for event in state._resolved_run_events
+                    if event["run_id"] == state.active_run_id
+                ]
         active_floor_two_run = state._floor_two_run_id is not None
         if active_floor_two_run:
             if not state._floor_two_cleared and state._floor_two_runs_started_after_clear:
@@ -1807,6 +1816,7 @@ def validate_run_event_history(
     active_drifter_ids=None,
     active_run_id=None,
     active_floor_id=None,
+    require_active_run_scope=False,
     require_complete=True,
 ):
     if not isinstance(events, (tuple, list)):
@@ -1815,6 +1825,14 @@ def validate_run_event_history(
     by_key = {event["event_key"]: event for event in normalized}
     if len(by_key) != len(normalized):
         raise ValueError("resolved run event keys must be unique")
+    if require_active_run_scope and normalized:
+        if active_run_id is None or active_floor_id is None:
+            raise ValueError("resolved run events require an active run and floor")
+        for event in normalized:
+            if event["run_id"] != active_run_id:
+                raise ValueError("run event does not belong to the active run")
+            if event["floor_id"] != active_floor_id:
+                raise ValueError("run event does not belong to the active floor")
 
     from app.content.catalog import (
         get_known_permanent_discovery_source,

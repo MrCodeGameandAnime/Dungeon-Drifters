@@ -741,6 +741,14 @@ def test_legacy_settled_search_history_is_ignored_after_pair_change():
     )
 
     legacy_save = build_save_document(game)
+    legacy_save["schema_version"] = 22
+    for field in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        legacy_save["party"].pop(field)
     legacy_save["party"]["resolved_run_events"] = [search_event]
 
     restored = reconstruct_game_state(legacy_save)
