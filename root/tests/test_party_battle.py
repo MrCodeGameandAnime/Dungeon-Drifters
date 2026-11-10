@@ -12,7 +12,13 @@ from app.content.catalog import (
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType
 from app.presentation.battle_session import BattlePresentationSession
-from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, GoBack
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseHealingTarget,
+    ChooseMove,
+    ChooseTarget,
+    GoBack,
+)
 from tests.game_test_support import completed_hub_game
 
 
@@ -183,6 +189,127 @@ def test_party_turns_project_and_resolve_each_drifters_own_combat_state():
         resolver.calls[1][2]["character_run_state"]
         is companion.character_run_state
     )
+
+
+def test_four_member_party_uses_each_drifters_moves_and_combat_state():
+    party = (
+        player("branoc", 40),
+        player("azhvielle", 30),
+        player("zhaivra", 20),
+        player("joruun", 10),
+    )
+    for index, member in enumerate(party):
+        member.super_resource.gain(10 + index)
+
+    class RecordingResolver(CombatResolver):
+        def __init__(self):
+            super().__init__(rng=StableRng())
+            self.calls = []
+
+        def resolve_move(self, actor, target, move_name, **kwargs):
+            self.calls.append((actor, move_name, kwargs))
+            return super().resolve_move(actor, target, move_name, **kwargs)
+
+    resolver = RecordingResolver()
+    battle = Battle(
+        party[0],
+        tuple(goblin(1) for _ in range(4)),
+        party=party[1:],
+        resolver=resolver,
+        rng=StableRng(),
+    )
+
+    opening = battle.current_view()
+    assert tuple(member.target_id for member in opening.party_members) == tuple(
+        f"drifter_{member.character.profile.drifter_id}" for member in party
+    )
+    assert tuple(member.super_current for member in opening.party_members) == (
+        10,
+        11,
+        12,
+        13,
+    )
+
+    for member in party:
+        assert battle.current_view().active_player_id == (
+            f"drifter_{member.character.profile.drifter_id}"
+        )
+        options = battle.submit(ChooseAction(ActionIntent.ATTACK)).move_options
+        expected_moves = tuple(
+            move.name
+            for move in member.combat_moves
+            if move.resource_type.value != "super"
+        )
+        assert tuple(option.name for option in options) == expected_moves
+        selected = next(option for option in options if option.enabled)
+        before_mana = member.mana_resource.current
+        move_view = battle.submit(ChooseMove(selected.selection_key))
+        if move_view.interaction_phase.value == "targets":
+            move_view = battle.submit(
+                ChooseTarget(move_view.target_options[0].target_id)
+            )
+
+        actor, move_name, kwargs = next(
+            call for call in reversed(resolver.calls) if call[0] is member
+        )
+        assert actor is member
+        assert move_name == selected.selection_key
+        assert kwargs["character_run_state"] is member.character_run_state
+        authored_move = next(
+            move
+            for move in member.combat_moves
+            if move.name == selected.selection_key
+        )
+        expected_mana = (
+            authored_move.resource_cost
+            if authored_move.resource_type.value == "mana"
+            else 0
+        )
+        assert member.mana_resource.current == before_mana - expected_mana
+
+    assert tuple(
+        call[0] for call in resolver.calls if call[0] in party
+    ) == party
+
+
+def test_four_member_battle_continues_after_lead_falls_and_defeat_requires_all_down():
+    party = (
+        player("branoc", 1),
+        player("azhvielle", 2),
+        player("zhaivra", 3),
+        player("joruun", 4),
+    )
+    for member in party[:3]:
+        member.health.take_damage(member.health.current)
+    battle = Battle(
+        party[0],
+        (goblin(5),),
+        party=party[1:],
+        rng=StableRng(),
+    )
+
+    opening = battle.current_view()
+    assert battle.is_complete is False
+    assert opening.active_player_id == "drifter_joruun"
+    view = defend(battle)
+    assert battle.is_complete is False
+    assert any(
+        entry.actor_name == "Goblin"
+        and entry.target_name == party[3].display_name
+        for entry in view.log_entries
+    )
+
+    party[3].health.take_damage(party[3].health.current)
+    defeated_battle = Battle(
+        party[0],
+        (goblin(5),),
+        party=party[1:],
+        rng=StableRng(),
+    )
+    defeated = defeated_battle.current_view()
+    assert defeated_battle.is_complete is True
+    assert defeated_battle.winner == "enemy"
+    assert tuple(member.hp_current for member in defeated.party_members) == (0, 0, 0, 0)
 
 
 def test_party_battle_healing_potion_targets_exact_member_and_consumes_actor_turn():

@@ -71,6 +71,10 @@ def _legacy_schema9_payload(gold=0):
         "floor_two_runs_started_after_clear",
         "floor_two_run_id",
         "floor_two_outing_xp_multiplier_percent",
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
         "resolved_run_events",
     ):
         payload["party"].pop(field)

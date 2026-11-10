@@ -531,3 +531,41 @@ and forced-overlay CPython (3.14.6), default MicroPython, and semantic parity
 passed. Heap qualification reported 1152K stable pass 3/3 and the expected
 1024K memory-limit classification 3/3. Final marker:
 `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+## M4B Floor III Local Qualification (2026-11-10)
+
+The current M4B worktree implements the bounded Floor III route, authored Tier 2
+enemy and Grade III material content, the four-permanent-Drifter boss, pair-only
+pre-boss reward attribution, four-way boss XP followed by individual Intuition
+bonuses, and once-only clear settlement. The ordinary encounters remain
+two-member battles. Terminal and browser journeys cover the route, Rest
+save/reload, full-party boss, clear settlement, and Hub save/reload.
+
+Local verification on Python 3.14.6:
+
+```text
+Root pytest                 2,277 passed
+Web pytest                     72 passed
+PostgreSQL service tests       49 passed
+Authored content validation   PASS
+Python compileall             PASS
+Browser build                 174 files
+Migrations from zero           PASS
+Alembic model parity           PASS
+```
+
+The M1-M5 and Floor III built-browser smoke passed in the earlier local
+worktree run. A fresh retry during this verification could not launch because
+the configured Playwright Chromium executable is absent; it stopped before
+browser assertions. Hosted browser qualification is therefore still required
+on the accepted M4B commit.
+
+The exact pinned MicroPython v1.29.0 Windows executable was used for the
+extended Floor III route probe and cumulative runtime matrix. Native CPython,
+forced-overlay CPython, pinned MicroPython, and semantic parity passed;
+1152K was stable 3/3 and 1024K produced the expected memory-limit result 3/3.
+Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+This evidence is from the local worktree before the M4B commit, not a hosted
+exact-SHA run. M4B Gate 5 remains open until the accepted revision passes the
+shared hosted qualification.

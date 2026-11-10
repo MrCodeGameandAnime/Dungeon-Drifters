@@ -18,7 +18,7 @@
 - [Enemy design](../../future/enemy-archetypes-scaling-and-capability-progression.md), selected formations/phases/visuals and placement versus tier.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), permanent discoveries and passive/move prerequisites.
 - [Armor](../../future/armor.md), viable owned rewards; [component catalog](../weapons/component.md) and [weapon design](../weapons/signature-weapon-progression.md), Grade I-IV/floor boundaries.
-- [M4](m4-enemy-progression.md) already delivers D3/Floor II and D4/Floor III/four-party-boss readiness; [M6](m6-expeditions.md) already delivers a minimal playable Floor IV two-plus-two loop. M8 expands and integrates them, not postpones prerequisites needed by earlier milestones.
+- [M4](m4-enemy-progression.md) delivers the Floor II clear and post-clear Hub recruitment offers for both D3 and D4, then proves the Floor III four-party boss; [M6](m6-expeditions.md) delivers a minimal playable Floor IV two-plus-two loop. M8 expands and integrates them, not postpones prerequisites needed by earlier milestones.
 
 Non-goals: defining an unlimited campaign, reimplementing systems, redoing canonical first recruitment, forcing four-member parties into every boss, adopting every possible pair/combo/relationship mechanic, full graphical combat, payment integration, `longterm.md`, or executable packaging.
 

@@ -63,7 +63,7 @@ EXPECTED_ENCOUNTER_IDS = (
     "surface_warrior_pair",
     "surface_warrior_solo",
 )
-EXPECTED_ROUTE_IDS = ("floor_one", "floor_two", "surface")
+EXPECTED_ROUTE_IDS = ("floor_one", "floor_three", "floor_two", "surface")
 
 
 def sample_move(name="Test Strike"):
@@ -166,6 +166,31 @@ def test_tier_one_content_authors_all_grade_two_material_families():
     }.items() <= material_drops.items()
 
 
+def test_tier_two_content_authors_all_grade_three_material_families():
+    material_drops = {
+        drop.item_id: drop.chance_bps
+        for enemy in ENEMY_SPECS
+        for profile in enemy.tier_profiles
+        if profile.tier == 2
+        for drop in profile.item_drops
+    }
+
+    assert {
+        "grade_iii_metal": 2000,
+        "grade_iii_fiber": 2000,
+        "grade_iii_timber": 2000,
+        "grade_iii_cores": 1000,
+    }.items() <= material_drops.items()
+
+
+@pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
+def test_floor_three_enemy_archetypes_support_tier_two(archetype_id):
+    spec = get_enemy_spec(archetype_id)
+
+    assert spec.supported_tiers == (0, 1, 2)
+    assert spec.create_definition(tier=2) is not spec.create_definition(tier=1)
+
+
 def test_encounter_drop_tables_preserve_each_enemy_instance_and_tier():
     import app.content.catalog as catalog
 
@@ -221,7 +246,7 @@ def test_enemy_specs_and_stat_blocks_are_immutable():
 
 
 @pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
-@pytest.mark.parametrize("tier", (0, 1))
+@pytest.mark.parametrize("tier", (0, 1, 2))
 def test_specs_create_fresh_definitions_and_runtime_state(archetype_id, tier):
     spec = get_enemy_spec(archetype_id)
     first_definition = spec.create_definition(tier=tier)
@@ -336,8 +361,8 @@ def test_catalog_rejects_directory_mismatch_and_duplicate_ids():
 def test_unknown_enemy_and_unsupported_tier_fail_explicitly():
     with pytest.raises(ValueError, match="unknown enemy archetype"):
         get_enemy_spec("unknown")
-    with pytest.raises(ValueError, match="does not support tier 2"):
-        create_enemy_definition("goblin", tier=2)
+    with pytest.raises(ValueError, match="does not support tier 3"):
+        create_enemy_definition("goblin", tier=3)
 
 
 @pytest.mark.parametrize(

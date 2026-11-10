@@ -81,6 +81,10 @@ def _old_schema9_payload(gold=12):
         "floor_two_runs_started_after_clear",
         "floor_two_run_id",
         "floor_two_outing_xp_multiplier_percent",
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
         "resolved_run_events",
     ):
         document["party"].pop(field)
@@ -288,7 +292,7 @@ def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp
     assert upgraded.client_save_id == NEW_SAVE_ID
 
 
-def test_loading_schema9_local_envelope_verifies_then_persists_schema22(tmp_path):
+def test_loading_schema9_local_envelope_verifies_then_persists_schema23(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     legacy_payload = _old_schema9_payload(gold=21)
     legacy_envelope = build_profile_envelope(

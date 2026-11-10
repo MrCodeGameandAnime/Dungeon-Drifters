@@ -186,6 +186,7 @@ class _RouteBattleFactory:
         self.battle_compositions = []
         self.completed_count = 0
         self.floor_two_boss_pending_event_counts = None
+        self.floor_three_boss_pending_event_counts = None
 
     def __call__(
         self,
@@ -241,6 +242,20 @@ class _RouteBattleFactory:
                 sum(
                     event["kind"] == "enemy_drop"
                     and event["node_id"] == "floor_two_battle_10"
+                    for event in events
+                ),
+            )
+        if game_state.floor_three_boss_settlement_pending:
+            events = game_state.party_state.resolved_run_events
+            self.floor_three_boss_pending_event_counts = (
+                sum(
+                    event["kind"] == "encounter_rewards"
+                    and event["node_id"] == "floor_three_battle_10"
+                    for event in events
+                ),
+                sum(
+                    event["kind"] == "enemy_drop"
+                    and event["node_id"] == "floor_three_battle_10"
                     for event in events
                 ),
             )
@@ -685,6 +700,23 @@ def _run_floor_two_probe():
     _emit_memory("FLOOR_TWO_PROBE_RELEASED")
 
 
+def _run_floor_three_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_floor_three_probe
+
+        micropython_floor_three_probe.run(
+            STATE,
+            _complete_route_battle,
+            _run_stage,
+        )
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_floor_three_probe", None)
+    _emit_memory("FLOOR_THREE_PROBE_RELEASED")
+
+
 def _run_m5_probe():
     tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
     sys.path.insert(0, tools_path)
@@ -804,6 +836,7 @@ def main():
         raise
     _assert_route_live_state()
     _run_stage("M4_FLOOR_TWO_PROBE", _run_floor_two_probe)
+    _run_stage("M4_FLOOR_THREE_PROBE", _run_floor_three_probe)
     _run_stage("M5_EQUIPMENT_PROBE", _run_m5_probe)
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 

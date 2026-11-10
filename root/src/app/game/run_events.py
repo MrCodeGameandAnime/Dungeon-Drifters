@@ -71,10 +71,17 @@ class RunEventService:
         gold = _nonnegative("gold", gold)
         tables = _validate_drop_tables(enemy_drop_tables)
         party = game_state.party_state
-        if party.phase is not DungeonPhase.OUTING or party.floor_two_run_id is None:
-            raise ValueError("encounter rewards require an active Floor II run")
+        if party.phase is not DungeonPhase.OUTING or party.active_run_id is None:
+            raise ValueError("encounter rewards require an active dungeon run")
+        floor_id = party.active_run_floor_id
+        run_id = party.active_run_id
 
-        event_key = _event_key(party.floor_two_run_id, node_id, "encounter_rewards")
+        event_key = _event_key(
+            run_id,
+            node_id,
+            "encounter_rewards",
+            floor_id=floor_id,
+        )
         existing = party.run_event(event_key)
         if existing is not None:
             result = existing["result"]
@@ -138,24 +145,26 @@ class RunEventService:
                         item_totals.get(drop.item_id, 0) + drop.quantity
                     )
             drop_key = _event_key(
-                party.floor_two_run_id,
+                run_id,
                 node_id,
                 "enemy_drop",
                 position,
+                floor_id=floor_id,
             )
             drop_event = _event_record(
                 event_key=drop_key,
-                run_id=party.floor_two_run_id,
+                run_id=run_id,
                 node_id=node_id,
                 kind="enemy_drop",
                 position=position,
                 result={"entries": entries, "items": enemy_items},
+                floor_id=floor_id,
             )
             candidate_party.record_run_event(drop_event)
             all_drop_events.append(drop_key)
 
         total_items = _positive_item_stacks(item_totals)
-        candidate_party.add_floor_two_rewards(
+        candidate_party.add_active_run_rewards(
             experience=experience,
             gold=gold,
             items=total_items,
@@ -163,7 +172,7 @@ class RunEventService:
         candidate_party.record_run_event(
             _event_record(
                 event_key=event_key,
-                run_id=party.floor_two_run_id,
+                run_id=run_id,
                 node_id=node_id,
                 kind="encounter_rewards",
                 position=None,
@@ -174,6 +183,7 @@ class RunEventService:
                     "enemy_count": len(tables),
                     "drop_event_keys": all_drop_events,
                 },
+                floor_id=floor_id,
             )
         )
         status, committed = self._commit(candidate)
@@ -397,18 +407,27 @@ def _positive_item_stacks(items):
     return {item_id: quantity for item_id, quantity in items.items() if quantity > 0}
 
 
-def _event_key(run_id, node_id, kind, position=None):
-    key = f"floor_two:{run_id}:{node_id}:{kind}"
+def _event_key(run_id, node_id, kind, position=None, *, floor_id="floor_two"):
+    key = f"{floor_id}:{run_id}:{node_id}:{kind}"
     if position is not None:
         key += f":{position}"
     return key
 
 
-def _event_record(*, event_key, run_id, node_id, kind, position, result):
+def _event_record(
+    *,
+    event_key,
+    run_id,
+    node_id,
+    kind,
+    position,
+    result,
+    floor_id="floor_two",
+):
     return {
         "event_key": event_key,
         "run_id": run_id,
-        "floor_id": "floor_two",
+        "floor_id": floor_id,
         "node_id": node_id,
         "kind": kind,
         "position": position,

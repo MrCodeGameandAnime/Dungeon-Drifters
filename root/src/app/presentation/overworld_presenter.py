@@ -279,7 +279,7 @@ class OverworldPresenter:
             location_label=(
                 node.display_label
                 if game_state.overworld_state.active_route_id
-                in {"floor_one", "floor_two"}
+                in {"floor_one", "floor_two", "floor_three"}
                 and game_state.party_state.phase
                 in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
                 else (
@@ -579,6 +579,11 @@ class OverworldPresenter:
         if game_state.floor_two_boss_settlement_pending:
             return (
                 "The Goblin Lord's victory is saved. Finalize the Floor 2 clear "
+                "to return to the Hub."
+            )
+        if game_state.floor_three_boss_settlement_pending:
+            return (
+                "The Floor III boss victory is saved. Finalize the Floor 3 clear "
                 "to return to the Hub."
             )
         if (
@@ -1486,7 +1491,11 @@ class OverworldPresenter:
         )
         dungeon_route_cursor = (
             tuple(node.node_id for node in route_nodes).index(current_id)
-            if overworld.active_route_id in {"floor_one", "floor_two"}
+            if overworld.active_route_id in {
+                "floor_one",
+                "floor_two",
+                "floor_three",
+            }
             else None
         )
         dungeon_route_node_indexes = (
@@ -1573,12 +1582,21 @@ class OverworldPresenter:
             settlement_action = (
                 (
                     enabled(
-                        OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
-                        "Finalize Floor II Clear",
+                        OverworldAction.FINALIZE_FLOOR_THREE_CLEAR,
+                        "Finalize Floor III Clear",
                     ),
                 )
-                if game_state.floor_two_boss_settlement_pending
-                else ()
+                if game_state.floor_three_boss_settlement_pending
+                else (
+                    (
+                        enabled(
+                            OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
+                            "Finalize Floor II Clear",
+                        ),
+                    )
+                    if game_state.floor_two_boss_settlement_pending
+                    else ()
+                )
             )
             talisman_option = self._return_talisman_option(game_state)
             return settlement_action + talisman_option + (
@@ -1627,6 +1645,23 @@ class OverworldPresenter:
                             else ()
                         )
                     ) + recruitment_actions
+                    if party_state.floor_two_cleared:
+                        party_actions += (
+                            (
+                                enabled(
+                                    OverworldAction.START_FLOOR_THREE,
+                                    "Start Floor 3",
+                                ),
+                            )
+                            if len(game_state.recruited_members) == 4
+                            else (
+                                disabled(
+                                    OverworldAction.START_FLOOR_THREE,
+                                    "Start Floor 3",
+                                    OverworldAvailabilityReason.FLOOR_THREE_REQUIRES_FULL_ROSTER,
+                                ),
+                            )
+                        )
                 elif (
                     available_recruitment_event(game_state) is not None
                 ):
@@ -1791,6 +1826,7 @@ class OverworldPresenter:
             if game_state.overworld_state.active_route_id in {
                 "floor_one",
                 "floor_two",
+                "floor_three",
             }:
                 discovery_actions = ()
                 helper_action = ()
@@ -1867,10 +1903,11 @@ class OverworldPresenter:
         party_state = game_state.party_state
         if (
             game_state.overworld_state.active_route_id
-            in {"floor_one", "floor_two"}
+            in {"floor_one", "floor_two", "floor_three"}
             and party_state.phase is DungeonPhase.OUTING
             and party_state.carried_items.get("return_talisman", 0) > 0
             and not game_state.floor_two_boss_settlement_pending
+            and not game_state.floor_three_boss_settlement_pending
         ):
             return (
                 self._enabled_option(
@@ -1905,7 +1942,10 @@ class OverworldPresenter:
             )
         if screen is not OverworldScreen.MAIN:
             return None
-        if game_state.floor_two_boss_settlement_pending:
+        if (
+            game_state.floor_two_boss_settlement_pending
+            or game_state.floor_three_boss_settlement_pending
+        ):
             return None
         phase = game_state.overworld_state.current_contextual_route_phase
         if phase is ContextualRoutePhase.ENTER_ENCOUNTER:

@@ -34,7 +34,7 @@ ENEMY = EnemySpec(
     capabilities=frozenset(
         {EnemyCapability.BASIC_ATTACKS, EnemyCapability.MAGIC}
     ),
-    supported_tiers=(0, 1),
+    supported_tiers=(0, 1, 2),
     tier_profiles=(
         EnemyTierSpec(
             tier=1,
@@ -48,6 +48,19 @@ ENEMY = EnemySpec(
             ),
             hp=265,
             mana=35,
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=14,
+                spirit=9,
+                intelligence=9,
+                strength=15,
+                dexterity=8,
+                intuition=11,
+            ),
+            hp=330,
+            mana=40,
         ),
     ),
     moves=(

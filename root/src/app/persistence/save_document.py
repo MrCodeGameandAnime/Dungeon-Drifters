@@ -1,4 +1,4 @@
-"""Schema-22 save documents and canonical in-memory reconstruction."""
+"""Schema-23 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -53,6 +53,7 @@ from app.snapshot import STATE_SCHEMA_VERSION, validate_plain_value
 _SURFACE_ROUTE = get_route_spec("surface")
 _FLOOR_ONE_ROUTE = get_route_spec("floor_one")
 _FLOOR_TWO_ROUTE = get_route_spec("floor_two")
+_FLOOR_THREE_ROUTE = get_route_spec("floor_three")
 _SURFACE_ROUTE_NODE_IDS = tuple(node.node_id for node in _SURFACE_ROUTE.nodes)
 _SURFACE_REST_NODE_IDS = tuple(
     node.node_id
@@ -82,6 +83,9 @@ _FLOOR_TWO_REST_NODE_IDS = tuple(
     for node in _FLOOR_TWO_ROUTE.nodes
     if node.kind is RouteNodeKind.REST
 )
+_FLOOR_THREE_ROUTE_NODE_IDS = tuple(
+    node.node_id for node in _FLOOR_THREE_ROUTE.nodes
+)
 
 
 _LEGACY_RUNTIME_SCHEMA_VERSION = 7
@@ -99,7 +103,8 @@ _PRE_EQUIPMENT_DISK_SCHEMA_VERSION = 18
 _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION = 19
 _PRE_ALCHEMIST_DISK_SCHEMA_VERSION = 20
 _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION = 21
-DISK_SCHEMA_VERSION = 22
+_PRE_FLOOR_THREE_DISK_SCHEMA_VERSION = 22
+DISK_SCHEMA_VERSION = 23
 
 
 class SaveStateValidationError(ValueError):
@@ -307,6 +312,7 @@ def migrate_schema18(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_equipment_defaults(migrated)
+    _add_floor_three_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -317,6 +323,7 @@ def migrate_schema19(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_armor_generation_defaults(migrated)
+    _add_floor_three_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -327,15 +334,27 @@ def migrate_schema20(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     migrated["party"]["modifier_instances"] = []
+    _add_floor_three_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
 
 def migrate_schema21(document):
-    """Preserve schema-21 saves while enabling validated helper events."""
+    """Add Floor III state defaults to schema-21 saves."""
     validate_legacy_schema21_document(document)
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_floor_three_defaults(migrated)
+    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return migrated
+
+
+def migrate_schema22(document):
+    """Add Floor III state defaults to immutable schema-22 saves."""
+    validate_legacy_schema22_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_floor_three_defaults(migrated)
     _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
     return migrated
 
@@ -478,6 +497,16 @@ def validate_legacy_schema21_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema22_document(document):
+    """Validate immutable schema-22 saves without adding Floor III state."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_FLOOR_THREE_DISK_SCHEMA_VERSION,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -486,7 +515,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate current payloads or immutable schema-8 through schema-20 history."""
+    """Validate current payloads or immutable schema-8 through schema-22 history."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -558,6 +587,12 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema21_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema22_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -643,6 +678,8 @@ def validate_save_document(document):
         return migrate_schema20(document)
     if schema_version == _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION:
         return migrate_schema21(document)
+    if schema_version == _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION:
+        return migrate_schema22(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -842,6 +879,7 @@ def _validate_document(
     _validate_overworld(
         document["overworld"],
         document["world"],
+        allow_floor_three=schema_version >= DISK_SCHEMA_VERSION,
     )
     if schema_version < _PRE_ALCHEMIST_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict) and event.get("kind") == "armor_reward"
@@ -888,6 +926,7 @@ def _validate_document(
         require_modifier_instances=(
             schema_version >= _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
         ),
+        require_floor_three_state=(schema_version >= DISK_SCHEMA_VERSION),
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
             None
@@ -895,7 +934,11 @@ def _validate_document(
             else equipment_bonuses_by_member[1:]
         ),
     )
-    _validate_route_party_relationship(document["overworld"], document["party"])
+    _validate_route_party_relationship(
+        document["overworld"],
+        document["party"],
+        require_floor_three_state=(schema_version >= DISK_SCHEMA_VERSION),
+    )
     if schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
         _validate_armor_reward_event_relationship(
             document["party"], equipment_by_id
@@ -1146,6 +1189,7 @@ def _validate_party(
     require_active_drifter_ids=False,
     require_carried_supplies=False,
     require_floor_two_state=False,
+    require_floor_three_state=False,
     require_equipment_instances=False,
     require_generated_equipment_state=False,
     require_modifier_instances=False,
@@ -1177,6 +1221,15 @@ def _validate_party(
                 "floor_two_run_id",
                 "floor_two_outing_xp_multiplier_percent",
                 "resolved_run_events",
+            }
+        )
+    if require_floor_three_state:
+        expected_keys.update(
+            {
+                "floor_three_cleared",
+                "floor_three_runs_started_after_clear",
+                "floor_three_run_id",
+                "floor_three_outing_xp_multiplier_percent",
             }
         )
     if require_equipment_instances:
@@ -1376,6 +1429,10 @@ def _validate_party(
             not require_floor_two_state
             or party["floor_two_run_id"] is None
         )
+        and (
+            not require_floor_three_state
+            or party["floor_three_run_id"] is None
+        )
     )
     if active_floor_one:
         expected_rate = 100
@@ -1437,10 +1494,23 @@ def _validate_party(
                 "party.resolved_run_events must be a list"
             )
         try:
+            active_run_id = (
+                party["floor_three_run_id"]
+                if require_floor_three_state
+                and party["floor_three_run_id"] is not None
+                else run_id
+            )
+            active_floor_id = (
+                "floor_three"
+                if require_floor_three_state
+                and party["floor_three_run_id"] is not None
+                else "floor_two"
+            )
             validate_run_event_history(
                 events,
                 active_drifter_ids=active_ids,
-                active_run_id=run_id,
+                active_run_id=active_run_id,
+                active_floor_id=active_floor_id,
             )
         except (TypeError, ValueError) as error:
             raise SaveStateValidationError(
@@ -1473,6 +1543,80 @@ def _validate_party(
         elif floor_two_multiplier != 100:
             raise SaveStateValidationError(
                 "inactive Floor 2 runs must use the default XP rate"
+            )
+
+    if require_floor_three_state:
+        floor_three_cleared = party["floor_three_cleared"]
+        if not isinstance(floor_three_cleared, bool):
+            raise SaveStateValidationError(
+                "party.floor_three_cleared must be a boolean"
+            )
+        if floor_three_cleared and not party["floor_two_cleared"]:
+            raise SaveStateValidationError(
+                "Floor 3 cannot be cleared before Floor 2"
+            )
+        floor_three_runs = party["floor_three_runs_started_after_clear"]
+        _require_int_min(
+            floor_three_runs,
+            0,
+            "party.floor_three_runs_started_after_clear",
+        )
+        if floor_three_runs and not floor_three_cleared:
+            raise SaveStateValidationError(
+                "Floor 3 replay runs require a cleared floor"
+            )
+        floor_three_run_id = party["floor_three_run_id"]
+        if floor_three_run_id is not None and not _valid_persisted_run_id(
+            floor_three_run_id
+        ):
+            raise SaveStateValidationError(
+                "party.floor_three_run_id is invalid"
+            )
+        if floor_three_run_id is not None and party["floor_two_run_id"] is not None:
+            raise SaveStateValidationError(
+                "only one dungeon floor may be active"
+            )
+        floor_three_multiplier = party[
+            "floor_three_outing_xp_multiplier_percent"
+        ]
+        _require_int_min(
+            floor_three_multiplier,
+            0,
+            "party.floor_three_outing_xp_multiplier_percent",
+        )
+        if floor_three_multiplier not in {20, 30, 40, 50, 100}:
+            raise SaveStateValidationError(
+                "Floor 3 outing XP multiplier is not an authored rate"
+            )
+        if floor_three_run_id is not None:
+            if (
+                not party["floor_two_cleared"]
+                or not party["tutorial_complete"]
+                or len(companions) != 3
+            ):
+                raise SaveStateValidationError(
+                    "Floor 3 run requires a cleared Floor 2 and four recruited Drifters"
+                )
+            if phase not in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
+                raise SaveStateValidationError(
+                    "active Floor 3 run must be an outing or extraction"
+                )
+            expected_floor_three_rate = 100
+            if floor_three_cleared:
+                if floor_three_runs < 1:
+                    raise SaveStateValidationError(
+                        "Floor 3 replay requires a started replay count"
+                    )
+                expected_floor_three_rate = (50, 40, 30, 20)[
+                    min(floor_three_runs - 1, 3)
+                ]
+            if floor_three_multiplier != expected_floor_three_rate:
+                raise SaveStateValidationError(
+                    "active Floor 3 run has an inconsistent XP rate"
+                )
+        elif floor_three_multiplier != 100:
+            raise SaveStateValidationError(
+                "inactive Floor 3 runs must use the default XP rate"
             )
 
     return equipment_by_id
@@ -1782,6 +1926,23 @@ def _add_floor_two_defaults(document):
         )
     claims = world.get("permanent_discovery_claims", [])
     world["discovered_permanent_discovery_sources"] = list(claims)
+    _add_floor_three_defaults(document)
+
+
+def _add_floor_three_defaults(document):
+    party = document.get("party")
+    if not isinstance(party, dict):
+        raise SaveStateValidationError("game.party must be an object")
+    defaults = {
+        "floor_three_cleared": False,
+        "floor_three_runs_started_after_clear": 0,
+        "floor_three_run_id": None,
+        "floor_three_outing_xp_multiplier_percent": 100,
+    }
+    for key, value in defaults.items():
+        if key in party:
+            raise SaveStateValidationError(f"legacy party already contains {key}")
+        party[key] = value
 
 
 def _add_equipment_defaults(document):
@@ -2353,7 +2514,7 @@ def _validate_legacy_overworld(overworld, world):
                 raise SaveStateValidationError("a future route encounter is already defeated")
 
 
-def _validate_overworld(overworld, world):
+def _validate_overworld(overworld, world, *, allow_floor_three=False):
     _require_mapping(overworld, "overworld")
     _require_exact_keys(
         overworld,
@@ -2379,15 +2540,27 @@ def _validate_overworld(overworld, world):
             world,
         )
         return
-    if route_id not in {"floor_one", "floor_two"}:
+    if route_id == "floor_three" and not allow_floor_three:
+        raise SaveStateValidationError(
+            "legacy save cannot contain an active Floor 3 route"
+        )
+    if route_id not in {"floor_one", "floor_two", "floor_three"}:
         raise SaveStateValidationError("overworld has an unknown active route")
-    route = _FLOOR_ONE_ROUTE if route_id == "floor_one" else _FLOOR_TWO_ROUTE
-    route_node_ids = (
-        _FLOOR_ONE_ROUTE_NODE_IDS
-        if route_id == "floor_one"
-        else _FLOOR_TWO_ROUTE_NODE_IDS
-    )
-    floor_label = "Floor 1" if route_id == "floor_one" else "Floor 2"
+    route = {
+        "floor_one": _FLOOR_ONE_ROUTE,
+        "floor_two": _FLOOR_TWO_ROUTE,
+        "floor_three": _FLOOR_THREE_ROUTE,
+    }[route_id]
+    route_node_ids = {
+        "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
+        "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
+        "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+    }[route_id]
+    floor_label = {
+        "floor_one": "Floor 1",
+        "floor_two": "Floor 2",
+        "floor_three": "Floor 3",
+    }[route_id]
     node_id = overworld["current_route_node_id"]
     if node_id not in route_node_ids:
         raise SaveStateValidationError(
@@ -2451,7 +2624,12 @@ def _validate_overworld(overworld, world):
     _validate_legacy_overworld(surface_progress, world)
 
 
-def _validate_route_party_relationship(overworld, party):
+def _validate_route_party_relationship(
+    overworld,
+    party,
+    *,
+    require_floor_three_state=False,
+):
     route_id = overworld["active_route_id"]
     phase = DungeonPhase(party["phase"])
     if route_id == "surface":
@@ -2478,6 +2656,23 @@ def _validate_route_party_relationship(overworld, party):
         ):
             raise SaveStateValidationError(
                 "Floor 2 requires an unlocked active outing with the recruited party"
+            )
+        return
+
+    if route_id == "floor_three":
+        if not require_floor_three_state:
+            raise SaveStateValidationError(
+                "legacy save cannot contain an active Floor 3 route"
+            )
+        if (
+            phase is not DungeonPhase.OUTING
+            or not party["tutorial_complete"]
+            or len(party["companions"]) != 3
+            or not party["floor_two_cleared"]
+            or party["floor_three_run_id"] is None
+        ):
+            raise SaveStateValidationError(
+                "Floor 3 requires an unlocked active outing with four recruited Drifters"
             )
         return
 

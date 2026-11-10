@@ -45,6 +45,10 @@ def _remove_m4_state(payload):
             "floor_two_run_id",
             "floor_two_outing_xp_multiplier_percent",
             "resolved_run_events",
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
         ):
             party.pop(field, None)
     player = payload.get("player")
@@ -53,6 +57,19 @@ def _remove_m4_state(payload):
     payload.get("world", {}).pop(
         "discovered_permanent_discovery_sources", None
     )
+    return payload
+
+
+def _remove_m4b_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
     return payload
 
 
@@ -104,13 +121,14 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "e76ea1669ef4f9751325e70498565ac889a261e44f36786b28f9af8bf1892e96"
+        "31a2dad2f126fb4093a170a3325b90fb8ebd77ed9255a5f74d5dcad09f51cf78"
     )
 
 
 def test_schema19_equipment_history_remains_envelope_immutable():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 19
+    _remove_m4b_state(payload)
     payload["party"].pop("modifier_instances")
     original = copy.deepcopy(payload)
 
@@ -129,6 +147,7 @@ def test_schema19_equipment_history_remains_envelope_immutable():
 def test_schema20_equipment_history_remains_envelope_immutable():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 20
+    _remove_m4b_state(payload)
     payload["party"].pop("modifier_instances")
     original = copy.deepcopy(payload)
 
@@ -285,6 +304,27 @@ def test_schema17_profile_history_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 17
     _remove_m4_state(legacy_payload)
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_schema22_profile_history_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 22
+    for field in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        legacy_payload["party"].pop(field)
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload

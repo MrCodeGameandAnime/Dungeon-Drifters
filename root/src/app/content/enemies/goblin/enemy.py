@@ -29,7 +29,7 @@ ENEMY = EnemySpec(
     role=EnemyRole.MELEE_SKIRMISHER,
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset({EnemyCapability.BASIC_ATTACKS}),
-    supported_tiers=(0, 1),
+    supported_tiers=(0, 1, 2),
     tier_profiles=(
         EnemyTierSpec(
             tier=1,
@@ -44,6 +44,20 @@ ENEMY = EnemySpec(
             hp=75,
             mana=0,
             item_drops=(ItemDropSpec("grade_ii_metal", 1, 2000),),
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=4,
+                spirit=1,
+                intelligence=1,
+                strength=5,
+                dexterity=3,
+                intuition=1,
+            ),
+            hp=90,
+            mana=0,
+            item_drops=(ItemDropSpec("grade_iii_metal", 1, 2000),),
         ),
     ),
     moves=(

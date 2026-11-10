@@ -67,6 +67,8 @@ class OverworldAction(StrEnum):
     START_FLOOR_ONE = "start_floor_one"
     START_FLOOR_TWO = "start_floor_two"
     FINALIZE_FLOOR_TWO_CLEAR = "finalize_floor_two_clear"
+    START_FLOOR_THREE = "start_floor_three"
+    FINALIZE_FLOOR_THREE_CLEAR = "finalize_floor_three_clear"
     SET_OUT = "set_out"
     EXTRACT = "extract"
     RETURN_WITH_TALISMAN = "return_with_talisman"
@@ -88,6 +90,7 @@ class OverworldAvailabilityReason(StrEnum):
     FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER = (
         "floor_two_replay_requires_available_helper"
     )
+    FLOOR_THREE_REQUIRES_FULL_ROSTER = "floor_three_requires_full_roster"
 
 
 @dataclass(frozen=True)

@@ -13,6 +13,9 @@ HUB_PROBE_PATH = (
 FLOOR_TWO_PROBE_PATH = (
     Path(__file__).parents[1] / "tools" / "micropython_floor_two_probe.py"
 )
+FLOOR_THREE_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_floor_three_probe.py"
+)
 M5_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m5_probe.py"
 
 SEALED_STAGE_PREFIX = (
@@ -73,6 +76,16 @@ def _floor_two_probe_tree():
     return ast.parse(_floor_two_probe_source(), filename=str(FLOOR_TWO_PROBE_PATH))
 
 
+def _floor_three_probe_source():
+    return FLOOR_THREE_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _floor_three_probe_tree():
+    return ast.parse(
+        _floor_three_probe_source(), filename=str(FLOOR_THREE_PROBE_PATH)
+    )
+
+
 def _assigned_literal(tree, name):
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -101,13 +114,14 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 8]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 9]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
         "M4_FLOOR_TWO_PROBE",
+        "M4_FLOOR_THREE_PROBE",
         "M5_EQUIPMENT_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
@@ -118,6 +132,63 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
     assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
         "M5_EQUIPMENT_PROBE"
     )
+
+
+def test_floor_three_probe_covers_tier_two_recruitment_full_boss_and_teardown():
+    source = _floor_three_probe_source()
+    tree = _floor_three_probe_tree()
+    stages = _assigned_literal(tree, "_M4B_STAGE_NAMES")
+    assert stages == (
+        "M4B_TIER_TWO_CONTENT",
+        "M4B_D3_RECRUITMENT",
+        "M4B_D4_RECRUITMENT",
+        "M4B_FLOOR_THREE_START",
+        "M4B_FLOOR_THREE_BATTLE_01",
+        "M4B_FLOOR_THREE_BATTLE_02",
+        "M4B_FLOOR_THREE_BATTLE_03",
+        "M4B_FLOOR_THREE_BATTLE_04",
+        "M4B_FLOOR_THREE_BATTLE_05",
+        "M4B_MIDWAY_REST",
+        "M4B_FLOOR_THREE_BATTLE_06",
+        "M4B_FLOOR_THREE_BATTLE_07",
+        "M4B_FLOOR_THREE_BATTLE_08",
+        "M4B_FLOOR_THREE_BATTLE_09",
+        "M4B_PRE_BOSS_REST",
+        "M4B_FLOOR_THREE_BATTLE_10_BOSS",
+        "M4B_FLOOR_THREE_FINAL_STATE",
+        "M4B_PROBE_TEARDOWN",
+    )
+
+    for required in (
+        'get_route_spec("floor_three")',
+        'if 2 not in enemy.supported_tiers',
+        '"grade_iii_metal"',
+        '"grade_iii_fiber"',
+        '"grade_iii_timber"',
+        '"grade_iii_cores"',
+        'ChooseCompanion(drifter_id, event.event_id)',
+        '_recruit_drifter(state, "zhaivra")',
+        '_recruit_drifter(state, "joruun")',
+        'OverworldAction.START_FLOOR_THREE',
+        'len(battle_view.party_members) != expected_party_size',
+        'expected_party_size = 4 if battle_number == 10 else 2',
+        'floor_three_boss_pending_event_counts',
+        'party.floor_three_cleared',
+        'gc.collect()',
+    ):
+        assert required in source
+
+    main_source = _probe_source()
+    assert '_run_stage("M4_FLOOR_THREE_PROBE", _run_floor_three_probe)' in main_source
+    assert 'import micropython_floor_three_probe' in main_source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    floor_three_start = expected_stages.index("M4_FLOOR_TWO_PROBE") + 1
+    assert tuple(
+        expected_stages[floor_three_start : floor_three_start + len(stages) + 1]
+    ) == (*stages, "M4_FLOOR_THREE_PROBE")
 
 
 def test_m5_probe_covers_generated_equipment_upgrade_modifier_and_snapshot():
@@ -533,7 +604,7 @@ def test_completed_first_battle_evidence_is_released_before_session_import():
 
 
 def test_probe_excludes_host_persistence_and_test_dependencies():
-    source = _probe_source() + _hub_probe_source()
+    source = _probe_source() + _hub_probe_source() + _floor_three_probe_source()
     tree = ast.parse(source)
     imported_modules = {
         alias.name.split(".", 1)[0]

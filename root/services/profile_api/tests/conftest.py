@@ -77,11 +77,28 @@ def remove_m4_run_state(payload):
             "floor_two_run_id",
             "floor_two_outing_xp_multiplier_percent",
             "resolved_run_events",
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
         ):
             party.pop(field, None)
     world = payload.get("world")
     if isinstance(world, dict):
         world.pop("discovered_permanent_discovery_sources", None)
+    return payload
+
+
+def remove_m4b_run_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
     return payload
 
 

@@ -366,6 +366,15 @@ def is_known_floor_two_route_node_id(node_id):
     return node_id in _FLOOR_TWO_ROUTE_NODE_IDS or node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
 
 
+def is_known_route_node_id(route_id, node_id):
+    if route_id not in _ROUTE_CATALOG:
+        return False
+    route = _ROUTE_CATALOG[route_id]
+    return any(node.node_id == node_id for node in route.nodes) or (
+        route_id == "floor_two" and node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
+    )
+
+
 def get_drifter_spec_by_choice(choice):
     try:
         return _DRIFTER_CHOICE_CATALOG[choice]

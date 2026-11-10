@@ -17,7 +17,7 @@
 - [Economy](../../future/dungeon-progression-difficulty-and-economy.md), secured ownership and death; existing Hub/Floor I evidence in [probe record](../../probe.md).
 - [Weapon contract](../weapons/signature-weapon-implementation.md), exact-target progression and craft-and-install.
 
-Fixed pacing: D1 starts; D2 joins on Floor I for the existing 65 gold; D3 joins on Floor II; D4 joins on Floor III; Floor III ends with the first four-Drifter boss; expeditions begin on Floor IV. D1-D4 denote recruitment order, not fixed character names. Any canonical Drifter can be D1, and no event may recruit an already-owned identity.
+Original M1 pacing (superseded by the approved M4 revision): D1 starts; D2 joins on Floor I for the existing 65 gold; D3 joins on Floor II; D4 joins on Floor III. The current contract makes D3 and D4 independently recruitable at the Hub for 65 gold each after Floor II clear; both start at Level 1. Floor III ends with the first four-Drifter boss; expeditions begin on Floor IV. D1-D4 denote recruitment order, not fixed character names. Any canonical Drifter can be D1, and no event may recruit an already-owned identity. M1 owns roster architecture, not the later recruitment flow.
 
 Non-goals: granting all four now, authoring Floors II-IV, expeditions/energy, armor, new skill trees, new reward multipliers, or changing the current tutorial/boss formats. Supporting a four-member roster structurally is not proof that live four-person boss combat is qualified.
 
@@ -43,9 +43,9 @@ The following are approved M1 interfaces, not claims that they already exist. Ex
 
 Approved representation: preserve the original player at the existing root boundary, generalize companions to the remaining recruited members, and persist explicit active IDs. The root player is the stable campaign/story anchor, not a mandatory active participant. Do not persist both a roster copy and companion copies.
 
-Recruitment needs an authored event identity, required floor/story condition, eligible candidate IDs, cost, and one-time completion evidence. The client submits an offered event/Drifter ID, not an arbitrary floor/cost/unlock flag. Reuse `StoryState` completed-event support where sufficient. Decide when later recruits become secured before connecting a dungeon event. M1 supplies the validated extension point and controlled fixtures, not production Floor II/III recruitment scenes.
+Recruitment needs an authored event identity, required floor/story condition, eligible candidate IDs, cost, and one-time completion evidence. The client submits an offered event/Drifter ID, not an arbitrary floor/cost/unlock flag. Reuse `StoryState` completed-event support where sufficient. The approved M4 contract owns D3/D4's Hub offers after Floor II clear, at 65 gold each and Level 1. M1 supplies the validated extension point and controlled fixtures, not those production recruitment actions.
 
-Ordinary-run participants are fixed at deployment and remain the reward recipients through encounter completion, Rest saves, extraction, and death. Bench members receive no combat XP merely because they are recruited; expedition XP belongs to M6. Retain the tutorial's 50/50 split and existing Floor I payout arithmetic. M4B may introduce an explicit authored full-party encounter boundary for the Floor III boss; that is not permission for arbitrary mid-run swaps. Its participation/reward contract must preserve earlier pair-earned rewards rather than redivide them across a newly enlarged party. Full-party boss XP interpretation is a later entry decision, not M1 arithmetic.
+Ordinary-run participants are fixed at deployment and remain the reward recipients through encounter completion, Rest saves, extraction, and death. Bench members receive no combat XP merely because they are recruited; expedition XP belongs to M6. Retain the tutorial's 50/50 split and existing Floor I payout arithmetic. M4B may introduce an explicit authored full-party encounter boundary for the Floor III boss; that is not permission for arbitrary mid-run swaps. Its participation/reward contract must preserve earlier pair-earned rewards rather than redivide them across a newly enlarged party. The later M4 decision specifies a four-way shared Floor III boss XP split followed by each Drifter's own Intuition bonus; that remains outside M1 arithmetic.
 
 ## File And Client Work
 
@@ -84,7 +84,7 @@ The user approved all six defaults on 2026-10-30:
 | M1-D5 | Store D1 once as `GameState.player_state`, D2-D4 as canonical `PartyState.companions`, and the ordered active IDs on `PartyState`. No duplicate roster representation. |
 | M1-D6 | Advance runtime schema 11 to 12 and disk schema 12 to 13. Keep profile-envelope version 1 and API `/v1`; update the profile-service payload validator for disk schema 13. No database-table migration is planned. |
 
-The fixed campaign pacing remains unchanged: any Drifter may be D1; D2 joins on Floor I for 65 gold, D3 on Floor II, D4 on Floor III; Floor III has the first four-Drifter boss, and expeditions start on Floor IV. M1 adds no production D3/D4 scenes or costs. A recruit accepted during an outing joins the permanent roster immediately but cannot replace an outing participant until the party returns to the Hub.
+**Superseded by M4 (2026-11-09):** D1 may be any Drifter; D2 joins on Floor I for 65 gold. After Floor II clear, D3 and D4 are independently recruitable at the Hub for 65 gold each and start at Level 1. The Floor III boss requires all four permanent recruits; Floor IV remains the first expedition-enabled floor. M1 adds no production D3/D4 recruitment actions. A recruit accepted during an outing joins the permanent roster immediately but cannot replace an outing participant until the party returns to the Hub.
 
 ### State, Action, And Validation Matrix
 
@@ -190,7 +190,7 @@ Closure: roster and active-party identity are distinct, all currently recruited 
 
 | Owner | Deferred question | Boundary |
 | --- | --- | --- |
-| M4/content | Authored D3/D4 recruitment scenes, floor events, and costs. | Do not copy D2's 65-gold price or grant D3/D4 before their floors. |
+| M4/content | Authored post-Floor-II Hub offers for D3/D4, their 65-gold costs, and Floor III's four-member boss. | Preserve independent retryable recruitment, Level 1 starts, and the four-permanent-member boss gate. |
 | M4B | Exact four-Drifter boss participation and XP interpretation while preserving rewards earned by the prior pair. | Do not redivide earlier pair rewards or make ordinary encounters four-person. |
 
 Later entry checks revalidate concrete API names against the implementation tree. The approved roster, active-pair, migration, and recovery semantics above are fixed for M1.

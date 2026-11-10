@@ -180,11 +180,12 @@ def test_m4_tier_one_is_authored_numeric_data_only(archetype_id, expected):
 
 
 @pytest.mark.parametrize("archetype_id", EXPECTED_TIER_ONE)
-def test_m4_archetypes_support_tier_zero_and_one_only(archetype_id):
+def test_m4_archetypes_support_tiers_zero_through_two_only(archetype_id):
     assert create_enemy_state(archetype_id, tier=0).tier == 0
     assert create_enemy_state(archetype_id, tier=1).tier == 1
-    with pytest.raises(ValueError, match="does not support tier 2"):
-        create_enemy_state(archetype_id, tier=2)
+    assert create_enemy_state(archetype_id, tier=2).tier == 2
+    with pytest.raises(ValueError, match="does not support tier 3"):
+        create_enemy_state(archetype_id, tier=3)
 
 
 def test_ordinary_goblin_values_remain_unchanged():

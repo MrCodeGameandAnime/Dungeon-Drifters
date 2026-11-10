@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from app.content.permanent_discovery_spec import (
     is_valid_permanent_discovery_source_id,
 )
+from app.content.catalog import DRIFTER_SPECS
 from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
     crafting_level_for_experience,
@@ -90,6 +91,10 @@ class PartyState:
         self._floor_two_runs_started_after_clear = 0
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
+        self._floor_three_cleared = False
+        self._floor_three_runs_started_after_clear = 0
+        self._floor_three_run_id = None
+        self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
 
     @property
@@ -255,6 +260,43 @@ class PartyState:
     @property
     def floor_two_outing_xp_multiplier_percent(self):
         return self._floor_two_outing_xp_multiplier_percent
+
+    @property
+    def floor_three_cleared(self):
+        return self._floor_three_cleared
+
+    @property
+    def floor_three_runs_started_after_clear(self):
+        return self._floor_three_runs_started_after_clear
+
+    @property
+    def floor_three_run_id(self):
+        return self._floor_three_run_id
+
+    @property
+    def floor_three_outing_xp_multiplier_percent(self):
+        return self._floor_three_outing_xp_multiplier_percent
+
+    @property
+    def active_run_id(self):
+        return self._floor_three_run_id or self._floor_two_run_id
+
+    @property
+    def active_run_floor_id(self):
+        if self._floor_three_run_id is not None:
+            return "floor_three"
+        if self._floor_two_run_id is not None:
+            return "floor_two"
+        return None
+
+    @property
+    def floor_three_boss_reward_committed(self):
+        return self._floor_three_run_id is not None and any(
+            event["run_id"] == self._floor_three_run_id
+            and event["node_id"] == "floor_three_battle_10"
+            and event["kind"] == "encounter_rewards"
+            for event in self._resolved_run_events
+        )
 
     @property
     def floor_two_boss_helper_id(self):
@@ -465,7 +507,10 @@ class PartyState:
             DungeonPhase.OUTING,
         }:
             return False
-        if not self._is_floor_two_helper_party(deployed_members):
+        if not (
+            self._is_floor_two_helper_party(deployed_members)
+            or self._is_floor_three_boss_party(deployed_members)
+        ):
             self._validate_party_members(deployed_members)
         if not isinstance(target, PlayerState) or not any(
             target is member for member in deployed_members
@@ -501,6 +546,24 @@ class PartyState:
             helper_id is not None
             and tuple(_drifter_id(member) for member in party_members)
             == self._active_drifter_ids + (helper_id,)
+        )
+
+    def _is_floor_three_boss_party(self, party_members):
+        if (
+            not isinstance(party_members, tuple)
+            or len(party_members) != 4
+            or self._floor_three_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+            or len(self._companions) != 3
+            or not all(isinstance(member, PlayerState) for member in party_members)
+        ):
+            return False
+        drifter_ids = tuple(_drifter_id(member) for member in party_members)
+        expected_ids = {profile.drifter_id for profile in DRIFTER_SPECS}
+        return (
+            len(set(drifter_ids)) == 4
+            and set(drifter_ids) == expected_ids
+            and set(self._active_drifter_ids).issubset(drifter_ids)
         )
 
     def unload_carried_supplies(self, items):
@@ -596,15 +659,70 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return rate
 
+    def start_floor_three_run(self, *, run_id_factory=uuid4):
+        if not callable(run_id_factory):
+            raise TypeError("run_id_factory must be callable")
+        if not self.tutorial_complete or not self.floor_two_cleared:
+            raise ValueError("Floor 2 must be cleared before Floor 3")
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("a Floor 3 run can only start from the Hub")
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("a Floor 3 run requires the two-Drifter active pair")
+        if len(self._companions) != 3:
+            raise ValueError("Floor 3 requires four permanent Drifters")
+        run_id = run_id_factory()
+        if isinstance(run_id, UUID):
+            run_id = str(run_id)
+        if not _valid_run_id(run_id):
+            raise ValueError("run ID must be a non-empty lowercase token")
+        rate = 100
+        if self.floor_three_cleared:
+            rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                min(
+                    self._floor_three_runs_started_after_clear,
+                    len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                )
+            ]
+            rate = max(rate, _FLOOR_ONE_MINIMUM_REPLAY_XP_RATE)
+            self._floor_three_runs_started_after_clear += 1
+
+        self._floor_three_run_id = run_id
+        self._floor_three_outing_xp_multiplier_percent = rate
+        self._outing_rewards = OutingRewards()
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.OUTING
+        return rate
+
     def add_floor_two_rewards(self, *, experience, gold, items=None):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             raise ValueError("Floor 2 rewards require an active Floor 2 run")
         self._add_outing_rewards(experience=experience, gold=gold, items=items)
 
+    def add_floor_three_rewards(self, *, experience, gold, items=None):
+        if self._floor_three_run_id is None or self._phase is not DungeonPhase.OUTING:
+            raise ValueError("Floor 3 rewards require an active Floor 3 run")
+        self._add_outing_rewards(experience=experience, gold=gold, items=items)
+
+    def add_active_run_rewards(self, *, experience, gold, items=None):
+        if self._floor_three_run_id is not None:
+            return self.add_floor_three_rewards(
+                experience=experience,
+                gold=gold,
+                items=items,
+            )
+        return self.add_floor_two_rewards(
+            experience=experience,
+            gold=gold,
+            items=items,
+        )
+
     def record_run_event(self, event):
         normalized = _run_event(event)
-        if normalized["run_id"] != self._floor_two_run_id:
-            raise ValueError("run event must belong to the active Floor 2 run")
+        if (
+            normalized["run_id"] != self.active_run_id
+            or normalized["floor_id"] != self.active_run_floor_id
+        ):
+            raise ValueError("run event must belong to the active floor run")
         existing = self.run_event(normalized["event_key"])
         if existing is not None:
             if existing != normalized:
@@ -615,7 +733,8 @@ class PartyState:
         validate_run_event_history(
             candidate_events,
             active_drifter_ids=self._active_drifter_ids,
-            active_run_id=self._floor_two_run_id,
+            active_run_id=self.active_run_id,
+            active_floor_id=self.active_run_floor_id,
             require_complete=False,
         )
         self._resolved_run_events.append(normalized)
@@ -665,6 +784,27 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
+    def fail_floor_three_run(self, party_members, *, recruited_members=None):
+        if self._floor_three_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        if len(party_members) != 2 or tuple(
+            _drifter_id(member) for member in party_members
+        ) != self._active_drifter_ids:
+            raise ValueError("Floor 3 defeat must use the active pair")
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
+        self._discard_unsecured_equipment(equipment_members)
+        self._outing_rewards = OutingRewards()
+        self.discard_carried_supplies()
+        self._restore_party(party_members)
+        self._floor_three_run_id = None
+        self._floor_three_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        return True
+
     def complete_floor_two_boss(self, party_members):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             return False
@@ -692,6 +832,77 @@ class PartyState:
         self._phase = DungeonPhase.HUB
         return True
 
+    def complete_floor_three_boss(self, party_members, *, boss_experience):
+        if self._floor_three_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        if not isinstance(party_members, tuple) or len(party_members) != 4:
+            raise TypeError("Floor 3 boss requires four permanent Drifters")
+        if not all(isinstance(member, PlayerState) for member in party_members):
+            raise TypeError("party_members must contain PlayerState values")
+        drifter_ids = tuple(_drifter_id(member) for member in party_members)
+        if len(set(drifter_ids)) != 4 or not set(self._active_drifter_ids).issubset(
+            drifter_ids
+        ):
+            raise ValueError("Floor 3 boss participants must include the active pair")
+        boss_experience = _nonnegative("boss_experience", boss_experience)
+        boss_event = self.run_event(
+            _run_event_key(
+                self._floor_three_run_id,
+                "floor_three_battle_10",
+                "encounter_rewards",
+                floor_id="floor_three",
+            )
+        )
+        if (
+            boss_event is None
+            or boss_event["result"]["experience"] != boss_experience
+            or self._outing_rewards.experience < boss_experience
+        ):
+            raise ValueError("Floor 3 boss experience must match committed evidence")
+
+        pre_boss_experience = self._outing_rewards.experience - boss_experience
+        replay_rate = self._floor_three_outing_xp_multiplier_percent
+        pre_boss_share = pre_boss_experience * replay_rate // (100 * 2)
+        boss_share = boss_experience * replay_rate // (100 * 4)
+        active_members = tuple(
+            member
+            for drifter_id in self._active_drifter_ids
+            for member in party_members
+            if _drifter_id(member) == drifter_id
+        )
+        if len(active_members) != 2:
+            raise ValueError("Floor 3 active pair is missing from boss participants")
+        pre_boss_awards = self.secured_xp_awards(
+            active_members,
+            pre_boss_share * 2,
+        )
+        boss_awards = self.secured_xp_awards(
+            party_members,
+            boss_share * 4,
+        )
+        awards_by_id = dict(zip(self._active_drifter_ids, pre_boss_awards))
+        for member, award in zip(party_members, boss_awards):
+            drifter_id = _drifter_id(member)
+            awards_by_id[drifter_id] = awards_by_id.get(drifter_id, 0) + award
+        experience_awards = tuple(
+            awards_by_id[_drifter_id(member)] for member in party_members
+        )
+
+        self._bank_rewards(
+            party_members,
+            OutingRewards(gold=self._outing_rewards.gold, items=self._outing_rewards.items),
+            experience_awards=experience_awards,
+        )
+        self._secure_unsecured_equipment()
+        self.return_carried_supplies()
+        self._floor_three_cleared = True
+        self._outing_rewards = OutingRewards()
+        self._floor_three_run_id = None
+        self._floor_three_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        return True
+
     def begin_floor_two_extraction(self, *, partial):
         if not isinstance(partial, bool):
             raise TypeError("partial must be a boolean")
@@ -700,6 +911,17 @@ class PartyState:
         if len(self._active_drifter_ids) != 2:
             raise ValueError("Floor 2 extraction requires the two-Drifter party")
         self._outing_rewards = self._floor_two_payout(partial=partial)
+        self._phase = DungeonPhase.EXTRACTION
+        return True
+
+    def begin_floor_three_extraction(self, *, partial):
+        if not isinstance(partial, bool):
+            raise TypeError("partial must be a boolean")
+        if self._floor_three_run_id is None or self._phase is not DungeonPhase.OUTING:
+            return False
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("Floor 3 extraction requires the two-Drifter pair")
+        self._outing_rewards = self._floor_three_payout(partial=partial)
         self._phase = DungeonPhase.EXTRACTION
         return True
 
@@ -719,6 +941,23 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        return True
+
+    def complete_floor_three_extraction(self, party_members):
+        if (
+            self._floor_three_run_id is None
+            or self._phase is not DungeonPhase.EXTRACTION
+        ):
+            return False
+        self._validate_party_members(party_members)
+        self._bank_rewards(party_members, self._outing_rewards)
+        self._secure_unsecured_equipment()
+        self.return_carried_supplies()
+        self._outing_rewards = OutingRewards()
+        self._floor_three_run_id = None
+        self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
@@ -853,10 +1092,15 @@ class PartyState:
             return False
         self._validate_party_members(party_members)
         floor_two_run = self._floor_two_run_id is not None
+        floor_three_run = self._floor_three_run_id is not None
         rewards = (
-            self._floor_two_payout(partial=False)
-            if floor_two_run
-            else self._floor_one_payout(partial=False)
+            self._floor_three_payout(partial=False)
+            if floor_three_run
+            else (
+                self._floor_two_payout(partial=False)
+                if floor_two_run
+                else self._floor_one_payout(partial=False)
+            )
         )
         experience_awards = self.secured_xp_awards(
             party_members,
@@ -881,6 +1125,10 @@ class PartyState:
         if floor_two_run:
             self._floor_two_run_id = None
             self._floor_two_outing_xp_multiplier_percent = 100
+            self._resolved_run_events = []
+        if floor_three_run:
+            self._floor_three_run_id = None
+            self._floor_three_outing_xp_multiplier_percent = 100
             self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         return True
@@ -985,6 +1233,33 @@ class PartyState:
         )
         if state._floor_two_outing_xp_multiplier_percent not in {20, 30, 40, 50, 100}:
             raise ValueError("Floor 2 outing XP multiplier is not an authored rate")
+        state._floor_three_cleared = snapshot.get("floor_three_cleared", False)
+        if not isinstance(state._floor_three_cleared, bool):
+            raise ValueError("floor_three_cleared must be a boolean")
+        if state._floor_three_cleared and not state._floor_two_cleared:
+            raise ValueError("Floor 3 cannot be cleared before Floor 2")
+        state._floor_three_runs_started_after_clear = _nonnegative(
+            "floor_three_runs_started_after_clear",
+            snapshot.get("floor_three_runs_started_after_clear", 0),
+        )
+        if (
+            state._floor_three_runs_started_after_clear
+            and not state._floor_three_cleared
+        ):
+            raise ValueError("Floor 3 replay runs require a cleared floor")
+        state._floor_three_run_id = snapshot.get("floor_three_run_id")
+        if state._floor_three_run_id is not None and not _valid_run_id(
+            state._floor_three_run_id
+        ):
+            raise ValueError("floor_three_run_id is invalid")
+        if state._floor_two_run_id is not None and state._floor_three_run_id is not None:
+            raise ValueError("only one floor run may be active")
+        state._floor_three_outing_xp_multiplier_percent = _nonnegative(
+            "floor_three_outing_xp_multiplier_percent",
+            snapshot.get("floor_three_outing_xp_multiplier_percent", 100),
+        )
+        if state._floor_three_outing_xp_multiplier_percent not in {20, 30, 40, 50, 100}:
+            raise ValueError("Floor 3 outing XP multiplier is not an authored rate")
         raw_events = snapshot.get("resolved_run_events", [])
         if not isinstance(raw_events, list):
             raise TypeError("resolved_run_events must be a list")
@@ -992,15 +1267,16 @@ class PartyState:
         validate_run_event_history(
             state._resolved_run_events,
             active_drifter_ids=state._active_drifter_ids,
-            active_run_id=state._floor_two_run_id,
+            active_run_id=state.active_run_id,
+            active_floor_id=state.active_run_floor_id,
         )
-        if state._floor_two_run_id is None:
+        if state.active_run_id is None:
             state._resolved_run_events = []
         else:
             state._resolved_run_events = [
                 event
                 for event in state._resolved_run_events
-                if event["run_id"] == state._floor_two_run_id
+                if event["run_id"] == state.active_run_id
             ]
         active_floor_two_run = state._floor_two_run_id is not None
         if active_floor_two_run:
@@ -1025,10 +1301,34 @@ class PartyState:
                 raise ValueError("active Floor 2 run has an inconsistent XP rate")
         elif state._floor_two_outing_xp_multiplier_percent != 100:
             raise ValueError("inactive Floor 2 runs must use the default XP rate")
+        active_floor_three_run = state._floor_three_run_id is not None
+        if active_floor_three_run:
+            if not state._floor_two_cleared or len(state._companions) != 3:
+                raise ValueError("Floor 3 run requires its unlock and four permanent Drifters")
+            if state._phase not in {
+                DungeonPhase.OUTING,
+                DungeonPhase.EXTRACTION,
+            } or not state.tutorial_complete:
+                raise ValueError(
+                    "active Floor 3 run must be an outing or extraction after tutorial"
+                )
+            expected_rate = 100
+            if state._floor_three_cleared:
+                expected_rate = _FLOOR_ONE_REPLAY_XP_RATES[
+                    min(
+                        max(state._floor_three_runs_started_after_clear - 1, 0),
+                        len(_FLOOR_ONE_REPLAY_XP_RATES) - 1,
+                    )
+                ]
+            if state._floor_three_outing_xp_multiplier_percent != expected_rate:
+                raise ValueError("active Floor 3 run has an inconsistent XP rate")
+        elif state._floor_three_outing_xp_multiplier_percent != 100:
+            raise ValueError("inactive Floor 3 runs must use the default XP rate")
         active_floor_one_run = (
             state._tutorial_complete
             and state._phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
             and state._floor_two_run_id is None
+            and state._floor_three_run_id is None
         )
         if active_floor_one_run:
             expected_rate = 100
@@ -1086,6 +1386,14 @@ class PartyState:
             "floor_two_outing_xp_multiplier_percent": (
                 self.floor_two_outing_xp_multiplier_percent
             ),
+            "floor_three_cleared": self.floor_three_cleared,
+            "floor_three_runs_started_after_clear": (
+                self.floor_three_runs_started_after_clear
+            ),
+            "floor_three_run_id": self.floor_three_run_id,
+            "floor_three_outing_xp_multiplier_percent": (
+                self.floor_three_outing_xp_multiplier_percent
+            ),
             "resolved_run_events": list(self.resolved_run_events),
         }
         return snapshot
@@ -1121,6 +1429,23 @@ class PartyState:
         experience_each = (
             self._outing_rewards.experience
             * self._floor_two_outing_xp_multiplier_percent
+            // denominator
+        )
+        gold = self._outing_rewards.gold
+        if partial:
+            gold = (gold + 1) // 2
+        return OutingRewards(
+            experience=experience_each * party_size,
+            gold=gold,
+            items=self._outing_rewards.items,
+        )
+
+    def _floor_three_payout(self, *, partial):
+        party_size = len(self._active_drifter_ids)
+        denominator = 100 * party_size * (2 if partial else 1)
+        experience_each = (
+            self._outing_rewards.experience
+            * self._floor_three_outing_xp_multiplier_percent
             // denominator
         )
         gold = self._outing_rewards.gold
@@ -1288,7 +1613,7 @@ def _run_event(value):
         raise ValueError("run event has an invalid shape")
     if not _valid_run_id(value["run_id"]):
         raise ValueError("run event ID is invalid")
-    if value["floor_id"] != "floor_two":
+    if value["floor_id"] not in {"floor_two", "floor_three"}:
         raise ValueError("run event floor is invalid")
     if not _valid_event_part(value["node_id"]):
         raise ValueError("run event node_id is invalid")
@@ -1315,6 +1640,7 @@ def _run_event(value):
         value["node_id"],
         value["kind"],
         position,
+        floor_id=value["floor_id"],
     )
     if value["event_key"] != event_key:
         raise ValueError("run event key is inconsistent with its identity")
@@ -1359,7 +1685,11 @@ def _validate_run_event_result(kind, result, event):
             raise ValueError("armor reward result has an invalid shape")
         if not _valid_event_part(result["template_id"]):
             raise ValueError("armor reward template ID is invalid")
-        if type(result["floor"]) is not int or result["floor"] != 2:
+        if (
+            event["floor_id"] != "floor_two"
+            or type(result["floor"]) is not int
+            or result["floor"] != 2
+        ):
             raise ValueError("armor reward floor is invalid")
         if not _valid_event_part(result["source_id"]):
             raise ValueError("armor reward source ID is invalid")
@@ -1377,7 +1707,7 @@ def _validate_run_event_result(kind, result, event):
         return
 
     if kind == "boss_helper_selection":
-        if set(result) != {"drifter_id"}:
+        if event["floor_id"] != "floor_two" or set(result) != {"drifter_id"}:
             raise ValueError("boss-helper result has an invalid shape")
         if result["drifter_id"] not in {"zhaivra", "joruun"}:
             raise ValueError("boss-helper Drifter ID is invalid")
@@ -1396,7 +1726,13 @@ def _validate_run_event_result(kind, result, event):
         if not isinstance(keys, list) or len(keys) != result["enemy_count"]:
             raise ValueError("encounter reward event keys do not match enemy count")
         expected_keys = [
-            _run_event_key(event["run_id"], event["node_id"], "enemy_drop", index)
+            _run_event_key(
+                event["run_id"],
+                event["node_id"],
+                "enemy_drop",
+                index,
+                floor_id=event["floor_id"],
+            )
             for index in range(result["enemy_count"])
         ]
         if keys != expected_keys:
@@ -1447,8 +1783,8 @@ def _valid_event_part(value):
     )
 
 
-def _run_event_key(run_id, node_id, kind, position=None):
-    key = f"floor_two:{run_id}:{node_id}:{kind}"
+def _run_event_key(run_id, node_id, kind, position=None, *, floor_id="floor_two"):
+    key = f"{floor_id}:{run_id}:{node_id}:{kind}"
     if position is not None:
         key += f":{position}"
     return key
@@ -1470,6 +1806,7 @@ def validate_run_event_history(
     *,
     active_drifter_ids=None,
     active_run_id=None,
+    active_floor_id=None,
     require_complete=True,
 ):
     if not isinstance(events, (tuple, list)):
@@ -1483,14 +1820,14 @@ def validate_run_event_history(
         get_known_permanent_discovery_source,
         get_permanent_discovery_search_node_id,
         get_route_node_spec,
-        is_known_floor_two_route_node_id,
+        is_known_route_node_id,
     )
     from app.content.route_spec import RouteNodeKind
 
     for event in normalized:
         node_id = event["node_id"]
-        if not is_known_floor_two_route_node_id(node_id):
-            raise ValueError("run event references an unknown Floor 2 route node")
+        if not is_known_route_node_id(event["floor_id"], node_id):
+            raise ValueError("run event references an unknown floor route node")
         node = get_route_node_spec(node_id)
         if event["kind"] in {"enemy_drop", "encounter_rewards", "armor_reward"}:
             if (
@@ -1499,6 +1836,8 @@ def validate_run_event_history(
             ):
                 raise ValueError("combat event references a non-encounter route node")
         elif event["kind"] == "discovery_search":
+            if event["floor_id"] != "floor_two":
+                raise ValueError("discovery search is not authored on this floor")
             result = event["result"]
             try:
                 source = get_known_permanent_discovery_source(result["source_id"])
@@ -1508,16 +1847,21 @@ def validate_run_event_history(
                 raise ValueError("discovery source does not belong to this route node")
             if (
                 event["run_id"] == active_run_id
+                and (active_floor_id is None or event["floor_id"] == active_floor_id)
                 and active_drifter_ids is not None
                 and result["searcher_drifter_id"] not in active_drifter_ids
             ):
                 raise ValueError("discovery searcher is not in the active party")
         elif event["kind"] == "boss_helper_selection":
-            if node_id != "floor_two_pre_boss_rest":
+            if (
+                event["floor_id"] != "floor_two"
+                or node_id != "floor_two_pre_boss_rest"
+            ):
                 raise ValueError("boss-helper selection is outside its route checkpoint")
             helper_id = event["result"]["drifter_id"]
             if (
                 event["run_id"] == active_run_id
+                and (active_floor_id is None or event["floor_id"] == active_floor_id)
                 and active_drifter_ids is not None
                 and helper_id in active_drifter_ids
             ):

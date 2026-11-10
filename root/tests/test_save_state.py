@@ -45,6 +45,10 @@ def _remove_newer_state(document):
             "floor_two_runs_started_after_clear",
             "floor_two_run_id",
             "floor_two_outing_xp_multiplier_percent",
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
             "resolved_run_events",
             "modifier_instances",
         ):
@@ -58,6 +62,19 @@ def _remove_newer_state(document):
     if isinstance(world, dict):
         world.pop("permanent_discovery_claims", None)
         world.pop("discovered_permanent_discovery_sources", None)
+    return document
+
+
+def _remove_floor_three_state(document):
+    party = document.get("party")
+    if isinstance(party, dict):
+        for key in (
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(key, None)
     return document
 
 
@@ -182,7 +199,6 @@ def test_current_document_has_only_persistent_state_and_runtime_snapshot_stays_s
     document = build_save_document(game)
 
     assert document["schema_version"] == DISK_SCHEMA_VERSION
-    assert document["schema_version"] != STATE_SCHEMA_VERSION
     assert set(document) == {
         "schema_version",
         "player",
@@ -197,19 +213,21 @@ def test_current_document_has_only_persistent_state_and_runtime_snapshot_stays_s
     assert "combat" in game.snapshot()["player"]
 
 
-def test_new_saves_use_runtime_schema21_and_disk_schema22():
+def test_new_saves_use_runtime_schema23_and_disk_schema23():
     game = GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
 
     document = build_save_document(game)
 
-    assert STATE_SCHEMA_VERSION == 21
-    assert DISK_SCHEMA_VERSION == document["schema_version"] == 22
+    assert STATE_SCHEMA_VERSION == 23
+    assert DISK_SCHEMA_VERSION == document["schema_version"] == 23
     assert document["overworld"]["active_route_id"] == "surface"
     assert document["party"]["floor_one_cleared"] is False
     assert document["party"]["floor_one_runs_started_after_clear"] == 0
     assert document["party"]["outing_xp_multiplier_percent"] == 100
     assert document["party"]["active_drifter_ids"] == ["branoc"]
     assert document["party"]["floor_two_run_id"] is None
+    assert document["party"]["floor_three_cleared"] is False
+    assert document["party"]["floor_three_run_id"] is None
     assert document["party"]["resolved_run_events"] == []
     assert document["world"]["discovered_permanent_discovery_sources"] == []
 
@@ -238,7 +256,7 @@ def test_current_schema_round_trip_preserves_four_member_roster_and_selected_pai
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 22
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 23
     assert document["party"]["active_drifter_ids"] == ["zhaivra", "azhvielle"]
     assert tuple(
         member.character.profile.drifter_id for member in restored.recruited_members
@@ -256,6 +274,7 @@ def test_current_schema_round_trip_preserves_four_member_roster_and_selected_pai
 def test_schema21_migrates_helper_event_boundary_without_mutating_history():
     historical = copy.deepcopy(build_save_document(completed_hub_game()))
     historical["schema_version"] = 21
+    _remove_floor_three_state(historical)
     original = copy.deepcopy(historical)
 
     assert validate_profile_payload(historical) == original
@@ -263,7 +282,31 @@ def test_schema21_migrates_helper_event_boundary_without_mutating_history():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 22
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert build_save_document(restored) == migrated
+
+
+def test_schema22_migrates_floor_three_defaults_without_mutating_history():
+    historical = copy.deepcopy(build_save_document(completed_hub_game()))
+    historical["schema_version"] = 22
+    for field in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        historical["party"].pop(field)
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert migrated["party"]["floor_three_cleared"] is False
+    assert migrated["party"]["floor_three_run_id"] is None
+    assert restored.party_state.floor_three_cleared is False
     assert build_save_document(restored) == migrated
 
 
@@ -339,6 +382,7 @@ def test_schema14_migrates_additive_advancement_defaults_without_mutating_histor
 def test_schema15_migrates_discovery_defaults_without_mutating_profile_history():
     historical = copy.deepcopy(build_save_document(three_member_hub_game()))
     historical["schema_version"] = 15
+    _remove_floor_three_state(historical)
     _remove_equipment_state(historical)
     for key in (
         "floor_two_cleared",
@@ -382,6 +426,7 @@ def test_schema16_migrates_respec_history_without_fabricating_stat_refunds():
     branoc.purchase_advancement("branoc_a01")
     historical = copy.deepcopy(build_save_document(game))
     historical["schema_version"] = 16
+    _remove_floor_three_state(historical)
     _remove_equipment_state(historical)
     for key in (
         "floor_two_cleared",
@@ -422,6 +467,7 @@ def test_schema16_migrates_respec_history_without_fabricating_stat_refunds():
 def test_schema17_migration_adds_floor_two_defaults_and_preserves_claim_evidence():
     historical = copy.deepcopy(completed_hub_game().snapshot())
     historical["schema_version"] = 17
+    _remove_floor_three_state(historical)
     historical["player"].pop("combat")
     _remove_equipment_state(historical)
     for key in (
@@ -458,6 +504,7 @@ def test_schema17_migration_adds_floor_two_defaults_and_preserves_claim_evidence
 def test_schema18_migration_adds_empty_equipment_without_mutating_history():
     historical = copy.deepcopy(completed_hub_game().snapshot())
     historical["schema_version"] = 18
+    _remove_floor_three_state(historical)
     historical["player"].pop("equipment_refs")
     for companion in historical["party"]["companions"]:
         companion.pop("equipment_refs")
@@ -506,6 +553,7 @@ def test_schema19_equipment_migration_adds_common_defaults_without_mutating_hist
     game._bind_equipment_state()
     historical = build_save_document(game)
     historical["schema_version"] = 19
+    _remove_floor_three_state(historical)
     historical["party"].pop("modifier_instances")
     for instance in historical["party"]["equipment_instances"]:
         instance.pop("rarity")
@@ -531,6 +579,7 @@ def test_schema19_equipment_migration_adds_common_defaults_without_mutating_hist
 def test_schema20_modifier_inventory_migration_preserves_history_and_adds_empty_state():
     historical = copy.deepcopy(build_save_document(completed_hub_game()))
     historical["schema_version"] = 20
+    _remove_floor_three_state(historical)
     historical["party"].pop("modifier_instances")
     original = copy.deepcopy(historical)
 
@@ -560,6 +609,7 @@ def test_schema20_rejects_invalid_equipment_ownership_relationships(
 ):
     document = build_save_document(completed_hub_game())
     document["schema_version"] = 20
+    _remove_floor_three_state(document)
     document["party"].pop("modifier_instances")
     item = {
         "instance_id": "00000000-0000-4000-8000-000000000031",
@@ -840,7 +890,7 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     assert upgraded["party"]["outing_xp_multiplier_percent"] == 100
 
 
-def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema22():
+def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema23():
     historical = copy.deepcopy(
         build_save_document(
             GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
@@ -1071,7 +1121,7 @@ def test_old_schema8_disk_save_before_entrance_preserves_lead_gold():
     restored = reconstruct_game_state(document)
     upgraded = build_save_document(restored)
 
-    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 22
+    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 23
     assert restored.player_state.gold == 17
     assert restored.party_state.shared_gold == 0
     assert restored.party_state.phase is DungeonPhase.OUTSIDE
@@ -1110,6 +1160,10 @@ def test_schema8_runtime_party_snapshot_is_not_transferred_twice():
         "floor_two_run_id",
         "floor_two_outing_xp_multiplier_percent",
         "resolved_run_events",
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
     ):
         document["party"].pop(field)
     document["party"].pop("active_drifter_ids")
@@ -1264,7 +1318,7 @@ def test_invalid_party_documents_are_rejected(mutator):
     "mutator",
     (
         lambda document: document.update(schema_version=6),
-        lambda document: document.update(schema_version=23),
+        lambda document: document.update(schema_version=24),
         lambda document: document["player"]["progression"].update(exp=True),
         lambda document: document["player"]["resources"]["health"].update(current=9999),
         lambda document: document["player"]["equipment"].update(

@@ -29,7 +29,7 @@ ENEMY = EnemySpec(
     role=EnemyRole.BRUTE,
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset({EnemyCapability.BASIC_ATTACKS}),
-    supported_tiers=(0, 1),
+    supported_tiers=(0, 1, 2),
     tier_profiles=(
         EnemyTierSpec(
             tier=1,
@@ -44,6 +44,20 @@ ENEMY = EnemySpec(
             hp=155,
             mana=0,
             item_drops=(ItemDropSpec("grade_ii_fiber", 1, 2000),),
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=9,
+                spirit=4,
+                intelligence=2,
+                strength=10,
+                dexterity=7,
+                intuition=4,
+            ),
+            hp=190,
+            mana=0,
+            item_drops=(ItemDropSpec("grade_iii_fiber", 1, 2000),),
         ),
     ),
     moves=(

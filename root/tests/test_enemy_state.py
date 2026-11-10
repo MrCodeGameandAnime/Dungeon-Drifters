@@ -179,9 +179,9 @@ def test_factory_rejects_invalid_tier_values():
         raise AssertionError("Expected ValueError")
 
     try:
-        create_enemy_state("goblin", tier=2)
+        create_enemy_state("goblin", tier=3)
     except ValueError as error:
-        assert "goblin does not support tier 2" in str(error)
+        assert "goblin does not support tier 3" in str(error)
     else:
         raise AssertionError("Expected ValueError")
 

@@ -25,6 +25,7 @@ from app.content.encounters.surface_shaman_solo.encounter import ENCOUNTER as su
 from app.content.encounters.surface_warrior_pair.encounter import ENCOUNTER as surface_warrior_pair_encounter
 from app.content.encounters.surface_warrior_solo.encounter import ENCOUNTER as surface_warrior_solo_encounter
 from app.content.routes.floor_one.route import ROUTE as floor_one_route
+from app.content.routes.floor_three.route import ROUTE as floor_three_route
 from app.content.routes.floor_two.route import ROUTE as floor_two_route
 from app.content.routes.surface.route import ROUTE as surface_route
 from app.content.recruitment_events.floor_one_d2_recruitment.recruitment_event import RECRUITMENT_EVENT as floor_one_d2_recruitment_recruitment_event
@@ -74,6 +75,7 @@ GENERATED_ENCOUNTER_SPECS = (
 
 GENERATED_ROUTE_SPECS = (
     ("floor_one", floor_one_route),
+    ("floor_three", floor_three_route),
     ("floor_two", floor_two_route),
     ("surface", surface_route),
 )

@@ -21,8 +21,9 @@ establishes the first dungeon progression loop:
   content, and build checks; retained the established pinned MicroPython
   qualification, with no runtime changes during T0
 
-The current playable endpoint is the Floor I Goblin Lord and return to the Hub.
-Later dungeon floors and M1-M9 systems remain planned work.
+At the v0.6 release, the playable endpoint was the Floor I Goblin Lord and
+return to the Hub. Later dungeon floors and M1-M9 systems were planned work
+at that time.
 
 ## v0.5
 

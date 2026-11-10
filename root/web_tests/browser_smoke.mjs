@@ -3144,16 +3144,22 @@ try {
       );
     }
   };
-  const clearFloorTwoBattle = async (battleNumber) => {
+  const clearFloorBattle = async (
+    battleNumber,
+    {
+      floorLabel = "Floor II",
+      bossParty = ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"],
+    } = {},
+  ) => {
     const deployedIds = await page.locator("#party-members .party-member").evaluateAll(
       (members) => members.map((member) => member.dataset.targetId),
     );
     const expectedParty = battleNumber === 10
-      ? ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"]
+      ? bossParty
       : ["drifter_branoc", "drifter_azhvielle"];
     requireCondition(
       JSON.stringify(deployedIds) === JSON.stringify(expectedParty),
-      `Floor II Battle ${battleNumber} deployed ${JSON.stringify(deployedIds)} instead of ${JSON.stringify(expectedParty)}`,
+      `${floorLabel} Battle ${battleNumber} deployed ${JSON.stringify(deployedIds)} instead of ${JSON.stringify(expectedParty)}`,
     );
     const observedBattleLog = new Set();
     const captureBattleLog = async () => {
@@ -3189,7 +3195,7 @@ try {
       const targetIndex = labels
         .map((label, index) => ({ label, index, priority: priority(label) }))
         .sort((first, second) => first.priority - second.priority)[0]?.index ?? -1;
-      requireCondition(targetIndex >= 0, "Floor II attack had no enabled target");
+      requireCondition(targetIndex >= 0, `${floorLabel} attack had no enabled target`);
       const target = targets.nth(targetIndex);
       await target.evaluate((node) => { window.__DD_FLOOR_TWO_TARGET_BUTTON__ = node; });
       await target.click();
@@ -3239,7 +3245,7 @@ try {
       const phase = await page.locator("#app").getAttribute("data-interaction-phase");
       if (phase === "actions") {
         const caveInResolved = [...observedBattleLog].some((line) => line.includes("Falling stone struck"));
-        if (battleNumber === 5 && !caveInResolved) {
+        if (floorLabel === "Floor II" && battleNumber === 5 && !caveInResolved) {
           await defendAndWait();
           continue;
         }
@@ -3272,7 +3278,7 @@ try {
                 return { index, ratio: match ? Number(match[1]) / Number(match[2]) : 1 };
               })
               .sort((first, second) => first.ratio - second.ratio)[0]?.index ?? -1);
-          requireCondition(targetIndex >= 0, "Healing Potion had no eligible Floor II target");
+          requireCondition(targetIndex >= 0, `Healing Potion had no eligible ${floorLabel} target`);
           await page.locator("#targets .target-choice:not([disabled])").nth(targetIndex).click();
           await page.waitForFunction(
             () => document.getElementById("app").dataset.interactionPhase === "actions",
@@ -3318,7 +3324,7 @@ try {
             .map((button) => ({ text: button.textContent.trim(), disabled: button.disabled })),
         }));
         throw new Error(
-          `unexpected Floor II Battle ${battleNumber} phase: ${phase}; state=${JSON.stringify(screenState)}`,
+          `unexpected ${floorLabel} Battle ${battleNumber} phase: ${phase}; state=${JSON.stringify(screenState)}`,
         );
       }
     }
@@ -3338,7 +3344,7 @@ try {
         })),
       }));
       throw new Error(
-        `Floor II Battle ${battleNumber} did not finish within the action budget: ${JSON.stringify(state)}; ${error.message}`,
+        `${floorLabel} Battle ${battleNumber} did not finish within the action budget: ${JSON.stringify(state)}; ${error.message}`,
       );
     });
     const outcome = await page.evaluate(({ potionUses, battleLog }) => ({
@@ -3354,13 +3360,13 @@ try {
       potionUses: floorTwoPotionUses,
       battleLog: [...observedBattleLog].join("\n"),
     });
-    const floorTwoBossVictory = battleNumber === 10
+    const bossVictory = battleNumber === 10
       && outcome.badge === "HUB"
-      && outcome.adventure.includes("Floor 2 is cleared");
+      && outcome.adventure.includes(floorLabel === "Floor II" ? "Floor 2 is cleared" : "Floor 3 is cleared");
     requireCondition(
       outcome.badge !== "DRIFTER SELECTION"
-        && (outcome.badge !== "HUB" || floorTwoBossVictory),
-      `Floor II Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
+        && (outcome.badge !== "HUB" || bossVictory),
+      `${floorLabel} Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
     );
     floorTwoBattleLogs.set(battleNumber, outcome.battleLog);
   };
@@ -3375,7 +3381,7 @@ try {
         await page.locator("#battle-log").filter({ hasText: "Cave-in is imminent." }).waitFor({ state: "visible" });
       }
     }
-    await clearFloorTwoBattle(battleNumber);
+    await clearFloorBattle(battleNumber);
     if (battleNumber === 5) {
       await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
       const caveInLog = floorTwoBattleLogs.get(5) || "";
@@ -3430,7 +3436,7 @@ try {
       await clickVisibleOption(page, "#route-actions", "Enter Encounter");
       await page.locator("#party-panel").waitFor({ state: "visible" });
     }
-    await clearFloorTwoBattle(battleNumber);
+    await clearFloorBattle(battleNumber);
     if (battleNumber === 5) {
       await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
     }
@@ -3456,7 +3462,7 @@ try {
   for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
     await clickVisibleOption(page, "#route-actions", "Enter Encounter");
     await page.locator("#party-panel").waitFor({ state: "visible" });
-    await clearFloorTwoBattle(battleNumber);
+    await clearFloorBattle(battleNumber);
     if (battleNumber === 9) {
       await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
     }
@@ -3590,7 +3596,7 @@ try {
   ));
   await clickVisibleOption(page, "#route-actions", "Enter Encounter");
   await page.locator("#party-panel").waitFor({ state: "visible" });
-  await clearFloorTwoBattle(10);
+  await clearFloorBattle(10);
   await page.waitForFunction(
     () => document.getElementById("screen-badge").textContent.trim() === "HUB",
     null,
@@ -3706,6 +3712,155 @@ try {
     "changing the active pair did not restore Floor II replay availability",
   );
   console.log("M4_BROWSER|FLOOR_TWO_REPLAY_PAIR_CHANGE|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  let floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  while (
+    floorThreeStoredPotions > 0 &&
+    await quantityInSupplyRow("Healing Potion", "Carried") < 6
+  ) {
+    await updateSupply("Healing Potion", "Load");
+    floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  }
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 3");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor III" });
+    if (battleNumber === 1) {
+      console.log("M4_BROWSER|FLOOR_THREE_ORDINARY_PAIR|PASS");
+    }
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  const floorThreeMidwayBefore = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  verifyFloorTwoRestRecovery(
+    floorThreeMidwayBefore,
+    await readFloorTwoActivePartyResources(),
+    "Floor III Midway Rest",
+  );
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+
+  for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+    await page.locator("#party-panel").waitFor({ state: "visible" });
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor III" });
+    if (battleNumber === 9) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  const floorThreePreBossBefore = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  verifyFloorTwoRestRecovery(
+    floorThreePreBossBefore,
+    await readFloorTwoActivePartyResources(),
+    "Floor III Pre-Boss Rest",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      await page.locator("#location-label").innerText() === "Pre-Boss Rest",
+    "Floor III save/reload did not restore the pre-boss Rest checkpoint",
+  );
+  console.log("M4_BROWSER|FLOOR_THREE_REST_SAVE_RELOAD|PASS");
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  const floorThreeBossParty = [
+    "drifter_branoc",
+    "drifter_azhvielle",
+    "drifter_zhaivra",
+    "drifter_joruun",
+  ];
+  await clearFloorBattle(10, {
+    floorLabel: "Floor III",
+    bossParty: floorThreeBossParty,
+  });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#adventure-text").innerText()).includes("Floor 3 is cleared"),
+    "Floor III four-member boss did not clear the route and return the roster to the Hub",
+  );
+  const floorThreePersistedClear = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return envelope?.payload?.party?.floor_three_cleared;
+  }, floorTwoProfileKey);
+  requireCondition(floorThreePersistedClear === true, "Floor III clear was not persisted after the boss");
+  console.log("M4_BROWSER|FLOOR_THREE_FOUR_MEMBER_BOSS_CLEAR|PASS");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  const floorThreeClearAfterReload = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return envelope?.payload?.party?.floor_three_cleared;
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "HUB" &&
+      await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      floorThreeClearAfterReload === true,
+    "Floor III clear or Hub return did not survive save/reload",
+  );
+  console.log("M4_BROWSER|FLOOR_THREE_CLEAR_SAVE_RELOAD|PASS");
 
   const m5Page = await browser.newPage();
   m5Page.setDefaultNavigationTimeout(120000);

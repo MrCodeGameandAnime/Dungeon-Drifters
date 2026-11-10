@@ -86,12 +86,14 @@ Floor 1
   -> roster size 2
 
 Floor 2
-  -> recruit D3
-  -> roster size 3
+  -> choose D3 or D4 as the temporary Floor II boss helper
+  -> defeat the boss with the active pair plus that helper
+  -> return to the Hub
+  -> independently unlock D3 and D4 recruitment for 65 gold each
+  -> permanent recruits start at Level 1; replay if more gold is needed
 
 Floor 3
-  -> recruit D4
-  -> roster size 4
+  -> deploy the four permanent Drifters for the final boss
   -> first full four-Drifter boss battle
 
 Floor 4
@@ -109,7 +111,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 **Deliverable:** A short accepted backlog distinguishing implemented behavior, missing behavior, prototypes, and optional examples.
 
 - Preserve the sealed Hub/Floor I/weapon behavior as the regression baseline.
-- Preserve the canonical roster pacing: D1 starts; D2 joins on Floor 1; D3 on Floor 2; D4 on Floor 3; Floor 3 culminates in the first full four-Drifter boss battle; Floor 4 is the first expedition-enabled floor.
+- Preserve the current roster pacing: D1 starts; D2 joins on Floor 1 for the existing 65 gold; after Floor II clear, D3 and D4 are independently recruitable at the Hub for 65 gold each and start at Level 1; Floor III culminates in the first full four-Drifter boss battle; Floor 4 is the first expedition-enabled floor. The approved 2026-11-09 M4 revision supersedes the original M1-era D3-on-Floor-II / D4-on-Floor-III timing.
 - Reconcile only explicitly stale statements when their owning milestone starts. Do not bulk-rewrite or delete future designs.
 - Record these conflicts for resolution before their owning milestone, rather than changing behavior implicitly:
   - Existing rest extraction keeps 50% XP/gold and all items; the broad economy doc describes full normal extraction. Preserve the explicit Floor I rest rule unless separately changed (M2).
@@ -128,19 +130,19 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 **Depends on:** M0. **Recommended next implementation milestone.**
 
 1. Preserve the existing Floor 1 recruitment of D2.
-2. Build the permanent roster model so recruited and unrecruited Drifters are explicit. The system must support the fixed staged progression: D2 on Floor 1, D3 on Floor 2, D4 on Floor 3. M1 does not grant the full roster early.
+2. Build the permanent roster model so recruited and unrecruited Drifters are explicit. The model supports D2's existing Floor I recruitment and the M4-owned Hub recruitment of D3/D4 after Floor II clear. M1 does not author or grant future recruits.
 3. Represent the permanent recruited roster separately from the active party, preserving exact Drifter identities, XP, equipment, weapon progress, and run-specific state.
 4. Allow Hub selection only from currently recruited Drifters. Before four Drifters exist, permit only pairings that are actually possible from the recruited roster. Prevent duplicate assignments and mid-run roster substitution unless explicitly designed.
 5. Make inspection, stat spending, weapon progression, and future equipment actions target any exact recruited roster member. Do not rely on lead/companion position as identity.
 6. Migrate existing two-Drifter saves without losing progression, changing the current tutorial pair, or silently granting D3/D4.
 
-**Proof:** Preserve the Floor 1 D1+D2 flow; prove recruited versus unrecruited state; save/reload without granting future Drifters; add later recruits through their approved floor events as that content is authored; verify exact Drifter state and participant-only rewards across all currently legal pairings. Full all-six-pair qualification waits until D4 has joined on Floor 3. Terminal and browser must offer the same legal choices.
+**Proof:** Preserve the Floor 1 D1+D2 flow; prove recruited versus unrecruited state; save/reload without granting future Drifters; add later recruits through their approved Hub/floor events as that content is authored; verify exact Drifter state and participant-only rewards across currently legal pairings. M6 owns the cumulative live qualification of all six pairs after all four permanent recruits exist. Terminal and browser must offer the same legal choices.
 
-**Decide at entry:** Recruitment-event representation, lead identity versus active-slot identity, and whether any non-expedition Hub restrictions apply. Recruitment floors are fixed: D2 on Floor 1, D3 on Floor 2, D4 on Floor 3. Exact story scenes/costs remain authored content decisions where not already defined.
+**M1 entry decisions (historical):** Recruitment-event representation, lead identity versus active-slot identity, and whether any non-expedition Hub restrictions apply. The later M4 revision now governs D3/D4: both unlock as independent 65-gold Level 1 Hub recruits after Floor II clear. M1 supplies roster support only; M4 owns those offers and the Floor III full-party boss.
 
 ## M2 - Hub Preparation, Trading, And Escape Tools
 
-**Depends on:** M1 roster architecture and exact-Drifter ownership; existing reward banking and shared inventory. This milestone must not assume D3 or D4 are already recruited before their canonical floors.
+**Depends on:** M1 roster architecture and exact-Drifter ownership; existing reward banking and shared inventory. M2 does not assume D3 or D4 are recruited; their offers unlock only after Floor II clear under the M4 contract.
 
 1. Add authored buy/sell stock, prices, stock-unlock conditions, and atomic shared-gold transactions to the merchant. Reuse existing materials and progression services.
 2. Distinguish secured Hub storage, carried supplies, and newly found unsecured loot. Preserve spent-supply outcomes through return, death, save, and load.
@@ -203,7 +205,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 **Depends on:** M1 roster architecture, M2 rewards/supplies, M3 XP allocation, M4 reward definitions, M5 for real equipment expedition rewards, and completion of the Floor 3 full-roster boss gate. Expeditions do not begin until Floor 4.
 
-1. Unlock expeditions only after the Floor 3 story/recruitment sequence is complete, D4 has joined, and the first full four-Drifter boss battle has been completed. Floor 4 is the first expedition-enabled floor.
+1. Unlock expeditions only after the Floor III story sequence and first full four-Drifter boss battle are complete, with all four Drifters permanently recruited. D3 and D4 become recruitable at the Hub after Floor II clear. Floor 4 is the first expedition-enabled floor.
 2. Separate the four-person permanent roster into an active dungeon pair and an expedition pair, validating availability and exclusivity.
 3. Implement energy as a launch resource, with bounded regeneration and refill accounting. It must never block dungeon entry.
 4. Advance assignments by explicitly selected gameplay events, not an expedition countdown. Persist assignment identity, progress, and claim state.
@@ -240,7 +242,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 6. Complete later floors incrementally: author their material sources and weapon components when the floor is playable; prove earlier floors cannot bypass progression gates. Add selected hazards, treasure/search locations, permanent discoveries, and quest-item protections.
 7. Supply enemy visual assets and clear client presentation for the chosen release content. Full graphical combat is a separate scope decision, not an accidental dependency of an enemy portrait.
 
-**Proof:** A complete approved region loop from preparation through dungeon/expedition play, knowledge acquisition, a later four-Drifter reunion boss where authored, next-region unlock, and persisted return to the normal two-plus-two loop. Reconfirm all six pairs for legal play and required story combinations; the first all-six-pair qualification occurs once D4 joins and expeditions unlock for Floor 4.
+**Proof:** A complete approved region loop from preparation through dungeon/expedition play, knowledge acquisition, a later four-Drifter reunion boss where authored, next-region unlock, and persisted return to the normal two-plus-two loop. Reconfirm all six pairs for legal play and required story combinations; the first cumulative all-six-pair qualification belongs to M6 once all four recruits and the Floor IV expedition loop are available.
 
 **Decide at entry:** Release content count, floor versus region boss rules, recruitment/story scripts, hazard selections, relationship mechanics, and quest-item exemptions. Named example dungeons in the design are examples until selected for the manifest.
 
@@ -304,7 +306,7 @@ These are planning drafts for review, not authorization to implement M1-M9 conti
 | M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
-**Proposed Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and D3 recruitment. After M5, M4B supplies the bounded Floor III path, D4 recruitment, and first full-party boss proof needed by M6. This planning decomposition is for review: it is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 supplies a minimal playable Floor IV expedition loop; M8 completes the approved region manifest.
+**Proposed Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This planning decomposition is for review: it is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 supplies a minimal playable Floor IV expedition loop; M8 completes the approved region manifest.
 
 ## Shared Implementation And Qualification Contract
 

@@ -103,6 +103,10 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         "FLOOR_ONE_REPLAY_MIDWAY_REST",
         "FLOOR_ONE_REPLAY_EXTRACT|PASS",
         "FLOOR_ONE_BOSS_CLEAR|PASS",
+        "M4_BROWSER|FLOOR_THREE_ORDINARY_PAIR|PASS",
+        "M4_BROWSER|FLOOR_THREE_REST_SAVE_RELOAD|PASS",
+        "M4_BROWSER|FLOOR_THREE_FOUR_MEMBER_BOSS_CLEAR|PASS",
+        "M4_BROWSER|FLOOR_THREE_CLEAR_SAVE_RELOAD|PASS",
     ):
         assert required in source
 

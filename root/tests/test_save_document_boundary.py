@@ -29,9 +29,9 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 2977
+    assert len(canonical_bytes) == 3119
     assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "e76ea1669ef4f9751325e70498565ac889a261e44f36786b28f9af8bf1892e96"
+        "31a2dad2f126fb4093a170a3325b90fb8ebd77ed9255a5f74d5dcad09f51cf78"
     )
 
 
@@ -54,7 +54,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 22
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 23
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -80,6 +80,13 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     )
     schema13 = build_save_document(game_state)
     schema13["schema_version"] = 13
+    for field in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        schema13["party"].pop(field)
     schema13["player"].pop("equipment_refs")
     schema13["party"].pop("equipment_instances")
     schema13["party"].pop("modifier_instances")
