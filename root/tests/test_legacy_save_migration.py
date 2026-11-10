@@ -43,6 +43,44 @@ def _migrate(path, store):
     )
 
 
+def _orphaned_floor_two_discovery_event():
+    run_id = "historical-run"
+    node_id = "floor_two_pre_boss_rest"
+    return {
+        "event_key": (
+            f"floor_two:{run_id}:{node_id}:discovery_search"
+        ),
+        "run_id": run_id,
+        "floor_id": "floor_two",
+        "node_id": node_id,
+        "kind": "discovery_search",
+        "position": None,
+        "result": {
+            "source_id": "ancient_well_floor2_01",
+            "searcher_drifter_id": "branoc",
+            "effective_chance_bps": 1000,
+            "roll": 1001,
+            "found": False,
+        },
+    }
+
+
+def _schema22_save_with_orphaned_run_event():
+    document = build_save_document(_game_state())
+    document["schema_version"] = 22
+    for key in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        document["party"].pop(key)
+    document["party"]["resolved_run_events"] = [
+        _orphaned_floor_two_discovery_event()
+    ]
+    return document
+
+
 def test_schema8_legacy_save_is_wrapped_without_modifying_original(tmp_path):
     legacy_path = tmp_path / "legacy" / "dungeon_drifters.json"
     legacy_path.parent.mkdir()
@@ -100,6 +138,47 @@ def test_schema7_legacy_save_migrates_in_memory_before_enveloping(tmp_path):
     assert build_save_document(reconstruct_game_state(loaded.envelope.payload)) == (
         build_save_document(reconstruct_game_state(original_payload))
     )
+
+
+def test_schema22_orphaned_run_events_migrate_to_canonical_profile_without_mutation(
+    tmp_path,
+):
+    legacy_path = tmp_path / "dungeon_drifters.json"
+    original_payload = _schema22_save_with_orphaned_run_event()
+    original_bytes = json.dumps(original_payload, ensure_ascii=False).encode("utf-8")
+    legacy_path.write_bytes(original_bytes)
+    store = LocalProfileStore(tmp_path / "data")
+
+    result = _migrate(legacy_path, store)
+
+    assert result.status is LegacyMigrationStatus.MIGRATED
+    assert legacy_path.read_bytes() == original_bytes
+    loaded = store.load(PROFILE_ID)
+    assert loaded.status is ProfileStoreStatus.VALID
+    assert loaded.envelope.payload["schema_version"] == DISK_SCHEMA_VERSION
+    assert loaded.envelope.payload["party"]["resolved_run_events"] == []
+    assert build_save_document(
+        reconstruct_game_state(loaded.envelope.payload)
+    ) == loaded.envelope.payload
+
+
+def test_current_schema_orphaned_run_events_remain_invalid_during_file_migration(
+    tmp_path,
+):
+    legacy_path = tmp_path / "dungeon_drifters.json"
+    current = build_save_document(_game_state())
+    current["party"]["resolved_run_events"] = [
+        _orphaned_floor_two_discovery_event()
+    ]
+    original_bytes = json.dumps(current, ensure_ascii=False).encode("utf-8")
+    legacy_path.write_bytes(original_bytes)
+    store = LocalProfileStore(tmp_path / "data")
+
+    result = _migrate(legacy_path, store)
+
+    assert result.status is LegacyMigrationStatus.INVALID
+    assert legacy_path.read_bytes() == original_bytes
+    assert store.list_profiles() == ()
 
 
 @pytest.mark.parametrize("raw", (b"not-json", b'{"schema_version":9}'))
