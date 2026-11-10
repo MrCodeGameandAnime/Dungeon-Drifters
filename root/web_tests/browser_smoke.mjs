@@ -3663,6 +3663,50 @@ try {
   );
   console.log("M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS");
 
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const d3d4Pair = page.locator("#party-pair-choices .party-pair-choice")
+    .filter({ hasText: "Zhaivra Kelyth" })
+    .filter({ hasText: "Joruun Veyr" });
+  requireCondition(
+    await d3d4Pair.count() === 2,
+    "the party picker did not offer both ordered D3+D4 pairs for the Floor II replay check",
+  );
+  await d3d4Pair.first().click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const startFloorTwoWithD3D4 = page.locator("#overworld-options button")
+    .filter({ hasText: "Start Floor 2" });
+  requireCondition(
+    await startFloorTwoWithD3D4.isDisabled() &&
+      (await startFloorTwoWithD3D4.innerText()).includes(
+        "Unavailable: Choose an active pair that leaves D3 or D4 available for the Floor II boss.",
+      ) &&
+      await page.locator("#overworld-options button").filter({ hasText: "Start Floor 1" }).isEnabled(),
+    "D3+D4 replay did not show its Floor II-only restriction and explanation",
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_REPLAY_BLOCKED_D3_D4|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const availableHelperPair = page.locator("#party-pair-choices .party-pair-choice")
+    .filter({ hasText: "Ser Branoc" })
+    .filter({ hasText: "Azhvielle" });
+  requireCondition(
+    await availableHelperPair.count() === 2,
+    "the party picker did not offer both ordered pairs that leave D3 and D4 available",
+  );
+  await availableHelperPair.first().click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#overworld-options button").filter({ hasText: "Start Floor 2" }).isEnabled(),
+    "changing the active pair did not restore Floor II replay availability",
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_REPLAY_PAIR_CHANGE|PASS");
+
   const m5Page = await browser.newPage();
   m5Page.setDefaultNavigationTimeout(120000);
   m5Page.on("pageerror", (error) => errors.push(error.message));

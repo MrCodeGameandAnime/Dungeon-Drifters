@@ -20,7 +20,9 @@
 
 Non-goals: a new combat engine, every illustrative AI/hazard, persistent injuries/durability without approval, campaign-wide balancing, four-person ordinary Floor I battles, granting healing/Super by rank/tier, or expeditions before Floor IV.
 
-## Verified Baseline And Actual Gaps
+## Historical Baseline At M4 Entry (Pre-M4A)
+
+The observations below describe the repository before M4A and are retained for context; they are not claims about current capabilities. M4A is closed. Current remaining work is M4B's bounded Floor III route, Grade-III progression content, four-permanent-Drifter boss, and its cumulative qualification, tracked in Gates 4-5 below.
 
 Five archetypes, rank/role/behavior/capability data, structured moves, XP/gold, and deterministic item drops exist. `EnemySpec.supported_tiers` currently accepts only `(0,)`; `create_definition()` rejects unsupported tiers. Actual creation lives in `root/src/app/content/catalog.py` as `create_enemy_definition()`/`create_enemy_state()`, not in a currently existing `enemies/factory.py` or `enemies/scaling.py`.
 
