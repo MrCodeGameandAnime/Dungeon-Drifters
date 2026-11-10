@@ -20,7 +20,7 @@
 - [Momentum](../../future/momentum.md), only if accepted into release; [website report](../../future/website-profile-report.md), historical W1 measurement, not current performance proof.
 - The accepted implementation/evidence records for [M1](m1-permanent-roster.md), [M2](m2-preparation-trading-escape.md), [M3](m3-character-advancement.md), [M4](m4-enemy-progression.md), [M5](m5-armor-accessories.md), [M6](m6-expeditions.md), [M7](m7-momentum.md) if selected, and [M8](m8-region-content-loop.md).
 
-Entry means the agreed gameplay loops are already playable, not just unit-test green or planned. Resolve M8's finite manifest and remaining category consumers before measuring a release. M4A/M4B and Floor III boss evidence must be distinct; M6 Floor IV unlock cannot precede them.
+Entry means the agreed gameplay loops are already playable, not just unit-test green or planned. Resolve M8's finite manifest and remaining category consumers before measuring a release. M4A/M4B and Floor III boss evidence must be distinct; M6 expedition-system unlock follows the existing Floor III clear/four-recruit gate, while individual destinations still require their own completed-floor state. M6 does not depend on or prove a Floor IV route.
 
 `docs/future/longterm.md` and all `docs/future/exe/` work are excluded. This milestone does not promise console certification, mobile app packaging, an executable, an unbounded campaign, multiplayer/PvP, or every illustrative seasonal/cosmetic/payment system. Exclusion from this release is not a claim that those features were implemented.
 
@@ -50,8 +50,8 @@ The following map establishes minimum ownership; it is not a substitute for the 
 | --- | --- |
 | Permanent four-person roster, Hub selection/inspection and six pairs | M1 identity/migration; M4B actual D4/full-party proof; M6 all-six live split |
 | Dungeon knowledge, free/required/locked pair restrictions | M8 selection/reveal/content journeys |
-| Gameplay-event expeditions, reports, reunion, categories and pair effects | M6 engine/Training/Material/Equipment/Recovery; M8 Scouting/Story/Elite and actual consumers |
-| Reduced expedition XP, rotation and specialization pressure | M3/M6 accounting; M9 observed catch-up/rotation scenarios |
+| Timed expeditions, reports, reunion, and floor-eligible categories | M6 engine/Training/Material and source-gated Equipment/Recovery; M8 adds missing sources, Scouting/Story/Elite and actual consumers |
+| Collective 20% expedition XP target, rotation and specialization pressure | M3/M6 accounting; M9 observed catch-up/rotation scenarios |
 | Major boss convergence and post-boss story/region changes | First Floor III boss in M4B; later approved reunion/region loop in M8 |
 | Secured/unsecured rewards, death, normal/Rest/smoke/talisman outcomes | Existing Floor I baseline plus M2/M8 exit policy and no-rewind proofs |
 | Trader, gold, carrying, potions, Alchemy and preparation | M2 real purchase/use/return loop; M9 tune with independent weapon Crafting preserved |
@@ -108,7 +108,7 @@ Proof: complete traceability and explicit approved optional dispositions; no exc
 
 ### Gate 1 - Integrated Playthrough And Balance Pass
 
-- [ ] Run representative new-game/legacy-save routes through D1 -> D2 -> D3 -> D4 -> Floor III boss -> Floor IV expeditions -> approved region conclusion. Include favored pair, rotation/catch-up, prepared/underprepared runs, legal failure/return and high-investment early-floor return.
+- [ ] Run representative new-game/legacy-save routes through D1 -> D2 -> D3 -> D4 -> Floor III boss -> M6 expeditions targeting completed floors -> approved region conclusion. Include favored pair, rotation/catch-up, prepared/underprepared runs, legal failure/return and high-investment early-floor return.
 - [ ] Record progression, consumption, reward and cost data. Make only reviewed numerical changes; add/update deterministic tests around changed caps, rounding, probabilities and failure cases, without duplicating whole route tests per tuning value.
 - [ ] Repeat the affected scenarios on the tuned content. Keep grade locks, no-payment gameplay, loot/weapon ownership, participant rewards and early-armor ceiling intact.
 

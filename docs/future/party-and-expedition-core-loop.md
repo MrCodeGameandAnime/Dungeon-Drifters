@@ -1,5 +1,7 @@
 # Party And Expedition Core Loop
 
+> **M6 contract correction (2026-11-10):** For M6, expeditions take 20 minutes of real elapsed time after confirmed launch, target only previously completed floors, grant the expedition pair a collective 20% of the secured dungeon XP base pool, and use only Training, Material, Equipment, and Recovery rewards actually eligible from that floor. M6 does not require a Floor IV route. Scouting, Story, Elite, pair-specific outcomes, and future full-party events while an assignment is outstanding remain M8 work. Interaction with the already-authored M4 Floor II helper and Floor III boss is recorded in the M6 Gate 0 review holds. The M6 milestone plan records the current reward-source audit and review holds. Broader possibilities in this document are not authorization to add them to M6.
+
 This is the canonical design authority for the four-Drifter roster, active and
 expedition assignments, expedition categories, experience distribution, and
 reuniting the party. Dungeon risk, extraction, and economy are defined in
@@ -183,27 +185,20 @@ The two Drifters not entering the dungeon are assigned to an expedition.
 
 Expeditions occur alongside the active dungeon run.
 
-They should not rely on real-world timers.
-
-Expedition energy determines whether an assignment can be launched. Once
-launched, expedition completion advances through gameplay events rather than a
-real-world countdown. The Dungeon Progression, Difficulty, and Economy document
-owns energy regeneration, costs, and monetization boundaries.
-
-Instead, expeditions advance through gameplay events such as:
-
-* completing dungeon rooms
-* clearing floors
-* finishing encounters
-* returning to the hub
-* completing the entire run
+For M6, an assignment lasts 20 minutes of real elapsed time from confirmed
+launch. Gameplay inputs, route nodes, and repeated commands do not advance its
+timer. The clock is persisted in UTC and evaluated by shared game logic; clients
+only display the resulting state. Assignment rewards settle when the outing
+ends, not when a player repeats an event or reloads. The
+[Dungeon Progression, Difficulty, and Economy](dungeon-progression-difficulty-and-economy.md)
+document owns the M6 energy values and clock policy.
 
 ## Common Expedition Objectives
 
 Expedition categories describe the primary reward focus. Objectives describe
 the specific work assigned to the pair.
 
-Possible expeditions include:
+Long-term expedition objectives may include:
 
 * material gathering
 * weapon or armor recovery
@@ -219,46 +214,59 @@ Possible expeditions include:
 
 ## Expedition Categories
 
-Expeditions should let the player target current progression needs.
+M6 exposes only the four categories below. The wider list is future design
+space and does not authorize additional M6 categories or rewards.
 
 ### Training Expedition
 
-Primary reward: experience. Training helps inactive or underleveled Drifters
-remain viable.
+Primary reward: a collective expedition XP pool equal to the M6 target of 20%
+of the secured dungeon XP base pool, shared between the two expedition
+Drifters, then individually modified by each recipient's existing M3 Intuition
+bonus. The exact M6 split and integer convention are recorded in the milestone
+plan and remain subject to balance validation.
 
 ### Material Expedition
 
-Primary reward: crafting components and materials for weapons, armor,
-consumables, and resistance gear.
+Primary reward: a fixed, deterministic material outcome actually obtainable
+from the selected completed floor. Do not invent a material or award a grade
+that the floor's authored content cannot produce.
 
 ### Equipment Expedition
 
-Primary reward: weapons, armor, relics, or upgrade components. Higher-level
-versions may require more energy and carry more risk.
+M6 may award only authored M5 armor/equipment instances actually available
+through the selected completed floor. The M6 Gate 0 audit currently finds no
+live armor reward source on Floors I-III; those category/floor combinations
+remain unavailable unless an eligible source is separately authored and
+approved. No replacement signature weapons, stackable signature parts, or
+procedural jewelry are permitted.
 
-### Scouting Expedition
+### Recovery Expedition
+
+M6 may award only M2 carryable supplies actually available through the selected
+completed floor. The current Floor I-III route content has no carryable supply
+drops, so Recovery outcomes cannot be fabricated to fill the category.
+
+### M8 Scouting Expedition
 
 Primary reward: dungeon information, such as enemy types, weaknesses, hazards,
 hidden paths, boss mechanics, or treasure locations.
 
-### Recovery Expedition
-
-Primary reward: consumables and supplies. These can help prepare for demanding
-dungeon runs or boss encounters.
-
-### Story Expedition
+### M8 Story Expedition
 
 Primary rewards: narrative progress, character events, hidden lore, and new
 locations. Story completion should not require payment.
 
-### Elite Expedition
+### M8 Elite Expedition
 
 Primary reward: rare or endgame resources. These assignments consume more energy
 and may require specific character combinations or roster strength.
 
 ## Expedition Character Strengths
 
-Each Drifter may influence expedition results differently.
+Pair-specific outcomes are deferred to M8. They are not part of the initial
+M6 reward calculation.
+
+Each Drifter may influence later expedition results differently.
 
 Examples:
 
@@ -271,7 +279,7 @@ The pairing itself may also affect results.
 
 ## Expedition Rewards
 
-The expedition party may return with:
+Later expedition content may return with:
 
 * experience
 * crafting materials
@@ -291,17 +299,16 @@ The expedition party may return with:
 
 The active dungeon party receives full combat experience.
 
-The expedition party receives reduced experience.
+The M6 expedition pair receives the approved initial target of 20% of the
+secured dungeon XP base pool collectively, not 20% per Drifter. Split the pool
+deterministically, then apply each Drifter's own M3 Intuition bonus to that
+Drifter's share. M6 must validate this supplementary award against existing
+level thresholds; it does not change full- or partial-extraction math.
 
-A provisional distribution could be:
-
-* Dungeon Party: 100 percent experience
-* Expedition Party: 70 to 85 percent equivalent experience
-* Full-Party Boss Battle: all four receive full boss experience
-
-The exact percentage should be balanced through testing.
-
-The expedition party should remain usable but gradually fall behind if the player repeatedly excludes them from active dungeons.
+The Floor III boss XP contract remains the M4 rule: the four participating
+Drifters share the authored boss award, then receive their own Intuition
+bonuses. Pre-boss XP remains attributed to the active pair that earned it.
+This expedition section does not redefine that rule.
 
 This creates three valid approaches.
 
@@ -353,8 +360,9 @@ The active gameplay loop includes:
 3. Spend health, mana, consumables, and other resources.
 4. Discover information or treasure.
 5. Decide whether to continue, retreat, or change route.
-6. Advance expedition progress.
-7. Repeat until the run ends.
+6. Continue the independent 20-minute assignment timer; combat input does not
+   accelerate it.
+7. Repeat until the outing ends.
 
 The dungeon should test both individual character strength and the selected pairing.
 
@@ -372,9 +380,18 @@ The game should distinguish between:
 
 # 8. Resolve the Expedition
 
-When the dungeon run concludes, the expedition also resolves.
+At outing termination, reunite the roster and evaluate the assignment once. A
+completed assignment freezes an outcome/report; an assignment under 20 minutes
+is incomplete and grants no category reward or expedition XP. A completed
+assignment retains its eligible category rewards even if the active pair dies;
+its Training XP still uses only dungeon XP secured under existing rules.
 
-The expedition report includes:
+The resulting Hub report remains claimable until claimed. Claim grants its
+frozen reward to the recorded expedition pair exactly once. Save/load and
+retries cannot reroll or duplicate the outcome.
+
+The M6 report includes only its eligible Training, Material, Equipment, or
+Recovery outcome. Later reports may include:
 
 * experience earned
 * materials recovered

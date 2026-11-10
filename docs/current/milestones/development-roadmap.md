@@ -59,7 +59,7 @@ M0 baseline/decisions
   -> M4 enemy progression and dungeon pressure
   -> M5 persistent armor and accessories
   -> Floor 3 full-roster boss gate
-  -> M6 expeditions and the Floor 4 two-plus-two loop
+  -> M6 expeditions on already-completed floors and the two-plus-two loop
   -> M7 Momentum
   -> M8 complete region loop and staged later-floor content
   -> M9 integrated balance and release qualification
@@ -95,15 +95,16 @@ Floor 2
 Floor 3
   -> deploy the four permanent Drifters for the final boss
   -> first full four-Drifter boss battle
+  -> M6 expeditions unlock after this existing clear/roster gate
+  -> destination eligibility is limited to floors already completed
 
-Floor 4
-  -> expeditions unlock
-  -> two Drifters enter the dungeon
-  -> two Drifters take expedition assignments
-  -> all six pair combinations are now available for legal-play qualification
+M6 loop
+  -> choose an active pair and assign the other two
+  -> target an eligible completed floor
+  -> prove all six pair combinations without adding a Floor 4 route
 ```
 
-M1 owns the roster architecture that makes this staged growth possible. It does not grant the full roster early. The Floor 3 full-party boss proves four-combatant party behavior before M6 introduces the normal two-plus-two expedition split on Floor 4.
+M1 owns the roster architecture that makes this staged growth possible. It does not grant the full roster early. The Floor 3 full-party boss proves four-combatant party behavior before M6 introduces the two-plus-two expedition split. M6 does not require or author a Floor 4 proof route.
 
 
 ## M0 - Establish The Remaining Contract
@@ -111,7 +112,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 **Deliverable:** A short accepted backlog distinguishing implemented behavior, missing behavior, prototypes, and optional examples.
 
 - Preserve the sealed Hub/Floor I/weapon behavior as the regression baseline.
-- Preserve the current roster pacing: D1 starts; D2 joins on Floor 1 for the existing 65 gold; after Floor II clear, D3 and D4 are independently recruitable at the Hub for 65 gold each and start at Level 1; Floor III culminates in the first full four-Drifter boss battle; Floor 4 is the first expedition-enabled floor. The approved 2026-11-09 M4 revision supersedes the original M1-era D3-on-Floor-II / D4-on-Floor-III timing.
+- Preserve the current roster pacing: D1 starts; D2 joins on Floor 1 for the existing 65 gold; after Floor II clear, D3 and D4 are independently recruitable at the Hub for 65 gold each and start at Level 1; Floor III culminates in the first full four-Drifter boss battle; M6 unlocks after that existing gate and can target only completed floors. The approved 2026-11-09 M4 revision supersedes the original M1-era D3-on-Floor-II / D4-on-Floor-III timing; the 2026-11-10 M6 correction supersedes Floor IV as an expedition prerequisite.
 - Reconcile only explicitly stale statements when their owning milestone starts. Do not bulk-rewrite or delete future designs.
 - Record these conflicts for resolution before their owning milestone, rather than changing behavior implicitly:
   - Existing rest extraction keeps 50% XP/gold and all items; the broad economy doc describes full normal extraction. Preserve the explicit Floor I rest rule unless separately changed (M2).
@@ -120,7 +121,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
   - Future equipment-expedition weapon rewards and component installation/removal services must not reintroduce random replacement signature weapons or stackable signature parts (M2/M6).
   - Hub return currently restores HP/mana. Persistent injuries, durability, and treatment are optional new systems, not permission to remove that recovery (M4/M8).
   - Armor ring/amulet language versus economy ring/pendant language needs one accessory-slot vocabulary (M5).
-  - Expedition completion is gameplay-event-based; energy regeneration is time-based. These are separate clocks/contracts (M6).
+  - M6 expedition completion uses 20 minutes of real elapsed time; energy regenerates at one point per nine minutes. Neither gameplay-event repetition nor waiting commands author progress.
   - Website-report accessible-name recommendations conflict with an earlier user preference; obtain approval for that semantic change rather than silently treating the report as authorization (W1).
 
 **Done when:** Each remaining requirement has a milestone and unresolved product choices are visible. No gameplay implementation is required for this gate.
@@ -203,19 +204,20 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 ## M6 - Expeditions And The Two-Plus-Two Loop
 
-**Depends on:** M1 roster architecture, M2 rewards/supplies, M3 XP allocation, M4 reward definitions, M5 for real equipment expedition rewards, and completion of the Floor 3 full-roster boss gate. Expeditions do not begin until Floor 4.
+**Depends on:** M1 roster architecture, M2 supplies/exits, M3 XP allocation, M4 completed-floor rewards and four-Drifter gate, and M5 equipment ownership. M6 unlocks after the existing Floor III clear/full-roster gate; expeditions target only already-completed floors. A Floor IV route is not a dependency or proof requirement.
 
-1. Unlock expeditions only after the Floor III story sequence and first full four-Drifter boss battle are complete, with all four Drifters permanently recruited. D3 and D4 become recruitable at the Hub after Floor II clear. Floor 4 is the first expedition-enabled floor.
-2. Separate the four-person permanent roster into an active dungeon pair and an expedition pair, validating availability and exclusivity.
-3. Implement energy as a launch resource, with bounded regeneration and refill accounting. It must never block dungeon entry.
-4. Advance assignments by explicitly selected gameplay events, not an expedition countdown. Persist assignment identity, progress, and claim state.
-5. Begin with Training and Material assignments. Then author Equipment, Scouting, Recovery, Story, and Elite categories once their reward consumers exist.
-6. Apply reduced expedition XP with an explicit pool/split rule, rather than assuming a provisional 70-85% is final or granting it to all four members.
-7. Resolve rewards/reports once at reunion; support selected character/pair effects and complications. Add scouting information and story unlock consumers in M8.
+1. Separate four permanent Drifters into an active pair and the complementary expedition pair. Permit one optional assignment per outing; energy shortage never blocks dungeon play.
+2. Implement the approved 100-capacity/100-start energy pool, 10-energy launch cost, one energy per nine minutes, offline UTC regeneration, rollback protection, atomic confirmation debit, and no M6 refills or refunds after launch.
+3. Target only floors whose existing authoritative completion flags are true. Do not use route unlock or an M6 proof route as a substitute.
+4. Complete each assignment after 20 minutes of real elapsed time from confirmed launch. Repeated gameplay input does not accelerate it; reload cannot restart or duplicate it.
+5. Retain only Training, Material, Equipment, and Recovery. Every fixed reward must be obtainable from the selected floor's authored eligible content. M6 may not invent absent loot; category/floor combinations without sources remain unavailable unless separately approved content supplies them.
+6. Award the expedition pair a collective 20% of the secured dungeon XP base pool, split deterministically, then apply each recipient's M3 Intuition bonus. Validate the target against M3 progression.
+7. At outing termination, reunite and settle once; preserve completed assignment rewards on active-pair death, give incomplete assignments no rewards, and expose a once-claimable Hub report.
+8. Defer Scouting, Story, Elite, pair-specific outcomes, and full-party events with an outstanding assignment to M8. Resolve the audited M4 boss-boundary interaction before implementing live concurrency there.
 
-**Proof:** Complete the Floor 3 full-roster boss -> enter the Floor 4 expedition-enabled state -> choose an active pair -> launch an expedition for the other pair -> play/return -> resolve once -> distribute -> rotate -> repeat. Prove all six legal pair combinations now that all four Drifters exist. Also prove save/load, no-energy dungeon play, death/early-extraction outcomes, and no duplicate expedition rewards.
+**Proof:** After the existing Floor III gate, select an active pair, launch one eligible completed-floor assignment for its complement, continue ordinary play without an energy requirement, terminate the outing, reunite, and claim once. Prove all six pair combinations on routes compatible with unchanged M4 boss requirements; prove all target-floor flags independently. Also prove save/load, UTC rollback/offline regeneration, 20-minute boundary, no-energy play, death/early outing settlement, source eligibility, and no duplicate rewards.
 
-**Decide at entry:** Energy capacity/regeneration clock and offline rules, qualifying progress events, XP accounting, launch cancellation, and resolution after death/early extraction. Payments are not a prerequisite for this playable milestone.
+**Decide at entry:** The 2026-11-10 M6 product corrections are recorded in [the M6 plan](m6-expeditions.md). Gate 0 must resolve the documented reward-source and boss-boundary review holds and approve exact initial Material outputs. The 20% share remains a balance target to validate. M6 does not include payment or refills.
 
 ## M7 - Momentum
 
@@ -242,7 +244,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 6. Complete later floors incrementally: author their material sources and weapon components when the floor is playable; prove earlier floors cannot bypass progression gates. Add selected hazards, treasure/search locations, permanent discoveries, and quest-item protections.
 7. Supply enemy visual assets and clear client presentation for the chosen release content. Full graphical combat is a separate scope decision, not an accidental dependency of an enemy portrait.
 
-**Proof:** A complete approved region loop from preparation through dungeon/expedition play, knowledge acquisition, a later four-Drifter reunion boss where authored, next-region unlock, and persisted return to the normal two-plus-two loop. Reconfirm all six pairs for legal play and required story combinations; the first cumulative all-six-pair qualification belongs to M6 once all four recruits and the Floor IV expedition loop are available.
+**Proof:** A complete approved region loop from preparation through dungeon/expedition play, knowledge acquisition, a later four-Drifter reunion boss where authored, next-region unlock, and persisted return to the normal two-plus-two loop. M6 owns the first cumulative all-six-pair expedition qualification after all four recruits exist; M8 adds later required story combinations and resolves outstanding-assignment full-party events.
 
 **Decide at entry:** Release content count, floor versus region boss rules, recruitment/story scripts, hazard selections, relationship mechanics, and quest-item exemptions. Named example dungeons in the design are examples until selected for the manifest.
 
@@ -306,7 +308,7 @@ These are planning drafts for review, not authorization to implement M1-M9 conti
 | M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
-**Proposed Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This planning decomposition is for review: it is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 supplies a minimal playable Floor IV expedition loop; M8 completes the approved region manifest.
+**Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 uses already-authored, completed floors for expedition destinations; M8 authors the remaining region/floor content and missing reward sources.
 
 ## Shared Implementation And Qualification Contract
 

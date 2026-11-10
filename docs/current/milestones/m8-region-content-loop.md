@@ -18,7 +18,7 @@
 - [Enemy design](../../future/enemy-archetypes-scaling-and-capability-progression.md), selected formations/phases/visuals and placement versus tier.
 - [Character growth](../../future/character-growth-and-stat-scaling.md), permanent discoveries and passive/move prerequisites.
 - [Armor](../../future/armor.md), viable owned rewards; [component catalog](../weapons/component.md) and [weapon design](../weapons/signature-weapon-progression.md), Grade I-IV/floor boundaries.
-- [M4](m4-enemy-progression.md) delivers the Floor II clear and post-clear Hub recruitment offers for both D3 and D4, then proves the Floor III four-party boss; [M6](m6-expeditions.md) delivers a minimal playable Floor IV two-plus-two loop. M8 expands and integrates them, not postpones prerequisites needed by earlier milestones.
+- [M4](m4-enemy-progression.md) delivers the Floor II clear and post-clear Hub recruitment offers for both D3 and D4, then proves the Floor III four-party boss; [M6](m6-expeditions.md) delivers the two-plus-two expedition loop on already-completed floors, without a Floor IV proof route. M8 adds later-floor content and integrates the broader region loop.
 
 Non-goals: defining an unlimited campaign, reimplementing systems, redoing canonical first recruitment, forcing four-member parties into every boss, adopting every possible pair/combo/relationship mechanic, full graphical combat, payment integration, `longterm.md`, or executable packaging.
 
@@ -26,7 +26,7 @@ Non-goals: defining an unlimited campaign, reimplementing systems, redoing canon
 
 At the inspected `8099b895` baseline, only Surface and Floor I routes exist. StoryState supports flags/completed events/decisions; WorldState supports discoveries/opened/consumed objects and dungeon changes. These containers do not by themselves implement branching campaign progression, knowledge, relationship events, quest protection, scouting consumers, or region selection.
 
-At actual entry, M1-M6 should have supplied later recruitment/boss readiness, exact roster ownership, supplies/trading, character growth, equipment, enemies and expedition state. Build an implementation inventory from accepted milestone evidence, not these plans' unchecked boxes. Identify real reusable interfaces and any remaining controlled-only outputs such as Scouting/Story/Elite category contracts or permanent discoveries without locations.
+At actual entry, M1-M6 should have supplied later recruitment/boss readiness, exact roster ownership, supplies/trading, character growth, equipment, enemies and expedition state. Build an implementation inventory from accepted milestone evidence, not these plans' unchecked boxes. Identify real reusable interfaces and remaining expedition source gaps, Scouting/Story/Elite outputs, full-party-event settlement with an outstanding assignment, or permanent discoveries without locations.
 
 Gate 0 must approve a finite manifest of named playable destinations/floors, routes/exits, encounters, bosses, recruitment/story beats, pair restrictions, dialogue/synergy selections, equipment/weapon component recipes, selected learned-technique sources, material/reward sources, discoveries, quest items, expedition assignments, trader stock and required assets. Give each row a stable content ID, prerequisites, owning source requirement, effect/consumer, proof journey, and implementation gate. Named example locations such as the Drowned Reliquary and Ashen Vault are not automatically required campaign locations.
 
