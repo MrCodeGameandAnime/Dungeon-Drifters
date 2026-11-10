@@ -73,6 +73,12 @@ mechanics, capacity upgrades, or post-launch refunds. Broader refill and
 monetization ideas below are future M9-or-later possibilities, not M6
 requirements.
 
+Only initially available assignment categories can be launched and charged;
+Equipment and Recovery remain unavailable until the selected floor has an
+eligible authored source. Energy above capacity is discarded. If energy is
+spent while full, the UTC regeneration anchor is rebased at that spend, and
+normal regeneration resumes from there without stored overflow credit.
+
 ---
 
 # 2. Expedition Energy
@@ -418,17 +424,21 @@ Costs:
 ## M6 Fixed Rules
 
 - Capacity and starting balance: 100.
-- Launch cost: 10 energy for each of the four M6 assignment categories.
+- Launch cost: 10 energy for each available M6 assignment category. Training
+  and Material are initially available; Equipment and Recovery are unavailable
+  without an eligible authored floor source.
 - Regeneration: one energy every nine minutes, including offline time, capped at
   100.
 - Persist a UTC anchor. A clock rollback cannot grant energy or move the accepted
-  anchor backward. Time spent at capacity does not bank overflow for later.
+  anchor backward. Time spent at capacity does not bank overflow for later. If
+  energy is spent while full, rebase the regeneration anchor to that spend time;
+  no energy regenerates immediately from time spent at capacity.
 - Debit energy atomically on confirmed launch. Cancellation before confirmation
   costs nothing; confirmed launches are not refunded.
 - No paid refills or separate earned-refill mechanics in M6.
 - Energy never restricts dungeon entry, combat, extraction, or progression.
 
-The four M6 categories use the same launch cost. Category-specific or
+Available M6 categories use the same launch cost. Category-specific or
 destination-specific energy pricing is not part of M6.
 
 ## Later Economy Questions
