@@ -566,6 +566,30 @@ forced-overlay CPython, pinned MicroPython, and semantic parity passed;
 1152K was stable 3/3 and 1024K produced the expected memory-limit result 3/3.
 Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
 
-This evidence is from the local worktree before the M4B commit, not a hosted
-exact-SHA run. M4B Gate 5 remains open until the accepted revision passes the
-shared hosted qualification.
+This evidence was collected from the local worktree before the M4B commit;
+the exact-SHA hosted result is recorded in the following section.
+
+## M4B Exact-SHA Hosted Qualification (2026-11-10)
+
+M4B implementation commit `470fd2fe7c62bdfa3ea0560dfacae699eff857d3`
+passed the exact-SHA hosted workflow in
+[Actions run 42765161916](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42765161916).
+Both hosted jobs passed:
+
+```text
+Root pytest                 2,277 passed
+Web pytest                     72 passed
+PostgreSQL service tests       49 passed
+Authored content validation   PASS
+Compile                        PASS
+Browser build                 174 files
+Full browser smoke            PASS
+Migration from zero           PASS
+Alembic model parity          PASS
+```
+
+The browser smoke completed the Floor III ordinary-pair journey, Rest
+save/reload, four-permanent-Drifter boss, clear settlement, and Hub
+save/reload. Combined with the local pinned MicroPython matrix recorded above,
+M4B Gate 5 is complete and M4 is closed. Hosted CI does not execute the pinned
+MicroPython binary.
