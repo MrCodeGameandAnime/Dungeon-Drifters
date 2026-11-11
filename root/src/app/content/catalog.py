@@ -4,13 +4,20 @@ from app.content._generated_catalog import (
     GENERATED_DRIFTER_SPECS,
     GENERATED_ENCOUNTER_SPECS,
     GENERATED_ENEMY_SPECS,
+    GENERATED_RECRUITMENT_EVENT_SPECS,
     GENERATED_ROUTE_SPECS,
     GENERATED_WEAPON_SPECS,
 )
 from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
+from app.content.permanent_discovery_spec import (
+    PermanentDiscoverySource,
+    PermanentDiscoveryType,
+    validate_permanent_discovery_sources,
+)
 from app.content.route_spec import RouteSpec
+from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 from app.enemies.validation import validate_enemy_tier
@@ -38,6 +45,33 @@ def _build_enemy_catalog(records):
 
 
 ENEMY_SPECS, _ENEMY_CATALOG = _build_enemy_catalog(GENERATED_ENEMY_SPECS)
+
+PERMANENT_DISCOVERY_SOURCES = validate_permanent_discovery_sources(
+    (
+        PermanentDiscoverySource(
+            "ancient_well_floor2_01",
+            PermanentDiscoveryType.ANCIENT_WELL,
+            5,
+            search_chance_bps=1000,
+        ),
+    )
+)
+_PERMANENT_DISCOVERY_CATALOG = readonly_mapping(
+    {source.source_id: source for source in PERMANENT_DISCOVERY_SOURCES}
+)
+_PERMANENT_DISCOVERY_SEARCH_NODE_IDS = readonly_mapping(
+    {"ancient_well_floor2_01": "floor_two_pre_boss_rest"}
+)
+
+# Retired authored IDs stay recognizable so immutable saved event evidence remains valid.
+_RETIRED_PERMANENT_DISCOVERY_SOURCES = (
+    PermanentDiscoverySource(
+        "ancient_well_floor1_01",
+        PermanentDiscoveryType.ANCIENT_WELL,
+        5,
+    ),
+)
+_RETIRED_FLOOR_TWO_ROUTE_NODE_IDS = frozenset()
 
 
 def _build_weapon_catalog(records):
@@ -188,6 +222,64 @@ def _build_route_catalog(records, *, encounter_catalog=None):
     _ROUTE_NODE_CATALOG,
     _ROUTE_SUCCESSOR_CATALOG,
 ) = _build_route_catalog(GENERATED_ROUTE_SPECS)
+_FLOOR_TWO_ROUTE_NODE_IDS = frozenset(
+    node.node_id for node in _ROUTE_CATALOG["floor_two"].nodes
+)
+
+
+def _build_recruitment_event_catalog(
+    records,
+    *,
+    drifter_catalog=None,
+    route_catalog=None,
+):
+    if drifter_catalog is None:
+        drifter_catalog = _DRIFTER_CATALOG
+    if route_catalog is None:
+        route_catalog = _ROUTE_CATALOG
+    by_id = {}
+    for directory_id, spec in records:
+        if not isinstance(directory_id, str):
+            raise TypeError("generated recruitment event directory IDs must be strings")
+        if not isinstance(spec, RecruitmentEventSpec):
+            raise TypeError(
+                "generated recruitment event records must contain "
+                "RecruitmentEventSpec values"
+            )
+        if directory_id != spec.event_id:
+            raise ValueError(
+                "recruitment event directory ID does not match authored event ID: "
+                f"{directory_id} != {spec.event_id}"
+            )
+        if spec.event_id in by_id:
+            raise ValueError(f"duplicate recruitment event ID: {spec.event_id}")
+        try:
+            route = route_catalog[spec.route_id]
+        except KeyError as error:
+            raise ValueError(
+                f"recruitment event {spec.event_id!r} references unknown route: "
+                f"{spec.route_id!r}"
+            ) from error
+        if spec.route_node_id not in {node.node_id for node in route.nodes}:
+            raise ValueError(
+                f"recruitment event {spec.event_id!r} references a node outside "
+                f"route {spec.route_id!r}: {spec.route_node_id!r}"
+            )
+        for drifter_id in spec.candidate_drifter_ids:
+            if drifter_id not in drifter_catalog:
+                raise ValueError(
+                    f"recruitment event {spec.event_id!r} references unknown "
+                    f"Drifter: {drifter_id!r}"
+                )
+        by_id[spec.event_id] = spec
+    ordered = tuple(sorted(by_id.values(), key=lambda spec: spec.event_id))
+    return ordered, readonly_mapping(by_id)
+
+
+(
+    RECRUITMENT_EVENT_SPECS,
+    _RECRUITMENT_EVENT_CATALOG,
+) = _build_recruitment_event_catalog(GENERATED_RECRUITMENT_EVENT_SPECS)
 
 
 def get_enemy_spec(archetype_id):
@@ -238,6 +330,51 @@ def get_drifter_spec(drifter_id):
         raise ValueError(f"unknown Drifter ID: {drifter_id}") from error
 
 
+def get_recruitment_event(event_id):
+    try:
+        return _RECRUITMENT_EVENT_CATALOG[event_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown recruitment event ID: {event_id}") from error
+
+
+def get_permanent_discovery_source(source_id):
+    try:
+        return _PERMANENT_DISCOVERY_CATALOG[source_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(
+            f"unknown permanent discovery source: {source_id}"
+        ) from error
+
+
+def get_known_permanent_discovery_source(source_id):
+    try:
+        return _PERMANENT_DISCOVERY_CATALOG[source_id]
+    except (KeyError, TypeError):
+        for source in _RETIRED_PERMANENT_DISCOVERY_SOURCES:
+            if source.source_id == source_id:
+                return source
+    raise ValueError(f"unknown permanent discovery source: {source_id}")
+
+
+def get_permanent_discovery_search_node_id(source_id):
+    if source_id not in _PERMANENT_DISCOVERY_SEARCH_NODE_IDS:
+        return None
+    return _PERMANENT_DISCOVERY_SEARCH_NODE_IDS[source_id]
+
+
+def is_known_floor_two_route_node_id(node_id):
+    return node_id in _FLOOR_TWO_ROUTE_NODE_IDS or node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
+
+
+def is_known_route_node_id(route_id, node_id):
+    if route_id not in _ROUTE_CATALOG:
+        return False
+    route = _ROUTE_CATALOG[route_id]
+    return any(node.node_id == node_id for node in route.nodes) or (
+        route_id == "floor_two" and node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
+    )
+
+
 def get_drifter_spec_by_choice(choice):
     try:
         return _DRIFTER_CHOICE_CATALOG[choice]
@@ -284,6 +421,14 @@ def get_encounter_item_rewards(encounter_id):
     return tuple(sorted(item_totals.items()))
 
 
+def get_encounter_item_drop_tables(encounter_id, *, tier):
+    encounter = get_encounter_spec(encounter_id)
+    return tuple(
+        get_enemy_spec(archetype_id).item_drop_table_for_tier(tier)
+        for archetype_id in encounter.enemy_archetype_ids
+    )
+
+
 def get_route_node_spec(node_id):
     try:
         return _ROUTE_NODE_CATALOG[node_id]
@@ -321,6 +466,8 @@ __all__ = [
     "ENEMY_SPECS",
     "ENCOUNTER_SPECS",
     "DRIFTER_SPECS",
+    "RECRUITMENT_EVENT_SPECS",
+    "PERMANENT_DISCOVERY_SOURCES",
     "ROUTE_SPECS",
     "WEAPON_SPECS",
     "create_enemy_definition",
@@ -332,9 +479,15 @@ __all__ = [
     "get_encounter_spec",
     "get_encounter_rewards",
     "get_encounter_item_rewards",
+    "get_encounter_item_drop_tables",
     "get_inspectable_encounter_spec",
     "get_inspectable_route_node_spec",
     "get_drifter_spec",
+    "get_recruitment_event",
+    "get_permanent_discovery_source",
+    "get_known_permanent_discovery_source",
+    "get_permanent_discovery_search_node_id",
+    "is_known_floor_two_route_node_id",
     "get_drifter_spec_by_choice",
     "get_route_spec",
     "get_route_node_spec",

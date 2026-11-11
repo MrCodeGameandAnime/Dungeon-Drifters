@@ -11,7 +11,15 @@ from app.content.catalog import (
 )
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent, BattleEventType
-from app.ui.battle_ui import ChooseAction, ChooseMove, GoBack
+from app.presentation.battle_session import BattlePresentationSession
+from app.ui.battle_ui import (
+    ChooseAction,
+    ChooseHealingTarget,
+    ChooseMove,
+    ChooseTarget,
+    GoBack,
+)
+from tests.game_test_support import completed_hub_game
 
 
 class StableRng:
@@ -183,6 +191,169 @@ def test_party_turns_project_and_resolve_each_drifters_own_combat_state():
     )
 
 
+def test_four_member_party_uses_each_drifters_moves_and_combat_state():
+    party = (
+        player("branoc", 40),
+        player("azhvielle", 30),
+        player("zhaivra", 20),
+        player("joruun", 10),
+    )
+    for index, member in enumerate(party):
+        member.super_resource.gain(10 + index)
+
+    class RecordingResolver(CombatResolver):
+        def __init__(self):
+            super().__init__(rng=StableRng())
+            self.calls = []
+
+        def resolve_move(self, actor, target, move_name, **kwargs):
+            self.calls.append((actor, move_name, kwargs))
+            return super().resolve_move(actor, target, move_name, **kwargs)
+
+    resolver = RecordingResolver()
+    battle = Battle(
+        party[0],
+        tuple(goblin(1) for _ in range(4)),
+        party=party[1:],
+        resolver=resolver,
+        rng=StableRng(),
+    )
+
+    opening = battle.current_view()
+    assert tuple(member.target_id for member in opening.party_members) == tuple(
+        f"drifter_{member.character.profile.drifter_id}" for member in party
+    )
+    assert tuple(member.super_current for member in opening.party_members) == (
+        10,
+        11,
+        12,
+        13,
+    )
+
+    for member in party:
+        assert battle.current_view().active_player_id == (
+            f"drifter_{member.character.profile.drifter_id}"
+        )
+        options = battle.submit(ChooseAction(ActionIntent.ATTACK)).move_options
+        expected_moves = tuple(
+            move.name
+            for move in member.combat_moves
+            if move.resource_type.value != "super"
+        )
+        assert tuple(option.name for option in options) == expected_moves
+        selected = next(option for option in options if option.enabled)
+        before_mana = member.mana_resource.current
+        move_view = battle.submit(ChooseMove(selected.selection_key))
+        if move_view.interaction_phase.value == "targets":
+            move_view = battle.submit(
+                ChooseTarget(move_view.target_options[0].target_id)
+            )
+
+        actor, move_name, kwargs = next(
+            call for call in reversed(resolver.calls) if call[0] is member
+        )
+        assert actor is member
+        assert move_name == selected.selection_key
+        assert kwargs["character_run_state"] is member.character_run_state
+        authored_move = next(
+            move
+            for move in member.combat_moves
+            if move.name == selected.selection_key
+        )
+        expected_mana = (
+            authored_move.resource_cost
+            if authored_move.resource_type.value == "mana"
+            else 0
+        )
+        assert member.mana_resource.current == before_mana - expected_mana
+
+    assert tuple(
+        call[0] for call in resolver.calls if call[0] in party
+    ) == party
+
+
+def test_four_member_battle_continues_after_lead_falls_and_defeat_requires_all_down():
+    party = (
+        player("branoc", 1),
+        player("azhvielle", 2),
+        player("zhaivra", 3),
+        player("joruun", 4),
+    )
+    for member in party[:3]:
+        member.health.take_damage(member.health.current)
+    battle = Battle(
+        party[0],
+        (goblin(5),),
+        party=party[1:],
+        rng=StableRng(),
+    )
+
+    opening = battle.current_view()
+    assert battle.is_complete is False
+    assert opening.active_player_id == "drifter_joruun"
+    view = defend(battle)
+    assert battle.is_complete is False
+    assert any(
+        entry.actor_name == "Goblin"
+        and entry.target_name == party[3].display_name
+        for entry in view.log_entries
+    )
+
+    party[3].health.take_damage(party[3].health.current)
+    defeated_battle = Battle(
+        party[0],
+        (goblin(5),),
+        party=party[1:],
+        rng=StableRng(),
+    )
+    defeated = defeated_battle.current_view()
+    assert defeated_battle.is_complete is True
+    assert defeated_battle.winner == "enemy"
+    assert tuple(member.hp_current for member in defeated.party_members) == (0, 0, 0, 0)
+
+
+def test_party_battle_healing_potion_targets_exact_member_and_consumes_actor_turn():
+    game = completed_hub_game()
+    lead, companion = game.active_party_members
+    party_state = game.party_state
+    party_state.add_shared_items({"healing_potion": 1})
+    assert party_state.load_carried_supplies({"healing_potion": 1})
+    assert party_state.start_floor_one_run() == 100
+    companion.health.take_damage(80)
+    before_hp = companion.health.current
+    battle = Battle(
+        lead,
+        (goblin(1),),
+        party=(companion,),
+        party_state=party_state,
+        rng=StableRng(),
+    )
+
+    action = next(
+        option for option in battle.current_view().action_options
+        if option.intent is ActionIntent.HEALING_POTION
+    )
+    assert action.enabled
+    target_view = battle.submit(ChooseAction(ActionIntent.HEALING_POTION))
+    assert target_view.interaction_phase.value == "healing_targets"
+    assert tuple(option.target_id for option in target_view.healing_target_options) == (
+        "drifter_azhvielle",
+    )
+
+    view = battle.submit(ChooseHealingTarget("drifter_azhvielle"))
+
+    assert companion.health.current == before_hp + companion.health.maximum * 40 // 100
+    assert party_state.carried_items == {}
+    assert view.active_player_id == "drifter_azhvielle"
+    assert any(
+        entry.event_type is BattleEventType.HEALING
+        and entry.actor_name == lead.display_name
+        and entry.target_name == companion.display_name
+        and entry.amount == companion.health.maximum * 40 // 100
+        for entry in view.log_entries
+    )
+
+
 def test_party_battle_interleaves_individual_dexterity_order_and_projects_party():
     lead = player("branoc", 6)
     companion = player("azhvielle", 4)
@@ -337,3 +508,66 @@ def test_enemy_selects_only_living_drifters_for_its_target():
         for entry in view.log_entries
         if entry.actor_name == "Goblin"
     )
+
+
+def test_cave_in_warning_allows_response_and_resolves_once_before_normal_enemy_action():
+    class RecordingSession(BattlePresentationSession):
+        def __init__(self):
+            super().__init__()
+            self.recorded = []
+
+        def record(self, entry):
+            self.recorded.append(entry)
+            super().record(entry)
+
+    lead = player("branoc", 20)
+    companion = player("azhvielle", 19)
+    enemy = goblin(5)
+    presentation = RecordingSession()
+    battle = Battle(
+        lead,
+        (enemy,),
+        party=(companion,),
+        presentation_session=presentation,
+        rng=StableRng(),
+        cave_in_power=20,
+    )
+
+    opening = battle.current_view()
+    assert any(
+        entry.event_type.value == "hazard_warning"
+        for entry in opening.log_entries
+    )
+
+    rejected = battle.submit(ChooseMove("not an offered move"))
+    assert rejected.active_player_id == "drifter_branoc"
+    assert not any(
+        entry.event_type.value == "hazard_damage"
+        for entry in presentation.recorded
+    )
+
+    first_response = defend(battle)
+    assert first_response.active_player_id == "drifter_azhvielle"
+    second_response = defend(battle)
+    assert second_response.active_player_id == "drifter_branoc"
+
+    hazard_entries = [
+        entry
+        for entry in presentation.recorded
+        if entry.event_type.value == "hazard_damage"
+    ]
+    assert len(hazard_entries) == 1
+    assert hazard_entries[0].target_name == lead.display_name
+    assert 0 < hazard_entries[0].amount < 20
+    assert any(
+        entry.event_type is BattleEventType.DAMAGE
+        and entry.actor_name == "Goblin"
+        for entry in presentation.recorded
+    )
+
+    defend(battle)
+    defend(battle)
+    assert sum(
+        entry.event_type.value == "hazard_damage"
+        for entry in presentation.recorded
+    ) == 1

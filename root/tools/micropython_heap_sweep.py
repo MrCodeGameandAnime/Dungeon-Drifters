@@ -8,6 +8,9 @@ from pathlib import Path
 
 
 ROUTE_NODE_COUNT = 12
+STABLE_HEAP_KIB = 1152
+MEMORY_LIMIT_HEAP_KIB = 1024
+FRONTIER_HEAP_KIBS = (1120, 1088, 1056, 1048, 1040, 1032, 1024)
 _MEMORY_RE = re.compile(
     r"^MYP\|MEMORY\|(.+)\|FREE\|(\d+)\|ALLOC\|(\d+)$"
 )
@@ -117,6 +120,17 @@ def parse_probe_output(stdout, stderr="", *, requested_heap_kib=None, returncode
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
         "FLOOR_ONE_FINAL_STATE",
+        "M4_FLOOR_TWO_PROBE",
+        "M4_FLOOR_TWO_BATTLE_10_BOSS",
+        "M4_FLOOR_TWO_FINAL_STATE",
+        "M4_PROBE_TEARDOWN",
+        "M5_EQUIPMENT_PROBE",
+        "M5_ARMOR_GENERATION",
+        "M5_ARMOR_UPGRADE",
+        "M5_MODIFIER_REPLACEMENT",
+        "M5_EQUIPMENT_RECONSTRUCTION",
+        "M5_STATIC_ACCESSORY_BOUNDARY",
+        "M5_PROBE_TEARDOWN",
         "ROUTE_SESSION_TEARDOWN",
     }
     complete = (
@@ -263,19 +277,19 @@ def main(argv=None):
     bootstrap = Path(args.bootstrap)
     source = Path(args.source)
 
-    baseline = run_probe(executable, bootstrap, source)
-    _print_result("DEFAULT", baseline)
+    baseline = run_probe(
+        executable,
+        bootstrap,
+        source,
+        STABLE_HEAP_KIB,
+    )
+    _print_result("%sK" % STABLE_HEAP_KIB, baseline)
     if baseline.classification != "PASS":
         return 1
 
-    results = {}
-    control = run_probe(executable, bootstrap, source, 1024)
-    results[1024] = control
-    _print_result("1024K", control)
-    if control.classification != "PASS":
-        return 1
+    results = {STABLE_HEAP_KIB: baseline}
 
-    for heap_kib in (896, 768, 640, 512, 384, 256):
+    for heap_kib in FRONTIER_HEAP_KIBS:
         result = run_probe(executable, bootstrap, source, heap_kib)
         results[heap_kib] = result
         _print_result("%sK" % heap_kib, result)
@@ -296,8 +310,12 @@ def main(argv=None):
     lower_limits = [value for value in memory_limits if value < smallest_pass]
     nearest_lower = max(lower_limits) if lower_limits else None
 
-    if smallest_pass is not None and nearest_lower is not None:
-        for heap_kib in refinement_heaps(smallest_pass, nearest_lower):
+    if nearest_lower is not None:
+        for heap_kib in refinement_heaps(
+            smallest_pass,
+            nearest_lower,
+            step_kib=8,
+        ):
             result = run_probe(executable, bootstrap, source, heap_kib)
             results[heap_kib] = result
             _print_result("%sK" % heap_kib, result)
@@ -311,21 +329,28 @@ def main(argv=None):
     )
     if not passing:
         return 1
-    smallest_pass = passing[0]
-    stability = [
-        run_probe(executable, bootstrap, source, smallest_pass)
-        for _ in range(3)
-    ]
-    stability_classification = classify_repeated_results(stability)
-    print(
-        "MYP19|STABLE_PASS|%sK|%s|%s/3"
-        % (
-            smallest_pass,
-            stability_classification,
-            sum(result.classification == "PASS" for result in stability),
+
+    smallest_pass = None
+    for candidate_heap in passing:
+        stability = [
+            run_probe(executable, bootstrap, source, candidate_heap)
+            for _ in range(3)
+        ]
+        stability_classification = classify_repeated_results(stability)
+        print(
+            "MYP19|STABLE_PASS|%sK|%s|%s/3"
+            % (
+                candidate_heap,
+                stability_classification,
+                sum(result.classification == "PASS" for result in stability),
+            )
         )
-    )
-    if stability_classification != "STABLE_PASS":
+        if stability_classification == "STABLE_PASS":
+            smallest_pass = candidate_heap
+            break
+        if stability_classification == "UNEXPECTED_FAILURE":
+            return 1
+    if smallest_pass is None:
         return 1
 
     nearest_lower = max(
@@ -337,25 +362,51 @@ def main(argv=None):
         ),
         default=None,
     )
-    if nearest_lower is not None:
-        lower_stability = [
-            run_probe(executable, bootstrap, source, nearest_lower)
-            for _ in range(3)
-        ]
-        lower_classification = classify_repeated_results(lower_stability)
-        print(
-            "MYP19|BOUNDARY|LOWER|%sK|%s|%s/3"
-            % (
-                nearest_lower,
-                lower_classification,
-                sum(
-                    result.classification == "MEMORY_LIMIT"
-                    for result in lower_stability
-                ),
-            )
+    if nearest_lower is None:
+        return 1
+
+    lower_stability = [
+        run_probe(executable, bootstrap, source, nearest_lower)
+        for _ in range(3)
+    ]
+    lower_classification = classify_repeated_results(lower_stability)
+    print(
+        "MYP19|BOUNDARY|LOWER|%sK|%s|%s/3"
+        % (
+            nearest_lower,
+            lower_classification,
+            sum(
+                result.classification
+                == (
+                    "PASS"
+                    if lower_classification == "STABLE_PASS"
+                    else "MEMORY_LIMIT"
+                )
+                for result in lower_stability
+            ),
         )
-        if lower_classification == "UNEXPECTED_FAILURE":
-            return 1
+    )
+    if lower_classification == "UNEXPECTED_FAILURE":
+        return 1
+
+    lower_boundary = [
+        run_probe(executable, bootstrap, source, MEMORY_LIMIT_HEAP_KIB)
+        for _ in range(3)
+    ]
+    lower_boundary_classification = classify_repeated_results(lower_boundary)
+    print(
+        "MYP19|BOUNDARY|QUALIFICATION|%sK|%s|%s/3"
+        % (
+            MEMORY_LIMIT_HEAP_KIB,
+            lower_boundary_classification,
+            sum(
+                result.classification == "MEMORY_LIMIT"
+                for result in lower_boundary
+            ),
+        )
+    )
+    if lower_boundary_classification != "MEMORY_LIMIT":
+        return 1
 
     return 0
 

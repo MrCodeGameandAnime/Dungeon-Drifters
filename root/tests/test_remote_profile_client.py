@@ -47,7 +47,13 @@ def _payload(gold=0):
 def _legacy_schema8_payload(gold=0):
     payload = _payload(gold)
     payload["schema_version"] = 8
+    payload.pop("expedition")
     payload["player"].pop("signature_weapon")
+    payload["player"].pop("advancement")
+    payload["player"].pop("permanent_discovery_bonuses")
+    payload["world"].pop("permanent_discovery_claims")
+    payload["world"].pop("discovered_permanent_discovery_sources")
+    payload["player"].pop("equipment_refs")
     payload.pop("party")
     payload["overworld"].pop("active_route_id")
     return payload

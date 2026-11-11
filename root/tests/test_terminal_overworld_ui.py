@@ -1,30 +1,63 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import create_drifter, get_drifter_spec
 from app.game.game_state import GameState
+from app.items.armor_modifier import ArmorModifierInstance
+from app.items.equipment import EquipmentInstance
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
 from app.player.progression import MAXIMUM_LEVEL
-from app.presentation.overworld_models import OverworldAction, OverworldScreen
+from app.presentation.overworld_models import (
+    InventoryView,
+    OverworldAction,
+    OverworldItemView,
+    OverworldOptionView,
+    OverworldScreen,
+    OverworldView,
+    EquipmentConfirmationView,
+    SupplyHealingTargetView,
+)
 from app.presentation.overworld_presenter import OverworldPresenter
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
+    ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
+    ChooseAlchemyRecipe,
+    ChooseHubSupplyAction,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
 )
 from app.ui.terminal_overworld_ui import TerminalOverworldUI
-from tests.game_test_support import advance_surface_to, floor_one_rest_game, hub_game
+from tests.game_test_support import (
+    advance_surface_to,
+    completed_hub_game,
+    floor_one_rest_game,
+    hub_game,
+    three_member_hub_game,
+)
 
 
 def create_view(screen=OverworldScreen.MAIN, drifter_id="branoc", **kwargs):
-    game = GameState(PlayerState(create_drifter(drifter_id)))
+    game = (
+        GameState(PlayerState(get_drifter_spec(drifter_id).create_character()))
+        if OverworldScreen(screen) is OverworldScreen.EQUIPMENT
+        else GameState(PlayerState(create_drifter(drifter_id)))
+    )
     return OverworldPresenter().build(game, screen=screen, **kwargs)
 
 
@@ -89,6 +122,62 @@ def test_main_screen_is_framed_and_matches_the_wireframe_regions():
     assert lines[-1].startswith("+")
 
 
+def test_terminal_can_start_floor_one_from_the_hub_warning():
+    game = completed_hub_game()
+    hub = OverworldPresenter().build(game, screen=OverworldScreen.HUB)
+
+    hub_text = "\n".join(rendered(hub))
+    start, _output = read(hub, ["f"])
+    warning = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.FLOOR_ONE_WARNING,
+    )
+    set_out, _output = read(warning, ["y"])
+
+    assert "[F] Start Floor 1" in hub_text
+    assert start == ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    assert set_out == ChooseOverworldAction(OverworldAction.SET_OUT)
+
+
+def test_party_selection_lists_ordered_pairs_and_reads_selected_identity():
+    game = three_member_hub_game()
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.PARTY_SELECTION,
+    )
+
+    text = "\n".join(rendered(view))
+    selected, _output = read(view, ["6"])
+
+    assert "CHOOSE YOUR PARTY" in text
+    assert "Ser Branoc, the Unbroken Crest + Azhvielle" in text
+    assert "[Selected]" in text
+    assert selected == ChooseActivePair(("joruun", "azhvielle"))
+
+
+def test_terminal_discovery_choices_are_active_and_target_the_selected_drifter():
+    game = completed_hub_game()
+    source_id = "ancient_well_floor2_01"
+    searcher_view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.DISCOVERY_SEARCHERS,
+        discovery_source_id=source_id,
+    )
+    searcher_text = "\n".join(rendered(searcher_view))
+
+    assert "Ancient Well: +5 Max HP" in searcher_text
+    searcher, _ = read(searcher_view, ["2"])
+    assert searcher == ChooseDiscoverySearcher("azhvielle")
+
+    target_view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.DISCOVERY_TARGETS,
+        discovery_source_id=source_id,
+    )
+    target, _ = read(target_view, ["1"])
+    assert target == ChooseDiscoveryTarget("branoc")
+
+
 def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
     game = hub_game()
     game.party_state.add_shared_items({"goblin_scrap": 2, "grade_i_metal": 1})
@@ -102,6 +191,28 @@ def test_merchant_screen_shows_target_crafting_slots_and_shared_materials():
     assert "Blade / Guard" in text
     assert "Scrap metal" in text
     assert "Goblin Scrap x2" in text
+
+
+def test_merchant_screen_offers_shared_supply_and_alchemy_controls():
+    game = hub_game()
+    game.party_state.add_shared_items({
+        "healing_potion": 1,
+        "medicinal_herb": 1,
+        "clean_water": 1,
+    })
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    text = "\n".join(rendered(view))
+    buy, _ = read(view, ["b9"])
+    load, _ = read(view, ["l9"])
+    alchemy, _ = read(view, ["a1"])
+
+    assert "HUB STORAGE" in text
+    assert "CARRIED SUPPLIES 0/6" in text
+    assert "Healing Potion" in text
+    assert buy == ChooseHubSupplyAction("buy", "healing_potion")
+    assert load == ChooseHubSupplyAction("load", "healing_potion")
+    assert alchemy == ChooseAlchemyRecipe("healing_potion")
 
 
 def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():
@@ -289,8 +400,8 @@ def test_reward_adventure_text_is_width_safe_in_ascii_and_unicode_modes(
             ),
         ),
         (OverworldScreen.WEAPON, ("WEAPON", "Sunder-Spire", "BONUSES", "DESCRIPTION")),
-        (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Necklace", "Ring", "BENEFITS", "None")),
-        (OverworldScreen.ITEMS, ("ITEMS", "Your persistent inventory is empty.", "Craft")),
+        (OverworldScreen.EQUIPMENT, ("EQUIPMENT", "Pendant", "Ring", "BENEFITS", "None")),
+        (OverworldScreen.ITEMS, ("ITEMS", "No items are currently available.", "Craft")),
         (OverworldScreen.MAP, ("MAP", "SURFACE ROUTE", "Goblin Ambush", "Dungeon Entrance")),
         (
             OverworldScreen.MAP_INSPECT,
@@ -308,7 +419,15 @@ def test_each_overworld_screen_has_distinct_structured_regions(
     screen,
     required_text,
 ):
-    text = "\n".join(rendered(create_view(screen)))
+    view = (
+        OverworldPresenter().build(
+            completed_hub_game(),
+            screen=screen,
+        )
+        if screen is OverworldScreen.EQUIPMENT
+        else create_view(screen)
+    )
+    text = "\n".join(rendered(view))
 
     for value in required_text:
         assert value in text
@@ -337,6 +456,81 @@ def test_item_screen_uses_authored_labels_and_hides_internal_selection_keys():
     assert "ember_shard" not in item_text
     assert "run-item:" not in item_text
     assert "surface_" not in item_text
+
+
+def test_equipment_terminal_inspects_owned_gear_and_targets_selected_drifter():
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000871",
+        definition_id="field_helm",
+        source_id="floor_two_terminal_armor",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    modifier = ArmorModifierInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000872",
+        definition_id="bastion_grade_i",
+        source_id="floor_two_terminal_modifier",
+        secured=True,
+    )
+    game.party_state.add_equipment_instance(armor)
+    game.party_state.add_modifier_instance(modifier)
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_character_target_id="azhvielle",
+        selected_equipment_instance_id=armor.instance_id,
+    )
+    rendered_text = "\n".join(rendered(view))
+
+    assert "Field Helm" in rendered_text
+    assert "Constitution +2" in rendered_text
+    assert "Bastion" in rendered_text
+    assert "T1." in rendered_text and "T2." in rendered_text
+    assert "E1." in rendered_text
+    assert "AVAILABLE MODIFIERS" in rendered_text
+    assert "M1. Bastion | Grade I | Secured" in rendered_text
+    assert "A1." in rendered_text
+    assert "Pendant" in rendered_text
+    assert "Necklace" not in rendered_text
+
+    target, _ = read(view, ["t1"])
+    assert target.drifter_id == "branoc"
+
+    selected, _ = read(view, ["e1"])
+    assert selected == ChooseEquipmentInstance(armor.instance_id)
+
+    action, _ = read(view, ["a1"])
+    assert action == ChooseEquipmentAction(
+        target_drifter_id="azhvielle",
+        equipment_instance_id=armor.instance_id,
+        operation=EquipmentOperation.EQUIP,
+    )
+
+
+def test_equipment_confirmation_terminal_shows_consequences_and_accepts_y_or_n():
+    game = completed_hub_game()
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT_CONFIRMATION,
+        equipment_confirmation=EquipmentConfirmationView(
+            "Sell Field Helm?",
+            (
+                "Gain: 6 gold",
+                "Only authored gold is awarded; attached modifiers are not returned.",
+                "Modifiers permanently destroyed: Bastion",
+            ),
+        ),
+    )
+    rendered_text = "\n".join(rendered(view))
+
+    assert "Sell Field Helm?" in rendered_text
+    assert "Only authored gold is awarded" in rendered_text
+    assert "permanently destroyed" in rendered_text
+    assert "[Y] Confirm" in rendered_text
+    assert "[N] Cancel" in rendered_text
+    assert read(view, ["y"])[0] == ChooseEquipmentConfirmation(True)
+    assert read(view, ["n"])[0] == ChooseEquipmentConfirmation(False)
 
 
 def test_rest_screen_renders_and_translates_approved_controls():
@@ -594,6 +788,22 @@ def test_skills_numeric_input_exposes_enabled_stat_increase():
     assert output == []
 
 
+def test_skills_commands_purchase_and_equip_exact_drifter_moves():
+    game = GameState(PlayerState(create_drifter("branoc")))
+    game.player_state.gain_experience(1000)
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+
+    purchase, purchase_output = read(view, ["p6"])
+    game.player_state.purchase_advancement("branoc_a01")
+    view = OverworldPresenter().build(game, screen=OverworldScreen.SKILLS)
+    equip, equip_output = read(view, ["e 5 2"])
+
+    assert purchase == ChooseAdvancementPurchase("branoc", "branoc_a01")
+    assert purchase_output == []
+    assert equip == ChooseAdvancementEquip("branoc", "branoc_a01", slot=1)
+    assert equip_output == []
+
+
 def test_skills_render_maximum_and_enabled_controls():
     game = GameState(PlayerState(create_drifter("branoc")))
     game.player_state.gain_experience(100)
@@ -615,6 +825,34 @@ def test_item_number_selects_the_item_without_exposing_its_key():
 
     assert isinstance(result, ChooseOverworldItem)
     assert result.selection_key == view.inventory.items[0].selection_key
+    assert output == []
+
+
+def test_healing_target_number_selects_the_explicit_drifter():
+    supply = OverworldItemView(
+        "carried-item:healing_potion",
+        "Healing Potion",
+        1,
+        "Restores 40% HP.",
+        location_label="Carried Pack",
+    )
+    view = OverworldView(
+        screen=OverworldScreen.HEALING_TARGETS,
+        location_label="Floor 1 Rest",
+        adventure_text="Choose a Drifter to heal.",
+        options=(OverworldOptionView(OverworldAction.BACK, "Back", True),),
+        inventory=InventoryView(
+            items=(supply,),
+            selected_item_key=supply.selection_key,
+        ),
+        healing_targets=(
+            SupplyHealingTargetView("azhvielle", "Azhvielle", 60, 100),
+        ),
+    )
+
+    result, output = read(view, ["1"])
+
+    assert result == ChooseOverworldHealingTarget("azhvielle")
     assert output == []
 
 

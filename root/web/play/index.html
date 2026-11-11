@@ -73,11 +73,29 @@
           </div>
           <p class="eyebrow adventure-heading">ADVENTURE</p>
           <p id="adventure-text" class="adventure-text"></p>
+          <p id="expedition-live-status" class="expedition-live-status" hidden></p>
           <div id="route-actions" class="button-grid"></div>
           <p id="hub-shared-gold" class="hub-shared-gold" hidden></p>
           <section id="companion-selection" class="companion-selection" hidden aria-label="Choose a companion">
             <p id="companion-funds" class="companion-funds"></p>
             <div id="companion-choices" class="companion-choices"></div>
+          </section>
+          <section id="party-selection" class="party-selection" hidden aria-label="Choose the active party">
+            <div id="party-pair-choices" class="party-pair-choices"></div>
+          </section>
+          <section id="boss-helper-selection" class="party-selection" hidden aria-label="Choose a temporary Floor II boss helper">
+            <div id="boss-helper-choices" class="party-pair-choices"></div>
+          </section>
+          <section id="discovery-selection" class="discovery-selection" hidden aria-label="Choose a Drifter for the discovery">
+            <p id="discovery-reward" class="discovery-reward"></p>
+            <div id="discovery-choices" class="discovery-choices"></div>
+          </section>
+          <section id="expedition-panel" class="expedition-panel" hidden aria-label="Expedition assignments">
+            <p id="expedition-energy" class="expedition-energy"></p>
+            <p id="expedition-panel-summary" class="expedition-panel-summary"></p>
+            <div id="expedition-choices" class="expedition-choices"></div>
+            <div id="expedition-reports" class="expedition-reports"></div>
+            <div id="expedition-confirmation-content" class="expedition-confirmation-content" hidden></div>
           </section>
           <section id="extraction-rewards" class="extraction-rewards" hidden aria-label="Pending extraction rewards"></section>
           <div id="overworld-options" class="button-grid"></div>
@@ -114,10 +132,33 @@
             <div id="growth-summary" class="growth-summary"></div>
             <p id="growth-message" class="growth-message"></p>
             <div id="skill-stats" class="skill-stats"></div>
+            <p class="eyebrow detail-heading advancement-heading">ADVANCEMENT SKILLS</p>
+            <div id="skill-advancement" class="skill-advancement"></div>
+            <p class="eyebrow detail-heading">NORMAL MOVE LOADOUT</p>
+            <div id="skill-loadout" class="skill-loadout"></div>
+            <p class="eyebrow detail-heading">UNLOCKED NORMAL MOVES</p>
+            <div id="skill-available-moves" class="skill-available-moves"></div>
             <p class="eyebrow detail-heading attacks-heading">ATTACKS</p>
             <div id="skill-attacks" class="skill-attacks"></div>
           </div>
           <div id="skills-options" class="button-grid detail-options"></div>
+        </section>
+
+        <section id="respec-panel" class="overworld-detail-panel" hidden aria-labelledby="respec-title">
+          <div class="detail-page-content">
+            <h2 id="respec-title" class="detail-title">Review Respec</h2>
+            <p id="respec-target" class="detail-subtitle"></p>
+            <p id="respec-cost" class="detail-line"></p>
+            <p id="respec-refund" class="detail-line"></p>
+            <p class="eyebrow detail-heading">REMOVED STAT POINTS</p>
+            <div id="respec-stat-points" class="detail-list"></div>
+            <p class="eyebrow detail-heading">REMOVED SKILLS</p>
+            <div id="respec-skills" class="detail-list"></div>
+            <p class="eyebrow detail-heading">RESULTING STATS</p>
+            <div id="respec-result-stats" class="detail-list"></div>
+            <p class="detail-line">Signature weapon progression is preserved.</p>
+          </div>
+          <div id="respec-options" class="button-grid detail-options"></div>
         </section>
 
         <section id="weapon-panel" class="overworld-detail-panel" hidden aria-labelledby="weapon-name">
@@ -140,15 +181,34 @@
 
         <section id="equipment-panel" class="overworld-detail-panel" hidden aria-labelledby="equipment-title">
           <div class="detail-page-content">
-            <h2 id="equipment-title" class="visually-hidden">Equipment</h2>
+            <h2 id="equipment-title" class="detail-title">Equipment</h2>
+            <div id="equipment-content">
             <p class="eyebrow detail-heading">DRIFTER</p>
             <div id="equipment-targets" class="merchant-targets"></div>
-            <p class="eyebrow detail-heading">ACCESSORIES</p>
-            <div id="equipment-slots" class="detail-list"></div>
+            <p class="eyebrow detail-heading">OWNED GEAR</p>
+            <div id="equipment-inventory" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">AVAILABLE MODIFIERS</p>
+            <div id="equipment-modifiers" class="merchant-list"></div>
+            <section id="equipment-inspection" class="items-inspection" hidden aria-label="Equipment details">
+              <h3 id="equipment-inspection-name" class="detail-title"></h3>
+              <p id="equipment-inspection-state" class="detail-line"></p>
+              <div id="equipment-inspection-stats" class="detail-list"></div>
+              <div id="equipment-inspection-modifiers" class="detail-list"></div>
+              <p class="eyebrow detail-heading">ACTIONS</p>
+              <div id="equipment-actions" class="merchant-list"></div>
+            </section>
+            <p class="eyebrow detail-heading">STATIC ACCESSORIES</p>
+            <div id="equipment-accessories" class="detail-list"></div>
             <p class="eyebrow detail-heading">BENEFITS</p>
             <div id="equipment-benefits" class="detail-list"></div>
+            </div>
+            <section id="equipment-confirmation-content" class="items-inspection" hidden aria-label="Confirm equipment action">
+              <h3 id="equipment-confirmation-title" class="detail-title"></h3>
+              <div id="equipment-confirmation-details" class="detail-list"></div>
+            </section>
           </div>
           <div id="equipment-options" class="button-grid detail-options"></div>
+          <div id="equipment-confirmation-options" class="button-grid detail-options" hidden></div>
         </section>
 
         <section id="items-panel" class="overworld-detail-panel" hidden aria-labelledby="items-title">
@@ -181,6 +241,11 @@
             <div id="merchant-component-recipes" class="merchant-list"></div>
             <p class="eyebrow detail-heading">TIER V</p>
             <div id="merchant-tier-v" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">HUB STORAGE</p>
+            <p id="merchant-storage-summary" class="detail-line"></p>
+            <div id="merchant-supplies" class="merchant-list"></div>
+            <p class="eyebrow detail-heading">ALCHEMY</p>
+            <div id="merchant-alchemy-recipes" class="merchant-list"></div>
           </div>
           <div id="merchant-options" class="button-grid detail-options"></div>
         </section>
@@ -188,6 +253,7 @@
       </section>
 
       <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
+        <p id="battle-expedition-status" class="expedition-live-status" hidden></p>
         <div id="battle-status" class="battle-status">
           <section id="player-panel" class="combatant-status player-panel" aria-labelledby="player-title">
             <h2 id="player-title">Branoc</h2>

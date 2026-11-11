@@ -156,6 +156,21 @@ def test_begin_route_selects_first_node_and_resets_its_rest_tracking():
     assert state.resolved_rest_node_ids == ()
 
 
+def test_entering_final_boss_does_not_mark_dungeon_route_complete():
+    state = OverworldState()
+    route = get_route_spec("floor_two")
+    state.begin_route("floor_two")
+
+    for node in route.nodes[1:]:
+        state.advance_to(node.node_id)
+        if node.kind is RouteNodeKind.REST:
+            state.record_resolved_rest_node(node.node_id)
+
+    assert route.nodes[-1].kind is RouteNodeKind.BOSS
+    assert state.current_route_node_id == route.nodes[-1].node_id
+    assert state.route_complete is False
+
+
 def test_begin_route_rejects_unknown_route_without_mutating_state():
     state = OverworldState()
     before = state.snapshot()

@@ -1,7 +1,9 @@
 import pytest
 
-from app.content.catalog import create_drifter
+from app.content.catalog import get_drifter_spec, get_route_spec
 from app.game.game_state import GameState
+from app.items.armor_modifier import ArmorModifierInstance
+from app.items.equipment import EquipmentInstance
 from tests.content_test_support import SECOND_SURFACE_NODE_ID
 from app.game.overworld_state import ContextualRoutePhase
 from app.player.player_state import PlayerState
@@ -15,7 +17,14 @@ from app.presentation.overworld_models import (
 )
 from app.presentation.overworld_presenter import OverworldPresenter, STAT_ORDER
 from app.content.catalog import DRIFTER_SPECS, get_weapon_spec
-from tests.game_test_support import advance_surface_to, recruited_pair_game, hub_game
+from tests.game_test_support import (
+    advance_surface_to,
+    completed_hub_game,
+    enter_floor_one_rest,
+    recruited_pair_game,
+    three_member_hub_game,
+    hub_game,
+)
 
 
 def test_map_completion_uses_world_for_combat_and_overworld_for_rest():
@@ -34,7 +43,7 @@ def get_character_profiles():
 
 
 def create_game(drifter_id="branoc"):
-    return GameState(PlayerState(create_drifter(drifter_id)))
+    return GameState(PlayerState(get_drifter_spec(drifter_id).create_character()))
 
 
 def option(view, action):
@@ -108,6 +117,135 @@ def test_hub_location_label_is_preserved_in_secondary_menus():
         "Floor 1 Hub",
         "Floor 1 Hub",
     )
+
+
+def test_merchant_view_exposes_storage_pack_and_authored_alchemy_recipes():
+    game = completed_hub_game()
+    game.party_state.add_shared_items({"healing_potion": 2, "goblin_scrap": 1})
+    assert game.party_state.load_carried_supplies({"healing_potion": 1})
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
+
+    assert view.hub_economy.shared_gold == game.party_state.shared_gold
+    assert view.hub_economy.carried_units == 1
+    potion = next(
+        item for item in view.hub_economy.items
+        if item.item_id == "healing_potion"
+    )
+    assert (potion.stored_quantity, potion.carried_quantity) == (1, 1)
+    assert potion.can_buy and potion.can_sell and potion.can_load and potion.can_unload
+    recipe = next(
+        recipe for recipe in view.hub_economy.recipes
+        if recipe.recipe_id == "healing_potion"
+    )
+    assert recipe.can_craft is False
+    assert recipe.ingredient_summary == ("Medicinal Herb x1", "Clean Water x1")
+    assert recipe.output_summary == ("Healing Potion x1",)
+
+
+def test_items_separate_carried_supplies_from_storage_and_only_pack_is_usable():
+    game = completed_hub_game()
+    game.party_state.add_shared_items({"healing_potion": 2})
+    assert game.party_state.load_carried_supplies({"healing_potion": 1})
+    game.member_for_drifter_id("azhvielle").health.take_damage(30)
+    presenter = OverworldPresenter()
+
+    items = presenter.build(game, screen=OverworldScreen.ITEMS)
+    potions = tuple(
+        item for item in items.inventory.items
+        if item.display_name == "Healing Potion"
+    )
+    selected_pack = presenter.build(
+        game,
+        screen=OverworldScreen.ITEMS,
+        selected_item_key="carried-item:healing_potion",
+    )
+
+    assert [(item.quantity, item.location_label) for item in potions] == [
+        (1, "Hub Storage"),
+        (1, "Carried Pack"),
+    ]
+    assert tuple(
+        item.location_label for item in potions if item.overworld_use_enabled
+    ) == ("Carried Pack",)
+    assert option(selected_pack, OverworldAction.USE).enabled
+
+
+def test_two_member_completed_hub_offers_both_ordered_party_choices():
+    game = completed_hub_game()
+    presenter = OverworldPresenter()
+
+    hub = presenter.build(game, screen=OverworldScreen.HUB)
+    selection = presenter.build(game, screen=OverworldScreen.PARTY_SELECTION)
+
+    assert option(hub, OverworldAction.SELECT_PARTY).enabled is True
+    assert tuple(choice.drifter_ids for choice in selection.active_party_choices) == (
+        ("branoc", "azhvielle"),
+        ("azhvielle", "branoc"),
+    )
+
+
+def test_floor_two_is_offered_only_after_floor_one_clear():
+    game = completed_hub_game()
+    presenter = OverworldPresenter()
+
+    before_clear = presenter.build(game, screen=OverworldScreen.HUB)
+    assert not any(
+        option.action is OverworldAction.START_FLOOR_TWO
+        for option in before_clear.options
+    )
+
+    party = game.party_state
+    party.start_floor_one_run()
+    assert party.complete_floor_one_boss(game.active_party_members)
+
+    after_clear = presenter.build(game, screen=OverworldScreen.HUB)
+    assert option(after_clear, OverworldAction.START_FLOOR_ONE).enabled
+    assert option(after_clear, OverworldAction.START_FLOOR_TWO).enabled
+
+
+def test_skills_view_projects_exact_drifter_advancement_and_normal_move_loadout():
+    game = completed_hub_game()
+    branoc = game.member_for_drifter_id("branoc")
+    branoc.gain_experience(1000)
+    branoc.purchase_advancement("branoc_p01")
+    branoc.purchase_advancement("branoc_a01")
+    branoc.equip_normal_move("branoc_a01", slot=1)
+
+    skills = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.SKILLS,
+        selected_character_target_id="branoc",
+    ).skills
+
+    assert len(skills.advancement_options) == 24
+    primary = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_p01"
+    )
+    new_move = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_a01"
+    )
+    assert primary.purchased is True
+    assert primary.can_purchase is False
+    assert new_move.purchased is True
+    assert new_move.unlocked is True
+    assert new_move.can_purchase is False
+    locked = next(
+        row for row in skills.advancement_options
+        if row.skill_id == "branoc_a02"
+    )
+    assert locked.unlocked is False
+    assert locked.can_purchase is False
+    assert locked.blocked_reason == "Requires level 25"
+    assert tuple((slot.slot, slot.move.move_id) for slot in skills.loadout) == (
+        (0, "branoc_starting_crestgrave_reaping"),
+        (1, "branoc_a01"),
+        (2, "branoc_starting_brace"),
+        (3, "branoc_starting_ironwake_dismemberment"),
+    )
+    assert any(move.move_id == "branoc_a01" for move in skills.available_moves)
 
 
 @pytest.mark.parametrize("profile", get_character_profiles())
@@ -216,7 +354,7 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
 
 
 def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recipes():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     game.party_state.add_shared_items({"grade_i_metal": 1})
@@ -242,7 +380,7 @@ def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recip
 
 
 def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     game.party_state.add_crafting_experience(990)
@@ -271,7 +409,7 @@ def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
 
 
 def test_installed_component_recipe_is_hidden_for_that_drifter():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     installed_id = "sunder_spire_grip_braided"
@@ -308,7 +446,7 @@ def test_component_recipe_visibility_is_independent_for_each_drifter():
 
 
 def test_weapon_component_view_explains_its_combat_and_identity_effects():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
     player.signature_weapon_state.install_component(
@@ -330,7 +468,7 @@ def test_weapon_component_view_explains_its_combat_and_identity_effects():
 
 
 def test_skills_view_reports_effective_move_values_after_component_install():
-    player = PlayerState(create_drifter("branoc"))
+    player = PlayerState(get_drifter_spec("branoc").create_character())
     player.signature_weapon_state.install_component(
         "blade_guard",
         "sunder_spire_blade_reinforced",
@@ -436,13 +574,154 @@ def test_equipment_view_does_not_reinterpret_internal_equipment_slots():
         screen=OverworldScreen.EQUIPMENT,
     )
 
-    assert view.equipment.necklace.label == "Necklace"
-    assert view.equipment.necklace.item_name == "Empty"
+    assert view.equipment.pendant.label == "Pendant"
+    assert view.equipment.pendant.item_name == "Empty"
     assert view.equipment.ring.label == "Ring"
     assert view.equipment.ring.item_name == "Empty"
     assert view.equipment.benefits == ("None",)
     assert "Off Hand" not in repr(view)
     assert "Body" not in repr(view)
+
+
+def test_equipment_view_offers_all_recruits_at_an_unresolved_safe_rest():
+    game = three_member_hub_game()
+    enter_floor_one_rest(game)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_character_target_id="joruun",
+    )
+
+    assert tuple(target.drifter_id for target in view.equipment.targets) == (
+        "branoc",
+        "azhvielle",
+        "joruun",
+    )
+    assert view.equipment.selected_target_id == "joruun"
+
+
+def test_equipment_view_disables_floor_one_equip_outside_saveable_rest():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    game.overworld_state.begin_route("floor_one")
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000854",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_04",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+    )
+    game.party_state.add_equipment_instance(armor)
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=armor.instance_id,
+    )
+    equip = next(action for action in view.equipment.actions if action.operation == "equip")
+
+    assert equip.enabled is False
+    assert equip.disabled_reason == "save_checkpoint_required"
+
+
+def test_equipment_view_offers_armor_actions_but_keeps_accessories_static():
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000851",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_02",
+        secured=True,
+        stat_bonuses={"constitution": 1},
+    )
+    ring = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000852",
+        definition_id="iron_ring",
+        source_id="fixed_ring_reward_01",
+        secured=True,
+        stat_bonuses={"intuition": 1},
+    )
+    modifier = ArmorModifierInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000853",
+        definition_id="bastion_grade_i",
+        source_id="floor_two_reward_modifier_01",
+        secured=True,
+    )
+    game.party_state.add_equipment_instance(armor)
+    game.party_state.add_equipment_instance(ring)
+    game.party_state.add_modifier_instance(modifier)
+    presenter = OverworldPresenter()
+
+    armor_view = presenter.build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=armor.instance_id,
+    ).equipment
+    ring_view = presenter.build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=ring.instance_id,
+    ).equipment
+
+    assert {action.operation for action in armor_view.actions} == {
+        "equip",
+        "upgrade",
+        "advance_rarity",
+        "extract",
+        "sell",
+        "dismantle",
+        "affix",
+    }
+    assert armor_view.pendant.label == "Pendant"
+    assert [(item.display_name, item.grade) for item in armor_view.modifiers] == [
+        ("Bastion", "I")
+    ]
+    assert {action.operation for action in ring_view.actions} == {"equip"}
+
+
+def test_equipment_benefits_add_same_stat_across_equipped_pieces():
+    game = completed_hub_game()
+    helm = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000855",
+        definition_id="field_helm",
+        source_id="floor_two_reward_armor_05",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    chest = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000856",
+        definition_id="field_chest",
+        source_id="floor_two_reward_armor_06",
+        secured=True,
+        stat_bonuses={"constitution": 3},
+    )
+    unequipped = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000857",
+        definition_id="field_boots",
+        source_id="floor_two_reward_armor_07",
+        secured=True,
+        stat_bonuses={"dexterity": 1},
+    )
+    for item in (helm, chest, unequipped):
+        game.party_state.add_equipment_instance(item)
+    game.player_state._set_equipped_equipment_ids(
+        {
+            "helm": helm.instance_id,
+            "chest": chest.instance_id,
+            "gloves": None,
+            "boots": None,
+            "ring": None,
+            "pendant": None,
+        }
+    )
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EQUIPMENT,
+        selected_equipment_instance_id=unequipped.instance_id,
+    )
+
+    assert view.equipment.benefits == ("Constitution +5",)
 
 
 def test_zh_aivra_items_are_selected_and_inspected_without_mutation():
@@ -527,6 +806,29 @@ def test_map_uses_overworld_state_as_the_rest_completion_owner():
     assert states["Ritual Clearing Rest"] is MapNodeState.REMAINING
     assert states["Final Approach Rest"] is MapNodeState.REMAINING
     assert "surface_rest" not in " ".join(states)
+
+
+def test_floor_two_map_uses_route_progress_for_completed_battle_nodes():
+    game = completed_hub_game()
+    assert game.party_state.start_floor_one_run() == 100
+    assert game.party_state.complete_floor_one_boss(game.active_party_members)
+    assert game.party_state.start_floor_two_run(
+        run_id_factory=lambda: "map-progress-run"
+    ) == 100
+    route = get_route_spec("floor_two")
+    game.overworld_state.begin_route(route.route_id)
+    for current in route.nodes[1:4]:
+        game.overworld_state.advance_to(
+            current.node_id,
+            contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
+        )
+
+    view = OverworldPresenter().build(game, screen=OverworldScreen.MAP)
+
+    assert view.route_map.nodes[0].state is MapNodeState.COMPLETED
+    assert view.route_map.nodes[2].state is MapNodeState.COMPLETED
+    assert view.route_map.nodes[3].state is MapNodeState.CURRENT
+    assert view.route_map.nodes[4].state is MapNodeState.REMAINING
 
 
 @pytest.mark.parametrize(

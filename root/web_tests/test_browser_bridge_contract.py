@@ -2,6 +2,7 @@ import importlib.util
 import json
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,21 +16,41 @@ from app.content.catalog import (
     get_route_spec,
 )
 from app.game.overworld_session import OverworldSession
+from app.game.expedition_state import ExpeditionState
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
+from app.items.equipment import EquipmentInstance
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
-from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
+    ChooseActivePair,
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
+    EquipmentOperation,
+)
+from tests.game_test_support import (
+    completed_hub_game,
+    enter_floor_one_rest,
+    three_member_hub_game,
 )
 
 
@@ -64,6 +85,11 @@ class MemoryBrowserStorage:
 
     def setItem(self, key, value):
         self.values[key] = value
+
+
+class FirstRollRng:
+    def randint(self, _minimum, _maximum):
+        return 1
 
 
 def test_browser_store_treats_pyodide_jsnull_as_a_missing_profile(monkeypatch):
@@ -240,6 +266,54 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
     assert runtime._session.active_battle is not None
 
 
+def test_browser_expedition_clock_query_is_read_only_at_completion_boundary():
+    now = datetime(2026, 11, 11, 12, 20, tzinfo=timezone.utc)
+    started_at = now - timedelta(minutes=20)
+    started_at_text = started_at.isoformat().replace("+00:00", "Z")
+    game = completed_hub_game()
+    expedition = ExpeditionState()
+    expedition.install_assignment({
+        "assignment_id": "00000000-0000-4000-8000-000000000678",
+        "outing_floor_id": "floor_one",
+        "destination_floor_id": "floor_three",
+        "category": "training",
+        "expedition_drifter_ids": ["branoc", "azhvielle"],
+        "started_at_utc": started_at_text,
+        "last_observed_at_utc": started_at_text,
+        "completed_at_utc": None,
+    })
+    game._expedition_state = expedition
+    runtime = bridge.BrowserRuntime()
+    runtime._game = game
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        now_factory=lambda: now,
+    )
+
+    class CompletedBattle:
+        is_complete = True
+
+    completed_battle = CompletedBattle()
+    runtime._session._active_battle = completed_battle
+    before = expedition.snapshot()
+
+    clock = runtime.current_expedition_clock_text()
+
+    assert clock == "complete; settles when the outing ends"
+    assert expedition.snapshot() == before
+    assert runtime._session.active_battle is completed_battle
+
+
+def test_bridge_maps_floor_two_helper_command_to_exact_drifter():
+    command = bridge._command_to_input(
+        {"kind": "floor_two_boss_helper", "drifter_id": "joruun"}
+    )
+
+    assert command == ChooseFloorTwoBossHelper("joruun")
+
+
 def test_bridge_projects_and_submits_hub_merchant_actions():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
@@ -382,6 +456,150 @@ def test_bridge_rejects_the_removed_inventory_component_install_command():
         )
 
 
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    (
+        (
+            {
+                "kind": "equipment_instance",
+                "instance_id": "00000000-0000-4000-8000-000000000881",
+            },
+            ChooseEquipmentInstance,
+        ),
+        (
+            {
+                "kind": "equipment_action",
+                "target_drifter_id": "azhvielle",
+                "equipment_instance_id": "00000000-0000-4000-8000-000000000881",
+                "operation": "equip",
+            },
+            ChooseEquipmentAction,
+        ),
+        (
+            {"kind": "equipment_confirmation", "confirmed": False},
+            ChooseEquipmentConfirmation,
+        ),
+    ),
+)
+def test_equipment_commands_map_to_exact_semantic_inputs(command, expected):
+    assert isinstance(bridge._command_to_input(command), expected)
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    (
+        (
+            {
+                "kind": "expedition_plan",
+                "destination_floor_id": "floor_three",
+                "category": "material",
+            },
+            ChooseExpeditionPlan("floor_three", "material"),
+        ),
+        (
+            {
+                "kind": "expedition_report",
+                "report_id": "00000000-0000-4000-8000-000000000666",
+            },
+            ChooseExpeditionReport("00000000-0000-4000-8000-000000000666"),
+        ),
+    ),
+)
+def test_expedition_commands_map_to_exact_semantic_inputs(command, expected):
+    assert bridge._command_to_input(command) == expected
+
+
+def test_browser_equipment_action_targets_exact_selected_drifter():
+    runtime = bridge.BrowserRuntime(storage=MemoryBrowserStorage())
+    game = completed_hub_game()
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000883",
+        definition_id="field_helm",
+        source_id="browser_equipment_reward",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    game.party_state.add_equipment_instance(armor)
+    bridge._activate_session(runtime, game, "branoc")
+
+    character = runtime.submit(
+        {"kind": "overworld_action", "action": "character"}
+    )
+    equipment = runtime.submit(
+        {"kind": "overworld_action", "action": "equipment"}
+    )
+    assert equipment["equipment"]["selected_target_id"] == "branoc"
+    assert equipment["equipment"]["instances"][0]["instance_id"] == armor.instance_id
+
+    selected_target = runtime.submit(
+        {"kind": "character_target", "drifter_id": "azhvielle"}
+    )
+    assert selected_target["equipment"]["selected_target_id"] == "azhvielle"
+
+    equipped = runtime.submit(
+        {
+            "kind": "equipment_action",
+            "target_drifter_id": "azhvielle",
+            "equipment_instance_id": armor.instance_id,
+            "operation": "equip",
+        }
+    )
+    assert equipped["notice"] == "Equipment assigned to the selected Drifter."
+
+    updated = runtime._session.game_state
+    assert updated.member_for_drifter_id("azhvielle").equipped_equipment_ids["helm"] == armor.instance_id
+    assert updated.member_for_drifter_id("branoc").equipped_equipment_ids["helm"] is None
+
+
+def test_browser_equipment_can_target_benched_drifter_at_safe_rest():
+    runtime = bridge.BrowserRuntime(storage=MemoryBrowserStorage())
+    game = three_member_hub_game()
+    enter_floor_one_rest(game)
+    armor = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000884",
+        definition_id="field_helm",
+        source_id="browser_safe_rest_equipment_reward",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+    )
+    game.party_state.add_equipment_instance(armor)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
+    )
+
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    equipment = runtime.submit(
+        {"kind": "overworld_action", "action": "equipment"}
+    )
+    assert tuple(
+        target["drifter_id"] for target in equipment["equipment"]["targets"]
+    ) == ("branoc", "azhvielle", "joruun")
+
+    selected = runtime.submit(
+        {"kind": "character_target", "drifter_id": "joruun"}
+    )
+    assert selected["equipment"]["selected_target_id"] == "joruun"
+    runtime.submit(
+        {"kind": "equipment_instance", "instance_id": armor.instance_id}
+    )
+    equipped = runtime.submit(
+        {
+            "kind": "equipment_action",
+            "target_drifter_id": "joruun",
+            "equipment_instance_id": armor.instance_id,
+            "operation": "equip",
+        }
+    )
+
+    assert equipped["notice"] == "Equipment assigned to the selected Drifter."
+    assert runtime._session.game_state.member_for_drifter_id(
+        "joruun"
+    ).equipped_equipment_ids["helm"] == armor.instance_id
+
+
 def test_bridge_exposes_shared_loot_in_items_and_item_inspection():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
@@ -414,12 +632,98 @@ def test_bridge_exposes_shared_loot_in_items_and_item_inspection():
     assert inspected["inventory"]["inspected_item"]["quantity"] == 3
 
 
+def test_browser_healing_potion_uses_an_explicit_active_target_outside_combat():
+    runtime = bridge.BrowserRuntime()
+    game = completed_hub_game()
+    party = game.party_state
+    party.add_shared_items({"healing_potion": 1})
+    assert party.load_carried_supplies({"healing_potion": 1})
+    party.start_floor_one_run()
+    game.overworld_state.begin_route("floor_one")
+    for node in get_route_spec("floor_one").nodes[1:]:
+        game.overworld_state.advance_to(node.node_id)
+        if node.kind.value == "rest":
+            break
+    target = game.member_for_drifter_id("azhvielle")
+    target.health.take_damage(25)
+    bridge._activate_session(runtime, game, "branoc")
+
+    rest = runtime.current_view()
+    assert rest["screen"] == OverworldScreen.REST.value
+    items = runtime.submit({"kind": "overworld_action", "action": "items"})
+    assert items["screen"] == OverworldScreen.ITEMS.value
+    assert any(
+        item["selection_key"] == "carried-item:healing_potion"
+        and item["location_label"] == "Carried Pack"
+        for item in items["inventory"]["items"]
+    )
+    runtime.submit(
+        {
+            "kind": "overworld_item",
+            "selection_key": "carried-item:healing_potion",
+        }
+    )
+    targets = runtime.submit({"kind": "overworld_action", "action": "use"})
+    assert targets["screen"] == OverworldScreen.HEALING_TARGETS.value
+    assert [item["drifter_id"] for item in targets["healing_targets"]] == [
+        "azhvielle"
+    ]
+
+    healed = runtime.submit(
+        {"kind": "overworld_healing_target", "drifter_id": "azhvielle"}
+    )
+
+    assert healed["screen"] == OverworldScreen.ITEMS.value
+    assert target.health.current == target.health.maximum
+    assert party.carried_items == {}
+
+
 def test_bridge_command_decoder_returns_existing_input_types():
     cases = (
         ({"kind": "overworld_action", "action": "enter_encounter"}, ChooseOverworldAction),
         ({"kind": "overworld_item", "selection_key": "shared-item:goblin_scrap"}, ChooseOverworldItem),
-        ({"kind": "companion", "drifter_id": "azhvielle"}, ChooseCompanion),
+        (
+            {"kind": "overworld_healing_target", "drifter_id": "azhvielle"},
+            ChooseOverworldHealingTarget,
+        ),
+        (
+            {"kind": "active_pair", "drifter_ids": ["joruun", "azhvielle"]},
+            ChooseActivePair,
+        ),
+        (
+            {"kind": "discovery_searcher", "drifter_id": "branoc"},
+            ChooseDiscoverySearcher,
+        ),
+        (
+            {"kind": "discovery_target", "drifter_id": "azhvielle"},
+            ChooseDiscoveryTarget,
+        ),
+        (
+            {
+                "kind": "companion",
+                "drifter_id": "azhvielle",
+                "event_id": "floor_one_d2_recruitment",
+            },
+            ChooseCompanion,
+        ),
         ({"kind": "stat_increase", "stat_name": "strength"}, ChoosePermanentStatIncrease),
+        (
+            {
+                "kind": "advancement_purchase",
+                "drifter_id": "azhvielle",
+                "skill_id": "azhvielle_active_01",
+            },
+            ChooseAdvancementPurchase,
+        ),
+        (
+            {
+                "kind": "advancement_equip",
+                "drifter_id": "azhvielle",
+                "move_id": "azhvielle_move_01",
+                "slot": 2,
+            },
+            ChooseAdvancementEquip,
+        ),
         ({"kind": "merchant_target", "drifter_id": "branoc"}, ChooseMerchantTarget),
         (
             {
@@ -452,10 +756,104 @@ def test_bridge_command_decoder_returns_existing_input_types():
         ({"kind": "action", "intent": "attack"}, ChooseAction),
         ({"kind": "move", "key": "slash"}, ChooseMove),
         ({"kind": "target", "target_id": "enemy-1"}, ChooseTarget),
+        ({"kind": "healing_target", "target_id": "drifter_azhvielle"}, ChooseHealingTarget),
     )
 
     for command, expected_type in cases:
         assert isinstance(bridge._command_to_input(command), expected_type)
+
+
+def test_browser_projects_and_submits_an_exact_recruited_pair():
+    runtime = bridge.BrowserRuntime()
+    game = three_member_hub_game()
+    bridge._activate_session(runtime, game, "branoc")
+
+    hub = runtime.current_view()
+    assert any(option["action"] == "select_party" for option in hub["options"])
+
+    selection = runtime.submit(
+        {"kind": "overworld_action", "action": "select_party"}
+    )
+    assert selection["screen"] == OverworldScreen.PARTY_SELECTION.value
+    assert len(selection["active_party_choices"]) == 6
+    assert selection["active_drifter_ids"] == ["branoc", "azhvielle"]
+
+    updated = runtime.submit(
+        {"kind": "active_pair", "drifter_ids": ["joruun", "azhvielle"]}
+    )
+    assert updated["screen"] == OverworldScreen.HUB.value
+    assert game.party_state.active_drifter_ids == ("joruun", "azhvielle")
+
+
+def test_browser_bridge_searches_and_claims_for_exact_active_drifter():
+    game = three_member_hub_game()
+    branoc_hp = game.member_for_drifter_id("branoc").health.maximum
+    azhvielle_hp = game.member_for_drifter_id("azhvielle").health.maximum
+    party = game.party_state
+    assert party.start_floor_one_run() == 100
+    assert party.complete_floor_one_boss(game.active_party_members)
+    assert party.start_floor_two_run(run_id_factory=lambda: "browser-discovery") == 100
+    game.overworld_state.begin_route("floor_two")
+    route = get_route_spec("floor_two")
+    for node in route.nodes[1:11]:
+        current = get_route_spec("floor_two").nodes[
+            tuple(item.node_id for item in route.nodes).index(
+                game.overworld_state.current_route_node_id
+            )
+        ]
+        if current.kind.value == "rest":
+            game.overworld_state.record_resolved_rest_node(current.node_id)
+        game.overworld_state.advance_to(node.node_id)
+
+    runtime = bridge.BrowserRuntime()
+    runtime._game = game
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
+        run_event_rng=FirstRollRng(),
+    )
+
+    rest = runtime.current_view()
+    assert any(option["action"] == "search_site" for option in rest["options"])
+    searchers = runtime.submit(
+        {"kind": "overworld_action", "action": "search_site"}
+    )
+    assert searchers["screen"] == "discovery_searchers"
+    assert [choice["drifter_id"] for choice in searchers["discovery_choices"]] == [
+        "branoc",
+        "azhvielle",
+    ]
+
+    rejected = runtime.submit(
+        {"kind": "discovery_searcher", "drifter_id": "joruun"}
+    )
+    assert rejected["screen"] == "discovery_searchers"
+    assert "not available" in rejected["notice"]
+
+    found = runtime.submit(
+        {"kind": "discovery_searcher", "drifter_id": "branoc"}
+    )
+    assert found["screen"] == "discovery_targets"
+    confirmation = runtime.submit(
+        {"kind": "discovery_target", "drifter_id": "azhvielle"}
+    )
+    assert confirmation["screen"] == "discovery_confirmation"
+    claimed = runtime.submit(
+        {"kind": "overworld_action", "action": "confirm"}
+    )
+
+    assert claimed["screen"] == OverworldScreen.REST.value
+    committed_game = runtime._session.game_state
+    assert committed_game.world_state.permanent_discovery_claims == (
+        "ancient_well_floor2_01",
+    )
+    assert (
+        committed_game.member_for_drifter_id("azhvielle").health.maximum
+        == azhvielle_hp + 5
+    )
+    assert committed_game.member_for_drifter_id("branoc").health.maximum == branoc_hp
 
 
 def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
@@ -493,7 +891,13 @@ def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
     assert runtime.submit(
         {"kind": "overworld_action", "action": "recruit_companion"}
     )["screen"] == OverworldScreen.COMPANION_SELECTION.value
-    ready = runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    ready = runtime.submit(
+        {
+            "kind": "companion",
+            "drifter_id": "azhvielle",
+            "event_id": "floor_one_d2_recruitment",
+        }
+    )
     assert ready["notice"] is None, ready
     assert ready["screen"] == OverworldScreen.PARTY_READY.value
     battle = runtime.submit({"kind": "overworld_action", "action": "ready"})
@@ -529,7 +933,7 @@ def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
     )
 
 
-def test_bridge_projects_tutorial_defeat_to_drifter_selection_and_fresh_start():
+def test_bridge_tutorial_defeat_keeps_recruitment_and_returns_to_ready_party():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
     game = runtime._game
@@ -559,23 +963,29 @@ def test_bridge_projects_tutorial_defeat_to_drifter_selection_and_fresh_start():
         enemy_factory=create_enemy_state,
     )
     runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
-    runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    runtime.submit(
+        {
+            "kind": "companion",
+            "drifter_id": "azhvielle",
+            "event_id": "floor_one_d2_recruitment",
+        }
+    )
     battle_view = runtime.submit({"kind": "overworld_action", "action": "ready"})
     assert battle_view["interaction_phase"] == InteractionPhase.ACTIONS.value
     for member in (game.player_state, *game.party_state.companions):
         member.health.take_damage(member.health.maximum)
     runtime._session.active_battle._finish("enemy")
 
-    result = runtime.submit({"kind": "back"})
+    runtime.submit({"kind": "back"})
+    returned = runtime.current_view()
 
-    assert result == "select_drifter"
-    assert game.party_state.phase is DungeonPhase.OUTSIDE
-    assert game.party_state.companions == ()
-    fresh = runtime.start_game("joruun")
-    assert fresh["screen"] == OverworldScreen.MAIN.value
-    assert runtime._game is not game
-    assert runtime._game.player_state.character.profile.drifter_id == "joruun"
-    assert runtime._game.party_state.phase is DungeonPhase.OUTSIDE
+    assert returned["screen"] == OverworldScreen.PARTY_READY.value
+    assert game.party_state.phase is DungeonPhase.PARTY_READY
+    assert tuple(
+        member.character.profile.drifter_id for member in game.party_state.companions
+    ) == ("azhvielle",)
+    assert game.player_state.health.current == game.player_state.health.maximum
+    assert game.party_state.companions[0].health.current == game.party_state.companions[0].health.maximum
 
 
 def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
@@ -604,6 +1014,52 @@ def test_bridge_spends_growth_points_from_the_authoritative_skills_view():
     assert updated["screen"] == OverworldScreen.SKILLS.value
     assert updated["skills"]["growth_points_available"] == 2
     assert strength["value"] == 16
+
+
+def test_bridge_purchases_and_equips_advancement_for_the_exact_selected_drifter():
+    runtime = bridge.BrowserRuntime()
+    game = completed_hub_game()
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    azhvielle.gain_experience(1000)
+    bridge._activate_session(runtime, game, "branoc")
+
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    skills = runtime.submit({"kind": "overworld_action", "action": "skills"})
+    skills = runtime.submit(
+        {"kind": "character_target", "drifter_id": "azhvielle"}
+    )
+    initial_gp = skills["skills"]["growth_points_available"]
+
+    rejected = runtime.submit(
+        {
+            "kind": "advancement_purchase",
+            "drifter_id": "branoc",
+            "skill_id": "azhvielle_a01",
+        }
+    )
+    assert "not available" in rejected["notice"]
+    assert azhvielle.purchased_active_skill_ids == ()
+    assert azhvielle.growth_points == initial_gp
+
+    purchased = runtime.submit(
+        {
+            "kind": "advancement_purchase",
+            "drifter_id": "azhvielle",
+            "skill_id": "azhvielle_a01",
+        }
+    )
+    assert purchased["skills"]["selected_target_id"] == "azhvielle"
+    assert azhvielle.purchased_active_skill_ids == ("azhvielle_a01",)
+    equipped = runtime.submit(
+        {
+            "kind": "advancement_equip",
+            "drifter_id": "azhvielle",
+            "move_id": "azhvielle_a01",
+            "slot": 0,
+        }
+    )
+    assert equipped["skills"]["loadout"][0]["move"]["move_id"] == "azhvielle_a01"
+    assert game.member_for_drifter_id("branoc").purchased_active_skill_ids == ()
 
 
 def test_bridge_completes_floor_one_through_semantic_actions():
@@ -636,7 +1092,13 @@ def test_bridge_completes_floor_one_through_semantic_actions():
         save_port=QualificationSavePort(),
     )
     runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
-    runtime.submit({"kind": "companion", "drifter_id": "azhvielle"})
+    runtime.submit(
+        {
+            "kind": "companion",
+            "drifter_id": "azhvielle",
+            "event_id": "floor_one_d2_recruitment",
+        }
+    )
     runtime.submit({"kind": "overworld_action", "action": "ready"})
     for enemy in runtime._session.active_battle.enemies:
         enemy.health.take_damage(enemy.health.current)

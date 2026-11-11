@@ -12,6 +12,7 @@ class ActionIntent(StrEnum):
     DEFEND = "defend"
     HEAL = "heal"
     ITEMS = "items"
+    HEALING_POTION = "healing_potion"
     ESCAPE = "escape"
     SUPER = "super"
 
@@ -27,6 +28,7 @@ class InteractionPhase(StrEnum):
     INVENTORY_COMBINATION = "inventory_combination"
     INVENTORY_CONFIRMATION = "inventory_confirmation"
     TARGETS = "targets"
+    HEALING_TARGETS = "healing_targets"
     COMPLETE = "complete"
 
 
@@ -55,7 +57,10 @@ class BattleEventType(StrEnum):
     VICTORY = "victory"
     DEFEAT = "defeat"
     INVENTORY = "inventory"
+    ESCAPE = "escape"
     STATUS = "status"
+    HAZARD_WARNING = "hazard_warning"
+    HAZARD_DAMAGE = "hazard_damage"
 
 
 class ActionAvailabilityReason(StrEnum):
@@ -66,6 +71,8 @@ class ActionAvailabilityReason(StrEnum):
     CANNOT_DEFEND = "cannot_defend"
     NOT_IMPLEMENTED = "not_implemented"
     SUPER_NOT_READY = "super_not_ready"
+    NO_CARRIED_SUPPLY = "no_carried_supply"
+    NO_HEALING_TARGET = "no_healing_target"
 
 
 class MoveAvailabilityReason(StrEnum):
@@ -275,6 +282,27 @@ class TargetOptionView:
 
 
 @dataclass(frozen=True)
+class HealingTargetOptionView:
+    target_id: str
+    number: int
+    display_label: str
+    hp_current: int
+    hp_maximum: int
+
+    def __post_init__(self):
+        object.__setattr__(self, "target_id", _validate_nonempty_string("target_id", self.target_id))
+        object.__setattr__(self, "number", _validate_positive_integer("number", self.number))
+        object.__setattr__(
+            self,
+            "display_label",
+            _validate_nonempty_string("display_label", self.display_label),
+        )
+        _validate_resource_pair("hp", self.hp_current, self.hp_maximum, optional=False)
+        if self.hp_current <= 0 or self.hp_current >= self.hp_maximum:
+            raise ValueError("healing targets must be living and missing HP")
+
+
+@dataclass(frozen=True)
 class InventoryItemOptionView:
     item_id: str
     number: int
@@ -474,6 +502,7 @@ class BattleView:
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
     target_options: tuple[TargetOptionView, ...] = ()
+    healing_target_options: tuple[HealingTargetOptionView, ...] = ()
     inventory_items: tuple[InventoryItemOptionView, ...] = ()
     selected_inventory_item: InventoryItemOptionView | None = None
     inventory_commands: tuple[InventoryCommandOptionView, ...] = ()
@@ -483,6 +512,7 @@ class BattleView:
     log_entries: tuple[BattleLogEntry, ...] = ()
     visual: BattleVisualView = field(default_factory=BattleVisualView)
     party_members: tuple[PartyCombatantView, ...] = ()
+    expedition_status: str | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -510,6 +540,11 @@ class BattleView:
         )
         object.__setattr__(
             self,
+            "expedition_status",
+            _validate_optional_string("expedition_status", self.expedition_status),
+        )
+        object.__setattr__(
+            self,
             "action_options",
             _validate_instance_tuple("action_options", self.action_options, ActionOptionView),
         )
@@ -522,6 +557,15 @@ class BattleView:
             self,
             "target_options",
             _validate_instance_tuple("target_options", self.target_options, TargetOptionView),
+        )
+        object.__setattr__(
+            self,
+            "healing_target_options",
+            _validate_instance_tuple(
+                "healing_target_options",
+                self.healing_target_options,
+                HealingTargetOptionView,
+            ),
         )
         object.__setattr__(
             self,
@@ -598,6 +642,29 @@ class BattleView:
                 raise ValueError("party target IDs must be unique")
             if sum(member.active for member in self.party_members) != 1:
                 raise ValueError("exactly one party member must be active")
+
+    def with_expedition_status(self, status):
+        return BattleView(
+            interaction_phase=self.interaction_phase,
+            player=self.player,
+            enemies=self.enemies,
+            super_meter=self.super_meter,
+            encounter_label=self.encounter_label,
+            action_options=self.action_options,
+            move_options=self.move_options,
+            target_options=self.target_options,
+            healing_target_options=self.healing_target_options,
+            inventory_items=self.inventory_items,
+            selected_inventory_item=self.selected_inventory_item,
+            inventory_commands=self.inventory_commands,
+            inventory_inspection=self.inventory_inspection,
+            inventory_companions=self.inventory_companions,
+            inventory_confirmation=self.inventory_confirmation,
+            log_entries=self.log_entries,
+            visual=self.visual,
+            party_members=self.party_members,
+            expedition_status=status,
+        )
 
     @property
     def active_player_id(self):

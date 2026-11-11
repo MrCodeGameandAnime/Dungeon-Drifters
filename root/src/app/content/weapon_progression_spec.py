@@ -516,13 +516,20 @@ def project_component_move_effects(progression, installed_components, moves):
             projected.append(move)
             continue
         power_delta, cost_delta, accuracy_delta, damage_type = values
+        projected_power = max(0, move.power + power_delta)
+        damage_components = move.damage_components
+        if damage_components:
+            damage_components = _components_with_total_power(
+                damage_components,
+                projected_power,
+            )
         projected.append(
             type(move)(
                 name=move.name,
                 kind=move.kind,
                 resource_type=move.resource_type,
                 resource_cost=max(0, move.resource_cost + cost_delta),
-                power=max(0, move.power + power_delta),
+                power=projected_power,
                 scales_with=move.scales_with,
                 accuracy=max(0, min(100, move.accuracy + accuracy_delta)),
                 target=move.target,
@@ -532,9 +539,41 @@ def project_component_move_effects(progression, installed_components, moves):
                 presentation=move.presentation,
                 is_spell=move.is_spell,
                 frost_backlash=move.frost_backlash,
+                damage_components=damage_components,
             )
         )
     return tuple(projected)
+
+
+def _components_with_total_power(components, total_power):
+    if total_power < len(components):
+        raise ValueError("component move power must leave at least one power per component")
+    source_total = sum(component.power for component in components)
+    distributable_power = total_power - len(components)
+    allocations = [
+        distributable_power * component.power // source_total
+        for component in components
+    ]
+    remainder_order = sorted(
+        range(len(components)),
+        key=lambda index: (
+            -(distributable_power * components[index].power % source_total),
+            index,
+        ),
+    )
+    remainder = distributable_power - sum(allocations)
+    for index in remainder_order[:remainder]:
+        allocations[index] += 1
+    return tuple(
+        type(component)(
+            identity=component.identity,
+            defense_class=component.defense_class,
+            power=allocation + 1,
+            scales_with=component.scales_with,
+            subtype=component.subtype,
+        )
+        for component, allocation in zip(components, allocations)
+    )
 
 
 def project_weapon_stat_bonuses(

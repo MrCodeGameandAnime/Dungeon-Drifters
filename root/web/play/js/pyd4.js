@@ -7,6 +7,7 @@
   let state = null;
   let drifters = [];
   let musicStarted = false;
+  let expeditionStatusRefreshInFlight = false;
   const orientationQuery = window.matchMedia("(orientation: portrait)");
 
   const $ = (id) => document.getElementById(id);
@@ -129,7 +130,11 @@
     if (!available && reason) {
       const detail = document.createElement("span");
       detail.className = "option-reason";
-      detail.textContent = `Unavailable: ${String(reason).replace(/_/g, " ")}`;
+      const reasonText = {
+        floor_two_replay_requires_available_helper:
+          "Choose an active pair that leaves D3 or D4 available for the Floor II boss.",
+      };
+      detail.textContent = `Unavailable: ${reasonText[reason] || String(reason).replace(/_/g, " ")}`;
       button.title = detail.textContent;
       button.append(detail);
     }
@@ -259,6 +264,12 @@
         else if (entry.action_name) lines.push(`${actor} used ${entry.action_name}.`);
         break;
       case "status":
+        break;
+      case "hazard_warning":
+        lines.push(entry.reason || "A hazard is imminent.");
+        break;
+      case "hazard_damage":
+        lines.push(`Falling stone struck ${target || "the party"} for ${entry.amount} damage.`);
         break;
       default:
         lines.push(String(entry.event_type || "Battle event").replace(/_/g, " "));
@@ -512,6 +523,90 @@
       line.append(name, description, values);
       attacks.append(line);
     }
+
+    const advancement = $("skill-advancement");
+    clear(advancement);
+    for (const skill of skills.advancement_options || []) {
+      const row = document.createElement("article");
+      row.className = "skill-advancement-row";
+      row.dataset.skillId = skill.skill_id;
+      const details = document.createElement("div");
+      details.className = "skill-advancement-description";
+      const title = document.createElement("strong");
+      title.textContent = `${skill.name} | Tier ${skill.tier} ${skill.kind}`;
+      const purpose = document.createElement("span");
+      purpose.textContent = skill.purpose;
+      const stateLine = document.createElement("span");
+      stateLine.className = "skill-advancement-state";
+      stateLine.textContent = skill.purchased
+        ? "Purchased"
+        : (skill.blocked_reason || `Level ${skill.minimum_level} | ${skill.gp_cost} GP`);
+      details.append(title, purpose, stateLine);
+      row.append(details);
+      if (!skill.purchased) {
+        row.append(makeButton(
+          `Purchase · ${skill.gp_cost} GP`,
+          skill.can_purchase
+            ? {
+                kind: "advancement_purchase",
+                drifter_id: skills.selected_target_id,
+                skill_id: skill.skill_id,
+              }
+            : null,
+          skill.can_purchase,
+          skill.blocked_reason,
+          "skill-advancement-purchase",
+        ));
+      }
+      advancement.append(row);
+    }
+
+    const loadout = $("skill-loadout");
+    clear(loadout);
+    const availableMoves = skills.available_moves || [];
+    for (const slot of skills.loadout || []) {
+      const row = document.createElement("label");
+      row.className = "skill-loadout-row";
+      row.dataset.slot = String(slot.slot);
+      const slotName = document.createElement("span");
+      slotName.textContent = `Slot ${slot.slot + 1}`;
+      const select = document.createElement("select");
+      select.className = "skill-loadout-select";
+      select.dataset.slot = String(slot.slot);
+      select.setAttribute("aria-label", `Normal move slot ${slot.slot + 1}`);
+      for (const move of availableMoves) {
+        const option = document.createElement("option");
+        option.value = move.move_id;
+        option.textContent = move.name;
+        option.selected = move.move_id === slot.move.move_id;
+        select.append(option);
+      }
+      select.disabled = availableMoves.length < 1;
+      select.addEventListener("change", () => send({
+        kind: "advancement_equip",
+        drifter_id: skills.selected_target_id,
+        move_id: select.value,
+        slot: slot.slot,
+      }));
+      row.append(slotName, select);
+      loadout.append(row);
+    }
+
+    const movePool = $("skill-available-moves");
+    clear(movePool);
+    for (const move of availableMoves) {
+      const line = document.createElement("article");
+      line.className = "skill-available-move";
+      const name = document.createElement("strong");
+      name.textContent = move.name;
+      const summary = document.createElement("span");
+      const resource = move.resource_type === "none" || !move.resource_cost
+        ? "No resource cost"
+        : `${String(move.resource_type).toUpperCase()} ${move.resource_cost}`;
+      summary.textContent = `${resource} | ${move.damage_type || "utility"}`;
+      line.append(name, summary);
+      movePool.append(line);
+    }
     renderOptions(
       $("skills-options"),
       view.options,
@@ -519,6 +614,49 @@
       (option) => option.label,
       "overworld-option",
     );
+  }
+
+  function renderRespec(view) {
+    const preview = view.respec_preview;
+    if (!preview) return;
+    setText("respec-target", preview.display_name);
+    setText(
+      "respec-cost",
+      preview.first_respec
+        ? "First respec: no Revision Parchment required."
+        : `Cost: ${preview.revision_parchment_cost} Revision Parchment.`,
+    );
+    setText(
+      "respec-refund",
+      `Growth Points: ${preview.current_growth_points} now | ${preview.growth_points_refunded} refunded | ${preview.resulting_growth_points} after respec`,
+    );
+    const renderLines = (id, values, format) => {
+      const container = $(id);
+      clear(container);
+      for (const value of values || []) {
+        const line = document.createElement("div");
+        line.textContent = format(value);
+        container.append(line);
+      }
+      if (!container.childElementCount) {
+        const line = document.createElement("div");
+        line.className = "merchant-empty";
+        line.textContent = "None";
+        container.append(line);
+      }
+    };
+    renderLines(
+      "respec-stat-points",
+      preview.removed_stat_points,
+      ([name, amount]) => `${name}: -${amount}`,
+    );
+    renderLines("respec-skills", preview.removed_skills, (skill) => skill);
+    renderLines(
+      "respec-result-stats",
+      preview.resulting_stats,
+      (stat) => `${stat.label}: ${stat.value}`,
+    );
+    renderDetailOptions("respec-options", view.options);
   }
 
   function renderWeapon(view) {
@@ -581,15 +719,152 @@
   }
 
   function renderEquipment(view) {
+    const confirmation = view.screen === "equipment_confirmation";
+    $("equipment-content").hidden = confirmation;
+    $("equipment-confirmation-content").hidden = !confirmation;
+    $("equipment-options").hidden = confirmation;
+    $("equipment-confirmation-options").hidden = !confirmation;
+    if (confirmation) {
+      const preview = view.equipment_confirmation;
+      setText("equipment-title", "Confirm Equipment Action");
+      setText("equipment-confirmation-title", preview.title);
+      const details = $("equipment-confirmation-details");
+      clear(details);
+      for (const detail of preview.details || []) {
+        const line = document.createElement("div");
+        line.textContent = detail;
+        details.append(line);
+      }
+      renderOptions(
+        $("equipment-confirmation-options"),
+        view.options,
+        (option) => ({
+          kind: "equipment_confirmation",
+          confirmed: option.action === "confirm",
+        }),
+        (option) => option.label,
+        "overworld-option",
+      );
+      return;
+    }
+
     const equipment = view.equipment;
     if (!equipment) return;
+    setText("equipment-title", "Equipment");
     renderPartyTargets("equipment-targets", equipment.targets);
-    const slots = $("equipment-slots");
-    clear(slots);
-    for (const slot of [equipment.necklace, equipment.ring]) {
+
+    const inventory = $("equipment-inventory");
+    clear(inventory);
+    for (const [index, item] of (equipment.instances || []).entries()) {
+      const state = [
+        item.slot_id,
+        item.secured ? "Secured" : "Unsecured",
+        item.rarity ? `${item.rarity} +${item.upgrade_rank}` : null,
+        item.equipped_by_name ? `Equipped by ${item.equipped_by_name}` : null,
+      ].filter(Boolean).join(" | ");
+      const button = makeButton(
+        `${index + 1}. ${item.display_name} | ${state}`,
+        { kind: "equipment_instance", instance_id: item.instance_id },
+        true,
+        null,
+        item.instance_id === equipment.selected_instance_id
+          ? "inventory-item-choice selected equipment-choice"
+          : "inventory-item-choice equipment-choice",
+      );
+      button.setAttribute(
+        "aria-pressed",
+        String(item.instance_id === equipment.selected_instance_id),
+      );
+      inventory.append(button);
+    }
+    if (!inventory.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No owned armor or accessories.";
+      inventory.append(empty);
+    }
+
+    const modifiers = $("equipment-modifiers");
+    clear(modifiers);
+    for (const [index, modifier] of (equipment.modifiers || []).entries()) {
+      const row = document.createElement("div");
+      row.className = "merchant-row-description equipment-modifier";
+      const title = document.createElement("strong");
+      title.textContent = `${index + 1}. ${modifier.display_name} | Grade ${modifier.grade}`;
+      const state = document.createElement("span");
+      state.textContent = modifier.secured ? "Secured" : "Unsecured";
+      row.append(title, state);
+      modifiers.append(row);
+    }
+    if (!modifiers.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No available modifiers.";
+      modifiers.append(empty);
+    }
+
+    const selected = (equipment.instances || []).find(
+      (item) => item.instance_id === equipment.selected_instance_id,
+    );
+    const inspection = $("equipment-inspection");
+    inspection.hidden = !selected;
+    if (selected) {
+      setText("equipment-inspection-name", selected.display_name);
+      const owner = selected.equipped_by_name
+        ? `Equipped by ${selected.equipped_by_name}`
+        : "Not equipped";
+      setText(
+        "equipment-inspection-state",
+        `${selected.secured ? "Secured" : "Unsecured"} | ${selected.slot_id} | ${owner}`,
+      );
+      const stats = $("equipment-inspection-stats");
+      clear(stats);
+      for (const value of selected.stat_summary || []) {
+        const line = document.createElement("div");
+        line.textContent = value;
+        stats.append(line);
+      }
+      const modifiers = $("equipment-inspection-modifiers");
+      clear(modifiers);
+      for (const value of selected.modifier_summary || []) {
+        const line = document.createElement("div");
+        line.textContent = value;
+        modifiers.append(line);
+      }
+      if (!(selected.modifier_summary || []).length) {
+        const line = document.createElement("div");
+        line.textContent = "No installed modifiers.";
+        modifiers.append(line);
+      }
+
+      const actions = $("equipment-actions");
+      clear(actions);
+      for (const action of equipment.actions || []) {
+        const button = makeButton(
+          action.summary ? `${action.label} | ${action.summary}` : action.label,
+          {
+            kind: "equipment_action",
+            target_drifter_id: equipment.selected_target_id,
+            equipment_instance_id: selected.instance_id,
+            operation: action.operation,
+            ...(action.modifier_instance_id
+              ? { modifier_instance_id: action.modifier_instance_id }
+              : {}),
+          },
+          action.enabled,
+          action.disabled_reason,
+          "merchant-action equipment-action",
+        );
+        actions.append(button);
+      }
+    }
+
+    const accessories = $("equipment-accessories");
+    clear(accessories);
+    for (const slot of [equipment.pendant, equipment.ring]) {
       const line = document.createElement("div");
-      line.textContent = `[ ${slot.label} ]  ${slot.item_name}`;
-      slots.append(line);
+      line.textContent = `${slot.label}: ${slot.item_name}`;
+      accessories.append(line);
     }
     const benefits = $("equipment-benefits");
     clear(benefits);
@@ -751,7 +1026,91 @@
       tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
       "merchant-action",
     ));
+    renderHubEconomy(view.hub_economy);
     renderDetailOptions("merchant-options", view.options);
+  }
+
+  function renderHubEconomy(economy) {
+    const summary = $("merchant-storage-summary");
+    const supplies = $("merchant-supplies");
+    const recipes = $("merchant-alchemy-recipes");
+    clear(supplies);
+    clear(recipes);
+    if (!economy) {
+      summary.textContent = "";
+      return;
+    }
+    summary.textContent = `Shared gold: ${economy.shared_gold} | Carried supplies: ${economy.carried_units}/${economy.carried_capacity}`;
+    for (const item of economy.items || []) {
+      const row = document.createElement("div");
+      row.className = "merchant-row hub-supply-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = item.display_name;
+      const quantity = document.createElement("span");
+      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | ${item.base_price} gold` : ""}`;
+      const detail = document.createElement("span");
+      detail.textContent = item.description;
+      description.append(title, quantity, detail);
+      const actions = document.createElement("div");
+      actions.className = "merchant-row-actions";
+      if (item.shop_stocked) {
+        actions.append(makeButton(
+          "Buy",
+          { kind: "hub_supply", operation: "buy", item_id: item.item_id },
+          item.can_buy,
+          item.can_buy ? null : "insufficient_gold",
+          "merchant-action",
+        ));
+      }
+      if (item.sellable) {
+        actions.append(makeButton(
+          `Sell ${Math.floor(item.base_price / 2)}g`,
+          { kind: "hub_supply", operation: "sell", item_id: item.item_id },
+          item.can_sell,
+          item.can_sell ? null : "not_in_storage",
+          "merchant-action",
+        ));
+      }
+      if (item.carryable) {
+        actions.append(makeButton(
+          "Load",
+          { kind: "hub_supply", operation: "load", item_id: item.item_id },
+          item.can_load,
+          item.can_load ? null : (item.stored_quantity ? "pack_full" : "not_in_storage"),
+          "merchant-action",
+        ));
+        actions.append(makeButton(
+          "Unload",
+          { kind: "hub_supply", operation: "unload", item_id: item.item_id },
+          item.can_unload,
+          item.can_unload ? null : "not_in_pack",
+          "merchant-action",
+        ));
+      }
+      row.append(description, actions);
+      supplies.append(row);
+    }
+    for (const recipe of economy.recipes || []) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = recipe.display_name;
+      const ingredients = document.createElement("span");
+      ingredients.textContent = `${recipe.ingredient_summary.join(" + ")} -> ${recipe.output_summary.join(" + ")}`;
+      description.append(title, ingredients);
+      row.append(description, makeButton(
+        "Craft",
+        { kind: "alchemy_recipe", recipe_id: recipe.recipe_id },
+        recipe.can_craft,
+        recipe.can_craft ? null : "missing_ingredients",
+        "merchant-action",
+      ));
+      recipes.append(row);
+    }
   }
 
   function renderDetailOptions(containerId, options) {
@@ -778,7 +1137,11 @@
     for (const candidate of view.companion_choices || []) {
       const button = makeButton(
         candidate.display_name,
-        { kind: "companion", drifter_id: candidate.drifter_id },
+        {
+          kind: "companion",
+          drifter_id: candidate.drifter_id,
+          event_id: candidate.event_id,
+        },
         candidate.enabled,
         candidate.disabled_reason,
         "companion-choice",
@@ -787,6 +1150,167 @@
       appendChoiceDetail(button, "companion-summary", candidate.summary);
       appendChoiceDetail(button, "companion-cost", `${candidate.cost} gold`);
       container.append(button);
+    }
+  }
+
+  function renderActivePartyChoices(view) {
+    const section = $("party-selection");
+    const visible = view.screen === "party_selection";
+    section.hidden = !visible;
+    if (!visible) return;
+    const container = $("party-pair-choices");
+    clear(container);
+    for (const choice of view.active_party_choices || []) {
+      const button = makeButton(
+        `${choice.display_names[0]} + ${choice.display_names[1]}`,
+        { kind: "active_pair", drifter_ids: choice.drifter_ids },
+        true,
+        null,
+        `party-pair-choice${choice.selected ? " is-selected" : ""}`,
+      );
+      container.append(button);
+    }
+  }
+
+  function renderTemporaryBossHelperChoices(view) {
+    const section = $("boss-helper-selection");
+    const visible = view.screen === "floor_two_helper_selection";
+    section.hidden = !visible;
+    if (!visible) return;
+    const container = $("boss-helper-choices");
+    clear(container);
+    for (const choice of view.temporary_helper_choices || []) {
+      const button = makeButton(
+        choice.display_name,
+        { kind: "floor_two_boss_helper", drifter_id: choice.drifter_id },
+        true,
+        null,
+        "party-pair-choice",
+      );
+      appendChoiceDetail(button, "companion-role", choice.archetype_label);
+      appendChoiceDetail(button, "companion-summary", `Level ${choice.level} | Floor II boss only`);
+      container.append(button);
+    }
+  }
+
+  function renderDiscoveryChoices(view) {
+    const section = $("discovery-selection");
+    const searcherSelection = view.screen === "discovery_searchers";
+    const targetSelection = view.screen === "discovery_targets";
+    section.hidden = !(searcherSelection || targetSelection);
+    clear($("discovery-choices"));
+    if (section.hidden) return;
+    setText("discovery-reward", view.discovery_reward_text);
+    for (const choice of view.discovery_choices || []) {
+      $("discovery-choices").append(makeButton(
+        choice.display_name,
+        {
+          kind: searcherSelection ? "discovery_searcher" : "discovery_target",
+          drifter_id: choice.drifter_id,
+        },
+        true,
+        null,
+        "discovery-choice",
+      ));
+    }
+  }
+
+  function renderExpeditions(view) {
+    const active = view.expedition_status;
+    const liveStatus = $("expedition-live-status");
+    liveStatus.hidden = !active;
+    if (active) {
+      const remaining = active.remaining_seconds;
+      const clock = remaining === 0
+        ? "Complete; settles when the outing ends."
+        : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining`;
+      liveStatus.textContent = `Expedition: ${active.category_label} | ${active.destination_floor_label} | ${clock} | ${active.expedition_member_names.join(" + ")}`;
+    } else {
+      liveStatus.textContent = "";
+    }
+
+    const section = $("expedition-panel");
+    const visible = ["expeditions", "expedition_setup", "expedition_confirmation"].includes(view.screen);
+    section.hidden = !visible;
+    if (!visible) return;
+
+    setText("expedition-energy", `Energy ${view.expedition_energy}/100 | Launch cost 10`);
+    setText("expedition-panel-summary", view.adventure_text);
+    const choices = $("expedition-choices");
+    const reports = $("expedition-reports");
+    const confirmation = $("expedition-confirmation-content");
+    clear(choices);
+    clear(reports);
+    clear(confirmation);
+    choices.hidden = view.screen !== "expedition_setup";
+    reports.hidden = view.screen !== "expeditions";
+    confirmation.hidden = view.screen !== "expedition_confirmation";
+
+    if (view.screen === "expedition_setup") {
+      for (const choice of view.expedition_choices || []) {
+        const button = makeButton(
+          `${choice.destination_floor_label} | ${choice.category_label}`,
+          {
+            kind: "expedition_plan",
+            destination_floor_id: choice.destination_floor_id,
+            category: choice.category,
+          },
+          choice.enabled,
+          choice.disabled_reason,
+          "expedition-choice",
+        );
+        if (!choice.enabled) appendChoiceDetail(button, "choice-summary", choice.disabled_reason);
+        choices.append(button);
+      }
+    }
+    if (view.screen === "expeditions") {
+      const unclaimed = (view.expedition_reports || []).filter((item) => !item.claimed);
+      if (!view.expedition_reports || view.expedition_reports.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No completed expedition reports.";
+        reports.append(empty);
+      }
+      for (const report of view.expedition_reports || []) {
+        const row = document.createElement("div");
+        row.className = "expedition-report";
+        const summary = document.createElement("p");
+        summary.textContent = `${report.destination_floor_label} | ${report.category_label} | ${report.reward_summary}`;
+        row.append(summary);
+        if (report.claimed) {
+          const claimed = document.createElement("span");
+          claimed.textContent = "Claimed";
+          row.append(claimed);
+        } else {
+          row.append(makeButton(
+            "Claim report",
+            { kind: "expedition_report", report_id: report.report_id },
+            true,
+            null,
+            "overworld-option",
+          ));
+        }
+        reports.append(row);
+      }
+      if (unclaimed.length === 0 && view.expedition_reports && view.expedition_reports.length) {
+        const allClaimed = document.createElement("p");
+        allClaimed.textContent = "All reports have been claimed.";
+        reports.append(allClaimed);
+      }
+    }
+    if (view.screen === "expedition_confirmation" && view.expedition_confirmation) {
+      const details = view.expedition_confirmation;
+      for (const line of [
+        `Outing: ${details.outing_floor_label}`,
+        `Destination: ${details.destination_floor_label}`,
+        `Assignment: ${details.category_label}`,
+        `Expedition pair: ${details.expedition_member_names.join(" + ")}`,
+        `Energy: ${details.energy_cost} | Available: ${details.current_energy}`,
+        "The 20-minute timer starts when confirmed.",
+      ]) {
+        const item = document.createElement("p");
+        item.textContent = line;
+        confirmation.append(item);
+      }
     }
   }
 
@@ -816,23 +1340,35 @@
   function renderOverworldItems(view) {
     const inventory = view.inventory;
     const inspecting = view.screen === "item_inspect";
+    const choosingHealingTarget = view.screen === "healing_targets";
     const list = $("items-list");
     const details = $("items-inspection");
     clear(list);
     details.hidden = !inspecting;
+    setText("items-title", choosingHealingTarget ? "Choose a Drifter to Heal" : "Items");
 
-    if (inspecting) {
+    if (choosingHealingTarget) {
+      for (const target of view.healing_targets || []) {
+        list.append(makeButton(
+          `${target.display_name} | HP ${target.hp_current}/${target.hp_maximum}`,
+          { kind: "overworld_healing_target", drifter_id: target.drifter_id },
+          true,
+          null,
+          "inventory-item-choice",
+        ));
+      }
+    } else if (inspecting) {
       const item = inventory && inventory.inspected_item;
       setText("items-inspection-name", item ? item.display_name : "Item");
       setText(
         "items-inspection-quantity",
-        item ? `Quantity: ${item.quantity}` : "",
+        item ? `Quantity: ${item.quantity} | ${item.location_label}` : "",
       );
       setText("items-inspection-description", item ? item.description : "");
     } else {
       for (const item of (inventory && inventory.items) || []) {
         const button = makeButton(
-          `${item.display_name} x${item.quantity}`,
+          `${item.display_name} x${item.quantity} | ${item.location_label}`,
           { kind: "overworld_item", selection_key: item.selection_key },
           true,
           null,
@@ -849,7 +1385,7 @@
       if (!list.childElementCount) {
         const empty = document.createElement("p");
         empty.className = "merchant-empty";
-        empty.textContent = "Your shared inventory is empty.";
+        empty.textContent = "No items are currently available.";
         list.append(empty);
       }
     }
@@ -859,7 +1395,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "weapon", "equipment", "merchant", "items", "item_inspect",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "merchant", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -870,6 +1406,10 @@
     }
     const screenLabels = {
       companion_selection: "RECRUITMENT",
+      party_selection: "PARTY SELECTION",
+      discovery_searchers: "SEARCH SITE",
+      discovery_targets: "CLAIM DISCOVERY",
+      discovery_confirmation: "CONFIRM DISCOVERY",
       party_ready: "PARTY READY",
       extraction: "EXTRACTION",
     };
@@ -897,6 +1437,10 @@
       "overworld-option",
     );
     renderCompanionChoices(view);
+    renderActivePartyChoices(view);
+    renderTemporaryBossHelperChoices(view);
+    renderDiscoveryChoices(view);
+    renderExpeditions(view);
     renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),
@@ -908,15 +1452,17 @@
 
     $("character-panel").hidden = view.screen !== "character";
     $("skills-panel").hidden = view.screen !== "skills";
+    $("respec-panel").hidden = view.screen !== "respec_confirmation";
     $("weapon-panel").hidden = view.screen !== "weapon";
-    $("equipment-panel").hidden = view.screen !== "equipment";
-    $("items-panel").hidden = !["items", "item_inspect"].includes(view.screen);
+    $("equipment-panel").hidden = !["equipment", "equipment_confirmation"].includes(view.screen);
+    $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "merchant";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
+    else if (view.screen === "respec_confirmation") renderRespec(view);
     else if (view.screen === "weapon") renderWeapon(view);
-    else if (view.screen === "equipment") renderEquipment(view);
-    else if (["items", "item_inspect"].includes(view.screen)) renderOverworldItems(view);
+    else if (["equipment", "equipment_confirmation"].includes(view.screen)) renderEquipment(view);
+    else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
     else if (view.screen === "merchant") renderMerchant(view);
 
     renderInventory($("inventory"), view);
@@ -986,6 +1532,9 @@
         ? view.visual.player_lines.join(" ")
         : view.player.display_name);
     setText("battle-matchup", `[ ${matchupPlayer} ]   VS   [ ${view.encounter_label} ]`);
+    const expeditionStatus = $("battle-expedition-status");
+    expeditionStatus.hidden = !view.expedition_status;
+    expeditionStatus.textContent = view.expedition_status || "";
     const hasParty = Boolean(view.party_members && view.party_members.length);
     $("player-panel").hidden = hasParty;
     $("party-panel").hidden = !hasParty;
@@ -1021,6 +1570,16 @@
     } else if (phase === "targets") {
       setText("controls-title", "Choose a target:");
       renderTargets(targets, view.target_options);
+    } else if (phase === "healing_targets") {
+      setText("controls-title", "Use Healing Potion on:");
+      renderOptions(
+        targets,
+        view.healing_target_options,
+        (option) => ({ kind: "healing_target", target_id: option.target_id }),
+        (option) => `${option.number}. ${option.display_label} | HP ${option.hp_current}/${option.hp_maximum}`,
+        "battle-option target-choice",
+      );
+      appendBack(targets);
     } else {
       const headings = {
         inventory: "Items",
@@ -1028,6 +1587,7 @@
         inventory_inspect: "Item details",
         inventory_combination: "Combine items",
         inventory_confirmation: "Confirm combination",
+        healing_targets: "Choose a Drifter to heal",
         complete: "Battle complete",
       };
       setText("controls-title", headings[phase] || "Battle");
@@ -1047,6 +1607,34 @@
       $("app").removeAttribute("data-interaction-phase");
       $("battle-screen").removeAttribute("data-interaction-phase");
       renderOverworld(state);
+    }
+  }
+
+  async function refreshExpeditionStatus() {
+    const currentState = state;
+    if (
+      !pyodide || !currentState || !currentState.expedition_status ||
+      expeditionStatusRefreshInFlight
+    ) return;
+    const statusElement = currentState.interaction_phase
+      ? $("battle-expedition-status")
+      : $("expedition-live-status");
+    if (!statusElement || statusElement.hidden) return;
+
+    expeditionStatusRefreshInFlight = true;
+    try {
+      const clock = await pythonJson("current_expedition_clock_text_json()");
+      if (state !== currentState || statusElement.hidden || typeof clock !== "string") return;
+      const currentText = statusElement.textContent;
+      const updatedText = currentText.replace(
+        /\d+:\d{2} remaining|complete; settles when the outing ends\.?/i,
+        clock,
+      );
+      if (updatedText !== currentText) statusElement.textContent = updatedText;
+    } catch (error) {
+      console.warn("Expedition status refresh failed", error);
+    } finally {
+      expeditionStatusRefreshInFlight = false;
     }
   }
 
@@ -1184,6 +1772,7 @@
     renderDrifterSelection();
     showLoading(false);
     window.__DD_BROWSER_READY__ = true;
+    window.setInterval(refreshExpeditionStatus, 1000);
   }
 
   $("start").addEventListener("click", async function () {

@@ -3,6 +3,9 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from app.combat.move import (
+    DamageComponent,
+    DamageComponentIdentity,
+    DamageDefenseClass,
     DamageType,
     Move,
     MoveKind,
@@ -166,3 +169,62 @@ def test_string_fields_and_enum_validation():
         create_move(target="all")
     with pytest.raises(ValueError):
         create_move(damage_type="fire")
+
+
+def test_damage_component_preserves_identity_and_uses_existing_defense_class():
+    component = DamageComponent(
+        identity="elemental",
+        subtype="lightning",
+        defense_class="magical",
+        power=12,
+        scales_with=(ScalingAttribute.INTELLIGENCE,),
+    )
+
+    assert component.identity is DamageComponentIdentity.ELEMENTAL
+    assert component.subtype == "lightning"
+    assert component.defense_class is DamageDefenseClass.MAGICAL
+    assert component.power == 12
+
+
+def test_damage_component_and_split_move_shapes_are_validated():
+    physical = DamageComponent(
+        identity=DamageComponentIdentity.PHYSICAL,
+        defense_class=DamageDefenseClass.PHYSICAL,
+        power=12,
+        scales_with=(ScalingAttribute.STRENGTH,),
+    )
+    lightning = DamageComponent(
+        identity=DamageComponentIdentity.ELEMENTAL,
+        subtype="lightning",
+        defense_class=DamageDefenseClass.MAGICAL,
+        power=12,
+        scales_with=(ScalingAttribute.INTELLIGENCE,),
+    )
+    move = create_move(
+        power=24,
+        damage_type=DamageType.NONE,
+        damage_components=(physical, lightning),
+    )
+
+    assert move.damage_components == (physical, lightning)
+
+    with pytest.raises(ValueError):
+        DamageComponent(
+            identity="fire",
+            defense_class=DamageDefenseClass.MAGICAL,
+            power=12,
+            scales_with=(ScalingAttribute.INTELLIGENCE,),
+        )
+    with pytest.raises(ValueError):
+        DamageComponent(
+            identity=DamageComponentIdentity.ALCHEMICAL,
+            defense_class=DamageDefenseClass.PHYSICAL,
+            power=0,
+            scales_with=(ScalingAttribute.INTUITION,),
+        )
+    with pytest.raises(ValueError):
+        create_move(
+            power=23,
+            damage_type=DamageType.NONE,
+            damage_components=(physical, lightning),
+        )

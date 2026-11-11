@@ -25,6 +25,7 @@ from app.persistence.ports import (
 )
 from app.ui.battle_ui import (
     ChooseAction,
+    ChooseHealingTarget,
     ChooseInventoryCommand,
     ChooseInventoryCompanion,
     ChooseInventoryItem,
@@ -34,14 +35,29 @@ from app.ui.battle_ui import (
     GoBack,
 )
 from app.ui.overworld_ui import (
+    ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseHubSupplyAction,
+    ChooseAlchemyRecipe,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
     ChooseOverworldAction,
+    ChooseOverworldHealingTarget,
     ChooseOverworldItem,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
@@ -200,12 +216,43 @@ def _command_to_input(command):
         return ChooseOverworldAction(_required(command, "action"))
     if kind == "overworld_item":
         return ChooseOverworldItem(_required(command, "selection_key"))
+    if kind == "overworld_healing_target":
+        return ChooseOverworldHealingTarget(_required(command, "drifter_id"))
     if kind == "companion":
-        return ChooseCompanion(_required(command, "drifter_id"))
+        return ChooseCompanion(
+            _required(command, "drifter_id"),
+            _required(command, "event_id"),
+        )
+    if kind == "floor_two_boss_helper":
+        return ChooseFloorTwoBossHelper(_required(command, "drifter_id"))
+    if kind == "active_pair":
+        return ChooseActivePair(tuple(_required(command, "drifter_ids")))
+    if kind == "discovery_searcher":
+        return ChooseDiscoverySearcher(_required(command, "drifter_id"))
+    if kind == "discovery_target":
+        return ChooseDiscoveryTarget(_required(command, "drifter_id"))
+    if kind == "expedition_plan":
+        return ChooseExpeditionPlan(
+            _required(command, "destination_floor_id"),
+            _required(command, "category"),
+        )
+    if kind == "expedition_report":
+        return ChooseExpeditionReport(_required(command, "report_id"))
     if kind == "character_target":
         return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":
         return ChoosePermanentStatIncrease(_required(command, "stat_name"))
+    if kind == "advancement_purchase":
+        return ChooseAdvancementPurchase(
+            _required(command, "drifter_id"),
+            _required(command, "skill_id"),
+        )
+    if kind == "advancement_equip":
+        return ChooseAdvancementEquip(
+            _required(command, "drifter_id"),
+            _required(command, "move_id"),
+            _required(command, "slot"),
+        )
     if kind == "merchant_target":
         return ChooseMerchantTarget(_required(command, "drifter_id"))
     if kind == "merchant_improve":
@@ -226,14 +273,34 @@ def _command_to_input(command):
         )
     if kind == "merchant_tier_v":
         return ChooseMerchantTierV(_required(command, "target_drifter_id"))
+    if kind == "hub_supply":
+        return ChooseHubSupplyAction(
+            _required(command, "operation"),
+            _required(command, "item_id"),
+        )
+    if kind == "alchemy_recipe":
+        return ChooseAlchemyRecipe(_required(command, "recipe_id"))
     if kind == "weapon_target":
         return ChooseWeaponTarget(_required(command, "drifter_id"))
+    if kind == "equipment_instance":
+        return ChooseEquipmentInstance(_required(command, "instance_id"))
+    if kind == "equipment_action":
+        return ChooseEquipmentAction(
+            _required(command, "target_drifter_id"),
+            _required(command, "equipment_instance_id"),
+            EquipmentOperation(_required(command, "operation")),
+            command.get("modifier_instance_id"),
+        )
+    if kind == "equipment_confirmation":
+        return ChooseEquipmentConfirmation(_required(command, "confirmed"))
     if kind == "action":
         return ChooseAction(_required(command, "intent"))
     if kind == "move":
         return ChooseMove(_required(command, "key"))
     if kind == "target":
         return ChooseTarget(_required(command, "target_id"))
+    if kind == "healing_target":
+        return ChooseHealingTarget(_required(command, "target_id"))
     if kind == "inventory_item":
         return ChooseInventoryItem(_required(command, "item_id"))
     if kind == "inventory_command":
@@ -309,6 +376,11 @@ class BrowserRuntime:
     def current_view_json(self):
         return json.dumps(self.current_view(), separators=(",", ":"))
 
+    def current_expedition_clock_text(self):
+        if self._session is None:
+            raise RuntimeError("browser runtime has not started")
+        return self._session.current_expedition_clock_text()
+
     def submit(self, command):
         if self._session is None:
             raise RuntimeError("browser runtime has not started")
@@ -330,6 +402,10 @@ def start_game(drifter_id="branoc"):
 
 def current_view():
     return _runtime.current_view()
+
+
+def current_expedition_clock_text():
+    return _runtime.current_expedition_clock_text()
 
 
 def submit(command):

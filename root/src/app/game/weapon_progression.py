@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import app.randomness as random
 from app.iteration import first_or_none
-from app.content.catalog import get_drifter_spec_by_choice, get_weapon_spec
+from app.content.catalog import get_weapon_spec
 from app.content.weapon_progression_spec import (
     QUALITY_GATES,
     TIER_V_ATTEMPT_SPEC,
@@ -205,15 +205,10 @@ class WeaponProgressionService:
         party = self._game_state.party_state
         if party.phase not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
             raise ValueError("weapon progression is only available at the Hub")
-        members = (self._game_state.player_state,) + party.companions
-        for member in members:
-            profile = member.character.profile
-            if profile is None:
-                continue
-            spec = get_drifter_spec_by_choice(profile.choice)
-            if spec.drifter_id == target_drifter_id:
-                return member
-        raise ValueError("target Drifter is not in the current party")
+        try:
+            return self._game_state.member_for_drifter_id(target_drifter_id)
+        except ValueError as error:
+            raise ValueError("target Drifter is not in the current party") from error
 
     def _tier_is_unlocked(self, state, gate):
         return (

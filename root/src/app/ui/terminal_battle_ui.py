@@ -18,6 +18,7 @@ from app.ui.battle_ui import (
     ChooseInventoryCommand,
     ChooseInventoryCompanion,
     ChooseInventoryItem,
+    ChooseHealingTarget,
     ChooseMove,
     ChooseTarget,
     ConfirmInventoryUse,
@@ -34,6 +35,7 @@ class TerminalBattleUI:
         ActionIntent.DEFEND: "D",
         ActionIntent.HEAL: "H",
         ActionIntent.ITEMS: "I",
+        ActionIntent.HEALING_POTION: "P",
         ActionIntent.ESCAPE: "E",
         ActionIntent.SUPER: "S",
     }
@@ -109,6 +111,11 @@ class TerminalBattleUI:
             return GoBack()
         if view.interaction_phase == InteractionPhase.TARGETS:
             return self._translate_target(view, choice)
+        if view.interaction_phase == InteractionPhase.HEALING_TARGETS:
+            for option in view.healing_target_options:
+                if choice in (str(option.number), option.display_label.lower(), option.target_id):
+                    return ChooseHealingTarget(option.target_id)
+            return None
         if view.interaction_phase == InteractionPhase.INVENTORY:
             return self._translate_inventory_item(view, choice)
         if view.interaction_phase == InteractionPhase.INVENTORY_ITEM:
@@ -287,6 +294,8 @@ class TerminalBattleUI:
                 + separator
                 + self._fit(right, right_width)
             )
+        if view.expedition_status is not None:
+            rows.insert(0, self._fit(view.expedition_status, width))
         return tuple(rows)
 
     @classmethod
@@ -406,6 +415,16 @@ class TerminalBattleUI:
                         f"{preview.name} [{tags}] - {preview.rules_summary}",
                         max(20, width - 3),
                     )
+                )
+            lines.append("0. Back")
+            return tuple(lines)
+
+        if view.interaction_phase == InteractionPhase.HEALING_TARGETS:
+            lines = ["Use Healing Potion on:"]
+            for option in view.healing_target_options:
+                lines.append(
+                    f"{option.number}. {option.display_label} - "
+                    f"HP {option.hp_current}/{option.hp_maximum}"
                 )
             lines.append("0. Back")
             return tuple(lines)
@@ -581,6 +600,12 @@ class TerminalBattleUI:
                 lines.append("That inventory action is not available.")
         elif entry.event_type == BattleEventType.STATUS:
             pass
+        elif entry.event_type == BattleEventType.HAZARD_WARNING:
+            lines.append(entry.reason or "A hazard is imminent.")
+        elif entry.event_type == BattleEventType.HAZARD_DAMAGE:
+            lines.append(
+                f"Falling stone struck {target} for {entry.amount} damage."
+            )
         elif entry.event_type == BattleEventType.ACTION_REJECTED:
             target_context = self._target_context(actor, entry.target_name)
             lines.append(

@@ -5,11 +5,15 @@ __all__ = [
     "ENEMY_SPECS",
     "ENCOUNTER_SPECS",
     "DRIFTER_SPECS",
+    "RECRUITMENT_EVENT_SPECS",
+    "PERMANENT_DISCOVERY_SOURCES",
     "ClassMechanicSpec",
     "DrifterSpec",
     "DrifterStatSpec",
     "EncounterSpec",
     "EnemySpec",
+    "EnemyTierSpec",
+    "ItemDropSpec",
     "StatBlockSpec",
     "RouteNodeKind",
     "RouteNodeSpec",
@@ -26,9 +30,15 @@ __all__ = [
     "get_encounter_spec",
     "get_encounter_rewards",
     "get_encounter_item_rewards",
+    "get_encounter_item_drop_tables",
     "get_inspectable_encounter_spec",
     "get_inspectable_route_node_spec",
     "get_drifter_spec",
+    "get_recruitment_event",
+    "get_permanent_discovery_source",
+    "get_known_permanent_discovery_source",
+    "get_permanent_discovery_search_node_id",
+    "is_known_floor_two_route_node_id",
     "get_drifter_spec_by_choice",
     "get_route_spec",
     "get_route_node_spec",
@@ -39,10 +49,20 @@ __all__ = [
 
 
 def __getattr__(name):
-    if name in {"EnemySpec", "StatBlockSpec"}:
-        from app.content.enemy_spec import EnemySpec, StatBlockSpec
+    if name in {"EnemySpec", "EnemyTierSpec", "ItemDropSpec", "StatBlockSpec"}:
+        from app.content.enemy_spec import (
+            EnemySpec,
+            EnemyTierSpec,
+            ItemDropSpec,
+            StatBlockSpec,
+        )
 
-        return {"EnemySpec": EnemySpec, "StatBlockSpec": StatBlockSpec}[name]
+        return {
+            "EnemySpec": EnemySpec,
+            "EnemyTierSpec": EnemyTierSpec,
+            "ItemDropSpec": ItemDropSpec,
+            "StatBlockSpec": StatBlockSpec,
+        }[name]
     if name == "WeaponSpec":
         from app.content.weapon_spec import WeaponSpec
 
@@ -75,6 +95,8 @@ def __getattr__(name):
         "ENEMY_SPECS",
         "ENCOUNTER_SPECS",
         "DRIFTER_SPECS",
+        "RECRUITMENT_EVENT_SPECS",
+        "PERMANENT_DISCOVERY_SOURCES",
         "ROUTE_SPECS",
         "WEAPON_SPECS",
         "create_enemy_definition",
@@ -86,9 +108,15 @@ def __getattr__(name):
         "get_encounter_spec",
         "get_encounter_rewards",
         "get_encounter_item_rewards",
+        "get_encounter_item_drop_tables",
         "get_inspectable_encounter_spec",
         "get_inspectable_route_node_spec",
         "get_drifter_spec",
+        "get_recruitment_event",
+        "get_permanent_discovery_source",
+        "get_known_permanent_discovery_source",
+        "get_permanent_discovery_search_node_id",
+        "is_known_floor_two_route_node_id",
         "get_drifter_spec_by_choice",
         "get_route_spec",
         "get_route_node_spec",

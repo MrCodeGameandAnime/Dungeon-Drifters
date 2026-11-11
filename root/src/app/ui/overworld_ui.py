@@ -1,6 +1,7 @@
 """Semantic overworld input values and UI protocol."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol, TypeAlias, Union, runtime_checkable
 
 from app.presentation.overworld_models import OverworldAction, OverworldView
@@ -25,6 +26,15 @@ class ChooseOverworldItem:
 
 
 @dataclass(frozen=True)
+class ChooseOverworldHealingTarget:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChoosePermanentStatIncrease:
     stat_name: str
 
@@ -34,12 +44,104 @@ class ChoosePermanentStatIncrease:
 
 
 @dataclass(frozen=True)
+class ChooseAdvancementPurchase:
+    drifter_id: str
+    skill_id: str
+
+    def __post_init__(self):
+        for name in ("drifter_id", "skill_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseAdvancementEquip:
+    drifter_id: str
+    move_id: str
+    slot: int
+
+    def __post_init__(self):
+        for name in ("drifter_id", "move_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int):
+            raise TypeError("slot must be an integer")
+        if not 0 <= self.slot < 4:
+            raise ValueError("normal move slot must be between 0 and 3")
+
+
+@dataclass(frozen=True)
 class ChooseCompanion:
+    drifter_id: str
+    event_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+        if not isinstance(self.event_id, str) or not self.event_id.strip():
+            raise ValueError("event_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseFloorTwoBossHelper:
     drifter_id: str
 
     def __post_init__(self):
         if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
             raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseActivePair:
+    drifter_ids: tuple[str, str]
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_ids, tuple) or len(self.drifter_ids) != 2:
+            raise ValueError("drifter_ids must contain exactly two IDs")
+        for drifter_id in self.drifter_ids:
+            if not isinstance(drifter_id, str) or not drifter_id.strip():
+                raise ValueError("drifter IDs must be nonempty strings")
+
+
+@dataclass(frozen=True)
+class ChooseDiscoverySearcher:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseDiscoveryTarget:
+    drifter_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
+            raise ValueError("drifter_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseExpeditionPlan:
+    destination_floor_id: str
+    category: str
+
+    def __post_init__(self):
+        for name in ("destination_floor_id", "category"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseExpeditionReport:
+    report_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.report_id, str) or not self.report_id.strip():
+            raise ValueError("report_id must be a nonempty string")
 
 
 @dataclass(frozen=True)
@@ -49,6 +151,33 @@ class ChooseMerchantTarget:
     def __post_init__(self):
         if not isinstance(self.drifter_id, str) or not self.drifter_id.strip():
             raise ValueError("drifter_id must be a nonempty string")
+
+
+class HubSupplyOperation(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+    LOAD = "load"
+    UNLOAD = "unload"
+
+
+@dataclass(frozen=True)
+class ChooseHubSupplyAction:
+    operation: HubSupplyOperation
+    item_id: str
+
+    def __post_init__(self):
+        object.__setattr__(self, "operation", HubSupplyOperation(self.operation))
+        if not isinstance(self.item_id, str) or not self.item_id.strip():
+            raise ValueError("item_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseAlchemyRecipe:
+    recipe_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.recipe_id, str) or not self.recipe_id.strip():
+            raise ValueError("recipe_id must be a nonempty string")
 
 
 @dataclass(frozen=True)
@@ -119,18 +248,84 @@ class ChooseWeaponTarget:
             raise ValueError("drifter_id must be a nonempty string")
 
 
+class EquipmentOperation(StrEnum):
+    EQUIP = "equip"
+    UPGRADE = "upgrade"
+    ADVANCE_RARITY = "advance_rarity"
+    EXTRACT = "extract"
+    AFFIX = "affix"
+    SELL = "sell"
+    DISMANTLE = "dismantle"
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentInstance:
+    instance_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.instance_id, str) or not self.instance_id.strip():
+            raise ValueError("instance_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentAction:
+    target_drifter_id: str
+    equipment_instance_id: str
+    operation: EquipmentOperation
+    modifier_instance_id: str | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "operation", EquipmentOperation(self.operation))
+        for name in ("target_drifter_id", "equipment_instance_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        if self.modifier_instance_id is not None and (
+            not isinstance(self.modifier_instance_id, str)
+            or not self.modifier_instance_id.strip()
+        ):
+            raise ValueError("modifier_instance_id must be nonempty when provided")
+        if (self.operation is EquipmentOperation.AFFIX) != (
+            self.modifier_instance_id is not None
+        ):
+            raise ValueError("only affix actions require a modifier instance")
+
+
+@dataclass(frozen=True)
+class ChooseEquipmentConfirmation:
+    confirmed: bool
+
+    def __post_init__(self):
+        if not isinstance(self.confirmed, bool):
+            raise TypeError("confirmed must be a boolean")
+
+
 OverworldInput: TypeAlias = Union[
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChooseOverworldHealingTarget,
     ChoosePermanentStatIncrease,
+    ChooseAdvancementPurchase,
+    ChooseAdvancementEquip,
     ChooseCompanion,
+    ChooseFloorTwoBossHelper,
+    ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
     ChooseCharacterTarget,
     ChooseMerchantTarget,
+    ChooseHubSupplyAction,
+    ChooseAlchemyRecipe,
     ChooseMerchantImprove,
     ChooseMerchantDismantle,
     ChooseMerchantCraftComponent,
     ChooseMerchantTierV,
     ChooseWeaponTarget,
+    ChooseEquipmentInstance,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
 ]
 
 

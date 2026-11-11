@@ -17,6 +17,10 @@ def current_view_json():
     return _json(dd_bridge.current_view())
 
 
+def current_expedition_clock_text_json():
+    return _json(dd_bridge.current_expedition_clock_text())
+
+
 def submit_json(command_json):
     return _json(dd_bridge.submit(json.loads(command_json)))
 

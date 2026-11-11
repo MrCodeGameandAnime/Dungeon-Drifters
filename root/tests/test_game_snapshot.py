@@ -20,7 +20,7 @@ def test_all_surface_completion_ids_round_trip_in_world_snapshot():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == expected
-    assert snapshot["schema_version"] == 11
+    assert snapshot["schema_version"] == 24
     assert snapshot["world"]["defeated_encounters"] == list(expected)
     assert "defeated_encounters" not in snapshot["overworld"]
 
@@ -57,7 +57,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 11
+    assert snapshot["schema_version"] == 24
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -65,10 +65,20 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "world",
         "overworld",
         "party",
+        "expedition",
         "metadata",
+    }
+    assert snapshot["expedition"] == {
+        "energy": 100,
+        "energy_anchor_utc": None,
+        "active_assignment": None,
+        "reports": [],
     }
     assert snapshot["party"] == {
         "companions": [],
+        "equipment_instances": [],
+        "modifier_instances": [],
+        "active_drifter_ids": [],
         "shared_gold": 0,
         "shared_items": {},
         "tutorial_complete": False,
@@ -78,6 +88,16 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "floor_one_runs_started_after_clear": 0,
         "outing_xp_multiplier_percent": 100,
         "crafting_experience": 0,
+        "carried_items": {},
+        "floor_two_cleared": False,
+        "floor_two_runs_started_after_clear": 0,
+        "floor_two_run_id": None,
+        "floor_two_outing_xp_multiplier_percent": 100,
+        "resolved_run_events": [],
+        "floor_three_cleared": False,
+        "floor_three_runs_started_after_clear": 0,
+        "floor_three_run_id": None,
+        "floor_three_outing_xp_multiplier_percent": 100,
     }
     assert snapshot["player"]["gold"] == 12
     assert snapshot["player"]["resources"]["super"] == {
@@ -87,6 +107,13 @@ def test_game_snapshot_has_required_shape_and_schema_version():
     assert snapshot["metadata"] == {"run_id": "test-run"}
     assert snapshot["overworld"]["current_route_node_id"] == "surface_goblin_solo"
     assert_strict_json(snapshot)
+
+
+def test_runtime_snapshot_keeps_active_pair_separate_from_roster():
+    game = hub_game()
+    snapshot = game.snapshot()
+
+    assert snapshot["party"]["active_drifter_ids"] == ["branoc"]
 
 
 def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():
@@ -109,6 +136,8 @@ def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():
         "opened_objects": ["old_chest"],
         "consumed_objects": ["campfire"],
         "dungeon_changes": {"first_gate": "open"},
+        "permanent_discovery_claims": [],
+        "discovered_permanent_discovery_sources": [],
     }
     assert_strict_json(snapshot)
 

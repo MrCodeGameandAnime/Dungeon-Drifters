@@ -3,7 +3,9 @@
 from app.game.story_state import StoryState
 from app.game.overworld_state import OverworldState
 from app.game.party_state import PartyState
+from app.game.party_state import DungeonPhase
 from app.game.world_state import WorldState
+from app.game.expedition_state import ExpeditionState
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value
 
@@ -18,6 +20,10 @@ class GameState:
         self._world_state = WorldState()
         self._overworld_state = OverworldState()
         self._party_state = PartyState()
+        self._expedition_state = ExpeditionState()
+        drifter_id = _canonical_drifter_id(player_state)
+        if drifter_id is not None:
+            self._party_state._set_active_drifter_ids((drifter_id,))
         self._metadata = {}
 
     @property
@@ -41,6 +47,65 @@ class GameState:
         return self._party_state
 
     @property
+    def expedition_state(self):
+        return self._expedition_state
+
+    @property
+    def recruited_members(self):
+        members = (self.player_state,) + self.party_state.companions
+        drifter_ids = tuple(
+            _canonical_drifter_id(member)
+            for member in members
+        )
+        if any(drifter_id is None for drifter_id in drifter_ids):
+            raise ValueError("recruited members must have canonical Drifter profiles")
+        if len(drifter_ids) != len(set(drifter_ids)):
+            raise ValueError("recruited Drifter IDs must be unique")
+        return members
+
+    def member_for_drifter_id(self, drifter_id):
+        if not isinstance(drifter_id, str) or not drifter_id:
+            raise ValueError("drifter_id must be a canonical Drifter ID")
+        members = (self.player_state,) + self.party_state.companions
+        for member in members:
+            if _canonical_drifter_id(member) == drifter_id:
+                return member
+        raise ValueError(f"Drifter is not recruited: {drifter_id}")
+
+    @property
+    def active_party_members(self):
+        return tuple(
+            self.member_for_drifter_id(drifter_id)
+            for drifter_id in self.party_state.active_drifter_ids
+        )
+
+    @property
+    def floor_two_boss_settlement_pending(self):
+        return (
+            self.overworld_state.active_route_id == "floor_two"
+            and self.overworld_state.current_route_node_id == "floor_two_battle_10"
+            and self.party_state.phase is DungeonPhase.OUTING
+            and self.party_state.floor_two_boss_reward_committed
+        )
+
+    @property
+    def floor_three_boss_settlement_pending(self):
+        return (
+            self.overworld_state.active_route_id == "floor_three"
+            and self.overworld_state.current_route_node_id == "floor_three_battle_10"
+            and self.party_state.phase is DungeonPhase.OUTING
+            and self.party_state.floor_three_boss_reward_committed
+        )
+
+    @property
+    def members_available_to_party(self):
+        if self.party_state.phase in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}:
+            return self.recruited_members
+        if self.party_state.phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
+            return self.active_party_members
+        return (self.player_state,)
+
+    @property
     def metadata(self):
         return dict(self._metadata)
 
@@ -55,6 +120,7 @@ class GameState:
         party = PartyState.from_snapshot(
             self.party_state.snapshot(),
             companions=companions,
+            active_drifter_ids=self.party_state.active_drifter_ids,
         )
         return self.from_persistent_parts(
             player,
@@ -63,6 +129,7 @@ class GameState:
             OverworldState.from_snapshot(self.overworld_state.snapshot()),
             to_plain_value(self.metadata, "game.metadata"),
             party,
+            self.expedition_state.clone(),
         )
 
     @classmethod
@@ -74,6 +141,7 @@ class GameState:
         overworld_state,
         metadata,
         party_state=None,
+        expedition_state=None,
     ):
         game_state = cls(player_state)
         game_state._story_state = story_state
@@ -81,8 +149,69 @@ class GameState:
         game_state._overworld_state = overworld_state
         if party_state is not None:
             game_state._party_state = party_state
+            if not party_state.active_drifter_ids:
+                default_active_ids = [_canonical_drifter_id(player_state)]
+                if party_state.companions:
+                    default_active_ids.append(
+                        _canonical_drifter_id(party_state.companions[0])
+                    )
+                default_active_ids = tuple(
+                    drifter_id
+                    for drifter_id in default_active_ids
+                    if drifter_id is not None
+                )
+                if default_active_ids:
+                    party_state._set_active_drifter_ids(default_active_ids)
+            game_state._validate_active_membership()
+        game_state._bind_equipment_state()
         game_state._metadata = dict(metadata)
+        if expedition_state is not None:
+            if not isinstance(expedition_state, ExpeditionState):
+                raise TypeError("expedition_state must be an ExpeditionState")
+            game_state._expedition_state = expedition_state
         return game_state
+
+    def _bind_equipment_state(self):
+        instances = {
+            instance.instance_id: instance
+            for instance in self.party_state.equipment_instances
+        }
+        if len(instances) != len(self.party_state.equipment_instances):
+            raise ValueError("equipment instance IDs must be unique")
+        referenced = set()
+        members = (self.player_state,) + self.party_state.companions
+        for member in members:
+            bonuses = {}
+            combat_effects = []
+            for slot_id, instance_id in member.equipped_equipment_ids.items():
+                if instance_id is None:
+                    continue
+                instance = instances.get(instance_id)
+                if instance is None:
+                    raise ValueError("equipped equipment reference is not owned by the party")
+                if instance_id in referenced:
+                    raise ValueError("equipment instance cannot be equipped more than once")
+                if instance.slot_id != slot_id:
+                    raise ValueError("equipped equipment does not match its slot")
+                referenced.add(instance_id)
+                for stat_name, value in instance.stat_bonuses.items():
+                    bonuses[stat_name] = bonuses.get(stat_name, 0) + value
+                combat_effects.extend(instance.combat_effects)
+            member._set_equipment_stat_bonuses(bonuses)
+            member._set_equipment_combat_effects(tuple(combat_effects))
+
+    def _validate_active_membership(self):
+        member_ids = tuple(
+            _canonical_drifter_id(member) for member in self.recruited_members
+        )
+        active_ids = self.party_state.active_drifter_ids
+        expected_active_count = 2 if self.party_state.companions else 1
+        if len(active_ids) != expected_active_count:
+            raise ValueError("active party size disagrees with the recruited roster")
+        if any(
+            drifter_id not in member_ids for drifter_id in active_ids
+        ):
+            raise ValueError("active Drifter IDs must refer to recruited members")
 
     def snapshot(self):
         return to_plain_value(
@@ -93,7 +222,13 @@ class GameState:
                 "world": self.world_state.snapshot(),
                 "overworld": self.overworld_state.snapshot(),
                 "party": self.party_state.snapshot(),
+                "expedition": self.expedition_state.snapshot(),
                 "metadata": self.metadata,
             },
             "game",
         )
+
+
+def _canonical_drifter_id(player_state):
+    profile = player_state.character.profile
+    return getattr(profile, "drifter_id", None)

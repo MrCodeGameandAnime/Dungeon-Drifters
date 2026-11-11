@@ -194,6 +194,7 @@ def test_all_drifters_round_trip_complete_persistent_session(profile, tmp_path):
         "_world_state",
         "_overworld_state",
         "_party_state",
+        "_expedition_state",
         "_metadata",
     }
     assert all(

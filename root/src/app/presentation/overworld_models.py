@@ -9,16 +9,27 @@ class OverworldScreen(StrEnum):
     HUB = "hub"
     FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
+    FLOOR_TWO_HELPER_SELECTION = "floor_two_helper_selection"
+    PARTY_SELECTION = "party_selection"
     PARTY_READY = "party_ready"
     OUTING = "outing"
     EXTRACTION = "extraction"
     CHARACTER = "character"
     SKILLS = "skills"
+    RESPEC_CONFIRMATION = "respec_confirmation"
+    EQUIPMENT_CONFIRMATION = "equipment_confirmation"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
+    HEALING_TARGETS = "healing_targets"
+    DISCOVERY_SEARCHERS = "discovery_searchers"
+    DISCOVERY_TARGETS = "discovery_targets"
+    DISCOVERY_CONFIRMATION = "discovery_confirmation"
+    EXPEDITIONS = "expeditions"
+    EXPEDITION_SETUP = "expedition_setup"
+    EXPEDITION_CONFIRMATION = "expedition_confirmation"
     MAP = "map"
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
@@ -33,6 +44,7 @@ class OverworldAction(StrEnum):
     MAP = "map"
     OPTIONS = "options"
     SKILLS = "skills"
+    RESPEC = "respec"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
@@ -51,11 +63,24 @@ class OverworldAction(StrEnum):
     SKIP_REST = "skip_rest"
     MENU = "menu"
     RECRUIT_COMPANION = "recruit_companion"
+    CHOOSE_FLOOR_TWO_HELPER = "choose_floor_two_helper"
+    SELECT_PARTY = "select_party"
     READY = "ready"
     RETURN_TO_HUB = "return_to_hub"
     START_FLOOR_ONE = "start_floor_one"
+    START_FLOOR_TWO = "start_floor_two"
+    FINALIZE_FLOOR_TWO_CLEAR = "finalize_floor_two_clear"
+    START_FLOOR_THREE = "start_floor_three"
+    FINALIZE_FLOOR_THREE_CLEAR = "finalize_floor_three_clear"
     SET_OUT = "set_out"
     EXTRACT = "extract"
+    RETURN_WITH_TALISMAN = "return_with_talisman"
+    SEARCH_SITE = "search_site"
+    CLAIM_DISCOVERY = "claim_discovery"
+    EXPEDITIONS = "expeditions"
+    START_EXPEDITION = "start_expedition"
+    PREPARE_EXPEDITION_FLOOR_ONE = "prepare_expedition_floor_one"
+    PREPARE_EXPEDITION_FLOOR_TWO = "prepare_expedition_floor_two"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -69,10 +94,16 @@ class OverworldAvailabilityReason(StrEnum):
     SAVE_UNAVAILABLE = "save_unavailable"
     LOAD_UNAVAILABLE = "load_unavailable"
     INSUFFICIENT_SHARED_GOLD = "insufficient_shared_gold"
+    FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER = (
+        "floor_two_replay_requires_available_helper"
+    )
+    FLOOR_THREE_REQUIRES_FULL_ROSTER = "floor_three_requires_full_roster"
+    INSUFFICIENT_EXPEDITION_ENERGY = "insufficient_expedition_energy"
 
 
 @dataclass(frozen=True)
 class CompanionChoiceView:
+    event_id: str
     drifter_id: str
     display_name: str
     archetype_label: str
@@ -82,7 +113,13 @@ class CompanionChoiceView:
     disabled_reason: OverworldAvailabilityReason | None = None
 
     def __post_init__(self):
-        for name in ("drifter_id", "display_name", "archetype_label", "summary"):
+        for name in (
+            "event_id",
+            "drifter_id",
+            "display_name",
+            "archetype_label",
+            "summary",
+        ):
             _validate_text(name, getattr(self, name))
         _validate_nonnegative("cost", self.cost)
         _validate_bool("enabled", self.enabled)
@@ -94,6 +131,135 @@ class CompanionChoiceView:
             )
         if self.enabled == (self.disabled_reason is not None):
             raise ValueError("companion availability and disabled reason disagree")
+
+
+@dataclass(frozen=True)
+class PartyPairChoiceView:
+    drifter_ids: tuple[str, str]
+    display_names: tuple[str, str]
+    selected: bool
+
+    def __post_init__(self):
+        if not isinstance(self.drifter_ids, tuple) or len(self.drifter_ids) != 2:
+            raise ValueError("a party choice must contain exactly two Drifters")
+        if len(set(self.drifter_ids)) != 2:
+            raise ValueError("a party choice must contain distinct Drifters")
+        if not isinstance(self.display_names, tuple) or len(self.display_names) != 2:
+            raise ValueError("a party choice must contain two display names")
+        for value in self.drifter_ids + self.display_names:
+            _validate_text("party choice value", value)
+        _validate_bool("selected", self.selected)
+
+
+@dataclass(frozen=True)
+class DiscoveryDrifterChoiceView:
+    drifter_id: str
+    display_name: str
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+
+
+@dataclass(frozen=True)
+class ExpeditionChoiceView:
+    destination_floor_id: str
+    destination_floor_label: str
+    category: str
+    category_label: str
+    enabled: bool
+    disabled_reason: str | None = None
+
+    def __post_init__(self):
+        for name in (
+            "destination_floor_id",
+            "destination_floor_label",
+            "category",
+            "category_label",
+        ):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("enabled", self.enabled)
+        if self.disabled_reason is not None:
+            _validate_text("disabled_reason", self.disabled_reason)
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("expedition choice availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class ExpeditionReportView:
+    report_id: str
+    destination_floor_label: str
+    category_label: str
+    reward_summary: str
+    claimed: bool
+
+    def __post_init__(self):
+        for name in (
+            "report_id",
+            "destination_floor_label",
+            "category_label",
+            "reward_summary",
+        ):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("claimed", self.claimed)
+
+
+@dataclass(frozen=True)
+class ExpeditionStatusView:
+    destination_floor_label: str
+    category_label: str
+    expedition_member_names: tuple[str, str]
+    remaining_seconds: int
+
+    def __post_init__(self):
+        _validate_text("destination_floor_label", self.destination_floor_label)
+        _validate_text("category_label", self.category_label)
+        if not isinstance(self.expedition_member_names, tuple) or len(
+            self.expedition_member_names
+        ) != 2:
+            raise ValueError("expedition status requires its two Drifters")
+        _validate_text_tuple("expedition_member_names", self.expedition_member_names)
+        _validate_nonnegative("remaining_seconds", self.remaining_seconds)
+
+
+@dataclass(frozen=True)
+class ExpeditionConfirmationView:
+    destination_floor_label: str
+    outing_floor_label: str
+    category_label: str
+    expedition_member_names: tuple[str, str]
+    energy_cost: int
+    current_energy: int
+
+    def __post_init__(self):
+        for name in (
+            "destination_floor_label",
+            "outing_floor_label",
+            "category_label",
+        ):
+            _validate_text(name, getattr(self, name))
+        if not isinstance(self.expedition_member_names, tuple) or len(
+            self.expedition_member_names
+        ) != 2:
+            raise ValueError("expedition confirmation requires two Drifters")
+        _validate_text_tuple("expedition_member_names", self.expedition_member_names)
+        _validate_nonnegative("energy_cost", self.energy_cost)
+        _validate_nonnegative("current_energy", self.current_energy)
+
+
+@dataclass(frozen=True)
+class TemporaryBossHelperChoiceView:
+    drifter_id: str
+    display_name: str
+    archetype_label: str
+    level: int
+
+    def __post_init__(self):
+        for name in ("drifter_id", "display_name", "archetype_label"):
+            _validate_text(name, getattr(self, name))
+        _validate_nonnegative("level", self.level)
+        if self.level < 1:
+            raise ValueError("helper level must be at least 1")
 
 
 class MapNodeState(StrEnum):
@@ -206,6 +372,7 @@ class SkillMoveView:
     resource_type: str | None = None
     resource_cost: int | None = None
     damage_type: str | None = None
+    move_id: str | None = None
 
     def __post_init__(self):
         _validate_text("name", self.name)
@@ -214,10 +381,51 @@ class SkillMoveView:
             value = getattr(self, name)
             if value is not None:
                 _validate_nonnegative(name, value)
-        for name in ("resource_type", "damage_type"):
+        for name in ("resource_type", "damage_type", "move_id"):
             value = getattr(self, name)
             if value is not None:
                 _validate_text(name, value)
+
+
+@dataclass(frozen=True)
+class AdvancementSkillOptionView:
+    skill_id: str
+    name: str
+    purpose: str
+    tier: int
+    kind: str
+    gp_cost: int
+    minimum_level: int
+    purchased: bool
+    unlocked: bool
+    can_purchase: bool
+    blocked_reason: str | None = None
+
+    def __post_init__(self):
+        for name in ("skill_id", "name", "purpose", "kind"):
+            _validate_text(name, getattr(self, name))
+        for name in ("tier", "gp_cost", "minimum_level"):
+            _validate_nonnegative(name, getattr(self, name))
+        for name in ("purchased", "unlocked", "can_purchase"):
+            _validate_bool(name, getattr(self, name))
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
+        if self.can_purchase and (self.purchased or self.blocked_reason is not None):
+            raise ValueError("available skill purchase has conflicting state")
+
+
+@dataclass(frozen=True)
+class SkillLoadoutSlotView:
+    slot: int
+    move: SkillMoveView
+
+    def __post_init__(self):
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int):
+            raise TypeError("slot must be an integer")
+        if self.slot < 0 or self.slot > 3:
+            raise ValueError("normal move slot must be between 0 and 3")
+        if not isinstance(self.move, SkillMoveView):
+            raise TypeError("move must be a SkillMoveView")
 
 
 @dataclass(frozen=True)
@@ -228,6 +436,10 @@ class SkillsView:
     moves: tuple[SkillMoveView, ...]
     targets: tuple = ()
     selected_target_id: str | None = None
+    advancement_options: tuple[AdvancementSkillOptionView, ...] = ()
+    loadout: tuple[SkillLoadoutSlotView, ...] = ()
+    available_moves: tuple[SkillMoveView, ...] = ()
+    respec_available: bool = False
 
     def __post_init__(self):
         if self.growth_points_available is not None:
@@ -238,9 +450,56 @@ class SkillsView:
         _validate_text("growth_message", self.growth_message)
         _validate_instance_tuple("stats", self.stats, StatRowView)
         _validate_instance_tuple("moves", self.moves, SkillMoveView)
+        _validate_instance_tuple(
+            "advancement_options",
+            self.advancement_options,
+            AdvancementSkillOptionView,
+        )
+        _validate_instance_tuple("loadout", self.loadout, SkillLoadoutSlotView)
+        _validate_instance_tuple("available_moves", self.available_moves, SkillMoveView)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_bool("respec_available", self.respec_available)
+        if self.loadout and len(self.loadout) != 4:
+            raise ValueError("normal move loadout must contain four slots")
         if self.targets:
             _validate_selected_target(self.targets, self.selected_target_id)
+
+
+@dataclass(frozen=True)
+class RespecPreviewView:
+    drifter_id: str
+    display_name: str
+    first_respec: bool
+    revision_parchment_cost: int
+    growth_points_refunded: int
+    current_growth_points: int
+    resulting_growth_points: int
+    removed_stat_points: tuple[tuple[str, int], ...]
+    removed_skills: tuple[str, ...]
+    resulting_stats: tuple[StatRowView, ...]
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("first_respec", self.first_respec)
+        for name in (
+            "revision_parchment_cost",
+            "growth_points_refunded",
+            "current_growth_points",
+            "resulting_growth_points",
+        ):
+            _validate_nonnegative(name, getattr(self, name))
+        _validate_text_tuple("removed_skills", self.removed_skills)
+        if not isinstance(self.removed_stat_points, tuple):
+            raise TypeError("removed_stat_points must be a tuple")
+        for item in self.removed_stat_points:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("removed stat points must be name/value pairs")
+            _validate_text("removed stat name", item[0])
+            _validate_nonnegative("removed stat points", item[1])
+            if item[1] == 0:
+                raise ValueError("removed stat points must be positive")
+        _validate_instance_tuple("resulting_stats", self.resulting_stats, StatRowView)
 
 
 @dataclass(frozen=True)
@@ -507,6 +766,68 @@ class MerchantView:
 
 
 @dataclass(frozen=True)
+class HubSupplyItemView:
+    item_id: str
+    display_name: str
+    description: str
+    base_price: int
+    stored_quantity: int
+    carried_quantity: int
+    shop_stocked: bool
+    sellable: bool
+    carryable: bool
+    can_buy: bool
+    can_sell: bool
+    can_load: bool
+    can_unload: bool
+
+    def __post_init__(self):
+        for name in ("item_id", "display_name", "description"):
+            _validate_text(name, getattr(self, name))
+        for name in ("base_price", "stored_quantity", "carried_quantity"):
+            _validate_nonnegative(name, getattr(self, name))
+        for name in (
+            "shop_stocked", "sellable", "carryable", "can_buy",
+            "can_sell", "can_load", "can_unload",
+        ):
+            _validate_bool(name, getattr(self, name))
+
+
+@dataclass(frozen=True)
+class HubAlchemyRecipeView:
+    recipe_id: str
+    display_name: str
+    ingredient_summary: tuple[str, ...]
+    output_summary: tuple[str, ...]
+    can_craft: bool
+
+    def __post_init__(self):
+        _validate_text("recipe_id", self.recipe_id)
+        _validate_text("display_name", self.display_name)
+        _validate_text_tuple("ingredient_summary", self.ingredient_summary)
+        _validate_text_tuple("output_summary", self.output_summary)
+        _validate_bool("can_craft", self.can_craft)
+
+
+@dataclass(frozen=True)
+class HubEconomyView:
+    shared_gold: int
+    carried_units: int
+    carried_capacity: int
+    items: tuple[HubSupplyItemView, ...]
+    recipes: tuple[HubAlchemyRecipeView, ...]
+
+    def __post_init__(self):
+        _validate_nonnegative("shared_gold", self.shared_gold)
+        _validate_nonnegative("carried_units", self.carried_units)
+        _validate_nonnegative("carried_capacity", self.carried_capacity)
+        if self.carried_units > self.carried_capacity:
+            raise ValueError("carried units exceed capacity")
+        _validate_instance_tuple("items", self.items, HubSupplyItemView)
+        _validate_instance_tuple("recipes", self.recipes, HubAlchemyRecipeView)
+
+
+@dataclass(frozen=True)
 class AccessorySlotView:
     label: str
     item_name: str
@@ -517,22 +838,108 @@ class AccessorySlotView:
 
 
 @dataclass(frozen=True)
+class EquipmentInstanceView:
+    instance_id: str
+    display_name: str
+    slot_id: str
+    category: str
+    rarity: str | None
+    upgrade_rank: int
+    secured: bool
+    stat_summary: tuple[str, ...]
+    modifier_summary: tuple[str, ...]
+    equipped_by_drifter_id: str | None
+    equipped_by_name: str | None
+
+    def __post_init__(self):
+        for name in ("instance_id", "display_name", "slot_id", "category"):
+            _validate_text(name, getattr(self, name))
+        if self.rarity is not None:
+            _validate_text("rarity", self.rarity)
+        _validate_nonnegative("upgrade_rank", self.upgrade_rank)
+        _validate_bool("secured", self.secured)
+        _validate_text_tuple("stat_summary", self.stat_summary)
+        _validate_text_tuple("modifier_summary", self.modifier_summary)
+        for name in ("equipped_by_drifter_id", "equipped_by_name"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
+        if (self.equipped_by_drifter_id is None) != (self.equipped_by_name is None):
+            raise ValueError("equipment owner ID and name must appear together")
+
+
+@dataclass(frozen=True)
+class EquipmentModifierView:
+    instance_id: str
+    display_name: str
+    grade: str
+    secured: bool
+
+    def __post_init__(self):
+        for name in ("instance_id", "display_name", "grade"):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("secured", self.secured)
+
+
+@dataclass(frozen=True)
+class EquipmentActionView:
+    operation: str
+    label: str
+    enabled: bool
+    disabled_reason: str | None = None
+    summary: str = ""
+    modifier_instance_id: str | None = None
+
+    def __post_init__(self):
+        for name in ("operation", "label", "summary"):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("enabled", self.enabled)
+        for name in ("disabled_reason", "modifier_instance_id"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_text(name, value)
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("equipment action availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class EquipmentConfirmationView:
+    title: str
+    details: tuple[str, ...]
+
+    def __post_init__(self):
+        _validate_text("title", self.title)
+        _validate_text_tuple("details", self.details)
+
+
+@dataclass(frozen=True)
 class EquipmentView:
-    necklace: AccessorySlotView
+    pendant: AccessorySlotView
     ring: AccessorySlotView
     benefits: tuple[str, ...]
     targets: tuple = ()
     selected_target_id: str | None = None
+    instances: tuple[EquipmentInstanceView, ...] = ()
+    selected_instance_id: str | None = None
+    modifiers: tuple[EquipmentModifierView, ...] = ()
+    actions: tuple[EquipmentActionView, ...] = ()
 
     def __post_init__(self):
-        if not isinstance(self.necklace, AccessorySlotView):
-            raise TypeError("necklace must be an AccessorySlotView")
+        if not isinstance(self.pendant, AccessorySlotView):
+            raise TypeError("pendant must be an AccessorySlotView")
         if not isinstance(self.ring, AccessorySlotView):
             raise TypeError("ring must be an AccessorySlotView")
         _validate_text_tuple("benefits", self.benefits)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
+        _validate_instance_tuple("instances", self.instances, EquipmentInstanceView)
+        _validate_instance_tuple("modifiers", self.modifiers, EquipmentModifierView)
+        _validate_instance_tuple("actions", self.actions, EquipmentActionView)
         if self.targets:
             _validate_selected_target(self.targets, self.selected_target_id)
+        if self.selected_instance_id is not None and not any(
+            item.instance_id == self.selected_instance_id for item in self.instances
+        ):
+            raise ValueError("selected equipment must be present in the inventory")
 
 
 @dataclass(frozen=True)
@@ -542,9 +949,15 @@ class OverworldItemView:
     quantity: int
     description: str
     overworld_use_enabled: bool = False
+    location_label: str = "Shared Storage"
 
     def __post_init__(self):
-        for name in ("selection_key", "display_name", "description"):
+        for name in (
+            "selection_key",
+            "display_name",
+            "description",
+            "location_label",
+        ):
             _validate_text(name, getattr(self, name))
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
@@ -582,6 +995,22 @@ class OutingItemRewardView:
             raise TypeError("quantity must be an integer")
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
+
+
+@dataclass(frozen=True)
+class SupplyHealingTargetView:
+    drifter_id: str
+    display_name: str
+    hp_current: int
+    hp_maximum: int
+
+    def __post_init__(self):
+        _validate_text("drifter_id", self.drifter_id)
+        _validate_text("display_name", self.display_name)
+        _validate_nonnegative("hp_current", self.hp_current)
+        _validate_nonnegative("hp_maximum", self.hp_maximum)
+        if self.hp_current >= self.hp_maximum:
+            raise ValueError("healing targets must be missing HP")
 
 
 @dataclass(frozen=True)
@@ -636,20 +1065,36 @@ class OverworldView:
     location_label: str
     adventure_text: str
     options: tuple[OverworldOptionView, ...]
+    respec_preview: RespecPreviewView | None = None
     contextual_route_option: OverworldOptionView | None = None
     notice: str | None = None
     character: CharacterOverviewView | None = None
     skills: SkillsView | None = None
     weapon: WeaponView | None = None
     merchant: MerchantView | None = None
+    hub_economy: HubEconomyView | None = None
     equipment: EquipmentView | None = None
+    equipment_confirmation: EquipmentConfirmationView | None = None
     inventory: InventoryView | None = None
     route_map: MapView | None = None
     encounter_inspection: MapEncounterInspectionView | None = None
     companion_choices: tuple[CompanionChoiceView, ...] = ()
+    temporary_helper_choices: tuple[TemporaryBossHelperChoiceView, ...] = ()
+    active_party_choices: tuple[PartyPairChoiceView, ...] = ()
+    active_drifter_ids: tuple[str, ...] = ()
     shared_gold: int | None = None
     recruitment_cost: int | None = None
     outing_rewards: OutingRewardsView | None = None
+    healing_targets: tuple[SupplyHealingTargetView, ...] = ()
+    discovery_choices: tuple[DiscoveryDrifterChoiceView, ...] = ()
+    discovery_source_id: str | None = None
+    discovery_reward_text: str | None = None
+    discovery_target_id: str | None = None
+    expedition_energy: int | None = None
+    expedition_status: ExpeditionStatusView | None = None
+    expedition_choices: tuple[ExpeditionChoiceView, ...] = ()
+    expedition_reports: tuple[ExpeditionReportView, ...] = ()
+    expedition_confirmation: ExpeditionConfirmationView | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -661,6 +1106,52 @@ class OverworldView:
             self.companion_choices,
             CompanionChoiceView,
         )
+        _validate_instance_tuple(
+            "temporary_helper_choices",
+            self.temporary_helper_choices,
+            TemporaryBossHelperChoiceView,
+        )
+        _validate_instance_tuple(
+            "active_party_choices",
+            self.active_party_choices,
+            PartyPairChoiceView,
+        )
+        _validate_instance_tuple(
+            "healing_targets",
+            self.healing_targets,
+            SupplyHealingTargetView,
+        )
+        _validate_instance_tuple(
+            "discovery_choices",
+            self.discovery_choices,
+            DiscoveryDrifterChoiceView,
+        )
+        _validate_instance_tuple(
+            "expedition_choices",
+            self.expedition_choices,
+            ExpeditionChoiceView,
+        )
+        _validate_instance_tuple(
+            "expedition_reports",
+            self.expedition_reports,
+            ExpeditionReportView,
+        )
+        if self.expedition_energy is not None:
+            _validate_nonnegative("expedition_energy", self.expedition_energy)
+        if self.expedition_status is not None and not isinstance(
+            self.expedition_status,
+            ExpeditionStatusView,
+        ):
+            raise TypeError("expedition_status must be an ExpeditionStatusView")
+        if self.expedition_confirmation is not None and not isinstance(
+            self.expedition_confirmation,
+            ExpeditionConfirmationView,
+        ):
+            raise TypeError(
+                "expedition_confirmation must be an ExpeditionConfirmationView"
+            )
+        if not isinstance(self.active_drifter_ids, tuple):
+            raise TypeError("active_drifter_ids must be a tuple")
         if any(
             option.action in {
                 OverworldAction.ENTER_ENCOUNTER,
@@ -692,6 +1183,16 @@ class OverworldView:
                 raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)
+        if self.screen is OverworldScreen.EXPEDITION_SETUP:
+            if not self.expedition_choices:
+                raise ValueError("expedition setup must show category choices")
+        elif self.expedition_choices:
+            raise ValueError("expedition choices belong only to setup")
+        if self.screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            if self.expedition_confirmation is None:
+                raise ValueError("expedition confirmation details are required")
+        elif self.expedition_confirmation is not None:
+            raise ValueError("expedition confirmation data belongs only to confirmation")
         if self.shared_gold is not None:
             _validate_nonnegative("shared_gold", self.shared_gold)
         if self.recruitment_cost is not None:
@@ -705,21 +1206,82 @@ class OverworldView:
             self.outing_rewards is not None
         ):
             raise ValueError("pending outing rewards belong only to Extraction")
+        if (self.screen is OverworldScreen.RESPEC_CONFIRMATION) != (
+            self.respec_preview is not None
+        ):
+            raise ValueError("respec preview belongs only to its confirmation screen")
+        if (self.screen is OverworldScreen.EQUIPMENT_CONFIRMATION) != (
+            self.equipment_confirmation is not None
+        ):
+            raise ValueError("equipment preview belongs only to its confirmation screen")
         if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
             raise ValueError("merchant data belongs only to the Merchant screen")
+        if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
+            raise ValueError("Hub economy data belongs only to the Merchant screen")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
-            if len(self.companion_choices) != 3:
-                raise ValueError("companion selection must offer three choices")
+            if not 1 <= len(self.companion_choices) <= 3:
+                raise ValueError("companion selection must offer one to three choices")
             if self.shared_gold is None or self.recruitment_cost is None:
                 raise ValueError("companion selection must show shared gold and cost")
         elif self.companion_choices:
             raise ValueError("companion choices are only valid on their selection screen")
+        if self.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            if not 1 <= len(self.temporary_helper_choices) <= 2:
+                raise ValueError("helper selection must offer one or two Drifters")
+        elif self.temporary_helper_choices:
+            raise ValueError("temporary helper choices belong only to their selection screen")
+        if self.screen is OverworldScreen.PARTY_SELECTION:
+            if len(self.active_party_choices) < 1:
+                raise ValueError("party selection must offer at least one pair")
+            if len(self.active_drifter_ids) != 2:
+                raise ValueError("party selection must identify its active pair")
+            _validate_text_tuple("active_drifter_ids", self.active_drifter_ids)
+            selected_choices = tuple(
+                choice for choice in self.active_party_choices if choice.selected
+            )
+            if len(selected_choices) != 1:
+                raise ValueError("exactly one party choice must be selected")
+            if selected_choices[0].drifter_ids != self.active_drifter_ids:
+                raise ValueError("selected party choice must match active IDs")
+        elif self.active_party_choices or self.active_drifter_ids:
+            raise ValueError("party choices are only valid on the party selection screen")
+        if self.screen is OverworldScreen.HEALING_TARGETS:
+            if not self.healing_targets:
+                raise ValueError("healing target selection requires an injured Drifter")
+            if self.inventory is None or self.inventory.selected_item_key is None:
+                raise ValueError("healing target selection requires a selected supply")
+        elif self.healing_targets:
+            raise ValueError("healing targets are only valid on their selection screen")
+        discovery_screens = {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+            OverworldScreen.DISCOVERY_CONFIRMATION,
+        }
+        if self.screen in discovery_screens:
+            _validate_text("discovery_source_id", self.discovery_source_id)
+            _validate_text("discovery_reward_text", self.discovery_reward_text)
+            if self.screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+                _validate_text("discovery_target_id", self.discovery_target_id)
+                if self.discovery_choices:
+                    raise ValueError("confirmation must not include target choices")
+            elif self.discovery_target_id is not None or len(self.discovery_choices) != 2:
+                raise ValueError("discovery selection requires the active pair")
+        elif any((
+            self.discovery_choices,
+            self.discovery_source_id is not None,
+            self.discovery_reward_text is not None,
+            self.discovery_target_id is not None,
+        )):
+            raise ValueError("discovery data is only valid on discovery screens")
         for name, expected_type in (
             ("character", CharacterOverviewView),
             ("skills", SkillsView),
+            ("respec_preview", RespecPreviewView),
             ("weapon", WeaponView),
             ("merchant", MerchantView),
+            ("hub_economy", HubEconomyView),
             ("equipment", EquipmentView),
+            ("equipment_confirmation", EquipmentConfirmationView),
             ("inventory", InventoryView),
             ("route_map", MapView),
             ("encounter_inspection", MapEncounterInspectionView),

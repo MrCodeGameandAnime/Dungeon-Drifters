@@ -226,8 +226,12 @@ class CombatState:
         state.broken_target = None
         return True
 
-    def apply_burn(self, source, target):
-        return self._status_state.apply_burn(source, target)
+    def apply_burn(self, source, target, *, potency_bonus_bps=0):
+        return self._status_state.apply_burn(
+            source,
+            target,
+            potency_bonus_bps=potency_bonus_bps,
+        )
 
     def burn_active(self, target):
         return self._status_state.burn_active(target)
@@ -235,8 +239,12 @@ class CombatState:
     def burn_status(self, target):
         return self._status_state.burn_status(target)
 
-    def apply_poison(self, source, target):
-        return self._status_state.apply_poison(source, target)
+    def apply_poison(self, source, target, *, potency_bonus_bps=0):
+        return self._status_state.apply_poison(
+            source,
+            target,
+            potency_bonus_bps=potency_bonus_bps,
+        )
 
     def poison_active(self, target):
         return self._status_state.poison_active(target)

@@ -1,6 +1,6 @@
 # MicroPython Probe Notes
 
-**Status:** supplemental run log. The Hub-only and Floor One qualifications below remain historical records. The latest signature-weapon progression extension passed the pinned MicroPython matrix on 2026-10-29 at a 608K/576K pressure boundary. These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
+**Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, M3, M4A baseline, and M5 records below remain historical checkpoints. The 2026-11-09 M4 temporary-helper/Hub-recruitment revision passed pinned MicroPython v1.29.0 locally: 1152K stable 3/3 and the expected 1024K memory-limit classification 3/3. Its exact-SHA hosted workflow also passed on `0aa4ecd5c15013af9c1456db8a53ada50e58357b` ([run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577)). These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 ## Earlier Sealed Baseline
 
@@ -260,3 +260,377 @@ completed successfully for the pushed `hub` SHA
 This is the cumulative closure evidence for the Hub signature-weapon scope.
 Future-floor content, balance tuning, and other explicitly deferred systems
 remain outside this qualification.
+
+## M1 Permanent Roster Probe (2026-10-30)
+
+The M1 roster probe and shared runtime matrix were run against the uncommitted
+working tree based on `4f857b6dce4c91b6ba09e93a5654cd32ead0dbcb` on `dungeon`.
+This is working-tree evidence, not a post-change commit SHA.
+
+The exact pinned Windows MicroPython v1.29.0 executable was used: 488,960 bytes,
+SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+The matrix reported native and forced-overlay CPython PASS, default MicroPython
+PASS, 624K MicroPython PASS, and semantic parity PASS. The 624K heap run was
+stable 3/3; 608K was classified as the expected memory limit 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The route probe now covers M1 initial roster, active-pair selection,
+snapshot/clone round-trip, teardown, and no premature recruitment. The
+consolidated Python suite passed 1,856 tests; web contracts passed 62; profile
+service passed 33 against disposable PostgreSQL 17. Migration-from-zero and
+`alembic check` passed. The real-browser pair-order save/reload check is recorded
+as pending in the M1 implementation plan because its latest smoke attempts
+timed out before app startup while downloading Pyodide assets from jsDelivr.
+The preceding full browser smoke passed before that additional assertion was
+added.
+
+## M2 Preparation, Trading, And Escape Probe (2026-10-31)
+
+The M2 runtime matrix ran on the uncommitted `dungeon` working tree based on
+`4324b35ae21233ddc03901e5376aebd0dc32d831`. The exact pinned Windows
+MicroPython v1.29.0 executable was used: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+Native and forced-overlay CPython, default MicroPython, the 688K MicroPython
+run, and semantic parity passed. The 688K heap point passed 3/3; 672K produced
+the expected memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The route probe now includes M2 preparation/Alchemy, Healing Potion use, Smoke
+Bomb exit and same-node retry, Return Talisman XP-only return, and teardown.
+Full local verification also passed: root pytest **1,895**, web pytest **63**,
+content validation, compileall, a **149-file static browser build**, and the complete
+Playwright smoke. The browser smoke emitted the M2 preparation/save-reload,
+smoke-escape/retry, and talisman XP-only pass markers.
+
+This is working-tree evidence, not commit- or hosted-run evidence. PostgreSQL
+service tests, migration-from-zero, and Alembic check were not rerun because the
+Docker engine pipe was inaccessible. No profile-service/API/database
+implementation files changed in M2; these checks remain required for final
+hosted qualification on the exact committed SHA.
+
+## M3 Gate 5 Advancement Probe (2026-11-05)
+
+The Gate 5 extension is committed on `dungeon` as
+`703502a5aeff74ea83f8cde091629368da18826d` (`m5 gate 5`), based on the Gate 4
+commit `410ed240f284d79ab37daf7211f9b0d60e409d45`. It extends the existing
+probe through authored advancement purchase, loadout, combat effect, and state
+round-trip without changing discovery placement or M4/M8 probability ownership.
+
+The pinned Windows MicroPython v1.29.0 executable was re-identified:
+
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+
+The full runtime matrix reported native/forced-overlay CPython PASS, default
+MicroPython PASS, semantic parity PASS, and `MYP20|RESULT|CLOSURE_COMPLETE`.
+The expanded Hub/Floor One/M3 probe passed at 816K in 3/3 runs. At 784K it
+reached the expected memory-limit classification in 3/3 runs. An 800K result
+was transitional and is not used as either frontier evidence or a product
+memory limit. These heap values qualify this pinned Windows probe only.
+
+The M3 probe adds these assertions after the existing M2 route:
+
+1. Navigate through Hub > Character > Skills and select Azhvielle explicitly.
+2. Purchase one passive and one active advancement, then equip the active move
+   in a normal-move slot.
+3. Clone the game and verify the snapshot, purchased IDs, and equipped move
+   survive the round trip.
+4. Use the purchased Witchlight Bolt in a controlled battle against three
+   Goblins and verify enemy HP decreases.
+5. Confirm the combat proof does not mutate the campaign snapshot and the
+   probe can return to the Hub state.
+
+The terminal integration pass also exposed a missing terminal key mapping for
+the existing Hub `Start Floor 1` and warning-screen `Set Out` actions. The
+session state machine already supported both actions; the terminal now maps
+them to `F` and `Y`, respectively, with a regression test covering display and
+input translation. A terminal-driven session test now exercises exact-target
+skill purchase/equip, save/load, and confirmed respec while checking loadout,
+Growth Point, and signature-weapon preservation.
+
+Local cumulative verification passed: **1,983 root tests**,
+**65 web tests**, authored-content validation (5 enemies, 4 weapons, 4
+Drifters, 10 encounters, 2 routes, 1 recruitment event), Python compileall, a
+**156-file browser build**, and the full Playwright browser smoke. The smoke
+passed the advancement purchase/equip/save/reload journey, actual advancement
+move use, respec persistence, existing weapon save/reload, Floor One clear and
+replay/extraction, and the full route.
+
+The exact-commit hosted qualification passed on `703502a5aeff74ea83f8cde091629368da18826d`
+([Actions run 42083678861](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42083678861)). The `Tests` job passed 1,983 root tests and 65 web tests, content validation, compileall, a 156-file browser build, and the complete Chromium smoke. The smoke included advancement purchase/equip/save/reload, actual advancement-move use, respec save/reload, Floor One, weapon persistence, and full-route markers. The `Profile Service (PostgreSQL)` job passed all 37 service tests, migrations from zero, and Alembic model parity (`No new upgrade operations detected`).
+
+The local Docker engine was inaccessible, so PostgreSQL/migration evidence is hosted rather than local. The pinned MicroPython matrix was run locally against the Gate 5 implementation: 816K stable pass 3/3 and 784K expected memory limit 3/3. The hosted workflow does not run the pinned MicroPython binary; keep that distinction explicit. Gate 5 cumulative qualification is complete, and M3 is sealed on `dungeon`.
+
+## M4 Floor II Pinned Runtime Qualification (2026-11-06)
+
+This qualification extends the M3 Gate 5 probe through the Floor II loop on
+`dungeon`. The implementation is committed as
+`f2f378563d96bf94e9dd37b57e9238665f32e2b1` (`M4A-6: qualify Floor II on
+pinned MicroPython`). It includes a pinned-runtime compatibility fix for
+permanent-discovery route-node lookup through the read-only catalog mapping.
+
+The exact pinned Windows MicroPython v1.29.0 executable was re-identified:
+
+- Size: 488,960 bytes
+- SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`
+- Runtime: MicroPython v1.29.0, `win32`
+
+The extended route probe traverses Floor II battles, D3 recruitment, discovery
+search/claim and save round-trip, Grade-II material checks, boss settlement,
+and teardown. The runtime matrix passed native CPython, forced-overlay CPython,
+default MicroPython, and semantic parity. Heap confirmation reported:
+
+- 1024K: stable full-probe pass, 3/3.
+- 944K: expected memory-limit classification, 3/3.
+
+Intermediate heap points were variable and are not represented as a stable
+frontier. These values qualify this exact pinned Windows probe, not a product
+memory ceiling or a claim about other platforms. A diagnostic heap map at 816K
+showed only 496 bytes free and a largest free block of 8 blocks when a 136-byte
+allocation was requested; this is diagnostic evidence, not a formal matrix
+point.
+
+Local cumulative verification passed: **2,102 root tests**, **66 web tests**,
+content validation, compileall, the **161-file browser build**, and the full
+Playwright smoke including `M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS`. The local
+browser smoke used the installed Chrome executable. The hosted exact-SHA
+qualification passed in [Actions run 42305392988](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42305392988):
+2,102 root tests, 66 web tests, 39 PostgreSQL tests, content validation,
+compile, browser build/smoke, migration-from-zero, and Alembic parity all
+passed. The hosted browser build also contained 161 files.
+
+The preceding recovery corrections, including rejection of Return Talisman
+while a committed boss victory awaits settlement, were independently hosted
+green on exact SHA `a48903f2456adff075a00453fb43c79449a5e0c3` in
+[Actions run 42296351933](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42296351933).
+M4A is qualified and closed; M5 is next, while M4B remains sequenced after M5.
+
+## M4A Post-Review Correction (2026-11-06)
+
+The exact pinned MicroPython v1.29.0 executable was rerun after bounding
+Floor II event history and updating the D3 catch-up rule. The artifact matched
+the recorded 488,960-byte SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+The revised Floor II probe passed native CPython, forced-overlay CPython,
+default MicroPython, and semantic parity. Heap confirmation reported 1024K
+stable pass 3/3 and the expected 944K memory-limit classification 3/3. The
+probe also verified that pending boss reward/drop evidence exists before
+settlement and that completed Floor II state has no retained per-run event
+history.
+
+Correction commit `a0aaa53d0a31d6d09c95bade188a5e76a3b822ba` passed the exact-SHA
+hosted workflow in [Actions run 42320829998](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42320829998):
+2,106 root tests, 66 web tests, the 161-file browser build and full Floor II
+smoke, 39 PostgreSQL tests, migration-from-zero, and Alembic parity. The
+pinned MicroPython matrix was run locally; it is not part of hosted CI.
+
+## M5 Post-Review Correction (2026-11-07)
+
+Correction SHA `9c7ca7a0a729a317bd802f0f471c4248d82691b6` fixes generated armor
+reward evidence after safe Rest changes the owned instance from unsecured to
+secured. The persisted generation event remains immutable and records its
+original unsecured state; save validation and event replay compare all
+generation fields while allowing the live security state to advance. A real
+Floor II session regression covers generation, five victories, Rest recovery,
+save/reload, replay without RNG use, continuing to another encounter, and
+persisting its victory.
+
+The exact-SHA hosted workflow passed in
+[Actions run 42410870669](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42410870669):
+2,226 root tests, 70 web tests, content validation, compile, the 170-file
+browser build and full smoke, 45 PostgreSQL tests, migration-from-zero, and
+Alembic model parity. The local root and web suites, content validation,
+compile, and browser build also passed. Local Playwright could not launch
+because the bundled Chromium was absent and system Edge could not start under
+the sandbox.
+
+At the time this correction was recorded, the documented executable lookup
+resolved through a sandbox-specific `%LOCALAPPDATA%` path, so the pinned matrix
+was not rerun or substituted. The qualification was later completed on the
+review-fix code SHA, as recorded below.
+
+Scope clarification: `RunEventService.resolve_armor_reward` is exercised by
+service tests and a controlled browser save fixture, but ordinary Floor II
+battle victories do not call it and no live route armor source is authored.
+The existing armor generation, ownership, and persistence systems therefore
+do not imply that the player currently receives procedural armor from normal
+Floor II encounters. Live source placement is deferred.
+
+## M5 Review-Fix Qualification (2026-11-08)
+
+Code SHA `f9bf1ae1af34d0d0402553db60d1391c62f8a826` contains the M5 review
+fixes for safe-Rest benched-Drifter equipment access, Floor I saveable-Rest
+equipment boundaries, Floor II map progress, and additive display of repeated
+equipment bonuses. The exact pinned MicroPython executable was found at
+`C:\Users\User\AppData\Local\DungeonDrifters\micropython\v1.29.0\source\ports\windows\build-standard\micropython.exe`;
+it is 488,960 bytes with SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` and
+reports MicroPython v1.29.0 on `win32`.
+
+The cumulative matrix used CPython 3.12.14 for the native and forced-overlay
+legs and the exact pinned executable for the MicroPython leg. All three
+completed the M1-M5 probe, semantic parity passed, 1152K was stable 3/3, and
+1024K produced the expected memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+The exact-SHA hosted workflow passed in
+[Actions run 42453945121](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42453945121):
+2,233 root tests, 71 web tests, 45 PostgreSQL service tests, content
+validation, compile, the 170-file browser build and full M1-M5 browser smoke,
+migration-from-zero, and Alembic parity. M5 is sealed on this code SHA. Live
+Floor II armor-drop placement remains deferred as specified in the M5 plan.
+
+## M4 Floor II/III Party Revision (2026-11-09)
+
+The approved revision adds a scripted D3/D4 helper choice at the Floor II
+pre-boss Rest, uses the selected temporary helper only in the three-member
+Floor II boss, awards Floor II secured XP only to the regular active pair, and
+offers independent Level 1 Hub recruitment for D3/D4 at 65 gold each. The
+runtime/disk schema is 21/22. The helper choice, boss composition, recruitment,
+and pair-only XP are exercised by the extended route probe.
+
+The pinned MicroPython v1.29.0 Windows executable was re-identified at
+488,960 bytes with SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+Native and forced-overlay CPython, default MicroPython, and semantic parity
+passed. Heap qualification reported 1152K stable pass 3/3 and the expected
+1024K memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+This was local MicroPython evidence from the worktree committed as
+`0aa4ecd5c15013af9c1456db8a53ada50e58357b`; the exact-SHA hosted workflow
+passed in [Actions run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577).
+Hosted CI does not execute the pinned MicroPython binary.
+
+## M4A Recruitment And Helper Review Closure (2026-11-09)
+
+The follow-up review corrections gate permanent D3/D4 Hub recruitment until
+Floor II is cleared, require the temporary helper choice at the pre-boss Rest,
+and block a Floor II replay at the Hub when both D3 and D4 are already the
+active pair. The replay restriction does not affect D3+D4 pair selection for
+other content. Implementation is in
+`10363110a8bf226a88dc871c70880f94f7727c19`; commit
+`14286ecf63c8d7f4662271f7e0bc20e1399c1afc` updates the browser smoke to assert
+no recruitment after early extraction and independent D3/D4 recruitment after
+the Floor II boss clear.
+
+The exact corrected SHA passed hosted qualification in
+[Actions run 42721683794](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42721683794):
+2,244 root tests, 72 web tests, and 47 PostgreSQL tests passed. Authored-content
+validation, compile, the 172-file browser build, the full browser smoke,
+migration-from-zero, and Alembic parity passed. The smoke confirmed the helper
+save/reload path, early-extraction recruitment gate, Floor II boss clear, and
+both post-clear Hub recruitment choices.
+
+The pinned MicroPython v1.29.0 executable was rerun against this corrected
+source tree. The 488,960-byte executable matched SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. Native
+and forced-overlay CPython (3.14.6), default MicroPython, and semantic parity
+passed. Heap qualification reported 1152K stable pass 3/3 and the expected
+1024K memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+## M4B Floor III Local Qualification (2026-11-10)
+
+The current M4B worktree implements the bounded Floor III route, authored Tier 2
+enemy and Grade III material content, the four-permanent-Drifter boss, pair-only
+pre-boss reward attribution, four-way boss XP followed by individual Intuition
+bonuses, and once-only clear settlement. The ordinary encounters remain
+two-member battles. Terminal and browser journeys cover the route, Rest
+save/reload, full-party boss, clear settlement, and Hub save/reload.
+
+Local verification on Python 3.14.6:
+
+```text
+Root pytest                 2,277 passed
+Web pytest                     72 passed
+PostgreSQL service tests       49 passed
+Authored content validation   PASS
+Python compileall             PASS
+Browser build                 174 files
+Migrations from zero           PASS
+Alembic model parity           PASS
+```
+
+The M1-M5 and Floor III built-browser smoke passed in the earlier local
+worktree run. A fresh retry during this verification could not launch because
+the configured Playwright Chromium executable is absent; it stopped before
+browser assertions. Hosted browser qualification is therefore still required
+on the accepted M4B commit.
+
+The exact pinned MicroPython v1.29.0 Windows executable was used for the
+extended Floor III route probe and cumulative runtime matrix. Native CPython,
+forced-overlay CPython, pinned MicroPython, and semantic parity passed;
+1152K was stable 3/3 and 1024K produced the expected memory-limit result 3/3.
+Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+This evidence was collected from the local worktree before the M4B commit;
+the exact-SHA hosted result is recorded in the following section.
+
+## M4B Exact-SHA Hosted Qualification (2026-11-10)
+
+M4B implementation commit `470fd2fe7c62bdfa3ea0560dfacae699eff857d3`
+passed the exact-SHA hosted workflow in
+[Actions run 42765161916](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42765161916).
+Both hosted jobs passed:
+
+```text
+Root pytest                 2,277 passed
+Web pytest                     72 passed
+PostgreSQL service tests       49 passed
+Authored content validation   PASS
+Compile                        PASS
+Browser build                 174 files
+Full browser smoke            PASS
+Migration from zero           PASS
+Alembic model parity          PASS
+```
+
+The browser smoke completed the Floor III ordinary-pair journey, Rest
+save/reload, four-permanent-Drifter boss, clear settlement, and Hub
+save/reload. Combined with the local pinned MicroPython matrix recorded above,
+M4B Gate 5 is complete and M4 is closed. Hosted CI does not execute the pinned
+MicroPython binary.
+
+## M6 Expeditions Local Qualification (2026-11-10)
+
+The M6 worktree extends the cumulative runtime probe through energy regeneration,
+assignment launch and timer resolution, expedition settlement and claim, save
+reconstruction, and ordinary dungeon play without energy. The exact pinned
+Windows MicroPython v1.29.0 executable was used: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+```text
+CPython 3.14.6 native              PASS
+CPython 3.14.6 forced overlay      PASS
+MicroPython v1.29.0 default        PASS
+MicroPython semantic parity        PASS
+1152K heap stability               PASS, 3/3
+1024K expected memory limit        PASS, 3/3
+Final marker                       MYP20|RESULT|CLOSURE_COMPLETE
+```
+
+The first full-matrix invocation classified 1152K stability as 2/3. Three
+immediate detailed 1152K runs and the subsequent complete matrix passed 3/3
+at both heap boundaries. The anomaly did not reproduce; its cause is unknown.
+
+The full local M6 checks also passed: 2,319 root tests, 74 web tests,
+authored-content validation, compileall, a 176-file browser build, and the full
+browser smoke. The browser smoke included the cumulative M1-M6 journeys. These
+results were collected locally before push and are separate from the exact-SHA
+hosted evidence recorded below.
+
+The local Docker engine was unreachable during this run, so PostgreSQL profile
+service tests, migration-from-zero, and Alembic parity were qualified by the
+hosted exact-SHA workflow instead. Implementation SHA
+`89f012b7adf3fa48616c5e5aacd8d9052cd57001` passed both jobs in
+[Actions run 42939284112](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42939284112):
+2,319 root tests, 74 web tests, 49 PostgreSQL tests, authored-content
+validation, compile, the 176-file browser build, full browser smoke, migration
+from zero, and Alembic model parity (`No new upgrade operations detected`).
+The smoke passed both M6 markers for once-only report claim and passive
+assignment launch/reload/status. Hosted CI does not execute the pinned
+MicroPython binary. Keep the local runtime and hosted service evidence distinct;
+together they complete M6 qualification.

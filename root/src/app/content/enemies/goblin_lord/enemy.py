@@ -1,4 +1,7 @@
 from app.combat.move import (
+    DamageComponent,
+    DamageComponentIdentity,
+    DamageDefenseClass,
     DamageType,
     Move,
     MoveKind,
@@ -6,7 +9,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 
 
@@ -30,6 +33,35 @@ ENEMY = EnemySpec(
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset(
         {EnemyCapability.BASIC_ATTACKS, EnemyCapability.MAGIC}
+    ),
+    supported_tiers=(0, 1, 2),
+    tier_profiles=(
+        EnemyTierSpec(
+            tier=1,
+            stats=StatBlockSpec(
+                constitution=12,
+                spirit=8,
+                intelligence=8,
+                strength=13,
+                dexterity=7,
+                intuition=10,
+            ),
+            hp=265,
+            mana=35,
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=14,
+                spirit=9,
+                intelligence=9,
+                strength=15,
+                dexterity=8,
+                intuition=11,
+            ),
+            hp=330,
+            mana=40,
+        ),
     ),
     moves=(
         Move(
@@ -80,8 +112,22 @@ ENEMY = EnemySpec(
             scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.INTELLIGENCE),
             accuracy=75,
             target=TargetType.ENEMY,
-            damage_type=DamageType.HYBRID,
+            damage_type=DamageType.NONE,
             mechanic="heavy_attack",
+            damage_components=(
+                DamageComponent(
+                    identity=DamageComponentIdentity.PHYSICAL,
+                    defense_class=DamageDefenseClass.PHYSICAL,
+                    power=13,
+                    scales_with=(ScalingAttribute.STRENGTH,),
+                ),
+                DamageComponent(
+                    identity=DamageComponentIdentity.MAGICAL,
+                    defense_class=DamageDefenseClass.MAGICAL,
+                    power=13,
+                    scales_with=(ScalingAttribute.INTELLIGENCE,),
+                ),
+            ),
             description="The Goblin Lord combines raw physical force with unstable sorcery in one devastating assault.",
         ),
     ),

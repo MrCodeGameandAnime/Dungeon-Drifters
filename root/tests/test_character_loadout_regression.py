@@ -86,9 +86,25 @@ EXPECTED_LOADOUTS = {
                 "scales_with": ["strength", "spirit"],
                 "accuracy": 100,
                 "target": "enemy",
-                "damage_type": "hybrid",
+                "damage_type": "none",
                 "mechanic": None,
                 "description": "A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.",
+                "damage_components": [
+                    {
+                        "identity": "physical",
+                        "defense_class": "physical",
+                        "power": 12,
+                        "scales_with": ["strength", "spirit"],
+                        "subtype": None,
+                    },
+                    {
+                        "identity": "magical",
+                        "defense_class": "magical",
+                        "power": 12,
+                        "scales_with": ["strength", "spirit"],
+                        "subtype": None,
+                    },
+                ],
             },
         ],
         "class_mechanic": {
@@ -323,9 +339,25 @@ EXPECTED_LOADOUTS = {
                 "scales_with": ["dexterity", "intelligence", "intuition"],
                 "accuracy": 70,
                 "target": "enemy",
-                "damage_type": "hybrid",
+                "damage_type": "none",
                 "mechanic": "lightning_palm",
                 "description": "A risky palm strike that carries lightning through the point of impact.",
+                "damage_components": [
+                    {
+                        "identity": "physical",
+                        "defense_class": "physical",
+                        "power": 12,
+                        "scales_with": ["dexterity"],
+                        "subtype": None,
+                    },
+                    {
+                        "identity": "elemental",
+                        "defense_class": "magical",
+                        "power": 12,
+                        "scales_with": ["intelligence"],
+                        "subtype": "lightning",
+                    },
+                ],
             },
             {
                 "name": "Tempest Surge",

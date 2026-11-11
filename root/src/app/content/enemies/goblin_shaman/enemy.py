@@ -6,7 +6,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, ItemDropSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 
 
@@ -30,6 +30,37 @@ ENEMY = EnemySpec(
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset(
         {EnemyCapability.BASIC_ATTACKS, EnemyCapability.MAGIC}
+    ),
+    supported_tiers=(0, 1, 2),
+    tier_profiles=(
+        EnemyTierSpec(
+            tier=1,
+            stats=StatBlockSpec(
+                constitution=3,
+                spirit=6,
+                intelligence=7,
+                strength=1,
+                dexterity=4,
+                intuition=5,
+            ),
+            hp=75,
+            mana=30,
+            item_drops=(ItemDropSpec("grade_ii_cores", 1, 1000),),
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=4,
+                spirit=7,
+                intelligence=8,
+                strength=1,
+                dexterity=5,
+                intuition=6,
+            ),
+            hp=90,
+            mana=36,
+            item_drops=(ItemDropSpec("grade_iii_cores", 1, 1000),),
+        ),
     ),
     moves=(
         Move(

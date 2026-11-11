@@ -30,6 +30,96 @@ def make_payload(gold=0, marker=None):
     return build_save_document(game_state)
 
 
+def remove_m3_advancement(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if isinstance(player, dict):
+            player.pop("advancement", None)
+    return payload
+
+
+def remove_m3_discovery_state(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        if isinstance(player, dict):
+            player.pop("permanent_discovery_bonuses", None)
+    world = payload.get("world")
+    if isinstance(world, dict):
+        world.pop("permanent_discovery_claims", None)
+    return payload
+
+
+def remove_m3_respec_state(payload):
+    players = [payload.get("player")]
+    party = payload.get("party")
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    for player in players:
+        advancement = player.get("advancement") if isinstance(player, dict) else None
+        if isinstance(advancement, dict):
+            advancement.pop("purchased_stat_points", None)
+            advancement.pop("respec_count", None)
+    return payload
+
+
+def remove_m4_run_state(payload):
+    payload.pop("expedition", None)
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_two_cleared",
+            "floor_two_runs_started_after_clear",
+            "floor_two_run_id",
+            "floor_two_outing_xp_multiplier_percent",
+            "resolved_run_events",
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
+    world = payload.get("world")
+    if isinstance(world, dict):
+        world.pop("discovered_permanent_discovery_sources", None)
+    return payload
+
+
+def remove_m4b_run_state(payload):
+    payload.pop("expedition", None)
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
+    return payload
+
+
+def remove_m5_equipment_state(payload, historical_schema):
+    party = payload.get("party")
+    players = [payload.get("player")]
+    if isinstance(party, dict) and isinstance(party.get("companions"), list):
+        players.extend(party["companions"])
+    if historical_schema < 19:
+        for player in players:
+            if isinstance(player, dict):
+                player.pop("equipment_refs", None)
+        if isinstance(party, dict):
+            party.pop("equipment_instances", None)
+    if historical_schema < 21 and isinstance(party, dict):
+        party.pop("modifier_instances", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

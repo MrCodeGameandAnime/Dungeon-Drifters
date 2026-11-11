@@ -15,6 +15,7 @@ from app.persistence.ports import (
 )
 from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
+    build_save_document,
     reconstruct_game_state,
     validate_save_document,
 )
@@ -61,10 +62,15 @@ def migrate_legacy_save(
             object_pairs_hook=_reject_duplicate_keys,
         )
         source_schema = document.get("schema_version")
-        payload = validate_save_document(document)
-        if payload["schema_version"] != DISK_SCHEMA_VERSION:
+        normalized = validate_save_document(document)
+        if normalized["schema_version"] != DISK_SCHEMA_VERSION:
             raise ValueError("legacy save did not normalize to the current schema")
-        reconstruct_game_state(payload)
+        game_state = reconstruct_game_state(document)
+        payload = build_save_document(game_state)
+        canonical = validate_save_document(payload)
+        if canonical != payload or canonical["schema_version"] != DISK_SCHEMA_VERSION:
+            raise ValueError("reconstructed save is not canonical current schema")
+        payload = canonical
     except (OSError, UnicodeDecodeError):
         return LegacyMigrationResult(
             status=LegacyMigrationStatus.FAILED,

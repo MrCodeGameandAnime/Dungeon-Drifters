@@ -8,7 +8,10 @@ from app.persistence.envelope import SyncState, build_profile_envelope
 from app.persistence.local_store import LocalProfileStore
 from app.persistence.ports import ProfileStoreError, SaveLoadStatus
 from app.persistence.remote_client import RemoteRequestRejected
+from app.game.respec import RespecService, RespecStatus
+from tests.game_test_support import completed_hub_game
 from app.persistence.sync import ProfileSyncCoordinator, SyncResult
+from app.persistence.save_document import DISK_SCHEMA_VERSION
 from tests.remote_sync_test_support import (
     ACCOUNT_ID,
     DEVICE_A,
@@ -48,13 +51,32 @@ def _save_local(store, gold=0):
 def _legacy_schema9_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 9
+    payload.pop("expedition")
+    payload["player"].pop("equipment_refs")
+    payload["party"].pop("equipment_instances")
+    payload["party"].pop("modifier_instances")
+    payload["player"].pop("advancement")
+    payload["player"].pop("permanent_discovery_bonuses")
+    payload["world"].pop("permanent_discovery_claims")
+    payload["world"].pop("discovered_permanent_discovery_sources")
     payload["player"].pop("signature_weapon")
+    payload["party"].pop("active_drifter_ids")
+    payload["party"].pop("carried_items")
     payload["overworld"].pop("active_route_id")
     for field in (
         "floor_one_cleared",
         "floor_one_runs_started_after_clear",
         "outing_xp_multiplier_percent",
         "crafting_experience",
+        "floor_two_cleared",
+        "floor_two_runs_started_after_clear",
+        "floor_two_run_id",
+        "floor_two_outing_xp_multiplier_percent",
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+        "resolved_run_events",
     ):
         payload["party"].pop(field)
     return payload
@@ -118,12 +140,55 @@ def test_legacy_remote_head_advances_without_rewriting_history(tmp_path, legacy_
     result = sync.sync_pending()
 
     assert loaded.status is SaveLoadStatus.LOADED
-    assert local_pending.payload["schema_version"] == 12
+    assert local_pending.payload["schema_version"] == DISK_SCHEMA_VERSION
     assert local_pending.sync_state is SyncState.PENDING
     assert result.sync_state is SyncState.CLEAN
     assert server.revision_count(PROFILE_ID) == 2
     assert server.profiles[PROFILE_ID]["revisions"][0].payload == old_payload
-    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == 12
+    assert server.profiles[PROFILE_ID]["head"].payload["schema_version"] == DISK_SCHEMA_VERSION
+
+
+def test_respec_history_survives_profile_sync_and_keeps_free_use_spent(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles")
+    save_port = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+    game = completed_hub_game()
+    branoc = game.player_state
+    branoc.gain_experience(branoc.level_state.next_threshold)
+    branoc.purchase_advancement("branoc_p01")
+    assert save_port.save(game).status is SaveLoadStatus.SAVED
+
+    first = RespecService(save_port=save_port).respec(
+        game,
+        "branoc",
+        confirmed=True,
+    )
+    server = MemoryRemoteProfileServer()
+    sync = ProfileSyncCoordinator(
+        store,
+        PROFILE_ID,
+        BoundMemoryRemoteClient(server, ACCOUNT_ID, DEVICE_A),
+        now_factory=lambda: SAVED_AT,
+    )
+    synced = sync.enable_cloud(ACCOUNT_ID)
+    loaded = save_port.load()
+    repeated = RespecService(save_port=save_port).respec(
+        loaded.game_state,
+        "branoc",
+        confirmed=True,
+    )
+
+    assert first.status is RespecStatus.RESPECCED
+    assert synced.sync_state is SyncState.CLEAN
+    assert server.profiles[PROFILE_ID]["head"].payload["player"]["advancement"][
+        "respec_count"
+    ] == 1
+    assert loaded.game_state.player_state.respec_count == 1
+    assert repeated.status is RespecStatus.INSUFFICIENT_PARCHMENT
+    assert repeated.game_state.player_state.growth_points == 3
 
 
 

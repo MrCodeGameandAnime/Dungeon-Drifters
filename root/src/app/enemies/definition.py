@@ -1,5 +1,7 @@
 from enum import StrEnum
 
+from app.combat.move import validate_damage_identity_keys
+
 
 class EnemyRank(StrEnum):
     COMMON = "common"
@@ -49,7 +51,9 @@ class Enemy:
             behavior,
             capabilities,
             spirit=1,
-            intuition=1):
+            intuition=1,
+            damage_resistances=(),
+            damage_weaknesses=()):
         self.strength = strn
         self.constitution = con
         self.intelligence = intl
@@ -67,6 +71,16 @@ class Enemy:
         self.behavior = _validate_enum_member("behavior", behavior, EnemyBehavior)
         self.capabilities = _validate_capabilities(capabilities)
         self.combat_moves = tuple(combat_moves)
+        self.damage_resistances = validate_damage_identity_keys(
+            "damage_resistances",
+            damage_resistances,
+        )
+        self.damage_weaknesses = validate_damage_identity_keys(
+            "damage_weaknesses",
+            damage_weaknesses,
+        )
+        if any(identity in self.damage_weaknesses for identity in self.damage_resistances):
+            raise ValueError("an enemy cannot resist and be weak to the same identity")
 
     @property
     def exp_reward(self):

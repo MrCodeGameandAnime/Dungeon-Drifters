@@ -15,6 +15,7 @@ from tools.generate_content_catalog import (
     discover_encounter_ids,
     discover_enemy_ids,
     discover_route_ids,
+    discover_recruitment_event_ids,
     discover_weapon_ids,
     render_discovered_catalog,
 )
@@ -28,7 +29,20 @@ from app.combat.resolver import authored_move_rejection_reason
 from app.content.drifter_spec import DrifterSpec
 from app.content.encounter_spec import EncounterSpec
 from app.content.enemy_spec import EnemySpec
+from app.content.armor_spec import (
+    ARMOR_RARITIES,
+    FLOOR_RARITY_POLICIES,
+    MODIFIER_DEFINITIONS,
+    validate_armor_content,
+)
+from app.content.armor_progression_spec import (
+    ARMOR_UPGRADE_STEPS,
+    RARITY_ADVANCEMENT_SPECS,
+    validate_armor_progression_content,
+)
+from app.content.equipment_spec import EQUIPMENT_TEMPLATES
 from app.content.route_spec import RouteNodeKind, RouteSpec
+from app.content.recruitment_event_spec import RecruitmentEventSpec
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 
@@ -46,6 +60,13 @@ CONTENT_TYPES = {
         discover_encounter_ids,
     ),
     "route": ("routes", "route", "ROUTE", RouteSpec, discover_route_ids),
+    "recruitment_event": (
+        "recruitment_events",
+        "recruitment_event",
+        "RECRUITMENT_EVENT",
+        RecruitmentEventSpec,
+        discover_recruitment_event_ids,
+    ),
 }
 
 
@@ -104,24 +125,23 @@ def _duplicates(records, attribute, label, errors):
 
 def _validate_moves(records, errors):
     for _, spec, path in records["enemy"]:
-        try:
-            if spec.supported_tiers != (0,):
-                _error(errors, path, "supported_tiers must remain exactly (0,)")
-            definition = spec.create_definition()
-            second_definition = spec.create_definition()
-            first = EnemyState(definition)
-            second = EnemyState(second_definition)
-            if (
-                definition is second_definition
-                or first is second
-                or first.health is second.health
-                or first.mana_resource is second.mana_resource
-                or first.super_resource is second.super_resource
-                or first.permanent_stats is second.permanent_stats
-            ):
-                _error(errors, path, "enemy construction must return fresh runtime owners")
-        except (KeyError, TypeError, ValueError) as error:
-            _error(errors, path, f"enemy construction failed: {error}")
+        for tier in spec.supported_tiers:
+            try:
+                definition = spec.create_definition(tier=tier)
+                second_definition = spec.create_definition(tier=tier)
+                first = EnemyState(definition, tier=tier)
+                second = EnemyState(second_definition, tier=tier)
+                if (
+                    definition is second_definition
+                    or first is second
+                    or first.health is second.health
+                    or first.mana_resource is second.mana_resource
+                    or first.super_resource is second.super_resource
+                    or first.permanent_stats is second.permanent_stats
+                ):
+                    _error(errors, path, "enemy construction must return fresh runtime owners")
+            except (KeyError, TypeError, ValueError) as error:
+                _error(errors, path, f"enemy tier {tier} construction failed: {error}")
         for move in spec.moves:
             reason = authored_move_rejection_reason(move)
             if reason is not None:
@@ -203,6 +223,22 @@ def _validate_references_and_factories(records, errors):
             if index + 1 < len(route.nodes) and route.nodes[index + 1] is node:
                 _error(errors, path, "route successors must derive from distinct ordered nodes")
 
+    routes_by_id = {spec.route_id: spec for _, spec, _ in records["route"]}
+    drifter_ids = {spec.drifter_id for _, spec, _ in records["drifter"]}
+    for _, event, path in records["recruitment_event"]:
+        route = routes_by_id.get(event.route_id)
+        if route is None:
+            _error(errors, path, f"unknown route ID {event.route_id!r}")
+        elif event.route_node_id not in {node.node_id for node in route.nodes}:
+            _error(
+                errors,
+                path,
+                f"route node {event.route_node_id!r} is not on route {event.route_id!r}",
+            )
+        for drifter_id in event.candidate_drifter_ids:
+            if drifter_id not in drifter_ids:
+                _error(errors, path, f"unknown candidate Drifter ID {drifter_id!r}")
+
 
 def _validate_catalog(errors):
     try:
@@ -268,6 +304,22 @@ def _validate_schema_round_trips(records, errors):
 def validate_content():
     """Return deterministic validation errors without changing repository files."""
     errors = []
+    try:
+        validate_armor_content(
+            templates=EQUIPMENT_TEMPLATES,
+            rarities=ARMOR_RARITIES,
+            modifiers=MODIFIER_DEFINITIONS,
+            policies=FLOOR_RARITY_POLICIES,
+        )
+    except (TypeError, ValueError) as error:
+        errors.append(f"armor content: {error}")
+    try:
+        validate_armor_progression_content(
+            upgrade_steps=ARMOR_UPGRADE_STEPS,
+            rarity_advancements=RARITY_ADVANCEMENT_SPECS,
+        )
+    except (TypeError, ValueError) as error:
+        errors.append(f"armor progression content: {error}")
     _validate_catalog(errors)
     records = _discover_and_import(errors)
     _duplicates(records["enemy"], "archetype_id", "enemy ID", errors)
@@ -277,6 +329,12 @@ def validate_content():
     _duplicates(records["drifter"], "choice", "Drifter choice", errors)
     _duplicates(records["encounter"], "encounter_id", "encounter ID", errors)
     _duplicates(records["route"], "route_id", "route ID", errors)
+    _duplicates(
+        records["recruitment_event"],
+        "event_id",
+        "recruitment event ID",
+        errors,
+    )
     _validate_moves(records, errors)
     _validate_references_and_factories(records, errors)
     if not errors:
@@ -302,10 +360,18 @@ def main(argv=None):
         "drifter": "drifters",
         "encounter": "encounters",
         "route": "routes",
+        "recruitment_event": "recruitment events",
     }
     counts = ", ".join(
         f"{len(records[name])} {name if len(records[name]) == 1 else plurals[name]}"
-        for name in ("enemy", "weapon", "drifter", "encounter", "route")
+        for name in (
+            "enemy",
+            "weapon",
+            "drifter",
+            "encounter",
+            "route",
+            "recruitment_event",
+        )
     )
     print(f"content valid: {counts}")
     return 0

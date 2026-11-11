@@ -6,7 +6,7 @@ from app.combat.move import (
     ScalingAttribute,
     TargetType,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, ItemDropSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
 
 
@@ -29,6 +29,37 @@ ENEMY = EnemySpec(
     role=EnemyRole.BRUTE,
     behavior=EnemyBehavior.AGGRESSIVE,
     capabilities=frozenset({EnemyCapability.BASIC_ATTACKS}),
+    supported_tiers=(0, 1, 2),
+    tier_profiles=(
+        EnemyTierSpec(
+            tier=1,
+            stats=StatBlockSpec(
+                constitution=8,
+                spirit=3,
+                intelligence=2,
+                strength=9,
+                dexterity=6,
+                intuition=4,
+            ),
+            hp=155,
+            mana=0,
+            item_drops=(ItemDropSpec("grade_ii_fiber", 1, 2000),),
+        ),
+        EnemyTierSpec(
+            tier=2,
+            stats=StatBlockSpec(
+                constitution=9,
+                spirit=4,
+                intelligence=2,
+                strength=10,
+                dexterity=7,
+                intuition=4,
+            ),
+            hp=190,
+            mana=0,
+            item_drops=(ItemDropSpec("grade_iii_fiber", 1, 2000),),
+        ),
+    ),
     moves=(
         Move(
             name="Veteran Slash",

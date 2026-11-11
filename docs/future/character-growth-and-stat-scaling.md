@@ -32,10 +32,12 @@ maintenance.
 | Purchase | Cost |
 | --- | --- |
 | +1 permanent stat | 1 Growth Point |
-| Passive node or passive rank | 2 Growth Points |
-| New move | 3 Growth Points |
+| New single-purchase passive skill | 2 Growth Points |
+| New active skill | 3 Growth Points |
 
-This creates three natural level-spending patterns:
+M3 uses these flat prices regardless of tier or skill type. Capstones, mana
+techniques, and the additional Super do not cost extra. The following spending
+patterns use these costs:
 
 ```text
 Three stat increases
@@ -148,33 +150,44 @@ Intelligence remains the primary raw-magic stat.
 
 Intuition supports control, unusual effects, secondary scaling, and utility.
 
+## Drifter Scaling Identities
+
+A Drifter's primary scaling stat is the highest stat in their authored Level 1
+permanent stat block. Their secondary scaling stat is the second-highest. M3
+skills should primarily scale from, enhance, or synergize with these two stats.
+Other stats may support specific mechanics when justified by the Drifter's
+existing kit.
+
+| Drifter | Primary | Secondary | Authored Level 1 values |
+| --- | --- | --- | --- |
+| Branoc | Strength | Constitution | STR 15 / CON 14 |
+| Azhvielle | Intelligence | Spirit | INT 15 / SPI 13 |
+| Zhaivra | Dexterity | Intuition | DEX 15 / INTU 14 |
+| Joruun | Intelligence | Dexterity | INT 13 / DEX 12 |
+
 ## Primary Character Builds
 
 ## Azhvielle
 
-Primary stats:
-
-- Intelligence
-- Intuition
+- Primary stat: Intelligence
+- Secondary stat: Spirit
 
 Natural identity:
 
 - raw magical power
-- magical control
+- mana depth and spell sustain
 - elemental and unusual-effect potency
 
-Useful secondary investments:
+Useful tertiary investments:
 
-- Spirit
+- Intuition
 - Constitution
 - Dexterity
 
 ## Zhaivra
 
-Primary stats:
-
-- Intuition
-- Dexterity
+- Primary stat: Dexterity
+- Secondary stat: Intuition
 
 Natural identity:
 
@@ -183,7 +196,7 @@ Natural identity:
 - criticals
 - compound timing and reactions
 
-Useful secondary investments:
+Useful tertiary investments:
 
 - Intelligence for stronger compound payloads
 - Constitution
@@ -191,10 +204,8 @@ Useful secondary investments:
 
 ## Branoc
 
-Primary stats:
-
-- Strength
-- Constitution
+- Primary stat: Strength
+- Secondary stat: Constitution
 
 Natural identity:
 
@@ -203,7 +214,7 @@ Natural identity:
 - high HP
 - frontline durability
 
-Useful secondary investments:
+Useful tertiary investments:
 
 - Intuition for defensive magic
 - Spirit for repeated defensive techniques
@@ -211,10 +222,8 @@ Useful secondary investments:
 
 ## Joruun
 
-Primary stats:
-
-- Intelligence
-- Dexterity
+- Primary stat: Intelligence
+- Secondary stat: Dexterity
 
 Natural identity:
 
@@ -222,7 +231,7 @@ Natural identity:
 - agile physical staff combat
 - physical-magical hybrid play
 
-Useful secondary investments:
+Useful tertiary investments:
 
 - Intuition
 - Spirit
@@ -647,20 +656,33 @@ required later content.
 
 ## Moves, Passives, And Stats
 
-The intended complete kit remains:
+The existing starting move kits and initial Super timing remain governed by the
+current move-progression design. M3 does not reopen or restrict those decisions.
 
-- four normal moves
-- one super attack
+M3 adds 24 GP-purchased skills per Drifter: 18 passive skills and six active
+skills. The active skills are four mana techniques, one non-mana normal move,
+and one additional Super. The non-mana move still costs Growth Points to
+unlock. The additional Super unlocks at Level 50 and stays in the Super system;
+it does not occupy a normal-move slot.
 
-A Drifter should begin with enough moves to function.
+Each Drifter has four equipped normal-move slots. A newly purchased normal or
+mana skill is permanently unlocked into that Drifter's available move pool and
+may then be equipped in one of those four slots. Existing saves retain their
+current kits and move access; M3 does not reset or retroactively restrict them.
 
-Current working direction:
+M3 uses these level gates and skill counts:
 
-- at least two normal moves available initially
-- remaining moves unlocked through progression
-- super unlocked later as a capstone
+| Tier | Level | Passive skills | Active skills |
+| --- | ---: | ---: | --- |
+| I | 1 | 5 | 1 non-mana normal move |
+| II | 25 | 4 | Mana Technique 1 |
+| III | 50 | 4 | Mana Technique 2 and additional Super |
+| IV | 75 | 4 | Mana Technique 3 |
+| V | 100 | 1 capstone | Mana Technique 4 |
 
-Exact starting moves and unlock orders remain unresolved.
+Skills within an unlocked tier may generally be purchased in any order. A
+skill-specific prerequisite or mutually exclusive branch requires an authored
+reason; tier membership alone does not impose a chain.
 
 Moves primarily expand tactical vocabulary.
 
@@ -755,8 +777,7 @@ Record these as the current intended foundation:
 - ~~hard cap of 100 in every stat~~
 - 3 Growth Points per secured level
 - +1 permanent stat costs 1 Growth Point
-- passive node or rank costs 2 Growth Points
-- new move costs 3 Growth Points
+- M3 single-purchase passive skill costs 2 GP; active skills cost 3 GP, without premiums
 - Growth Points may be saved
 - automatic HP gain occurs every secured level
 - automatic mana gain occurs every secured level
@@ -794,13 +815,15 @@ Any proposed numerical change should be surfaced for design review.
 
 ## Explicitly Unresolved
 
+The questions below remain broader design questions; they do not authorize M3
+to change the existing level progression, 3-GP award, permanent stat spending,
+six-stat model, HP/Mana growth, Level 250 cap, or signature-weapon progression.
+
 Do not freeze these yet:
 
 - final starting distributions for each Drifter
 - experience thresholds
 - leveling curve
-- level cap
-- whether level is technically capped or only stats are capped
 - final HP auto-gain value
 - final mana auto-gain value
 - final Constitution curve
@@ -816,12 +839,9 @@ Do not freeze these yet:
 - personal versus party-wide XP bonuses
 - exact discovery formula
 - exact super-generation formula
-- starting moves
-- move-unlock order
-- passive trees
-- number of passive ranks
-- mutually exclusive branches
-- prerequisites
+- exact mechanical effects and numerical values for the authored M3 passive and active skills
+- Rank structure for any future passive expansion beyond the initial M3 tree
+- skill-specific prerequisites or mutually exclusive branches, where justified
 - story prerequisites
 - weapon-refinement prerequisites
 - whether every passive can eventually be purchased
@@ -832,6 +852,9 @@ Do not freeze these yet:
 - maximum Growth Point availability
 - whether any levels grant something other than 3 Growth Points
 - final terminology for Growth Points
+
+Existing starting move kits and initial Super timing are settled by the current
+move-progression design and are not unresolved M3 decisions.
 
 ## Milestone Boundary
 

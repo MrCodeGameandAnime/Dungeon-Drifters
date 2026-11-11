@@ -1,10 +1,54 @@
 import { chromium } from "playwright";
+import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = (process.argv[2] || "http://127.0.0.1:8765").replace(/\/$/, "");
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const pythonCandidates = [
+  process.env.PYTHON,
+  ...(process.platform === "win32"
+    ? [path.resolve(repositoryRoot, "..", ".venv", "Scripts", "python.exe"), "python3"]
+    : ["python3"]),
+].filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index);
+let floorTwoProfileEnvelope;
+let m5EquipmentFixtures;
+let m6ExpeditionFixtures;
+for (const pythonExecutable of pythonCandidates) {
+  try {
+    floorTwoProfileEnvelope = execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "floor_two_browser_save_fixture.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ).trim();
+    m5EquipmentFixtures = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m5_browser_save_fixtures.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
+    m6ExpeditionFixtures = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m6_browser_save_fixture.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
+    break;
+  } catch (error) {
+    if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
+  }
+}
+if (!floorTwoProfileEnvelope) {
+  throw new Error(`could not generate the Floor II browser save fixture with: ${pythonCandidates.join(", ")}`);
+}
+if (!m5EquipmentFixtures?.hub || !m5EquipmentFixtures?.outing) {
+  throw new Error("could not generate the M5 equipment browser save fixtures");
+}
+if (!m6ExpeditionFixtures?.hub) {
+  throw new Error("could not generate the M6 expedition browser save fixture");
+}
 const errors = [];
+const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
 await mkdir(screenshotDirectory, { recursive: true });
 
@@ -253,13 +297,19 @@ async function controlSignature(page) {
 
 async function clickVisibleOption(page, containerSelector, label) {
   const buttons = page.locator(`${containerSelector} button`);
-  for (let index = 0; index < await buttons.count(); index += 1) {
-    const button = buttons.nth(index);
-    const text = await button.locator(".choice-label").textContent().catch(() => null);
-    if (text?.trim() === label && await button.isEnabled()) {
-      await button.click();
-      return;
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    for (let index = 0; index < await buttons.count(); index += 1) {
+      const button = buttons.nth(index);
+      const text = await button.evaluate((element) =>
+        element.querySelector(".choice-label")?.textContent?.trim() || element.textContent.trim(),
+      );
+      if (text?.trim() === label && await button.isEnabled()) {
+        await button.click();
+        return;
+      }
     }
+    await page.waitForTimeout(50);
   }
   const state = await page.evaluate(({ selector }) => {
     const buttons = [...document.querySelectorAll(`${selector} button`)].map((button) => ({
@@ -384,9 +434,9 @@ const companionProjection = {
   adventure_text: "Choose one Drifter to join your party.",
   options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
   companion_choices: [
-    { drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
-    { drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
-    { drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "azhvielle", display_name: "Azhvielle", archetype_label: "Black Mage | Elemental Controller", summary: "versatile, dangerous, unpredictable", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "zhaivra", display_name: "Zhaivra Kelyth", archetype_label: "Rogue Archer | Alchemical Marksman", summary: "precise, prepared, resource-limited", cost: 65, enabled: true, disabled_reason: null },
+    { event_id: "floor_one_d2_recruitment", drifter_id: "joruun", display_name: "Joruun Veyr", archetype_label: "Monk | Elemental Skirmisher", summary: "mobile, adaptable, physically costly", cost: 65, enabled: true, disabled_reason: null },
   ],
   recruitment_cost: 65,
 };
@@ -445,8 +495,34 @@ const securedHubProjection = {
   options: [
     { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
     ...hubProjection.options.slice(2),
+    { action: "select_party", label: "Choose Party", enabled: true, disabled_reason: null },
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
   ],
+};
+
+const partySelectionProjection = {
+  ...securedHubProjection,
+  screen: "party_selection",
+  adventure_text: "Choose the two Drifters for your next outing.",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  active_drifter_ids: ["branoc", "azhvielle"],
+  active_party_choices: [
+    ["branoc", "azhvielle", "Ser Branoc", "Azhvielle", true],
+    ["branoc", "joruun", "Ser Branoc", "Joruun Veyr", false],
+    ["azhvielle", "branoc", "Azhvielle", "Ser Branoc", false],
+    ["azhvielle", "joruun", "Azhvielle", "Joruun Veyr", false],
+    ["joruun", "branoc", "Joruun Veyr", "Ser Branoc", false],
+    ["joruun", "azhvielle", "Joruun Veyr", "Azhvielle", false],
+  ].map(([first, second, firstName, secondName, selected]) => ({
+    drifter_ids: [first, second],
+    display_names: [firstName, secondName],
+    selected,
+  })),
+};
+
+const partyChosenProjection = {
+  ...securedHubProjection,
+  adventure_text: "Party selected for the next outing.",
 };
 
 const itemsProjection = {
@@ -457,7 +533,7 @@ const itemsProjection = {
     { action: "back", label: "Back", enabled: true, disabled_reason: null },
   ],
   inventory: {
-    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false }],
+    items: [{ selection_key: "shared-item:goblin_scrap", display_name: "Goblin Scrap", quantity: 3, description: "Goblin remains suitable for dismantling.", overworld_use_enabled: false, location_label: "Hub Storage" }],
     selected_item_key: null,
     inspected_item: null,
   },
@@ -759,6 +835,8 @@ if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
 const browser = await chromium.launch(browserOptions);
 try {
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(120000);
+  page.on("crash", () => errors.push("browser page crashed"));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => {
     window.__fullscreenRequests = 0;
@@ -796,6 +874,14 @@ try {
     });
   });
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    pendingRequests.set(request, request.url());
+  });
+  page.on("requestfinished", (request) => pendingRequests.delete(request));
+  page.on("requestfailed", (request) => {
+    pendingRequests.delete(request);
+    errors.push(`request failed ${request.url()}: ${request.failure()?.errorText || "unknown"}`);
+  });
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
@@ -803,12 +889,34 @@ try {
   await page.route("**/favicon.ico", (route) =>
     route.fulfill({ status: 204, body: "" }),
   );
-  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" }).catch(async (error) => {
+    const navigationState = await page.evaluate(() => ({
+      readyState: document.readyState,
+      scripts: Array.from(document.scripts, (script) => ({
+        source: script.src,
+        loaded: script.readyState || "unknown",
+      })),
+      assets: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => /pyodide|dd_runtime|dd_bridge/.test(name)),
+    })).catch(() => null);
+    throw new Error(`${errors.join("; ") || error.message}; navigation=${JSON.stringify(navigationState)}`);
+  });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
   }).catch(async (error) => {
     const startupError = await page.locator("#error-message").innerText().catch(() => "");
-    throw new Error(startupError || errors.join("; ") || error.message);
+    const startupState = await page.evaluate(() => ({
+      status: document.querySelector("#start-status")?.textContent?.trim(),
+      runtimeLoaded: typeof window.loadPyodide === "function",
+      assets: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => /pyodide|dd_runtime|dd_bridge|qualification\/python\/boot/.test(name)),
+      pendingRequests: Array.from(pendingRequests.values()),
+    })).catch(() => null);
+    throw new Error(
+      startupError || `${errors.join("; ") || error.message}; startup=${JSON.stringify(startupState)}; pending=${JSON.stringify(Array.from(pendingRequests.values()))}`,
+    );
   });
   requireCondition(
     await page.locator("#start-screen").isVisible() &&
@@ -1140,8 +1248,11 @@ try {
   await page.locator("#equipment-panel").waitFor({ state: "visible" });
   requireCondition(
     await page.locator("#equipment-panel").isVisible() &&
-      (await page.locator("#equipment-panel").innerText()).includes("Necklace") &&
+      (await page.locator("#equipment-panel").innerText()).includes("Pendant") &&
       (await page.locator("#equipment-panel").innerText()).includes("Ring") &&
+      (await page.locator("#equipment-panel").innerText()).includes("OWNED GEAR") &&
+      (await page.locator("#equipment-panel").innerText()).includes("AVAILABLE MODIFIERS") &&
+      (await page.locator("#equipment-panel").innerText()).includes("STATIC ACCESSORIES") &&
       (await page.locator("#equipment-panel").innerText()).includes("BENEFITS"),
     "Equipment action did not render its authoritative detail view",
   );
@@ -1659,7 +1770,7 @@ try {
                 window.__fixtureHubPhase = "companion";
                 return JSON.stringify(views.companion);
               }
-              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle") {
+              if (window.__fixtureHubPhase === "companion" && command.drifter_id === "azhvielle" && command.event_id === "floor_one_d2_recruitment") {
                 window.__fixtureHubPhase = "partyReady";
                 return JSON.stringify(views.partyReady);
               }
@@ -1678,6 +1789,15 @@ try {
               if (window.__fixtureHubPhase === "extraction" && command.action === "return_to_hub") {
                 window.__fixtureHubPhase = "securedHub";
                 return JSON.stringify(views.securedHub);
+              }
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "select_party") {
+                window.__fixtureHubPhase = "partySelection";
+                return JSON.stringify(views.partySelection);
+              }
+              if (window.__fixtureHubPhase === "partySelection" && command.kind === "active_pair" &&
+                  JSON.stringify(command.drifter_ids) === JSON.stringify(["joruun", "azhvielle"])) {
+                window.__fixtureHubPhase = "securedHub";
+                return JSON.stringify(views.partyChosen);
               }
               throw new Error(`unexpected hub fixture command at ${window.__fixtureHubPhase}`);
             }
@@ -1698,6 +1818,8 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    partySelection: partySelectionProjection,
+    partyChosen: partyChosenProjection,
     items: itemsProjection,
     itemsSelected: itemsSelectedProjection,
     itemInspection: itemInspectionProjection,
@@ -1900,19 +2022,30 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 6 &&
+      await targetPage.locator("#overworld-options button").count() === 7 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
     "returned Hub did not show secured currency or offer Floor 1",
   );
+  await clickVisibleOption(targetPage, "#overworld-options", "Choose Party");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION");
+  requireCondition(
+    await targetPage.locator("#party-pair-choices button").count() === 6 &&
+      await targetPage.locator("#party-pair-choices").innerText().then((text) => text.includes("Joruun Veyr + Azhvielle")),
+    "party selection did not render all ordered Drifter pairs",
+  );
+  await clickVisibleOption(targetPage, "#party-pair-choices", "Joruun Veyr + Azhvielle");
+  await targetPage.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "HUB");
   const hubCommands = await targetPage.evaluate(() => window.__fixtureCommands);
   requireCondition(
     JSON.stringify(hubCommands) === JSON.stringify([
       { kind: "overworld_action", action: "recruit_companion" },
-      { kind: "companion", drifter_id: "azhvielle" },
+      { kind: "companion", drifter_id: "azhvielle", event_id: "floor_one_d2_recruitment" },
       { kind: "overworld_action", action: "ready" },
       { kind: "action", intent: "defend" },
       { kind: "overworld_action", action: "return_to_hub" },
+      { kind: "overworld_action", action: "select_party" },
+      { kind: "active_pair", drifter_ids: ["joruun", "azhvielle"] },
     ]),
     `Hub flow did not submit existing semantic commands: ${JSON.stringify(hubCommands)}`,
   );
@@ -1993,6 +2126,8 @@ try {
   const merchantCommands = await targetPage.evaluate(() => window.__fixtureCommands.slice(5));
   requireCondition(
     JSON.stringify(merchantCommands) === JSON.stringify([
+      { kind: "overworld_action", action: "select_party" },
+      { kind: "active_pair", drifter_ids: ["joruun", "azhvielle"] },
       { kind: "overworld_action", action: "merchant" },
       { kind: "merchant_target", drifter_id: "azhvielle" },
       { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
@@ -2014,10 +2149,10 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Items");
   await targetPage.locator("#items-panel").waitFor({ state: "visible" });
   requireCondition(
-    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3"),
+    (await targetPage.locator("#items-list").innerText()).includes("Goblin Scrap x3 | Hub Storage"),
     "Items page did not show the secured Goblin Scrap stack",
   );
-  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3");
+  await clickVisibleOption(targetPage, "#items-list", "Goblin Scrap x3 | Hub Storage");
   await clickVisibleOption(targetPage, "#items-options", "Inspect");
   await targetPage.locator("#items-inspection").waitFor({ state: "visible" });
   requireCondition(
@@ -2155,35 +2290,6 @@ try {
   );
   console.log("PYD7|BROWSER|DEFEAT_RESELECT|PASS");
 
-  const qualification = await browser.newPage();
-  qualification.on("pageerror", (error) => errors.push(error.message));
-  qualification.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  await qualification.goto(`${baseUrl}/qualification/`, {
-    waitUntil: "domcontentloaded",
-  });
-  await qualification.waitForFunction(
-    () => {
-      const output = document.getElementById("status").textContent;
-      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
-    },
-    null,
-    { timeout: 120000 },
-  );
-  const result = await qualification.locator("#status").innerText();
-  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
-  requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
-  requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
-  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
-  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
-  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
-  requireCondition(result.includes("Floor 1: 10 battles, 670 EXP each, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
-  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
-  requireCondition(result.includes("Replay: 50% EXP, 140 EXP | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
-  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
-  requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
-
   await page.locator("#restart").click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
@@ -2196,7 +2302,10 @@ try {
   await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
+  }).catch(async (error) => {
+    const startupError = await page.locator("#error-message").innerText().catch(() => "");
+    throw new Error(startupError || errors.join("; ") || error.message);
   });
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
@@ -2229,6 +2338,80 @@ try {
   await page.locator("#shortcut-code").fill("F01BA");
   await page.locator('#shortcut-form button[type="submit"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  requireCondition(
+    await page.locator("#party-pair-choices .party-pair-choice").count() === 2,
+    "the real browser runtime did not offer both ordered choices for the recruited pair",
+  );
+  const savedActivePairLabel =
+    "Azhvielle, the Unconfessed + Ser Branoc, the Unbroken Crest";
+  await clickVisibleOption(page, "#party-pair-choices", savedActivePairLabel);
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#character-targets button").count() === 2,
+    "the real Hub character view did not expose both recruited Drifters",
+  );
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
+  const strengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
+  const strengthBefore = await strengthRow.locator(".skill-value").innerText();
+  const growthBefore = await page.locator("#growth-summary").innerText();
+  requireCondition(
+    growthBefore.startsWith("Growth Points:") &&
+      Number(growthBefore.match(/\d+/)?.[0] || 0) > 0,
+    "the controlled Hub state did not provide a Growth Point for the recruited target",
+  );
+  const passiveSkillRow = page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_p01"]',
+  );
+  const activeSkillRow = page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_a01"]',
+  );
+  await passiveSkillRow.getByRole("button", { name: /Purchase/ }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-advancement [data-skill-id="azhvielle_p01"]')
+      ?.innerText.includes("Purchased"),
+  );
+  await activeSkillRow.getByRole("button", { name: /Purchase/ }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-advancement [data-skill-id="azhvielle_a01"]')
+      ?.innerText.includes("Purchased"),
+  );
+  const firstMoveSlot = page.locator('#skill-loadout select[data-slot="0"]');
+  await firstMoveSlot.selectOption("azhvielle_a01");
+  await page.waitForFunction(() =>
+    document.querySelector('#skill-loadout select[data-slot="0"]')?.value ===
+      "azhvielle_a01",
+  );
+  await strengthRow.getByRole("button", { name: "[+1]" }).click();
+  await page.waitForFunction((previous) => {
+    const row = [...document.querySelectorAll("#skill-stats .skill-stat")]
+      .find((candidate) => candidate.querySelector(".skill-label")?.textContent === "Strength");
+    return row?.querySelector(".skill-value")?.textContent !== previous;
+  }, strengthBefore);
+  const savedMemberProgression = {
+    drifter: "azhvielle",
+    strength: await strengthRow.locator(".skill-value").innerText(),
+    growth: await page.locator("#growth-summary").innerText(),
+    passive: await passiveSkillRow.innerText(),
+    active: await activeSkillRow.innerText(),
+    equippedMove: await page.locator('#skill-loadout select[data-slot="0"]')
+      .inputValue(),
+  };
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+
   await clickVisibleOption(page, "#overworld-options", "Merchant");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
@@ -2310,7 +2493,10 @@ try {
   await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
-    timeout: 30000,
+    timeout: 120000,
+  }).catch(async (error) => {
+    const startupError = await page.locator("#error-message").innerText().catch(() => "");
+    throw new Error(startupError || errors.join("; ") || error.message);
   });
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator("#selection-screen").waitFor({ state: "visible" });
@@ -2336,17 +2522,68 @@ try {
     restoredHubState.location === "Floor 1 Hub",
     `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
   );
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const restoredActivePair = page.locator("#party-pair-choices .party-pair-choice.is-selected");
+  requireCondition(
+    await page.locator("#party-pair-choices .party-pair-choice").count() === 2 &&
+      await restoredActivePair.count() === 1 &&
+      (await restoredActivePair.innerText()) === savedActivePairLabel,
+    "saved active-pair selection did not survive browser reload",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "HUB",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
+  const restoredStrengthRow = page.locator("#skill-stats .skill-stat").filter({ hasText: "Strength" });
+  const restoredMemberProgression = {
+    strength: await restoredStrengthRow.locator(".skill-value").innerText(),
+    growth: await page.locator("#growth-summary").innerText(),
+    passive: await page.locator(
+      '#skill-advancement [data-skill-id="azhvielle_p01"]',
+    ).innerText(),
+    active: await page.locator(
+      '#skill-advancement [data-skill-id="azhvielle_a01"]',
+    ).innerText(),
+    equippedMove: await page.locator('#skill-loadout select[data-slot="0"]')
+      .inputValue(),
+  };
+  requireCondition(
+    restoredMemberProgression.strength === savedMemberProgression.strength &&
+      restoredMemberProgression.growth === savedMemberProgression.growth &&
+      restoredMemberProgression.passive.includes("Purchased") &&
+      restoredMemberProgression.active.includes("Purchased") &&
+      restoredMemberProgression.equippedMove === "azhvielle_a01",
+    `Azhvielle's skills, loadout, or stat investment did not survive browser reload: ${JSON.stringify({ savedMemberProgression, restoredMemberProgression })}`,
+  );
+  console.log("M3_BROWSER|ADVANCEMENT_SAVE_RELOAD|PASS");
+  console.log("M1_BROWSER|ACTIVE_PAIR_SAVE_RELOAD|PASS");
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Weapon");
   await page.locator("#weapon-panel").waitFor({ state: "visible" });
   const loadedWeaponTarget = page.locator("#weapon-targets button").filter({ hasText: "Ser Branoc" });
   await loadedWeaponTarget.click();
+  await page.locator("#weapon-targets button[aria-pressed='true']")
+    .filter({ hasText: "Ser Branoc" }).waitFor();
   const loadedBladeState = await page.locator("#weapon-components .weapon-component-slot").first().innerText();
   requireCondition(
     loadedBladeState.includes("Installed: Reinforced Blade and Guard") &&
       loadedBladeState === installedBladeState,
-    "browser reload and Load did not restore Branoc's weapon progression: installed component changed",
+    `browser reload and Load did not restore Branoc's weapon progression: installed component changed: ${JSON.stringify({ installedBladeState, loadedBladeState })}`,
   );
   await clickVisibleOption(page, "#weapon-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "visible" });
@@ -2365,6 +2602,1665 @@ try {
   );
   requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
   console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
+
+  const supplyRow = (name) => page.locator("#merchant-supplies .hub-supply-row")
+    .filter({ hasText: name }).first();
+  const updateSupply = async (name, action) => {
+    const row = supplyRow(name);
+    const previous = await row.innerText();
+    await row.getByRole("button", { name: action, exact: true }).click();
+    await page.waitForFunction(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: previous });
+  };
+  const quantityInSupplyRow = async (name, kind) => {
+    const text = await supplyRow(name).innerText();
+    const match = text.match(new RegExp(`${kind}\\s+(\\d+)`));
+    return Number(match?.[1] || 0);
+  };
+  const cordCount = async () => {
+    const text = await page.locator("#merchant-materials").innerText();
+    return Number(text.match(/Cord:\s*(\d+)/i)?.[1] || 0);
+  };
+
+  const bossCore = page.locator("#merchant-dismantle .merchant-row")
+    .filter({ hasText: "Goblin Lord Core" });
+  requireCondition(await bossCore.count() === 1, "M2 supply setup did not provide a Goblin Lord Core");
+  const coreBeforeDismantle = await bossCore.innerText();
+  await bossCore.getByRole("button", { name: "Dismantle" }).click();
+  await page.waitForFunction((previous) => {
+    const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
+      .find((candidate) => candidate.innerText.includes("Goblin Lord Core"));
+    return !row || row.innerText !== previous;
+  }, coreBeforeDismantle);
+
+  for (let attempt = 0; attempt < 20 && await cordCount() < 3; attempt += 1) {
+    const scrapRow = page.locator("#merchant-dismantle .merchant-row")
+      .filter({ hasText: "Goblin Scrap" });
+    requireCondition(await scrapRow.count() === 1, "M2 supply setup exhausted Goblin Scrap before obtaining Cord");
+    const previous = await scrapRow.innerText();
+    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
+    await page.waitForFunction((oldText) => {
+      const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
+        .find((candidate) => candidate.innerText.includes("Goblin Scrap"));
+      return !row || row.innerText !== oldText;
+    }, previous);
+  }
+  requireCondition(await cordCount() >= 3, "M2 supply setup could not obtain three Cord for Alchemy");
+
+  await updateSupply("Charcoal Dust", "Buy");
+  await updateSupply("Charcoal Dust", "Buy");
+  await updateSupply("Healing Potion", "Buy");
+  const craftAlchemy = async (name) => {
+    const row = page.locator("#merchant-alchemy-recipes .merchant-row")
+      .filter({ has: page.locator("strong").getByText(name, { exact: true }) });
+    const rowCount = await row.count();
+    if (rowCount !== 1) {
+      const recipes = await page.locator("#merchant-alchemy-recipes").innerText();
+      const badge = await page.locator("#screen-badge").innerText();
+      throw new Error(`M2 Merchant did not offer ${name} (matches=${rowCount}, screen=${badge}, recipes=${recipes})`);
+    }
+    const before = await supplyRow(name).innerText();
+    await row.getByRole("button", { name: "Craft", exact: true }).click();
+    await page.waitForFunction(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: before });
+  };
+  await craftAlchemy("Smoke Powder");
+  await craftAlchemy("Smoke Powder");
+  await craftAlchemy("Smoke Bomb");
+  await craftAlchemy("Smoke Bomb");
+  await craftAlchemy("Return Talisman");
+  requireCondition(
+    await quantityInSupplyRow("Healing Potion", "Stored") === 1 &&
+      await quantityInSupplyRow("Smoke Bomb", "Stored") === 2 &&
+      await quantityInSupplyRow("Return Talisman", "Stored") === 1,
+    "Hub purchase and Alchemy did not create the expected secured supply quantities",
+  );
+  await updateSupply("Healing Potion", "Load");
+  await updateSupply("Smoke Bomb", "Load");
+  await updateSupply("Smoke Bomb", "Load");
+  await updateSupply("Return Talisman", "Load");
+  requireCondition(
+    (await page.locator("#merchant-storage-summary").innerText()).includes("Carried supplies: 4/6") &&
+      await quantityInSupplyRow("Healing Potion", "Stored") === 0 &&
+      await quantityInSupplyRow("Smoke Bomb", "Stored") === 0 &&
+      await quantityInSupplyRow("Return Talisman", "Stored") === 0,
+    "loading supplies did not transfer four units out of Hub storage into the pack",
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("#overworld-options button")].some((button) =>
+      (button.querySelector(".choice-label")?.textContent ?? button.textContent).trim() === "Save" &&
+      !button.disabled,
+    ),
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, { timeout: 120000 });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(() =>
+    document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(() =>
+    document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const text = document.getElementById("items-list").innerText;
+    return text.includes("Healing Potion x1 | Carried Pack") &&
+      text.includes("Smoke Bomb x2 | Carried Pack") &&
+      text.includes("Return Talisman x1 | Carried Pack");
+  });
+  const carriedItemsText = await page.locator("#items-list").innerText();
+  requireCondition(
+    carriedItemsText.includes("Healing Potion x1 | Carried Pack") &&
+      carriedItemsText.includes("Smoke Bomb x2 | Carried Pack") &&
+      carriedItemsText.includes("Return Talisman x1 | Carried Pack"),
+    `browser save/reload did not preserve carried supplies separately: ${carriedItemsText}`,
+  );
+  console.log("M2_BROWSER|PREP_ALCHEMY_PACK_SAVE_RELOAD|PASS");
+
+  const hubScrapBeforeRun = Number(
+    carriedItemsText.match(/Goblin Scrap x(\d+) \| Hub Storage/)?.[1] || 0,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  const characterProgress = async (label) => {
+    await clickVisibleOption(page, "#character-targets", label);
+    return {
+      level: Number((await page.locator("#character-level").innerText()).match(/\d+/)?.[0] || 0),
+      experience: Number((await page.locator("#experience-value").innerText()).match(/^\s*(\d+)/)?.[1] || 0),
+    };
+  };
+  const drifterLabels = [
+    "Ser Branoc, the Unbroken Crest",
+    "Azhvielle, the Unconfessed",
+  ];
+  const xpBeforeTalismanRun = {};
+  for (const label of drifterLabels) xpBeforeTalismanRun[label] = await characterProgress(label);
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+
+  const hubGoldBeforeTalismanRun = await page.locator("#hub-shared-gold").innerText();
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 1");
+  await page.waitForFunction(() => document.getElementById("screen-badge").textContent.trim() === "FLOOR_ONE_WARNING");
+  await clickVisibleOption(page, "#overworld-options", "Set Out");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+
+  const clickFirstBattleChoice = async (selector) => {
+    const clicked = await page.evaluate((choiceSelector) => {
+      const button = document.querySelector(`${choiceSelector}:not([disabled])`);
+      if (!button) return false;
+      window.__DD_LAST_BATTLE_CHOICE__ = button;
+      button.click();
+      return true;
+    }, selector);
+    requireCondition(clicked, `no enabled battle choice matched ${selector}`);
+    await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+  };
+  const resolveAttackChoice = async () => {
+    await page.waitForFunction(() =>
+      document.querySelector("#moves .move-choice:not([disabled])") !== null ||
+        document.querySelector("#targets .target-choice:not([disabled])") !== null,
+    null, { timeout: 10000 }).catch(async (error) => {
+      const state = await page.evaluate(() => ({
+        phase: document.getElementById("app").dataset.interactionPhase,
+        actions: [...document.querySelectorAll("#actions button")].map((button) => button.textContent.trim()),
+        moves: [...document.querySelectorAll("#moves button")].map((button) => button.textContent.trim()),
+        log: document.getElementById("battle-log").innerText,
+      }));
+      throw new Error(`Attack did not render a move or target choice: ${JSON.stringify(state)}; ${error.message}`);
+    });
+    if (await page.locator("#targets .target-choice:not([disabled])").count()) return;
+    await clickFirstBattleChoice("#moves .move-choice");
+    if (await page.locator("#app").getAttribute("data-interaction-phase") === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    }
+  };
+  const attackOnce = async () => {
+    await clickVisibleOption(page, "#actions", "Attack");
+    await resolveAttackChoice();
+  };
+  let advancementMoveDamage = 0;
+  const useAzhvielleAdvancementMove = async () => {
+    await clickVisibleOption(page, "#actions", "Attack");
+    const move = page.locator("#moves .move-choice").filter({ hasText: "Witchlight Bolt" }).first();
+    await move.waitFor({ state: "visible" });
+    await move.click();
+    await page.locator("#targets .target-choice:not([disabled])").first()
+      .waitFor({ state: "visible" });
+    await clickFirstBattleChoice("#targets .target-choice");
+    await page.waitForFunction(() =>
+      document.getElementById("battle-log").innerText.includes("Witchlight Bolt"),
+    );
+    const log = await page.locator("#battle-log").innerText();
+    const damageMatch = log.match(/Witchlight Bolt[^\n]*It dealt (\d+) damage/i);
+    if (damageMatch) advancementMoveDamage = Number(damageMatch[1]);
+  };
+  for (let action = 0; action < 60 && await page.locator("#overworld-screen").isHidden(); action += 1) {
+    const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+    if (phase === "actions") {
+      const activeDrifterId = await page.locator(
+        "#party-members .party-member.is-active",
+      ).getAttribute("data-target-id");
+      if (activeDrifterId === "drifter_azhvielle" && advancementMoveDamage === 0) {
+        await useAzhvielleAdvancementMove();
+      } else {
+        await attackOnce();
+      }
+    } else if (phase === "regular_moves") {
+      await resolveAttackChoice();
+    } else if (phase === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    } else {
+      throw new Error(`unexpected browser battle phase while clearing one encounter: ${phase}`);
+    }
+  }
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    advancementMoveDamage > 0,
+    "Azhvielle's purchased Witchlight Bolt did not deal damage in the browser battle",
+  );
+  console.log("M3_BROWSER|ADVANCEMENT_MOVE_USED|PASS");
+  const firstEncounterRewards = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    firstEncounterRewards.includes("Unsecured rewards:") && firstEncounterRewards.includes("Items: 4 Goblin Scrap"),
+    `Floor 1 did not display the unsecured item drop: ${firstEncounterRewards}`,
+  );
+  const smokeNode = await page.locator("#location-label").innerText();
+  requireCondition(smokeNode === "Goblin Patrol", `expected the next encounter after the first clear, got ${smokeNode}`);
+
+  const partyStatus = () => page.locator("#party-members .party-member").evaluateAll((members) =>
+    members.map((member) => `${member.dataset.targetId}|${member.querySelector(".party-member-status").textContent.trim()}`),
+  );
+  const enemyStatus = () => page.locator("#enemy-panel .enemy").evaluateAll((enemies) =>
+    enemies.map((enemy) => enemy.textContent.trim()),
+  );
+  const enemyHealthTotal = () => page.locator("#enemy-panel .enemy").evaluateAll((enemies) =>
+    enemies.reduce((total, enemy) => {
+      const match = enemy.textContent.match(/HP\s+(\d+)\s*\/\s*\d+/i);
+      if (!match) throw new Error(`enemy health is not rendered: ${enemy.textContent}`);
+      return total + Number(match[1]);
+    }, 0),
+  );
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  const freshEnemyStatus = await enemyStatus();
+  requireCondition(freshEnemyStatus.length === 3, `Goblin Patrol did not create three fresh enemies: ${JSON.stringify(freshEnemyStatus)}`);
+  const freshEnemyHealth = await enemyHealthTotal();
+  let damagedEnemyHealth = freshEnemyHealth;
+  for (let attempt = 0; attempt < 12 && damagedEnemyHealth >= freshEnemyHealth; attempt += 1) {
+    const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+    if (phase === "actions") {
+      await attackOnce();
+    } else if (phase === "regular_moves") {
+      await resolveAttackChoice();
+    } else if (phase === "targets") {
+      await clickFirstBattleChoice("#targets .target-choice");
+    } else {
+      throw new Error(`unexpected browser battle phase while preparing smoke retry proof: ${phase}`);
+    }
+    damagedEnemyHealth = await enemyHealthTotal();
+  }
+  requireCondition(
+    damagedEnemyHealth < freshEnemyHealth,
+    `bounded attacks did not damage Goblin Patrol before smoke escape: ${freshEnemyHealth} -> ${damagedEnemyHealth}`,
+  );
+  const partyBeforeSmoke = await partyStatus();
+  const damagedEnemyStatus = await enemyStatus();
+  await clickVisibleOption(page, "#actions", "Smoke Bomb");
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === smokeNode &&
+      (await page.locator("#adventure-text").innerText()).includes("No rewards are earned") &&
+      JSON.stringify(await partyStatus()) === JSON.stringify(partyBeforeSmoke) &&
+      await page.getByRole("button", { name: "Enter Encounter" }).isVisible(),
+    "Smoke Bomb changed party resources, awarded rewards, advanced the route, or hid the retry",
+  );
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  const retriedEnemyHealth = await enemyHealthTotal();
+  const retriedEnemyStatus = await enemyStatus();
+  requireCondition(
+    JSON.stringify(retriedEnemyStatus) === JSON.stringify(freshEnemyStatus) &&
+      retriedEnemyHealth === freshEnemyHealth &&
+      retriedEnemyHealth > damagedEnemyHealth &&
+      JSON.stringify(retriedEnemyStatus) !== JSON.stringify(damagedEnemyStatus),
+    "retry did not recreate the same encounter with fresh enemy health",
+  );
+  console.log("M2_BROWSER|SMOKE_ESCAPE_PRESERVES_AND_RETRIES|PASS");
+  await clickVisibleOption(page, "#actions", "Smoke Bomb");
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#location-label").innerText() === smokeNode &&
+      await page.getByRole("button", { name: "Use Return Talisman" }).isVisible(),
+    "the second smoke escape did not leave the same node and allow the separate talisman exit",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Use Return Talisman");
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const talismanNotice = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    talismanNotice.includes("Adjusted XP is secured") &&
+      talismanNotice.includes("run gold and items are lost") &&
+      (await page.locator("#hub-shared-gold").innerText()) === hubGoldBeforeTalismanRun,
+    `Return Talisman banked the wrong rewards: ${JSON.stringify({ talismanNotice, gold: await page.locator("#hub-shared-gold").innerText() })}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  for (const label of drifterLabels) {
+    const after = await characterProgress(label);
+    const before = xpBeforeTalismanRun[label];
+    requireCondition(
+      after.level > before.level || (after.level === before.level && after.experience > before.experience),
+      `Return Talisman did not secure earned XP for ${label}: ${JSON.stringify({ before, after })}`,
+    );
+  }
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const returnedItems = await page.locator("#items-list").innerText();
+  requireCondition(
+    returnedItems.includes("Healing Potion x1 | Hub Storage") &&
+      !returnedItems.includes("Smoke Bomb x") &&
+      !returnedItems.includes("Return Talisman x") &&
+      Number(returnedItems.match(/Goblin Scrap x(\d+) \| Hub Storage/)?.[1] || 0) === hubScrapBeforeRun,
+    `Return Talisman returned consumed or unsecured items: ${returnedItems}`,
+  );
+  console.log("M2_BROWSER|TALISMAN_XP_ONLY|PASS");
+
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  const preRespecGrowth = await page.locator("#growth-summary").innerText();
+  const baseAzhvielleStrength = "5";
+  await clickVisibleOption(page, "#skills-options", "Respec");
+  await page.locator("#respec-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#respec-target").innerText()) === "Azhvielle, the Unconfessed" &&
+      (await page.locator("#respec-cost").innerText()).includes("no Revision Parchment") &&
+      (await page.locator("#respec-skills").innerText()).includes("azhvielle_p01") &&
+      (await page.locator("#respec-skills").innerText()).includes("azhvielle_a01") &&
+      (await page.locator("#respec-stat-points").innerText()).includes("strength"),
+    "Azhvielle's first-respec preview omitted its cost or the purchases to be removed",
+  );
+  await clickVisibleOption(page, "#respec-options", "Confirm");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  const strengthAfterRespec = page.locator("#skill-stats .skill-stat")
+    .filter({ hasText: "Strength" });
+  await page.waitForFunction(() => {
+    const row = [...document.querySelectorAll("#skill-stats .skill-stat")]
+      .find((candidate) => candidate.querySelector(".skill-label")?.textContent === "Strength");
+    return row?.querySelector(".skill-value")?.textContent === "5";
+  });
+  const growthAfterRespec = await page.locator("#growth-summary").innerText();
+  requireCondition(
+    (await strengthAfterRespec.locator(".skill-value").innerText()) === baseAzhvielleStrength &&
+      growthAfterRespec !== preRespecGrowth &&
+      !(await page.locator('#skill-advancement [data-skill-id="azhvielle_p01"]')
+        .innerText()).includes("Purchased") &&
+      !(await page.locator('#skill-advancement [data-skill-id="azhvielle_a01"]')
+        .innerText()).includes("Purchased"),
+    "confirmed respec did not remove the selected Drifter's tracked upgrades",
+  );
+  await clickVisibleOption(page, "#skills-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Weapon");
+  await page.locator("#weapon-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#weapon-targets", "Ser Branoc, the Unbroken Crest");
+  await page.locator("#weapon-targets button[aria-pressed='true']")
+    .filter({ hasText: "Ser Branoc, the Unbroken Crest" }).waitFor();
+  const weaponAfterAzhvielleRespec = await page.locator(
+    "#weapon-components .weapon-component-slot",
+  ).first().innerText();
+  requireCondition(
+    weaponAfterAzhvielleRespec === installedBladeState,
+    `Azhvielle's respec changed Branoc's independent signature weapon progression: ${JSON.stringify({ installedBladeState, weaponAfterAzhvielleRespec })}`,
+  );
+  await clickVisibleOption(page, "#weapon-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Back");
+  await page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-options", "Skills");
+  await page.locator("#skills-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#skills-targets", "Azhvielle, the Unconfessed");
+  await page.locator("#skills-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
+  const restoredRespecGrowth = await page.locator("#growth-summary").innerText();
+  const restoredRespecStrength = await page.locator("#skill-stats .skill-stat")
+    .filter({ hasText: "Strength" }).locator(".skill-value").innerText();
+  const restoredPassiveState = await page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_p01"]',
+  ).innerText();
+  const restoredActiveState = await page.locator(
+    '#skill-advancement [data-skill-id="azhvielle_a01"]',
+  ).innerText();
+  requireCondition(
+    restoredRespecGrowth === growthAfterRespec &&
+      restoredRespecStrength === baseAzhvielleStrength &&
+      !restoredPassiveState.includes("Purchased") &&
+      !restoredActiveState.includes("Purchased"),
+    `browser save/reload changed or repeated Azhvielle's confirmed respec: ${JSON.stringify({ growthAfterRespec, restoredRespecGrowth, restoredRespecStrength, restoredPassiveState, restoredActiveState })}`,
+  );
+  console.log("M3_BROWSER|RESPEC_SAVE_RELOAD|PASS");
+
+  const floorTwoProfileKey =
+    "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  const readFloorTwoDiscoveryBonuses = async () => page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    const members = [payload.player, ...payload.party.companions];
+    const drifterIdByChoice = {
+      "1": "branoc",
+      "2": "azhvielle",
+      "3": "zhaivra",
+      "4": "joruun",
+    };
+    return Object.fromEntries(members.map((member) => [
+      drifterIdByChoice[member.identity.profile.choice],
+      member.permanent_discovery_bonuses,
+    ]));
+  }, floorTwoProfileKey);
+  await page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: floorTwoProfileKey,
+    envelope: floorTwoProfileEnvelope,
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "HUB" &&
+      await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      await page.locator("#hub-shared-gold").innerText() === "Shared gold: 64",
+    "the Floor II browser fixture did not load as an insufficient-gold cleared-Hub save",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Character");
+  await page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#character-targets", "Azhvielle, the Unconfessed");
+  const azhvielleHpAtHub = Number(
+    (await page.locator("#character-progression").innerText()).match(/HP\s+\d+\/(\d+)/)?.[1] || 0,
+  );
+  requireCondition(azhvielleHpAtHub > 0, "the qualifying save omitted Azhvielle's starting HP maximum");
+  await clickVisibleOption(page, "#character-options", "Back");
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const floorTwoPackText = await page.locator("#items-list").innerText();
+  requireCondition(
+    floorTwoPackText.includes("Healing Potion x6 | Carried Pack"),
+    `the Floor II qualifying save did not load its six carried potions: ${floorTwoPackText}`,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  console.log("M4_BROWSER|LOAD_QUALIFYING_SAVE|PASS");
+
+  const floorTwoPotionUses = [];
+  const floorTwoBattleLogs = new Map();
+  const readFloorTwoActivePartyResources = async () => {
+    await clickVisibleOption(page, "#overworld-options", "Character");
+    await page.locator("#character-panel").waitFor({ state: "visible" });
+    const resources = {};
+    for (const [drifterId, label] of [
+      ["branoc", "Ser Branoc, the Unbroken Crest"],
+      ["azhvielle", "Azhvielle, the Unconfessed"],
+    ]) {
+      await clickVisibleOption(page, "#character-targets", label);
+      await page.locator("#character-targets button[aria-pressed='true']")
+        .filter({ hasText: label }).waitFor({ state: "visible" });
+      const text = await page.locator("#character-resources").innerText();
+      resources[drifterId] = Object.fromEntries(
+        [...text.matchAll(/(HP|Mana|Super)\s+(\d+)\/(\d+)/g)]
+          .map((match) => [match[1].toLowerCase(), [Number(match[2]), Number(match[3])]]),
+      );
+    }
+    await clickVisibleOption(page, "#character-options", "Back");
+    await page.locator("#character-panel").waitFor({ state: "hidden" });
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    return resources;
+  };
+  const verifyFloorTwoRestRecovery = (before, after, restLabel) => {
+    for (const drifterId of ["branoc", "azhvielle"]) {
+      for (const resource of ["hp", "mana"]) {
+        requireCondition(
+          after[drifterId][resource][0] === after[drifterId][resource][1],
+          `${restLabel} did not fully restore ${drifterId} ${resource}: ${JSON.stringify(after[drifterId])}`,
+        );
+      }
+      requireCondition(
+        after[drifterId].super[0] === before[drifterId].super[0],
+        `${restLabel} changed ${drifterId} Super: ${JSON.stringify({ before: before[drifterId], after: after[drifterId] })}`,
+      );
+    }
+  };
+  const clearFloorBattle = async (
+    battleNumber,
+    {
+      floorLabel = "Floor II",
+      bossParty = ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"],
+    } = {},
+  ) => {
+    const deployedIds = await page.locator("#party-members .party-member").evaluateAll(
+      (members) => members.map((member) => member.dataset.targetId),
+    );
+    const expectedParty = battleNumber === 10
+      ? bossParty
+      : ["drifter_branoc", "drifter_azhvielle"];
+    requireCondition(
+      JSON.stringify(deployedIds) === JSON.stringify(expectedParty),
+      `${floorLabel} Battle ${battleNumber} deployed ${JSON.stringify(deployedIds)} instead of ${JSON.stringify(expectedParty)}`,
+    );
+    const observedBattleLog = new Set();
+    const captureBattleLog = async () => {
+      const log = await page.locator("#battle-log").innerText();
+      for (const line of log.split("\n").map((entry) => entry.trim()).filter(Boolean)) {
+        observedBattleLog.add(line);
+      }
+      return [...observedBattleLog].join("\n");
+    };
+    const defendAndWait = async () => {
+      const button = page.locator("#actions button").filter({ hasText: "Defend" }).first();
+      await button.evaluate((node) => { window.__DD_FLOOR_TWO_DEFEND_BUTTON__ = node; });
+      await button.click();
+      await page.waitForFunction(() => {
+        const button = window.__DD_FLOOR_TWO_DEFEND_BUTTON__;
+        const battle = document.getElementById("battle-screen");
+        const overworld = document.getElementById("overworld-screen");
+        return !button || !button.isConnected || !battle || battle.hidden ||
+          (overworld && !overworld.hidden);
+      });
+      await captureBattleLog();
+    };
+    const chooseFloorTwoEnemy = async () => {
+      const targets = page.locator("#targets .target-choice:not([disabled])");
+      const labels = await targets.allInnerTexts();
+      const priority = (label) => {
+        if (/\bGoblin\b/i.test(label) && !/\b(Lord|Warrior|Shaman)\b/i.test(label)) return 0;
+        if (/\bGoblin Warrior\b/i.test(label)) return 1;
+        if (/\bGoblin Shaman\b/i.test(label)) return 2;
+        if (/\bGoblin Lord\b/i.test(label)) return 3;
+        return 10;
+      };
+      const targetIndex = labels
+        .map((label, index) => ({ label, index, priority: priority(label) }))
+        .sort((first, second) => first.priority - second.priority)[0]?.index ?? -1;
+      requireCondition(targetIndex >= 0, `${floorLabel} attack had no enabled target`);
+      const target = targets.nth(targetIndex);
+      await target.evaluate((node) => { window.__DD_FLOOR_TWO_TARGET_BUTTON__ = node; });
+      await target.click();
+      await page.waitForFunction(
+        () => !window.__DD_FLOOR_TWO_TARGET_BUTTON__?.isConnected,
+      );
+    };
+    const resolveFloorTwoAttackChoice = async () => {
+      await page.waitForFunction(() =>
+        document.querySelector("#moves .move-choice:not([disabled])") !== null ||
+          document.querySelector("#targets .target-choice:not([disabled])") !== null,
+      );
+      if (await page.locator("#targets .target-choice:not([disabled])").count()) {
+        await chooseFloorTwoEnemy();
+        return;
+      }
+      const activeActor = await page.locator("#party-members .party-member.is-active h3").innerText();
+      const preferredMoves = /Branoc/i.test(activeActor)
+        ? ["Ironwake Dismemberment", "Crestgrave Reaping", "Cinderlung Vesper"]
+        : /Azhvielle/i.test(activeActor)
+          ? ["Gloamweight Sepulcher", "Mournglass Bloom", "Scepter Sweep"]
+          : [];
+      const enabledMoves = page.locator("#moves .move-choice:not([disabled])");
+      const moveLabels = await enabledMoves.allInnerTexts();
+      const preferredMove = preferredMoves.find((name) =>
+        moveLabels.some((label) => label.includes(name)),
+      );
+      if (preferredMove) {
+        const button = enabledMoves.filter({ hasText: preferredMove }).first();
+        await button.evaluate((node) => { window.__DD_LAST_BATTLE_CHOICE__ = node; });
+        await button.click();
+        await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+      } else {
+        await clickFirstBattleChoice("#moves .move-choice");
+      }
+      if (await page.locator("#app").getAttribute("data-interaction-phase") === "targets") {
+        await chooseFloorTwoEnemy();
+      }
+    };
+    const attackWithFloorTwoTargeting = async () => {
+      await clickVisibleOption(page, "#actions", "Attack");
+      await resolveFloorTwoAttackChoice();
+    };
+
+    for (let action = 0; action < 120 && await page.locator("#overworld-screen").isHidden(); action += 1) {
+      await captureBattleLog();
+      const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+      if (phase === "actions") {
+        const caveInResolved = [...observedBattleLog].some((line) => line.includes("Falling stone struck"));
+        if (floorLabel === "Floor II" && battleNumber === 5 && !caveInResolved) {
+          await defendAndWait();
+          continue;
+        }
+        const lowestPartyHealth = await page.locator(
+          "#party-members .party-member-status",
+        ).evaluateAll((statuses) => Math.min(...statuses.map((status) => {
+          const match = status.textContent.match(/HP\s+(\d+)\/(\d+)/);
+          return match ? Number(match[1]) / Number(match[2]) : 1;
+        })));
+        const activePartyHealth = await page.locator(
+          "#party-members .party-member.is-active .party-member-status",
+        ).evaluate((status) => {
+          const match = status.textContent.match(/HP\s+(\d+)\/(\d+)/);
+          return match ? Number(match[1]) / Number(match[2]) : 1;
+        });
+        const potion = page.locator("#actions button").filter({ hasText: "Healing Potion" });
+        const potionOffered = await potion.count() > 0;
+        if (lowestPartyHealth <= 0.5 && potionOffered && await potion.isEnabled()) {
+          const healthBeforePotion = await page.locator(
+            "#party-members .party-member-status",
+          ).allInnerTexts();
+          await clickVisibleOption(page, "#actions", "Healing Potion");
+          await page.waitForFunction(
+            () => document.getElementById("app").dataset.interactionPhase === "healing_targets",
+          );
+          const targetIndex = await page.locator("#targets .target-choice:not([disabled])")
+            .evaluateAll((targets) => targets
+              .map((target, index) => {
+                const match = target.textContent.match(/HP\s+(\d+)\/(\d+)/);
+                return { index, ratio: match ? Number(match[1]) / Number(match[2]) : 1 };
+              })
+              .sort((first, second) => first.ratio - second.ratio)[0]?.index ?? -1);
+          requireCondition(targetIndex >= 0, `Healing Potion had no eligible ${floorLabel} target`);
+          await page.locator("#targets .target-choice:not([disabled])").nth(targetIndex).click();
+          await page.waitForFunction(
+            () => document.getElementById("app").dataset.interactionPhase === "actions",
+          );
+          await captureBattleLog();
+          floorTwoPotionUses.push({
+            battleNumber,
+            before: healthBeforePotion,
+            after: await page.locator("#party-members .party-member-status").allInnerTexts(),
+          });
+        } else if (activePartyHealth <= 0.65) {
+          await defendAndWait();
+        } else {
+          const superAction = page.locator("#actions button").filter({ hasText: /^Super$/ });
+          if (await superAction.count() && await superAction.isEnabled()) {
+            await clickVisibleOption(page, "#actions", "Super");
+            await resolveFloorTwoAttackChoice();
+          } else {
+            await attackWithFloorTwoTargeting();
+          }
+          await captureBattleLog();
+        }
+      } else if (phase === "regular_moves") {
+        await resolveFloorTwoAttackChoice();
+        await captureBattleLog();
+      } else if (phase === "targets") {
+        await chooseFloorTwoEnemy();
+        await captureBattleLog();
+      } else {
+        const screenState = await page.evaluate(() => ({
+          badge: document.getElementById("screen-badge")?.textContent.trim(),
+          adventure: document.getElementById("adventure-text")?.textContent.trim(),
+          notice: document.getElementById("notice")?.textContent.trim(),
+          selectionHidden: document.getElementById("selection-screen")?.hidden,
+          overworldHidden: document.getElementById("overworld-screen")?.hidden,
+          battleHidden: document.getElementById("battle-screen")?.hidden,
+          routeActions: [...document.querySelectorAll("#route-actions button")]
+            .map((button) => button.textContent.trim()),
+          party: [...document.querySelectorAll("#party-members .party-member")]
+            .map((member) => member.innerText.trim()),
+          battleLog: document.getElementById("battle-log")?.innerText,
+          actions: [...document.querySelectorAll("#actions button")]
+            .map((button) => ({ text: button.textContent.trim(), disabled: button.disabled })),
+        }));
+        throw new Error(
+          `unexpected ${floorLabel} Battle ${battleNumber} phase: ${phase}; state=${JSON.stringify(screenState)}`,
+        );
+      }
+    }
+    await page.locator("#overworld-screen").waitFor({ state: "visible", timeout: 10000 }).catch(async (error) => {
+      const state = await page.evaluate(() => ({
+        badge: document.getElementById("screen-badge")?.textContent.trim(),
+        phase: document.getElementById("app")?.dataset.interactionPhase,
+        party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+          name: member.querySelector("h3")?.textContent.trim(),
+          status: member.querySelector(".party-member-status")?.textContent.trim(),
+        })),
+        enemies: [...document.querySelectorAll("#enemy-panel .enemy")].map((enemy) => enemy.innerText.trim()),
+        battleLog: document.getElementById("battle-log")?.innerText,
+        actions: [...document.querySelectorAll("#actions button")].map((button) => ({
+          label: button.textContent.trim(),
+          disabled: button.disabled,
+        })),
+      }));
+      throw new Error(
+        `${floorLabel} Battle ${battleNumber} did not finish within the action budget: ${JSON.stringify(state)}; ${error.message}`,
+      );
+    });
+    const outcome = await page.evaluate(({ potionUses, battleLog }) => ({
+      badge: document.getElementById("screen-badge").textContent.trim(),
+      adventure: document.getElementById("adventure-text").textContent.trim(),
+      battleLog,
+      potionUses,
+      party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+        id: member.dataset.targetId,
+        status: member.querySelector(".party-member-status")?.textContent.trim(),
+      })),
+    }), {
+      potionUses: floorTwoPotionUses,
+      battleLog: [...observedBattleLog].join("\n"),
+    });
+    const bossVictory = battleNumber === 10
+      && outcome.badge === "HUB"
+      && outcome.adventure.includes(floorLabel === "Floor II" ? "Floor 2 is cleared" : "Floor 3 is cleared");
+    requireCondition(
+      outcome.badge !== "DRIFTER SELECTION"
+        && (outcome.badge !== "HUB" || bossVictory),
+      `${floorLabel} Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
+    );
+    floorTwoBattleLogs.set(battleNumber, outcome.battleLog);
+  };
+
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 2");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+      if (battleNumber === 5) {
+        await page.locator("#battle-log").filter({ hasText: "Cave-in is imminent." }).waitFor({ state: "visible" });
+      }
+    }
+    await clearFloorBattle(battleNumber);
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+      const caveInLog = floorTwoBattleLogs.get(5) || "";
+      requireCondition(
+        caveInLog.toLowerCase().includes("a cave-in is imminent.") &&
+          caveInLog.includes("used Defend.") &&
+          caveInLog.includes("Falling stone struck"),
+        `Floor II's cave-in warning and response were not both recorded: ${caveInLog}`,
+      );
+    }
+  }
+  requireCondition(
+    !(await page.locator("#overworld-options button").allInnerTexts()).includes("Recruit Companion"),
+    "the Floor II Midway Rest exposed permanent recruitment",
+  );
+  console.log("M4_BROWSER|MIDWAY_NO_PERMANENT_RECRUITMENT|PASS");
+  await clickVisibleOption(page, "#overworld-options", "Extract");
+  await page.locator("#extraction-rewards").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Return to Hub");
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const returnedGold = Number(
+    (await page.locator("#hub-shared-gold").innerText()).match(/\d+/)?.[0] || 0,
+  );
+  requireCondition(
+    returnedGold >= 65,
+    `Floor II early extraction did not secure its earned gold: ${returnedGold}`,
+  );
+  requireCondition(
+    !(await page.locator("#overworld-options button").allInnerTexts()).includes("Recruit Companion"),
+    "early Floor II extraction exposed permanent recruitment before the floor was cleared",
+  );
+  console.log("M4_BROWSER|EARLY_EXTRACTION_NO_RECRUITMENT|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  let storedHealingPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  while (storedHealingPotions > 0 && await quantityInSupplyRow("Healing Potion", "Carried") < 6) {
+    await updateSupply("Healing Potion", "Load");
+    storedHealingPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  }
+  requireCondition(
+    await quantityInSupplyRow("Healing Potion", "Carried") === 6,
+    "the Floor II replay did not reload a full Healing Potion pack from secured Hub storage",
+  );
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 2");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber);
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  const midwayResourcesBeforeRecover = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  const midwayResourcesAfterRecover = await readFloorTwoActivePartyResources();
+  verifyFloorTwoRestRecovery(
+    midwayResourcesBeforeRecover,
+    midwayResourcesAfterRecover,
+    "Floor II Midway Rest",
+  );
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+    await page.locator("#party-panel").waitFor({ state: "visible" });
+    await clearFloorBattle(battleNumber);
+    if (battleNumber === 9) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+
+  const preSearchResources = await readFloorTwoActivePartyResources();
+  const discoveryBonusesBefore = await readFloorTwoDiscoveryBonuses();
+  await clickVisibleOption(page, "#overworld-options", "Search Site");
+  await page.locator("#discovery-selection").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#discovery-choices", "Ser Branoc, the Unbroken Crest");
+  await page.waitForFunction(() => ["CLAIM DISCOVERY", "REST"].includes(
+    document.getElementById("screen-badge").textContent.trim(),
+  ));
+  const searchBadge = await page.locator("#screen-badge").innerText();
+  let wellClaimed = false;
+  if (searchBadge === "CLAIM DISCOVERY") {
+    await clickVisibleOption(page, "#discovery-choices", "Azhvielle, the Unconfessed");
+    await page.locator("#screen-badge").filter({ hasText: "CONFIRM DISCOVERY" }).waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#overworld-options", "Confirm");
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    requireCondition(
+      (await page.locator("#notice").innerText()).includes(
+        "Ancient Well claimed by Azhvielle, the Unconfessed",
+      ),
+      `the Well claim did not confirm Azhvielle as its recipient: ${await page.locator("#notice").innerText()}`,
+    );
+    wellClaimed = true;
+  } else {
+    requireCondition(
+      searchBadge === "REST" && (await page.locator("#notice").innerText()).length > 0,
+      `Floor II search did not produce a persisted result screen: ${searchBadge}`,
+    );
+  }
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      await page.locator("#location-label").innerText() === "Pre-Boss Rest" &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Search Site") &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Claim Discovery"),
+    "Floor II reload lost the pre-boss search outcome or re-offered its one-time search/claim",
+  );
+  if (wellClaimed) {
+    await clickVisibleOption(page, "#overworld-options", "Character");
+    await page.locator("#character-panel").waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#character-targets", "Azhvielle, the Unconfessed");
+    const azhvielleHpAfterWell = Number(
+      (await page.locator("#character-progression").innerText()).match(/HP\s+\d+\/(\d+)/)?.[1] || 0,
+    );
+    const discoveryBonusesAfter = await readFloorTwoDiscoveryBonuses();
+    requireCondition(
+      azhvielleHpAfterWell >= preSearchResources.azhvielle.hp[1] + 5 &&
+        discoveryBonusesAfter.azhvielle.max_hp === discoveryBonusesBefore.azhvielle.max_hp + 5 &&
+        discoveryBonusesAfter.branoc.max_hp === discoveryBonusesBefore.branoc.max_hp,
+      `Azhvielle did not retain the Well's targeted +5 Max HP: ` +
+        `${preSearchResources.azhvielle.hp[1]} -> ${azhvielleHpAfterWell}; ` +
+        `bonuses ${JSON.stringify(discoveryBonusesBefore)} -> ${JSON.stringify(discoveryBonusesAfter)}`,
+    );
+    await clickVisibleOption(page, "#character-options", "Back");
+  }
+  console.log(`M4_BROWSER|SEARCH_SAVE_RELOAD|${wellClaimed ? "CLAIMED" : "FAILED_OUTCOME_PERSISTED"}|PASS`);
+
+  const preBossResourcesBeforeRecover = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  const preBossResourcesAfterRecover = await readFloorTwoActivePartyResources();
+  verifyFloorTwoRestRecovery(
+    preBossResourcesBeforeRecover,
+    preBossResourcesAfterRecover,
+    "Floor II Pre-Boss Rest",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Choose Boss Helper");
+  await page.locator("#boss-helper-selection").waitFor({ state: "visible" });
+  const joruunHelperChoice = page.locator("#boss-helper-choices button")
+    .filter({ hasText: "Joruun Veyr" });
+  await joruunHelperChoice.waitFor({ state: "visible" });
+  await joruunHelperChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      !(await page.locator("#overworld-options button").allInnerTexts()).includes("Choose Boss Helper"),
+    "Floor II helper choice did not persist across browser save/reload",
+  );
+  console.log("M4_BROWSER|BOSS_HELPER_SAVE_RELOAD|PASS");
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  await clearFloorBattle(10);
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "HUB",
+    null,
+    { timeout: 10000 },
+  ).catch(async (error) => {
+    const state = await page.evaluate(() => ({
+      badge: document.getElementById("screen-badge")?.textContent.trim(),
+      location: document.getElementById("location-label")?.textContent.trim(),
+      adventure: document.getElementById("adventure-text")?.textContent.trim(),
+      notice: document.getElementById("notice")?.textContent.trim(),
+      battleLog: document.getElementById("battle-log")?.innerText,
+      party: [...document.querySelectorAll("#party-members .party-member")].map((member) =>
+        member.innerText.trim(),
+      ),
+      routeActions: [...document.querySelectorAll("#route-actions button")].map((button) =>
+        button.textContent.trim(),
+      ),
+    }));
+    throw new Error(`Floor II boss did not return to Hub: ${JSON.stringify(state)}; ${error.message}`);
+  });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#adventure-text").innerText()).includes("Floor 2 is cleared"),
+    "the Floor II boss did not secure the clear and return the roster to the Hub",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
+  const floorTwoItems = await page.locator("#items-list").innerText();
+  // Floor II drops are chance-based, so a valid clear may award no Grade-II material.
+  requireCondition(
+    floorTwoItems.includes("Hub Storage"),
+    `Floor II boss return did not expose secured inventory: ${floorTwoItems}`,
+  );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  const zhaivraRecruitmentChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Zhaivra" });
+  const joruunRecruitmentChoice = page.locator("#companion-choices .companion-choice")
+    .filter({ hasText: "Joruun Veyr" });
+  requireCondition(
+    await page.locator("#companion-choices .companion-choice").count() === 2 &&
+      await zhaivraRecruitmentChoice.isEnabled() &&
+      await joruunRecruitmentChoice.isEnabled(),
+    "Floor II clear did not independently offer both D3 and D4 for permanent recruitment",
+  );
+  await zhaivraRecruitmentChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "D3 Hub recruitment did not start at Level 1 while preserving the active pair",
+  );
+  console.log("M4_BROWSER|D3_HUB_RECRUITMENT|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Recruit Companion");
+  await page.locator("#companion-selection").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#companion-choices .companion-choice").count() === 1 &&
+      await joruunRecruitmentChoice.isEnabled(),
+    "temporary D4 participation incorrectly counted as permanent recruitment",
+  );
+  await joruunRecruitmentChoice.click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await page.locator("#adventure-text").innerText()).includes("joins the roster at Level 1") &&
+      (await page.locator("#adventure-text").innerText()).includes("active party remains unchanged"),
+    "D4 Hub recruitment did not start at Level 1 without changing the active pair",
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_BOSS_CLEAR|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const d3d4Pair = page.locator("#party-pair-choices .party-pair-choice")
+    .filter({ hasText: "Zhaivra Kelyth" })
+    .filter({ hasText: "Joruun Veyr" });
+  requireCondition(
+    await d3d4Pair.count() === 2,
+    "the party picker did not offer both ordered D3+D4 pairs for the Floor II replay check",
+  );
+  await d3d4Pair.first().click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const startFloorTwoWithD3D4 = page.locator("#overworld-options button")
+    .filter({ hasText: "Start Floor 2" });
+  requireCondition(
+    await startFloorTwoWithD3D4.isDisabled() &&
+      (await startFloorTwoWithD3D4.innerText()).includes(
+        "Unavailable: Choose an active pair that leaves D3 or D4 available for the Floor II boss.",
+      ) &&
+      await page.locator("#overworld-options button").filter({ hasText: "Start Floor 1" }).isEnabled(),
+    "D3+D4 replay did not show its Floor II-only restriction and explanation",
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_REPLAY_BLOCKED_D3_D4|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Choose Party");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "PARTY SELECTION",
+  );
+  const availableHelperPair = page.locator("#party-pair-choices .party-pair-choice")
+    .filter({ hasText: "Ser Branoc" })
+    .filter({ hasText: "Azhvielle" });
+  requireCondition(
+    await availableHelperPair.count() === 2,
+    "the party picker did not offer both ordered pairs that leave D3 and D4 available",
+  );
+  await availableHelperPair.first().click();
+  await page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#overworld-options button").filter({ hasText: "Start Floor 2" }).isEnabled(),
+    "changing the active pair did not restore Floor II replay availability",
+  );
+  console.log("M4_BROWSER|FLOOR_TWO_REPLAY_PAIR_CHANGE|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  let floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  while (
+    floorThreeStoredPotions > 0 &&
+    await quantityInSupplyRow("Healing Potion", "Carried") < 6
+  ) {
+    await updateSupply("Healing Potion", "Load");
+    floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
+  }
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Start Floor 3");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor III" });
+    if (battleNumber === 1) {
+      console.log("M4_BROWSER|FLOOR_THREE_ORDINARY_PAIR|PASS");
+    }
+    if (battleNumber === 5) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  const floorThreeMidwayBefore = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  verifyFloorTwoRestRecovery(
+    floorThreeMidwayBefore,
+    await readFloorTwoActivePartyResources(),
+    "Floor III Midway Rest",
+  );
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+
+  for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+    await page.locator("#party-panel").waitFor({ state: "visible" });
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor III" });
+    if (battleNumber === 9) {
+      await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    }
+  }
+  const floorThreePreBossBefore = await readFloorTwoActivePartyResources();
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "HP and Mana are fully restored. You may continue or extract.",
+    ),
+  );
+  verifyFloorTwoRestRecovery(
+    floorThreePreBossBefore,
+    await readFloorTwoActivePartyResources(),
+    "Floor III Pre-Boss Rest",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      await page.locator("#location-label").innerText() === "Pre-Boss Rest",
+    "Floor III save/reload did not restore the pre-boss Rest checkpoint",
+  );
+  console.log("M4_BROWSER|FLOOR_THREE_REST_SAVE_RELOAD|PASS");
+  await clickVisibleOption(page, "#route-actions", "Continue Without Rest");
+  await page.waitForFunction(() => [...document.querySelectorAll("#route-actions button")].some((button) =>
+    (button.querySelector(".choice-label")?.textContent?.trim() || button.textContent.trim()) === "Enter Encounter" &&
+      !button.disabled,
+  ));
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  const floorThreeBossParty = [
+    "drifter_branoc",
+    "drifter_azhvielle",
+    "drifter_zhaivra",
+    "drifter_joruun",
+  ];
+  await clearFloorBattle(10, {
+    floorLabel: "Floor III",
+    bossParty: floorThreeBossParty,
+  });
+  requireCondition(
+    await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      (await page.locator("#adventure-text").innerText()).includes("Floor 3 is cleared"),
+    "Floor III four-member boss did not clear the route and return the roster to the Hub",
+  );
+  const floorThreePersistedClear = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return envelope?.payload?.party?.floor_three_cleared;
+  }, floorTwoProfileKey);
+  requireCondition(floorThreePersistedClear === true, "Floor III clear was not persisted after the boss");
+  console.log("M4_BROWSER|FLOOR_THREE_FOUR_MEMBER_BOSS_CLEAR|PASS");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Load");
+  await page.waitForFunction(
+    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Confirm");
+  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  const floorThreeClearAfterReload = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return envelope?.payload?.party?.floor_three_cleared;
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "HUB" &&
+      await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
+      floorThreeClearAfterReload === true,
+    "Floor III clear or Hub return did not survive save/reload",
+  );
+  console.log("M4_BROWSER|FLOOR_THREE_CLEAR_SAVE_RELOAD|PASS");
+
+  const m5Page = await browser.newPage();
+  m5Page.setDefaultNavigationTimeout(120000);
+  m5Page.on("pageerror", (error) => errors.push(error.message));
+  await m5Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  const m5HubProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m5Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m5HubProfileKey,
+    envelope: m5EquipmentFixtures.hub,
+  });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator("#selection-screen").waitFor({ state: "visible" });
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  const m5EquipmentButton = (name) =>
+    m5Page.locator("#equipment-inventory button").filter({ hasText: name });
+  const m5ActionButton = (name) =>
+    m5Page.locator("#equipment-actions button").filter({ hasText: name });
+  const selectM5Equipment = async (name) => {
+    await m5EquipmentButton(name).click();
+    await m5Page.locator("#equipment-inspection-name").filter({ hasText: name }).waitFor({ state: "visible" });
+  };
+  await selectM5Equipment("Field Helm");
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Secured") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Not equipped"),
+    "the generated Hub armor did not preserve its secured, unassigned ownership state",
+  );
+  await m5ActionButton("Equip").click();
+  await m5Page.locator("#notice").filter({ hasText: "assigned to the selected Drifter" }).waitFor({ state: "visible" });
+  await m5ActionButton("Upgrade").click();
+  await m5Page.locator("#notice").filter({ hasText: "Armor stats upgraded." }).waitFor({ state: "visible" });
+  await m5ActionButton("Advance Rarity").click();
+  await m5Page.locator("#notice").filter({ hasText: "Armor rarity advanced." }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5EquipmentButton("Field Helm").innerText()).includes("uncommon +1") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Ser Branoc"),
+    "armor upgrade/rarity advancement or exact-target equip did not update its owned instance",
+  );
+  await clickVisibleOption(m5Page, "#equipment-options", "Back");
+  await clickVisibleOption(m5Page, "#character-options", "Back");
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Save");
+  await m5Page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await selectM5Equipment("Field Helm");
+  requireCondition(
+    (await m5EquipmentButton("Field Helm").innerText()).includes("uncommon +1") &&
+      (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Ser Branoc"),
+    "armor ownership, investment, or rarity did not survive browser save/reload",
+  );
+  await clickVisibleOption(m5Page, "#equipment-targets", "Azhvielle, the Unconfessed");
+  await selectM5Equipment("Field Helm");
+  await m5ActionButton("Equip").click();
+  await m5Page.locator("#notice").filter({ hasText: "assigned to the selected Drifter" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Azhvielle"),
+    "equipment transfer did not target the selected Drifter",
+  );
+
+  await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await selectM5Equipment("Field Helm");
+  await m5ActionButton("Affix Vanguard").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  const replacementConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    replacementConfirmation.includes("Bastion") && replacementConfirmation.includes("permanently destroyed"),
+    `modifier replacement omitted its destructive warning: ${replacementConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Cancel");
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Bastion") &&
+      (await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "cancelling modifier replacement changed installed or loose modifiers",
+  );
+  await m5ActionButton("Affix Vanguard").click();
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Bastion was permanently destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Vanguard") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "confirmed modifier replacement did not consume the incoming modifier and destroy the displaced one",
+  );
+
+  await selectM5Equipment("Field Chest");
+  await m5ActionButton("Extract Modifiers").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Extract" }).waitFor({ state: "visible" });
+  const extractionConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    extractionConfirmation.includes("Ward") && extractionConfirmation.includes("Donor armor will be destroyed"),
+    `modifier extraction did not explain its armor sacrifice: ${extractionConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "donor armor was destroyed" }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Chest") &&
+      (await m5Page.locator("#equipment-modifiers").innerText()).includes("Ward"),
+    "confirmed extraction did not destroy the donor while preserving its modifier",
+  );
+
+  for (const [name, forbiddenActions] of [
+    ["Iron Ring", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+    ["Wayfinder Pendant", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+  ]) {
+    await selectM5Equipment(name);
+    const actions = await m5Page.locator("#equipment-actions button").allInnerTexts();
+    requireCondition(
+      actions.length === 1 && !forbiddenActions.test(actions.join(" ")) && actions[0].includes("Equip"),
+      `${name} exposed armor-only or destructive actions: ${JSON.stringify(actions)}`,
+    );
+  }
+
+  await selectM5Equipment("Field Gloves");
+  await m5ActionButton("Sell").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Sell" }).waitFor({ state: "visible" });
+  const saleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    saleConfirmation.includes("authored gold") && saleConfirmation.includes("not returned") && saleConfirmation.includes("Vanguard"),
+    `modified armor sale did not warn of modifier loss: ${saleConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Installed modifiers were destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Gloves") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
+    "selling modified armor returned or retained its installed modifier",
+  );
+
+  await selectM5Equipment("Field Boots");
+  await m5ActionButton("Dismantle").click();
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Dismantle" }).waitFor({ state: "visible" });
+  const dismantleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
+  requireCondition(
+    dismantleConfirmation.includes("authored salvage") && dismantleConfirmation.includes("not returned") && dismantleConfirmation.includes("Bastion"),
+    `modified armor dismantle did not warn of modifier loss: ${dismantleConfirmation}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Installed modifiers were destroyed." }).waitFor({ state: "visible" });
+  requireCondition(
+    !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Boots") &&
+      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Bastion"),
+    "dismantling modified armor returned or retained its installed modifier",
+  );
+  console.log("M5_BROWSER|ARMOR_PROGRESS_TRANSFER_RELOAD_ALCHEMIST_STATIC_ACCESSORIES|PASS");
+
+  const m5OutingProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m5Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await m5Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m5OutingProfileKey,
+    envelope: m5EquipmentFixtures.outing,
+  });
+  await m5Page.reload({ waitUntil: "domcontentloaded" });
+  await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m5Page.getByRole("button", { name: "Start" }).click();
+  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Options");
+  await clickVisibleOption(m5Page, "#overworld-options", "Load");
+  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
+  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  requireCondition(
+    await m5Page.locator("#screen-badge").innerText() === "REST" &&
+      await m5Page.locator("#location-label").innerText() === "Pre-Boss Rest",
+    "the M5 safe-return fixture did not load at the Floor II Rest",
+  );
+  await clickVisibleOption(m5Page, "#overworld-options", "Extract");
+  await m5Page.locator("#screen-badge").filter({ hasText: "EXTRACTION" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Return to Hub");
+  await m5Page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#overworld-options", "Character");
+  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await m5Page.locator("#equipment-inventory").innerText()).includes("Secured") &&
+      (await m5Page.locator("#equipment-inventory").innerText()).includes("Field Helm"),
+    "safe extraction did not secure and retain the generated armor instance",
+  );
+  console.log("M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS");
+
+  const m6Page = await browser.newPage();
+  m6Page.setDefaultNavigationTimeout(120000);
+  m6Page.on("pageerror", (error) => errors.push(error.message));
+  await m6Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  const m6ProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m6Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m6ProfileKey,
+    envelope: m6ExpeditionFixtures.hub,
+  });
+  await m6Page.reload({ waitUntil: "domcontentloaded" });
+  await m6Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m6Page.getByRole("button", { name: "Start" }).click();
+  await m6Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m6Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#overworld-options", "Options");
+  await clickVisibleOption(m6Page, "#overworld-options", "Load");
+  await m6Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#overworld-options", "Confirm");
+  await m6Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#overworld-options", "Expeditions");
+  await m6Page.locator("#expedition-panel").waitFor({ state: "visible" });
+  await m6Page.locator("#expedition-energy").filter({ hasText: "Energy 100/100" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#expedition-reports", "Claim report");
+  await m6Page.locator("#notice").filter({ hasText: "Expedition report claimed." }).waitFor({ state: "visible" });
+  const claimedExpeditionProfile = await m6Page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return {
+      claimed: envelope?.payload?.expedition?.reports?.[0]?.claimed,
+      material: envelope?.payload?.party?.shared_items?.grade_ii_metal ?? 0,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    claimedExpeditionProfile.claimed === true && claimedExpeditionProfile.material === 1,
+    `M6 report claim was not saved atomically: ${JSON.stringify(claimedExpeditionProfile)}`,
+  );
+  requireCondition(
+    await m6Page.locator("#expedition-reports").getByRole("button", { name: "Claim report" }).count() === 0,
+    "a claimed M6 report remained claimable",
+  );
+  console.log("M6_BROWSER|REPORT_CLAIM_ONCE|PASS");
+
+  await clickVisibleOption(m6Page, "#overworld-options", "Prepare for Floor I");
+  await m6Page.locator("#expedition-choices").waitFor({ state: "visible" });
+  const materialChoice = m6Page.locator("#expedition-choices button").filter({ hasText: "Floor III | Material" });
+  await materialChoice.waitFor({ state: "visible" });
+  requireCondition(
+    await m6Page.locator("#expedition-choices button").filter({ hasText: "Floor III | Equipment" }).isDisabled() &&
+      await m6Page.locator("#expedition-choices button").filter({ hasText: "Floor III | Recovery" }).isDisabled(),
+    "M6 offered an unavailable Equipment or Recovery assignment",
+  );
+  await materialChoice.click();
+  await m6Page.locator("#expedition-confirmation-content").filter({ hasText: "The 20-minute timer starts when confirmed." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#overworld-options", "Cancel");
+  await m6Page.locator("#notice").filter({ hasText: "Cancelled. No energy was spent." }).waitFor({ state: "visible" });
+  await m6Page.locator("#expedition-energy").filter({ hasText: "Energy 100/100" }).waitFor({ state: "visible" });
+  await materialChoice.click();
+  await clickVisibleOption(m6Page, "#overworld-options", "Confirm Launch");
+  await m6Page.locator("#battle-screen").waitFor({ state: "visible" });
+  await m6Page.locator("#battle-expedition-status").filter({ hasText: "Floor III" }).waitFor({ state: "visible" });
+  const launchedExpedition = await m6Page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return {
+      energy: envelope?.payload?.expedition?.energy,
+      destination: envelope?.payload?.expedition?.active_assignment?.destination_floor_id,
+      partyPhase: envelope?.payload?.party?.phase,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    launchedExpedition.energy === 90 && launchedExpedition.destination === "floor_three" &&
+      launchedExpedition.partyPhase === "outing",
+    `M6 confirmed launch did not persist its energy and assignment: ${JSON.stringify(launchedExpedition)}`,
+  );
+  const liveStatusBeforeReload = await m6Page.locator("#battle-expedition-status").innerText();
+  requireCondition(
+    liveStatusBeforeReload.includes("Joruun Veyr") && liveStatusBeforeReload.includes("Zhaivra Kelyth") &&
+      /\d{1,2}:\d{2} remaining/.test(liveStatusBeforeReload),
+    `M6 battle did not show the passive assignment timer and pair: ${liveStatusBeforeReload}`,
+  );
+  const remainingBeforeIdle = (() => {
+    const match = liveStatusBeforeReload.match(/(\d+):(\d{2}) remaining/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  })();
+  const assignmentBeforeIdle = await m6Page.evaluate((key) => {
+    const assignment = JSON.parse(localStorage.getItem(key))?.payload?.expedition?.active_assignment;
+    return assignment && {
+      started_at_utc: assignment.started_at_utc,
+      last_observed_at_utc: assignment.last_observed_at_utc,
+      completed_at_utc: assignment.completed_at_utc,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    remainingBeforeIdle !== null && assignmentBeforeIdle?.completed_at_utc === null,
+    `M6 idle countdown did not begin from an active assignment: ${liveStatusBeforeReload}`,
+  );
+  await m6Page.waitForFunction((previousRemaining) => {
+    const text = document.getElementById("battle-expedition-status")?.textContent || "";
+    const match = text.match(/(\d+):(\d{2}) remaining/);
+    return match && Number(match[1]) * 60 + Number(match[2]) < previousRemaining;
+  }, remainingBeforeIdle, { timeout: 5000 });
+  const liveStatusAfterIdle = await m6Page.locator("#battle-expedition-status").innerText();
+  const withoutClock = (status) => status.replace(
+    /\d+:\d{2} remaining|complete; settles when the outing ends\.?/i,
+    "[clock]",
+  );
+  const assignmentAfterIdle = await m6Page.evaluate((key) => {
+    const assignment = JSON.parse(localStorage.getItem(key))?.payload?.expedition?.active_assignment;
+    return assignment && {
+      started_at_utc: assignment.started_at_utc,
+      last_observed_at_utc: assignment.last_observed_at_utc,
+      completed_at_utc: assignment.completed_at_utc,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    assignmentAfterIdle?.started_at_utc === assignmentBeforeIdle.started_at_utc &&
+      assignmentAfterIdle?.last_observed_at_utc === assignmentBeforeIdle.last_observed_at_utc &&
+      assignmentAfterIdle?.completed_at_utc === assignmentBeforeIdle.completed_at_utc,
+    "M6 browser idle countdown changed persisted assignment state",
+  );
+  requireCondition(
+    withoutClock(liveStatusAfterIdle) === withoutClock(liveStatusBeforeReload),
+    "M6 browser idle countdown changed expedition details outside the clock",
+  );
+  console.log("M6_BROWSER|IDLE_COUNTDOWN_AUTHORITATIVE|PASS");
+
+  await m6Page.reload({ waitUntil: "domcontentloaded" });
+  await m6Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m6Page.getByRole("button", { name: "Start" }).click();
+  await m6Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m6Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#overworld-options", "Options");
+  await clickVisibleOption(m6Page, "#overworld-options", "Load");
+  await clickVisibleOption(m6Page, "#overworld-options", "Confirm");
+  await m6Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await m6Page.locator("#expedition-live-status").filter({ hasText: "Floor III" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m6Page, "#route-actions", "Enter Encounter");
+  await m6Page.locator("#battle-screen").waitFor({ state: "visible" });
+  const liveStatusAfterReload = await m6Page.locator("#battle-expedition-status").innerText();
+  requireCondition(
+    liveStatusAfterReload.includes("Joruun Veyr") && liveStatusAfterReload.includes("Zhaivra Kelyth") &&
+      /\d{1,2}:\d{2} remaining/.test(liveStatusAfterReload),
+    `M6 active assignment did not survive save/reload: ${liveStatusAfterReload}`,
+  );
+  console.log("M6_BROWSER|PASSIVE_ASSIGNMENT_LAUNCH_RELOAD_STATUS|PASS");
+
+  const qualification = page;
+  qualification.on("pageerror", (error) => errors.push(error.message));
+  qualification.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await qualification.goto(`${baseUrl}/qualification/`, {
+    waitUntil: "domcontentloaded",
+  });
+  await qualification.waitForFunction(
+    () => {
+      const output = document.getElementById("status").textContent;
+      return output.includes("PYD2|PASS") || output.includes("PYD2|FAIL");
+    },
+    null,
+    { timeout: 120000 },
+  );
+  const result = await qualification.locator("#status").innerText();
+  requireCondition(result.includes("PYD2|PASS"), `Pyodide qualification failed: ${result}`);
+  requireCondition(result.includes("Final node: surface_dungeon_entrance"), "route did not reach Dungeon Entrance");
+  requireCondition(result.includes("Progression: L9 EXP 68 GP 24 Gold 75"), "route progression did not match oracle");
+  requireCondition(result.includes("Hub: hub"), "full Pyodide route did not transition into the Hub");
+  requireCondition(result.includes("Tutorial: 2 Drifters, 3 Goblins"), "full Pyodide route did not complete the two-Drifter tutorial Battle");
+  requireCondition(result.includes("Extraction: 60 EXP each, 19 shared gold"), "full Pyodide route did not secure the first extraction");
+  requireCondition(result.includes("Floor 1: 10 battles, personal XP awards 670 / 671, 115 shared gold"), "Pyodide did not complete and secure the full Floor 1 route");
+  requireCondition(result.includes("FLOOR_ONE_BATTLE_10|PASS") && result.includes("FLOOR_ONE_BOSS_CLEAR|PASS"), "Pyodide qualification omitted the Floor 1 boss clear");
+  requireCondition(result.includes("Replay: 50% EXP, 140 secured XP (70 / 70 awarded) | 21 gold, 136 shared gold"), "Pyodide did not qualify the early replay extraction");
+  requireCondition(result.includes("FLOOR_ONE_REPLAY_MIDWAY_REST|PASS") && result.includes("FLOOR_ONE_REPLAY_EXTRACT|PASS"), "Pyodide qualification omitted the replay midway extraction");
+  requireCondition(errors.length === 0, `browser page errors: ${errors.join("; ")}`);
 
   console.log("PYD7|PASS");
   console.log("PYD7|BROWSER|INITIAL_SESSION|PASS");

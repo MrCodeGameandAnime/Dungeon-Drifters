@@ -66,16 +66,28 @@ dungeon runs. Their assignment, categories, reward resolution, and character
 experience distribution are defined in
 [Party and Expedition Core Loop](party-and-expedition-core-loop.md).
 
-Expeditions consume energy. The player may wait for it to regenerate, spend
-earned resources to restore some energy, or purchase optional acceleration.
+M6 expeditions consume a fixed 10 energy on confirmed launch from a 100-point
+capacity that starts at 100 and regenerates by one point per nine elapsed
+minutes, including offline time. M6 has no paid refills, earned-refill
+mechanics, capacity upgrades, or post-launch refunds. Broader refill and
+monetization ideas below are future M9-or-later possibilities, not M6
+requirements.
+
+Only initially available assignment categories can be launched and charged;
+Equipment and Recovery remain unavailable until the selected floor has an
+eligible authored source. Energy above capacity is discarded. If energy is
+spent while full, the UTC regeneration anchor is rebased at that spend, and
+normal regeneration resumes from there without stored overflow credit.
 
 ---
 
 # 2. Expedition Energy
 
-Expedition energy is a launch resource tied only to the expedition system. Once
-an assignment launches, it advances through gameplay events rather than a
-real-world countdown; see the
+Expedition energy is a launch resource tied only to the expedition system. M6
+assignments complete after 20 minutes of persisted real elapsed time from
+confirmed launch; gameplay events and repeated commands do not advance that
+timer. A UTC anchor is persisted, offline time counts up to capacity, and clock
+rollback grants no energy. See the
 [party and expedition contract](party-and-expedition-core-loop.md).
 
 It does not prevent the player from:
@@ -88,11 +100,9 @@ It does not prevent the player from:
 * grinding experience manually
 * attempting difficult content
 
-When expedition energy is empty, the player can continue playing Dungeon Drifters.
-
-The limitation is that the inactive pair cannot begin another full expedition until energy is available.
-
-This creates pressure without creating a complete play barrier.
+When expedition energy is empty, the player can continue playing Dungeon
+Drifters normally. Only launching an expedition is unavailable until energy
+regenerates.
 
 ---
 
@@ -411,53 +421,32 @@ Costs:
 
 # 8. Expedition Energy Economy
 
-The energy economy should be generous enough that expeditions feel like part of normal play.
+## M6 Fixed Rules
 
-It should not feel as though the game immediately demands payment.
+- Capacity and starting balance: 100.
+- Launch cost: 10 energy for each available M6 assignment category. Training
+  and Material are initially available; Equipment and Recovery are unavailable
+  without an eligible authored floor source.
+- Regeneration: one energy every nine minutes, including offline time, capped at
+  100.
+- Persist a UTC anchor. A clock rollback cannot grant energy or move the accepted
+  anchor backward. Time spent at capacity does not bank overflow for later. If
+  energy is spent while full, rebase the regeneration anchor to that spend time;
+  no energy regenerates immediately from time spent at capacity.
+- Debit energy atomically on confirmed launch. Cancellation before confirmation
+  costs nothing; confirmed launches are not refunded.
+- No paid refills or separate earned-refill mechanics in M6.
+- Energy never restricts dungeon entry, combat, extraction, or progression.
 
-## Energy Regeneration
+Available M6 categories use the same launch cost. Category-specific or
+destination-specific energy pricing is not part of M6.
 
-Energy regenerates over time.
+## Later Economy Questions
 
-Possible sources of additional energy include:
-
-* daily login rewards
-* story progression
-* dungeon milestones
-* boss victories
-* achievements
-* level rewards
-* rare dungeon drops
-* limited free refills
-* optional purchases
-
-## Expedition Costs
-
-Expedition costs may vary based on:
-
-* expedition length
-* danger level
-* reward quality
-* destination
-* selected characters
-* special modifiers
-* guaranteed rewards
-
-A common material expedition may cost little energy.
-
-A rare artifact expedition may consume a significant portion of the player’s energy capacity.
-
-## Energy Capacity
-
-Energy capacity may increase through:
-
-* account progression
-* hub upgrades
-* story milestones
-* achievements
-* optional permanent purchases
-
-Capacity increases should provide convenience without making the base system unusable.
+Account progression, Hub upgrades, achievements, earned refills, paid refills,
+capacity changes, and optional purchases are not M6 features. They remain
+unapproved M9-or-later questions and require a separate product and service
+authority review.
 
 ---
 
@@ -471,6 +460,9 @@ document owns the shared energy economy and its monetization boundaries.
 
 # 10. Monetization Loop
 
+> This section describes possible M9-or-later products only. It does not alter
+> M6's no-refill/no-purchase contract.
+
 The monetization loop is built around expedition acceleration, not access to dungeon gameplay.
 
 ## Free Player Loop
@@ -481,7 +473,6 @@ A free player can:
 * earn full experience manually
 * collect normal materials
 * wait for expedition energy
-* use earned energy refills
 * rotate characters
 * grind difficult content
 * complete the story
@@ -942,9 +933,9 @@ Dungeon runs are directly played, create extraction risk, produce unsecured
 experience and loot, and may be entered whenever story rules permit.
 
 Expeditions are assignments using expedition energy; they gather supporting
-resources and help underused Drifters remain viable. They may provide common
-supplies, ingredients, or materials. Their assignment, event-based completion,
-categories, and rewards are defined in
+resources and help underused Drifters remain viable. M6 assignments last 20
+minutes of real elapsed time and may award only resources eligible from their
+selected completed floor. Their categories and settlement are defined in
 [Party and Expedition Core Loop](party-and-expedition-core-loop.md).
 
 Exact overlap between expedition rewards and trader stock remains unresolved.

@@ -10,6 +10,14 @@ PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_probe.py"
 HUB_PROBE_PATH = (
     Path(__file__).parents[1] / "tools" / "micropython_hub_probe.py"
 )
+FLOOR_TWO_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_floor_two_probe.py"
+)
+FLOOR_THREE_PROBE_PATH = (
+    Path(__file__).parents[1] / "tools" / "micropython_floor_three_probe.py"
+)
+M5_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m5_probe.py"
+M6_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m6_probe.py"
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -61,6 +69,24 @@ def _hub_probe_tree():
     return ast.parse(_hub_probe_source(), filename=str(HUB_PROBE_PATH))
 
 
+def _floor_two_probe_source():
+    return FLOOR_TWO_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _floor_two_probe_tree():
+    return ast.parse(_floor_two_probe_source(), filename=str(FLOOR_TWO_PROBE_PATH))
+
+
+def _floor_three_probe_source():
+    return FLOOR_THREE_PROBE_PATH.read_text(encoding="utf-8")
+
+
+def _floor_three_probe_tree():
+    return ast.parse(
+        _floor_three_probe_source(), filename=str(FLOOR_THREE_PROBE_PATH)
+    )
+
+
 def _assigned_literal(tree, name):
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -89,20 +115,143 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 6]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 10]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
         "ROUTE_FINAL_STATE",
         "ROUTE_EVIDENCE_RELEASE",
+        "M4_FLOOR_TWO_PROBE",
+        "M4_FLOOR_THREE_PROBE",
+        "M5_EQUIPMENT_PROBE",
+        "M6_EXPEDITION_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
     assert stages.index("ROUTE_EVIDENCE_RELEASE") > stages.index(
         "ROUTE_FINAL_STATE"
     )
-    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
-        "ROUTE_EVIDENCE_RELEASE"
+    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index("M6_EXPEDITION_PROBE")
+
+
+def test_floor_three_probe_covers_tier_two_recruitment_full_boss_and_teardown():
+    source = _floor_three_probe_source()
+    tree = _floor_three_probe_tree()
+    stages = _assigned_literal(tree, "_M4B_STAGE_NAMES")
+    assert stages == (
+        "M4B_TIER_TWO_CONTENT",
+        "M4B_D3_RECRUITMENT",
+        "M4B_D4_RECRUITMENT",
+        "M4B_FLOOR_THREE_START",
+        "M4B_FLOOR_THREE_BATTLE_01",
+        "M4B_FLOOR_THREE_BATTLE_02",
+        "M4B_FLOOR_THREE_BATTLE_03",
+        "M4B_FLOOR_THREE_BATTLE_04",
+        "M4B_FLOOR_THREE_BATTLE_05",
+        "M4B_MIDWAY_REST",
+        "M4B_FLOOR_THREE_BATTLE_06",
+        "M4B_FLOOR_THREE_BATTLE_07",
+        "M4B_FLOOR_THREE_BATTLE_08",
+        "M4B_FLOOR_THREE_BATTLE_09",
+        "M4B_PRE_BOSS_REST",
+        "M4B_FLOOR_THREE_BATTLE_10_BOSS",
+        "M4B_FLOOR_THREE_FINAL_STATE",
+        "M4B_PROBE_TEARDOWN",
+    )
+
+    for required in (
+        'get_route_spec("floor_three")',
+        'if 2 not in enemy.supported_tiers',
+        '"grade_iii_metal"',
+        '"grade_iii_fiber"',
+        '"grade_iii_timber"',
+        '"grade_iii_cores"',
+        'ChooseCompanion(drifter_id, event.event_id)',
+        '_recruit_drifter(state, "zhaivra")',
+        '_recruit_drifter(state, "joruun")',
+        'OverworldAction.START_FLOOR_THREE',
+        'len(battle_view.party_members) != expected_party_size',
+        'expected_party_size = 4 if battle_number == 10 else 2',
+        'floor_three_boss_pending_event_counts',
+        'party.floor_three_cleared',
+        'gc.collect()',
+    ):
+        assert required in source
+
+    main_source = _probe_source()
+    assert '_run_stage("M4_FLOOR_THREE_PROBE", _run_floor_three_probe)' in main_source
+    assert 'import micropython_floor_three_probe' in main_source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    floor_three_start = expected_stages.index("M4_FLOOR_TWO_PROBE") + 1
+    assert tuple(
+        expected_stages[floor_three_start : floor_three_start + len(stages) + 1]
+    ) == (*stages, "M4_FLOOR_THREE_PROBE")
+
+
+def test_m5_probe_covers_generated_equipment_upgrade_modifier_and_snapshot():
+    source = M5_PROBE_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(M5_PROBE_PATH))
+    stages = _assigned_literal(tree, "_M5_STAGE_NAMES")
+    assert stages == (
+        "M5_ARMOR_GENERATION",
+        "M5_ARMOR_UPGRADE",
+        "M5_MODIFIER_REPLACEMENT",
+        "M5_EQUIPMENT_RECONSTRUCTION",
+        "M5_STATIC_ACCESSORY_BOUNDARY",
+        "M5_PROBE_TEARDOWN",
+    )
+    for required in (
+        "ArmorGenerationService",
+        "ArmorProgressionService",
+        "AlchemistService",
+        "EquipmentInstance.from_snapshot",
+        "game.clone()",
+        "preview.displaced_modifiers",
+        "AlchemistStatus.NOT_ARMOR",
+        "get_equipment_template(\"iron_ring\")",
+    ):
+        assert required in source
+
+
+def test_m6_probe_covers_energy_timer_settlement_claim_and_snapshot():
+    source = M6_PROBE_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(M6_PROBE_PATH))
+    stages = _assigned_literal(tree, "_M6_STAGE_NAMES")
+    assert stages == (
+        "M6_ENERGY_CLOCK_AND_OVERFLOW",
+        "M6_FLOOR_THREE_LAUNCH_REJECTION",
+        "M6_PASSIVE_TRAINING_LIFECYCLE",
+        "M6_SNAPSHOT_RECONSTRUCTION",
+        "M6_PROBE_TEARDOWN",
+    )
+    for required in (
+        "ExpeditionState.from_snapshot",
+        "EXPEDITION_REGENERATION_SECONDS",
+        "spend_energy",
+        "ExpeditionService",
+        "FLOOR_THREE_BLOCKED",
+        "EXPEDITION_DURATION_SECONDS",
+        "settle_outing",
+        "claim_report",
+        "game.clone()",
+        "expedition_state.reports",
+    ):
+        assert required in source
+
+    probe_source = _probe_source()
+    assert 'import micropython_m6_probe' in probe_source
+    assert '_run_stage("M6_EXPEDITION_PROBE", _run_m6_probe)' in probe_source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    start = expected_stages.index("M5_EQUIPMENT_PROBE") + 1
+    assert tuple(expected_stages[start : start + len(stages) + 1]) == (
+        *stages,
+        "M6_EXPEDITION_PROBE",
     )
 
 
@@ -121,13 +270,15 @@ def test_probe_route_contract_contains_the_authored_surface_route():
 
 def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     hub_stages = _stage_calls(_hub_probe_tree(), "run_stage")
-    assert tuple(hub_stages[:6]) == (
+    assert tuple(hub_stages[:8]) == (
+        "M1_INITIAL_ROSTER",
         "HUB_RECRUITMENT",
         "HUB_READY",
         "HUB_TUTORIAL_BATTLE",
         "HUB_EXTRACTION",
         "HUB_RETURN",
         "HUB_FINAL_STATE",
+        "M1_ACTIVE_PAIR_ROUNDTRIP",
     )
 
     source = _probe_source()
@@ -137,6 +288,23 @@ def test_probe_runs_the_full_hub_tutorial_after_surface_route():
     assert route_final < evidence_release < hub_run
     live_state_assert = source.index("_assert_route_live_state()", hub_run)
     assert hub_run < live_state_assert
+
+
+def test_m1_probe_covers_roster_identity_pair_selection_and_round_trip():
+    source = _hub_probe_source()
+    for required in (
+        '("branoc",)',
+        '"Drifter was recruited before its authored event"',
+        '"branoc", "azhvielle"',
+        '"zhaivra", "azhvielle"',
+        "ChooseActivePair",
+        "game.clone()",
+        "clone.snapshot() != snapshot",
+        "clone.member_for_drifter_id(",
+        '"M1_ACTIVE_PAIR_ROUNDTRIP"',
+        '"M1_INITIAL_ROSTER"',
+    ):
+        assert required in source
 
 
 def test_probe_continues_through_all_floor_one_battles_and_both_rests():
@@ -162,8 +330,15 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         "WEAPON_PROGRESSION_IMPROVE",
         "WEAPON_PROGRESSION_SAVE_ROUNDTRIP",
         "WEAPON_PROGRESSION_FINAL_STATE",
+        "M2_PREP_ALCHEMY",
+        "M2_HEALING_POTION",
+        "M2_SMOKE_RETRY",
+        "M2_TALISMAN_RETURN",
     )
-    assert stages[-len(expected_floor_one) :] == expected_floor_one
+    floor_one_start = stages.index("FLOOR_ONE_WARNING")
+    assert stages[
+        floor_one_start : floor_one_start + len(expected_floor_one)
+    ] == expected_floor_one
 
     runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
     runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
@@ -172,6 +347,16 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
     assert tuple(
         expected_stages[floor_one_start : floor_one_start + len(expected_floor_one)]
     ) == expected_floor_one
+
+    m3_stages = (
+        "M3_ADVANCEMENT_PURCHASE",
+        "M3_ADVANCEMENT_ROUNDTRIP",
+        "M3_ADVANCEMENT_MOVE_EFFECT",
+        "M3_ADVANCEMENT_FINAL_STATE",
+    )
+    talisman_index = stages.index("M2_TALISMAN_RETURN")
+    assert stages[talisman_index + 1 : talisman_index + 1 + len(m3_stages)] == m3_stages
+    assert expected_stages[expected_stages.index("M2_TALISMAN_RETURN") + 1 :][:4] == m3_stages
 
     source = _hub_probe_source()
     for required in (
@@ -196,9 +381,89 @@ def test_probe_continues_through_all_floor_one_battles_and_both_rests():
         'snapshot = game.snapshot()',
         'restored = game.clone()',
         'restored.snapshot() != snapshot',
+        'HubEconomyService(game)',
+        'ChooseHealingTarget',
+        'ActionIntent.ESCAPE',
+        'RETURN_WITH_TALISMAN',
         'del state["route_enemy_factory"].enemies[:]',
     ):
         assert required in source
+
+
+def test_m3_probe_purchases_roundtrips_and_uses_an_authored_move():
+    source = _hub_probe_source()
+    for required in (
+        '"azhvielle_p01"',
+        '"azhvielle_a01"',
+        "ChooseAdvancementPurchase",
+        "ChooseAdvancementEquip",
+        "game.snapshot()",
+        "game.clone()",
+        'option.name == "Witchlight Bolt"',
+        "enemy.health.current >= enemy_hp_before",
+        '"M3_ADVANCEMENT_PURCHASE"',
+        '"M3_ADVANCEMENT_ROUNDTRIP"',
+        '"M3_ADVANCEMENT_MOVE_EFFECT"',
+    ):
+        assert required in source
+
+
+def test_m4_probe_covers_tier_one_floor_two_events_recruitment_and_roundtrip():
+    source = _floor_two_probe_source()
+    tree = _floor_two_probe_tree()
+    stages = _assigned_literal(tree, "_M4_STAGE_NAMES")
+    assert stages == (
+        "M4_TIER_ONE_CONTENT",
+        "M4_FLOOR_TWO_START",
+        "M4_FLOOR_TWO_BATTLE_01",
+        "M4_FLOOR_TWO_BATTLE_02",
+        "M4_FLOOR_TWO_BATTLE_03",
+        "M4_FLOOR_TWO_BATTLE_04",
+        "M4_FLOOR_TWO_BATTLE_05",
+        "M4_MIDWAY_REST",
+        "M4_FLOOR_TWO_BATTLE_06",
+        "M4_FLOOR_TWO_BATTLE_07",
+        "M4_FLOOR_TWO_BATTLE_08",
+        "M4_FLOOR_TWO_BATTLE_09",
+        "M4_DISCOVERY_SEARCH_ROUNDTRIP",
+        "M4_BOSS_HELPER_SELECTION",
+        "M4_FLOOR_TWO_BATTLE_10_BOSS",
+        "M4_FLOOR_TWO_FINAL_STATE",
+        "M4_PROBE_TEARDOWN",
+    )
+
+    for required in (
+        'get_route_spec("floor_two")',
+        'tier=1',
+        'OverworldAction.START_FLOOR_TWO',
+        'state["floor_two_battle_view"] = view',
+        'state["m4_first_tier_start"] = tier_start',
+        'battle_view = state.pop("floor_two_battle_view")',
+        'ChooseFloorTwoBossHelper("zhaivra")',
+        "OverworldAction.CHOOSE_FLOOR_TWO_HELPER",
+        '"midway Rest offered permanent recruitment"',
+        'OverworldAction.SEARCH_SITE',
+        'OverworldAction.SKIP_REST',
+        'ChooseDiscoverySearcher("branoc")',
+        'ChooseDiscoveryTarget("azhvielle")',
+        'OverworldAction.CONFIRM',
+        'RunEventService',
+        '"encounter_rewards"',
+        'game.clone()',
+        'restored.snapshot() != snapshot',
+        'floor_two_cleared',
+        'gc.collect()',
+    ):
+        assert required in source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    start = expected_stages.index("M3_ADVANCEMENT_FINAL_STATE") + 1
+    assert tuple(expected_stages[start : start + len(stages) + 1]) == (
+        *stages,
+        "M4_FLOOR_TWO_PROBE",
+    )
 
 
 @pytest.mark.parametrize(
@@ -242,6 +507,20 @@ def test_probe_records_battle_summaries_without_retaining_completed_battles():
     assert "self.battles.append(battle)" not in factory
     assert "party=()" in factory
     assert "party=party" in factory
+    assert "cave_in_power=None" in factory
+    assert "cave_in_power=cave_in_power" in factory
+
+
+def test_floor_two_probe_reads_readonly_bonus_mapping_portably():
+    from app.readonly_mapping import _ReadonlyMapping
+
+    probe = run_path(str(FLOOR_TWO_PROBE_PATH))
+    member = SimpleNamespace(
+        permanent_discovery_bonuses=_ReadonlyMapping({"max_hp": 5})
+    )
+
+    assert probe["_has_bonus_at_least"](member, "max_hp", 5)
+    assert not probe["_has_bonus_at_least"](member, "max_mana", 5)
 
 
 def test_probe_releases_route_evidence_only_after_final_state():
@@ -293,6 +572,38 @@ def test_memory_error_dumps_heap_map_before_logging_or_collection():
     assert ast.literal_eval(heap_map_call.args[0]) == 1
 
 
+def test_hub_probe_boundary_dumps_heap_map_for_pre_stage_memory_error():
+    tree = _probe_tree()
+    main = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    boundary = next(
+        node
+        for node in ast.walk(main)
+        if isinstance(node, ast.Try)
+        and any(
+            isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Name)
+            and statement.value.func.id == "_run_hub_tutorial"
+            for statement in node.body
+        )
+    )
+    handler = next(
+        handler
+        for handler in boundary.handlers
+        if isinstance(handler.type, ast.Name)
+        and handler.type.id == "MemoryError"
+    )
+    first_statement = handler.body[0]
+    assert isinstance(first_statement, ast.Expr)
+    assert isinstance(first_statement.value, ast.Call)
+    assert isinstance(first_statement.value.func, ast.Name)
+    assert first_statement.value.func.id == "_emit_heap_map_on_memory_error"
+
+
 def test_completed_first_battle_evidence_is_released_before_session_import():
     source = _probe_source()
     main_body = source[source.index("def main():") : source.rindex("main()")]
@@ -332,7 +643,7 @@ def test_completed_first_battle_evidence_is_released_before_session_import():
 
 
 def test_probe_excludes_host_persistence_and_test_dependencies():
-    source = _probe_source() + _hub_probe_source()
+    source = _probe_source() + _hub_probe_source() + _floor_three_probe_source()
     tree = ast.parse(source)
     imported_modules = {
         alias.name.split(".", 1)[0]

@@ -2,15 +2,16 @@
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
-**Current version: v0.6**
+**Current version: v0.7**
 
 Choose one of four distinct Drifters, master their unique combat style, grow
 stronger through battle, evolve their signature weapon, and push deeper into
 a dangerous world shaped by each character's identity and abilities.
 
-The game is in active development. The current build includes the surface
-route, the Hub, and the first dungeon floor. The same Python gameplay runtime
-is playable in the browser and through the terminal.
+The game is in active development. The current v0.7 build includes the surface
+route, the Hub, and the first three dungeon floors. The same Python gameplay
+runtime is playable in the browser and through the terminal; later floors
+remain in development.
 
 ## The Drifters
 
@@ -50,18 +51,38 @@ combat flow to overwhelm enemies before they can settle into the fight.
 
 ## Current Playable Build
 
-The current build contains the opening sequence for all four Drifters:
+The current development build is playable in the browser and terminal and
+covers the route through the Floor III boss:
 
-- Play eight authored surface encounters that escalate from lone Goblins to the Goblin Lord.
-- Recruit a companion in the Hub and fight as a two-Drifter party.
-- Enter Floor I's ten battles and two Rest points, ending with the Goblin Lord.
-- Extract to the Hub to secure rewards, inspect the party, and prepare another run.
-- Use the Hub merchant to craft and install signature-weapon components and improve weapon slots.
-- Inspect character progression, skills, inventory, map, and signature weapons.
-- Save, quit, load, and continue with persistent progression; cloud synchronization is optional.
+- Play the eight-encounter surface route through the Goblin Lord.
+- Recruit and manage the permanent Drifter roster in the Hub, then choose an
+  active pair for ordinary encounters.
+- Complete Floor I's ten encounters, two Rest points, and Goblin Lord; extract
+  to the Hub to secure rewards and prepare another run.
+- Continue through Floor II's ten encounters and two Rest points. At the
+  pre-boss Rest, choose D3 or D4 as a temporary third combatant for the boss.
+  The helper does not join the permanent roster or receive boss XP.
+- After clearing Floor II, recruit D3 and D4 independently in the Hub for 65
+  shared gold each. Permanent recruits start at Level 1.
+- Complete Floor III's ten encounters and two Rest points. Ordinary encounters
+  use the active pair; the final boss requires all four permanent Drifters.
+  Pre-boss rewards stay with their earning pair, while boss XP is split across
+  the four participants before each one's Intuition bonus.
+- Store supplies in the Hub, prepare a six-unit carried pack, use consumables
+  and alchemy, and choose between Rest, extraction, and emergency exits.
+- Spend Growth Points on character advancement, manage each Drifter's move
+  loadout, and respec at the Hub.
+- Assign the reserve pair to passive, 20-minute expeditions targeting
+  completed floors. Training and eligible floor-material assignments are
+  available; energy gates expeditions only, never ordinary dungeon play.
+- Craft and install signature-weapon components, improve weapon slots, manage
+  armor and fixed Ring/Pendant equipment, and use the Alchemist's armor and
+  modifier services. Ordinary Floor II armor-drop sources are not yet authored.
+- Inspect the party, inventory, map, and equipment; save, quit, load, and
+  continue with persistent progression. Cloud synchronization is optional.
 
-Floor I and return to the Hub are the current dungeon endpoint. Later floors and
-the M1-M9 systems remain in development.
+Further dungeon floors, additional expedition reward sources, and M7-M9
+systems remain future work.
 
 ## Play Instructions
 
@@ -107,15 +128,16 @@ Key foundations include:
 
 ### Save and Cloud Data
 
-The schema-11 `GameState` payload contains progression only, including the
-recruited party, shared hub inventory, and pending outing rewards. Existing
-schema-8 through schema-11 disk payloads remain readable and are migrated only
-after their original envelope digest is verified; new disk saves use schema 12.
-A separate version-1 local profile envelope stores the stable profile ID,
-optional DD account association, local sequence, accepted remote revision, sync
-state, and payload digest. The local profile store is authoritative for
-immediate play: saves are committed locally first, and a player can continue
-playing, saving, quitting, and loading without an account or network connection.
+The versioned `GameState` payload stores gameplay progression, including the
+permanent roster and active pair, character advancement, shared inventory and
+carried supplies, signature weapons, equipment, route state, and pending outing
+rewards. Supported legacy disk saves are validated and migrated before use; the
+original saved envelope is not mutated. A separate local profile envelope
+stores the stable profile ID, optional DD account association, local sequence,
+accepted remote revision, sync state, and payload digest. The local profile
+store is authoritative for immediate play: saves are committed locally first,
+and a player can continue playing, saving, quitting, and loading without an
+account or network connection.
 
 Optional cloud sync uses the DD-owned HTTPS/JSON profile API backed by
 PostgreSQL. The game depends on profile and transport interfaces, not on
@@ -153,12 +175,12 @@ From the `root/` project directory:
 
 ```text
 Dungeon-Drifters/
+├── docs/           # Project documentation
 ├── root/
 │   ├── src/        # Game source
 │   ├── tests/      # Test suite
 │   └── tools/      # Development and validation tools
-├── docs/           # Project documentation
-├── res/            # Screenshots and other resources
+│   └── res/        # Game resources and screenshots
 └── .github/        # CI workflows
 ```
 
@@ -181,5 +203,5 @@ For questions or support, please get in touch with the maintainer:
 - Use the [content authoring guide](CONTENT_AUTHORING.md)
   to add Drifters, enemies, weapons, encounters, or routes through the supported
   scaffolding and validation workflow.
-- `tools/balance_probe.py` provides deterministic combat simulations and
+- `root/tools/balance_probe.py` provides deterministic combat simulations and
   reproducible balance artifacts.

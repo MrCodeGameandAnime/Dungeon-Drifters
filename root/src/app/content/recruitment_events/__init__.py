@@ -1,0 +1,1 @@
+"""Authored recruitment event content."""

@@ -186,12 +186,12 @@ def secured_xp_bonus_bps_from_intuition(intuition: int) -> int:
 def _validate_stat(value: int, *, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{name} must be an integer")
-    if value < STAT_MINIMUM or value > STAT_MAXIMUM:
+    if value < STAT_MINIMUM:
         raise ValueError(
             f"{name} must be between {STAT_MINIMUM} and {STAT_MAXIMUM}"
         )
 
-    return value
+    return min(value, STAT_MAXIMUM)
 
 
 def _validate_level(level: int) -> int:

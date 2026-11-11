@@ -57,7 +57,9 @@ def _recruit_companion(state):
     )
     if selection.screen is not OverworldScreen.COMPANION_SELECTION:
         raise AssertionError("Hub did not open companion selection")
-    ready = session.submit(ChooseCompanion("azhvielle"))
+    ready = session.submit(
+        ChooseCompanion("azhvielle", "floor_one_d2_recruitment")
+    )
     if ready.screen is not OverworldScreen.PARTY_READY:
         raise AssertionError("companion recruitment did not ready the party")
     if game.party_state.phase is not DungeonPhase.PARTY_READY:
@@ -74,6 +76,105 @@ def _recruit_companion(state):
         for option in ready.options
     ):
         raise AssertionError("the recruited party was not offered Ready")
+
+
+def _assert_initial_roster(state):
+    game = state["route_game"]
+    roster_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
+    if roster_ids != ("branoc",):
+        raise AssertionError("Drifter was recruited before its authored event")
+    if game.party_state.active_drifter_ids != ("branoc",):
+        raise AssertionError("a new game did not deploy only its starting Drifter")
+    if "floor_one_d2_recruitment" in game.story_state.completed_events:
+        raise AssertionError("the D2 recruitment event completed before the Hub")
+
+
+def _select_and_roundtrip_active_pair(state):
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import ChooseActivePair, ChooseOverworldAction
+
+    game = state["route_game"]
+    recruited_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
+    if recruited_ids != ("branoc", "azhvielle"):
+        raise AssertionError("Hub recruitment changed the M1 roster")
+
+    # Simulate a later authored recruitment only in an isolated probe game.
+    from app.player.player_state import PlayerState
+
+    controlled_game = game.clone()
+    controlled_member = PlayerState(
+        state["catalog"].get_drifter_spec("zhaivra").create_character()
+    )
+    if not controlled_game.party_state.recruit_companion(
+        controlled_game.player_state,
+        controlled_member,
+        cost=0,
+    ):
+        raise AssertionError("controlled third-member roster setup failed")
+    pair_session = state["route_session"].__class__(
+        controlled_game,
+        battle_factory=state["route_battle_factory"].__class__(),
+        enemy_factory=lambda archetype_id, tier=0: state["catalog"].create_enemy_state(
+            archetype_id, tier=tier
+        ),
+    )
+
+    selection = pair_session.submit(
+        ChooseOverworldAction(OverworldAction.SELECT_PARTY)
+    )
+    if selection.screen is not OverworldScreen.PARTY_SELECTION:
+        raise AssertionError("the Hub did not open active-party selection")
+    offered_pairs = tuple(choice.drifter_ids for choice in selection.active_party_choices)
+    if len(offered_pairs) != 6 or any(
+        drifter_id not in ("branoc", "azhvielle", "zhaivra")
+        for pair in offered_pairs
+        for drifter_id in pair
+    ):
+        raise AssertionError("pair selection offered an unrecruited Drifter")
+
+    selected = pair_session.submit(
+        ChooseActivePair(("zhaivra", "azhvielle"))
+    )
+    if selected.screen is not OverworldScreen.HUB:
+        raise AssertionError("selecting the reversed pair did not return to the Hub")
+    if controlled_game.party_state.active_drifter_ids != ("zhaivra", "azhvielle"):
+        raise AssertionError("active-party order was not persisted")
+    active_members = controlled_game.active_party_members
+    if active_members != (
+        controlled_game.member_for_drifter_id("zhaivra"),
+        controlled_game.member_for_drifter_id("azhvielle"),
+    ):
+        raise AssertionError("active IDs did not resolve canonical roster members")
+    if game.player_state.character.profile.drifter_id != "branoc":
+        raise AssertionError("active order changed the campaign identity")
+
+    snapshot = controlled_game.snapshot()
+    clone = controlled_game.clone()
+    if clone.snapshot() != snapshot:
+        raise AssertionError("roster snapshot round-trip changed persistent state")
+    if clone.party_state.active_drifter_ids != ("zhaivra", "azhvielle"):
+        raise AssertionError("snapshot round-trip changed active-party order")
+    if clone.recruited_members[0] is controlled_game.recruited_members[0]:
+        raise AssertionError("roster round-trip aliased members across games")
+    if clone.active_party_members != (
+        clone.member_for_drifter_id("zhaivra"),
+        clone.member_for_drifter_id("azhvielle"),
+    ):
+        raise AssertionError("cloned active IDs did not resolve canonical members")
+    if tuple(
+        member.character.profile.drifter_id for member in clone.recruited_members
+    ) != ("branoc", "azhvielle", "zhaivra"):
+        raise AssertionError("snapshot round-trip changed the recruited roster")
+    if tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    ) != recruited_ids or game.party_state.active_drifter_ids != ("branoc", "azhvielle"):
+        raise AssertionError("controlled pair selection mutated the live tutorial roster")
 
 
 def _ready_party(state):
@@ -181,6 +282,13 @@ def _assert_final_state(state):
         raise AssertionError("tutorial extraction did not complete at the Hub")
     if len(members) != 2:
         raise AssertionError("tutorial extraction changed party membership")
+    roster_ids = tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    )
+    if roster_ids != ("branoc", "azhvielle"):
+        raise AssertionError("tutorial recruitment changed the permanent roster")
+    if party.active_drifter_ids != ("branoc", "azhvielle"):
+        raise AssertionError("tutorial extraction changed the deployed pair")
     if party.shared_gold != 19:
         raise AssertionError("tutorial gold was not secured exactly once")
     if party.shared_items != {
@@ -475,6 +583,7 @@ def _assert_rest_fallback(game, state):
 def _assert_floor_one_final_state(state):
     from app.game.party_state import DungeonPhase
     from app.presentation.overworld_models import OverworldScreen
+    from app.player.scaling import secured_xp_bonus_bps_from_intuition
 
     game = state["route_game"]
     session = state["route_session"]
@@ -505,11 +614,20 @@ def _assert_floor_one_final_state(state):
     if not game.overworld_state.route_complete or not game.overworld_state.dungeon_entrance_reached:
         raise AssertionError("Floor 1 clear changed Surface completion")
     xp_after = tuple(_total_experience(member) for member in members)
+    expected_xp_awards = tuple(
+        _FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER
+        + _FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER
+        * secured_xp_bonus_bps_from_intuition(
+            member.effective_stat("intuition")
+        )
+        // 10000
+        for member in members
+    )
     if tuple(
         after - before
         for after, before in zip(xp_after, state["floor_one_xp_before"])
-    ) != (_FLOOR_ONE_EXPECTED_REWARD_PER_DRIFTER,) * 2:
-        raise AssertionError("Floor 1 XP was not split evenly")
+    ) != expected_xp_awards:
+        raise AssertionError("Floor 1 personal secured-XP awards changed")
     if tuple(state["floor_one_battle_compositions"]) != tuple(
         tuple(
             state["catalog"].get_encounter_spec(node.encounter_id).enemy_archetype_ids
@@ -622,7 +740,430 @@ def _assert_weapon_progression_final_state(state):
         raise AssertionError("companion weapon state changed during save round-trip")
 
 
+def _prepare_m2_supplies(state):
+    from app.game.hub_economy import HubEconomyService
+    from app.game.weapon_progression import WeaponProgressionService
+
+    game = state["route_game"]
+    party = game.party_state
+    economy = HubEconomyService(game)
+    for item_id, quantity in (
+        ("medicinal_herb", 2),
+        ("clean_water", 2),
+        ("charcoal_dust", 2),
+    ):
+        result = economy.buy(item_id=item_id, quantity=quantity)
+        if not result.success:
+            raise AssertionError("Hub supplies could not be purchased")
+
+    class FiberRng:
+        def randint(self, start, end):
+            return end
+
+        def choice(self, values):
+            for value in values:
+                if value == "grade_i_fiber":
+                    return value
+            return values[0]
+
+    salvage = WeaponProgressionService(game, rng=FiberRng())
+    result = salvage.dismantle(
+        target_drifter_id="branoc",
+        item_id="goblin_scrap",
+        quantity=5,
+    )
+    if not result.success or result.materials.get("grade_i_fiber") != 5:
+        raise AssertionError("Floor I salvage did not supply Alchemy fiber")
+    core = salvage.dismantle(
+        target_drifter_id="branoc",
+        item_id="goblin_lord_core",
+        quantity=1,
+    )
+    if not core.success or core.materials != {"grade_i_cores": 1}:
+        raise AssertionError("the Goblin Lord Core did not yield a Grade-I core")
+
+    crafting_experience = party.crafting_experience
+    for recipe_id in (
+        "healing_potion",
+        "healing_potion",
+        "smoke_powder",
+        "smoke_powder",
+        "smoke_bomb",
+        "smoke_bomb",
+        "return_talisman",
+    ):
+        result = economy.craft_alchemy(recipe_id)
+        if not result.success:
+            raise AssertionError("an approved M2 Alchemy recipe was rejected")
+    if party.crafting_experience != crafting_experience:
+        raise AssertionError("Alchemy awarded weapon Crafting experience")
+    for item_id, quantity in (
+        ("healing_potion", 2),
+        ("smoke_bomb", 2),
+        ("return_talisman", 1),
+    ):
+        result = economy.load(item_id=item_id, quantity=quantity)
+        if not result.success:
+            raise AssertionError("a prepared supply could not be loaded")
+    if party.carried_item_units != 5 or party.carried_items != {
+        "healing_potion": 2,
+        "smoke_bomb": 2,
+        "return_talisman": 1,
+    }:
+        raise AssertionError("prepared supplies did not occupy five pack units")
+    if party.shared_items.get("healing_potion", 0):
+        raise AssertionError("loaded potions remained in Hub storage")
+
+    snapshot = game.snapshot()
+    restored = game.clone()
+    if restored.snapshot() != snapshot:
+        raise AssertionError("prepared supplies changed during save round-trip")
+    state["m2_expected_shared_gold"] = party.shared_gold
+    if party.shared_gold != 105:
+        raise AssertionError("provisional M2 purchase costs changed")
+
+
+def _m2_healing_potion(state):
+    from app.presentation.battle_models import ActionIntent, BattleEventType
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.battle_ui import ChooseAction, ChooseHealingTarget
+    from app.ui.overworld_ui import ChooseOverworldAction
+
+    game = state["route_game"]
+    party = game.party_state
+    session = state["route_session"]
+    target = game.member_for_drifter_id("azhvielle")
+    target.health.take_damage(31)
+    before_healing = target.health.current
+    expected_healing = min(
+        target.health.maximum - before_healing,
+        target.health.maximum * 40 // 100,
+    )
+
+    warning = session.submit(
+        ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
+    )
+    if warning.screen is not OverworldScreen.FLOOR_ONE_WARNING:
+        raise AssertionError("M2 replay did not open its Floor I warning")
+    first_view = session.submit(ChooseOverworldAction(OverworldAction.SET_OUT))
+    if session.active_battle is None:
+        raise AssertionError("M2 replay did not start its first encounter")
+    if not any(
+        option.intent is ActionIntent.HEALING_POTION and option.enabled
+        for option in first_view.action_options
+    ):
+        raise AssertionError("the carried potion was not offered in combat")
+    healing_targets = session.submit(
+        ChooseAction(ActionIntent.HEALING_POTION)
+    )
+    if not any(
+        option.target_id == "drifter_azhvielle"
+        for option in healing_targets.healing_target_options
+    ):
+        raise AssertionError("combat potion did not offer the injured Drifter")
+    battle_view = session.submit(ChooseHealingTarget("drifter_azhvielle"))
+    if not any(
+        entry.event_type is BattleEventType.HEALING
+        and entry.target_name == target.display_name
+        and entry.amount == expected_healing
+        for entry in battle_view.log_entries
+    ):
+        raise AssertionError("combat potion did not report the capped healing")
+    if party.carried_items.get("healing_potion", 0) != 1:
+        raise AssertionError("combat potion did not consume exactly one unit")
+
+
+def _m2_smoke_retry(state, complete_battle):
+    from app.presentation.battle_models import ActionIntent, BattleEventType
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.battle_ui import ChooseAction
+    from app.ui.overworld_ui import ChooseOverworldAction
+
+    game = state["route_game"]
+    party = game.party_state
+    session = state["route_session"]
+    if session.active_battle is None:
+        raise AssertionError("the prepared potion encounter was lost")
+    route_node_id = game.overworld_state.current_route_node_id
+    rewards_before_escape = party.outing_rewards.snapshot()
+    resources_before_escape = tuple(
+        (
+            member.health.current,
+            member.mana_resource.current,
+            member.super_resource.current,
+        )
+        for member in game.active_party_members
+    )
+    first_enemies = tuple(session.active_battle.enemies)
+    escape_view = session.submit(ChooseAction(ActionIntent.ESCAPE))
+    main_view = session.current_view()
+    if main_view.screen is not OverworldScreen.MAIN:
+        raise AssertionError("Smoke Bomb did not exit only the encounter")
+    if game.overworld_state.current_route_node_id != route_node_id:
+        raise AssertionError("Smoke Bomb advanced the uncleared encounter")
+    if party.outing_rewards.snapshot() != rewards_before_escape:
+        raise AssertionError("Smoke Bomb granted or removed encounter rewards")
+    if tuple(
+        (
+            member.health.current,
+            member.mana_resource.current,
+            member.super_resource.current,
+        )
+        for member in game.active_party_members
+    ) != resources_before_escape:
+        raise AssertionError("Smoke Bomb changed party HP, Mana, or Super")
+    if party.carried_items.get("smoke_bomb", 0) != 1:
+        raise AssertionError("Smoke Bomb did not consume exactly one unit")
+    if not any(
+        entry.event_type is BattleEventType.ESCAPE
+        for entry in escape_view.log_entries
+    ):
+        raise AssertionError("Smoke Bomb escape evidence was not recorded")
+
+    retry_view = session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+    retry_enemies = tuple(session.active_battle.enemies)
+    if not retry_enemies or any(
+        enemy is previous
+        for enemy in retry_enemies
+        for previous in first_enemies
+    ):
+        raise AssertionError("re-entering after Smoke reused enemy instances")
+    complete_battle(retry_view)
+    if game.overworld_state.current_route_node_id == route_node_id:
+        raise AssertionError("winning the retry did not advance the route")
+    del state["route_enemy_factory"].enemies[:]
+    del first_enemies
+    del retry_enemies
+    gc.collect()
+
+    next_node_id = game.overworld_state.current_route_node_id
+    pending_rewards = party.outing_rewards.snapshot()
+    next_view = session.submit(
+        ChooseOverworldAction(OverworldAction.ENTER_ENCOUNTER)
+    )
+    if session.active_battle is None:
+        raise AssertionError("the next encounter after the retry was unavailable")
+    resources_before_second_escape = tuple(
+        (
+            member.health.current,
+            member.mana_resource.current,
+            member.super_resource.current,
+        )
+        for member in game.active_party_members
+    )
+    session.submit(ChooseAction(ActionIntent.ESCAPE))
+    if session.current_view().screen is not OverworldScreen.MAIN:
+        raise AssertionError("second Smoke Bomb did not return to the route")
+    if game.overworld_state.current_route_node_id != next_node_id:
+        raise AssertionError("second Smoke Bomb changed the route cursor")
+    if party.outing_rewards.snapshot() != pending_rewards:
+        raise AssertionError("second Smoke Bomb changed earned rewards")
+    if tuple(
+        (
+            member.health.current,
+            member.mana_resource.current,
+            member.super_resource.current,
+        )
+        for member in game.active_party_members
+    ) != resources_before_second_escape:
+        raise AssertionError("second Smoke Bomb changed party resources")
+    if party.carried_items.get("smoke_bomb", 0):
+        raise AssertionError("second Smoke Bomb did not consume the last unit")
+    del state["route_enemy_factory"].enemies[:]
+    del next_view
+    gc.collect()
+
+
+def _m2_return_talisman(state):
+    from app.game.party_state import DungeonPhase
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import ChooseOverworldAction
+
+    game = state["route_game"]
+    party = game.party_state
+    session = state["route_session"]
+    if session.current_view().screen is not OverworldScreen.MAIN:
+        raise AssertionError("Return Talisman was not used outside combat")
+    party_members = game.active_party_members
+    before_xp = tuple(member.exp_state.current for member in party_members)
+    adjusted_total = (
+        party.outing_rewards.experience
+        * party.outing_xp_multiplier_percent
+        // (100 * len(party_members))
+        * len(party_members)
+    )
+    expected_xp_each = adjusted_total // len(party_members)
+    gold_before = party.shared_gold
+    items_before = dict(party.shared_items)
+    talisman = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_WITH_TALISMAN)
+    )
+    if talisman.screen is not OverworldScreen.HUB:
+        raise AssertionError("Return Talisman did not return to the Hub")
+    if tuple(
+        member.exp_state.current - before
+        for member, before in zip(party_members, before_xp)
+    ) != (expected_xp_each,) * len(party_members):
+        raise AssertionError("Return Talisman did not bank adjusted XP evenly")
+    if party.shared_gold != gold_before:
+        raise AssertionError("Return Talisman banked unsecured run gold")
+    expected_items = dict(items_before)
+    expected_items["healing_potion"] = expected_items.get("healing_potion", 0) + 1
+    if party.shared_items != expected_items:
+        raise AssertionError("Return Talisman banked loot or lost unused supplies")
+    if party.carried_items or party.outing_rewards.snapshot() != {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }:
+        raise AssertionError("Return Talisman retained carried items or run rewards")
+    if party.phase is not DungeonPhase.HUB:
+        raise AssertionError("Return Talisman did not finish the run at Hub")
+    if game.overworld_state.current_route_node_id != "surface_dungeon_entrance":
+        raise AssertionError("Return Talisman returned to the wrong route location")
+    for member in game.recruited_members:
+        if (
+            member.health.current != member.health.maximum
+            or member.mana_resource.current != member.mana_resource.maximum
+        ):
+            raise AssertionError("Talisman return did not restore recruited Drifters")
+    saved = state["route_battle_factory"].saved_game_state
+    if saved is None or saved is game:
+        raise AssertionError("Talisman return did not durably save a fallback")
+    if (
+        saved.party_state.phase is not DungeonPhase.HUB
+        or saved.party_state.carried_items
+        or saved.party_state.shared_items != expected_items
+        or saved.party_state.shared_gold != gold_before
+    ):
+        raise AssertionError("saved Talisman outcome differs from the accepted result")
+
+
+def _m3_purchase_advancement(state):
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import (
+        ChooseAdvancementEquip,
+        ChooseAdvancementPurchase,
+        ChooseCharacterTarget,
+        ChooseOverworldAction,
+    )
+
+    game = state["route_game"]
+    session = state["route_session"]
+    azhvielle = game.member_for_drifter_id("azhvielle")
+    if session.current_view().screen is not OverworldScreen.HUB:
+        raise AssertionError("M3 advancement probe did not begin at the Hub")
+    if azhvielle.growth_points < 5:
+        raise AssertionError("secured Floor I rewards did not fund the M3 probe")
+
+    view = session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
+    if view.screen is not OverworldScreen.CHARACTER:
+        raise AssertionError("Hub did not open the Character screen")
+    view = session.submit(ChooseOverworldAction(OverworldAction.SKILLS))
+    if view.screen is not OverworldScreen.SKILLS:
+        raise AssertionError("Hub did not open the Skills screen")
+    view = session.submit(ChooseCharacterTarget("azhvielle"))
+    if view.skills is None or view.skills.selected_target_id != "azhvielle":
+        raise AssertionError("Skills screen did not target Azhvielle")
+
+    starting_gp = azhvielle.growth_points
+    for skill_id in ("azhvielle_p01", "azhvielle_a01"):
+        view = session.submit(ChooseAdvancementPurchase("azhvielle", skill_id))
+        if skill_id not in azhvielle.purchased_passive_skill_ids + azhvielle.purchased_active_skill_ids:
+            raise AssertionError("authored M3 skill purchase was not recorded")
+    view = session.submit(ChooseAdvancementEquip("azhvielle", "azhvielle_a01", 3))
+    if not view.skills or view.skills.loadout[3].move.move_id != "azhvielle_a01":
+        raise AssertionError("purchased M3 move was not equipped")
+    if azhvielle.growth_points != starting_gp - 5:
+        raise AssertionError("M3 skill purchases spent an unexpected GP amount")
+    if not any(move.move_id == "azhvielle_a01" for move in view.skills.available_moves):
+        raise AssertionError("purchased M3 move was absent from the available pool")
+    state["m3_progression_snapshot"] = game.snapshot()
+    state["m3_progression_gp"] = azhvielle.growth_points
+
+
+def _m3_roundtrip_advancement(state):
+    game = state["route_game"]
+    snapshot = state["m3_progression_snapshot"]
+    restored = game.clone()
+    if restored.snapshot() != snapshot:
+        raise AssertionError("M3 skill purchases or loadout changed on round-trip")
+    member = restored.member_for_drifter_id("azhvielle")
+    if (
+        "azhvielle_p01" not in member.purchased_passive_skill_ids
+        or "azhvielle_a01" not in member.purchased_active_skill_ids
+        or member.equipped_normal_move_ids[3] != "azhvielle_a01"
+    ):
+        raise AssertionError("M3 advancement fields did not survive round-trip")
+    state["m3_roundtrip_game"] = restored
+
+
+def _m3_use_advancement_move(state):
+    from app.combat.battle import Battle
+    from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
+
+    class FirstRollRng:
+        def randint(self, start, end):
+            return start
+
+        def choice(self, values):
+            return values[0]
+
+    combat_game = state["m3_roundtrip_game"].clone()
+    azhvielle = combat_game.member_for_drifter_id("azhvielle")
+    enemies = tuple(
+        state["catalog"].create_enemy_state("goblin") for _ in range(3)
+    )
+    enemy = enemies[0]
+    enemy_hp_before = enemy.health.current
+    battle = Battle(
+        azhvielle,
+        enemies,
+        rng=FirstRollRng(),
+        encounter_label="M3 Advancement Probe",
+    )
+    view = battle.current_view()
+    view = battle.submit(ChooseAction("attack"))
+    move = None
+    for option in view.move_options:
+        if option.name == "Witchlight Bolt" and option.enabled:
+            move = option
+            break
+    if move is None:
+        raise AssertionError("Witchlight Bolt was not offered in the real Battle")
+    view = battle.submit(ChooseMove(move.selection_key))
+    if not view.target_options:
+        raise AssertionError("Witchlight Bolt did not offer a legal target")
+    view = battle.submit(ChooseTarget(view.target_options[0].target_id))
+    if enemy.health.current >= enemy_hp_before:
+        raise AssertionError("Witchlight Bolt did not damage the Goblin")
+    state["m3_move_damage"] = enemy_hp_before - enemy.health.current
+
+
+def _m3_assert_advancement_final_state(state):
+    from app.presentation.overworld_models import OverworldScreen
+    from app.ui.overworld_ui import ChooseOverworldAction
+    from app.presentation.overworld_models import OverworldAction
+
+    game = state["route_game"]
+    restored = state["m3_roundtrip_game"]
+    if game.snapshot() != state["m3_progression_snapshot"]:
+        raise AssertionError("probe combat mutated the saved M3 progression state")
+    if restored.snapshot() != state["m3_progression_snapshot"]:
+        raise AssertionError("M3 round-trip state changed after combat proof")
+    if state.get("m3_move_damage", 0) <= 0:
+        raise AssertionError("M3 probe did not record positive move damage")
+    session = state["route_session"]
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    if session.current_view().screen is not OverworldScreen.HUB:
+        raise AssertionError("M3 probe did not restore the Hub route view")
+
+
 def run(state, complete_battle, run_stage):
+    run_stage("M1_INITIAL_ROSTER", lambda: _assert_initial_roster(state))
     run_stage("HUB_RECRUITMENT", lambda: _recruit_companion(state))
     run_stage("HUB_READY", lambda: _ready_party(state))
     run_stage(
@@ -632,6 +1173,10 @@ def run(state, complete_battle, run_stage):
     run_stage("HUB_EXTRACTION", lambda: _assert_extraction_pending(state))
     run_stage("HUB_RETURN", lambda: _return_to_hub(state))
     run_stage("HUB_FINAL_STATE", lambda: _assert_final_state(state))
+    run_stage(
+        "M1_ACTIVE_PAIR_ROUNDTRIP",
+        lambda: _select_and_roundtrip_active_pair(state),
+    )
     run_stage("FLOOR_ONE_WARNING", lambda: _open_floor_one_warning(state))
     run_stage("FLOOR_ONE_SET_OUT", lambda: _set_out_floor_one(state))
     run_stage(
@@ -706,3 +1251,17 @@ def run(state, complete_battle, run_stage):
         "WEAPON_PROGRESSION_FINAL_STATE",
         lambda: _assert_weapon_progression_final_state(state),
     )
+    run_stage("M2_PREP_ALCHEMY", lambda: _prepare_m2_supplies(state))
+    run_stage(
+        "M2_HEALING_POTION",
+        lambda: _m2_healing_potion(state),
+    )
+    run_stage(
+        "M2_SMOKE_RETRY",
+        lambda: _m2_smoke_retry(state, complete_battle),
+    )
+    run_stage("M2_TALISMAN_RETURN", lambda: _m2_return_talisman(state))
+    run_stage("M3_ADVANCEMENT_PURCHASE", lambda: _m3_purchase_advancement(state))
+    run_stage("M3_ADVANCEMENT_ROUNDTRIP", lambda: _m3_roundtrip_advancement(state))
+    run_stage("M3_ADVANCEMENT_MOVE_EFFECT", lambda: _m3_use_advancement_move(state))
+    run_stage("M3_ADVANCEMENT_FINAL_STATE", lambda: _m3_assert_advancement_final_state(state))

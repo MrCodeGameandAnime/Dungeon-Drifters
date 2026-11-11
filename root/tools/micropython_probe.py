@@ -185,8 +185,21 @@ class _RouteBattleFactory:
     def __init__(self):
         self.battle_compositions = []
         self.completed_count = 0
+        self.floor_two_boss_pending_event_counts = None
+        self.floor_three_boss_pending_event_counts = None
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
+    def __call__(
+        self,
+        player_state,
+        enemies,
+        *,
+        ui,
+        encounter_label,
+        party=(),
+        party_state=None,
+        smoke_escape_allowed=False,
+        cave_in_power=None,
+    ):
         from app.combat.battle import Battle
 
         self.battle_compositions.append(
@@ -200,6 +213,9 @@ class _RouteBattleFactory:
             rng=_DeterministicRng(),
             encounter_label=encounter_label,
             party=party,
+            party_state=party_state,
+            smoke_escape_allowed=smoke_escape_allowed,
+            cave_in_power=cave_in_power,
         )
         return battle
 
@@ -215,6 +231,34 @@ class _RouteBattleFactory:
     def save(self, game_state):
         from app.persistence.save_port_contract import SaveLoadStatus
 
+        if game_state.floor_two_boss_settlement_pending:
+            events = game_state.party_state.resolved_run_events
+            self.floor_two_boss_pending_event_counts = (
+                sum(
+                    event["kind"] == "encounter_rewards"
+                    and event["node_id"] == "floor_two_battle_10"
+                    for event in events
+                ),
+                sum(
+                    event["kind"] == "enemy_drop"
+                    and event["node_id"] == "floor_two_battle_10"
+                    for event in events
+                ),
+            )
+        if game_state.floor_three_boss_settlement_pending:
+            events = game_state.party_state.resolved_run_events
+            self.floor_three_boss_pending_event_counts = (
+                sum(
+                    event["kind"] == "encounter_rewards"
+                    and event["node_id"] == "floor_three_battle_10"
+                    for event in events
+                ),
+                sum(
+                    event["kind"] == "enemy_drop"
+                    and event["node_id"] == "floor_three_battle_10"
+                    for event in events
+                ),
+            )
         self.saved_game_state = game_state
         self.status = SaveLoadStatus.SAVED
         return self
@@ -230,10 +274,12 @@ class _RouteEnemyFactory:
     def __init__(self, factory):
         self._factory = factory
         self.enemies = []
+        self.tiers = []
 
     def __call__(self, archetype_id, *, tier):
         enemy = self._factory(archetype_id, tier=tier)
         self.enemies.append(enemy)
+        self.tiers.append(tier)
         return enemy
 
 
@@ -399,6 +445,7 @@ def _construct_route_qualification():
         ui=None,
         battle_ui_factory=None,
         save_port=battle_factory,
+        run_event_rng=_DeterministicRng(),
     )
     STATE["route_game"] = game
     STATE["route_session"] = session
@@ -640,6 +687,62 @@ def _run_hub_tutorial():
     _emit_memory("HUB_PROBE_RELEASED")
 
 
+def _run_floor_two_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_floor_two_probe
+
+        micropython_floor_two_probe.run(STATE, _complete_route_battle, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_floor_two_probe", None)
+    _emit_memory("FLOOR_TWO_PROBE_RELEASED")
+
+
+def _run_floor_three_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_floor_three_probe
+
+        micropython_floor_three_probe.run(
+            STATE,
+            _complete_route_battle,
+            _run_stage,
+        )
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_floor_three_probe", None)
+    _emit_memory("FLOOR_THREE_PROBE_RELEASED")
+
+
+def _run_m5_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_m5_probe
+
+        micropython_m5_probe.run(STATE, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_m5_probe", None)
+    _emit_memory("M5_PROBE_RELEASED")
+
+
+def _run_m6_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_m6_probe
+
+        micropython_m6_probe.run(STATE, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_m6_probe", None)
+    _emit_memory("M6_PROBE_RELEASED")
+
+
 def _assert_route_live_state():
     from app.presentation.overworld_models import OverworldScreen
 
@@ -658,8 +761,9 @@ def _assert_route_live_state():
         raise AssertionError("Dungeon Entrance state changed after Floor 1")
     if game.world_state.defeated_encounters != _EXPECTED_ENCOUNTERS:
         raise AssertionError("Floor 1 changed Surface defeat history")
-    if party.shared_gold != 115:
-        raise AssertionError("Floor 1 rewards were not secured in shared gold")
+    expected_shared_gold = STATE.get("m2_expected_shared_gold", 115)
+    if party.shared_gold != expected_shared_gold:
+        raise AssertionError("Hub shared gold changed after qualification setup")
     if not party.tutorial_complete or not party.floor_one_cleared:
         raise AssertionError("Hub progression was incomplete after Floor 1")
     if party.outing_rewards.experience or party.outing_rewards.gold:
@@ -683,6 +787,7 @@ def _release_route_evidence():
     del battle_factory.battle_compositions[:]
     battle_factory.completed_count = 0
     del STATE["route_enemy_factory"].enemies[:]
+    del STATE["route_enemy_factory"].tiers[:]
     del STATE["route_initial_view"]
 
 
@@ -700,6 +805,11 @@ def _teardown_route_session():
     del STATE["floor_one_pending_xp"]
     del STATE["floor_one_pending_gold"]
     gc.collect()
+    if any(
+        key in STATE
+        for key in ("route_game", "route_session", "route_battle_factory")
+    ):
+        raise AssertionError("route teardown retained roster/session state")
 
 
 def main():
@@ -732,8 +842,16 @@ def main():
     _run_stage("SURFACE_ROUTE_COMPLETE", _complete_surface_route)
     _run_stage("ROUTE_FINAL_STATE", _assert_route_final_state)
     _run_stage("ROUTE_EVIDENCE_RELEASE", _release_route_evidence)
-    _run_hub_tutorial()
+    try:
+        _run_hub_tutorial()
+    except MemoryError as error:
+        _emit_heap_map_on_memory_error(error)
+        raise
     _assert_route_live_state()
+    _run_stage("M4_FLOOR_TWO_PROBE", _run_floor_two_probe)
+    _run_stage("M4_FLOOR_THREE_PROBE", _run_floor_three_probe)
+    _run_stage("M5_EQUIPMENT_PROBE", _run_m5_probe)
+    _run_stage("M6_EXPEDITION_PROBE", _run_m6_probe)
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")

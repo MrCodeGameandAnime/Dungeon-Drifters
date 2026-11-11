@@ -110,13 +110,16 @@ class StatusState:
         self._frozen = []
         self._frostbites = []
 
-    def apply_burn(self, source, target):
+    def apply_burn(self, source, target, *, potency_bonus_bps=0):
+        _validate_potency_bonus(potency_bonus_bps)
         _validate_burn_source(source)
         _validate_burn_target(target)
         if not target.is_alive():
             raise ValueError("Burn cannot be applied to a defeated target")
 
-        new_damage = burn_damage_per_tick(source)
+        new_damage = _apply_status_potency(
+            burn_damage_per_tick(source), potency_bonus_bps
+        )
         existing = self._find_burn(target)
         if existing is None:
             self._burns.append(
@@ -155,13 +158,16 @@ class StatusState:
     def burn_status(self, target):
         return self._find_burn(target)
 
-    def apply_poison(self, source, target):
+    def apply_poison(self, source, target, *, potency_bonus_bps=0):
+        _validate_potency_bonus(potency_bonus_bps)
         _validate_status_source(source)
         _validate_status_target(target)
         if not target.is_alive():
             raise ValueError("Poison cannot be applied to a defeated target")
 
-        new_damage = poison_damage_per_tick(source)
+        new_damage = _apply_status_potency(
+            poison_damage_per_tick(source), potency_bonus_bps
+        )
         existing = self._find_poison(target)
         if existing is None:
             self._poisons.append(
@@ -800,6 +806,15 @@ def poison_damage_per_tick(source):
         + dexterity // POISON_STAT_DIVISOR
         + intuition // POISON_STAT_DIVISOR,
     )
+
+
+def _apply_status_potency(base_damage, potency_bonus_bps):
+    return max(1, base_damage * (10_000 + potency_bonus_bps) // 10_000)
+
+
+def _validate_potency_bonus(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError("potency_bonus_bps must be an integer")
 
 
 def _validate_burn_source(source):

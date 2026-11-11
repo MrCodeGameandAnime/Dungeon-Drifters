@@ -13,6 +13,7 @@ DRIFTER_ROOT = ROOT / "src" / "app" / "content" / "drifters"
 ENCOUNTER_ROOT = ROOT / "src" / "app" / "content" / "encounters"
 ROUTE_ROOT = ROOT / "src" / "app" / "content" / "routes"
 WEAPON_ROOT = ROOT / "src" / "app" / "content" / "weapons"
+RECRUITMENT_EVENT_ROOT = ROOT / "src" / "app" / "content" / "recruitment_events"
 OUTPUT_PATH = ROOT / "src" / "app" / "content" / "_generated_catalog.py"
 _CONTENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -170,12 +171,36 @@ def discover_route_ids(route_root=ROUTE_ROOT):
     return tuple(route_ids)
 
 
+def discover_recruitment_event_ids(event_root=RECRUITMENT_EVENT_ROOT):
+    event_ids = []
+    for path in sorted(
+        event_root.glob("*/recruitment_event.py"),
+        key=lambda item: item.parent.name,
+    ):
+        directory_id = _validate_content_module_id(path.parent.name)
+        event_id = _validate_content_module_id(
+            _authored_content_id(
+                path,
+                assignment_name="RECRUITMENT_EVENT",
+                field_name="event_id",
+            )
+        )
+        if directory_id != event_id:
+            raise ValueError(
+                "recruitment event directory ID does not match authored event ID: "
+                f"{directory_id} != {event_id}"
+            )
+        event_ids.append(directory_id)
+    return tuple(event_ids)
+
+
 def render_catalog(
     enemy_ids,
     weapon_ids=(),
     drifter_ids=(),
     encounter_ids=(),
     route_ids=(),
+    recruitment_event_ids=(),
 ):
     enemy_ids = tuple(_validate_content_module_id(value) for value in enemy_ids)
     weapon_ids = tuple(_validate_content_module_id(value) for value in weapon_ids)
@@ -184,6 +209,9 @@ def render_catalog(
         _validate_content_module_id(value) for value in encounter_ids
     )
     route_ids = tuple(_validate_content_module_id(value) for value in route_ids)
+    recruitment_event_ids = tuple(
+        _validate_content_module_id(value) for value in recruitment_event_ids
+    )
     enemy_imports = "\n".join(
         "from app.content.enemies."
         f"{enemy_id}.enemy import ENEMY as {enemy_id}_enemy"
@@ -229,6 +257,15 @@ def render_catalog(
         f'    ("{route_id}", {route_id}_route),'
         for route_id in route_ids
     )
+    recruitment_event_imports = "\n".join(
+        "from app.content.recruitment_events."
+        f"{event_id}.recruitment_event import RECRUITMENT_EVENT as {event_id}_recruitment_event"
+        for event_id in recruitment_event_ids
+    )
+    recruitment_event_records = "\n".join(
+        f'    ("{event_id}", {event_id}_recruitment_event),'
+        for event_id in recruitment_event_ids
+    )
     imports = "\n".join(
         section
         for section in (
@@ -237,6 +274,7 @@ def render_catalog(
             drifter_imports,
             encounter_imports,
             route_imports,
+            recruitment_event_imports,
         )
         if section
     )
@@ -258,11 +296,15 @@ def render_catalog(
         "GENERATED_ROUTE_SPECS = (\n"
         f"{route_records}\n"
         ")\n\n\n"
+        "GENERATED_RECRUITMENT_EVENT_SPECS = (\n"
+        f"{recruitment_event_records}\n"
+        ")\n\n\n"
         "__all__ = [\n"
         '    "GENERATED_DRIFTER_SPECS",\n'
         '    "GENERATED_ENCOUNTER_SPECS",\n'
         '    "GENERATED_ENEMY_SPECS",\n'
         '    "GENERATED_ROUTE_SPECS",\n'
+        '    "GENERATED_RECRUITMENT_EVENT_SPECS",\n'
         '    "GENERATED_WEAPON_SPECS",\n'
         "]\n"
     )
@@ -277,6 +319,7 @@ def render_discovered_catalog(
     drifter_root=DRIFTER_ROOT,
     encounter_root=ENCOUNTER_ROOT,
     route_root=ROUTE_ROOT,
+    recruitment_event_root=RECRUITMENT_EVENT_ROOT,
 ):
     """Return the deterministic catalog for the supplied content roots."""
     return render_catalog(
@@ -285,6 +328,7 @@ def render_discovered_catalog(
         discover_drifter_ids(drifter_root),
         discover_encounter_ids(encounter_root),
         discover_route_ids(route_root),
+        discover_recruitment_event_ids(recruitment_event_root),
     )
 
 

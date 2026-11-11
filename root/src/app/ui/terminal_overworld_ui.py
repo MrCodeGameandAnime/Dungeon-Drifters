@@ -5,6 +5,7 @@ import shutil
 import sys
 import textwrap
 
+from app.iteration import first_or_none
 from app.presentation.overworld_models import (
     MapNodeState,
     OverworldAction,
@@ -13,15 +14,31 @@ from app.presentation.overworld_models import (
     OverworldView,
 )
 from app.ui.overworld_ui import (
+    ChooseAdvancementEquip,
+    ChooseAdvancementPurchase,
+    ChooseActivePair,
+    ChooseDiscoverySearcher,
+    ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
+    ChooseFloorTwoBossHelper,
+    ChooseAlchemyRecipe,
     ChooseCompanion,
     ChooseCharacterTarget,
+    ChooseEquipmentAction,
+    ChooseEquipmentConfirmation,
+    ChooseEquipmentInstance,
+    EquipmentOperation,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseHubSupplyAction,
+    HubSupplyOperation,
     ChooseOverworldAction,
     ChooseOverworldItem,
+    ChooseOverworldHealingTarget,
     ChoosePermanentStatIncrease,
     ChooseWeaponTarget,
 )
@@ -35,6 +52,7 @@ class TerminalOverworldUI:
         OverworldAction.MAP: "M",
         OverworldAction.OPTIONS: "O",
         OverworldAction.SKILLS: "S",
+        OverworldAction.RESPEC: "R",
         OverworldAction.WEAPON: "W",
         OverworldAction.EQUIPMENT: "E",
         OverworldAction.MERCHANT: "T",
@@ -48,14 +66,27 @@ class TerminalOverworldUI:
         OverworldAction.CONFIRM: "Y",
         OverworldAction.CANCEL: "N",
         OverworldAction.ENTER_ENCOUNTER: "E",
+        OverworldAction.START_FLOOR_ONE: "F",
+        OverworldAction.START_FLOOR_TWO: "2",
+        OverworldAction.FINALIZE_FLOOR_TWO_CLEAR: "F",
+        OverworldAction.START_FLOOR_THREE: "3",
+        OverworldAction.FINALIZE_FLOOR_THREE_CLEAR: "F",
+        OverworldAction.SET_OUT: "Y",
         OverworldAction.RETRY: "R",
         OverworldAction.REST: "R",
         OverworldAction.SKIP_REST: "C",
         OverworldAction.MENU: "M",
         OverworldAction.RECRUIT_COMPANION: "R",
+        OverworldAction.CHOOSE_FLOOR_TWO_HELPER: "B",
+        OverworldAction.SELECT_PARTY: "P",
         OverworldAction.READY: "Y",
         OverworldAction.RETURN_TO_HUB: "H",
         OverworldAction.EXTRACT: "X",
+        OverworldAction.SEARCH_SITE: "S",
+        OverworldAction.CLAIM_DISCOVERY: "C",
+        OverworldAction.EXPEDITIONS: "X",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE: "1",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO: "2",
     }
 
     def __init__(
@@ -112,6 +143,27 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        if view.screen is OverworldScreen.EXPEDITION_SETUP:
+            for number, candidate in enumerate(view.expedition_choices, start=1):
+                if choice != str(number):
+                    continue
+                if not candidate.enabled:
+                    self._output(candidate.disabled_reason)
+                    return self._REJECTED
+                return ChooseExpeditionPlan(
+                    candidate.destination_floor_id,
+                    candidate.category,
+                )
+        if view.screen is OverworldScreen.EXPEDITIONS and choice.startswith("c"):
+            index_text = choice[1:]
+            if index_text.isdigit():
+                index = int(index_text) - 1
+                unclaimed = tuple(
+                    report for report in view.expedition_reports
+                    if not report.claimed
+                )
+                if 0 <= index < len(unclaimed):
+                    return ChooseExpeditionReport(unclaimed[index].report_id)
         party_targets = None
         if view.screen is OverworldScreen.CHARACTER and view.character is not None:
             party_targets = view.character.targets
@@ -119,6 +171,35 @@ class TerminalOverworldUI:
             party_targets = view.skills.targets
         elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
             party_targets = view.equipment.targets
+            equipment = view.equipment
+            if choice.startswith("e") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(equipment.instances):
+                    return ChooseEquipmentInstance(
+                        equipment.instances[index].instance_id
+                    )
+            if choice.startswith("a") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(equipment.actions):
+                    action = equipment.actions[index]
+                    if not action.enabled:
+                        self._output(action.disabled_reason or "That action is unavailable.")
+                        return self._REJECTED
+                    if equipment.selected_instance_id is None:
+                        self._output("Select equipment first.")
+                        return self._REJECTED
+                    return ChooseEquipmentAction(
+                        target_drifter_id=equipment.selected_target_id,
+                        equipment_instance_id=equipment.selected_instance_id,
+                        operation=EquipmentOperation(action.operation),
+                        modifier_instance_id=action.modifier_instance_id,
+                    )
+
+        if view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
+            if choice == "y":
+                return ChooseEquipmentConfirmation(True)
+            if choice == "n":
+                return ChooseEquipmentConfirmation(False)
         if party_targets is not None and choice.startswith("t") and choice[1:].isdigit():
             index = int(choice[1:]) - 1
             if 0 <= index < len(party_targets):
@@ -132,6 +213,30 @@ class TerminalOverworldUI:
                     return ChooseWeaponTarget(weapon.targets[index].drifter_id)
         if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
             merchant = view.merchant
+            economy = view.hub_economy
+            if economy is not None:
+                for prefix, operation, enabled_name in (
+                    ("b", HubSupplyOperation.BUY, "can_buy"),
+                    ("s", HubSupplyOperation.SELL, "can_sell"),
+                    ("l", HubSupplyOperation.LOAD, "can_load"),
+                    ("u", HubSupplyOperation.UNLOAD, "can_unload"),
+                ):
+                    if choice.startswith(prefix) and choice[len(prefix):].isdigit():
+                        index = int(choice[len(prefix):]) - 1
+                        if 0 <= index < len(economy.items):
+                            item = economy.items[index]
+                            if getattr(item, enabled_name):
+                                return ChooseHubSupplyAction(operation, item.item_id)
+                            self._output("That Hub supply action is unavailable.")
+                            return self._REJECTED
+                if choice.startswith("a") and choice[1:].isdigit():
+                    index = int(choice[1:]) - 1
+                    if 0 <= index < len(economy.recipes):
+                        recipe = economy.recipes[index]
+                        if recipe.can_craft:
+                            return ChooseAlchemyRecipe(recipe.recipe_id)
+                        self._output("That Alchemy recipe is unavailable.")
+                        return self._REJECTED
             if choice.startswith("t") and choice[1:].isdigit():
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(merchant.targets):
@@ -179,7 +284,44 @@ class TerminalOverworldUI:
                 if choice == str(number):
                     return ChooseOverworldItem(item.selection_key)
 
+        if view.screen is OverworldScreen.HEALING_TARGETS:
+            for number, target in enumerate(view.healing_targets, start=1):
+                if choice in {str(number), f"t{number}"}:
+                    return ChooseOverworldHealingTarget(target.drifter_id)
+
         if view.screen is OverworldScreen.SKILLS and view.skills is not None:
+            if choice.startswith("p") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(view.skills.advancement_options):
+                    skill = view.skills.advancement_options[index]
+                    if skill.can_purchase:
+                        return ChooseAdvancementPurchase(
+                            view.skills.selected_target_id,
+                            skill.skill_id,
+                        )
+                    self._output(skill.blocked_reason or "That skill is unavailable.")
+                    return self._REJECTED
+            parts = choice.split()
+            if (
+                len(parts) == 3
+                and parts[0] == "e"
+                and parts[1].isdigit()
+                and parts[2].isdigit()
+            ):
+                move_index = int(parts[1]) - 1
+                slot = int(parts[2]) - 1
+                if (
+                    0 <= move_index < len(view.skills.available_moves)
+                    and 0 <= slot < 4
+                ):
+                    move = view.skills.available_moves[move_index]
+                    return ChooseAdvancementEquip(
+                        view.skills.selected_target_id,
+                        move.move_id,
+                        slot,
+                    )
+                self._output("That move or loadout slot is unavailable.")
+                return self._REJECTED
             for number, row in enumerate(view.skills.stats, start=1):
                 if choice != str(number):
                     continue
@@ -196,9 +338,37 @@ class TerminalOverworldUI:
                 if choice != str(number):
                     continue
                 if candidate.enabled:
-                    return ChooseCompanion(candidate.drifter_id)
+                    return ChooseCompanion(candidate.drifter_id, candidate.event_id)
                 self._output(self._disabled_message(candidate.disabled_reason))
                 return self._REJECTED
+
+        if (
+            view.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+            and view.temporary_helper_choices
+        ):
+            for number, candidate in enumerate(view.temporary_helper_choices, start=1):
+                if choice == str(number):
+                    return ChooseFloorTwoBossHelper(candidate.drifter_id)
+
+        if view.screen is OverworldScreen.PARTY_SELECTION:
+            for number, choice_view in enumerate(view.active_party_choices, start=1):
+                if choice != str(number):
+                    continue
+                return ChooseActivePair(choice_view.drifter_ids)
+
+        if view.screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            for number, target in enumerate(view.discovery_choices, start=1):
+                if choice != str(number):
+                    continue
+                input_type = (
+                    ChooseDiscoverySearcher
+                    if view.screen is OverworldScreen.DISCOVERY_SEARCHERS
+                    else ChooseDiscoveryTarget
+                )
+                return input_type(target.drifter_id)
 
         for option in self._input_options(view):
             key = self._option_key(option, view).lower()
@@ -276,6 +446,59 @@ class TerminalOverworldUI:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
             lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.EXPEDITIONS:
+            lines = [
+                "EXPEDITION ENERGY",
+                f"{view.expedition_energy}/100 | Launch cost: 10",
+                "",
+                "Prepare an assignment for your next Floor I or II outing.",
+            ]
+            reports = view.expedition_reports
+            if reports:
+                lines.extend(("", "HUB REPORTS"))
+                claim_number = 0
+                for report in reports:
+                    lines.append(
+                        f"{report.destination_floor_label} | "
+                        f"{report.category_label} | {report.reward_summary}"
+                    )
+                    if report.claimed:
+                        lines.append("Claimed")
+                    else:
+                        claim_number += 1
+                        lines.append(f"[C{claim_number}] Claim report")
+            else:
+                lines.extend(("", "No completed expedition reports."))
+        elif view.screen is OverworldScreen.EXPEDITION_SETUP:
+            lines = [
+                "CHOOSE ASSIGNMENT",
+                f"Energy: {view.expedition_energy}/100 | Launch cost: 10",
+                "",
+            ]
+            lines.extend(
+                f"{number}. {choice.destination_floor_label} | "
+                f"{choice.category_label}"
+                + (
+                    ""
+                    if choice.enabled
+                    else f" [Unavailable: {choice.disabled_reason}]"
+                )
+                for number, choice in enumerate(view.expedition_choices, start=1)
+            )
+        elif view.screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            confirmation = view.expedition_confirmation
+            lines = [
+                "CONFIRM EXPEDITION",
+                f"Outing: {confirmation.outing_floor_label}",
+                f"Destination: {confirmation.destination_floor_label}",
+                f"Assignment: {confirmation.category_label}",
+                "Expedition pair: " + " + ".join(
+                    confirmation.expedition_member_names
+                ),
+                f"Energy: {confirmation.energy_cost} | "
+                f"Available: {confirmation.current_energy}",
+                "The 20-minute timer starts when confirmed.",
+            ]
         elif view.screen is OverworldScreen.COMPANION_SELECTION:
             lines = [
                 "RECRUIT A COMPANION",
@@ -291,6 +514,44 @@ class TerminalOverworldUI:
                     f"{availability}"
                 )
                 lines.extend(self._wrapped(candidate.summary, width))
+        elif view.screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            lines = ["TEMPORARY FLOOR II BOSS HELPER", ""]
+            lines.extend(
+                f"{number}. {candidate.display_name} | "
+                f"{candidate.archetype_label} | Level {candidate.level}"
+                for number, candidate in enumerate(
+                    view.temporary_helper_choices,
+                    start=1,
+                )
+            )
+        elif view.screen is OverworldScreen.PARTY_SELECTION:
+            lines = ["CHOOSE YOUR PARTY", ""]
+            for number, choice in enumerate(view.active_party_choices, start=1):
+                selected = " [Selected]" if choice.selected else ""
+                lines.append(
+                    f"{number}. {choice.display_names[0]} + "
+                    f"{choice.display_names[1]}{selected}"
+                )
+        elif view.screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            lines = [
+                "CHOOSE A DRIFTER",
+                view.discovery_reward_text,
+                "",
+            ]
+            lines.extend(
+                f"{number}. {choice.display_name}"
+                for number, choice in enumerate(view.discovery_choices, start=1)
+            )
+        elif view.screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            lines = [
+                "CONFIRM DISCOVERY",
+                view.discovery_reward_text,
+                f"Target: {view.discovery_target_id}",
+                "Consume the source permanently for this Drifter?",
+            ]
         elif view.screen is OverworldScreen.PARTY_READY:
             lines = ["PARTY READY", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
@@ -320,12 +581,24 @@ class TerminalOverworldUI:
             lines = list(self._character_lines(view, width))
         elif view.screen is OverworldScreen.SKILLS:
             lines = list(self._skills_lines(view, width))
+        elif view.screen is OverworldScreen.RESPEC_CONFIRMATION:
+            lines = list(self._respec_lines(view, width))
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
         elif view.screen is OverworldScreen.MERCHANT:
             lines = list(self._merchant_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT:
             lines = list(self._equipment_lines(view))
+        elif view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
+            lines = [view.equipment_confirmation.title, ""]
+            lines.extend(view.equipment_confirmation.details)
+        elif view.screen is OverworldScreen.HEALING_TARGETS:
+            lines = ["CHOOSE A DRIFTER TO HEAL", ""]
+            lines.extend(
+                f"{index}. {target.display_name} | "
+                f"HP {target.hp_current}/{target.hp_maximum}"
+                for index, target in enumerate(view.healing_targets, start=1)
+            )
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
             lines = list(self._inventory_lines(view, width))
         elif view.screen is OverworldScreen.MAP:
@@ -353,6 +626,22 @@ class TerminalOverworldUI:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
             lines.extend(("", f"NOTICE: {view.notice}"))
+        if view.expedition_status is not None:
+            status = view.expedition_status
+            remaining = status.remaining_seconds
+            time_text = (
+                "Complete; settles when the outing ends."
+                if remaining == 0
+                else f"{remaining // 60}:{remaining % 60:02d} remaining"
+            )
+            lines.extend(
+                (
+                    "",
+                    "EXPEDITION",
+                    f"{status.category_label} | {status.destination_floor_label} | {time_text}",
+                    "Pair: " + " + ".join(status.expedition_member_names),
+                )
+            )
         return tuple(lines or ("",))
 
     def _character_lines(self, view, width):
@@ -433,7 +722,62 @@ class TerminalOverworldUI:
                 f"{(move.damage_type or 'none').title()}"
             )
             lines.extend(self._wrapped(move.description, width))
+        lines.extend(("", "ADVANCEMENT SKILLS"))
+        for number, skill in enumerate(skills.advancement_options, start=1):
+            if skill.purchased:
+                status = "Purchased"
+            elif skill.can_purchase:
+                status = "Ready"
+            else:
+                status = skill.blocked_reason or "Unavailable"
+            lines.append(
+                f"P{number}. {skill.name} | Tier {skill.tier} | "
+                f"{skill.gp_cost} GP | {status}"
+            )
+            lines.extend(self._wrapped(skill.purpose, width))
+        lines.extend(("", "NORMAL-MOVE LOADOUT"))
+        equipped_ids = set()
+        for slot in skills.loadout:
+            equipped_ids.add(slot.move.move_id)
+            lines.append(f"{slot.slot + 1}. {slot.move.name}")
+        lines.extend(("", "AVAILABLE NORMAL MOVES"))
+        for number, move in enumerate(skills.available_moves, start=1):
+            equipped = " [Equipped]" if move.move_id in equipped_ids else ""
+            lines.append(f"E {number}. {move.name}{equipped}")
         return tuple(lines)
+
+    def _respec_lines(self, view, width):
+        preview = view.respec_preview
+        lines = [
+            "RESPEC PREVIEW",
+            preview.display_name,
+            f"Growth Points: {preview.current_growth_points} -> "
+            f"{preview.resulting_growth_points} "
+            f"(refund {preview.growth_points_refunded})",
+            "Revision Parchment: "
+            + ("not required" if preview.first_respec else str(preview.revision_parchment_cost)),
+            "",
+            "REMOVED STAT PURCHASES",
+        ]
+        lines.extend(
+            f"{name.title()} +{amount}"
+            for name, amount in preview.removed_stat_points
+        )
+        if not preview.removed_stat_points:
+            lines.append("None")
+        lines.extend(("", "REMOVED SKILLS"))
+        lines.extend(preview.removed_skills or ("None",))
+        lines.extend(("", "RESULTING STATS"))
+        lines.extend(
+            f"{row.label}: {row.value}"
+            for row in preview.resulting_stats
+        )
+        lines.extend(("", "Weapon, level, XP, and independent progression are preserved."))
+        return tuple(
+            line
+            for value in lines
+            for line in self._wrapped(value, width)
+        )
 
     def _weapon_lines(self, view, width):
         weapon = view.weapon
@@ -544,6 +888,37 @@ class TerminalOverworldUI:
             lines.append(
                 f"V. Attempt Tier V ({tier_v.success_chance_percent}% chance)"
             )
+        economy = view.hub_economy
+        if economy is not None:
+            lines.extend(
+                (
+                    "",
+                    "HUB STORAGE",
+                    f"Shared gold: {economy.shared_gold}",
+                    f"CARRIED SUPPLIES {economy.carried_units}/{economy.carried_capacity}",
+                )
+            )
+            for index, item in enumerate(economy.items, start=1):
+                controls = []
+                if item.shop_stocked:
+                    controls.append(f"B{index} Buy {item.base_price}g")
+                if item.sellable:
+                    controls.append(f"S{index} Sell {item.base_price // 2}g")
+                if item.carryable:
+                    controls.extend((f"L{index} Load", f"U{index} Unload"))
+                lines.append(
+                    f"{item.display_name}: stored {item.stored_quantity}, "
+                    f"carried {item.carried_quantity}"
+                    + (" | " + " | ".join(controls) if controls else "")
+                )
+            lines.extend(("", "ALCHEMY"))
+            lines.extend(
+                f"A{index}. {recipe.display_name}: "
+                f"{' + '.join(recipe.ingredient_summary)} -> "
+                f"{' + '.join(recipe.output_summary)}"
+                f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                for index, recipe in enumerate(economy.recipes, start=1)
+            )
         return tuple(lines)
 
     @staticmethod
@@ -558,8 +933,6 @@ class TerminalOverworldUI:
     def _equipment_lines(view):
         equipment = view.equipment
         lines = [
-            "ACCESSORIES",
-            "",
             "CHOOSE DRIFTER",
         ]
         lines.extend(
@@ -569,29 +942,93 @@ class TerminalOverworldUI:
         lines.extend(
             (
                 "",
-                f"[ Necklace ]  {equipment.necklace.item_name}",
-                f"[ Ring     ]  {equipment.ring.item_name}",
+                "OWNED EQUIPMENT",
+            )
+        )
+        if equipment.instances:
+            for index, item in enumerate(equipment.instances, start=1):
+                marker = ">" if item.instance_id == equipment.selected_instance_id else " "
+                security = "Secured" if item.secured else "Unsecured"
+                detail = [item.slot_id.title(), security]
+                if item.rarity is not None:
+                    detail.append(f"{item.rarity.title()} +{item.upgrade_rank}")
+                if item.equipped_by_name is not None:
+                    detail.append(f"Equipped by {item.equipped_by_name}")
+                lines.append(
+                    f"E{index}. {marker} {item.display_name} | "
+                    + " | ".join(detail)
+                )
+            selected = first_or_none(
+                (
+                    item
+                    for item in equipment.instances
+                    if item.instance_id == equipment.selected_instance_id
+                )
+            )
+            if selected is not None:
+                lines.extend(("", f"INSPECTING: {selected.display_name}"))
+                lines.extend(selected.stat_summary or ("No stat bonuses.",))
+                lines.extend(
+                    selected.modifier_summary or ("No installed modifiers.",)
+                )
+        else:
+            lines.append("No owned equipment.")
+        lines.extend(
+            (
+                "",
+                "AVAILABLE MODIFIERS",
+            )
+        )
+        if equipment.modifiers:
+            lines.extend(
+                f"M{index}. {modifier.display_name} | Grade {modifier.grade} | "
+                f"{'Secured' if modifier.secured else 'Unsecured'}"
+                for index, modifier in enumerate(equipment.modifiers, start=1)
+            )
+        else:
+            lines.append("No available modifiers.")
+        lines.extend(
+            (
+                "",
+                "STATIC ACCESSORIES",
+                f"Pendant: {equipment.pendant.item_name}",
+                f"Ring: {equipment.ring.item_name}",
                 "",
                 "BENEFITS",
             )
         )
         lines.extend(equipment.benefits)
+        if equipment.actions:
+            lines.extend(("", "ACTIONS"))
+            lines.extend(
+                f"A{index}. {action.label}"
+                f"{' [Unavailable: ' + action.disabled_reason + ']' if not action.enabled else ''}"
+                f"{' | ' + action.summary if action.summary else ''}"
+                for index, action in enumerate(equipment.actions, start=1)
+            )
         return tuple(lines)
 
     def _inventory_lines(self, view, width):
         inventory = view.inventory
         if view.screen is OverworldScreen.ITEM_INSPECT:
             item = inventory.inspected_item
-            lines = [item.display_name, f"Quantity: {item.quantity}", ""]
+            lines = [
+                item.display_name,
+                f"Quantity: {item.quantity} | {item.location_label}",
+                "",
+            ]
             lines.extend(self._wrapped(item.description, width))
             return tuple(lines)
         lines = ["ITEMS", ""]
         if not inventory.items:
-            lines.append("Your persistent inventory is empty.")
+            lines.append("No items are currently available.")
             return tuple(lines)
         for number, item in enumerate(inventory.items, start=1):
             marker = ">" if item.selection_key == inventory.selected_item_key else " "
-            lines.append(f"{marker} {number}. {item.display_name} x{item.quantity}")
+            lines.append(
+                f"{marker} {number}. {item.display_name} x{item.quantity} "
+                f"[{item.location_label}]"
+            )
         return tuple(lines)
 
     def _map_lines(self, view, width):
@@ -644,6 +1081,12 @@ class TerminalOverworldUI:
         return f"[{key}] {option.label}{suffix}"
 
     def _option_key(self, option, view):
+        if (
+            view is not None
+            and view.screen is OverworldScreen.REST
+            and option.action is OverworldAction.RECRUIT_COMPANION
+        ):
+            return "J"
         if (
             view is not None
             and view.screen is OverworldScreen.REST
@@ -747,6 +1190,8 @@ class TerminalOverworldUI:
             OverworldScreen.MAIN: "OVERWORLD",
             OverworldScreen.HUB: "HUB",
             OverworldScreen.COMPANION_SELECTION: "RECRUITMENT",
+            OverworldScreen.FLOOR_TWO_HELPER_SELECTION: "BOSS HELPER",
+            OverworldScreen.PARTY_SELECTION: "PARTY SELECTION",
             OverworldScreen.PARTY_READY: "PARTY READY",
             OverworldScreen.OUTING: "OUTING",
             OverworldScreen.EXTRACTION: "EXTRACTION",
@@ -754,14 +1199,23 @@ class TerminalOverworldUI:
             OverworldScreen.SKILLS: "SKILLS",
             OverworldScreen.WEAPON: "WEAPON",
             OverworldScreen.EQUIPMENT: "EQUIPMENT",
+            OverworldScreen.EQUIPMENT_CONFIRMATION: "CONFIRM EQUIPMENT ACTION",
             OverworldScreen.MERCHANT: "MERCHANT",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
+            OverworldScreen.HEALING_TARGETS: "USE HEALING POTION",
+            OverworldScreen.DISCOVERY_SEARCHERS: "SEARCH SITE",
+            OverworldScreen.DISCOVERY_TARGETS: "CLAIM DISCOVERY",
+            OverworldScreen.DISCOVERY_CONFIRMATION: "CONFIRM DISCOVERY",
+            OverworldScreen.EXPEDITIONS: "EXPEDITIONS",
+            OverworldScreen.EXPEDITION_SETUP: "EXPEDITION SETUP",
+            OverworldScreen.EXPEDITION_CONFIRMATION: "CONFIRM EXPEDITION",
             OverworldScreen.MAP: "MAP",
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",
             OverworldScreen.QUIT_CONFIRMATION: "QUIT",
             OverworldScreen.LOAD_CONFIRMATION: "LOAD",
+            OverworldScreen.RESPEC_CONFIRMATION: "RESPEC",
             OverworldScreen.REST: "REST",
         }[screen]
 
@@ -797,5 +1251,11 @@ class TerminalOverworldUI:
             ),
             OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD: (
                 "You need 65 shared gold to recruit a Drifter."
+            ),
+            OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER: (
+                "Choose an active pair that leaves D3 or D4 available for the Floor II boss."
+            ),
+            OverworldAvailabilityReason.INSUFFICIENT_EXPEDITION_ENERGY: (
+                "You need 10 energy to launch an assignment."
             ),
         }[reason]

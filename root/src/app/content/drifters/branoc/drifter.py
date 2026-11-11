@@ -1,6 +1,16 @@
 """Brawler authored Drifter content."""
 
-from app.combat.move import DamageType, Move, MoveKind, ResourceType, ScalingAttribute, TargetType
+from app.combat.move import (
+    DamageComponent,
+    DamageComponentIdentity,
+    DamageDefenseClass,
+    DamageType,
+    Move,
+    MoveKind,
+    ResourceType,
+    ScalingAttribute,
+    TargetType,
+)
 from app.combat.move_presentation import MovePresentation, MoveRole
 from app.content.drifter_spec import (
     ClassMechanicSpec,
@@ -83,8 +93,22 @@ _COMBAT_MOVES = (
             scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.SPIRIT),
             accuracy=100,
             target=TargetType.ENEMY,
-            damage_type=DamageType.HYBRID,
+            damage_type=DamageType.NONE,
             mechanic=None,
+            damage_components=(
+                DamageComponent(
+                    identity=DamageComponentIdentity.PHYSICAL,
+                    defense_class=DamageDefenseClass.PHYSICAL,
+                    power=12,
+                    scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.SPIRIT),
+                ),
+                DamageComponent(
+                    identity=DamageComponentIdentity.MAGICAL,
+                    defense_class=DamageDefenseClass.MAGICAL,
+                    power=12,
+                    scales_with=(ScalingAttribute.STRENGTH, ScalingAttribute.SPIRIT),
+                ),
+            ),
             # Deferred mechanic: Third Gate manifestation
             description='A forbidden gate manifests behind Branoc, pouring ruin through Sunder-Spire.',
             presentation=MovePresentation(role=MoveRole.SUPER)),

@@ -2,13 +2,29 @@
 
 from app.content.catalog import (
     DRIFTER_SPECS,
+    get_drifter_spec,
     get_drifter_spec_by_choice,
     get_encounter_spec,
     get_enemy_spec,
     get_inspectable_route_node_spec,
+    get_permanent_discovery_source,
     get_route_node_spec,
     get_route_spec,
     get_weapon_spec,
+)
+from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
+from app.content.advancement_combat_spec import get_advancement_move
+from app.content.advancement_spec import (
+    AdvancementSkillKind,
+    get_drifter_advancement_skills,
+)
+from app.content.armor_spec import get_armor_modifier, get_armor_rarity
+from app.content.equipment_spec import get_equipment_template
+from app.game.alchemist import AlchemistService
+from app.game.armor_progression import ArmorProgressionService
+from app.game.equipment import (
+    can_manage_equipment_target,
+    equipment_target_members,
 )
 from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
@@ -19,9 +35,16 @@ from app.content.weapon_progression_spec import (
     get_material_spec,
     get_weapon_component_spec,
 )
-from app.game.party_state import (
-    COMPANION_RECRUITMENT_COST,
-    DungeonPhase,
+from app.game.party_state import DungeonPhase
+from app.game.expedition_state import (
+    category_unavailable_reason,
+    EXPEDITION_LAUNCH_COST,
+    _now_utc,
+    is_expeditions_unlocked,
+)
+from app.game.recruitment import available_recruitment_event
+from app.game.floor_two_boss_helper import (
+    floor_two_replay_requires_available_helper,
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
@@ -29,11 +52,24 @@ from app.game.overworld_state import ContextualRoutePhase
 from app.iteration import first_or_none
 from app.items.weapon import Weapon
 from app.player.run_items import owned_run_item_definitions
+from app.player.advancement_state import move_id_for_name
 from app.presentation.overworld_models import (
+    AdvancementSkillOptionView,
     AccessorySlotView,
     CharacterOverviewView,
     CompanionChoiceView,
+    DiscoveryDrifterChoiceView,
     EquipmentView,
+    ExpeditionChoiceView,
+    ExpeditionConfirmationView,
+    ExpeditionReportView,
+    ExpeditionStatusView,
+    EquipmentActionView,
+    EquipmentInstanceView,
+    EquipmentModifierView,
+    HubAlchemyRecipeView,
+    HubEconomyView,
+    HubSupplyItemView,
     InventoryView,
     MapNodeState,
     MapNodeView,
@@ -53,9 +89,13 @@ from app.presentation.overworld_models import (
     OverworldOptionView,
     OutingItemRewardView,
     OutingRewardsView,
+    SupplyHealingTargetView,
+    TemporaryBossHelperChoiceView,
     OverworldScreen,
     OverworldView,
+    PartyPairChoiceView,
     SkillMoveView,
+    SkillLoadoutSlotView,
     SkillsView,
     StatBonusView,
     StatRowView,
@@ -75,6 +115,89 @@ STAT_ORDER = (
 
 _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
+
+
+def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
+    details = []
+    if preview.gold_cost:
+        details.append(f"Cost: {preview.gold_cost} gold")
+    gold_award = getattr(preview, "gold_award", 0)
+    if gold_award:
+        details.append(f"Gain: {gold_award} gold")
+    material_costs = getattr(preview, "material_costs", ())
+    if not material_costs and getattr(preview, "material_id", None) is not None:
+        material_costs = ((preview.material_id, preview.material_quantity),)
+    if material_costs:
+        details.append(
+            "Materials: "
+            + ", ".join(
+                f"{quantity} {get_material_spec(item_id).display_name}"
+                for item_id, quantity in material_costs
+            )
+        )
+    material_yields = getattr(preview, "material_yields", ())
+    if material_yields:
+        details.append(
+            "Salvage: "
+            + ", ".join(
+                f"{quantity} {get_material_spec(item_id).display_name}"
+                for item_id, quantity in material_yields
+            )
+        )
+    if preview.action == "stat_upgrade" and preview.projected_stat_bonuses:
+        details.append(
+            "Next stats: "
+            + ", ".join(
+                f"{name.title()} {value:+d}"
+                for name, value in preview.projected_stat_bonuses
+            )
+        )
+    next_rarity = getattr(preview, "next_rarity", None)
+    current_rarity = getattr(preview, "current_rarity", None)
+    if next_rarity is not None and next_rarity != current_rarity:
+        details.append(f"Rarity: {current_rarity} -> {next_rarity}")
+    incoming_modifier = getattr(preview, "incoming_modifier", None)
+    if incoming_modifier is not None:
+        name = get_armor_modifier(incoming_modifier).name
+        details.append(f"Incoming modifier consumed: {name}")
+    destroyed_modifiers = getattr(preview, "destroyed_modifiers", ())
+    if destroyed_modifiers:
+        names = ", ".join(
+            get_armor_modifier(modifier_id).name
+            for modifier_id in destroyed_modifiers
+        )
+        details.append(f"Permanently destroyed modifiers: {names}")
+    extracted_modifiers = getattr(preview, "extracted_modifiers", ())
+    if extracted_modifiers:
+        names = ", ".join(
+            get_armor_modifier(modifier_id).name
+            for modifier_id in extracted_modifiers
+        )
+        details.append(f"Modifiers recovered: {names}")
+    if getattr(preview, "destroys_equipment", False):
+        details.append("Donor armor will be destroyed.")
+    if preview.action == "sell":
+        details.append(
+            "Only authored gold is awarded; installed modifiers are not returned."
+        )
+    elif preview.action == "dismantle":
+        details.append(
+            "Only authored salvage is awarded; installed modifiers are not returned."
+        )
+    elif preview.action == "extract":
+        details.append("Modifiers are recovered by sacrificing the donor armor.")
+    elif preview.action == "affix":
+        details.append("The incoming modifier and listed costs will be consumed.")
+        if getattr(preview, "displaced_modifiers", ()):
+            details.append("The displaced modifier will be permanently destroyed.")
+    return EquipmentActionView(
+        operation=operation,
+        label=label,
+        enabled=preview.can_apply,
+        disabled_reason=None if preview.can_apply else preview.status.value,
+        summary="; ".join(details) or preview.status.value.replace("_", " "),
+        modifier_instance_id=modifier_instance_id,
+    )
 
 
 def _adjacent_run_counts(values):
@@ -115,10 +238,20 @@ class OverworldPresenter:
         notice=None,
         save_available=False,
         load_available=False,
+        respec_available=False,
+        respec_preview=None,
+        discovery_source_id=None,
+        discovery_target_id=None,
+        selected_equipment_instance_id=None,
+        equipment_confirmation=None,
+        expedition_outing_floor_id=None,
+        expedition_pending=None,
+        now=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
         screen = OverworldScreen(screen)
+        now = _now_utc() if now is None else now
         node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
         if adventure_text is None:
             adventure_text = (
@@ -128,10 +261,14 @@ class OverworldPresenter:
                     OverworldScreen.HUB,
                     OverworldScreen.FLOOR_ONE_WARNING,
                     OverworldScreen.COMPANION_SELECTION,
+                    OverworldScreen.PARTY_SELECTION,
                     OverworldScreen.PARTY_READY,
                     OverworldScreen.OUTING,
                     OverworldScreen.EXTRACTION,
                     OverworldScreen.MERCHANT,
+                    OverworldScreen.EXPEDITIONS,
+                    OverworldScreen.EXPEDITION_SETUP,
+                    OverworldScreen.EXPEDITION_CONFIRMATION,
                 }
                 else self._default_adventure_text(game_state)
             )
@@ -147,6 +284,8 @@ class OverworldPresenter:
             selected_item,
             save_available=save_available,
             load_available=load_available,
+            respec_available=respec_available,
+            now=now,
         )
         contextual_route_option = self._contextual_route_option(
             game_state,
@@ -157,7 +296,8 @@ class OverworldPresenter:
             screen=screen,
             location_label=(
                 node.display_label
-                if game_state.overworld_state.active_route_id == "floor_one"
+                if game_state.overworld_state.active_route_id
+                in {"floor_one", "floor_two", "floor_three"}
                 and game_state.party_state.phase
                 in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
                 else (
@@ -169,6 +309,30 @@ class OverworldPresenter:
             adventure_text=adventure_text,
             notice=notice,
             options=options,
+            respec_preview=respec_preview,
+            equipment_confirmation=equipment_confirmation,
+            expedition_energy=game_state.expedition_state.preview_energy(now),
+            expedition_status=self._expedition_status(game_state, now),
+            expedition_choices=(
+                self._expedition_choices(game_state, now)
+                if screen is OverworldScreen.EXPEDITION_SETUP
+                else ()
+            ),
+            expedition_reports=(
+                self._expedition_reports(game_state)
+                if screen is OverworldScreen.EXPEDITIONS
+                else ()
+            ),
+            expedition_confirmation=(
+                self._expedition_confirmation(
+                    game_state,
+                    expedition_outing_floor_id,
+                    expedition_pending,
+                    now,
+                )
+                if screen is OverworldScreen.EXPEDITION_CONFIRMATION
+                else None
+            ),
             contextual_route_option=contextual_route_option,
             character=(
                 self._character_view(game_state, selected_character_target_id)
@@ -176,7 +340,11 @@ class OverworldPresenter:
                 else None
             ),
             skills=(
-                self._skills_view(game_state, selected_character_target_id)
+                self._skills_view(
+                    game_state,
+                    selected_character_target_id,
+                    respec_available=respec_available,
+                )
                 if screen is OverworldScreen.SKILLS
                 else None
             ),
@@ -190,8 +358,17 @@ class OverworldPresenter:
                 if screen is OverworldScreen.MERCHANT
                 else None
             ),
+            hub_economy=(
+                self._hub_economy_view(game_state)
+                if screen is OverworldScreen.MERCHANT
+                else None
+            ),
             equipment=(
-                self._equipment_view(game_state, selected_character_target_id)
+                self._equipment_view(
+                    game_state,
+                    selected_character_target_id,
+                    selected_equipment_instance_id,
+                )
                 if screen is OverworldScreen.EQUIPMENT
                 else None
             ),
@@ -207,7 +384,11 @@ class OverworldPresenter:
                         else None
                     ),
                 )
-                if screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}
+                if screen in {
+                    OverworldScreen.ITEMS,
+                    OverworldScreen.ITEM_INSPECT,
+                    OverworldScreen.HEALING_TARGETS,
+                }
                 else None
             ),
             route_map=(
@@ -225,6 +406,21 @@ class OverworldPresenter:
                 if screen is OverworldScreen.COMPANION_SELECTION
                 else ()
             ),
+            temporary_helper_choices=(
+                self._temporary_helper_choices(game_state)
+                if screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION
+                else ()
+            ),
+            active_party_choices=(
+                self._active_party_choices(game_state)
+                if screen is OverworldScreen.PARTY_SELECTION
+                else ()
+            ),
+            active_drifter_ids=(
+                game_state.party_state.active_drifter_ids
+                if screen is OverworldScreen.PARTY_SELECTION
+                else ()
+            ),
             shared_gold=(
                 game_state.party_state.shared_gold
                 if screen
@@ -236,7 +432,7 @@ class OverworldPresenter:
                 else None
             ),
             recruitment_cost=(
-                COMPANION_RECRUITMENT_COST
+                available_recruitment_event(game_state).cost
                 if screen is OverworldScreen.COMPANION_SELECTION
                 else None
             ),
@@ -258,12 +454,191 @@ class OverworldPresenter:
                 if screen is OverworldScreen.EXTRACTION
                 else None
             ),
+            healing_targets=(
+                self._healing_targets(game_state)
+                if screen is OverworldScreen.HEALING_TARGETS
+                else ()
+            ),
+            discovery_choices=(
+                self._discovery_choices(game_state)
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                }
+                else ()
+            ),
+            discovery_source_id=(
+                discovery_source_id
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                    OverworldScreen.DISCOVERY_CONFIRMATION,
+                }
+                else None
+            ),
+            discovery_reward_text=(
+                self._discovery_reward_text(discovery_source_id)
+                if screen in {
+                    OverworldScreen.DISCOVERY_SEARCHERS,
+                    OverworldScreen.DISCOVERY_TARGETS,
+                    OverworldScreen.DISCOVERY_CONFIRMATION,
+                }
+                else None
+            ),
+            discovery_target_id=(
+                discovery_target_id
+                if screen is OverworldScreen.DISCOVERY_CONFIRMATION
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _floor_label(floor_id):
+        return {
+            "floor_one": "Floor I",
+            "floor_two": "Floor II",
+            "floor_three": "Floor III",
+        }.get(floor_id, floor_id.replace("_", " ").title())
+
+    @staticmethod
+    def _category_label(category):
+        return {
+            "training": "Training",
+            "material": "Material",
+            "equipment": "Equipment",
+            "recovery": "Recovery",
+        }.get(category, category.replace("_", " ").title())
+
+    def _expedition_status(self, game_state, now):
+        assignment = game_state.expedition_state.active_assignment
+        if assignment is None:
+            return None
+        names = tuple(
+            game_state.member_for_drifter_id(drifter_id).character.full_display_name
+            for drifter_id in assignment["expedition_drifter_ids"]
+        )
+        return ExpeditionStatusView(
+            destination_floor_label=self._floor_label(
+                assignment["destination_floor_id"]
+            ),
+            category_label=self._category_label(assignment["category"]),
+            expedition_member_names=names,
+            remaining_seconds=game_state.expedition_state.assignment_remaining_seconds(
+                now
+            ),
+        )
+
+    def _expedition_choices(self, game_state, now):
+        if not is_expeditions_unlocked(game_state):
+            return ()
+        eligible = tuple(
+            floor_id
+            for floor_id, completed in (
+                ("floor_one", game_state.party_state.floor_one_cleared),
+                ("floor_two", game_state.party_state.floor_two_cleared),
+                ("floor_three", game_state.party_state.floor_three_cleared),
+            )
+            if completed
+        )
+        energy = game_state.expedition_state.preview_energy(now)
+        choices = []
+        for floor_id in eligible:
+            for category in ("training", "material", "equipment", "recovery"):
+                reason = category_unavailable_reason(
+                    floor_id,
+                    category,
+                )
+                if reason is None and energy < EXPEDITION_LAUNCH_COST:
+                    reason = f"Requires {EXPEDITION_LAUNCH_COST} energy to launch."
+                choices.append(
+                    ExpeditionChoiceView(
+                        destination_floor_id=floor_id,
+                        destination_floor_label=self._floor_label(floor_id),
+                        category=category,
+                        category_label=self._category_label(category),
+                        enabled=reason is None,
+                        disabled_reason=reason,
+                    )
+                )
+        return tuple(choices)
+
+    def _expedition_reports(self, game_state):
+        members = {
+            _member_drifter_spec(member).drifter_id: member
+            for member in game_state.recruited_members
+        }
+        reports = []
+        for report in game_state.expedition_state.reports:
+            if report["category"] == "training":
+                summary = "Training XP: " + ", ".join(
+                    f"{members[drifter_id].character.profile.short_name} +{amount}"
+                    for drifter_id, amount in report["experience_awards"].items()
+                )
+            else:
+                summary = (
+                    f"{report['reward_quantity']} "
+                    f"{get_material_spec(report['reward_item_id']).display_name}"
+                )
+            reports.append(
+                ExpeditionReportView(
+                    report_id=report["report_id"],
+                    destination_floor_label=self._floor_label(
+                        report["destination_floor_id"]
+                    ),
+                    category_label=self._category_label(report["category"]),
+                    reward_summary=summary,
+                    claimed=report["claimed"],
+                )
+            )
+        return tuple(reports)
+
+    def _expedition_confirmation(
+        self,
+        game_state,
+        outing_floor_id,
+        pending,
+        now,
+    ):
+        if pending is None or outing_floor_id is None:
+            return None
+        active_ids = tuple(game_state.party_state.active_drifter_ids)
+        roster_ids = tuple(
+            _member_drifter_spec(member).drifter_id
+            for member in game_state.recruited_members
+        )
+        expedition_ids = tuple(
+            drifter_id for drifter_id in roster_ids if drifter_id not in active_ids
+        )
+        names = tuple(
+            game_state.member_for_drifter_id(drifter_id).character.full_display_name
+            for drifter_id in expedition_ids
+        )
+        return ExpeditionConfirmationView(
+            destination_floor_label=self._floor_label(
+                pending["destination_floor_id"]
+            ),
+            outing_floor_label=self._floor_label(outing_floor_id),
+            category_label=self._category_label(pending["category"]),
+            expedition_member_names=names,
+            energy_cost=EXPEDITION_LAUNCH_COST,
+            current_energy=game_state.expedition_state.preview_energy(now),
         )
 
     @staticmethod
     def _hub_adventure_text(game_state, screen):
+        if screen is OverworldScreen.EXPEDITIONS:
+            return (
+                "Passive assignments run alongside a Floor I or Floor II outing. "
+                "Floor III outings use all four Drifters and cannot run with an assignment."
+            )
+        if screen is OverworldScreen.EXPEDITION_SETUP:
+            return "Choose an available assignment and completed-floor destination."
+        if screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            return "Confirming spends 10 energy. The 20-minute timer starts immediately."
         if screen is OverworldScreen.COMPANION_SELECTION:
             return "Choose one Drifter to join your party."
+        if screen is OverworldScreen.PARTY_SELECTION:
+            return "Choose the two Drifters for your next outing."
         if screen is OverworldScreen.FLOOR_ONE_WARNING:
             return (
                 "Death means returning to the Hub. All unsecured XP, gold, "
@@ -285,32 +660,129 @@ class OverworldPresenter:
 
     @staticmethod
     def _companion_choices(game_state):
-        profile = game_state.player_state.character.profile
-        if profile is None:
-            raise ValueError("companion selection requires a canonical lead Drifter")
-        lead_id = profile.drifter_id
+        event = available_recruitment_event(game_state)
+        if event is None:
+            raise ValueError("no recruitment event is currently available")
+        recruited_ids = {
+            member.character.profile.drifter_id
+            for member in game_state.recruited_members
+        }
         shared_gold = game_state.party_state.shared_gold
-        enabled = shared_gold >= COMPANION_RECRUITMENT_COST
         return tuple(
             CompanionChoiceView(
+                event_id=event.event_id,
                 drifter_id=spec.drifter_id,
                 display_name=spec.display_name,
                 archetype_label=spec.archetype_name,
                 summary=spec.selection_summary,
-                cost=COMPANION_RECRUITMENT_COST,
-                enabled=enabled,
+                cost=event.cost,
+                enabled=shared_gold >= event.cost,
                 disabled_reason=(
                     None
-                    if enabled
+                    if shared_gold >= event.cost
                     else OverworldAvailabilityReason.INSUFFICIENT_SHARED_GOLD
                 ),
             )
-            for spec in DRIFTER_SPECS
-            if spec.drifter_id != lead_id
+            for spec in (
+                get_drifter_spec(drifter_id)
+                for drifter_id in event.candidate_drifter_ids
+                if drifter_id not in recruited_ids
+            )
         )
 
     @staticmethod
+    def _active_party_choices(game_state):
+        members = game_state.recruited_members
+        active_ids = game_state.party_state.active_drifter_ids
+        choices = []
+        for first in members:
+            first_id = _member_drifter_spec(first).drifter_id
+            for second in members:
+                second_id = _member_drifter_spec(second).drifter_id
+                if first_id == second_id:
+                    continue
+                choices.append(
+                    PartyPairChoiceView(
+                        drifter_ids=(first_id, second_id),
+                        display_names=(
+                            first.character.full_display_name,
+                            second.character.full_display_name,
+                        ),
+                        selected=(first_id, second_id) == active_ids,
+                    )
+                )
+        return tuple(choices)
+
+    @staticmethod
+    def _temporary_helper_choices(game_state):
+        from app.game.floor_two_boss_helper import available_floor_two_boss_helper_ids
+
+        helper_ids = available_floor_two_boss_helper_ids(
+            game_state.party_state.active_drifter_ids
+        )
+        if not helper_ids:
+            return ()
+        level = min(
+            member.level_state.current
+            for member in game_state.active_party_members
+        )
+        return tuple(
+            TemporaryBossHelperChoiceView(
+                drifter_id=spec.drifter_id,
+                display_name=spec.display_name,
+                archetype_label=spec.archetype_name,
+                level=level,
+            )
+            for spec in (get_drifter_spec(helper_id) for helper_id in helper_ids)
+        )
+
+    @staticmethod
+    def _discovery_choices(game_state):
+        return tuple(
+            DiscoveryDrifterChoiceView(
+                drifter_id=member.character.profile.drifter_id,
+                display_name=member.character.full_display_name,
+            )
+            for member in game_state.active_party_members
+        )
+
+    @staticmethod
+    def _discovery_reward_text(source_id):
+        source = get_permanent_discovery_source(source_id)
+        if source.discovery_type.value == "ancient_well":
+            return f"Ancient Well: +{source.amount} Max HP"
+        if source.discovery_type.value == "forgotten_altar":
+            return f"Forgotten Altar: +{source.amount} Max Mana"
+        return f"Spirit Relic: +{source.amount} Growth Points"
+
+    @staticmethod
     def _default_adventure_text(game_state):
+        if game_state.floor_two_boss_settlement_pending:
+            return (
+                "The Goblin Lord's victory is saved. Finalize the Floor 2 clear "
+                "to return to the Hub."
+            )
+        if game_state.floor_three_boss_settlement_pending:
+            return (
+                "The Floor III boss victory is saved. Finalize the Floor 3 clear "
+                "to return to the Hub."
+            )
+        if (
+            game_state.overworld_state.active_route_id == "floor_two"
+            and game_state.overworld_state.current_route_node_id
+            in {"floor_two_pre_boss_rest", "floor_two_battle_10"}
+        ):
+            helper_id = game_state.party_state.floor_two_boss_helper_id
+            if helper_id is not None:
+                helper = get_drifter_spec(helper_id)
+                return (
+                    f"{helper.display_name} will join the Floor II boss battle "
+                    "only."
+                )
+            return (
+                "At the Rest, D3 and D4 warn that a difficult battle lies ahead "
+                "and offer to help. Choose one for the Floor II boss only."
+            )
         current_label = get_route_node_spec(
             game_state.overworld_state.current_route_node_id
         ).display_label
@@ -357,12 +829,105 @@ class OverworldPresenter:
             selected_target_id=selected_target_id,
         )
 
-    def _skills_view(self, game_state, selected_target_id):
+    def _skills_view(
+        self,
+        game_state,
+        selected_target_id,
+        *,
+        respec_available=False,
+        now=None,
+    ):
         player, selected_target_id, targets = self._selected_party_member(
             game_state,
             selected_target_id,
         )
         growth_points = player.growth_points
+        advancement_specs = get_drifter_advancement_skills(player.drifter_id)
+        purchased_ids = set(
+            player.purchased_passive_skill_ids
+            + player.purchased_active_skill_ids
+        )
+        level = player.level_state.current
+        skill_options = []
+        for skill in advancement_specs:
+            purchased = skill.skill_id in purchased_ids
+            unlocked = level >= skill.minimum_level
+            if purchased:
+                blocked_reason = "Already purchased"
+            elif not unlocked:
+                blocked_reason = f"Requires level {skill.minimum_level}"
+            elif growth_points < skill.gp_cost:
+                blocked_reason = "Insufficient Growth Points"
+            else:
+                blocked_reason = None
+            skill_options.append(
+                AdvancementSkillOptionView(
+                    skill_id=skill.skill_id,
+                    name=skill.name,
+                    purpose=skill.purpose,
+                    tier=skill.tier,
+                    kind=skill.kind.value,
+                    gp_cost=skill.gp_cost,
+                    minimum_level=skill.minimum_level,
+                    purchased=purchased,
+                    unlocked=unlocked,
+                    can_purchase=blocked_reason is None,
+                    blocked_reason=blocked_reason,
+                )
+            )
+
+        current_moves = player.combat_moves
+        move_ids_by_name = {
+            move.name: move_id_for_name(player.drifter_id, move.name)
+            for move in current_moves
+            if move_id_for_name(player.drifter_id, move.name)
+            in (
+                player.available_normal_move_ids
+                + player.available_super_move_ids
+            )
+        }
+        for skill in advancement_specs:
+            if skill.kind is AdvancementSkillKind.PASSIVE:
+                continue
+            move = get_advancement_move(skill.skill_id)
+            move_ids_by_name[move.name] = skill.skill_id
+
+        def move_view(move, move_id):
+            return SkillMoveView(
+                name=move.name,
+                description=move.description,
+                power=move.power,
+                accuracy=move.accuracy,
+                resource_type=move.resource_type.value,
+                resource_cost=move.resource_cost,
+                damage_type=move.damage_type.value,
+                move_id=move_id,
+            )
+
+        current_move_views = tuple(
+            move_view(move, move_ids_by_name.get(move.name))
+            for move in current_moves
+        )
+        available_move_by_id = {
+            move_id_for_name(player.drifter_id, move.name): move
+            for move in player.character.combat_moves
+            if move_id_for_name(player.drifter_id, move.name)
+            in player.available_normal_move_ids
+        }
+        for move in current_moves:
+            move_id = move_ids_by_name.get(move.name)
+            if move_id in player.available_normal_move_ids:
+                available_move_by_id[move_id] = move
+        for move_id in player.available_normal_move_ids:
+            if move_id not in available_move_by_id:
+                available_move_by_id[move_id] = get_advancement_move(move_id)
+        available_move_views = tuple(
+            move_view(available_move_by_id[move_id], move_id)
+            for move_id in player.available_normal_move_ids
+        )
+        equipped_move_by_id = {
+            move.move_id: move for move in available_move_views
+        }
         return SkillsView(
             growth_points_available=growth_points,
             growth_message=(
@@ -371,29 +936,27 @@ class OverworldPresenter:
                 else "Earn Growth Points by leveling up."
             ),
             stats=self._stats(player, increase_controls=True),
-            moves=tuple(
-                SkillMoveView(
-                    name=move.name,
-                    description=move.description,
-                    power=move.power,
-                    accuracy=move.accuracy,
-                    resource_type=move.resource_type.value,
-                    resource_cost=move.resource_cost,
-                    damage_type=move.damage_type.value,
-                )
-                for move in player.combat_moves
-            ),
+            moves=current_move_views,
             targets=targets,
             selected_target_id=selected_target_id,
+            advancement_options=tuple(skill_options),
+            loadout=tuple(
+                SkillLoadoutSlotView(slot, equipped_move_by_id[move_id])
+                for slot, move_id in enumerate(player.equipped_normal_move_ids)
+            ),
+            available_moves=available_move_views,
+            respec_available=respec_available,
         )
 
     @staticmethod
     def _selected_party_member(game_state, selected_target_id):
-        members = (game_state.player_state,) + game_state.party_state.companions
+        members = game_state.members_available_to_party
         member_specs = tuple((member, _member_drifter_spec(member)) for member in members)
         target_ids = {spec.drifter_id for _member, spec in member_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = member_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         targets = tuple(
             MerchantTargetView(
                 drifter_id=spec.drifter_id,
@@ -442,14 +1005,16 @@ class OverworldPresenter:
 
     @staticmethod
     def _weapon_view(game_state, selected_target_id):
-        members = (game_state.player_state,) + game_state.party_state.companions
+        members = game_state.members_available_to_party
         target_specs = tuple(
             (member, _member_drifter_spec(member))
             for member in members
         )
         target_ids = {spec.drifter_id for _member, spec in target_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = target_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         target_member = next(
             member
             for member, spec in target_specs
@@ -507,7 +1072,7 @@ class OverworldPresenter:
     @staticmethod
     def _merchant_view(game_state, selected_target_id):
         party = game_state.party_state
-        members = (game_state.player_state,) + party.companions
+        members = game_state.members_available_to_party
         target_specs = tuple(
             (
                 member,
@@ -516,8 +1081,10 @@ class OverworldPresenter:
             for member in members
         )
         target_ids = {spec.drifter_id for _member, spec in target_specs}
-        if selected_target_id not in target_ids:
+        if selected_target_id is None:
             selected_target_id = target_specs[0][1].drifter_id
+        elif selected_target_id not in target_ids:
+            raise ValueError("selected Drifter is not available in this phase")
         target_member = next(
             member
             for member, spec in target_specs
@@ -682,6 +1249,78 @@ class OverworldPresenter:
         )
 
     @staticmethod
+    def _hub_economy_view(game_state):
+        party = game_state.party_state
+        authored_ids = {item.item_id for item in SUPPLY_ITEMS}
+        item_ids = [item.item_id for item in SUPPLY_ITEMS]
+        item_ids.extend(
+            sorted((set(party.shared_items) | set(party.carried_items)) - authored_ids)
+        )
+        items = []
+        for item_id in item_ids:
+            spec = get_supply_item(item_id)
+            stored = party.shared_items.get(item_id, 0)
+            carried = party.carried_items.get(item_id, 0)
+            if spec is None:
+                display_name = item_id.replace("_", " ").title()
+                description = "Stored item. No Hub supply action is authored for it."
+                price = 0
+                shop_stocked = sellable = carryable = False
+            else:
+                display_name = spec.display_name
+                description = spec.description
+                price = spec.base_price
+                shop_stocked = spec.shop_stocked
+                sellable = spec.sellable
+                carryable = spec.carryable
+            items.append(
+                HubSupplyItemView(
+                    item_id=item_id,
+                    display_name=display_name,
+                    description=description,
+                    base_price=price,
+                    stored_quantity=stored,
+                    carried_quantity=carried,
+                    shop_stocked=shop_stocked,
+                    sellable=sellable,
+                    carryable=carryable,
+                    can_buy=shop_stocked and party.shared_gold >= price,
+                    can_sell=sellable and stored > 0,
+                    can_load=carryable and stored > 0 and party.carried_item_units < 6,
+                    can_unload=carryable and carried > 0,
+                )
+            )
+
+        names = {item.item_id: item.display_name for item in SUPPLY_ITEMS}
+        recipes = []
+        for recipe in ALCHEMY_RECIPES:
+            recipes.append(
+                HubAlchemyRecipeView(
+                    recipe_id=recipe.recipe_id,
+                    display_name=recipe.display_name,
+                    ingredient_summary=tuple(
+                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        for item_id, quantity in recipe.ingredient_costs
+                    ),
+                    output_summary=tuple(
+                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        for item_id, quantity in recipe.outputs
+                    ),
+                    can_craft=all(
+                        party.shared_items.get(item_id, 0) >= quantity
+                        for item_id, quantity in recipe.ingredient_costs
+                    ),
+                )
+            )
+        return HubEconomyView(
+            shared_gold=party.shared_gold,
+            carried_units=party.carried_item_units,
+            carried_capacity=6,
+            items=tuple(items),
+            recipes=tuple(recipes),
+        )
+
+    @staticmethod
     def _component_effect_summary(component):
         effects = []
         for modifier in component.move_modifiers:
@@ -706,17 +1345,211 @@ class OverworldPresenter:
         return tuple(effects)
 
     @staticmethod
-    def _equipment_view(game_state, selected_target_id):
-        _member, selected_target_id, targets = OverworldPresenter._selected_party_member(
+    def _equipment_view(game_state, selected_target_id, selected_instance_id=None):
+        member_specs = tuple(
+            (member, _member_drifter_spec(member))
+            for member in equipment_target_members(game_state)
+        )
+        target_ids = {spec.drifter_id for _member, spec in member_specs}
+        if selected_target_id not in target_ids:
+            selected_target_id = member_specs[0][1].drifter_id
+        member = next(
+            member
+            for member, spec in member_specs
+            if spec.drifter_id == selected_target_id
+        )
+        targets = tuple(
+            MerchantTargetView(
+                drifter_id=spec.drifter_id,
+                display_name=member.character.full_display_name,
+                selected=spec.drifter_id == selected_target_id,
+            )
+            for member, spec in member_specs
+        )
+        target_can_manage = can_manage_equipment_target(
             game_state,
             selected_target_id,
         )
+        owner_by_instance = {}
+        for owner in game_state.recruited_members:
+            owner_id = _member_drifter_spec(owner).drifter_id
+            for slot_id, instance_id in owner.equipped_equipment_ids.items():
+                if instance_id is not None:
+                    owner_by_instance[instance_id] = (
+                        owner_id,
+                        owner.character.full_display_name,
+                    )
+        instances = tuple(
+            EquipmentInstanceView(
+                instance_id=instance.instance_id,
+                display_name=get_equipment_template(instance.definition_id).name,
+                slot_id=instance.slot_id,
+                category=instance.category,
+                rarity=(
+                    get_armor_rarity(instance.rarity).rarity_id
+                    if instance.rarity is not None
+                    else None
+                ),
+                upgrade_rank=instance.upgrade_rank,
+                secured=instance.secured,
+                stat_summary=tuple(
+                    f"{name.replace('_', ' ').title()} {value:+d}"
+                    for name, value in sorted(instance.stat_bonuses.items())
+                ),
+                modifier_summary=tuple(
+                    f"Grade {grade}: {get_armor_modifier(modifier_id).name}"
+                    for grade, modifier_id in instance.modifier_slots.items()
+                ),
+                equipped_by_drifter_id=owner_by_instance.get(
+                    instance.instance_id, (None, None)
+                )[0],
+                equipped_by_name=owner_by_instance.get(
+                    instance.instance_id, (None, None)
+                )[1],
+            )
+            for instance in game_state.party_state.equipment_instances
+        )
+        if selected_instance_id is None and instances:
+            selected_instance_id = instances[0].instance_id
+        if selected_instance_id is not None and not any(
+            item.instance_id == selected_instance_id for item in instances
+        ):
+            selected_instance_id = None
+        selected_item = first_or_none(
+            (item for item in instances if item.instance_id == selected_instance_id),
+        )
+        equipped = member.equipped_equipment_ids
+        instance_by_id = {
+            item.instance_id: item for item in game_state.party_state.equipment_instances
+        }
+        pendant = instance_by_id.get(equipped.get("pendant"))
+        ring = instance_by_id.get(equipped.get("ring"))
+        equipped_bonuses = {}
+        for instance_id in equipped.values():
+            if instance_id is None:
+                continue
+            for stat, bonus in instance_by_id[instance_id].stat_bonuses.items():
+                equipped_bonuses[stat] = equipped_bonuses.get(stat, 0) + bonus
+        benefits = (
+            selected_item.stat_summary
+            if selected_item is not None and selected_item.equipped_by_drifter_id == selected_target_id
+            else tuple(
+                f"{name.replace('_', ' ').title()} {value:+d}"
+                for name, value in sorted(equipped_bonuses.items())
+            ) or ("None",)
+        )
+        actions = ()
+        if selected_item is not None:
+            item = game_state.party_state.equipment_instance(
+                selected_item.instance_id
+            )
+            already_equipped = (
+                equipped.get(selected_item.slot_id) == selected_item.instance_id
+            )
+            action_rows = [
+                EquipmentActionView(
+                    operation="equip",
+                    label="Equip",
+                    enabled=not already_equipped and target_can_manage,
+                    disabled_reason=(
+                        "already_equipped"
+                        if already_equipped
+                        else (
+                            None
+                            if target_can_manage
+                            else "save_checkpoint_required"
+                        )
+                    ),
+                    summary=f"Equip on {member.character.full_display_name}",
+                )
+            ]
+            if item.category == "armor":
+                action_rows.extend(
+                    (
+                        _equipment_action(
+                            "upgrade",
+                            "Upgrade",
+                            ArmorProgressionService.preview_stat_upgrade(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "advance_rarity",
+                            "Advance Rarity",
+                            ArmorProgressionService.preview_rarity_advance(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "extract",
+                            "Extract Modifiers",
+                            AlchemistService.preview_extraction(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "sell",
+                            "Sell",
+                            AlchemistService.preview_sale(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                        _equipment_action(
+                            "dismantle",
+                            "Dismantle",
+                            AlchemistService.preview_dismantle(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        ),
+                    )
+                )
+                action_rows.extend(
+                    _equipment_action(
+                        "affix",
+                        f"Affix {get_armor_modifier(modifier.definition_id).name}",
+                        AlchemistService.preview_affix(
+                            game_state,
+                            instance_id=item.instance_id,
+                            modifier_instance_id=modifier.instance_id,
+                        ),
+                        modifier_instance_id=modifier.instance_id,
+                    )
+                    for modifier in game_state.party_state.modifier_instances
+                )
+            actions = tuple(action_rows)
         return EquipmentView(
-            necklace=AccessorySlotView("Necklace", "Empty"),
-            ring=AccessorySlotView("Ring", "Empty"),
-            benefits=("None",),
+            pendant=AccessorySlotView(
+                "Pendant",
+                get_equipment_template(pendant.definition_id).name if pendant else "Empty",
+            ),
+            ring=AccessorySlotView(
+                "Ring",
+                get_equipment_template(ring.definition_id).name if ring else "Empty",
+            ),
+            benefits=benefits,
             targets=targets,
             selected_target_id=selected_target_id,
+            instances=instances,
+            selected_instance_id=selected_instance_id,
+            modifiers=tuple(
+                EquipmentModifierView(
+                    instance_id=modifier.instance_id,
+                    display_name=get_armor_modifier(
+                        modifier.definition_id
+                    ).name,
+                    grade=get_armor_modifier(
+                        modifier.definition_id
+                    ).grade,
+                    secured=modifier.secured,
+                )
+                for modifier in game_state.party_state.modifier_instances
+            ),
+            actions=actions,
         )
 
     @staticmethod
@@ -738,6 +1571,7 @@ class OverworldPresenter:
     @staticmethod
     def _inventory_items(game_state):
         player = game_state.player_state
+        party = game_state.party_state
         items = []
         for index, item in enumerate(player.inventory.items, start=1):
             if isinstance(item, Weapon):
@@ -747,6 +1581,7 @@ class OverworldPresenter:
                         display_name=item.name,
                         quantity=1,
                         description=item.description,
+                        location_label="Personal",
                     )
                 )
         for definition in owned_run_item_definitions(player.character_run_state):
@@ -758,6 +1593,7 @@ class OverworldPresenter:
                         definition.item_id
                     ),
                     description=definition.description,
+                    location_label="Personal",
                 )
             )
         shared_items = game_state.party_state.shared_items
@@ -771,9 +1607,59 @@ class OverworldPresenter:
                     display_name=OverworldPresenter._shared_item_display_name(item_id),
                     quantity=quantity,
                     description="Shared crafting material or weapon component.",
+                    location_label="Hub Storage",
+                )
+            )
+        for item_id, quantity in sorted(
+            party.carried_items.items(),
+            key=lambda item: OverworldPresenter._shared_item_display_name(item[0]),
+        ):
+            spec = get_supply_item(item_id)
+            items.append(
+                OverworldItemView(
+                    selection_key=f"carried-item:{item_id}",
+                    display_name=(
+                        spec.display_name
+                        if spec is not None
+                        else OverworldPresenter._shared_item_display_name(item_id)
+                    ),
+                    quantity=quantity,
+                    description=(spec.description if spec is not None else "Carried supply."),
+                    overworld_use_enabled=(
+                        item_id == "healing_potion"
+                        and party.phase
+                        in {
+                            DungeonPhase.HUB,
+                            DungeonPhase.PARTY_READY,
+                            DungeonPhase.OUTING,
+                        }
+                        and bool(OverworldPresenter._healing_targets(game_state))
+                    ),
+                    location_label="Carried Pack",
                 )
             )
         return tuple(items)
+
+    @staticmethod
+    def _healing_targets(game_state):
+        party = game_state.party_state
+        if party.phase not in {
+            DungeonPhase.HUB,
+            DungeonPhase.PARTY_READY,
+            DungeonPhase.OUTING,
+        }:
+            return ()
+        return tuple(
+            SupplyHealingTargetView(
+                drifter_id=member.character.profile.drifter_id,
+                display_name=member.character.full_display_name,
+                hp_current=member.health.current,
+                hp_maximum=member.health.maximum,
+            )
+            for member in game_state.active_party_members
+            if member.health.is_alive()
+            and member.health.current < member.health.maximum
+        )
 
     @staticmethod
     def _map_view(game_state):
@@ -785,14 +1671,18 @@ class OverworldPresenter:
         resolved_rest_nodes = set(
             overworld.resolved_rest_node_ids
         )
-        floor_one_cursor = (
+        dungeon_route_cursor = (
             tuple(node.node_id for node in route_nodes).index(current_id)
-            if overworld.active_route_id == "floor_one"
+            if overworld.active_route_id in {
+                "floor_one",
+                "floor_two",
+                "floor_three",
+            }
             else None
         )
-        floor_one_node_indexes = (
+        dungeon_route_node_indexes = (
             {node.node_id: index for index, node in enumerate(route_nodes)}
-            if floor_one_cursor is not None
+            if dungeon_route_cursor is not None
             else None
         )
 
@@ -819,9 +1709,9 @@ class OverworldPresenter:
                         else (
                             MapNodeState.COMPLETED
                             if (
-                                floor_one_node_indexes[node.node_id]
-                                < floor_one_cursor
-                                if floor_one_cursor is not None
+                                dungeon_route_node_indexes[node.node_id]
+                                < dungeon_route_cursor
+                                if dungeon_route_cursor is not None
                                 else is_completed(node)
                             )
                             else MapNodeState.REMAINING
@@ -866,11 +1756,33 @@ class OverworldPresenter:
         *,
         save_available=False,
         load_available=False,
+        respec_available=False,
+        now=None,
     ):
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
-            return (
+            settlement_action = (
+                (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_THREE_CLEAR,
+                        "Finalize Floor III Clear",
+                    ),
+                )
+                if game_state.floor_three_boss_settlement_pending
+                else (
+                    (
+                        enabled(
+                            OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
+                            "Finalize Floor II Clear",
+                        ),
+                    )
+                    if game_state.floor_two_boss_settlement_pending
+                    else ()
+                )
+            )
+            talisman_option = self._return_talisman_option(game_state)
+            return settlement_action + talisman_option + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
@@ -881,19 +1793,71 @@ class OverworldPresenter:
             merchant_action = ()
             if party_state.phase is DungeonPhase.HUB:
                 merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
-                party_actions = (
-                    (
-                        enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
+                if party_state.tutorial_complete:
+                    recruitment_actions = (
+                        (
+                            enabled(
+                                OverworldAction.RECRUIT_COMPANION,
+                                "Recruit Companion",
+                            ),
+                        )
+                        if available_recruitment_event(game_state) is not None
+                        else ()
                     )
-                    if party_state.tutorial_complete
-                    else (
+                    party_actions = (
+                        (enabled(OverworldAction.SELECT_PARTY, "Choose Party"),)
+                        if len(game_state.recruited_members) >= 2
+                        else ()
+                    ) + (
+                        enabled(OverworldAction.START_FLOOR_ONE, "Start Floor 1"),
+                    ) + (
+                        (
+                            self._disabled_option(
+                                OverworldAction.START_FLOOR_TWO,
+                                "Start Floor 2",
+                                OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER,
+                            ),
+                        )
+                        if party_state.floor_two_cleared
+                        and floor_two_replay_requires_available_helper(
+                            party_state.active_drifter_ids
+                        )
+                        else (
+                            (enabled(OverworldAction.START_FLOOR_TWO, "Start Floor 2"),)
+                            if party_state.floor_one_cleared
+                            else ()
+                        )
+                    ) + recruitment_actions
+                    if party_state.floor_two_cleared:
+                        party_actions += (
+                            enabled(
+                                OverworldAction.START_FLOOR_THREE,
+                                "Start Floor 3",
+                            )
+                            if len(game_state.recruited_members) == 4
+                            else disabled(
+                                OverworldAction.START_FLOOR_THREE,
+                                "Start Floor 3",
+                                OverworldAvailabilityReason.FLOOR_THREE_REQUIRES_FULL_ROSTER,
+                            ),
+                        )
+                    if is_expeditions_unlocked(game_state):
+                        party_actions += (
+                            enabled(OverworldAction.EXPEDITIONS, "Expeditions"),
+                        )
+                elif (
+                    available_recruitment_event(game_state) is not None
+                ):
+                    party_actions = (
                         enabled(
                             OverworldAction.RECRUIT_COMPANION,
                             "Recruit Companion",
                         ),
                     )
-                )
+                else:
+                    party_actions = ()
             elif party_state.phase is DungeonPhase.PARTY_READY:
+                merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
                 party_actions = (
                     enabled(OverworldAction.READY, "Ready / Set Out"),
                 )
@@ -905,8 +1869,74 @@ class OverworldPresenter:
                 enabled(OverworldAction.MAP, "Map"),
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
+        if screen is OverworldScreen.EXPEDITIONS:
+            actions = ()
+            if game_state.party_state.phase is DungeonPhase.HUB:
+                actions = (
+                    enabled(
+                        OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE,
+                        "Prepare for Floor I",
+                    ),
+                )
+                if game_state.party_state.floor_one_cleared:
+                    if (
+                        game_state.party_state.floor_two_cleared
+                        and floor_two_replay_requires_available_helper(
+                            game_state.party_state.active_drifter_ids
+                        )
+                    ):
+                        actions += (
+                            disabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
+                                "Prepare for Floor II",
+                                OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER,
+                            ),
+                        )
+                    elif game_state.party_state.floor_one_cleared:
+                        actions += (
+                            enabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
+                                "Prepare for Floor II",
+                            ),
+                        )
+            return actions + (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.EXPEDITION_SETUP:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            current_energy = game_state.expedition_state.preview_energy(
+                _now_utc() if now is None else now
+            )
+            confirm = (
+                enabled(OverworldAction.CONFIRM, "Confirm Launch")
+                if current_energy >= EXPEDITION_LAUNCH_COST
+                else disabled(
+                    OverworldAction.CONFIRM,
+                    "Confirm Launch",
+                    OverworldAvailabilityReason.INSUFFICIENT_EXPEDITION_ENERGY,
+                )
+            )
+            return (confirm, enabled(OverworldAction.CANCEL, "Cancel"))
         if screen is OverworldScreen.COMPANION_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.PARTY_SELECTION:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen in {
+            OverworldScreen.DISCOVERY_SEARCHERS,
+            OverworldScreen.DISCOVERY_TARGETS,
+        }:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.DISCOVERY_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
+        if screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
         if screen is OverworldScreen.FLOOR_ONE_WARNING:
             return (
                 enabled(OverworldAction.SET_OUT, "Set Out"),
@@ -928,8 +1958,13 @@ class OverworldPresenter:
                 enabled(OverworldAction.EQUIPMENT, "Equipment"),
                 enabled(OverworldAction.BACK, "Back"),
             )
+        if screen is OverworldScreen.SKILLS:
+            return (
+                (enabled(OverworldAction.RESPEC, "Respec"),)
+                if respec_available
+                else ()
+            ) + (enabled(OverworldAction.BACK, "Back"),)
         if screen in {
-            OverworldScreen.SKILLS,
             OverworldScreen.WEAPON,
             OverworldScreen.EQUIPMENT,
             OverworldScreen.MERCHANT,
@@ -952,17 +1987,23 @@ class OverworldPresenter:
                         OverworldAvailabilityReason.NO_ITEM_SELECTED,
                     )
                 ),
-                disabled(
-                    OverworldAction.USE,
-                    "Use",
-                    (
-                        OverworldAvailabilityReason.NO_OVERWORLD_USE
-                        if selected_item
-                        else OverworldAvailabilityReason.NO_ITEM_SELECTED
-                    ),
+                (
+                    enabled(OverworldAction.USE, "Use")
+                    if selected_item and selected_item.overworld_use_enabled
+                    else disabled(
+                        OverworldAction.USE,
+                        "Use",
+                        (
+                            OverworldAvailabilityReason.NO_OVERWORLD_USE
+                            if selected_item
+                            else OverworldAvailabilityReason.NO_ITEM_SELECTED
+                        ),
+                    )
                 ),
                 enabled(OverworldAction.BACK, "Back"),
             )
+        if screen is OverworldScreen.HEALING_TARGETS:
+            return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.MAP:
             inspectable = get_inspectable_route_node_spec(
                 game_state.overworld_state.current_route_node_id
@@ -1005,15 +2046,60 @@ class OverworldPresenter:
         if screen in {
             OverworldScreen.QUIT_CONFIRMATION,
             OverworldScreen.LOAD_CONFIRMATION,
+            OverworldScreen.RESPEC_CONFIRMATION,
         }:
             return (
                 enabled(OverworldAction.CONFIRM, "Confirm"),
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
         if screen is OverworldScreen.REST:
-            if game_state.overworld_state.active_route_id == "floor_one":
-                return (
+            if game_state.overworld_state.active_route_id in {
+                "floor_one",
+                "floor_two",
+                "floor_three",
+            }:
+                discovery_actions = ()
+                helper_action = ()
+                if (
+                    game_state.overworld_state.active_route_id == "floor_two"
+                    and game_state.overworld_state.current_route_node_id
+                    == "floor_two_pre_boss_rest"
+                    and game_state.party_state.phase is DungeonPhase.OUTING
+                ):
+                    if (
+                        game_state.party_state.floor_two_boss_helper_id is None
+                        and self._temporary_helper_choices(game_state)
+                    ):
+                        helper_action = (
+                            enabled(
+                                OverworldAction.CHOOSE_FLOOR_TWO_HELPER,
+                                "Choose Boss Helper",
+                            ),
+                        )
+                    source_id = "ancient_well_floor2_01"
+                    world = game_state.world_state
+                    if (
+                        source_id in world.discovered_permanent_discovery_sources
+                        and source_id not in world.permanent_discovery_claims
+                    ):
+                        discovery_actions = (
+                            enabled(OverworldAction.CLAIM_DISCOVERY, "Claim Discovery"),
+                        )
+                    elif source_id not in world.discovered_permanent_discovery_sources:
+                        run_id = game_state.party_state.floor_two_run_id
+                        already_searched = any(
+                            event["run_id"] == run_id
+                            and event["node_id"] == "floor_two_pre_boss_rest"
+                            and event["kind"] == "discovery_search"
+                            for event in game_state.party_state.resolved_run_events
+                        )
+                        if not already_searched:
+                            discovery_actions = (
+                                enabled(OverworldAction.SEARCH_SITE, "Search Site"),
+                            )
+                return self._return_talisman_option(game_state) + (
                     enabled(OverworldAction.REST, "Recover"),
+                ) + helper_action + discovery_actions + (
                     (
                         enabled(OverworldAction.SAVE, "Save")
                         if save_available
@@ -1043,6 +2129,24 @@ class OverworldPresenter:
             )
         raise ValueError(f"unsupported overworld screen: {screen!r}")
 
+    def _return_talisman_option(self, game_state):
+        party_state = game_state.party_state
+        if (
+            game_state.overworld_state.active_route_id
+            in {"floor_one", "floor_two", "floor_three"}
+            and party_state.phase is DungeonPhase.OUTING
+            and party_state.carried_items.get("return_talisman", 0) > 0
+            and not game_state.floor_two_boss_settlement_pending
+            and not game_state.floor_three_boss_settlement_pending
+        ):
+            return (
+                self._enabled_option(
+                    OverworldAction.RETURN_WITH_TALISMAN,
+                    "Use Return Talisman",
+                ),
+            )
+        return ()
+
     def _contextual_route_option(self, game_state, screen):
         current_node_id = game_state.overworld_state.current_route_node_id
         current_node = get_route_node_spec(current_node_id)
@@ -1056,11 +2160,22 @@ class OverworldPresenter:
         if screen is OverworldScreen.REST and (
             current_node.kind is RouteNodeKind.REST and unresolved_rest
         ):
+            if (
+                game_state.overworld_state.active_route_id == "floor_two"
+                and current_node_id == "floor_two_pre_boss_rest"
+                and game_state.party_state.floor_two_boss_helper_id is None
+            ):
+                return None
             return self._enabled_option(
                 OverworldAction.SKIP_REST,
                 "Continue Without Rest",
             )
         if screen is not OverworldScreen.MAIN:
+            return None
+        if (
+            game_state.floor_two_boss_settlement_pending
+            or game_state.floor_three_boss_settlement_pending
+        ):
             return None
         phase = game_state.overworld_state.current_contextual_route_phase
         if phase is ContextualRoutePhase.ENTER_ENCOUNTER:

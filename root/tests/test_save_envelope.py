@@ -32,10 +32,59 @@ def _payload():
     return build_save_document(GameState(PlayerState(character)))
 
 
+def _remove_m4_state(payload):
+    payload.pop("expedition", None)
+    party = payload.get("party")
+    if isinstance(party, dict):
+        party.pop("equipment_instances", None)
+        party.pop("modifier_instances", None)
+        for member in party.get("companions", ()):
+            member.pop("equipment_refs", None)
+        for field in (
+            "floor_two_cleared",
+            "floor_two_runs_started_after_clear",
+            "floor_two_run_id",
+            "floor_two_outing_xp_multiplier_percent",
+            "resolved_run_events",
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
+    player = payload.get("player")
+    if isinstance(player, dict):
+        player.pop("equipment_refs", None)
+    payload.get("world", {}).pop(
+        "discovered_permanent_discovery_sources", None
+    )
+    return payload
+
+
+def _remove_m4b_state(payload):
+    payload.pop("expedition", None)
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_three_cleared",
+            "floor_three_runs_started_after_clear",
+            "floor_three_run_id",
+            "floor_three_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
+    return payload
+
+
 def _legacy_schema9_payload():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 9
+    _remove_m4_state(payload)
+    payload["player"].pop("advancement")
+    payload["player"].pop("permanent_discovery_bonuses")
+    payload["world"].pop("permanent_discovery_claims")
     payload["player"].pop("signature_weapon")
+    payload["party"].pop("active_drifter_ids")
+    payload["party"].pop("carried_items")
     payload["overworld"].pop("active_route_id")
     for field in (
         "floor_one_cleared",
@@ -74,8 +123,46 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "500d9eaa5cd1fad59be386a61b2721f0795ab486b5930717b19255cde40065b0"
+        "c68009a66e89b0a18e154525c8d050926f760fe67236aaed7ff05c66244b72a1"
     )
+
+
+def test_schema19_equipment_history_remains_envelope_immutable():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 19
+    _remove_m4b_state(payload)
+    payload["party"].pop("modifier_instances")
+    original = copy.deepcopy(payload)
+
+    envelope = build_profile_envelope(
+        payload,
+        profile_id=PROFILE_ID,
+        client_save_id=SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    restored = parse_profile_envelope(serialize_profile_envelope(envelope))
+
+    assert payload == original
+    assert restored.payload == original
+
+
+def test_schema20_equipment_history_remains_envelope_immutable():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 20
+    _remove_m4b_state(payload)
+    payload["party"].pop("modifier_instances")
+    original = copy.deepcopy(payload)
+
+    envelope = build_profile_envelope(
+        payload,
+        profile_id=PROFILE_ID,
+        client_save_id=SAVE_ID,
+        saved_at=SAVED_AT,
+    )
+    restored = parse_profile_envelope(serialize_profile_envelope(envelope))
+
+    assert payload == original
+    assert restored.payload == original
 
 
 @pytest.mark.parametrize(
@@ -148,8 +235,12 @@ def test_profile_envelope_validation_does_not_mutate_caller_payload():
 def test_legacy_schema8_envelope_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 8
+    _remove_m4_state(legacy_payload)
     legacy_payload.pop("party")
     legacy_payload["player"].pop("signature_weapon")
+    legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
     legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
@@ -165,8 +256,12 @@ def test_legacy_schema8_envelope_keeps_original_payload_and_digest():
 def test_legacy_schema8_payload_digest_is_checked_before_any_migration():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 8
+    _remove_m4_state(legacy_payload)
     legacy_payload.pop("party")
     legacy_payload["player"].pop("signature_weapon")
+    legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
     legacy_payload["overworld"].pop("active_route_id")
     envelope_document = profile_envelope_to_document(_envelope())
     envelope_document["payload"] = legacy_payload
@@ -178,6 +273,61 @@ def test_legacy_schema8_payload_digest_is_checked_before_any_migration():
 
 def test_legacy_schema9_envelope_keeps_original_payload_and_digest():
     legacy_payload = _legacy_schema9_payload()
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_schema14_profile_history_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 14
+    _remove_m4_state(legacy_payload)
+    legacy_payload["player"].pop("advancement")
+    legacy_payload["player"].pop("permanent_discovery_bonuses")
+    legacy_payload["world"].pop("permanent_discovery_claims")
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_schema17_profile_history_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 17
+    _remove_m4_state(legacy_payload)
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_schema22_profile_history_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 22
+    legacy_payload.pop("expedition")
+    for field in (
+        "floor_three_cleared",
+        "floor_three_runs_started_after_clear",
+        "floor_three_run_id",
+        "floor_three_outing_xp_multiplier_percent",
+    ):
+        legacy_payload["party"].pop(field)
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload

@@ -12,6 +12,7 @@ from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
 from app.player.progression import xp_required_for_next_level
+from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.ui.battle_ui import ChooseAction, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import ChooseCompanion, ChooseOverworldAction
 
@@ -102,7 +103,17 @@ class HeadlessBattleFactory:
     def __init__(self):
         self.battles = []
 
-    def __call__(self, player_state, enemies, *, ui, encounter_label, party=()):
+    def __call__(
+        self,
+        player_state,
+        enemies,
+        *,
+        ui,
+        encounter_label,
+        party=(),
+        party_state=None,
+        smoke_escape_allowed=False,
+    ):
         if ui is not None:
             raise AssertionError("route battle must be headless")
         battle = Battle(
@@ -113,6 +124,8 @@ class HeadlessBattleFactory:
             rng=DeterministicRng(),
             encounter_label=encounter_label,
             party=party,
+            party_state=party_state,
+            smoke_escape_allowed=smoke_escape_allowed,
         )
         self.battles.append(battle)
         return battle
@@ -191,6 +204,19 @@ def _total_experience(player_state):
         for level in range(1, player_state.level_state.current)
     )
     return sum(thresholds) + player_state.exp_state.current
+
+
+def _expected_secured_xp_awards(members, secured_xp):
+    share = secured_xp // len(members)
+    return tuple(
+        share
+        + share
+        * secured_xp_bonus_bps_from_intuition(
+            member.effective_stat("intuition")
+        )
+        // 10000
+        for member in members
+    )
 
 
 def _qualify_route():
@@ -326,7 +352,9 @@ def _qualify_route():
         raise AssertionError("Hub recruitment did not open companion selection")
     companion_id = recruit_view.companion_choices[0].drifter_id
     lead_total_before = _total_experience(game.player_state)
-    companion_view = session.submit(ChooseCompanion(companion_id))
+    companion_view = session.submit(
+        ChooseCompanion(companion_id, "floor_one_d2_recruitment")
+    )
     if companion_view.screen is not OverworldScreen.PARTY_READY:
         raise AssertionError("companion choice did not reach Party Ready")
     if companion_view.shared_gold != 10:
@@ -482,8 +510,8 @@ def _qualify_route():
         _total_experience(member) - before
         for member, before in zip(party_members, floor_one_xp_before)
     )
-    if floor_one_xp_each != (670, 670):
-        raise AssertionError("Floor 1 did not split 1340 EXP evenly")
+    if floor_one_xp_each != _expected_secured_xp_awards(party_members, 1340):
+        raise AssertionError("Floor 1 personal secured-XP awards changed")
     if game.world_state.defeated_encounters != floor_one_world_history:
         raise AssertionError("Floor 1 polluted Surface encounter history")
     if len(battle_factory.battles) - floor_one_battle_start != 10:
@@ -568,8 +596,11 @@ def _qualify_route():
         _total_experience(member) - before
         for member, before in zip(party_members, replay_xp_before)
     )
-    if replay_xp_each != (expected_replay_xp // 2,) * 2:
-        raise AssertionError("replay extraction EXP did not split evenly")
+    if replay_xp_each != _expected_secured_xp_awards(
+        party_members,
+        expected_replay_xp,
+    ):
+        raise AssertionError("replay personal secured-XP awards changed")
     if game.party_state.shared_gold != replay_gold_before + expected_replay_gold:
         raise AssertionError("replay extraction did not secure its gold")
     if game.party_state.floor_one_runs_started_after_clear != 1:
@@ -610,11 +641,12 @@ def _qualify_route():
         "lead_tutorial_exp": lead_tutorial_exp,
         "companion_tutorial_exp": companion_tutorial_exp,
         "floor_one_battles": 10,
-        "floor_one_xp_each": floor_one_xp_each[0],
+        "floor_one_xp_awards": list(floor_one_xp_each),
         "floor_one_shared_gold": floor_one_hub.shared_gold,
         "floor_one_cleared": game.party_state.floor_one_cleared,
         "floor_one_replay_rate": 50,
         "floor_one_replay_extract_xp": replay_extraction.outing_rewards.experience,
+        "floor_one_replay_xp_awards": list(replay_xp_each),
         "floor_one_replay_extract_gold": replay_extraction.outing_rewards.gold,
         "floor_one_replay_secured_gold": replay_hub.shared_gold,
         "floor_one_replay_runs": game.party_state.floor_one_runs_started_after_clear,

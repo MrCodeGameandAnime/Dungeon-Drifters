@@ -269,11 +269,24 @@ button:disabled {
 #route-actions { grid-template-columns: minmax(12rem, 24rem); }
 #overworld-options { grid-template-columns: repeat(2, minmax(10rem, 1fr)); max-width: 42rem; margin-top: 1.1rem; padding-top: .75rem; border-top: 1px solid var(--line); }
 #route-actions button, #overworld-options button { min-height: 2.6rem; text-align: left; }
-.companion-selection, .extraction-rewards { max-width: 42rem; margin-top: .6rem; }
+.companion-selection, .party-selection, .discovery-selection, .extraction-rewards { max-width: 42rem; margin-top: .6rem; }
+.expedition-panel { max-width: 42rem; margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.expedition-energy, .expedition-panel-summary { margin: .25rem 0 .65rem; color: var(--muted); }
+.expedition-choices, .expedition-reports { display: grid; gap: .5rem; }
+.expedition-report { display: grid; gap: .25rem; padding: .55rem 0; border-bottom: 1px solid var(--line); }
+.expedition-report button { justify-self: start; }
+.expedition-live-status { margin: .65rem 0; border-left: 3px solid var(--accent); padding-left: .7rem; color: var(--muted); line-height: 1.45; }
+.expedition-confirmation-content { display: grid; gap: .35rem; margin: .5rem 0; color: var(--muted); }
 .hub-shared-gold { margin: .45rem 0; color: var(--muted); font-weight: 700; }
 .companion-funds { margin: 0 0 .35rem; color: var(--muted); }
 .companion-choices { display: grid; gap: .25rem; }
 .companion-choice { display: grid; justify-items: start; gap: .12rem; min-height: 3rem; padding: .5rem .65rem; text-align: left; }
+.party-pair-choices { display: grid; gap: .25rem; }
+.party-pair-choice { display: flex; justify-content: space-between; gap: .75rem; min-height: 3rem; padding: .5rem .65rem; text-align: left; }
+.party-pair-choice.is-selected { border-color: var(--accent); }
+.discovery-reward { margin: 0 0 .4rem; color: var(--muted); }
+.discovery-choices { display: grid; gap: .25rem; }
+.discovery-choice { min-height: 3rem; padding: .5rem .65rem; text-align: left; }
 .companion-role, .companion-cost { color: var(--muted); font-size: .86rem; }
 .companion-summary { color: var(--ink); font-size: .9rem; font-weight: 400; }
 .extraction-rewards { padding: .5rem .65rem; border-block: 1px solid var(--line); }
@@ -322,6 +335,16 @@ button:disabled {
 .skill-attack { display: grid; gap: .15rem; padding-block: .3rem; border-bottom: 1px solid var(--line); }
 .skill-attack p { margin: 0; color: var(--muted); }
 .skill-attack-values, .weapon-effect-summary { font-size: .9rem; }
+.advancement-heading { margin-top: 1rem; }
+.skill-advancement, .skill-loadout, .skill-available-moves { display: grid; gap: .3rem; max-width: 54rem; }
+.skill-advancement-row, .skill-available-move { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding-block: .35rem; border-bottom: 1px solid var(--line); }
+.skill-advancement-description, .skill-available-move { min-width: 0; }
+.skill-advancement-description { display: grid; gap: .1rem; }
+.skill-advancement-description span, .skill-available-move span, .skill-advancement-state { color: var(--muted); }
+.skill-advancement-purchase { min-height: 2.25rem; padding: .35rem .6rem; white-space: nowrap; }
+.skill-loadout-row { display: grid; grid-template-columns: 5rem minmax(0, 24rem); align-items: center; gap: .5rem; min-height: 2.5rem; }
+.skill-loadout-select { min-width: 0; min-height: 2.25rem; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: .25rem; background: var(--panel); color: var(--ink); font: inherit; }
+#respec-panel .detail-line { margin-block: .3rem; }
 .weapon-panel .detail-subtitle, .weapon-panel .detail-line { margin-top: .1rem; }
 .weapon-panel .detail-copy { max-width: 92ch; white-space: pre-wrap; }
 .detail-options, #skills-options { grid-template-columns: minmax(10rem, 18rem); max-width: 18rem; }
@@ -336,6 +359,7 @@ button:disabled {
 .merchant-row-description { display: grid; min-width: 0; gap: .1rem; }
 .merchant-row-description span, .merchant-material, .merchant-empty { color: var(--muted); }
 .merchant-row-description strong { overflow-wrap: anywhere; }
+.merchant-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
 .weapon-component-choices { display: grid; gap: .3rem; justify-items: end; }
 .weapon-component-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .15rem .5rem; color: var(--muted); }
 .weapon-component-option .weapon-effect-summary { grid-column: 1 / -1; text-align: right; }
@@ -345,6 +369,9 @@ button:disabled {
 .merchant-empty { margin: 0; }
 .inventory-item-choice { width: min(100%, 34rem); min-height: 2.5rem; text-align: left; }
 .inventory-item-choice.selected { border-color: var(--accent); background: #28473d; }
+.equipment-choice { display: grid; width: 100%; min-height: 2.6rem; text-align: left; }
+.equipment-action { width: min(100%, 38rem); min-height: 2.35rem; text-align: left; }
+.equipment-action:disabled { opacity: .68; }
 .items-inspection { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--line); }
 .items-inspection h3, .items-inspection p { margin-block: .25rem; }
 .character-options button:focus-visible, .detail-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -443,6 +470,9 @@ button:disabled {
   .drifter-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drifter-option-sprite { height: clamp(8rem, 24vh, 13rem); }
   .skill-stat { grid-template-columns: 1.6rem minmax(5rem, 1fr) 2.5rem minmax(8rem, auto); gap: .2rem; }
+  .skill-advancement-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .skill-advancement-purchase { justify-self: start; }
+  .skill-loadout-row { grid-template-columns: 3.5rem minmax(0, 1fr); }
 }
 
 @media (orientation: portrait) and (max-width: 60rem) {

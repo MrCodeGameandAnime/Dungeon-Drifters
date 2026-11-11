@@ -133,7 +133,7 @@ def test_presenter_builds_resource_and_temporary_state_views():
     assert view.enemy.super_current is None
 
 
-def test_presenter_builds_five_ordinary_action_options():
+def test_presenter_builds_six_ordinary_action_options():
     view, _, _, _ = _build()
 
     assert tuple(option.intent for option in view.action_options) == (
@@ -141,9 +141,10 @@ def test_presenter_builds_five_ordinary_action_options():
         ActionIntent.DEFEND,
         ActionIntent.HEAL,
         ActionIntent.ITEMS,
+        ActionIntent.HEALING_POTION,
         ActionIntent.ESCAPE,
     )
-    assert tuple(option.number for option in view.action_options) == (1, 2, 3, 4, 5)
+    assert tuple(option.number for option in view.action_options) == (1, 2, 3, 4, 5, 6)
     assert _option(view, ActionIntent.ATTACK).enabled is True
     assert _option(view, ActionIntent.DEFEND).enabled is True
     assert _option(view, ActionIntent.HEAL).label == "Heal - Full HP"

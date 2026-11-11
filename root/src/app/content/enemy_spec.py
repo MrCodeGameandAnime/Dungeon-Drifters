@@ -4,7 +4,7 @@ import keyword
 import re
 from dataclasses import dataclass
 
-from app.combat.move import Move
+from app.combat.move import DamageComponentIdentity, Move, validate_damage_identity_keys
 from app.enemies.definition import (
     Enemy,
     EnemyBehavior,
@@ -37,6 +37,29 @@ def _validate_nonempty_string(name, value):
 
 
 @dataclass(frozen=True)
+class ItemDropSpec:
+    item_id: str
+    quantity: int
+    chance_bps: int
+
+    def __post_init__(self):
+        item_id = _validate_nonempty_string("item_id", self.item_id)
+        if _ARCHETYPE_ID_PATTERN.fullmatch(item_id) is None:
+            raise ValueError("item_id must be lowercase snake case")
+        object.__setattr__(self, "item_id", item_id)
+        object.__setattr__(
+            self,
+            "quantity",
+            _validate_integer("drop quantity", self.quantity, minimum=1),
+        )
+        object.__setattr__(
+            self,
+            "chance_bps",
+            _validate_integer("drop chance", self.chance_bps, minimum=0, maximum=10000),
+        )
+
+
+@dataclass(frozen=True)
 class StatBlockSpec:
     constitution: int
     spirit: int
@@ -55,6 +78,33 @@ class StatBlockSpec:
 
 
 @dataclass(frozen=True)
+class EnemyTierSpec:
+    tier: int
+    stats: StatBlockSpec
+    hp: int
+    mana: int
+    item_drops: tuple[ItemDropSpec, ...] = ()
+
+    def __post_init__(self):
+        tier = validate_enemy_tier(self.tier)
+        if tier == 0:
+            raise ValueError("tier profiles must be above tier zero")
+        object.__setattr__(self, "tier", tier)
+        if not isinstance(self.stats, StatBlockSpec):
+            raise TypeError("stats must be a StatBlockSpec")
+        object.__setattr__(self, "hp", _validate_integer("hp", self.hp, minimum=1))
+        object.__setattr__(
+            self,
+            "mana",
+            _validate_integer("mana", self.mana, minimum=0),
+        )
+        if not isinstance(self.item_drops, tuple):
+            raise TypeError("item_drops must be a tuple")
+        if any(not isinstance(drop, ItemDropSpec) for drop in self.item_drops):
+            raise TypeError("tier item_drops must contain ItemDropSpec values")
+
+
+@dataclass(frozen=True)
 class EnemySpec:
     archetype_id: str
     name: str
@@ -70,6 +120,9 @@ class EnemySpec:
     moves: tuple[Move, ...]
     supported_tiers: tuple[int, ...] = (0,)
     item_drops: tuple[tuple[str, int], ...] = ()
+    tier_profiles: tuple[EnemyTierSpec, ...] = ()
+    damage_resistances: tuple[tuple[DamageComponentIdentity, str], ...] = ()
+    damage_weaknesses: tuple[tuple[DamageComponentIdentity, str], ...] = ()
 
     def __post_init__(self):
         archetype_id = _validate_nonempty_string("archetype_id", self.archetype_id)
@@ -121,13 +174,26 @@ class EnemySpec:
 
         if not isinstance(self.supported_tiers, tuple):
             raise TypeError("supported_tiers must be a tuple")
-        if any(
-            isinstance(tier, bool) or not isinstance(tier, int)
-            for tier in self.supported_tiers
+        for tier in self.supported_tiers:
+            validate_enemy_tier(tier)
+        if (
+            not self.supported_tiers
+            or self.supported_tiers[0] != 0
+            or tuple(sorted(set(self.supported_tiers))) != self.supported_tiers
         ):
-            raise TypeError("supported_tiers must contain only integers")
-        if self.supported_tiers != (0,):
-            raise ValueError("content enemy specifications support only tier 0")
+            raise ValueError("supported_tiers must be unique, ordered, and start at 0")
+
+        if not isinstance(self.tier_profiles, tuple):
+            raise TypeError("tier_profiles must be a tuple")
+        if any(not isinstance(profile, EnemyTierSpec) for profile in self.tier_profiles):
+            raise TypeError("tier_profiles must contain only EnemyTierSpec values")
+        profile_tiers = tuple(profile.tier for profile in self.tier_profiles)
+        if len(set(profile_tiers)) != len(profile_tiers):
+            raise ValueError("tier_profiles must use unique tiers")
+        if tuple(sorted(profile_tiers)) != profile_tiers:
+            raise ValueError("tier_profiles must be ordered by tier")
+        if self.supported_tiers != (0,) + profile_tiers:
+            raise ValueError("tier_profiles must match supported_tiers")
 
         if not isinstance(self.item_drops, tuple):
             raise TypeError("item_drops must be a tuple")
@@ -146,20 +212,43 @@ class EnemySpec:
         if len(set(drop_ids)) != len(drop_ids):
             raise ValueError("item drop IDs must be unique")
 
+        resistances = validate_damage_identity_keys(
+            "damage_resistances",
+            self.damage_resistances,
+        )
+        weaknesses = validate_damage_identity_keys(
+            "damage_weaknesses",
+            self.damage_weaknesses,
+        )
+        if any(identity in weaknesses for identity in resistances):
+            raise ValueError("an enemy cannot resist and be weak to the same identity")
+        object.__setattr__(self, "damage_resistances", resistances)
+        object.__setattr__(self, "damage_weaknesses", weaknesses)
+
     def create_definition(self, tier=0):
         tier = validate_enemy_tier(tier)
         if tier not in self.supported_tiers:
             raise ValueError(f"{self.archetype_id} does not support tier {tier}")
 
+        profile = None
+        if tier != 0:
+            for candidate in self.tier_profiles:
+                if candidate.tier == tier:
+                    profile = candidate
+                    break
+        stats = self.stats if profile is None else profile.stats
+        hp = self.hp if profile is None else profile.hp
+        mana = self.mana if profile is None else profile.mana
+
         return Enemy(
-            strn=self.stats.strength,
-            con=self.stats.constitution,
-            intl=self.stats.intelligence,
-            dex=self.stats.dexterity,
-            spirit=self.stats.spirit,
-            intuition=self.stats.intuition,
-            hp=self.hp,
-            mana=self.mana,
+            strn=stats.strength,
+            con=stats.constitution,
+            intl=stats.intelligence,
+            dex=stats.dexterity,
+            spirit=stats.spirit,
+            intuition=stats.intuition,
+            hp=hp,
+            mana=mana,
             exp_reward=self.exp_reward,
             gold_reward=self.gold_reward,
             name=self.name,
@@ -169,7 +258,18 @@ class EnemySpec:
             behavior=self.behavior,
             capabilities=tuple(self.capabilities),
             combat_moves=(move for move in self.moves),
+            damage_resistances=self.damage_resistances,
+            damage_weaknesses=self.damage_weaknesses,
         )
 
+    def item_drop_table_for_tier(self, tier):
+        tier = validate_enemy_tier(tier)
+        if tier not in self.supported_tiers:
+            raise ValueError(f"{self.archetype_id} does not support tier {tier}")
+        for profile in self.tier_profiles:
+            if profile.tier == tier:
+                return profile.item_drops
+        return ()
 
-__all__ = ["EnemySpec", "StatBlockSpec"]
+
+__all__ = ["EnemySpec", "EnemyTierSpec", "ItemDropSpec", "StatBlockSpec"]

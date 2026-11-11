@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.combat.move import (
+    DamageComponentIdentity,
     DamageType,
     Move,
     MoveKind,
@@ -17,15 +18,19 @@ from app.content.catalog import (
     create_enemy_definition,
     create_enemy_state,
     get_enemy_spec,
+    get_encounter_spec,
 )
-from app.content.enemy_spec import EnemySpec, StatBlockSpec
+from app.content.encounter_spec import EncounterSpec
+from app.content.enemy_spec import EnemySpec, EnemyTierSpec, StatBlockSpec
 from app.enemies.definition import EnemyBehavior, EnemyCapability, EnemyRank, EnemyRole
+from app.enemies.state import EnemyState
 from tools.generate_content_catalog import (
     OUTPUT_PATH,
     discover_drifter_ids,
     discover_encounter_ids,
     discover_enemy_ids,
     discover_route_ids,
+    discover_recruitment_event_ids,
     discover_weapon_ids,
     render_catalog,
 )
@@ -48,6 +53,7 @@ EXPECTED_DRIFTER_IDS = ("azhvielle", "branoc", "joruun", "zhaivra")
 EXPECTED_ENCOUNTER_IDS = (
     "dungeon_goblin_quad",
     "dungeon_goblin_trio",
+    "floor_two_cave_in",
     "surface_elite_patrol",
     "surface_goblin_lord",
     "surface_goblin_pair",
@@ -57,7 +63,7 @@ EXPECTED_ENCOUNTER_IDS = (
     "surface_warrior_pair",
     "surface_warrior_solo",
 )
-EXPECTED_ROUTE_IDS = ("floor_one", "surface")
+EXPECTED_ROUTE_IDS = ("floor_one", "floor_three", "floor_two", "surface")
 
 
 def sample_move(name="Test Strike"):
@@ -104,11 +110,103 @@ def test_generated_enemy_catalog_is_deterministic_and_current():
         EXPECTED_DRIFTER_IDS,
         EXPECTED_ENCOUNTER_IDS,
         EXPECTED_ROUTE_IDS,
+        discover_recruitment_event_ids(),
     )
     assert discover_weapon_ids() == EXPECTED_WEAPON_IDS
     assert discover_drifter_ids() == EXPECTED_DRIFTER_IDS
     assert discover_encounter_ids() == EXPECTED_ENCOUNTER_IDS
     assert discover_route_ids() == EXPECTED_ROUTE_IDS
+
+
+def test_floor_two_cave_in_encounter_authors_a_bounded_physical_threat():
+    encounter = get_encounter_spec("floor_two_cave_in")
+
+    assert encounter.enemy_archetype_ids == ("goblin", "goblin_warrior")
+    assert encounter.cave_in_power == 20
+
+
+def test_item_drop_specs_validate_probability_quantity_and_authored_id():
+    import app.content.enemy_spec as enemy_content
+
+    drop_type = getattr(enemy_content, "ItemDropSpec", None)
+    assert drop_type is not None
+    drop = drop_type("grade_ii_metal", 2, 2000)
+    assert (drop.item_id, drop.quantity, drop.chance_bps) == (
+        "grade_ii_metal",
+        2,
+        2000,
+    )
+
+    for item_id, quantity, chance in (
+        ("bad-id", 1, 2000),
+        ("grade_ii_metal", 0, 2000),
+        ("grade_ii_metal", True, 2000),
+        ("grade_ii_metal", 1, -1),
+        ("grade_ii_metal", 1, 10001),
+        ("grade_ii_metal", 1, True),
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            drop_type(item_id, quantity, chance)
+
+
+def test_tier_one_content_authors_all_grade_two_material_families():
+    material_drops = {
+        drop.item_id: drop.chance_bps
+        for enemy in ENEMY_SPECS
+        for profile in enemy.tier_profiles
+        if profile.tier == 1
+        for drop in profile.item_drops
+    }
+
+    assert {
+        "grade_ii_metal": 2000,
+        "grade_ii_fiber": 2000,
+        "grade_ii_timber": 2000,
+        "grade_ii_cores": 1000,
+    }.items() <= material_drops.items()
+
+
+def test_tier_two_content_authors_all_grade_three_material_families():
+    material_drops = {
+        drop.item_id: drop.chance_bps
+        for enemy in ENEMY_SPECS
+        for profile in enemy.tier_profiles
+        if profile.tier == 2
+        for drop in profile.item_drops
+    }
+
+    assert {
+        "grade_iii_metal": 2000,
+        "grade_iii_fiber": 2000,
+        "grade_iii_timber": 2000,
+        "grade_iii_cores": 1000,
+    }.items() <= material_drops.items()
+
+
+@pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
+def test_floor_three_enemy_archetypes_support_tier_two(archetype_id):
+    spec = get_enemy_spec(archetype_id)
+
+    assert spec.supported_tiers == (0, 1, 2)
+    assert spec.create_definition(tier=2) is not spec.create_definition(tier=1)
+
+
+def test_encounter_drop_tables_preserve_each_enemy_instance_and_tier():
+    import app.content.catalog as catalog
+
+    get_tables = getattr(catalog, "get_encounter_item_drop_tables", None)
+    assert get_tables is not None
+    tables = get_tables("floor_two_cave_in", tier=1)
+    assert len(tables) == 2
+    assert tables[0][0].item_id == "grade_ii_metal"
+    assert tables[1][0].item_id == "grade_ii_timber"
+
+
+@pytest.mark.parametrize("power", (True, 0, -1, 1.5))
+def test_encounter_rejects_invalid_cave_in_power(power):
+    expected_error = TypeError if isinstance(power, bool) or not isinstance(power, int) else ValueError
+    with pytest.raises(expected_error, match="cave_in_power"):
+        EncounterSpec("bad_hazard", ("goblin",), cave_in_power=power)
 
 
 def test_generator_rejects_directory_and_authored_id_mismatch(tmp_path):
@@ -148,12 +246,13 @@ def test_enemy_specs_and_stat_blocks_are_immutable():
 
 
 @pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
-def test_specs_create_fresh_definitions_and_runtime_state(archetype_id):
+@pytest.mark.parametrize("tier", (0, 1, 2))
+def test_specs_create_fresh_definitions_and_runtime_state(archetype_id, tier):
     spec = get_enemy_spec(archetype_id)
-    first_definition = spec.create_definition()
-    second_definition = spec.create_definition()
-    first = create_enemy_state(archetype_id)
-    second = create_enemy_state(archetype_id)
+    first_definition = spec.create_definition(tier=tier)
+    second_definition = spec.create_definition(tier=tier)
+    first = create_enemy_state(archetype_id, tier=tier)
+    second = create_enemy_state(archetype_id, tier=tier)
 
     assert first_definition is not second_definition
     assert first_definition.combat_moves is not second_definition.combat_moves
@@ -164,6 +263,17 @@ def test_specs_create_fresh_definitions_and_runtime_state(archetype_id):
     assert first.health is not second.health
     assert first.mana_resource is not second.mana_resource
     assert first.super_resource is not second.super_resource
+    original_second_hp = second.health.current
+    original_second_mana = second.mana_resource.current
+    original_second_super = second.super_resource.current
+
+    first.health.take_damage(1)
+    first.mana_resource.spend(1)
+    first.super_resource.gain(1)
+
+    assert second.health.current == original_second_hp
+    assert second.mana_resource.current == original_second_mana
+    assert second.super_resource.current == original_second_super
 
 
 @pytest.mark.parametrize(
@@ -189,6 +299,32 @@ def test_specs_create_fresh_definitions_and_runtime_state(archetype_id):
         ("supported_tiers", [0], TypeError),
         ("supported_tiers", (False,), TypeError),
         ("supported_tiers", (0, 1), ValueError),
+        ("supported_tiers", (1,), ValueError),
+        ("supported_tiers", (0, 0), ValueError),
+        ("tier_profiles", [object()], TypeError),
+        (
+            "damage_resistances",
+            [(DamageComponentIdentity.ELEMENTAL, "fire")],
+            TypeError,
+        ),
+        (
+            "damage_resistances",
+            ((DamageComponentIdentity.PHYSICAL, "fire"),),
+            ValueError,
+        ),
+        (
+            "damage_weaknesses",
+            ((DamageComponentIdentity.ALCHEMICAL, ""),),
+            ValueError,
+        ),
+        (
+            "damage_resistances",
+            (
+                (DamageComponentIdentity.ELEMENTAL, "fire"),
+                (DamageComponentIdentity.ELEMENTAL, "fire"),
+            ),
+            ValueError,
+        ),
     ),
 )
 def test_enemy_spec_rejects_invalid_authored_values(field, value, error):
@@ -225,8 +361,92 @@ def test_catalog_rejects_directory_mismatch_and_duplicate_ids():
 def test_unknown_enemy_and_unsupported_tier_fail_explicitly():
     with pytest.raises(ValueError, match="unknown enemy archetype"):
         get_enemy_spec("unknown")
-    with pytest.raises(ValueError, match="does not support tier 1"):
-        create_enemy_definition("goblin", tier=1)
+    with pytest.raises(ValueError, match="does not support tier 3"):
+        create_enemy_definition("goblin", tier=3)
+
+
+@pytest.mark.parametrize(
+    "field, value, error",
+    (
+        ("tier", True, TypeError),
+        ("tier", 0, ValueError),
+        ("tier", -1, ValueError),
+        ("stats", object(), TypeError),
+        ("hp", 0, ValueError),
+        ("mana", -1, ValueError),
+    ),
+)
+def test_enemy_tier_profile_rejects_invalid_authored_values(field, value, error):
+    values = {
+        "tier": 1,
+        "stats": StatBlockSpec(2, 2, 2, 2, 2, 2),
+        "hp": 2,
+        "mana": 0,
+    }
+    values[field] = value
+
+    with pytest.raises(error):
+        EnemyTierSpec(**values)
+
+
+def test_enemy_spec_requires_tier_profiles_to_match_supported_tiers():
+    profile = EnemyTierSpec(
+        tier=1,
+        stats=StatBlockSpec(2, 2, 2, 2, 2, 2),
+        hp=2,
+        mana=0,
+    )
+
+    with pytest.raises(ValueError, match="match supported_tiers"):
+        sample_spec(supported_tiers=(0, 1))
+
+    with pytest.raises(ValueError, match="match supported_tiers"):
+        sample_spec(tier_profiles=(profile,))
+
+    with pytest.raises(ValueError, match="unique"):
+        sample_spec(
+            supported_tiers=(0, 1),
+            tier_profiles=(profile, profile),
+        )
+
+    with pytest.raises(ValueError, match="ordered"):
+        sample_spec(
+            supported_tiers=(0, 1, 2),
+            tier_profiles=(
+                profile,
+                EnemyTierSpec(
+                    tier=2,
+                    stats=StatBlockSpec(3, 3, 3, 3, 3, 3),
+                    hp=3,
+                    mana=0,
+                ),
+            )[::-1],
+        )
+
+
+def test_enemy_spec_rejects_resistance_and_weakness_for_same_identity():
+    identity = (DamageComponentIdentity.ELEMENTAL, "fire")
+
+    with pytest.raises(ValueError, match="cannot resist and be weak"):
+        sample_spec(
+            damage_resistances=(identity,),
+            damage_weaknesses=(identity,),
+        )
+
+
+def test_enemy_identity_modifiers_are_preserved_in_runtime_state():
+    spec = sample_spec(
+        damage_resistances=((DamageComponentIdentity.ELEMENTAL, "fire"),),
+        damage_weaknesses=((DamageComponentIdentity.ALCHEMICAL, "poison"),),
+    )
+    state = EnemyState(spec.create_definition())
+
+    assert state.damage_resistances == (
+        (DamageComponentIdentity.ELEMENTAL, "fire"),
+    )
+    assert state.damage_weaknesses == (
+        (DamageComponentIdentity.ALCHEMICAL, "poison"),
+    )
 
 
 def test_definition_creation_preserves_unknown_id_precedence():
