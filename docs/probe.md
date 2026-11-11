@@ -619,11 +619,18 @@ at both heap boundaries. The anomaly did not reproduce; its cause is unknown.
 The full local M6 checks also passed: 2,319 root tests, 74 web tests,
 authored-content validation, compileall, a 176-file browser build, and the full
 browser smoke. The browser smoke included the cumulative M1-M6 journeys. These
-results are from the local worktree and are not yet exact-SHA hosted evidence.
+results were collected locally before push and are separate from the exact-SHA
+hosted evidence recorded below.
 
-The local Docker engine was unreachable during this run. PostgreSQL profile
-service tests, migration-from-zero, and Alembic parity therefore remain for the
-hosted exact-SHA workflow. Hosted CI does not execute this pinned MicroPython
-binary. Do not treat the local runtime matrix as a substitute for those hosted
-checks, or vice versa. M6 remains unsealed until hosted qualification is green
-on the pushed implementation SHA.
+The local Docker engine was unreachable during this run, so PostgreSQL profile
+service tests, migration-from-zero, and Alembic parity were qualified by the
+hosted exact-SHA workflow instead. Implementation SHA
+`89f012b7adf3fa48616c5e5aacd8d9052cd57001` passed both jobs in
+[Actions run 42939284112](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42939284112):
+2,319 root tests, 74 web tests, 49 PostgreSQL tests, authored-content
+validation, compile, the 176-file browser build, full browser smoke, migration
+from zero, and Alembic model parity (`No new upgrade operations detected`).
+The smoke passed both M6 markers for once-only report claim and passive
+assignment launch/reload/status. Hosted CI does not execute the pinned
+MicroPython binary. Keep the local runtime and hosted service evidence distinct;
+together they complete M6 qualification.

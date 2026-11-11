@@ -1,9 +1,9 @@
 # M6 Expeditions And The Two-Plus-Two Loop
 
-> Gate 0 is the approved planning baseline. M6 implementation is now locally complete and qualified; exact-SHA hosted qualification remains pending.
+> Gate 0 is the approved planning baseline. M6 is implemented and qualified locally and on the exact hosted implementation SHA.
 
 **Gate 0 planning baseline:** `c64332d0fe9aeac5811f6eb27f0edea836ff7451` (`dungeon`)
-**Status:** Gates 0-4 implemented; local Gate 5 qualification passed on the current worktree. Hosted exact-SHA PostgreSQL, migration-from-zero, Alembic, and cumulative CI qualification are pending. M6 is not sealed.
+**Status:** M6 sealed on implementation SHA `89f012b7adf3fa48616c5e5aacd8d9052cd57001`; exact-SHA hosted workflow passed. The M8 handoff is recorded below.
 **Goal:** Add supplementary, floor-grounded expeditions for the existing four-Drifter roster without gating ordinary dungeon play or changing sealed combat, extraction, recruitment, or progression rules.
 
 ## Authority
@@ -175,7 +175,33 @@ The pinned MicroPython v1.29.0 Windows executable was identified as 488,960 byte
 
 One initial matrix invocation reported 1152K stability at 2/3. Three immediate detailed 1152K reruns and the subsequent complete matrix both passed 3/3 at 1152K and 1024K. The anomaly did not reproduce; no cause is asserted.
 
-The local Docker engine was unreachable during this pass, so PostgreSQL service qualification, migration-from-zero, and Alembic parity have not been claimed locally. Exact-SHA hosted qualification is required before M6 can be sealed. Hosted CI does not execute the pinned MicroPython executable.
+The local Docker engine was unreachable during this pass, so PostgreSQL service qualification, migration-from-zero, and Alembic parity were not claimed locally. These boundaries were subsequently qualified by the exact-SHA hosted workflow below. Hosted CI does not execute the pinned MicroPython executable.
+
+## M6 Exact-SHA Hosted Qualification (2026-11-11 UTC)
+
+Implementation commit `89f012b7adf3fa48616c5e5aacd8d9052cd57001` passed the exact-SHA hosted workflow in [Actions run 42939284112](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42939284112). Both hosted jobs passed:
+
+```text
+Root pytest                    2,319 passed
+Web tests                         74 passed
+PostgreSQL service tests          49 passed
+Authored content validation      PASS
+Python compile                   PASS
+Browser build                    PASS, 176 files
+Full Chromium browser smoke      PASS
+Migration from zero              PASS
+Alembic model parity             PASS, no new upgrade operations
+```
+
+The hosted smoke included `M6_BROWSER|REPORT_CLAIM_ONCE|PASS` and `M6_BROWSER|PASSIVE_ASSIGNMENT_LAUNCH_RELOAD_STATUS|PASS`, as well as the cumulative earlier milestone journeys. The Profile Service job used PostgreSQL 17 and passed the clean migration and model-parity checks. The pinned MicroPython executable is not run by hosted CI; its separate local qualification is recorded above and in `docs/probe.md`.
+
+**M6 closure:** Gates 0-5 are complete. The implementation is sealed on the exact qualified SHA above. Local Docker unavailability did not leave a qualification gap because the exact-SHA hosted PostgreSQL and migration checks passed.
+
+## M8 Handoff
+
+- Keep Training and Material as the only initially available M6 categories. M8 may enable Equipment or Recovery only after a real, eligible authored source exists for that destination floor.
+- M8 owns Scouting, Story, Elite, complications/injuries, pair-specific outcomes, and full-party events while an expedition remains outstanding (deferred M6-D6).
+- Preserve the passive timer-only model, secured-XP ordering, one-time report claim, completed-floor eligibility, and floor-specific reward restrictions when adding later expedition content.
 
 ## Revised Milestones And Acceptance
 
@@ -226,11 +252,11 @@ The local Docker engine was unreachable during this pass, so PostgreSQL service 
 ### Gate 5 - Runtime And Cumulative Qualification
 
 - [x] Extend and run the exact pinned MicroPython probe for UTC anchor handling, regen, launch, timer boundary, settlement, claim, snapshot/reconstruction, and no-energy dungeon play.
-- [x] Run local root pytest, web tests, authored-content validation, compile/build, and browser smoke. PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA hosted CI remain pending because the local Docker engine was unavailable.
-- [ ] Obtain hosted PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA cumulative CI; preserve the M4/M5/M3 regression journeys.
-- [ ] Record exact implementation SHA and hosted run after push, alongside local pinned executable identity/results, balance observations, and explicit M8 handoff.
+- [x] Run local root pytest, web tests, authored-content validation, compile/build, and browser smoke. PostgreSQL profile-service tests, migration-from-zero, and Alembic model parity were qualified by the hosted workflow because the local Docker engine was unavailable.
+- [x] Obtain hosted PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA cumulative CI; preserve the M4/M5/M3 regression journeys.
+- [x] Record exact implementation SHA and hosted run, alongside local pinned executable identity/results, balance observations, and explicit M8 handoff.
 
-**Acceptance:** all relevant local and hosted qualification is green on the exact reviewed SHA; no test count or documentation claim substitutes for an unrun runtime boundary. Local runtime qualification is recorded above; hosted qualification remains open.
+**Acceptance:** all relevant local and hosted qualification is green on the exact reviewed SHA; no test count or documentation claim substitutes for an unrun runtime boundary. Local MicroPython and exact-SHA hosted qualification are recorded above.
 
 ## Qualification Matrix
 
