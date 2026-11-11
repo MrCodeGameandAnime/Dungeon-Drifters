@@ -151,6 +151,7 @@ def test_shell_boot_wraps_the_existing_bridge():
     assert "start_game_json" in boot
     assert "drifter_roster_json" in boot
     assert "current_view_json" in boot
+    assert "current_expedition_clock_text_json" in boot
     assert "submit_json" in boot
     assert "restart_game_json" in boot
     assert "json.dumps" in boot
@@ -176,6 +177,8 @@ def test_shell_javascript_uses_authoritative_projection_and_commands():
     assert 'kind: "target"' in javascript
     assert 'state.interaction_phase === "complete"' in javascript
     assert 'pythonJson("current_view_json()")' in javascript
+    assert 'pythonJson("current_expedition_clock_text_json()")' in javascript
+    assert "setInterval(refreshExpeditionStatus, 1000)" in javascript
     assert "window.__DD_BROWSER_READY__ = true" in javascript
 
     for forbidden in ("damage =", "reward =", "route_complete =", "class GameState"):

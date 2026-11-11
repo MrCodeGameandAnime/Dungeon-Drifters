@@ -4165,6 +4165,51 @@ try {
       /\d{1,2}:\d{2} remaining/.test(liveStatusBeforeReload),
     `M6 battle did not show the passive assignment timer and pair: ${liveStatusBeforeReload}`,
   );
+  const remainingBeforeIdle = (() => {
+    const match = liveStatusBeforeReload.match(/(\d+):(\d{2}) remaining/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  })();
+  const assignmentBeforeIdle = await m6Page.evaluate((key) => {
+    const assignment = JSON.parse(localStorage.getItem(key))?.payload?.expedition?.active_assignment;
+    return assignment && {
+      started_at_utc: assignment.started_at_utc,
+      last_observed_at_utc: assignment.last_observed_at_utc,
+      completed_at_utc: assignment.completed_at_utc,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    remainingBeforeIdle !== null && assignmentBeforeIdle?.completed_at_utc === null,
+    `M6 idle countdown did not begin from an active assignment: ${liveStatusBeforeReload}`,
+  );
+  await m6Page.waitForFunction((previousRemaining) => {
+    const text = document.getElementById("battle-expedition-status")?.textContent || "";
+    const match = text.match(/(\d+):(\d{2}) remaining/);
+    return match && Number(match[1]) * 60 + Number(match[2]) < previousRemaining;
+  }, remainingBeforeIdle, { timeout: 5000 });
+  const liveStatusAfterIdle = await m6Page.locator("#battle-expedition-status").innerText();
+  const withoutClock = (status) => status.replace(
+    /\d+:\d{2} remaining|complete; settles when the outing ends\.?/i,
+    "[clock]",
+  );
+  const assignmentAfterIdle = await m6Page.evaluate((key) => {
+    const assignment = JSON.parse(localStorage.getItem(key))?.payload?.expedition?.active_assignment;
+    return assignment && {
+      started_at_utc: assignment.started_at_utc,
+      last_observed_at_utc: assignment.last_observed_at_utc,
+      completed_at_utc: assignment.completed_at_utc,
+    };
+  }, m6ProfileKey);
+  requireCondition(
+    assignmentAfterIdle?.started_at_utc === assignmentBeforeIdle.started_at_utc &&
+      assignmentAfterIdle?.last_observed_at_utc === assignmentBeforeIdle.last_observed_at_utc &&
+      assignmentAfterIdle?.completed_at_utc === assignmentBeforeIdle.completed_at_utc,
+    "M6 browser idle countdown changed persisted assignment state",
+  );
+  requireCondition(
+    withoutClock(liveStatusAfterIdle) === withoutClock(liveStatusBeforeReload),
+    "M6 browser idle countdown changed expedition details outside the clock",
+  );
+  console.log("M6_BROWSER|IDLE_COUNTDOWN_AUTHORITATIVE|PASS");
 
   await m6Page.reload({ waitUntil: "domcontentloaded" });
   await m6Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {

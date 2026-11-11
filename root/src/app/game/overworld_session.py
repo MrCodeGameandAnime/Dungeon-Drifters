@@ -218,10 +218,30 @@ class OverworldSession:
             return self._with_expedition_status(view)
         return self._build_view()
 
-    def _with_expedition_status(self, view):
+    def current_expedition_status_text(self):
         assignment = self.game_state.expedition_state.active_assignment
-        if not isinstance(view, BattleView) or assignment is None:
-            return view
+        if assignment is None:
+            return None
+        clock = self.current_expedition_clock_text()
+        labels = {
+            "floor_one": "Floor I",
+            "floor_two": "Floor II",
+            "floor_three": "Floor III",
+        }
+        names = tuple(
+            self.game_state.member_for_drifter_id(drifter_id).character.full_display_name
+            for drifter_id in assignment["expedition_drifter_ids"]
+        )
+        return (
+            f"Expedition: {assignment['category'].title()} at "
+            f"{labels[assignment['destination_floor_id']]} | {clock} | "
+            + " + ".join(names)
+        )
+
+    def current_expedition_clock_text(self):
+        assignment = self.game_state.expedition_state.active_assignment
+        if assignment is None:
+            return None
         now = (
             self._now_factory()
             if self._now_factory is not None
@@ -233,20 +253,14 @@ class OverworldSession:
             if remaining == 0
             else f"{remaining // 60}:{remaining % 60:02d} remaining"
         )
-        labels = {
-            "floor_one": "Floor I",
-            "floor_two": "Floor II",
-            "floor_three": "Floor III",
-        }
-        names = tuple(
-            self.game_state.member_for_drifter_id(drifter_id).character.full_display_name
-            for drifter_id in assignment["expedition_drifter_ids"]
-        )
-        status = (
-            f"Expedition: {assignment['category'].title()} at "
-            f"{labels[assignment['destination_floor_id']]} | {clock} | "
-            + " + ".join(names)
-        )
+        return clock
+
+    def _with_expedition_status(self, view):
+        if not isinstance(view, BattleView):
+            return view
+        status = self.current_expedition_status_text()
+        if status is None:
+            return view
         return view.with_expedition_status(status)
 
     def submit(self, session_input: SessionInput):

@@ -7,6 +7,7 @@
   let state = null;
   let drifters = [];
   let musicStarted = false;
+  let expeditionStatusRefreshInFlight = false;
   const orientationQuery = window.matchMedia("(orientation: portrait)");
 
   const $ = (id) => document.getElementById(id);
@@ -1609,6 +1610,34 @@
     }
   }
 
+  async function refreshExpeditionStatus() {
+    const currentState = state;
+    if (
+      !pyodide || !currentState || !currentState.expedition_status ||
+      expeditionStatusRefreshInFlight
+    ) return;
+    const statusElement = currentState.interaction_phase
+      ? $("battle-expedition-status")
+      : $("expedition-live-status");
+    if (!statusElement || statusElement.hidden) return;
+
+    expeditionStatusRefreshInFlight = true;
+    try {
+      const clock = await pythonJson("current_expedition_clock_text_json()");
+      if (state !== currentState || statusElement.hidden || typeof clock !== "string") return;
+      const currentText = statusElement.textContent;
+      const updatedText = currentText.replace(
+        /\d+:\d{2} remaining|complete; settles when the outing ends\.?/i,
+        clock,
+      );
+      if (updatedText !== currentText) statusElement.textContent = updatedText;
+    } catch (error) {
+      console.warn("Expedition status refresh failed", error);
+    } finally {
+      expeditionStatusRefreshInFlight = false;
+    }
+  }
+
   function unwrap(proxy) {
     const value = proxy && typeof proxy.toJs === "function" ? proxy.toJs() : proxy;
     if (proxy && typeof proxy.destroy === "function") proxy.destroy();
@@ -1743,6 +1772,7 @@
     renderDrifterSelection();
     showLoading(false);
     window.__DD_BROWSER_READY__ = true;
+    window.setInterval(refreshExpeditionStatus, 1000);
   }
 
   $("start").addEventListener("click", async function () {

@@ -376,6 +376,11 @@ class BrowserRuntime:
     def current_view_json(self):
         return json.dumps(self.current_view(), separators=(",", ":"))
 
+    def current_expedition_clock_text(self):
+        if self._session is None:
+            raise RuntimeError("browser runtime has not started")
+        return self._session.current_expedition_clock_text()
+
     def submit(self, command):
         if self._session is None:
             raise RuntimeError("browser runtime has not started")
@@ -397,6 +402,10 @@ def start_game(drifter_id="branoc"):
 
 def current_view():
     return _runtime.current_view()
+
+
+def current_expedition_clock_text():
+    return _runtime.current_expedition_clock_text()
 
 
 def submit(command):

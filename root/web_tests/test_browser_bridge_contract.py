@@ -2,6 +2,7 @@ import importlib.util
 import json
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from app.content.catalog import (
     get_route_spec,
 )
 from app.game.overworld_session import OverworldSession
+from app.game.expedition_state import ExpeditionState
 from app.game.overworld_state import OverworldState
 from app.game.party_state import DungeonPhase
 from app.items.equipment import EquipmentInstance
@@ -262,6 +264,46 @@ def test_bridge_projects_and_submits_existing_semantic_inputs():
         InteractionPhase.COMPLETE.value,
     }
     assert runtime._session.active_battle is not None
+
+
+def test_browser_expedition_clock_query_is_read_only_at_completion_boundary():
+    now = datetime(2026, 11, 11, 12, 20, tzinfo=timezone.utc)
+    started_at = now - timedelta(minutes=20)
+    started_at_text = started_at.isoformat().replace("+00:00", "Z")
+    game = completed_hub_game()
+    expedition = ExpeditionState()
+    expedition.install_assignment({
+        "assignment_id": "00000000-0000-4000-8000-000000000678",
+        "outing_floor_id": "floor_one",
+        "destination_floor_id": "floor_three",
+        "category": "training",
+        "expedition_drifter_ids": ["branoc", "azhvielle"],
+        "started_at_utc": started_at_text,
+        "last_observed_at_utc": started_at_text,
+        "completed_at_utc": None,
+    })
+    game._expedition_state = expedition
+    runtime = bridge.BrowserRuntime()
+    runtime._game = game
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        now_factory=lambda: now,
+    )
+
+    class CompletedBattle:
+        is_complete = True
+
+    completed_battle = CompletedBattle()
+    runtime._session._active_battle = completed_battle
+    before = expedition.snapshot()
+
+    clock = runtime.current_expedition_clock_text()
+
+    assert clock == "complete; settles when the outing ends"
+    assert expedition.snapshot() == before
+    assert runtime._session.active_battle is completed_battle
 
 
 def test_bridge_maps_floor_two_helper_command_to_exact_drifter():
