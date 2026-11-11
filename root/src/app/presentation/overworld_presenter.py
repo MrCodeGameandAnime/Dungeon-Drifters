@@ -36,6 +36,12 @@ from app.content.weapon_progression_spec import (
     get_weapon_component_spec,
 )
 from app.game.party_state import DungeonPhase
+from app.game.expedition_state import (
+    category_unavailable_reason,
+    EXPEDITION_LAUNCH_COST,
+    _now_utc,
+    is_expeditions_unlocked,
+)
 from app.game.recruitment import available_recruitment_event
 from app.game.floor_two_boss_helper import (
     floor_two_replay_requires_available_helper,
@@ -54,6 +60,10 @@ from app.presentation.overworld_models import (
     CompanionChoiceView,
     DiscoveryDrifterChoiceView,
     EquipmentView,
+    ExpeditionChoiceView,
+    ExpeditionConfirmationView,
+    ExpeditionReportView,
+    ExpeditionStatusView,
     EquipmentActionView,
     EquipmentInstanceView,
     EquipmentModifierView,
@@ -234,10 +244,14 @@ class OverworldPresenter:
         discovery_target_id=None,
         selected_equipment_instance_id=None,
         equipment_confirmation=None,
+        expedition_outing_floor_id=None,
+        expedition_pending=None,
+        now=None,
     ):
         if not isinstance(game_state, GameState):
             raise TypeError("game_state must be a GameState")
         screen = OverworldScreen(screen)
+        now = _now_utc() if now is None else now
         node = get_route_node_spec(game_state.overworld_state.current_route_node_id)
         if adventure_text is None:
             adventure_text = (
@@ -252,6 +266,9 @@ class OverworldPresenter:
                     OverworldScreen.OUTING,
                     OverworldScreen.EXTRACTION,
                     OverworldScreen.MERCHANT,
+                    OverworldScreen.EXPEDITIONS,
+                    OverworldScreen.EXPEDITION_SETUP,
+                    OverworldScreen.EXPEDITION_CONFIRMATION,
                 }
                 else self._default_adventure_text(game_state)
             )
@@ -268,6 +285,7 @@ class OverworldPresenter:
             save_available=save_available,
             load_available=load_available,
             respec_available=respec_available,
+            now=now,
         )
         contextual_route_option = self._contextual_route_option(
             game_state,
@@ -293,6 +311,28 @@ class OverworldPresenter:
             options=options,
             respec_preview=respec_preview,
             equipment_confirmation=equipment_confirmation,
+            expedition_energy=game_state.expedition_state.preview_energy(now),
+            expedition_status=self._expedition_status(game_state, now),
+            expedition_choices=(
+                self._expedition_choices(game_state, now)
+                if screen is OverworldScreen.EXPEDITION_SETUP
+                else ()
+            ),
+            expedition_reports=(
+                self._expedition_reports(game_state)
+                if screen is OverworldScreen.EXPEDITIONS
+                else ()
+            ),
+            expedition_confirmation=(
+                self._expedition_confirmation(
+                    game_state,
+                    expedition_outing_floor_id,
+                    expedition_pending,
+                    now,
+                )
+                if screen is OverworldScreen.EXPEDITION_CONFIRMATION
+                else None
+            ),
             contextual_route_option=contextual_route_option,
             character=(
                 self._character_view(game_state, selected_character_target_id)
@@ -453,7 +493,148 @@ class OverworldPresenter:
         )
 
     @staticmethod
+    def _floor_label(floor_id):
+        return {
+            "floor_one": "Floor I",
+            "floor_two": "Floor II",
+            "floor_three": "Floor III",
+        }.get(floor_id, floor_id.replace("_", " ").title())
+
+    @staticmethod
+    def _category_label(category):
+        return {
+            "training": "Training",
+            "material": "Material",
+            "equipment": "Equipment",
+            "recovery": "Recovery",
+        }.get(category, category.replace("_", " ").title())
+
+    def _expedition_status(self, game_state, now):
+        assignment = game_state.expedition_state.active_assignment
+        if assignment is None:
+            return None
+        names = tuple(
+            game_state.member_for_drifter_id(drifter_id).character.full_display_name
+            for drifter_id in assignment["expedition_drifter_ids"]
+        )
+        return ExpeditionStatusView(
+            destination_floor_label=self._floor_label(
+                assignment["destination_floor_id"]
+            ),
+            category_label=self._category_label(assignment["category"]),
+            expedition_member_names=names,
+            remaining_seconds=game_state.expedition_state.assignment_remaining_seconds(
+                now
+            ),
+        )
+
+    def _expedition_choices(self, game_state, now):
+        if not is_expeditions_unlocked(game_state):
+            return ()
+        eligible = tuple(
+            floor_id
+            for floor_id, completed in (
+                ("floor_one", game_state.party_state.floor_one_cleared),
+                ("floor_two", game_state.party_state.floor_two_cleared),
+                ("floor_three", game_state.party_state.floor_three_cleared),
+            )
+            if completed
+        )
+        energy = game_state.expedition_state.preview_energy(now)
+        choices = []
+        for floor_id in eligible:
+            for category in ("training", "material", "equipment", "recovery"):
+                reason = category_unavailable_reason(
+                    floor_id,
+                    category,
+                )
+                if reason is None and energy < EXPEDITION_LAUNCH_COST:
+                    reason = f"Requires {EXPEDITION_LAUNCH_COST} energy to launch."
+                choices.append(
+                    ExpeditionChoiceView(
+                        destination_floor_id=floor_id,
+                        destination_floor_label=self._floor_label(floor_id),
+                        category=category,
+                        category_label=self._category_label(category),
+                        enabled=reason is None,
+                        disabled_reason=reason,
+                    )
+                )
+        return tuple(choices)
+
+    def _expedition_reports(self, game_state):
+        members = {
+            _member_drifter_spec(member).drifter_id: member
+            for member in game_state.recruited_members
+        }
+        reports = []
+        for report in game_state.expedition_state.reports:
+            if report["category"] == "training":
+                summary = "Training XP: " + ", ".join(
+                    f"{members[drifter_id].character.profile.short_name} +{amount}"
+                    for drifter_id, amount in report["experience_awards"].items()
+                )
+            else:
+                summary = (
+                    f"{report['reward_quantity']} "
+                    f"{get_material_spec(report['reward_item_id']).display_name}"
+                )
+            reports.append(
+                ExpeditionReportView(
+                    report_id=report["report_id"],
+                    destination_floor_label=self._floor_label(
+                        report["destination_floor_id"]
+                    ),
+                    category_label=self._category_label(report["category"]),
+                    reward_summary=summary,
+                    claimed=report["claimed"],
+                )
+            )
+        return tuple(reports)
+
+    def _expedition_confirmation(
+        self,
+        game_state,
+        outing_floor_id,
+        pending,
+        now,
+    ):
+        if pending is None or outing_floor_id is None:
+            return None
+        active_ids = tuple(game_state.party_state.active_drifter_ids)
+        roster_ids = tuple(
+            _member_drifter_spec(member).drifter_id
+            for member in game_state.recruited_members
+        )
+        expedition_ids = tuple(
+            drifter_id for drifter_id in roster_ids if drifter_id not in active_ids
+        )
+        names = tuple(
+            game_state.member_for_drifter_id(drifter_id).character.full_display_name
+            for drifter_id in expedition_ids
+        )
+        return ExpeditionConfirmationView(
+            destination_floor_label=self._floor_label(
+                pending["destination_floor_id"]
+            ),
+            outing_floor_label=self._floor_label(outing_floor_id),
+            category_label=self._category_label(pending["category"]),
+            expedition_member_names=names,
+            energy_cost=EXPEDITION_LAUNCH_COST,
+            current_energy=game_state.expedition_state.preview_energy(now),
+        )
+
+    @staticmethod
     def _hub_adventure_text(game_state, screen):
+        if screen is OverworldScreen.EXPEDITIONS:
+            return (
+                "Passive assignments run alongside a Floor I or Floor II outing. "
+                "Floor III outings use all four Drifters and cannot run with an assignment."
+            )
+        if screen is OverworldScreen.EXPEDITION_SETUP:
+            return "Choose an available assignment and completed-floor destination."
+        if screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            return "Confirming spends 10 energy. The 20-minute timer starts immediately."
         if screen is OverworldScreen.COMPANION_SELECTION:
             return "Choose one Drifter to join your party."
         if screen is OverworldScreen.PARTY_SELECTION:
@@ -654,6 +835,7 @@ class OverworldPresenter:
         selected_target_id,
         *,
         respec_available=False,
+        now=None,
     ):
         player, selected_target_id, targets = self._selected_party_member(
             game_state,
@@ -1575,6 +1757,7 @@ class OverworldPresenter:
         save_available=False,
         load_available=False,
         respec_available=False,
+        now=None,
     ):
         enabled = self._enabled_option
         disabled = self._disabled_option
@@ -1647,20 +1830,20 @@ class OverworldPresenter:
                     ) + recruitment_actions
                     if party_state.floor_two_cleared:
                         party_actions += (
-                            (
-                                enabled(
-                                    OverworldAction.START_FLOOR_THREE,
-                                    "Start Floor 3",
-                                ),
+                            enabled(
+                                OverworldAction.START_FLOOR_THREE,
+                                "Start Floor 3",
                             )
                             if len(game_state.recruited_members) == 4
-                            else (
-                                disabled(
-                                    OverworldAction.START_FLOOR_THREE,
-                                    "Start Floor 3",
-                                    OverworldAvailabilityReason.FLOOR_THREE_REQUIRES_FULL_ROSTER,
-                                ),
-                            )
+                            else disabled(
+                                OverworldAction.START_FLOOR_THREE,
+                                "Start Floor 3",
+                                OverworldAvailabilityReason.FLOOR_THREE_REQUIRES_FULL_ROSTER,
+                            ),
+                        )
+                    if is_expeditions_unlocked(game_state):
+                        party_actions += (
+                            enabled(OverworldAction.EXPEDITIONS, "Expeditions"),
                         )
                 elif (
                     available_recruitment_event(game_state) is not None
@@ -1686,6 +1869,53 @@ class OverworldPresenter:
                 enabled(OverworldAction.MAP, "Map"),
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
+        if screen is OverworldScreen.EXPEDITIONS:
+            actions = ()
+            if game_state.party_state.phase is DungeonPhase.HUB:
+                actions = (
+                    enabled(
+                        OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE,
+                        "Prepare for Floor I",
+                    ),
+                )
+                if game_state.party_state.floor_one_cleared:
+                    if (
+                        game_state.party_state.floor_two_cleared
+                        and floor_two_replay_requires_available_helper(
+                            game_state.party_state.active_drifter_ids
+                        )
+                    ):
+                        actions += (
+                            disabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
+                                "Prepare for Floor II",
+                                OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER,
+                            ),
+                        )
+                    elif game_state.party_state.floor_one_cleared:
+                        actions += (
+                            enabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
+                                "Prepare for Floor II",
+                            ),
+                        )
+            return actions + (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.EXPEDITION_SETUP:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            current_energy = game_state.expedition_state.preview_energy(
+                _now_utc() if now is None else now
+            )
+            confirm = (
+                enabled(OverworldAction.CONFIRM, "Confirm Launch")
+                if current_energy >= EXPEDITION_LAUNCH_COST
+                else disabled(
+                    OverworldAction.CONFIRM,
+                    "Confirm Launch",
+                    OverworldAvailabilityReason.INSUFFICIENT_EXPEDITION_ENERGY,
+                )
+            )
+            return (confirm, enabled(OverworldAction.CANCEL, "Cancel"))
         if screen is OverworldScreen.COMPANION_SELECTION:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.FLOOR_TWO_HELPER_SELECTION:

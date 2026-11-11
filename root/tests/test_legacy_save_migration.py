@@ -68,6 +68,7 @@ def _orphaned_floor_two_discovery_event():
 def _schema22_save_with_orphaned_run_event():
     document = build_save_document(_game_state())
     document["schema_version"] = 22
+    document.pop("expedition")
     for key in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",
@@ -86,6 +87,7 @@ def test_schema8_legacy_save_is_wrapped_without_modifying_original(tmp_path):
     legacy_path.parent.mkdir()
     original_payload = build_save_document(_game_state())
     original_payload["schema_version"] = 8
+    original_payload.pop("expedition")
     original_payload.pop("party")
     original_payload["player"].pop("equipment_refs")
     original_payload["player"].pop("signature_weapon")
@@ -117,6 +119,7 @@ def test_schema7_legacy_save_migrates_in_memory_before_enveloping(tmp_path):
     legacy_path = tmp_path / "dungeon_drifters.json"
     original_payload = _game_state().snapshot()
     original_payload["schema_version"] = 7
+    original_payload.pop("expedition", None)
     original_payload.pop("party", None)
     original_payload["player"].pop("equipment_refs")
     original_payload["player"].pop("signature_weapon")

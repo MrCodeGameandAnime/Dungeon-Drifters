@@ -124,6 +124,27 @@ class ChooseDiscoveryTarget:
 
 
 @dataclass(frozen=True)
+class ChooseExpeditionPlan:
+    destination_floor_id: str
+    category: str
+
+    def __post_init__(self):
+        for name in ("destination_floor_id", "category"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseExpeditionReport:
+    report_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.report_id, str) or not self.report_id.strip():
+            raise ValueError("report_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChooseMerchantTarget:
     drifter_id: str
 
@@ -291,6 +312,8 @@ OverworldInput: TypeAlias = Union[
     ChooseActivePair,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
     ChooseCharacterTarget,
     ChooseMerchantTarget,
     ChooseHubSupplyAction,

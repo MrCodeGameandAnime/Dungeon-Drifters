@@ -33,6 +33,7 @@ def _payload():
 
 
 def _remove_m4_state(payload):
+    payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
         party.pop("equipment_instances", None)
@@ -61,6 +62,7 @@ def _remove_m4_state(payload):
 
 
 def _remove_m4b_state(payload):
+    payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
         for field in (
@@ -121,7 +123,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "31a2dad2f126fb4093a170a3325b90fb8ebd77ed9255a5f74d5dcad09f51cf78"
+        "c68009a66e89b0a18e154525c8d050926f760fe67236aaed7ff05c66244b72a1"
     )
 
 
@@ -318,6 +320,7 @@ def test_schema17_profile_history_keeps_original_payload_and_digest():
 def test_schema22_profile_history_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 22
+    legacy_payload.pop("expedition")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",

@@ -25,6 +25,7 @@ from app.persistence.save_document import (
     validate_legacy_schema20_document,
     validate_legacy_schema21_document,
     validate_legacy_schema22_document,
+    validate_legacy_schema23_document,
     validate_save_document,
 )
 from app.snapshot import validate_plain_value
@@ -364,7 +365,7 @@ def parse_conflict_snapshot(encoded):
 def _validated_profile_payload(payload):
     if not isinstance(payload, dict) or type(payload.get("schema_version")) is not int:
         raise ProfileEnvelopeValidationError(
-            "payload must be a schema-8 through schema-23 object"
+            "payload must be a schema-8 through schema-24 object"
         )
     try:
         if payload["schema_version"] == 8 and "party" not in payload:
@@ -397,6 +398,8 @@ def _validated_profile_payload(payload):
             return validate_legacy_schema21_document(payload)
         if payload["schema_version"] == 22:
             return validate_legacy_schema22_document(payload)
+        if payload["schema_version"] == 23:
+            return validate_legacy_schema23_document(payload)
         normalized = validate_save_document(payload)
     except (TypeError, ValueError) as error:
         raise ProfileEnvelopeValidationError("payload is not a valid game-state document") from error

@@ -294,6 +294,8 @@ class TerminalBattleUI:
                 + separator
                 + self._fit(right, right_width)
             )
+        if view.expedition_status is not None:
+            rows.insert(0, self._fit(view.expedition_status, width))
         return tuple(rows)
 
     @classmethod

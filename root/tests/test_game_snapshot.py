@@ -20,7 +20,7 @@ def test_all_surface_completion_ids_round_trip_in_world_snapshot():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == expected
-    assert snapshot["schema_version"] == 23
+    assert snapshot["schema_version"] == 24
     assert snapshot["world"]["defeated_encounters"] == list(expected)
     assert "defeated_encounters" not in snapshot["overworld"]
 
@@ -57,7 +57,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 23
+    assert snapshot["schema_version"] == 24
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -65,7 +65,14 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "world",
         "overworld",
         "party",
+        "expedition",
         "metadata",
+    }
+    assert snapshot["expedition"] == {
+        "energy": 100,
+        "energy_anchor_utc": None,
+        "active_assignment": None,
+        "reports": [],
     }
     assert snapshot["party"] == {
         "companions": [],

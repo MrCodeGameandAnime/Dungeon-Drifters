@@ -19,6 +19,8 @@ from app.ui.overworld_ui import (
     ChooseActivePair,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
     ChooseFloorTwoBossHelper,
     ChooseAlchemyRecipe,
     ChooseCompanion,
@@ -82,6 +84,9 @@ class TerminalOverworldUI:
         OverworldAction.EXTRACT: "X",
         OverworldAction.SEARCH_SITE: "S",
         OverworldAction.CLAIM_DISCOVERY: "C",
+        OverworldAction.EXPEDITIONS: "X",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE: "1",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO: "2",
     }
 
     def __init__(
@@ -138,6 +143,27 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        if view.screen is OverworldScreen.EXPEDITION_SETUP:
+            for number, candidate in enumerate(view.expedition_choices, start=1):
+                if choice != str(number):
+                    continue
+                if not candidate.enabled:
+                    self._output(candidate.disabled_reason)
+                    return self._REJECTED
+                return ChooseExpeditionPlan(
+                    candidate.destination_floor_id,
+                    candidate.category,
+                )
+        if view.screen is OverworldScreen.EXPEDITIONS and choice.startswith("c"):
+            index_text = choice[1:]
+            if index_text.isdigit():
+                index = int(index_text) - 1
+                unclaimed = tuple(
+                    report for report in view.expedition_reports
+                    if not report.claimed
+                )
+                if 0 <= index < len(unclaimed):
+                    return ChooseExpeditionReport(unclaimed[index].report_id)
         party_targets = None
         if view.screen is OverworldScreen.CHARACTER and view.character is not None:
             party_targets = view.character.targets
@@ -420,6 +446,59 @@ class TerminalOverworldUI:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
             lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.EXPEDITIONS:
+            lines = [
+                "EXPEDITION ENERGY",
+                f"{view.expedition_energy}/100 | Launch cost: 10",
+                "",
+                "Prepare an assignment for your next Floor I or II outing.",
+            ]
+            reports = view.expedition_reports
+            if reports:
+                lines.extend(("", "HUB REPORTS"))
+                claim_number = 0
+                for report in reports:
+                    lines.append(
+                        f"{report.destination_floor_label} | "
+                        f"{report.category_label} | {report.reward_summary}"
+                    )
+                    if report.claimed:
+                        lines.append("Claimed")
+                    else:
+                        claim_number += 1
+                        lines.append(f"[C{claim_number}] Claim report")
+            else:
+                lines.extend(("", "No completed expedition reports."))
+        elif view.screen is OverworldScreen.EXPEDITION_SETUP:
+            lines = [
+                "CHOOSE ASSIGNMENT",
+                f"Energy: {view.expedition_energy}/100 | Launch cost: 10",
+                "",
+            ]
+            lines.extend(
+                f"{number}. {choice.destination_floor_label} | "
+                f"{choice.category_label}"
+                + (
+                    ""
+                    if choice.enabled
+                    else f" [Unavailable: {choice.disabled_reason}]"
+                )
+                for number, choice in enumerate(view.expedition_choices, start=1)
+            )
+        elif view.screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            confirmation = view.expedition_confirmation
+            lines = [
+                "CONFIRM EXPEDITION",
+                f"Outing: {confirmation.outing_floor_label}",
+                f"Destination: {confirmation.destination_floor_label}",
+                f"Assignment: {confirmation.category_label}",
+                "Expedition pair: " + " + ".join(
+                    confirmation.expedition_member_names
+                ),
+                f"Energy: {confirmation.energy_cost} | "
+                f"Available: {confirmation.current_energy}",
+                "The 20-minute timer starts when confirmed.",
+            ]
         elif view.screen is OverworldScreen.COMPANION_SELECTION:
             lines = [
                 "RECRUIT A COMPANION",
@@ -547,6 +626,22 @@ class TerminalOverworldUI:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
             lines.extend(("", f"NOTICE: {view.notice}"))
+        if view.expedition_status is not None:
+            status = view.expedition_status
+            remaining = status.remaining_seconds
+            time_text = (
+                "Complete; settles when the outing ends."
+                if remaining == 0
+                else f"{remaining // 60}:{remaining % 60:02d} remaining"
+            )
+            lines.extend(
+                (
+                    "",
+                    "EXPEDITION",
+                    f"{status.category_label} | {status.destination_floor_label} | {time_text}",
+                    "Pair: " + " + ".join(status.expedition_member_names),
+                )
+            )
         return tuple(lines or ("",))
 
     def _character_lines(self, view, width):
@@ -1112,6 +1207,9 @@ class TerminalOverworldUI:
             OverworldScreen.DISCOVERY_SEARCHERS: "SEARCH SITE",
             OverworldScreen.DISCOVERY_TARGETS: "CLAIM DISCOVERY",
             OverworldScreen.DISCOVERY_CONFIRMATION: "CONFIRM DISCOVERY",
+            OverworldScreen.EXPEDITIONS: "EXPEDITIONS",
+            OverworldScreen.EXPEDITION_SETUP: "EXPEDITION SETUP",
+            OverworldScreen.EXPEDITION_CONFIRMATION: "CONFIRM EXPEDITION",
             OverworldScreen.MAP: "MAP",
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",
@@ -1156,5 +1254,8 @@ class TerminalOverworldUI:
             ),
             OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER: (
                 "Choose an active pair that leaves D3 or D4 available for the Floor II boss."
+            ),
+            OverworldAvailabilityReason.INSUFFICIENT_EXPEDITION_ENERGY: (
+                "You need 10 energy to launch an assignment."
             ),
         }[reason]

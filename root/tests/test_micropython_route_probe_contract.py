@@ -17,6 +17,7 @@ FLOOR_THREE_PROBE_PATH = (
     Path(__file__).parents[1] / "tools" / "micropython_floor_three_probe.py"
 )
 M5_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m5_probe.py"
+M6_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m6_probe.py"
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -114,7 +115,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 9]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 10]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
@@ -123,15 +124,14 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "M4_FLOOR_TWO_PROBE",
         "M4_FLOOR_THREE_PROBE",
         "M5_EQUIPMENT_PROBE",
+        "M6_EXPEDITION_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
     assert stages.index("ROUTE_EVIDENCE_RELEASE") > stages.index(
         "ROUTE_FINAL_STATE"
     )
-    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index(
-        "M5_EQUIPMENT_PROBE"
-    )
+    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index("M6_EXPEDITION_PROBE")
 
 
 def test_floor_three_probe_covers_tier_two_recruitment_full_boss_and_teardown():
@@ -214,6 +214,45 @@ def test_m5_probe_covers_generated_equipment_upgrade_modifier_and_snapshot():
         "get_equipment_template(\"iron_ring\")",
     ):
         assert required in source
+
+
+def test_m6_probe_covers_energy_timer_settlement_claim_and_snapshot():
+    source = M6_PROBE_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(M6_PROBE_PATH))
+    stages = _assigned_literal(tree, "_M6_STAGE_NAMES")
+    assert stages == (
+        "M6_ENERGY_CLOCK_AND_OVERFLOW",
+        "M6_FLOOR_THREE_LAUNCH_REJECTION",
+        "M6_PASSIVE_TRAINING_LIFECYCLE",
+        "M6_SNAPSHOT_RECONSTRUCTION",
+        "M6_PROBE_TEARDOWN",
+    )
+    for required in (
+        "ExpeditionState.from_snapshot",
+        "EXPEDITION_REGENERATION_SECONDS",
+        "spend_energy",
+        "ExpeditionService",
+        "FLOOR_THREE_BLOCKED",
+        "EXPEDITION_DURATION_SECONDS",
+        "settle_outing",
+        "claim_report",
+        "game.clone()",
+        "expedition_state.reports",
+    ):
+        assert required in source
+
+    probe_source = _probe_source()
+    assert 'import micropython_m6_probe' in probe_source
+    assert '_run_stage("M6_EXPEDITION_PROBE", _run_m6_probe)' in probe_source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    start = expected_stages.index("M5_EQUIPMENT_PROBE") + 1
+    assert tuple(expected_stages[start : start + len(stages) + 1]) == (
+        *stages,
+        "M6_EXPEDITION_PROBE",
+    )
 
 
 def test_probe_route_contract_contains_the_authored_surface_route():

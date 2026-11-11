@@ -5,6 +5,7 @@ from app.game.overworld_state import OverworldState
 from app.game.party_state import PartyState
 from app.game.party_state import DungeonPhase
 from app.game.world_state import WorldState
+from app.game.expedition_state import ExpeditionState
 from app.player.player_state import PlayerState
 from app.snapshot import STATE_SCHEMA_VERSION, to_plain_value
 
@@ -19,6 +20,7 @@ class GameState:
         self._world_state = WorldState()
         self._overworld_state = OverworldState()
         self._party_state = PartyState()
+        self._expedition_state = ExpeditionState()
         drifter_id = _canonical_drifter_id(player_state)
         if drifter_id is not None:
             self._party_state._set_active_drifter_ids((drifter_id,))
@@ -43,6 +45,10 @@ class GameState:
     @property
     def party_state(self):
         return self._party_state
+
+    @property
+    def expedition_state(self):
+        return self._expedition_state
 
     @property
     def recruited_members(self):
@@ -123,6 +129,7 @@ class GameState:
             OverworldState.from_snapshot(self.overworld_state.snapshot()),
             to_plain_value(self.metadata, "game.metadata"),
             party,
+            self.expedition_state.clone(),
         )
 
     @classmethod
@@ -134,6 +141,7 @@ class GameState:
         overworld_state,
         metadata,
         party_state=None,
+        expedition_state=None,
     ):
         game_state = cls(player_state)
         game_state._story_state = story_state
@@ -157,6 +165,10 @@ class GameState:
             game_state._validate_active_membership()
         game_state._bind_equipment_state()
         game_state._metadata = dict(metadata)
+        if expedition_state is not None:
+            if not isinstance(expedition_state, ExpeditionState):
+                raise TypeError("expedition_state must be an ExpeditionState")
+            game_state._expedition_state = expedition_state
         return game_state
 
     def _bind_equipment_state(self):
@@ -210,6 +222,7 @@ class GameState:
                 "world": self.world_state.snapshot(),
                 "overworld": self.overworld_state.snapshot(),
                 "party": self.party_state.snapshot(),
+                "expedition": self.expedition_state.snapshot(),
                 "metadata": self.metadata,
             },
             "game",

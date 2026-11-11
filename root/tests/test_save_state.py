@@ -38,6 +38,7 @@ def get_character_profiles():
 
 
 def _remove_newer_state(document):
+    document.pop("expedition", None)
     players = [document.get("player")]
     party = document.get("party")
     if isinstance(party, dict):
@@ -68,6 +69,7 @@ def _remove_newer_state(document):
 
 
 def _remove_floor_three_state(document):
+    document.pop("expedition", None)
     party = document.get("party")
     if isinstance(party, dict):
         for key in (
@@ -300,6 +302,7 @@ def test_current_document_has_only_persistent_state_and_runtime_snapshot_stays_s
         "world",
         "overworld",
         "party",
+        "expedition",
         "metadata",
     }
     assert "combat" not in document["player"]
@@ -307,13 +310,13 @@ def test_current_document_has_only_persistent_state_and_runtime_snapshot_stays_s
     assert "combat" in game.snapshot()["player"]
 
 
-def test_new_saves_use_runtime_schema23_and_disk_schema23():
+def test_new_saves_use_runtime_schema24_and_disk_schema24():
     game = GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
 
     document = build_save_document(game)
 
-    assert STATE_SCHEMA_VERSION == 23
-    assert DISK_SCHEMA_VERSION == document["schema_version"] == 23
+    assert STATE_SCHEMA_VERSION == 24
+    assert DISK_SCHEMA_VERSION == document["schema_version"] == 24
     assert document["overworld"]["active_route_id"] == "surface"
     assert document["party"]["floor_one_cleared"] is False
     assert document["party"]["floor_one_runs_started_after_clear"] == 0
@@ -350,7 +353,7 @@ def test_current_schema_round_trip_preserves_four_member_roster_and_selected_pai
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 24
     assert document["party"]["active_drifter_ids"] == ["zhaivra", "azhvielle"]
     assert tuple(
         member.character.profile.drifter_id for member in restored.recruited_members
@@ -376,13 +379,14 @@ def test_schema21_migrates_helper_event_boundary_without_mutating_history():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 24
     assert build_save_document(restored) == migrated
 
 
 def test_schema22_migrates_floor_three_defaults_without_mutating_history():
     historical = copy.deepcopy(build_save_document(completed_hub_game()))
     historical["schema_version"] = 22
+    historical.pop("expedition")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",
@@ -397,7 +401,7 @@ def test_schema22_migrates_floor_three_defaults_without_mutating_history():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 24
     assert migrated["party"]["floor_three_cleared"] is False
     assert migrated["party"]["floor_three_run_id"] is None
     assert restored.party_state.floor_three_cleared is False
@@ -1060,7 +1064,7 @@ def test_schema9_disk_payload_migrates_with_verified_original_shape_unchanged():
     assert upgraded["party"]["outing_xp_multiplier_percent"] == 100
 
 
-def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema23():
+def test_schema10_profile_history_stays_immutable_and_load_upgrades_to_schema24():
     historical = copy.deepcopy(
         build_save_document(
             GameState(PlayerState(DRIFTER_SPECS[0].create_character()))
@@ -1291,7 +1295,7 @@ def test_old_schema8_disk_save_before_entrance_preserves_lead_gold():
     restored = reconstruct_game_state(document)
     upgraded = build_save_document(restored)
 
-    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert upgraded["schema_version"] == DISK_SCHEMA_VERSION == 24
     assert restored.player_state.gold == 17
     assert restored.party_state.shared_gold == 0
     assert restored.party_state.phase is DungeonPhase.OUTSIDE
@@ -1488,7 +1492,7 @@ def test_invalid_party_documents_are_rejected(mutator):
     "mutator",
     (
         lambda document: document.update(schema_version=6),
-        lambda document: document.update(schema_version=24),
+        lambda document: document.update(schema_version=25),
         lambda document: document["player"]["progression"].update(exp=True),
         lambda document: document["player"]["resources"]["health"].update(current=9999),
         lambda document: document["player"]["equipment"].update(

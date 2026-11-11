@@ -27,6 +27,9 @@ class OverworldScreen(StrEnum):
     DISCOVERY_SEARCHERS = "discovery_searchers"
     DISCOVERY_TARGETS = "discovery_targets"
     DISCOVERY_CONFIRMATION = "discovery_confirmation"
+    EXPEDITIONS = "expeditions"
+    EXPEDITION_SETUP = "expedition_setup"
+    EXPEDITION_CONFIRMATION = "expedition_confirmation"
     MAP = "map"
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
@@ -74,6 +77,10 @@ class OverworldAction(StrEnum):
     RETURN_WITH_TALISMAN = "return_with_talisman"
     SEARCH_SITE = "search_site"
     CLAIM_DISCOVERY = "claim_discovery"
+    EXPEDITIONS = "expeditions"
+    START_EXPEDITION = "start_expedition"
+    PREPARE_EXPEDITION_FLOOR_ONE = "prepare_expedition_floor_one"
+    PREPARE_EXPEDITION_FLOOR_TWO = "prepare_expedition_floor_two"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -91,6 +98,7 @@ class OverworldAvailabilityReason(StrEnum):
         "floor_two_replay_requires_available_helper"
     )
     FLOOR_THREE_REQUIRES_FULL_ROSTER = "floor_three_requires_full_roster"
+    INSUFFICIENT_EXPEDITION_ENERGY = "insufficient_expedition_energy"
 
 
 @dataclass(frozen=True)
@@ -151,6 +159,92 @@ class DiscoveryDrifterChoiceView:
     def __post_init__(self):
         _validate_text("drifter_id", self.drifter_id)
         _validate_text("display_name", self.display_name)
+
+
+@dataclass(frozen=True)
+class ExpeditionChoiceView:
+    destination_floor_id: str
+    destination_floor_label: str
+    category: str
+    category_label: str
+    enabled: bool
+    disabled_reason: str | None = None
+
+    def __post_init__(self):
+        for name in (
+            "destination_floor_id",
+            "destination_floor_label",
+            "category",
+            "category_label",
+        ):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("enabled", self.enabled)
+        if self.disabled_reason is not None:
+            _validate_text("disabled_reason", self.disabled_reason)
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("expedition choice availability and reason disagree")
+
+
+@dataclass(frozen=True)
+class ExpeditionReportView:
+    report_id: str
+    destination_floor_label: str
+    category_label: str
+    reward_summary: str
+    claimed: bool
+
+    def __post_init__(self):
+        for name in (
+            "report_id",
+            "destination_floor_label",
+            "category_label",
+            "reward_summary",
+        ):
+            _validate_text(name, getattr(self, name))
+        _validate_bool("claimed", self.claimed)
+
+
+@dataclass(frozen=True)
+class ExpeditionStatusView:
+    destination_floor_label: str
+    category_label: str
+    expedition_member_names: tuple[str, str]
+    remaining_seconds: int
+
+    def __post_init__(self):
+        _validate_text("destination_floor_label", self.destination_floor_label)
+        _validate_text("category_label", self.category_label)
+        if not isinstance(self.expedition_member_names, tuple) or len(
+            self.expedition_member_names
+        ) != 2:
+            raise ValueError("expedition status requires its two Drifters")
+        _validate_text_tuple("expedition_member_names", self.expedition_member_names)
+        _validate_nonnegative("remaining_seconds", self.remaining_seconds)
+
+
+@dataclass(frozen=True)
+class ExpeditionConfirmationView:
+    destination_floor_label: str
+    outing_floor_label: str
+    category_label: str
+    expedition_member_names: tuple[str, str]
+    energy_cost: int
+    current_energy: int
+
+    def __post_init__(self):
+        for name in (
+            "destination_floor_label",
+            "outing_floor_label",
+            "category_label",
+        ):
+            _validate_text(name, getattr(self, name))
+        if not isinstance(self.expedition_member_names, tuple) or len(
+            self.expedition_member_names
+        ) != 2:
+            raise ValueError("expedition confirmation requires two Drifters")
+        _validate_text_tuple("expedition_member_names", self.expedition_member_names)
+        _validate_nonnegative("energy_cost", self.energy_cost)
+        _validate_nonnegative("current_energy", self.current_energy)
 
 
 @dataclass(frozen=True)
@@ -996,6 +1090,11 @@ class OverworldView:
     discovery_source_id: str | None = None
     discovery_reward_text: str | None = None
     discovery_target_id: str | None = None
+    expedition_energy: int | None = None
+    expedition_status: ExpeditionStatusView | None = None
+    expedition_choices: tuple[ExpeditionChoiceView, ...] = ()
+    expedition_reports: tuple[ExpeditionReportView, ...] = ()
+    expedition_confirmation: ExpeditionConfirmationView | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -1027,6 +1126,30 @@ class OverworldView:
             self.discovery_choices,
             DiscoveryDrifterChoiceView,
         )
+        _validate_instance_tuple(
+            "expedition_choices",
+            self.expedition_choices,
+            ExpeditionChoiceView,
+        )
+        _validate_instance_tuple(
+            "expedition_reports",
+            self.expedition_reports,
+            ExpeditionReportView,
+        )
+        if self.expedition_energy is not None:
+            _validate_nonnegative("expedition_energy", self.expedition_energy)
+        if self.expedition_status is not None and not isinstance(
+            self.expedition_status,
+            ExpeditionStatusView,
+        ):
+            raise TypeError("expedition_status must be an ExpeditionStatusView")
+        if self.expedition_confirmation is not None and not isinstance(
+            self.expedition_confirmation,
+            ExpeditionConfirmationView,
+        ):
+            raise TypeError(
+                "expedition_confirmation must be an ExpeditionConfirmationView"
+            )
         if not isinstance(self.active_drifter_ids, tuple):
             raise TypeError("active_drifter_ids must be a tuple")
         if any(
@@ -1060,6 +1183,16 @@ class OverworldView:
                 raise ValueError("invalid contextual route action")
         if self.notice is not None:
             _validate_text("notice", self.notice)
+        if self.screen is OverworldScreen.EXPEDITION_SETUP:
+            if not self.expedition_choices:
+                raise ValueError("expedition setup must show category choices")
+        elif self.expedition_choices:
+            raise ValueError("expedition choices belong only to setup")
+        if self.screen is OverworldScreen.EXPEDITION_CONFIRMATION:
+            if self.expedition_confirmation is None:
+                raise ValueError("expedition confirmation details are required")
+        elif self.expedition_confirmation is not None:
+            raise ValueError("expedition confirmation data belongs only to confirmation")
         if self.shared_gold is not None:
             _validate_nonnegative("shared_gold", self.shared_gold)
         if self.recruitment_cost is not None:

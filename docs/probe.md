@@ -593,3 +593,37 @@ save/reload, four-permanent-Drifter boss, clear settlement, and Hub
 save/reload. Combined with the local pinned MicroPython matrix recorded above,
 M4B Gate 5 is complete and M4 is closed. Hosted CI does not execute the pinned
 MicroPython binary.
+
+## M6 Expeditions Local Qualification (2026-11-10)
+
+The M6 worktree extends the cumulative runtime probe through energy regeneration,
+assignment launch and timer resolution, expedition settlement and claim, save
+reconstruction, and ordinary dungeon play without energy. The exact pinned
+Windows MicroPython v1.29.0 executable was used: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+```text
+CPython 3.14.6 native              PASS
+CPython 3.14.6 forced overlay      PASS
+MicroPython v1.29.0 default        PASS
+MicroPython semantic parity        PASS
+1152K heap stability               PASS, 3/3
+1024K expected memory limit        PASS, 3/3
+Final marker                       MYP20|RESULT|CLOSURE_COMPLETE
+```
+
+The first full-matrix invocation classified 1152K stability as 2/3. Three
+immediate detailed 1152K runs and the subsequent complete matrix passed 3/3
+at both heap boundaries. The anomaly did not reproduce; its cause is unknown.
+
+The full local M6 checks also passed: 2,319 root tests, 74 web tests,
+authored-content validation, compileall, a 176-file browser build, and the full
+browser smoke. The browser smoke included the cumulative M1-M6 journeys. These
+results are from the local worktree and are not yet exact-SHA hosted evidence.
+
+The local Docker engine was unreachable during this run. PostgreSQL profile
+service tests, migration-from-zero, and Alembic parity therefore remain for the
+hosted exact-SHA workflow. Hosted CI does not execute this pinned MicroPython
+binary. Do not treat the local runtime matrix as a substitute for those hosted
+checks, or vice versa. M6 remains unsealed until hosted qualification is green
+on the pushed implementation SHA.

@@ -1,4 +1,4 @@
-"""Schema-23 save documents and canonical in-memory reconstruction."""
+"""Schema-24 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -22,6 +22,7 @@ from app.content.weapon_progression_spec import (
     get_weapon_component_spec,
 )
 from app.game.game_state import GameState
+from app.game.expedition_state import ExpeditionState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import (
     DungeonPhase,
@@ -104,11 +105,18 @@ _PRE_GENERATED_EQUIPMENT_DISK_SCHEMA_VERSION = 19
 _PRE_ALCHEMIST_DISK_SCHEMA_VERSION = 20
 _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION = 21
 _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION = 22
-DISK_SCHEMA_VERSION = 23
+_PRE_M6_DISK_SCHEMA_VERSION = 23
+DISK_SCHEMA_VERSION = 24
 
 
 class SaveStateValidationError(ValueError):
     """Raised when a disk save cannot be trusted or reconstructed."""
+
+
+def _validate_migrated_current_document(document):
+    _add_expedition_defaults(document)
+    _validate_document(document, schema_version=DISK_SCHEMA_VERSION)
+    return document
 
 
 def build_save_document(game_state):
@@ -182,8 +190,7 @@ def migrate_schema_7(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema_8(document):
@@ -200,8 +207,7 @@ def migrate_schema_8(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema_9(document):
@@ -228,8 +234,7 @@ def migrate_schema_11(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema_12(document):
@@ -243,8 +248,7 @@ def migrate_schema_12(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema_13(document):
@@ -257,8 +261,7 @@ def migrate_schema_13(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema14(document):
@@ -270,8 +273,7 @@ def migrate_schema14(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema15(document):
@@ -283,8 +285,7 @@ def migrate_schema15(document):
     _add_respec_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema16(document):
@@ -295,8 +296,7 @@ def migrate_schema16(document):
     _add_respec_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema17(document):
@@ -306,8 +306,7 @@ def migrate_schema17(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema18(document):
@@ -317,8 +316,7 @@ def migrate_schema18(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_equipment_defaults(migrated)
     _add_floor_three_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema19(document):
@@ -328,8 +326,7 @@ def migrate_schema19(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_armor_generation_defaults(migrated)
     _add_floor_three_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema20(document):
@@ -339,8 +336,7 @@ def migrate_schema20(document):
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     migrated["party"]["modifier_instances"] = []
     _add_floor_three_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema21(document):
@@ -349,8 +345,7 @@ def migrate_schema21(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_floor_three_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def migrate_schema22(document):
@@ -359,7 +354,25 @@ def migrate_schema22(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_floor_three_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
+    return _validate_migrated_current_document(migrated)
+
+
+def migrate_schema23(document):
+    """Add the initial expedition state to an immutable schema-23 save."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_M6_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_expedition_defaults(migrated)
+    _validate_document(
+        migrated,
+        schema_version=DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
     return migrated
 
 
@@ -409,6 +422,7 @@ def validate_legacy_schema11_document(document):
     _add_permanent_discovery_defaults(historical)
     _add_floor_two_defaults(historical)
     _add_equipment_defaults(historical)
+    _add_expedition_defaults(historical)
     _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
     return deepcopy(document)
 
@@ -511,6 +525,17 @@ def validate_legacy_schema22_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema23_document(document):
+    """Validate an immutable pre-M6 schema-23 profile payload."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_M6_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -599,6 +624,11 @@ def validate_profile_payload(document):
         return validate_legacy_schema22_document(document)
     if (
         isinstance(document, dict)
+        and document.get("schema_version") == _PRE_M6_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema23_document(document)
+    if (
+        isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema10_document(document)
@@ -631,7 +661,9 @@ def reconstruct_game_state(document):
         party = PartyState.from_snapshot(
             document["party"],
             companions=companions,
-            require_active_run_scope=(source_schema_version == DISK_SCHEMA_VERSION),
+            require_active_run_scope=(
+                source_schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
+            ),
         )
         return GameState.from_persistent_parts(
             player,
@@ -640,6 +672,7 @@ def reconstruct_game_state(document):
             overworld,
             document["metadata"],
             party,
+            ExpeditionState.from_snapshot(document["expedition"]),
         )
     except (KeyError, TypeError, ValueError) as error:
         if isinstance(error, SaveStateValidationError):
@@ -691,6 +724,8 @@ def validate_save_document(document):
         return migrate_schema21(document)
     if schema_version == _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION:
         return migrate_schema22(document)
+    if schema_version == _PRE_M6_DISK_SCHEMA_VERSION:
+        return migrate_schema23(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -837,10 +872,19 @@ def _validate_document(
         "party",
         "metadata",
     }
+    if schema_version >= DISK_SCHEMA_VERSION:
+        allowed_keys.add("expedition")
     _require_mapping(document, "game")
     _require_exact_keys(document, allowed_keys, "game")
     if document["schema_version"] != schema_version:
         raise SaveStateValidationError("save schema version mismatch")
+    if schema_version >= DISK_SCHEMA_VERSION:
+        try:
+            ExpeditionState.from_snapshot(document["expedition"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise SaveStateValidationError(
+                f"game.expedition is invalid: {error}"
+            ) from error
     if require_signature_weapon is None:
         require_signature_weapon = schema_version >= _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
     equipment_by_id = {}
@@ -895,7 +939,7 @@ def _validate_document(
     _validate_overworld(
         document["overworld"],
         document["world"],
-        allow_floor_three=schema_version >= DISK_SCHEMA_VERSION,
+        allow_floor_three=schema_version >= _PRE_M6_DISK_SCHEMA_VERSION,
     )
     if schema_version < _PRE_ALCHEMIST_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict) and event.get("kind") == "armor_reward"
@@ -904,7 +948,7 @@ def _validate_document(
         raise SaveStateValidationError(
             "legacy run history cannot contain M5 armor reward events"
         )
-    if schema_version < DISK_SCHEMA_VERSION and any(
+    if schema_version < _PRE_M6_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict) and event.get("kind") == "boss_helper_selection"
         for event in document["party"].get("resolved_run_events", [])
     ):
@@ -942,7 +986,9 @@ def _validate_document(
         require_modifier_instances=(
             schema_version >= _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION
         ),
-        require_floor_three_state=(schema_version >= DISK_SCHEMA_VERSION),
+        require_floor_three_state=(
+            schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
+        ),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -954,8 +1000,21 @@ def _validate_document(
     _validate_route_party_relationship(
         document["overworld"],
         document["party"],
-        require_floor_three_state=(schema_version >= DISK_SCHEMA_VERSION),
+        require_floor_three_state=(
+            schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
+        ),
+        allow_floor_one_expedition_launch=(
+            schema_version >= DISK_SCHEMA_VERSION
+            and document["expedition"]["active_assignment"] is not None
+        ),
     )
+    if schema_version >= DISK_SCHEMA_VERSION:
+        _validate_expedition_relationships(
+            document["expedition"],
+            document["player"],
+            document["party"],
+            document["overworld"],
+        )
     if schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
         _validate_armor_reward_event_relationship(
             document["party"], equipment_by_id
@@ -1023,8 +1082,7 @@ def _migrate_previous_current_document(document):
     _add_permanent_discovery_defaults(migrated)
     _add_floor_two_defaults(migrated)
     _add_equipment_defaults(migrated)
-    _validate_document(migrated, schema_version=DISK_SCHEMA_VERSION)
-    return migrated
+    return _validate_migrated_current_document(migrated)
 
 
 def _add_legacy_active_drifter_ids(document):
@@ -1996,6 +2054,14 @@ def _add_equipment_defaults(document):
     party["modifier_instances"] = []
 
 
+def _add_expedition_defaults(document):
+    if "expedition" in document:
+        raise SaveStateValidationError(
+            "legacy save already contains M6 expedition state"
+        )
+    document["expedition"] = ExpeditionState().snapshot()
+
+
 def _add_armor_generation_defaults(document):
     party = document.get("party")
     instances = party.get("equipment_instances") if isinstance(party, dict) else None
@@ -2648,6 +2714,7 @@ def _validate_route_party_relationship(
     party,
     *,
     require_floor_three_state=False,
+    allow_floor_one_expedition_launch=False,
 ):
     route_id = overworld["active_route_id"]
     phase = DungeonPhase(party["phase"])
@@ -2704,6 +2771,13 @@ def _validate_route_party_relationship(
             "Floor 1 requires an active outing with the recruited party"
         )
     current_node = get_route_node_spec(overworld["current_route_node_id"])
+    if (
+        allow_floor_one_expedition_launch
+        and current_node.node_id == _FLOOR_ONE_ROUTE_NODE_IDS[0]
+        and overworld["current_contextual_route_phase"]
+        == ContextualRoutePhase.ENTER_ENCOUNTER.value
+    ):
+        return
     if current_node.kind is not RouteNodeKind.REST:
         raise SaveStateValidationError(
             "only a Floor 1 Rest can be saved during an outing"
@@ -2711,6 +2785,46 @@ def _validate_route_party_relationship(
     if current_node.node_id in overworld["resolved_rest_node_ids"]:
         raise SaveStateValidationError(
             "only an unresolved Floor 1 Rest can be saved"
+        )
+
+
+def _validate_expedition_relationships(expedition, player, party, overworld):
+    assignment = expedition["active_assignment"]
+    roster = [player, *party["companions"]]
+    roster_ids = tuple(_canonical_profile(member).drifter_id for member in roster)
+    roster_set = set(roster_ids)
+    for report in expedition["reports"]:
+        if any(
+            drifter_id not in roster_set
+            for drifter_id in report["expedition_drifter_ids"]
+        ):
+            raise SaveStateValidationError(
+                "expedition report references an unrecruited Drifter"
+            )
+    if assignment is None:
+        return
+    if (
+        len(roster_ids) != 4
+        or not party["tutorial_complete"]
+        or not party["floor_three_cleared"]
+        or party["phase"] != DungeonPhase.OUTING.value
+        or overworld["active_route_id"] != assignment["outing_floor_id"]
+        or assignment["outing_floor_id"] == "floor_three"
+    ):
+        raise SaveStateValidationError(
+            "active expedition must belong to a compatible four-Drifter outing"
+        )
+    active_ids = party["active_drifter_ids"]
+    if len(active_ids) != 2 or any(
+        drifter_id not in roster_set for drifter_id in active_ids
+    ):
+        raise SaveStateValidationError(
+            "active expedition outing has an invalid active pair"
+        )
+    expected = [drifter_id for drifter_id in roster_ids if drifter_id not in active_ids]
+    if assignment["expedition_drifter_ids"] != expected:
+        raise SaveStateValidationError(
+            "expedition Drifters must be the permanent-roster complement of the active pair"
         )
 
 

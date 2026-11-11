@@ -41,6 +41,8 @@ from app.ui.overworld_ui import (
     ChooseEquipmentAction,
     ChooseEquipmentConfirmation,
     ChooseEquipmentInstance,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
     EquipmentOperation,
 )
 from tests.game_test_support import (
@@ -439,6 +441,30 @@ def test_bridge_rejects_the_removed_inventory_component_install_command():
 )
 def test_equipment_commands_map_to_exact_semantic_inputs(command, expected):
     assert isinstance(bridge._command_to_input(command), expected)
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    (
+        (
+            {
+                "kind": "expedition_plan",
+                "destination_floor_id": "floor_three",
+                "category": "material",
+            },
+            ChooseExpeditionPlan("floor_three", "material"),
+        ),
+        (
+            {
+                "kind": "expedition_report",
+                "report_id": "00000000-0000-4000-8000-000000000666",
+            },
+            ChooseExpeditionReport("00000000-0000-4000-8000-000000000666"),
+        ),
+    ),
+)
+def test_expedition_commands_map_to_exact_semantic_inputs(command, expected):
+    assert bridge._command_to_input(command) == expected
 
 
 def test_browser_equipment_action_targets_exact_selected_drifter():

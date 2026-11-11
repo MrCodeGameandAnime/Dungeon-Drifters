@@ -47,6 +47,7 @@ def _coordinator(root):
 def _old_schema8_payload(gold=12):
     document = build_save_document(_game_state(gold=gold))
     document["schema_version"] = 8
+    document.pop("expedition")
     document.pop("party")
     document["player"].pop("equipment_refs")
     document["player"].pop("signature_weapon")
@@ -61,6 +62,7 @@ def _old_schema8_payload(gold=12):
 def _old_schema9_payload(gold=12):
     document = build_save_document(_game_state(gold=gold))
     document["schema_version"] = 9
+    document.pop("expedition")
     document["player"].pop("equipment_refs")
     document["party"].pop("equipment_instances")
     document["party"].pop("modifier_instances")
@@ -292,7 +294,7 @@ def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp
     assert upgraded.client_save_id == NEW_SAVE_ID
 
 
-def test_loading_schema9_local_envelope_verifies_then_persists_schema23(tmp_path):
+def test_loading_schema9_local_envelope_verifies_then_persists_schema24(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     legacy_payload = _old_schema9_payload(gold=21)
     legacy_envelope = build_profile_envelope(

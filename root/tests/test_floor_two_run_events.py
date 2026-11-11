@@ -742,6 +742,7 @@ def test_legacy_settled_search_history_is_ignored_after_pair_change():
 
     legacy_save = build_save_document(game)
     legacy_save["schema_version"] = 22
+    legacy_save.pop("expedition")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",

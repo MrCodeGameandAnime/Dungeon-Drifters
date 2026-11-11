@@ -1214,6 +1214,105 @@
     }
   }
 
+  function renderExpeditions(view) {
+    const active = view.expedition_status;
+    const liveStatus = $("expedition-live-status");
+    liveStatus.hidden = !active;
+    if (active) {
+      const remaining = active.remaining_seconds;
+      const clock = remaining === 0
+        ? "Complete; settles when the outing ends."
+        : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining`;
+      liveStatus.textContent = `Expedition: ${active.category_label} | ${active.destination_floor_label} | ${clock} | ${active.expedition_member_names.join(" + ")}`;
+    } else {
+      liveStatus.textContent = "";
+    }
+
+    const section = $("expedition-panel");
+    const visible = ["expeditions", "expedition_setup", "expedition_confirmation"].includes(view.screen);
+    section.hidden = !visible;
+    if (!visible) return;
+
+    setText("expedition-energy", `Energy ${view.expedition_energy}/100 | Launch cost 10`);
+    setText("expedition-panel-summary", view.adventure_text);
+    const choices = $("expedition-choices");
+    const reports = $("expedition-reports");
+    const confirmation = $("expedition-confirmation-content");
+    clear(choices);
+    clear(reports);
+    clear(confirmation);
+    choices.hidden = view.screen !== "expedition_setup";
+    reports.hidden = view.screen !== "expeditions";
+    confirmation.hidden = view.screen !== "expedition_confirmation";
+
+    if (view.screen === "expedition_setup") {
+      for (const choice of view.expedition_choices || []) {
+        const button = makeButton(
+          `${choice.destination_floor_label} | ${choice.category_label}`,
+          {
+            kind: "expedition_plan",
+            destination_floor_id: choice.destination_floor_id,
+            category: choice.category,
+          },
+          choice.enabled,
+          choice.disabled_reason,
+          "expedition-choice",
+        );
+        if (!choice.enabled) appendChoiceDetail(button, "choice-summary", choice.disabled_reason);
+        choices.append(button);
+      }
+    }
+    if (view.screen === "expeditions") {
+      const unclaimed = (view.expedition_reports || []).filter((item) => !item.claimed);
+      if (!view.expedition_reports || view.expedition_reports.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No completed expedition reports.";
+        reports.append(empty);
+      }
+      for (const report of view.expedition_reports || []) {
+        const row = document.createElement("div");
+        row.className = "expedition-report";
+        const summary = document.createElement("p");
+        summary.textContent = `${report.destination_floor_label} | ${report.category_label} | ${report.reward_summary}`;
+        row.append(summary);
+        if (report.claimed) {
+          const claimed = document.createElement("span");
+          claimed.textContent = "Claimed";
+          row.append(claimed);
+        } else {
+          row.append(makeButton(
+            "Claim report",
+            { kind: "expedition_report", report_id: report.report_id },
+            true,
+            null,
+            "overworld-option",
+          ));
+        }
+        reports.append(row);
+      }
+      if (unclaimed.length === 0 && view.expedition_reports && view.expedition_reports.length) {
+        const allClaimed = document.createElement("p");
+        allClaimed.textContent = "All reports have been claimed.";
+        reports.append(allClaimed);
+      }
+    }
+    if (view.screen === "expedition_confirmation" && view.expedition_confirmation) {
+      const details = view.expedition_confirmation;
+      for (const line of [
+        `Outing: ${details.outing_floor_label}`,
+        `Destination: ${details.destination_floor_label}`,
+        `Assignment: ${details.category_label}`,
+        `Expedition pair: ${details.expedition_member_names.join(" + ")}`,
+        `Energy: ${details.energy_cost} | Available: ${details.current_energy}`,
+        "The 20-minute timer starts when confirmed.",
+      ]) {
+        const item = document.createElement("p");
+        item.textContent = line;
+        confirmation.append(item);
+      }
+    }
+  }
+
   function renderOutingRewards(view) {
     const section = $("extraction-rewards");
     const rewards = view.screen === "extraction" ? view.outing_rewards : null;
@@ -1340,6 +1439,7 @@
     renderActivePartyChoices(view);
     renderTemporaryBossHelperChoices(view);
     renderDiscoveryChoices(view);
+    renderExpeditions(view);
     renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),
@@ -1431,6 +1531,9 @@
         ? view.visual.player_lines.join(" ")
         : view.player.display_name);
     setText("battle-matchup", `[ ${matchupPlayer} ]   VS   [ ${view.encounter_label} ]`);
+    const expeditionStatus = $("battle-expedition-status");
+    expeditionStatus.hidden = !view.expedition_status;
+    expeditionStatus.textContent = view.expedition_status || "";
     const hasParty = Boolean(view.party_members && view.party_members.length);
     $("player-panel").hidden = hasParty;
     $("party-panel").hidden = !hasParty;

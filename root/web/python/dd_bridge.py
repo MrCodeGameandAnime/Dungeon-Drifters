@@ -38,6 +38,8 @@ from app.ui.overworld_ui import (
     ChooseActivePair,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
+    ChooseExpeditionPlan,
+    ChooseExpeditionReport,
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
@@ -229,6 +231,13 @@ def _command_to_input(command):
         return ChooseDiscoverySearcher(_required(command, "drifter_id"))
     if kind == "discovery_target":
         return ChooseDiscoveryTarget(_required(command, "drifter_id"))
+    if kind == "expedition_plan":
+        return ChooseExpeditionPlan(
+            _required(command, "destination_floor_id"),
+            _required(command, "category"),
+        )
+    if kind == "expedition_report":
+        return ChooseExpeditionReport(_required(command, "report_id"))
     if kind == "character_target":
         return ChooseCharacterTarget(_required(command, "drifter_id"))
     if kind == "stat_increase":

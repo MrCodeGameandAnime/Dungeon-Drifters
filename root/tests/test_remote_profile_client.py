@@ -47,6 +47,7 @@ def _payload(gold=0):
 def _legacy_schema8_payload(gold=0):
     payload = _payload(gold)
     payload["schema_version"] = 8
+    payload.pop("expedition")
     payload["player"].pop("signature_weapon")
     payload["player"].pop("advancement")
     payload["player"].pop("permanent_discovery_bonuses")

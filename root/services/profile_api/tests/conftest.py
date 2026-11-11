@@ -69,6 +69,7 @@ def remove_m3_respec_state(payload):
 
 
 def remove_m4_run_state(payload):
+    payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
         for field in (
@@ -90,6 +91,7 @@ def remove_m4_run_state(payload):
 
 
 def remove_m4b_run_state(payload):
+    payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
         for field in (

@@ -73,6 +73,7 @@
           </div>
           <p class="eyebrow adventure-heading">ADVENTURE</p>
           <p id="adventure-text" class="adventure-text"></p>
+          <p id="expedition-live-status" class="expedition-live-status" hidden></p>
           <div id="route-actions" class="button-grid"></div>
           <p id="hub-shared-gold" class="hub-shared-gold" hidden></p>
           <section id="companion-selection" class="companion-selection" hidden aria-label="Choose a companion">
@@ -88,6 +89,13 @@
           <section id="discovery-selection" class="discovery-selection" hidden aria-label="Choose a Drifter for the discovery">
             <p id="discovery-reward" class="discovery-reward"></p>
             <div id="discovery-choices" class="discovery-choices"></div>
+          </section>
+          <section id="expedition-panel" class="expedition-panel" hidden aria-label="Expedition assignments">
+            <p id="expedition-energy" class="expedition-energy"></p>
+            <p id="expedition-panel-summary" class="expedition-panel-summary"></p>
+            <div id="expedition-choices" class="expedition-choices"></div>
+            <div id="expedition-reports" class="expedition-reports"></div>
+            <div id="expedition-confirmation-content" class="expedition-confirmation-content" hidden></div>
           </section>
           <section id="extraction-rewards" class="extraction-rewards" hidden aria-label="Pending extraction rewards"></section>
           <div id="overworld-options" class="button-grid"></div>
@@ -245,6 +253,7 @@
       </section>
 
       <section id="battle-screen" class="phase-screen battle-screen" aria-label="Battle" hidden>
+        <p id="battle-expedition-status" class="expedition-live-status" hidden></p>
         <div id="battle-status" class="battle-status">
           <section id="player-panel" class="combatant-status player-panel" aria-labelledby="player-title">
             <h2 id="player-title">Branoc</h2>

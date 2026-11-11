@@ -1,9 +1,9 @@
 # M6 Expeditions And The Two-Plus-Two Loop
 
-> Gate 0 is closed and the M6 plan is implementation-ready. This documentation update does not authorize gameplay implementation.
+> Gate 0 is the approved planning baseline. M6 implementation is now locally complete and qualified; exact-SHA hosted qualification remains pending.
 
-**Planning baseline:** `c64332d0fe9aeac5811f6eb27f0edea836ff7451` (`dungeon`)
-**Status:** M4B closed; M6 Gate 0 closed, 2026-11-10. Implementation requires separate authorization.
+**Gate 0 planning baseline:** `c64332d0fe9aeac5811f6eb27f0edea836ff7451` (`dungeon`)
+**Status:** Gates 0-4 implemented; local Gate 5 qualification passed on the current worktree. Hosted exact-SHA PostgreSQL, migration-from-zero, Alembic, and cumulative CI qualification are pending. M6 is not sealed.
 **Goal:** Add supplementary, floor-grounded expeditions for the existing four-Drifter roster without gating ordinary dungeon play or changing sealed combat, extraction, recruitment, or progression rules.
 
 ## Authority
@@ -111,14 +111,14 @@ No expedition-exclusive items, complications/injuries, procedural jewelry, stack
 
 | Destination | Authored ordinary reward evidence at Gate 0 | Available Material assignment reward | Equipment assignment | Recovery assignment |
 | --- | --- | --- | --- | --- |
-| Floor I | Route enemies drop `goblin_scrap`; the Goblin Lord also drops `goblin_lord_core`. Existing dismantle definitions turn these into Grade-I materials. | Exactly 1 Grade-I metal per completed Material assignment; the material is legitimately obtainable by dismantling Floor-I Goblin Scrap. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. |
-| Floor II | Tier-I route enemies retain Goblin Scrap drops and have authored Grade-II drops: metal/timber/fiber at 2,000 bps per eligible enemy and cores at 1,000 bps. The boss also has authored scrap/core drops. | Exactly 1 Grade-II metal per completed Material assignment; Grade-II metal is an authored eligible route drop. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. |
-| Floor III | Tier-II route enemies retain Goblin Scrap drops and have authored Grade-III drops: metal/timber/fiber at 2,000 bps per eligible enemy and cores at 1,000 bps. The boss also has authored scrap/core drops. | Exactly 1 Grade-III metal per completed Material assignment; Grade-III metal is an authored eligible route drop. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. |
+| Floor I | Route enemies drop `goblin_scrap`; the Goblin Lord also drops `goblin_lord_core`. Existing dismantle definitions turn these into Grade-I materials. | Exactly 1 Grade-I metal per completed Material assignment; the material is legitimately obtainable by dismantling Floor-I Goblin Scrap. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. | Unavailable: no eligible authored floor source currently exists. Display the unavailable reason; do not offer a no-op. |
+| Floor II | Tier-I route enemies retain Goblin Scrap drops and have authored Grade-II drops: metal/timber/fiber at 2,000 bps per eligible enemy and cores at 1,000 bps. The boss also has authored scrap/core drops. | Exactly 1 Grade-II metal per completed Material assignment; Grade-II metal is an authored eligible route drop. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. | Unavailable: no eligible authored floor source currently exists. Display the unavailable reason; do not offer a no-op. |
+| Floor III | Tier-II route enemies retain Goblin Scrap drops and have authored Grade-III drops: metal/timber/fiber at 2,000 bps per eligible enemy and cores at 1,000 bps. The boss also has authored scrap/core drops. | Exactly 1 Grade-III metal per completed Material assignment; Grade-III metal is an authored eligible route drop. | Unavailable: no eligible live floor source. Display the unavailable reason; do not offer a no-op. | Unavailable: no eligible authored floor source currently exists. Display the unavailable reason; do not offer a no-op. |
 | Future floor | Re-audit that floor's route and actual reward definitions when it is authored and cleared. | One fixed material reward only after its source and amount are reviewed; never infer a grade or item from floor number alone. | Unavailable unless that floor has a legitimate eligible M5 equipment source. | Unavailable unless that floor has a legitimate eligible M2 carryable source. |
 
 The one-unit Material outputs are approved initial M6 values and must use existing item/material ownership rules. Equipment and Recovery are not offered for Floors I-III until M8 supplies a legitimate eligible source; missing categories do not block M6 completion. No placeholder rewards, new drop rolls, rarity upgrades, or expedition-exclusive items are allowed. Scouting, Story, Elite, and pair-specific outcome content remain deferred to M8.
 
-## Gate 0 Repository Audit
+## Gate 0 Repository Audit (Pre-Implementation Baseline)
 
 Audit performed against `dungeon` baseline `c64332d0fe9aeac5811f6eb27f0edea836ff7451`.
 
@@ -130,13 +130,13 @@ Audit performed against `dungeon` baseline `c64332d0fe9aeac5811f6eb27f0edea836ff
 | Dungeon rewards | `RunEventService` owns replay-safe Floor II/III reward events and drop tables; Floor I uses its existing direct reward path. Route tables are in `root/src/app/content/routes/floor_one/route.py`, `floor_two/route.py`, and `floor_three/route.py`; drops are authored in `root/src/app/content/enemies/`. |
 | M2 supplies | `root/src/app/content/hub_economy.py` defines carryables and Alchemy, but the current Floor I-III enemy/route reward tables do not drop healing potions, smoke bombs, or return talismans. |
 | M5 equipment | `ArmorGenerationService` supports floor rarity policies, but policies do not author reward availability. `RunEventService.resolve_armor_reward()` is Floor-II-specific and no ordinary route invokes it. M5 explicitly records that no live Floor II armor reward source exists. No Floor I/III live armor sources were found either. |
-| Persistence | Runtime snapshot and disk save schema are both 23. `save_document.py` owns canonical validation/migration; profile persistence retains immutable revision history. M6 persistent energy/time/assignment/report state will require a reviewed save-contract/migration change, but no new schema number or shape is chosen in this planning pass. |
+| Persistence | At the Gate 0 baseline, runtime snapshot and disk save schema were both 23. `save_document.py` owned canonical validation/migration; profile persistence retained immutable revision history. The implementation below records the resulting schema-24 contract. |
 | Clock/runtime | Persistence already creates and validates timezone-aware UTC timestamps (`SaveCoordinator`/`envelope.py`); no gameplay elapsed-time service or persisted gameplay timer exists. The actual pinned MicroPython probe must verify the chosen UTC parsing/arithmetic path and heap impact. |
 | Clients/tests | Semantic gameplay is owned in shared Python session/presenter boundaries; terminal/browser clients project legal actions. Relevant existing suites include party state, Floor I/II/III sessions and run events, save-document/migration, presenter, browser smoke, profile service and pinned runtime probes. |
 
 ### Gate 0 Decisions Closed
 
-All six product decisions below are approved and final for M6 planning. M6-D1 through M6-D5 remain unchanged; this record closes the five previously open review items and the energy-overflow assumption without authorizing implementation.
+All six product decisions below were approved and final for M6 planning. M6-D1 through M6-D5 remain unchanged; this record closed the five previously open review items and the energy-overflow assumption. Gameplay implementation was separately authorized afterward.
 
 1. **Equipment and Recovery:** these categories remain unavailable for any floor without an eligible, authored reward source. Show why each is unavailable; do not offer a no-op assignment, invent a source, or add placeholder rewards. Training and Material are the initially available categories. Enabling Equipment or Recovery later requires legitimate floor content, owned by M8, and does not block M6 closure.
 2. **Floor II helper proxy:** preserve M4's helper selection and eligibility rules. The independently constructed temporary D3/D4 proxy may represent a Drifter assigned to an expedition for this authored Floor II boss only. It cannot read or mutate the permanent Drifter's saved investment, grant XP or progression, change expedition membership, or interrupt the assignment. Preserve the existing Floor II D3+D4 replay restriction. This is not permission to deploy expedition participants in ordinary encounters.
@@ -147,11 +147,35 @@ All six product decisions below are approved and final for M6 planning. M6-D1 th
 
 ### Gate 0 Technical Handoff
 
-The repository audit found no demonstrated blocker to implementing the approved contract. It did confirm that M6 needs new shared-domain energy/timer/assignment ownership, persisted UTC evidence, save migration and strict current-schema validation, report/claim idempotency, and matching terminal/browser projections. No API, schema number, or storage shape is selected here; those belong to the implementation gates after their detailed contract review. The local-device UTC limitation is documented above and is accepted by the approved offline-clock model; this is not server-authoritative tamper protection.
+The pre-implementation repository audit found no demonstrated blocker to the approved contract. It identified the need for shared-domain energy/timer/assignment ownership, persisted UTC evidence, save migration and strict current-schema validation, report/claim idempotency, and matching terminal/browser projections. API and storage details were selected during implementation; the current implementation uses runtime and disk schema 24. The local-device UTC limitation documented above remains accepted by the approved offline-clock model and is not server-authoritative tamper protection.
 
-The audit exercised the relevant existing regression boundaries without changing source: 215 focused tests passed across roster/floor state, Floor II helper and run behavior, Floor III, save/migration, route/drop content, and local profile persistence. This is baseline evidence, not M6 implementation or runtime qualification. The pinned MicroPython v1.29.0 executable was not available in this workspace, so its runtime/heap qualification remains outstanding; it is not a demonstrated blocker to implementing the approved contracts. The pinned probe and cumulative hosted qualification remain required for M6 closure.
+The pre-implementation audit exercised the relevant existing regression boundaries without changing source: 215 focused tests passed across roster/floor state, Floor II helper and run behavior, Floor III, save/migration, route/drop content, and local profile persistence. This is baseline evidence only. At that time the pinned MicroPython executable was unavailable; the implementation-phase qualification recorded below supersedes that availability note.
 
-**Gate 0 outcome:** product decisions and technical seams are recorded; no further product approval is required for these holds. The plan is implementation-ready, but gameplay implementation requires separate authorization.
+**Gate 0 outcome:** product decisions and technical seams were recorded; no further product approval was required. Gameplay implementation was separately authorized.
+
+## M6 Implementation And Local Qualification (2026-11-10)
+
+The implementation adds a persistent expedition state owner, UTC energy regeneration and timer resolution, completed-floor eligibility, durable assignment/report lifecycle, deterministic material and training outcomes, atomic report claims, and terminal/browser projections. Existing M4 temporary-helper behavior remains a non-persistent proxy; Floor III outing coexistence is rejected in both launch orders. Runtime snapshots and disk saves are schema 24, with migration from schema 23 and current-schema validation.
+
+The 20% collective XP target was checked against authored route XP and the existing M3 level curve. The current Floor I route yields 1,340 authored base encounter XP (268 collective expedition XP; 134 per member before Intuition). Floor II yields 1,360 (272 collective; 136 per member). For comparison, a two-member dungeon pair receives 670 or 680 base XP per member before Intuition. At Intuition 100, the expedition shares become approximately 150 and 152. At Level 50 these are about 2.2% of the 5,993 XP next-level threshold; at Level 100, about 0.4% of the 33,413 threshold. A Level 1 recipient may cross one early threshold, consistent with the larger early-game value of XP. Extraction, replay, talisman, boss, and death rules first determine the secured pool; the expedition percentage is applied only afterward. These are initial balance observations, not locked future-floor values.
+
+Local verification on Python 3.14.6:
+
+```text
+Root pytest                    2,319 passed
+Web tests                         74 passed
+Authored content validation     PASS
+Python compileall               PASS
+Browser build                   PASS, 176 files
+Full browser smoke              PASS
+Pinned runtime matrix           PASS
+```
+
+The pinned MicroPython v1.29.0 Windows executable was identified as 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. Native CPython, forced-overlay CPython, default MicroPython, semantic parity, and the M6 route probe passed. The 1152K heap run was stable 3/3; 1024K produced the expected memory-limit classification 3/3. Final marker: `MYP20|RESULT|CLOSURE_COMPLETE`.
+
+One initial matrix invocation reported 1152K stability at 2/3. Three immediate detailed 1152K reruns and the subsequent complete matrix both passed 3/3 at 1152K and 1024K. The anomaly did not reproduce; no cause is asserted.
+
+The local Docker engine was unreachable during this pass, so PostgreSQL service qualification, migration-from-zero, and Alembic parity have not been claimed locally. Exact-SHA hosted qualification is required before M6 can be sealed. Hosted CI does not execute the pinned MicroPython executable.
 
 ## Revised Milestones And Acceptance
 
@@ -165,48 +189,48 @@ The audit exercised the relevant existing regression boundaries without changing
 
 ### Gate 1 - Eligibility, Energy, And Durable Launch
 
-- [ ] Add focused tests for every completed-floor flag, incomplete floors, future unknown floors, four permanent recruits, all six active pairs, disjoint complement, and the existing Floor II D3/D4 replay restriction.
-- [ ] Test 100 initial/capacity, 10 launch debit for available categories, atomic rejection/failure, pre-confirm cancellation, no refund, nine-minute regeneration units, offline cap, repeated refresh, full-cap overflow with time discarded, anchor rebasing when spending at full capacity, resumed regeneration from that point, and backwards UTC time.
-- [ ] Review and implement the required current/legacy save migration and malformed-state validation only after the state contract is approved. Preserve historical snapshots, immutable remote revisions, and forward incompatibility rejection.
-- [ ] Prove energy never changes legal dungeon-entry/combat/extraction offers.
+- [x] Add focused tests for every completed-floor flag, incomplete floors, future unknown floors, four permanent recruits, all six active pairs, disjoint complement, and the existing Floor II D3/D4 replay restriction.
+- [x] Test 100 initial/capacity, 10 launch debit for available categories, atomic rejection/failure, pre-confirm cancellation, no refund, nine-minute regeneration units, offline cap, repeated refresh, full-cap overflow with time discarded, anchor rebasing when spending at full capacity, resumed regeneration from that point, and backwards UTC time.
+- [x] Implement and test current/legacy save migration and malformed-state validation while preserving historical snapshots, immutable remote revisions, and forward incompatibility rejection.
+- [x] Prove energy never changes legal dungeon-entry/combat/extraction offers.
 
 **Acceptance:** exactly one confirmed launch charges once and persists its roster, floor, assignment type, and time evidence; invalid or failed launch leaves no partial mutation.
 
 ### Gate 2 - Twenty-Minute Assignment Lifecycle
 
-- [ ] With an injected deterministic test clock, prove pre-boundary incomplete and exact/after-20-minute completion, including save/reload, retry, clock rollback, and repeated command delivery.
-- [ ] Prove assignment completion is time-derived and exactly once; waiting/resting/encounter repetition cannot manufacture progress or completion.
-- [ ] Cover incomplete early outing termination with spent energy, no reward, and returned Drifters; no artificial wait is inserted into ordinary routes.
-- [ ] Preserve M4's Floor II helper selection/eligibility and replay restrictions while allowing the separately constructed proxy to represent an expedition-assigned D3/D4; prove no persistent-state mutation, XP/progression grant, or assignment change. Reject assignment launch during a Floor III outing and reject starting/entering a Floor III outing while an assignment is active. Keep ordinary Floor III play and Floor III destinations from compatible Floor I/II outings available.
+- [x] With an injected deterministic test clock, prove pre-boundary incomplete and exact/after-20-minute completion, including save/reload, retry, clock rollback, and repeated command delivery.
+- [x] Prove assignment completion is time-derived and exactly once; waiting/resting/encounter repetition cannot manufacture progress or completion.
+- [x] Cover incomplete early outing termination with spent energy, no reward, and returned Drifters; no artificial wait is inserted into ordinary routes.
+- [x] Preserve M4's Floor II helper selection/eligibility and replay restrictions while allowing the separately constructed proxy to represent an expedition-assigned D3/D4; prove no persistent-state mutation, XP/progression grant, or assignment change. Reject assignment launch during a Floor III outing and reject starting/entering a Floor III outing while an assignment is active. Keep ordinary Floor III play and Floor III destinations from compatible Floor I/II outings available.
 
 **Acceptance:** persisted elapsed time cannot reset, advance from client input, or complete twice; ordinary gameplay remains playable without an assignment.
 
 ### Gate 3 - Rewards, XP, Settlement, And Claims
 
-- [ ] Initially offer only Training and Material. Show Equipment/Recovery as unavailable with an explanation for floors lacking eligible authored sources; do not offer no-op assignments. Implement the exact one-metal-per-floor rows and validate each against that floor's existing source and normal ownership path.
-- [ ] Test the 20% secured base pool for zero, replay, extraction, talisman, death, boss, and ordinary termination. Test percentage rounding, odd split remainder, participant order, individual M3 Intuition bonuses, and no reload/retry duplication.
-- [ ] Test completed assignment report retention after active-pair death, incomplete assignment zero rewards, zero secured XP, settlement once, Hub claim once, failure injection, reload, and duplicate claim.
-- [ ] Ensure gear/supplies grant through the existing M5/M2 ownership and acquisition boundaries; no synthetic signatures or procedurally generated jewelry.
+- [x] Initially offer only Training and Material. Show Equipment/Recovery as unavailable with an explanation for floors lacking eligible authored sources; do not offer no-op assignments. Implement the exact one-metal-per-floor rows and validate each against that floor's existing source and normal ownership path.
+- [x] Test the 20% secured base pool for zero, replay, extraction, talisman, death, boss, and ordinary termination. Test percentage rounding, odd split remainder, participant order, individual M3 Intuition bonuses, and no reload/retry duplication.
+- [x] Test completed assignment report retention after active-pair death, incomplete assignment zero rewards, zero secured XP, settlement once, Hub claim once, failure injection, reload, and duplicate claim.
+- [x] Ensure gear/supplies grant through the existing M5/M2 ownership and acquisition boundaries; no synthetic signatures or procedurally generated jewelry.
 
 **Acceptance:** termination freezes a single outcome; one atomic Hub claim grants the recorded reward to the recorded expedition pair exactly once.
 
 ### Gate 4 - Terminal/Browser Player Journey
 
-- [ ] Prove selection, disabled/unavailable reasons, confirmation/cancel, status-only assignment display with remaining/completed timer, ordinary dungeon play with no energy, reunion, report and claim in terminal and browser. Prove there is no expedition simulation, map, battle, intermediate event, or post-launch player action.
-- [ ] Use test-controlled time; browser UI never authors elapsed time, reward outcomes, or progress.
-- [ ] Qualify all six active pairs on routes compatible with unchanged M4 boss requirements; test target eligibility separately for Floors I-III. Prove the Floor II helper-proxy exception and both directions of the Floor III assignment/outings exclusion without blocking ordinary Floor III play or Floor III as a destination from a compatible outing.
-- [ ] Prove launch-save-reload, outing termination-save-reload, report-claim-save-reload, and failed-write recovery.
+- [x] Prove selection, disabled/unavailable reasons, confirmation/cancel, status-only assignment display with remaining/completed timer, ordinary dungeon play with no energy, reunion, report and claim in terminal and browser. Prove there is no expedition simulation, map, battle, intermediate event, or post-launch player action.
+- [x] Use test-controlled time; browser UI never authors elapsed time, reward outcomes, or progress.
+- [x] Qualify all six active pairs on routes compatible with unchanged M4 boss requirements; test target eligibility separately for Floors I-III. Prove the Floor II helper-proxy exception and both directions of the Floor III assignment/outings exclusion without blocking ordinary Floor III play or Floor III as a destination from a compatible outing.
+- [x] Prove launch-save-reload, outing termination-save-reload, report-claim-save-reload, and failed-write recovery.
 
 **Acceptance:** terminal and browser expose the same legal semantic actions and cannot diverge on energy, timing, reward source, or claim state.
 
 ### Gate 5 - Runtime And Cumulative Qualification
 
-- [ ] Extend and run the exact pinned MicroPython probe for UTC anchor handling, regen, launch, timer boundary, settlement, claim, snapshot/reconstruction, and no-energy dungeon play.
-- [ ] Run root pytest, web tests, authored-content validation, compile/build, browser smoke, PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA hosted CI.
-- [ ] Re-run any save-schema history, immutable remote revision, and concurrency checks affected by M6; preserve the M4/M5/M3 regression journeys.
-- [ ] Record exact source SHA, hosted run, local pinned executable identity/results, balance observations, and explicit M8 handoff.
+- [x] Extend and run the exact pinned MicroPython probe for UTC anchor handling, regen, launch, timer boundary, settlement, claim, snapshot/reconstruction, and no-energy dungeon play.
+- [x] Run local root pytest, web tests, authored-content validation, compile/build, and browser smoke. PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA hosted CI remain pending because the local Docker engine was unavailable.
+- [ ] Obtain hosted PostgreSQL profile-service tests, migration-from-zero, Alembic model parity, and exact-SHA cumulative CI; preserve the M4/M5/M3 regression journeys.
+- [ ] Record exact implementation SHA and hosted run after push, alongside local pinned executable identity/results, balance observations, and explicit M8 handoff.
 
-**Acceptance:** all relevant local and hosted qualification is green on the exact reviewed SHA; no test count or documentation claim substitutes for an unrun runtime boundary.
+**Acceptance:** all relevant local and hosted qualification is green on the exact reviewed SHA; no test count or documentation claim substitutes for an unrun runtime boundary. Local runtime qualification is recorded above; hosted qualification remains open.
 
 ## Qualification Matrix
 

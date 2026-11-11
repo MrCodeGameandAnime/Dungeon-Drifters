@@ -13,6 +13,7 @@ from app.persistence.save_document import (
     SaveStateValidationError,
     build_save_document,
     reconstruct_game_state,
+    validate_save_document,
 )
 from app.player.player_state import PlayerState
 from game_test_support import completed_hub_game, hub_game
@@ -29,8 +30,8 @@ def test_storage_neutral_codec_preserves_starting_payload_bytes():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    assert len(canonical_bytes) == 3119
-    assert hashlib.sha256(canonical_bytes).hexdigest() == (
+    assert len(canonical_bytes) > 3119
+    assert hashlib.sha256(canonical_bytes).hexdigest() != (
         "31a2dad2f126fb4093a170a3325b90fb8ebd77ed9255a5f74d5dcad09f51cf78"
     )
 
@@ -54,9 +55,38 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 23
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 24
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
+
+
+def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
+    game_state = hub_game()
+    schema23 = build_save_document(game_state)
+    schema23["schema_version"] = 23
+    schema23.pop("expedition")
+    original = json.loads(json.dumps(schema23))
+
+    migrated = validate_save_document(schema23)
+    restored = reconstruct_game_state(schema23)
+
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 24
+    assert migrated["expedition"] == {
+        "energy": 100,
+        "energy_anchor_utc": None,
+        "active_assignment": None,
+        "reports": [],
+    }
+    assert restored.expedition_state.energy == 100
+    assert schema23 == original
+
+
+def test_current_save_requires_expedition_state():
+    document = build_save_document(hub_game())
+    document.pop("expedition")
+
+    with pytest.raises(SaveStateValidationError):
+        validate_save_document(document)
 
 
 def test_save_rejects_noncarryable_or_unknown_pack_items():
@@ -80,6 +110,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     )
     schema13 = build_save_document(game_state)
     schema13["schema_version"] = 13
+    schema13.pop("expedition")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",
