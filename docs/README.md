@@ -2,17 +2,16 @@
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
-**Latest release: v0.6**
+**Current version: v0.7**
 
 Choose one of four distinct Drifters, master their unique combat style, grow
 stronger through battle, evolve their signature weapon, and push deeper into
 a dangerous world shaped by each character's identity and abilities.
 
-The game is in active development. The current development build includes the
-surface route, the Hub, and the first three dungeon floors. The same Python
-gameplay runtime is playable in the browser and through the terminal. The v0.6
-release endpoint remains Floor I; Floors II and III are unreleased development
-content.
+The game is in active development. The current v0.7 build includes the surface
+route, the Hub, and the first three dungeon floors. The same Python gameplay
+runtime is playable in the browser and through the terminal; later floors
+remain in development.
 
 ## The Drifters
 
@@ -73,13 +72,17 @@ covers the route through the Floor III boss:
   and alchemy, and choose between Rest, extraction, and emergency exits.
 - Spend Growth Points on character advancement, manage each Drifter's move
   loadout, and respec at the Hub.
+- Assign the reserve pair to passive, 20-minute expeditions targeting
+  completed floors. Training and eligible floor-material assignments are
+  available; energy gates expeditions only, never ordinary dungeon play.
 - Craft and install signature-weapon components, improve weapon slots, manage
   armor and fixed Ring/Pendant equipment, and use the Alchemist's armor and
   modifier services. Ordinary Floor II armor-drop sources are not yet authored.
 - Inspect the party, inventory, map, and equipment; save, quit, load, and
   continue with persistent progression. Cloud synchronization is optional.
 
-Floor IV expeditions and the later M6-M9 systems remain future work.
+Further dungeon floors, additional expedition reward sources, and M7-M9
+systems remain future work.
 
 ## Play Instructions
 

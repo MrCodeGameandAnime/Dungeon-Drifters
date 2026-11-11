@@ -1,5 +1,30 @@
 # Dungeon Drifters Change Log
 
+## v0.7
+
+v0.7 expands the playable dungeon route through the Floor III boss and adds
+permanent party progression and passive expeditions:
+
+- separated the permanent four-Drifter roster from the selected active pair,
+  with ordered pair selection and exact-member progression ownership
+- added carried supplies, Hub trading, healing and escape items, and alchemy
+  while preserving distinct secured storage and at-risk outing rewards
+- added per-Drifter skill advancement, move loadouts, respec, permanent
+  discoveries, and explicit physical/magical split-damage resolution
+- added Floor II and Floor III encounters, enemy tiers, hazards, rewards,
+  discoveries, and persistence across rests and outings
+- added the temporary third combatant for the Floor II boss, post-clear Hub
+  recruitment of D3 and D4, and the four-Drifter Floor III boss
+- added owned armor instances, armor upgrades, modifier management, and
+  authored fixed Ring and Pendant equipment
+- added passive, timer-based expeditions to completed floors, with energy
+  limited to expedition launches and deterministic Training and Material
+  assignments initially available
+- kept expedition time presentation-only in the browser; Python remains
+  authoritative for elapsed time, completion, settlement, and rewards
+- qualified the cumulative test, browser, PostgreSQL, migration, content, and
+  build workflows for the completed M1-M6 implementation
+
 ## v0.6
 
 v0.6 turns the portable gameplay runtime into a playable browser game and
