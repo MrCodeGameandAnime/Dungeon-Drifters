@@ -295,7 +295,7 @@ The economy document includes real-money acceleration and numerous optional exam
 
 ## Implementation Documents
 
-These are planning drafts for review, not authorization to implement milestones continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone. M6.5 is an optional Hub systems side mission, not a prerequisite for M7-M9; unlike the original navigation-only concept, its approved scope includes new persistent profession, affix-discovery, and finite-stock state that must be designed before implementation.
+These are planning drafts for review, not authorization to implement milestones continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone. M6.5 is an optional Hub systems side mission, not a prerequisite for M7-M9; its approved scope includes Hub Inventory, typed material families (including Grade I-V Magic Crystals required for Enchanting), new persistent professions and affix discovery, finite vendor stock, shared component stacks, and same-visit vendor buyback, all of which must be designed before implementation.
 
 | Milestone | Implementation document | Entry dependency |
 | --- | --- | --- |
@@ -356,4 +356,4 @@ Finish with `git diff --check`, content/manifest drift checks, a scoped cumulati
 
 ## Immediate Next Step
 
-M6.5 Gate 0-1 source/action mapping is complete and Gate 0-1A shared component stacks and replacement are approved. Gate 0-1B through 0-1D and Gates 0-2 through 0-5 remain open; wait for direction before proceeding. The expanded scope includes persistent professions, affix knowledge, component stacks, and finite vendor inventory. Do not invent numerical values or begin implementation before the remaining contracts are approved.
+M6.5 Gate 0-1 source/action mapping is complete and Gate 0-1 is closed at the product-decision level: component stacks/replacement (0-1A), additive Enchanter extraction plus permanent affix knowledge (0-1B), Hub -> Inventory supply preparation (0-1C), and immediate ordinary shared-stack transactions (0-1D). Same-Hub-visit vendor buyback is also approved as a separate requirement. Proceed next to Gate 0-2, Alchemist merchandise and discounts; Gates 0-2 through 0-5 remain open. The expanded scope includes persistent professions, affix knowledge, component stacks, finite vendor inventory, and buyback. Do not invent numerical values or begin implementation before the remaining contracts are approved.
