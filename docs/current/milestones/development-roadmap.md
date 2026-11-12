@@ -15,7 +15,7 @@ Explicit exclusions: `docs/future/longterm.md` and everything under `docs/future
 | Included source | Delivery owner in this roadmap |
 | --- | --- |
 | [Party and Expedition Core Loop](../../future/party-and-expedition-core-loop.md) | M1 roster architecture and staged recruitment, M6 expeditions, M8 regions/story/later full-party bosses |
-| [Dungeon Progression, Difficulty, and Economy](../../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M6.5 Hub vendor/economy organization, M8 content, M9 economy/optional services |
+| [Dungeon Progression, Difficulty, and Economy](../../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M6.5 vendor ownership plus persistent professions, affix discovery, and finite vendor inventory, M8 content, M9 economy/optional services |
 | [Character Growth and Stat Scaling](../../future/character-growth-and-stat-scaling.md) | M3 advancement, M7 Momentum interaction, M8 permanent discoveries, M9 tuning |
 | [Enemy Archetypes, Scaling, and Capability Progression](../../future/enemy-archetypes-scaling-and-capability-progression.md) | M4 enemy systems, M8 encounters/bosses/visual content |
 | [Momentum](../../future/momentum.md) | M7 temporary combat mechanic |
@@ -60,7 +60,7 @@ M0 baseline/decisions
   -> M5 persistent armor and accessories
   -> Floor 3 full-roster boss gate
   -> M6 expeditions on already-completed floors and the two-plus-two loop
-  -> M6.5 Hub vendor specialization (optional QoL side mission; no M7-M9 dependency)
+  -> M6.5 Hub vendor specialization (persistent Hub professions, affix knowledge, and finite stock; no M7-M9 dependency)
   -> M7 Momentum
   -> M8 complete region loop and staged later-floor content
   -> M9 integrated balance and release qualification
@@ -295,7 +295,7 @@ The economy document includes real-money acceleration and numerous optional exam
 
 ## Implementation Documents
 
-These are planning drafts for review, not authorization to implement milestones continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone. M6.5 is an optional Hub quality-of-life side mission, not a prerequisite for M7-M9.
+These are planning drafts for review, not authorization to implement milestones continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone. M6.5 is an optional Hub systems side mission, not a prerequisite for M7-M9; unlike the original navigation-only concept, its approved scope includes new persistent profession, affix-discovery, and finite-stock state that must be designed before implementation.
 
 | Milestone | Implementation document | Entry dependency |
 | --- | --- | --- |
@@ -305,7 +305,7 @@ These are planning drafts for review, not authorization to implement milestones 
 | M4 | [Enemy progression](m4-enemy-progression.md) | M2/M3 for M4A; M5 for the M4B Floor III readiness proof |
 | M5 | [Armor and accessories](m5-armor-accessories.md) | M1-M3 and accepted M4A |
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
-| M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; optional side mission, independent of M7-M9 |
+| M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; complete and approve M6.5 Gate 0 before implementation; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
 | M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
@@ -356,4 +356,4 @@ Finish with `git diff --check`, content/manifest drift checks, a scoped cumulati
 
 ## Immediate Next Step
 
-Review the M6.5 side-mission plan and resolve its Gate 0 audit items before authorizing vendor separation. The approved direction does not preselect Alchemist discounts or recipe-efficiency values; lock those during the M6.5 balance gate rather than inventing them in implementation.
+M6.5 Gate 0-1 product direction is recorded in its milestone plan. The remaining source/action mapping audit and Gate 0-2 through 0-5 are open; wait for direction before proceeding. The expanded scope includes persistent professions, affix knowledge, and vendor inventory. Do not invent numerical values or begin implementation before the remaining contracts are approved.
