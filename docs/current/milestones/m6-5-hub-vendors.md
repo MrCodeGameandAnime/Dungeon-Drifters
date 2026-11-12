@@ -22,6 +22,7 @@ M6.5 is a Hub systems side mission after the sealed v0.7 M1-M6 scope. It remains
 - Finite stock for every vendor that sells merchandise, with stock replenishment tied to Hub returns. Exact stock behavior remains open.
 - Persistent Alchemy and Enchanting skill progression, a separate permanent discovered-affix collection, and persistent vendor stock/player-influenced inventory as approved product direction.
 - Planned shared-inventory component stacks, quantity-based trading, and return of displaced installed components to inventory under approved Gate 0-1A.
+- Four authored material families: `alch`, `smith`, `enchant`, and `gen`; Grade I through V Magic Crystals are `enchant` materials required for Enchanting. Their exact costs and acquisition sources remain to be defined.
 - Both Alchemist economic advantages: discounted eligible alchemical merchandise and improved recipe efficiency. Their exact values and mechanisms remain open.
 - Character -> Equipment remains the independent interface for inspecting and equipping already-owned gear.
 
@@ -54,6 +55,16 @@ Player-sale ownership approved at this level:
 - Eligible alchemical ingredients sold to the Alchemist become eligible Alchemist stock for purchase on a future Hub return.
 - The Merchant owns general commerce for other eligible goods, subject to the existing authored sellability rules. It may also sell eligible armor/equipment as merchandise; Blacksmith and Merchant can offer overlapping goods without duplicating transaction authority.
 - Components sold to the Blacksmith also become eligible for future Blacksmith purchase. Exactly how player-sold materials/components/ingredients combine with ordinary stock is unresolved; existing item eligibility still governs whether an item can be sold.
+
+### Material Families And Magic Crystals
+
+Materials are organized into four authored families: `alch` (Alchemy), `smith` (smithing/physical crafting), `enchant` (Enchanting), and `gen` (general). These family labels classify material use; by themselves they do not establish sale eligibility, vendor stock, price, or acquisition source.
+
+Magic Crystals are `enchant`-family materials with Grades I through V. They are required inputs for Enchanting. The specific Enchanter operations that consume them, the grade and quantity required by each operation, and any interaction with Enchanting progression remain to be defined. Do not infer crystal costs for extraction/disenchantment or other operations beyond the approved requirement that Enchanting requires crystals.
+
+The existing player-sale contracts remain in force for eligible `smith` crafting materials sold to the Blacksmith and eligible `alch` ingredients sold to the Alchemist; those sales become purchase-eligible stock on a future Hub return. No seller, stock source, or player-sale destination is approved for `enchant` materials. In particular, the Enchanter remains service-only and does not gain merchandise stock by implication. `gen` material sale and stock routing remains subject to authored item eligibility and later vendor-stock decisions.
+
+Crystal prices, quantities, stock, vendor availability, and dungeon/content acquisition sources are unresolved. No new drop table or crystal source is established by this plan; Gate 0 must identify a legitimate acquisition path before Enchanting costs are implemented.
 
 ## Approved Persistent Systems
 
@@ -283,7 +294,7 @@ The current tests provide substantial protection for existing service semantics,
 The source/action mapping above is complete for the exposed commerce, weapon progression, armor/equipment, modifier, and packing actions. Gate 0-1 is **not technically closed** until these contract boundaries are explicitly settled:
 
 1. **Weapon components (0-1A approved and closed at the product-decision level):** shared component stacks, return of displaced installed parts, sale of any recovered component, and preservation of existing craft-and-install behavior are settled. No lifetime crafting restriction is authorized. Starter/default-part representation and technical persistence design remain implementation details for the relevant later gate, not open product decisions.
-2. **Disenchant output:** choose whether a successful operation both creates consumable modifier instances and learns permanent affix recipes, or recipe learning replaces the current item payout. Define repeat-known-affix handling and whether it grants Enchanting progression/resources.
+2. **Disenchant output and Enchanting inputs:** choose whether a successful operation both creates consumable modifier instances and learns permanent affix recipes, or recipe learning replaces the current item payout. Define repeat-known-affix handling and whether it grants Enchanting progression/resources. Define which Enchanter operations consume Magic Crystals and their grade/quantity requirements; do not infer costs for extraction or disenchantment.
 3. **Supply packing ownership:** current load/unload inputs are embedded in the Merchant screen but belong to M2 preparation semantics. Decide whether their future navigation remains there, moves to a separate Preparation/Inventory view, or another explicit owner; no move is made by this audit.
 4. **Destructive action extent:** preserve the distinct existing contracts: shared-stack `merchant_dismantle` currently has no confirmation, while M5 armor-instance dismantling requires explicit confirmation and destroys attached modifiers. Gate 0-5 must confirm whether M6.5 leaves the stack action's no-confirm behavior unchanged; do not make them appear to be one operation.
 
@@ -300,7 +311,7 @@ No price, quantity, skill value, recipe efficiency, refresh frequency, anti-arbi
 | 0-1D: Stack dismantling confirmation | Open | Decide whether currently immediate shared-stack salvage needs confirmation; keep M5 equipment-instance confirmation separate. |
 | 0-2: Alchemist merchandise and discounts | Open | Identify eligible goods, Merchant comparison offers, and explicit discount prices. |
 | 0-3: Recipe efficiency and profession values | Open | Define per-recipe inputs/outputs/efficiency and relevant Alchemy/Enchanting progression values. |
-| 0-4: Navigation and persistence | Open | Audit vendor navigation, state ownership, schema/migration/backward compatibility, and client parity. |
+| 0-4: Navigation and persistence | Open | Audit vendor navigation, state ownership, schema/migration/backward compatibility, and client parity; define legitimate availability, seller, and persisted stock behavior for `enchant`-family materials, including Grade I-V Magic Crystals. |
 | 0-5: Destructive and sale paths | Open | Audit sale, dismantling, extraction, and replacement confirmation/rollback behavior against M5. |
 
 No numerical or technical choices in 0-2 through 0-5 are inferred from the approvals in 0-1. No gameplay implementation is authorized until the user directs the next step.
