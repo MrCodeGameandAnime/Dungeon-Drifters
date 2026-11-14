@@ -1,6 +1,6 @@
 # M6.5 Hub Vendor Specialization
 
-**Status:** Gate 0-1 source/action audit is complete and Gate 0-1 is closed at the product-decision level. Subdecisions 0-1A through 0-1D are closed; same-Hub-visit vendor buyback is approved as a separate M6.5 requirement. Gate 0-2 is in progress: the flat Alchemist discount and specialist-first shared-stock allocation are approved; the working merchandise schedule is recorded for review, while the final Return Talisman base price and any unresolved merchandise eligibility remain open. Gates 0-3 through 0-5 remain open. This update is documentation-only; no gameplay implementation, schema work, or client changes are authorized.
+**Status:** Gates 0-1, 0-2, and 0-3 are closed at the product-decision level. Gate 0-1 source/action ownership, Gate 0-2 merchandise/discount and specialist-first stock direction, and Gate 0-3 profession, recipe, and learned-affix numerical contracts are recorded below. The final Return Talisman base/purchase price remains an explicit value dependency before its vendor offer is implemented; this does not reopen the approved 25% markup or finite-stock contracts. Gates 0-4 and 0-5 remain open. This update is documentation-only; no gameplay implementation, schema work, or client changes are authorized.
 
 **Planning baseline:** v0.7 merge commit `8a76bf6b857c6b4302b5a013f08e208e2f823a28`. Revalidate the current branch, service owners, persistence versions, content, and client actions at Gate 0.
 
@@ -23,14 +23,14 @@ M6.5 is a Hub systems side mission after the sealed v0.7 M1-M6 scope. It remains
 - Persistent Alchemy and Enchanting skill progression, a separate permanent discovered-affix collection, and persistent vendor stock/player-influenced inventory as approved product direction.
 - Limited same-Hub-visit buyback for eligible sold property, separate from future vendor stock and unable to undo committed crafting or destructive conversions.
 - Planned shared-inventory component stacks, quantity-based trading, and return of displaced installed components to inventory under approved Gate 0-1A.
-- Four authored material families: `alch`, `smith`, `enchant`, and `gen`; Grade I through V Magic Crystals are `enchant` materials required for Enchanting. Their exact costs and acquisition sources remain to be defined.
-- Both Alchemist economic advantages: a flat 25% discount on eligible alchemical merchandise and improved recipe efficiency. The working item-price schedule is proposed for review; Gate 0-3 recipe-efficiency values/mechanisms remain open.
+- Four authored material families: `alch`, `smith`, `enchant`, and `gen`; Grade I through V Magic Crystals are `enchant` materials. Gate 0-3 defines the matching-grade costs for learned-affix application; acquisition sources and stock remain for Gate 0-4.
+- Both Alchemist economic advantages: a flat 25% discount on eligible alchemical merchandise and deterministic mastery-based output bonuses. The merchandise schedule remains a working proposal; Gate 0-3 fixes recipe quantities, output milestones, and XP below.
 - Character -> Equipment remains the independent interface for inspecting and equipping already-owned gear.
 
 ### Out Of Scope For This Documentation Pass
 
-- Gameplay, content, UI, save-schema, migration, or test implementation.
-- Finalizing the proposed item prices, stock counts, refresh policy, anti-arbitrage formulas, Alchemy/Enchanting XP, level thresholds, skill benefits, recipe efficiencies, or recipe-specific costs and yields. The flat 25% Alchemist discount and working schedule do not settle the final Return Talisman price.
+- Gameplay, content, UI, save-schema, migration, or test implementation of the approved profession, recipe, stock, and learned-affix contracts.
+- Reopening or changing approved Gate 0-1 through 0-3 decisions. The working Alchemist price schedule remains subject to its stated review status; the final Return Talisman base price remains an explicit value dependency before its offer is implemented.
 - Adding field-crafting interfaces, new magical effects, new loot sources, new equipment catalogs, or a general economy rebalance.
 - Changing combat effects, signature weapon identity/effects, M2 supply rules, M5 equipment ownership, or M5 destructive-operation outcomes.
 
@@ -63,13 +63,13 @@ Eligible ordinary sales may also create a buyback opportunity through the vendor
 
 Materials are organized into four authored families: `alch` (Alchemy), `smith` (smithing/physical crafting), `enchant` (Enchanting), and `gen` (general). These family labels classify material use; by themselves they do not establish sale eligibility, vendor stock, price, or acquisition source.
 
-Magic Crystals are `enchant`-family materials with Grades I through V. They are required inputs for Enchanting. The specific Enchanter operations that consume them, the grade and quantity required by each operation, and any interaction with Enchanting progression remain to be defined. Do not infer crystal costs for extraction/disenchantment or other operations beyond the approved requirement that Enchanting requires crystals.
+Magic Crystals are `enchant`-family materials with Grades I through V. Under the approved Gate 0-3 contract, only the new learned-affix recipe application consumes grade-matched crystals, in the quantities specified below. Existing M5 disenchantment/extraction and stored-modifier application do not require crystals. Acquisition sources, vendor availability, prices, and stock remain for Gate 0-4; Grade V learned-application remains reserved for future content.
 
 The newly planned Magic Reagent, Aether Dust, Sulfur, and Charcoal Powder are `alch` materials. The existing `charcoal_dust` and `smoke_powder` identifiers require a compatibility audit before any implementation; no saved material may be silently deleted or converted, and no conversion ratio is established here. Mythril Plate is a proposed rare `smith` material, subject to confirmation with its acquisition and usage contracts. Boss Cores retain their existing gameplay identity until broader material classification and recipe eligibility are reviewed. These profession families do not replace the weapon-progression material families `metal`, `fiber`, `timber`, and `cores`.
 
 The existing player-sale contracts remain in force for eligible `smith` crafting materials sold to the Blacksmith and eligible `alch` ingredients sold to the Alchemist; those sales become purchase-eligible stock on a future Hub return. No seller, stock source, or player-sale destination is approved for `enchant` materials. In particular, the Enchanter remains service-only and does not gain merchandise stock by implication. `gen` material sale and stock routing remains subject to authored item eligibility and later vendor-stock decisions.
 
-Crystal prices, quantities, stock, vendor availability, and dungeon/content acquisition sources are unresolved. No new drop table or crystal source is established by this plan; Gate 0 must identify a legitimate acquisition path before Enchanting costs are implemented.
+Crystal quantities and learned-application gold costs are fixed below. Crystal acquisition sources, vendor availability/prices, and stock remain unresolved. No new drop table or source is established by this plan; Gate 0-4 must identify legitimate acquisition and persistence before the learned-affix service is implemented.
 
 ## Approved Persistent Systems
 
@@ -126,16 +126,16 @@ This expressly supersedes the old no-stackable-signature-parts restriction **for
 
 ## M6.5-D1: Alchemist Pricing And Crafting Efficiency
 
-**Approved direction:** Both benefits are required. Eligible Alchemist merchandise receives a flat 25% purchase discount under Gate 0-2; recipe efficiency remains a separate Gate 0-3 contract.
+**Approved direction:** Both benefits are required. Eligible Alchemist merchandise receives a flat 25% purchase discount under Gate 0-2; Gate 0-3 approves deterministic mastery-based output bonuses without reducing recipe inputs.
 
-- Discounted purchase prices for eligible alchemical goods and ingredients compared with the Merchant's applicable offer.
-- Improved crafting efficiency through reduced ingredient requirements, increased output quantities, or an approved combination.
+- A flat 25% purchase discount on eligible Alchemist merchandise, calculated from its authored base price as specified under Gate 0-2.
+- Deterministic mastery-based additional output at the approved Alchemy levels below; base ingredient requirements do not decrease.
 
-The intended specialist advantage is substantial. The illustration that field costs could be approximately twice the Alchemist's resource cost is not approval for a universal recipe-efficiency multiplier. The flat 25% merchandise discount is a distinct purchase-price rule; per-recipe requirements, output quantities, and efficiency mechanisms remain open for Gate 0-3.
+The intended specialist advantage combines discounted purchases and increased crafting yield, not ingredient reduction. The prior illustration that field costs could be approximately twice the Alchemist's resource cost does not establish an ingredient-efficiency multiplier. Gate 0-3's exact recipes, XP, and output milestones are specified below.
 
-M2 recipes currently have no gold crafting fee. Do not invent one. Any later approved efficiency must be explicit, deterministic, authored, and atomic. Failed or stale operations must not partially consume ingredients, duplicate output, or award weapon Crafting XP. Alchemy profession progression must follow the Gate 0-3 earning contract; no activity award is inferred here.
+M2 recipes currently have no gold crafting fee; the approved M6.5 recipes add none. Successful recipe crafts award only their authored Alchemy XP, never weapon Crafting XP. Crafting consumes all base ingredients and atomically applies the approved bonus output and one XP award; rejected or failed crafts award no XP or output.
 
-## Gate 0-2: Merchandise Prices And Specialist-First Stock (In Progress)
+## Gate 0-2: Merchandise Prices And Specialist-First Stock (Closed At Product-Decision Level)
 
 The Alchemist specializes in alchemical ingredients and finished alchemical consumables. Its approved initial merchandise direction is:
 
@@ -184,42 +184,124 @@ Approved direction: vendors draw from a shared Hub merchandise allocation, with 
 
 Exact specialist capacities, allocation ordering, replenishment amounts, stock generation, and Hub-return rules remain Gate 0-4 decisions. The example quantity is illustrative, not a universal limit. This Gate 0-2 update does not create a new source of merchandise or change buyback rules.
 
-The remaining Gate 0-2 decisions are the final Return Talisman base/purchase price and any merchandise eligibility not resolved by the approved specialist categories and overflow rule. The Return Talisman markup rule is recorded below; its final base price and stock remain open.
+Gate 0-2 is closed at the product-decision level: the Alchemist discount, working merchandise schedule, and specialist-first shared stock with Merchant overflow are recorded above. The final Return Talisman base/purchase price remains an explicit pre-implementation value dependency, and any merchandise outside the approved categories/overflow rule must have eligibility defined before it is offered. These open details do not reopen the settled Alchemist discount or vendor-allocation rules.
 
-## Gate 0-3 Recipe Contracts And New Materials
+## Gate 0-3: Profession, Recipe, And Learned-Affix Contracts (Closed)
 
-The Mana Potion recipe is a proposal for Gate 0-3. The Smoke Bomb recipe direction is approved, while recipe implementation and final efficiency remain Gate 0-3 work. Do not alter existing authored runtime recipes during this documentation update.
+Gate 0-3 is closed at the product-decision level. The numerical contracts below are approved and must not be treated as provisional or rebalanced during implementation. Gate 0-4 owns persistent field placement, migration, vendor stock, and legitimate material acquisition; Gate 0-5 owns transaction confirmation, atomicity, rollback, and idempotency qualification.
 
-### Mana Potion
+### Profession Ownership And XP Thresholds
 
-Proposed base recipe:
+Alchemy and Enchanting are independent, party-wide professions. Each starts at Level 1, caps at Level 100, persists cumulative XP, derives its level from its own threshold curve, and has a separate progression bar. Neither shares XP with the other or changes weapon Crafting XP.
 
-`1 Magic Reagent + 1 Aether Dust -> 1 Mana Potion`
+| Property | Alchemy | Enchanting |
+| --- | ---: | ---: |
+| Starting level | 1 | 1 |
+| Maximum level | 100 | 100 |
+| XP per level | 50 | 25 |
+| Level 25 cumulative threshold | 1,200 | 600 |
+| Level 50 cumulative threshold | 2,450 | 1,225 |
+| Level 75 cumulative threshold | 3,700 | 1,850 |
+| Level 100 cumulative threshold | 4,950 | 2,475 |
 
-Mana Potion restoration amount/scaling, base price, Alchemist price, Merchant availability, ingredient sources, stock quantities, crafting efficiency, and Alchemy profession benefits remain undecided. Do not infer its effect from Healing Potion values.
+The cumulative threshold formulas are `Alchemy XP for Level N = (N - 1) * 50` and `Enchanting XP for Level N = (N - 1) * 25`. Do not reuse `crafting_experience` or alter the weapon Crafting curve.
 
-### Smoke Bomb
+### Alchemy Recipes And Mastery Output
 
-Approved simplified recipe direction:
+| Recipe | Base ingredients | Base output | Alchemy XP per successful craft |
+| --- | --- | ---: | ---: |
+| Healing Potion | 1 Medicinal Herb + 1 Clean Water | 1 | 10 |
+| Smoke Bomb | 1 Charcoal Powder + 1 Sulfur | 1 | 15 |
+| Mana Potion | 1 Magic Reagent + 1 Aether Dust | 1 | 20 |
+
+Alchemy level changes output only; it never reduces ingredients:
+
+| Alchemy level | Total output per craft | Bonus output |
+| --- | ---: | ---: |
+| 1-24 | 1 | 0 |
+| 25-59 | 2 | +1 |
+| 60-99 | 3 | +2 |
+| 100 | 4 | +3 |
+
+These milestones apply to all three recipes. Every operation consumes the complete base recipe and awards its recipe XP exactly once, regardless of bonus output. Multiple operations each consume the full recipe. Output bonuses are deterministic, do not multiply XP, and enter secured shared inventory without changing the existing six-unit carried-supply limit. No crafting fee, random bonus, fractional output, ingredient discount, or weapon Crafting XP is introduced. Failed, rejected, or canceled crafts award no XP or output; spending, output, and XP commit atomically.
+
+Healing Potion behavior remains unchanged. Mana Potion restoration amount and scaling remain unresolved; do not infer them from Healing Potions.
+
+### Smoke Bomb Recipe And Legacy Identifiers
+
+The approved M6.5 recipe replaces the former Smoke Powder intermediate:
 
 `1 Charcoal Powder + 1 Sulfur -> 1 Smoke Bomb`
 
-This replaces the longer Smoke Powder intermediate as the intended M6.5 recipe. The current v0.7 chain is `Goblin Scrap + Charcoal Dust -> Smoke Powder`, then `Smoke Powder + Grade-I Fiber -> Smoke Bomb`; it remains unchanged in runtime content during this documentation update. Gate 0-3 owns recipe implementation and efficiency. Sulfur and Charcoal Powder are `alch` ingredients. Smoke Bombs are Alchemist-priority merchandise and may reach Merchant overflow at the normal price.
+The v0.7 runtime chain (`Goblin Scrap + Charcoal Dust -> Smoke Powder`, then `Smoke Powder + Grade-I Fiber -> Smoke Bomb`) remains untouched during this documentation update. M6.5's intended recipe no longer requires Smoke Powder. Before implementation, Gate 0-4 must audit `charcoal_dust` and `smoke_powder` plus persisted ownership. Do not delete saved materials, silently convert legacy Smoke Powder, or invent a conversion ratio; identifier, alias, and migration behavior are a Gate 0-4 contract.
 
-#### Legacy Identifier Compatibility
+### Return Talisman Exclusion
 
-Before implementation, audit the existing `charcoal_dust` and `smoke_powder` identifiers and any persisted ownership. The intended end state uses Charcoal Powder and does not require Smoke Powder as an intermediate. Do not delete saved materials or silently convert legacy Smoke Powder, and do not invent a conversion ratio. Canonical identifiers, aliases, and migration handling belong to Gate 0-4.
+Return Talismans remain Merchant-exclusive merchandise under the approved 25% markup and finite-stock rules. The final authored base/purchase price remains an explicit pre-implementation value dependency; the legacy 16g base produces 20g as a reference, not a final price. This open value does not change the approved markup or reopen the Gate 0-2 Alchemist discount/vendor-allocation decisions.
 
-### Return Talisman
+The separate rare recipe is exactly `2 Boss Cores + 1 Mythril Plate -> 1 Return Talisman`. It yields one item, is not ordinary Alchemy, grants no Alchemy XP or bonus output, and receives no Alchemist discount or efficiency benefit. The Alchemist does not sell or craft Return Talismans. Qualifying Boss Core definitions, legitimate/repeatable acquisition, Mythril Plate sourcing/rarity, and the crafting service location remain open for later gates. Do not add farming systems or loot sources here.
 
-Return Talismans are rare, valuable utility items with two approved acquisition paths:
+### Enchanting XP And Permanent Affix Discovery
 
-1. **Merchant purchase:** Merchant is the exclusive merchandise vendor. The approved markup is 25% over its authored base price: `Merchant price = base price * 1.25`. The legacy base value of 16g yields 20g as a reference calculation, not a final balancing decision; the final base/purchase price must still meet the expensive, scarce-utility direction. Finite stock applies; its quantity remains open. No rounding is allowed, so the authored base price must be divisible by four to produce an exact whole-gold purchase price. The Alchemist does not stock or discount Return Talismans, and its ingredient discount does not apply.
-2. **Rare crafting:** The approved recipe is `2 Boss Cores + 1 Mythril Plate -> 1 Return Talisman`. The ingredient types and quantities are approved. This is a high-cost alternative to Merchant purchase, not ordinary Alchemy; Alchemist recipe-efficiency benefits do not apply by default, and the Alchemist does not own this service. The eventual crafting interface/service owner remains to be assigned separately under Gate 0-4.
+Successful disenchantment and affix application award Enchanting XP by affix grade:
 
-Before implementation, determine which authored Boss Core definitions qualify, whether different eligible cores may be combined, whether enough cores can be acquired legitimately, and how repeat acquisition interacts with boss progression and replay rules. The current game includes the Goblin Lord Core; do not assume it is the only eligible core or that a boss can be farmed without limit.
+| Affix grade | Disenchant XP | Affix application XP | First-discovery bonus |
+| --- | ---: | ---: | ---: |
+| I | 10 | 10 | +5 |
+| II | 20 | 20 | +10 |
+| III | 30 | 30 | +15 |
+| IV | 40 | 40 | +20 |
+| V | 50 | 50 | +25 |
 
-Mythril Plate is a newly planned rare `smith` material, subject to confirmation alongside its acquisition and usage contracts. It must not be a routine low-grade drop; acquisition should require meaningful progression or rare content. Drop sources, probabilities, floor eligibility, and vendor availability remain open. No new loot tables or acquisition sources are authored by this planning update.
+One successful disenchantment awards base XP for the highest-grade affix extracted from the donor armor. It also awards the discovery bonus separately for each affix definition newly added to permanent knowledge. For example, armor with Grade I and Grade III affixes awards 30 base XP; if both recipes are new, it adds 5 + 15 discovery XP for 50 total. Repeated extraction still awards its grade-based operation XP and the existing M5 consumable modifier-instance payout, but never duplicates a known recipe or repeats its discovery bonus.
+
+A successful application awards XP for the applied affix grade, whether using an existing M5 stored modifier instance or the new learned-recipe operation. Replacing an affix grants no XP for the displaced modifier. Failed, rejected, canceled, or unchanged applications award no XP. Experience must commit atomically with the successful equipment operation.
+
+### Preserve Existing M5 Extraction And Stored-Instance Affixing
+
+M5 remains authoritative for eligible armor extraction, consumable modifier-instance creation, stored-instance application, replacement, compatibility, grade restrictions, donor/displaced-modifier destruction, confirmations, stale-action rejection, and rollback. Existing M5 extraction and stored-instance application keep their authored gold/material costs. **They do not gain Magic Crystal costs or Gate 0-3 level discounts.** Gate 0-3 adds Enchanting XP to successful operations and permanent knowledge to eligible disenchanting; it does not replace or duplicate M5 modifier instances. Permanent knowledge never creates an `ArmorModifierInstance`.
+
+Rings and Pendants remain ineligible for disenchantment or modifier extraction.
+
+### Learned-Affix Recipe Application
+
+The Enchanter gains a separate operation to apply a permanently learned affix without consuming a stored modifier instance. It requires known affix knowledge, compatible armor, authored gold, and grade-matched Magic Crystals. Existing M5 compatibility and rarity restrictions still apply; replaced affixes are destroyed as before. Enchanting level changes only the costs, never affix strength.
+
+Let `G` be the applied affix grade (`I=1`, `II=2`, `III=3`, `IV=4`, `V=5`):
+
+| Enchanting level | Matching-grade Magic Crystals | Gold cost |
+| --- | ---: | ---: |
+| 1-24 | 2 | 8 * G |
+| 25-49 | 2 | 7 * G |
+| 50-74 | 2 | 6 * G |
+| 75-99 | 1 | 5 * G |
+| 100 | 1 | 4 * G |
+
+Crystals must match the affix grade exactly; higher-grade substitution is not allowed. At least one crystal is always consumed. Gold remains whole with no rounding. Level 100 costs half the Level 1 gold requirement and one crystal instead of two. These reductions apply only to this new learned-recipe operation, never to M5 extraction or stored-instance affixing.
+
+| Enchanting level | Grade III crystals | Gold |
+| --- | ---: | ---: |
+| 1 | 2 | 24 |
+| 25 | 2 | 21 |
+| 50 | 2 | 18 |
+| 75 | 1 | 15 |
+| 100 | 1 | 12 |
+
+### Magic Crystal Grade V Boundary
+
+| Material | Application grade | Gate 0-3 status |
+| --- | --- | --- |
+| Grade I Magic Crystal | I | Planned |
+| Grade II Magic Crystal | II | Planned |
+| Grade III Magic Crystal | III | Planned |
+| Grade IV Magic Crystal | IV | Planned |
+| Grade V Magic Crystal | V | Reserved for appropriate future content |
+
+Grade V affix definitions already exist under M5. The new Grade V crystal-dependent learned-recipe application remains unavailable until appropriate future content supports it. This does not disable or alter existing Grade V extraction or stored-instance application. Gate 0-4 must identify legitimate crystal acquisition, stock ownership, and persistence; no source, price, drop rate, vendor merchandise, or grade conversion is invented here. The Enchanter remains service-only.
+
+### Persistence And Transaction Boundaries
+
+Gate 0-4 must define persistent ownership and migration for party Alchemy XP, party Enchanting XP, and permanently discovered affix definitions. Runtime calculations remain Python-authoritative. Gate 0-5 must qualify atomic resource spending, output/equipment mutation, XP award, cancellation, stale or duplicate submissions, and rollback. Reload/retry must never duplicate output, modifier rewards, recipe knowledge, or XP. These implementation details do not reopen the approved numerical contracts above.
 
 ## Contract Reconciliation: M2 And M5
 
@@ -228,10 +310,10 @@ M6.5 changes the following named access/economy/progression provisions. Other M2
 | Existing contract | M6.5 direction | Preserved behavior / unresolved boundary |
 | --- | --- | --- |
 | M2-D6 specifies unlimited static Merchant stock. | Superseded: merchandise vendors have finite stock, with replenishment tied to Hub returns. | M2 purchase/sale validation, secured inventory, eligible-item rules, transaction atomicity, authored purchase prices, and the existing floor(base price / 2) sale rule remain unless separately approved. Refresh, resale, and anti-arbitrage details are open. |
-| M2-D5 specifies shared-inventory Alchemy with no Alchemy level or XP. | Superseded: Alchemy activities advance a persistent Alchemy profession. | Recipes remain distinct from weapon Crafting; exact activities, XP, thresholds, benefits, and efficiency values are open. Existing recipe transaction guarantees remain. |
+| M2-D5 specifies shared-inventory Alchemy with no Alchemy level or XP. | Superseded: approved Alchemy recipe crafts award persistent Alchemy XP and deterministic mastery output. | Exact recipe XP and level/output thresholds are specified under Gate 0-3 below. Recipes remain distinct from weapon Crafting; no gold fee or weapon Crafting XP is added. Existing recipe transaction guarantees remain. |
 | M2 provides the Preparation/Inventory workflow for carrying supplies. | Hub -> Inventory owns supply packing/unpacking. | Preserve M2 six-unit capacity, carryability, secured storage, exact quantities, atomic load/unload, and dungeon preparation/extraction rules. This changes navigation ownership, not item authority. |
 | M5 presents equipment sale/dismantling and modifier extraction/affixing/replacement through Alchemist-owned Hub services. | Service access is reassigned: armor/component commerce and physical equipment services to Blacksmith; modifier/disenchantment/affix services to Enchanter. | Preserve M5 eligibility, instance identity, secured-gear requirements, destructive consequences, explicit confirmations, grade compatibility, and atomic rollback. |
-| M5 extraction destroys donor armor and stores its eligible installed modifiers; replacement destroys the displaced modifier. | Enchanter owns these services; each successful eligible disenchantment also adds its affix definitions to permanent recipe knowledge. | Preserve every existing extracted modifier instance as a consumable payout. Recipe knowledge is separate, persists without duplicate entries, and does not replace or duplicate the M5 payout. Numerical progression and later application costs remain open. |
+| M5 extraction destroys donor armor and stores its eligible installed modifiers; replacement destroys the displaced modifier. | Enchanter owns these services; successful disenchantment also records permanent affix knowledge and awards approved Enchanting XP. | Preserve every existing extracted modifier instance as a consumable payout. Recipe knowledge is separate and does not replace or duplicate the M5 payout. Gate 0-3 adds XP and a first-discovery bonus without changing M5 extraction costs or behavior; learned-recipe costs are specified below. |
 | M5 Rings/Pendants are static and cannot be extracted/disenchanted. | No change. | Accessories remain ineligible for disenchantment and modifier extraction. |
 | M5 equipment sale destroys attached modifiers and awards only authored gold. | M6.5 same-visit buyback can restore an eligible sold armor/accessory instance with its exact original properties. | Narrow explicit supersession while a sale has active buyback: retain the exact instance and attached state for recovery, while preserving M5's existing destructive-sale confirmation. Final disposition after buyback expires must be reconciled with stock rules at Gate 0-4/0-5. Equipment dismantling remains destructive under M5 confirmation rules. |
 | M2 supply packing/unpacking is presented on the Merchant screen. | Hub -> Inventory owns supply preparation. | Navigation moves away from Merchant; M2 six-unit capacity, carryability, secured-storage ownership, exact quantities, atomic load/unload, and outing rules remain unchanged. |
@@ -317,10 +399,10 @@ Current general purchases/sales and Alchemy/weapon operations mutate the live se
 | Vendor-qualified merchandise offers and finite stock | Existing `hub_supply` item actions and static `shop_stocked` flag | Modify purchase projection/validation, add finite remaining quantities and vendor offers; define persisted stock and return refresh in Gate 0-4 |
 | Buy armor/equipment merchandise | No equipment buy action or template purchase price/stock field | New authored merchandise and purchase operation; prices/stock/eligible template list remain open |
 | Buy/sell component merchandise | No independent component inventory, merchandise price, stock, or component `buy`/`sell` input | **0-1A approved:** shared stack counts keyed by `component_id`, quantity-based buy/sell, including recovered starters; stock/price and persistence mechanics remain open |
-| Alchemy discounts and recipe efficiency | Current `buy` uses one base price; current recipes use fixed authored costs/outputs | Modify authoritative pricing/recipe calculation in Gates 0-2/0-3; overlapping goods must not duplicate transaction logic |
-| Alchemy profession progression | No Alchemy XP, level, or bar; current `craft_alchemy` awards no XP | New persistent state and award hook on approved activities; values/actions remain Gate 0-3 |
-| Enchanting profession progression | No Enchanting XP, level, or bar | New persistent state and award hooks for approved Enchanter actions; values remain Gate 0-3 |
-| Learned-affix collection and use | No known-recipe collection; current affix requires a stored `modifier_instance_id` | Add permanent knowledge alongside the unchanged M5 modifier-instance payout; repeated discovery does not duplicate the collection entry. Applying learned recipes remains a new action with costs and eligibility to define. |
+| Alchemy discounts and recipe mastery | Current `buy` uses one base price; current recipes use fixed authored costs/outputs | Implement the approved Gate 0-2 price formula and Gate 0-3 recipe XP/output milestones in Python; overlapping goods must not duplicate transaction logic |
+| Alchemy profession progression | No Alchemy XP, level, or bar; current `craft_alchemy` awards no XP | Add persistent state and an award hook to successful approved recipe crafts; numerical XP, thresholds, and output milestones are fixed by Gate 0-3; state/migration belongs to Gate 0-4 |
+| Enchanting profession progression | No Enchanting XP, level, or bar | Add persistent state and XP hooks to successful approved Enchanter actions; numerical awards/thresholds are fixed by Gate 0-3; state/migration belongs to Gate 0-4 |
+| Learned-affix collection and use | No known-recipe collection; current affix requires a stored `modifier_instance_id` | Add permanent knowledge alongside the unchanged M5 modifier-instance payout; first-discovery XP and learned-recipe costs/eligibility are fixed by Gate 0-3. Persistence is Gate 0-4; atomic transaction proof is Gate 0-5. |
 | Vendor stock, refresh, and player-sold future stock | No vendor inventory, stock quantity, Hub-return ID, or stock event | New persistent state plus idempotent return and sale integration; exact life cycle remains Gate 0-4 |
 | Same-visit vendor buyback | No buyback record, Hub-visit identity, or item escrow | New limited recovery operation for eligible sold property. Gate 0-4 defines visit identity, persistence and stock interaction; Gate 0-5 defines eligibility, price, expiry consequences and transaction protection. |
 
@@ -368,7 +450,7 @@ Preserve M5's armor-only extraction, donor destruction, secured/unequipped requi
 
 The existing Crafting system is the only profession-like progression reference. `PartyState` owns one shared `crafting_experience`; `crafting_level` is derived from `CRAFTING_LEVEL_THRESHOLDS` in `weapon_progression_spec.py`. The current curve starts at Level 1 with 0 XP, advances one level per 10 cumulative XP, and caps at Level 100 / 990 XP. Authored component recipes currently award 10 XP; improvement awards are authored by material grade: Grade I 20, Grade II 30, Grade III 40, and Grade IV 50 XP. Successful component craft/install and slot improvement award XP after their resource transaction; stack dismantling and Tier V attempts award none. It is party-level, persisted in the `party.crafting_experience` snapshot field, and validated against `MAX_CRAFTING_EXPERIENCE`.
 
-This provides an implementation reference for a persistent experience value, derived level, authored threshold curve, and award at a successful domain transaction boundary. It is not a reusable profession framework: there is no generic profession object or shared XP API. M6.5 must keep Alchemy and Enchanting as independent progressions with separate sources/curves/state. Reusing a small persistence/validation pattern may be appropriate; reusing Crafting XP, awarding weapon Crafting XP from Alchemy, coupling professions, or changing weapon Crafting behavior is not.
+This provides an implementation reference for a persistent experience value, derived level, authored threshold curve, and award at a successful domain transaction boundary. It is not a reusable profession framework: there is no generic profession object or shared XP API. Gate 0-3 now fixes the independent Alchemy and Enchanting curves and award rules below; Gate 0-4 must decide their distinct persistent fields and migration. Reusing a small persistence/validation pattern may be appropriate; reusing Crafting XP, awarding weapon Crafting XP from Alchemy, coupling professions, or changing weapon Crafting behavior is not.
 
 The current save baseline is runtime schema 24 and disk schema 24. `PartyState` already persists shared stock, party Crafting XP, equipment instances, and modifier instances; each `PlayerState` persists signature-weapon component IDs and advancement. No vendor/profession/known-affix fields exist. Any adopted M6.5 state therefore needs an explicit owner, validation and legacy default, a forward-only runtime/disk migration, current and historical profile coverage, and save/reload tests. The exact schema version and field placement are not decided. Profile envelope/API/database changes are not implied; verify them at Gate 0-4 rather than assuming.
 
@@ -408,7 +490,7 @@ The source/action mapping is complete for the exposed commerce, weapon progressi
 - **0-1D, immediate shared-stack transactions:** eligible ordinary quantity-based material/item sales and shared-stack dismantling execute immediately without an additional confirmation screen. Armor/accessory dismantling and destructive Enchanter operations retain their existing M5 confirmations. Equipment sale retains its existing M5 confirmation where applicable.
 - **Buyback direction:** an eligible item sale may be reversed only through its purchasing vendor during the same Hub visit. Buyback is separate from future vendor stock and cannot reverse a committed crafting or destructive conversion.
 
-The audit findings remain useful implementation evidence, not pending product decisions. Starter-component representation, persistence/migrations, vendor and Hub-visit identity, finite stock, buyback record lifecycle, prices, exact crystal costs/acquisition, profession values, and transaction implementations are assigned to Gates 0-2 through 0-5 below. No gameplay or schema work is authorized by this documentation update.
+The audit findings remain useful implementation evidence, not pending product decisions. Gate 0-1 through 0-3 product contracts are closed. Starter-component representation, persistence/migrations, vendor and Hub-visit identity, finite stock, buyback record lifecycle, the final Return Talisman base price, legitimate crystal/material acquisition, and transaction implementations remain for Gate 0-4/0-5 as applicable. The exact profession, recipe, and learned-affix numerical values are fixed below. No gameplay or schema work is authorized by this documentation update.
 
 ## Gate 0 Tracking
 
@@ -416,24 +498,24 @@ The audit findings remain useful implementation evidence, not pending product de
 | --- | --- | --- |
 | 0-1: Vendor ownership and product direction | **Closed: approved** | Source/action audit complete; 0-1A through 0-1D are closed at the product-decision level. |
 | 0-1A: Component ownership/replacement | **Closed: approved** | Uninstalled components are shared stacks keyed by `component_id`; replacement/craft-and-install credits the outgoing component; all recovered parts including starter components may be sold. Preserve existing crafting rules; no lifetime restriction. |
-| 0-1B: Enchanter extraction and recipe knowledge | **Closed: approved** | Preserve M5's extracted modifier-instance payout and additionally add permanent affix knowledge, without duplicate collection entries. Exact progression and costs remain assigned to later gates. |
+| 0-1B: Enchanter extraction and recipe knowledge | **Closed: approved** | Preserve M5's extracted modifier-instance payout and additionally add permanent affix knowledge, without duplicate collection entries. Gate 0-3 fixes the Enchanting XP/discovery awards and learned-recipe costs; Gate 0-4 owns their persistence. |
 | 0-1C: Supply preparation ownership | **Closed: approved** | Hub -> Inventory owns packing/unpacking; all M2 capacity, carryability, secured-storage, quantity, and atomicity rules remain. |
 | 0-1D: Immediate shared-stack transactions | **Closed: approved** | Ordinary quantity-based sales and shared-stack dismantling need no additional confirmation; M5 equipment and Enchanter destructive confirmations remain. |
 | Hub buyback direction | **Approved** | Eligible sold property may be bought back from its original vendor during the same Hub visit; eligibility, pricing, persistence, and stock interaction remain assigned to Gates 0-4/0-5. |
-| 0-2: Alchemist merchandise and discounts | **In progress: pricing direction approved; schedule proposed** | Flat 25% Alchemist discount and specialist-first shared stock with Merchant overflow are approved. Working prices are recorded for review. Final Return Talisman base/purchase price and any unresolved merchandise eligibility remain open. |
-| 0-3: Recipe efficiency and profession values | Open | Implement recipe contracts, including the proposed Mana Potion recipe and approved Smoke Bomb recipe direction; define efficiency, quantities, profession values including repeat-discovery rewards, and authored operation-specific Magic Crystal costs. |
-| 0-4: Navigation and persistence | Open | Specify vendor/Hub Inventory navigation, state ownership, schema/migration/backward compatibility, client parity, Hub-visit identity, finite stock/allocation/replenishment, legacy `charcoal_dust` and `smoke_powder` compatibility, buyback lifetime, legitimate seller/acquisition availability for `enchant` materials, and the Return Talisman crafting-service owner/interface. |
+| 0-2: Merchandise and discounts | **Closed at product-decision level** | Flat 25% Alchemist discount, working merchandise schedule, and specialist-first shared stock with Merchant overflow are recorded. Final Return Talisman base price remains an explicit value dependency before that offer is implemented; this does not reopen the approved discount/allocation rules. |
+| 0-3: Recipe efficiency and profession progression | **Closed at product-decision level** | Profession thresholds, recipe inputs/outputs/XP, mastery output milestones, Enchanting XP/discovery awards, and learned-recipe crystal/gold costs are fixed above. Mana Potion effect and material acquisition remain open dependencies. |
+| 0-4: Navigation, stock lifecycle, and persistence | Open | Specify vendor/Hub Inventory navigation, state ownership, schema/migration/backward compatibility, client parity, Hub-visit identity, finite stock/allocation/replenishment, legacy `charcoal_dust` and `smoke_powder` compatibility, buyback lifetime, legitimate material/crystal sources and stock, Grade V learned-use availability, and the Return Talisman crafting-service owner/interface. |
 | 0-5: Destructive, sale, and buyback paths | Open | Finalize buyback eligibility/pricing, post-expiration disposition and stock interaction, rollback/stale-action behavior, and confirmation/destructive protections against M5. |
 
-No numeric values or technical architecture are inferred beyond the approved product contracts. Gates 0-2 through 0-5 remain open; this documentation update does not authorize gameplay implementation.
+Gate 0-1 through 0-3 product decisions are closed. **Overall Gate 0 progress: 3 of 5 gates complete at the product-decision level.** Gates 0-4 and 0-5 remain open for technical ownership, navigation, persistence, stock, migration, transaction, and qualification details. No technical architecture is inferred beyond the approved product contracts, and this documentation update does not authorize gameplay implementation.
 
 ## Future Implementation Stages
 
-These stages remain planning structure only; no gameplay implementation is authorized by this Gate 0-1 closure update.
+These stages remain planning structure only; no gameplay implementation is authorized by this Gate 0-3 planning update.
 
 ### M6.5A: Remaining Vendor Contracts
 
-Complete Gates 0-2 through 0-5 using the source/action audit and closed Gate 0-1 contracts already recorded here. Define pricing, recipe efficiency, profession progression, stock and buyback lifecycle, and persistence. Do not repeat the completed audit or fill unresolved choices in during implementation.
+Complete Gates 0-4 and 0-5 using the source/action audit and closed Gate 0-1 through 0-3 contracts already recorded here. Define navigation, persistent ownership/migration, stock and buyback lifecycle, and transaction qualification. Do not reopen approved numbers, repeat the completed audit, or fill unresolved choices in during implementation.
 
 ### M6.5B: Vendor Separation And Persistent Systems
 
@@ -451,6 +533,8 @@ M6.5 implementation closure will require, at minimum:
 - Merchant, Blacksmith, and Alchemist stock is finite under the approved replenishment contract; Enchanter remains service-only.
 - Alchemist prices follow the flat 25% discount with exact whole-gold arithmetic and no quantity-dependent rounding; Merchant overflow uses undiscounted prices, and Return Talismans remain Merchant-exclusive under the approved 25% markup direction.
 - Shared Hub merchandise is allocated to specialist stock first and is never duplicated across vendors; Merchant receives only eligible overflow, with finite quantities decremented by authoritative Python transactions.
+- Alchemy and Enchanting use independent party-wide XP curves, awards, and derived levels; Alchemy output milestones, grade-based Enchanting XP/discovery bonuses, and learned-recipe crystal/gold costs match the closed Gate 0-3 tables exactly.
+- Existing M5 extraction and stored-instance affixing retain their costs and behavior without Magic Crystal costs; learned-recipe application remains separate, uses exact-grade crystals, and does not create modifier instances.
 - Alchemy skill, Enchanting skill, learned-affix knowledge, and vendor stock/player-influenced inventory have distinct, validated persistent ownership as approved.
 - Buyback is limited to eligible sales from the purchasing vendor during the current Hub visit; stack quantities and exact unique-item state are restored without duplication, and committed crafting/destructive conversions remain irreversible.
 - Weapon components use approved shared stack counts when uninstalled; exact compatible installs and craft-and-install return displaced definitions without duplicate/refund exploits. Installed slots remain definition-based. All recovered components, including starter parts, are eligible for sale.
@@ -460,4 +544,4 @@ M6.5 implementation closure will require, at minimum:
 
 ## Deferred
 
-Gate 0-2 remains in progress; Gates 0-3 through 0-5 remain open. The working Alchemist merchandise schedule is proposed for review, and the final Return Talisman base/purchase price and any unresolved merchandise eligibility remain open. Exact stock/allocation/replenishment, Mana Potion effects and proposed recipe, Smoke Bomb recipe implementation/efficiency, legacy identifier migration for `charcoal_dust` and `smoke_powder`, profession progression, Magic Crystal operation costs/acquisition, learned-affix application costs, Return Talisman component eligibility/acquisition/service assignment, buyback eligibility/prices/lifetime interactions, starter/default-part representation, and technical schema/migration choices remain open. No component crafting-limit decision is open. New magical effect types, Ring/Pendant disenchantment, new dungeon loot sources, new field-crafting interfaces beyond the reviewed rare Talisman recipe, and broad economy rebalance are not approved by this plan.
+Gates 0-1 through 0-3 are closed at the product-decision level; Gates 0-4 and 0-5 remain open. The Alchemist merchandise schedule remains a working proposal, and the final Return Talisman base/purchase price is an explicit value dependency before its offer is implemented; neither reopens the approved discount or markup rules. Mana Potion effects, legitimate material/crystal sources, vendor stock/allocation/replenishment, Grade V learned-application availability, legacy identifier migration for `charcoal_dust` and `smoke_powder`, persistent field placement/schema, navigation, buyback lifecycle, transaction confirmations/rollback, and the Return Talisman crafting-service owner remain open. The Gate 0-3 XP curves, recipe inputs/outputs/XP, mastery output milestones, Enchanting discovery awards, and learned-recipe costs are not open for reinterpretation. No component crafting-limit decision is open. New magical effect types, Ring/Pendant disenchantment, new dungeon loot sources, new field-crafting interfaces beyond the reviewed rare Talisman recipe, and broad economy rebalance are not approved by this plan.
