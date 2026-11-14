@@ -1,6 +1,6 @@
 # M6.5 Hub Vendor Specialization
 
-**Status:** Gate 0-1 source/action audit is complete and Gate 0-1 is closed at the product-decision level. Subdecisions 0-1A through 0-1D are closed; same-Hub-visit vendor buyback is approved as a separate M6.5 requirement. Gate 0-2 is in progress: Alchemist merchandise direction and discount ceilings are approved, while exact prices and vendor overlap remain open. Gates 0-3 through 0-5 remain open. This update is documentation-only; no gameplay implementation, schema work, or client changes are authorized.
+**Status:** Gate 0-1 source/action audit is complete and Gate 0-1 is closed at the product-decision level. Subdecisions 0-1A through 0-1D are closed; same-Hub-visit vendor buyback is approved as a separate M6.5 requirement. Gate 0-2 is in progress: the flat Alchemist discount and specialist-first shared-stock allocation are approved; the working merchandise schedule is recorded for review, while the final Return Talisman base price and any unresolved merchandise eligibility remain open. Gates 0-3 through 0-5 remain open. This update is documentation-only; no gameplay implementation, schema work, or client changes are authorized.
 
 **Planning baseline:** v0.7 merge commit `8a76bf6b857c6b4302b5a013f08e208e2f823a28`. Revalidate the current branch, service owners, persistence versions, content, and client actions at Gate 0.
 
@@ -24,13 +24,13 @@ M6.5 is a Hub systems side mission after the sealed v0.7 M1-M6 scope. It remains
 - Limited same-Hub-visit buyback for eligible sold property, separate from future vendor stock and unable to undo committed crafting or destructive conversions.
 - Planned shared-inventory component stacks, quantity-based trading, and return of displaced installed components to inventory under approved Gate 0-1A.
 - Four authored material families: `alch`, `smith`, `enchant`, and `gen`; Grade I through V Magic Crystals are `enchant` materials required for Enchanting. Their exact costs and acquisition sources remain to be defined.
-- Both Alchemist economic advantages: discounted eligible alchemical merchandise and improved recipe efficiency. The Gate 0-2 discount ceilings are approved; exact item prices and Gate 0-3 recipe-efficiency values/mechanisms remain open.
+- Both Alchemist economic advantages: a flat 25% discount on eligible alchemical merchandise and improved recipe efficiency. The working item-price schedule is proposed for review; Gate 0-3 recipe-efficiency values/mechanisms remain open.
 - Character -> Equipment remains the independent interface for inspecting and equipping already-owned gear.
 
 ### Out Of Scope For This Documentation Pass
 
 - Gameplay, content, UI, save-schema, migration, or test implementation.
-- Choosing exact item prices, stock counts, refresh policy, anti-arbitrage formulas, Alchemy/Enchanting XP, level thresholds, skill benefits, recipe efficiencies, or recipe-specific costs and yields. The approved Alchemist discount ceilings do not set individual prices.
+- Finalizing the proposed item prices, stock counts, refresh policy, anti-arbitrage formulas, Alchemy/Enchanting XP, level thresholds, skill benefits, recipe efficiencies, or recipe-specific costs and yields. The flat 25% Alchemist discount and working schedule do not settle the final Return Talisman price.
 - Adding field-crafting interfaces, new magical effects, new loot sources, new equipment catalogs, or a general economy rebalance.
 - Changing combat effects, signature weapon identity/effects, M2 supply rules, M5 equipment ownership, or M5 destructive-operation outcomes.
 
@@ -47,7 +47,7 @@ The vendor and action ownership below is the approved product contract. The comp
 | Character -> Equipment | Inspect, equip, unequip, and swap compatible owned equipment among eligible Drifters | These actions remain available without visiting a vendor. They do not become Blacksmith or Enchanter services merely because those vendors can modify equipment. |
 | Hub -> Inventory | Shared storage and supply packing/unpacking | Approved owner for supply preparation and ordinary inventory management. Preserve M2 capacity, carryability, secured-storage, exact quantities, and atomicity; this is not Merchant commerce and does not create a second item authority. |
 
-Merchant's generalist remit allows eligible ordinary consumables, armor/equipment, alchemical ingredients, weapon components, and other general goods. Return Talismans are Merchant-exclusive merchandise and are never Alchemist stock. Whether newly introduced Mana Potions, ingredients, or other consumables are actually stocked by the Merchant remains undecided under Gate 0-2. An item being available for sale through Merchant does not make Merchant the owner of that item's specialist service or player-sale path.
+Merchant's generalist remit allows eligible ordinary consumables, armor/equipment, alchemical ingredients, weapon components, and other general goods. Return Talismans are Merchant-exclusive merchandise and are never Alchemist stock. Eligible merchandise is allocated from shared Hub stock with specialist priority and Merchant overflow as specified under Gate 0-2; this is not an unlimited independent Merchant supply. An item being available for sale through Merchant does not make Merchant the owner of that item's specialist service or player-sale path.
 
 Player-sale ownership approved at this level:
 
@@ -65,7 +65,7 @@ Materials are organized into four authored families: `alch` (Alchemy), `smith` (
 
 Magic Crystals are `enchant`-family materials with Grades I through V. They are required inputs for Enchanting. The specific Enchanter operations that consume them, the grade and quantity required by each operation, and any interaction with Enchanting progression remain to be defined. Do not infer crystal costs for extraction/disenchantment or other operations beyond the approved requirement that Enchanting requires crystals.
 
-The newly planned Magic Reagent, Aether Dust, and Sulfur are proposed `alch` materials. Mythril Plate is a proposed rare `smith` material, subject to confirmation with its acquisition and usage contracts. Boss Cores retain their existing gameplay identity until broader material classification and recipe eligibility are reviewed. These profession families do not replace the weapon-progression material families `metal`, `fiber`, `timber`, and `cores`.
+The newly planned Magic Reagent, Aether Dust, Sulfur, and Charcoal Powder are `alch` materials. The existing `charcoal_dust` and `smoke_powder` identifiers require a compatibility audit before any implementation; no saved material may be silently deleted or converted, and no conversion ratio is established here. Mythril Plate is a proposed rare `smith` material, subject to confirmation with its acquisition and usage contracts. Boss Cores retain their existing gameplay identity until broader material classification and recipe eligibility are reviewed. These profession families do not replace the weapon-progression material families `metal`, `fiber`, `timber`, and `cores`.
 
 The existing player-sale contracts remain in force for eligible `smith` crafting materials sold to the Blacksmith and eligible `alch` ingredients sold to the Alchemist; those sales become purchase-eligible stock on a future Hub return. No seller, stock source, or player-sale destination is approved for `enchant` materials. In particular, the Enchanter remains service-only and does not gain merchandise stock by implication. `gen` material sale and stock routing remains subject to authored item eligibility and later vendor-stock decisions.
 
@@ -126,54 +126,69 @@ This expressly supersedes the old no-stackable-signature-parts restriction **for
 
 ## M6.5-D1: Alchemist Pricing And Crafting Efficiency
 
-**Approved direction:** Both benefits are required. The maximum discount ceilings are recorded under Gate 0-2; individual item prices remain open.
+**Approved direction:** Both benefits are required. Eligible Alchemist merchandise receives a flat 25% purchase discount under Gate 0-2; recipe efficiency remains a separate Gate 0-3 contract.
 
 - Discounted purchase prices for eligible alchemical goods and ingredients compared with the Merchant's applicable offer.
 - Improved crafting efficiency through reduced ingredient requirements, increased output quantities, or an approved combination.
 
-The intended specialist advantage is substantial. The illustration that field costs could be approximately twice the Alchemist's resource cost is a direction for later design, not approval for a universal 50% multiplier. Gate 0-2 approves initial merchandise categories and maximum discount ceilings; individual prices and Merchant overlap remain open. Per-recipe requirements, output quantities, and the efficiency mechanism remain open for Gate 0-3.
+The intended specialist advantage is substantial. The illustration that field costs could be approximately twice the Alchemist's resource cost is not approval for a universal recipe-efficiency multiplier. The flat 25% merchandise discount is a distinct purchase-price rule; per-recipe requirements, output quantities, and efficiency mechanisms remain open for Gate 0-3.
 
 M2 recipes currently have no gold crafting fee. Do not invent one. Any later approved efficiency must be explicit, deterministic, authored, and atomic. Failed or stale operations must not partially consume ingredients, duplicate output, or award weapon Crafting XP. Alchemy profession progression must follow the Gate 0-3 earning contract; no activity award is inferred here.
 
-## Gate 0-2: Alchemist Merchandise And Discount Ceilings (In Progress)
+## Gate 0-2: Merchandise Prices And Specialist-First Stock (In Progress)
 
 The Alchemist specializes in alchemical ingredients and finished alchemical consumables. Its approved initial merchandise direction is:
 
 | Merchandise class | Eligible goods | Status |
 | --- | --- | --- |
-| Finished alchemical consumables | Healing Potions, Mana Potions (planned), Smoke Bombs | Approved category; Mana Potion effect, price, stock, and recipe details remain open. |
-| Alchemical ingredients/materials | Medicinal Herbs, Clean Water, Charcoal Dust, Magic Reagent (planned), Aether Dust (planned), Sulfur (planned) | Approved category; exact prices, quantities, sources, and stock remain open. |
+| Finished alchemical consumables | Healing Potions, Mana Potions (planned), Smoke Bombs | Alchemist priority; Mana Potion effect remains open. Eligible overflow may go to Merchant at its normal price. |
+| Alchemical ingredients/materials | Medicinal Herbs, Clean Water, Charcoal Powder, Magic Reagent, Aether Dust, Sulfur | Alchemist priority; eligible overflow may go to Merchant at normal prices. Charcoal Powder identifier compatibility remains for Gate 0-4. |
 | Return Talismans | Not eligible | Excluded from Alchemist stock and discounts; Merchant is exclusive merchandise vendor. |
 
-All Alchemist merchandise has finite stock under the existing M6.5 stock contract. The Merchant may also offer eligible overlapping general merchandise, but exact Merchant availability for the new ingredients and consumables remains undecided. Alchemist specialist pricing remains authoritative for its own offers; sharing an item between vendors does not duplicate purchase/sale transaction logic.
+### Flat Alchemist Discount
 
-Approved maximum discounts:
+The approved discount is flat at 25% for eligible alchemical merchandise, applying equally to ingredients, alchemical crafting materials, and finished consumables. Return Talismans receive no Alchemist discount and remain Merchant-exclusive.
 
-| Merchandise class | Maximum discount |
-| --- | ---: |
-| Finished alchemical items and consumables | 25% |
-| Alchemical ingredients/materials | 30% |
-| Return Talismans | 0%; Merchant-exclusive |
+`Alchemist price = base price * 3 / 4`
 
-These are ceilings, not mandatory per-item discounts. Use explicit authored item prices; do not apply a blanket percentage to all goods. Preserve whole-gold transactions and ensure rounding never makes the effective discount exceed the applicable ceiling.
+Every discounted base price must be divisible by four so the resulting price is a whole number of gold. No rounding, fractional currency, or quantity-dependent discount formula is used. Total purchase cost is discounted unit price multiplied by quantity. Merchant overflow uses the normal undiscounted price. Discounts do not alter player resale values unless separately approved. Python remains authoritative for price calculation.
 
-The following existing authored prices are reference calculations only, not final approved Alchemist prices:
+### Working Merchandise Price Schedule
 
-| Item | Existing base price | Minimum permitted discounted price |
+These are proposed Gate 0-2 prices for review and balancing, not final implementation values. The base prices are adjusted to support the exact flat discount; do not invent alternative prices or tiers in this documentation pass.
+
+| Item | Proposed base price | Proposed Alchemist price |
 | --- | ---: | ---: |
-| Medicinal Herb | 2g | 2g |
-| Clean Water | 1g | 1g |
-| Charcoal Dust | 2g | 2g |
-| Healing Potion | 8g | 6g |
-| Smoke Bomb | 10g | 8g |
+| Medicinal Herb | 4g | 3g |
+| Clean Water | 4g | 3g |
+| Charcoal Powder | 4g | 3g |
+| Sulfur | 4g | 3g |
+| Magic Reagent | 8g | 6g |
+| Aether Dust | 8g | 6g |
+| Healing Potion | 12g | 9g |
+| Mana Potion | 20g | 15g |
+| Smoke Bomb | 12g | 9g |
 
-Smoke Bomb's 10g is an authored base value, not an existing Merchant shop offer. Do not revise base prices or currency precision in M6.5 without a separate decision.
+The prior lower provisional prices are superseded by this working schedule for planning review. Crafting should remain economically worthwhile compared with purchasing finished products. For example, at the proposed prices, one Healing Potion's 3g Medicinal Herb plus 3g Clean Water costs 6g in ingredients versus a 9g finished item. Gate 0-3 separately defines actual recipe efficiency, quantities, and profession benefits; do not add unapproved fees or XP.
 
-The following Gate 0-2 decisions remain open: final base prices for Magic Reagent, Aether Dust, Sulfur, and Mana Potion; final Alchemist offer prices within the approved ceilings; exact Merchant overlap for new items; treatment of Smoke Powder as legacy merchandise or crafting material; and the expensive Merchant purchase price and stock for Return Talismans.
+### Specialist-First Shared Merchandise Allocation
 
-## Proposed Gate 0-3 Recipes And New Materials
+Approved direction: vendors draw from a shared Hub merchandise allocation, with each specialist receiving priority for its category and the Merchant acting as overflow. Merchandise is allocated, not duplicated across vendors. For example, if the Hub receives three Healing Potions and the Alchemist's available allocation is two, the Alchemist receives two at its discounted price and the Merchant may receive the remaining one at the normal price.
 
-These recipe changes are proposals for Gate 0-3, not finalized crafting contracts. Do not remove or alter existing authored recipes during this documentation update.
+- Alchemist priority: eligible alchemical ingredients/materials, Healing Potions, Mana Potions, Smoke Bombs, and other approved alchemical merchandise.
+- Blacksmith priority: weapon components, eligible smithing materials, armor, and other approved physical equipment merchandise.
+- Merchant overflow: remaining eligible merchandise after specialist allocation limits are reached; Merchant prices remain undiscounted.
+- Merchant-exclusive/general goods, including Return Talismans, are assigned to Merchant from the same shared finite allocation; this does not create duplicate stock.
+- Purchases decrement the actual finite stock of the vendor used. Allocation is Python-authoritative and applies when stock is generated or replenished.
+- Player-sold materials and components remain eligible for future stock under the already approved vendor-sale contracts.
+
+Exact specialist capacities, allocation ordering, replenishment amounts, stock generation, and Hub-return rules remain Gate 0-4 decisions. The example quantity is illustrative, not a universal limit. This Gate 0-2 update does not create a new source of merchandise or change buyback rules.
+
+The remaining Gate 0-2 decisions are the final Return Talisman base/purchase price and any merchandise eligibility not resolved by the approved specialist categories and overflow rule. The Return Talisman markup rule is recorded below; its final base price and stock remain open.
+
+## Gate 0-3 Recipe Contracts And New Materials
+
+The Mana Potion recipe is a proposal for Gate 0-3. The Smoke Bomb recipe direction is approved, while recipe implementation and final efficiency remain Gate 0-3 work. Do not alter existing authored runtime recipes during this documentation update.
 
 ### Mana Potion
 
@@ -185,17 +200,21 @@ Mana Potion restoration amount/scaling, base price, Alchemist price, Merchant av
 
 ### Smoke Bomb
 
-Proposed simplified recipe:
+Approved simplified recipe direction:
 
-`1 Charcoal Dust + 1 Sulfur -> 1 Smoke Bomb`
+`1 Charcoal Powder + 1 Sulfur -> 1 Smoke Bomb`
 
-The current v0.7 chain is `Goblin Scrap + Charcoal Dust -> Smoke Powder`, then `Smoke Powder + Grade-I Fiber -> Smoke Bomb`. The proposed recipe would replace that chain only after Gate 0-3 approves the full contract. Sulfur is a planned `alch` ingredient. Preserve legacy Smoke Powder ownership/save compatibility in the implementation design. Smoke Bombs are intended Alchemist merchandise; their exact price and finite stock remain open.
+This replaces the longer Smoke Powder intermediate as the intended M6.5 recipe. The current v0.7 chain is `Goblin Scrap + Charcoal Dust -> Smoke Powder`, then `Smoke Powder + Grade-I Fiber -> Smoke Bomb`; it remains unchanged in runtime content during this documentation update. Gate 0-3 owns recipe implementation and efficiency. Sulfur and Charcoal Powder are `alch` ingredients. Smoke Bombs are Alchemist-priority merchandise and may reach Merchant overflow at the normal price.
+
+#### Legacy Identifier Compatibility
+
+Before implementation, audit the existing `charcoal_dust` and `smoke_powder` identifiers and any persisted ownership. The intended end state uses Charcoal Powder and does not require Smoke Powder as an intermediate. Do not delete saved materials or silently convert legacy Smoke Powder, and do not invent a conversion ratio. Canonical identifiers, aliases, and migration handling belong to Gate 0-4.
 
 ### Return Talisman
 
 Return Talismans are rare, valuable utility items with two approved acquisition paths:
 
-1. **Merchant purchase:** Merchant is the exclusive merchandise vendor. Purchase requires gold, the price should be expensive relative to ordinary consumables, and finite stock applies. The Alchemist does not sell or discount them. Exact price and stock remain open. The current authored value is 16g, but the item is not currently stocked for Merchant purchase; do not assume 16g is the new scarcity-model price.
+1. **Merchant purchase:** Merchant is the exclusive merchandise vendor. The approved markup is 25% over its authored base price: `Merchant price = base price * 1.25`. The legacy base value of 16g yields 20g as a reference calculation, not a final balancing decision; the final base/purchase price must still meet the expensive, scarce-utility direction. Finite stock applies; its quantity remains open. No rounding is allowed, so the authored base price must be divisible by four to produce an exact whole-gold purchase price. The Alchemist does not stock or discount Return Talismans, and its ingredient discount does not apply.
 2. **Rare crafting:** The approved recipe is `2 Boss Cores + 1 Mythril Plate -> 1 Return Talisman`. The ingredient types and quantities are approved. This is a high-cost alternative to Merchant purchase, not ordinary Alchemy; Alchemist recipe-efficiency benefits do not apply by default, and the Alchemist does not own this service. The eventual crafting interface/service owner remains to be assigned separately under Gate 0-4.
 
 Before implementation, determine which authored Boss Core definitions qualify, whether different eligible cores may be combined, whether enough cores can be acquired legitimately, and how repeat acquisition interacts with boss progression and replay rules. The current game includes the Goblin Lord Core; do not assume it is the only eligible core or that a boss can be farmed without limit.
@@ -401,9 +420,9 @@ The audit findings remain useful implementation evidence, not pending product de
 | 0-1C: Supply preparation ownership | **Closed: approved** | Hub -> Inventory owns packing/unpacking; all M2 capacity, carryability, secured-storage, quantity, and atomicity rules remain. |
 | 0-1D: Immediate shared-stack transactions | **Closed: approved** | Ordinary quantity-based sales and shared-stack dismantling need no additional confirmation; M5 equipment and Enchanter destructive confirmations remain. |
 | Hub buyback direction | **Approved** | Eligible sold property may be bought back from its original vendor during the same Hub visit; eligibility, pricing, persistence, and stock interaction remain assigned to Gates 0-4/0-5. |
-| 0-2: Alchemist merchandise and discounts | **In progress: partially approved** | Initial Alchemist categories and discount ceilings are approved. Final base and Alchemist prices, new-item Merchant overlap, Smoke Powder treatment, and Return Talisman price/stock remain open. |
-| 0-3: Recipe efficiency and profession values | Open | Approve the proposed Mana Potion and Smoke Bomb recipes as complete contracts; define Alchemy recipe inputs/outputs/efficiency, profession values including repeat-discovery rewards, and authored operation-specific Magic Crystal costs. |
-| 0-4: Navigation and persistence | Open | Specify vendor/Hub Inventory navigation, state ownership, schema/migration/backward compatibility, client parity, Hub-visit identity, finite stock, buyback lifetime, legitimate seller/acquisition availability for `enchant` materials, and the Return Talisman crafting-service owner/interface. |
+| 0-2: Alchemist merchandise and discounts | **In progress: pricing direction approved; schedule proposed** | Flat 25% Alchemist discount and specialist-first shared stock with Merchant overflow are approved. Working prices are recorded for review. Final Return Talisman base/purchase price and any unresolved merchandise eligibility remain open. |
+| 0-3: Recipe efficiency and profession values | Open | Implement recipe contracts, including the proposed Mana Potion recipe and approved Smoke Bomb recipe direction; define efficiency, quantities, profession values including repeat-discovery rewards, and authored operation-specific Magic Crystal costs. |
+| 0-4: Navigation and persistence | Open | Specify vendor/Hub Inventory navigation, state ownership, schema/migration/backward compatibility, client parity, Hub-visit identity, finite stock/allocation/replenishment, legacy `charcoal_dust` and `smoke_powder` compatibility, buyback lifetime, legitimate seller/acquisition availability for `enchant` materials, and the Return Talisman crafting-service owner/interface. |
 | 0-5: Destructive, sale, and buyback paths | Open | Finalize buyback eligibility/pricing, post-expiration disposition and stock interaction, rollback/stale-action behavior, and confirmation/destructive protections against M5. |
 
 No numeric values or technical architecture are inferred beyond the approved product contracts. Gates 0-2 through 0-5 remain open; this documentation update does not authorize gameplay implementation.
@@ -430,7 +449,8 @@ M6.5 implementation closure will require, at minimum:
 
 - Every relevant action has one clear owner and equivalent legal behavior in Python, terminal, and browser.
 - Merchant, Blacksmith, and Alchemist stock is finite under the approved replenishment contract; Enchanter remains service-only.
-- Alchemist prices respect the approved 25% finished-consumable and 30% ingredient discount ceilings without mandatory blanket discounts; Return Talismans remain Merchant-exclusive merchandise and outside Alchemist pricing/efficiency.
+- Alchemist prices follow the flat 25% discount with exact whole-gold arithmetic and no quantity-dependent rounding; Merchant overflow uses undiscounted prices, and Return Talismans remain Merchant-exclusive under the approved 25% markup direction.
+- Shared Hub merchandise is allocated to specialist stock first and is never duplicated across vendors; Merchant receives only eligible overflow, with finite quantities decremented by authoritative Python transactions.
 - Alchemy skill, Enchanting skill, learned-affix knowledge, and vendor stock/player-influenced inventory have distinct, validated persistent ownership as approved.
 - Buyback is limited to eligible sales from the purchasing vendor during the current Hub visit; stack quantities and exact unique-item state are restored without duplication, and committed crafting/destructive conversions remain irreversible.
 - Weapon components use approved shared stack counts when uninstalled; exact compatible installs and craft-and-install return displaced definitions without duplicate/refund exploits. Installed slots remain definition-based. All recovered components, including starter parts, are eligible for sale.
@@ -440,4 +460,4 @@ M6.5 implementation closure will require, at minimum:
 
 ## Deferred
 
-Gate 0-2 remains in progress; Gates 0-3 through 0-5 remain open. Exact prices and stock, Merchant overlap, legacy Smoke Powder treatment, Mana Potion effects, proposed Alchemy recipe contracts/efficiencies, profession progression, Magic Crystal operation costs/acquisition, learned-affix application costs, Return Talisman price and component eligibility/acquisition/service assignment, buyback eligibility/prices/lifetime interactions, starter/default-part representation, and technical schema/migration choices remain open. No component crafting-limit decision is open. New magical effect types, Ring/Pendant disenchantment, new dungeon loot sources, new field-crafting interfaces beyond the reviewed rare Talisman recipe, and broad economy rebalance are not approved by this plan.
+Gate 0-2 remains in progress; Gates 0-3 through 0-5 remain open. The working Alchemist merchandise schedule is proposed for review, and the final Return Talisman base/purchase price and any unresolved merchandise eligibility remain open. Exact stock/allocation/replenishment, Mana Potion effects and proposed recipe, Smoke Bomb recipe implementation/efficiency, legacy identifier migration for `charcoal_dust` and `smoke_powder`, profession progression, Magic Crystal operation costs/acquisition, learned-affix application costs, Return Talisman component eligibility/acquisition/service assignment, buyback eligibility/prices/lifetime interactions, starter/default-part representation, and technical schema/migration choices remain open. No component crafting-limit decision is open. New magical effect types, Ring/Pendant disenchantment, new dungeon loot sources, new field-crafting interfaces beyond the reviewed rare Talisman recipe, and broad economy rebalance are not approved by this plan.
