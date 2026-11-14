@@ -299,11 +299,12 @@ def test_skills_session_previews_cancels_and_persists_confirmed_respec(tmp_path)
 
 def test_merchant_commands_buy_load_and_alchemize_through_session():
     game = completed_hub_game()
+    game.party_state.add_shared_gold(2)
     session = make_step_session(game)
     session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
 
     session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
-    assert game.party_state.shared_gold == 2
+    assert game.party_state.shared_gold == 0
     assert game.party_state.shared_items == {"healing_potion": 1}
 
     session.submit(ChooseHubSupplyAction("load", "healing_potion"))

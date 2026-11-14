@@ -819,8 +819,8 @@ def _prepare_m2_supplies(state):
     if restored.snapshot() != snapshot:
         raise AssertionError("prepared supplies changed during save round-trip")
     state["m2_expected_shared_gold"] = party.shared_gold
-    if party.shared_gold != 105:
-        raise AssertionError("provisional M2 purchase costs changed")
+    if party.shared_gold != 91:
+        raise AssertionError("approved Slice A M2 supply prices changed")
 
 
 def _m2_healing_potion(state):

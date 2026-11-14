@@ -11,8 +11,8 @@ def test_purchase_uses_shared_gold_and_adds_only_to_secured_storage():
     result = service.buy(item_id="healing_potion", quantity=2)
 
     assert result.success is True
-    assert result.gold_delta == -16
-    assert game.party_state.shared_gold == 59
+    assert result.gold_delta == -24
+    assert game.party_state.shared_gold == 51
     assert game.party_state.shared_items == {"healing_potion": 2}
     assert game.party_state.carried_items == {}
 
@@ -51,6 +51,22 @@ def test_sale_uses_only_stored_sellable_items_and_floors_half_price():
     assert game.party_state.shared_items == {"goblin_scrap": 1, "goblin_lord_core": 1}
     assert service.sell(item_id="goblin_lord_core", quantity=1).reason == "not_sellable"
     assert game.party_state.shared_items["goblin_lord_core"] == 1
+
+
+@pytest.mark.parametrize(
+    "item_id",
+    ("healing_potion", "mana_potion", "smoke_bomb"),
+)
+def test_finished_alchemy_consumables_cannot_be_sold_regardless_of_origin(item_id):
+    game = hub_game(gold=0)
+    game.party_state.add_shared_items({item_id: 2})
+    before = game.party_state.snapshot()
+
+    result = HubEconomyService(game).sell(item_id=item_id, quantity=1)
+
+    assert result.success is False
+    assert result.reason == "not_sellable"
+    assert game.party_state.snapshot() == before
 
 
 def test_pack_transfer_loads_and_unloads_without_changing_gold():

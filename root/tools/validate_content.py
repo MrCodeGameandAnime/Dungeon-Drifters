@@ -338,6 +338,15 @@ def validate_content():
     _validate_moves(records, errors)
     _validate_references_and_factories(records, errors)
     if not errors:
+        try:
+            vendor_catalog = importlib.import_module("app.content.vendor_catalog")
+            vendor_catalog.validate_vendor_catalog(
+                vendor_catalog.VENDOR_MERCHANDISE,
+                vendor_catalog.FIRST_CLEAR_REWARDS,
+            )
+        except (TypeError, ValueError) as error:
+            errors.append(f"vendor content: {error}")
+    if not errors:
         _validate_schema_round_trips(records, errors)
     return tuple(sorted(set(errors))), records
 

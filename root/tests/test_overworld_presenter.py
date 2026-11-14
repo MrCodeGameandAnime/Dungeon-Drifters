@@ -121,6 +121,7 @@ def test_hub_location_label_is_preserved_in_secondary_menus():
 
 def test_merchant_view_exposes_storage_pack_and_authored_alchemy_recipes():
     game = completed_hub_game()
+    game.party_state.add_shared_gold(12)
     game.party_state.add_shared_items({"healing_potion": 2, "goblin_scrap": 1})
     assert game.party_state.load_carried_supplies({"healing_potion": 1})
 
@@ -133,7 +134,8 @@ def test_merchant_view_exposes_storage_pack_and_authored_alchemy_recipes():
         if item.item_id == "healing_potion"
     )
     assert (potion.stored_quantity, potion.carried_quantity) == (1, 1)
-    assert potion.can_buy and potion.can_sell and potion.can_load and potion.can_unload
+    assert potion.can_buy and not potion.can_sell
+    assert potion.can_load and potion.can_unload
     recipe = next(
         recipe for recipe in view.hub_economy.recipes
         if recipe.recipe_id == "healing_potion"
