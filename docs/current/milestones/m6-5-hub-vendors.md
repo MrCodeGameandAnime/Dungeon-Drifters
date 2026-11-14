@@ -1,8 +1,8 @@
 # M6.5 Hub Vendor Specialization
 
-**Status:** Gates 0-1 through 0-5 are closed at the product-decision level; M6.5 Gate 0 is complete (5 of 5). Gate 0-5 records the approved buyback, stock-queue, confirmation, durable-local-commit, and duplicate-action contracts. Exact stock and content-authoring values, including the final Return Talisman purchase price, plus schema fields/versions and per-outing evidence remain implementation dependencies, not reopened product decisions. This update is documentation-only; no gameplay implementation, schema work, or client changes are authorized.
+**Status:** Gates 0-1 through 0-5 are closed at the product-decision level. This document now contains a consolidated implementation-readiness proposal with authored prices, stock limits, reward sources, schema boundary, and implementation slices. One economy-contract conflict is called out for a single review decision. This is planning only; gameplay implementation remains unauthorized until the package is approved.
 
-**Planning baseline:** v0.7 merge commit `8a76bf6b857c6b4302b5a013f08e208e2f823a28`. Revalidate the current branch, service owners, persistence versions, content, and client actions at Gate 0.
+**Planning baseline:** v0.7 merge commit `8a76bf6b857c6b4302b5a013f08e208e2f823a28`; final readiness audit at `e66a4f066d2dc7083b1c76075239ba7ab392a76f` on `dungeon`.
 
 **Gate 0-4 source audit baseline:** `bf830a63bb01edd710506ba753abeea8d6b50d64`.
 
@@ -26,14 +26,14 @@ M6.5 is a Hub systems side mission after the sealed v0.7 M1-M6 scope. It remains
 - Same-Hub-visit buyback for approved eligible sales, at the exact original sale payout, separate from future vendor stock and unable to undo committed crafting or destructive conversions.
 - Planned shared-inventory component stacks, quantity-based trading, and return of displaced installed components to inventory under approved Gate 0-1A.
 - Four authored material families: `alch`, `smith`, `enchant`, and `gen`; Grade I through V Magic Crystals are `enchant` materials. Gate 0-3 defines matching-grade learned-affix costs. Grades I-IV have approved progression-appropriate dungeon reward and limited Merchant acquisition paths; exact floor sources, amounts, prices, and stock remain authoring dependencies. Grade V is reserved for future content.
-- Both Alchemist economic advantages: a flat 25% discount on eligible alchemical merchandise and deterministic mastery-based output bonuses. The merchandise schedule remains a working proposal; Gate 0-3 fixes recipe quantities, output milestones, and XP below.
+- Both Alchemist economic advantages: a flat 25% discount on eligible alchemical merchandise and deterministic mastery-based output bonuses. The approved merchandise schedule is recorded below; Gate 0-3 fixes recipe quantities, output milestones, and XP.
 - Character -> Equipment remains the independent interface for inspecting and equipping already-owned gear.
 
 ### Out Of Scope For This Documentation Pass
 
 - Gameplay, content, UI, save-schema, migration, or test implementation of the approved profession, recipe, stock, and learned-affix contracts.
-- Reopening or changing approved Gate 0-1 through 0-4 decisions. The working Alchemist price schedule remains subject to its stated review status; the final Return Talisman base price remains an explicit value dependency before its offer is implemented.
-- Adding field-crafting interfaces, new magical effects, new loot sources, new equipment catalogs, or a general economy rebalance.
+- Reopening or changing approved Gate 0 decisions. The readiness section proposes implementation values under those contracts; proposed values do not become final until the consolidated package is approved.
+- Implementing new loot sources or catalogs during this documentation pass. The readiness section proposes only the minimum one-time first-clear rewards needed for crystals and Mythril; implementation waits for package approval. No new magical effects, field-crafting interface, or general economy rebalance is included.
 - Changing combat effects, signature weapon identity/effects, M2 supply rules, M5 equipment ownership, or M5 destructive-operation outcomes.
 
 ## Gate 0-1: Approved Product Direction
@@ -155,11 +155,11 @@ The approved discount is flat at 25% for eligible alchemical merchandise, applyi
 
 Every discounted base price must be divisible by four so the resulting price is a whole number of gold. No rounding, fractional currency, or quantity-dependent discount formula is used. Total purchase cost is discounted unit price multiplied by quantity. Merchant overflow uses the normal undiscounted price. Discounts do not alter player resale values unless separately approved. Python remains authoritative for price calculation.
 
-### Working Merchandise Price Schedule
+### Approved Merchandise Price Schedule
 
-These are proposed Gate 0-2 prices for review and balancing, not final implementation values. The base prices are adjusted to support the exact flat discount; do not invent alternative prices or tiers in this documentation pass.
+This exact schedule is approved. The base prices support the flat 25% discount; do not introduce alternate prices, tiers, or rounding.
 
-| Item | Proposed base price | Proposed Alchemist price |
+| Item | Base price | Alchemist price |
 | --- | ---: | ---: |
 | Medicinal Herb | 4g | 3g |
 | Clean Water | 4g | 3g |
@@ -171,7 +171,7 @@ These are proposed Gate 0-2 prices for review and balancing, not final implement
 | Mana Potion | 20g | 15g |
 | Smoke Bomb | 12g | 9g |
 
-The prior lower provisional prices are superseded by this working schedule for planning review. Crafting should remain economically worthwhile compared with purchasing finished products. For example, at the proposed prices, one Healing Potion's 3g Medicinal Herb plus 3g Clean Water costs 6g in ingredients versus a 9g finished item. Gate 0-3 separately defines actual recipe efficiency, quantities, and profession benefits; do not add unapproved fees or XP.
+The prior lower provisional prices are superseded by this approved schedule. At these prices, one Healing Potion's 3g Medicinal Herb plus 3g Clean Water costs 6g in ingredients versus a 9g finished item. Gate 0-3 separately defines recipe efficiency, quantities, and profession benefits; do not add unapproved fees or XP.
 
 ### Specialist-First Shared Merchandise Allocation
 
@@ -186,7 +186,7 @@ Approved direction: vendors draw from a shared Hub merchandise allocation, with 
 
 Exact per-item capacities and stock-generation quantities are implementation authoring dependencies under the approved Gate 0-4 top-up and specialist-first allocation rules. The example quantity is illustrative, not a universal limit. This Gate 0-2 update does not change buyback rules.
 
-Gate 0-2 is closed at the product-decision level: the Alchemist discount, working merchandise schedule, and specialist-first shared stock with Merchant overflow are recorded above. The final Return Talisman base/purchase price remains an explicit pre-implementation value dependency, and any merchandise outside the approved categories/overflow rule must have eligibility defined before it is offered. These open details do not reopen the settled Alchemist discount or vendor-allocation rules.
+Gate 0-2 is closed at the product-decision level: the Alchemist discount, approved Alchemist schedule, and specialist-first shared stock with Merchant overflow are recorded above. The readiness proposal below supplies the Return Talisman price and per-item stock values for consolidated review; it does not reopen the settled discount or vendor-allocation rules.
 
 ## Gate 0-3: Profession, Recipe, And Learned-Affix Contracts (Closed)
 
@@ -626,54 +626,164 @@ The audit findings remain implementation evidence, not pending product decisions
 | 0-1C: Supply preparation ownership | **Closed: approved** | Hub -> Inventory owns packing/unpacking; all M2 capacity, carryability, secured-storage, quantity, and atomicity rules remain. |
 | 0-1D: Immediate shared-stack transactions | **Closed: approved** | Ordinary quantity-based sales and shared-stack dismantling need no additional confirmation; M5 equipment and Enchanter destructive confirmations remain. |
 | Hub buyback direction | **Closed: approved** | The originating vendor offers approved eligible sales during the current Hub visit; Gate 0-4 owns visit identity/persistence and Gate 0-5 fixes eligibility, exact original-payout pricing, expiry, and future-stock interaction. |
-| 0-2: Merchandise and discounts | **Closed at product-decision level** | Flat 25% Alchemist discount, working merchandise schedule, and specialist-first shared stock with Merchant overflow are recorded. Final Return Talisman base price remains an explicit value dependency before that offer is implemented; this does not reopen the approved discount/allocation rules. |
+| 0-2: Merchandise and discounts | **Closed at product-decision level** | Flat 25% Alchemist discount, approved merchandise schedule, and specialist-first shared stock with Merchant overflow are recorded. The readiness section proposes the Return Talisman base/purchase price for consolidated review; this does not reopen the approved discount/allocation rules. |
 | 0-3: Recipe efficiency and profession progression | **Closed at product-decision level** | Profession thresholds, recipe inputs/outputs/XP, mastery output milestones, Enchanting XP/discovery awards, learned-recipe crystal/gold costs, and standard Mana Potion restoration at 30% maximum Mana are fixed above. |
 | 0-4: Navigation, stock lifecycle, and persistence | **Closed at product-decision level** | One Vendors submenu; encounter-progress qualifying return; finite stock top-up, specialist-first/Merchant-overflow allocation; visit and replenishment identity; party-owned persisted vendor/profession/component/affix/buyback state; Grade I-IV crystals from eligible dungeon rewards and limited Merchant stock; Alchemist rare Talisman crafting; 1:1 Smoke Powder migration. Exact fields/schema versions and authored source/stock values remain implementation dependencies. |
 | 0-5: Transactions, confirmations, and buyback | **Closed at product-decision level** | Eight contracts fix: (1) uninstalled-component buyback; (2) exact original-payout pricing; (3) destructive expiry of unique gear; (4) persistent future-stock queues; (5) rare Talisman preview/confirmation; (6) learned-affix preview and destructive replacement confirmation; (7) atomic local durable commits; and (8) same-operation idempotency with fresh-action repeatability. |
 
 Gates 0-1 through 0-5 are closed at the product-decision level. **Overall Gate 0 progress: 5 of 5 gates complete.** Exact fields/schema versions, authored sources and values, stock quantities, per-outing evidence, and transaction/idempotency mechanisms remain implementation dependencies. Qualification obligations record how to prove the approved contracts; they are not open Gate 0 product decisions. This documentation update does not authorize gameplay implementation.
 
-## Future Implementation Stages
+## M6.5 Implementation Readiness (Consolidated Review Package)
 
-These are future stages, not implementation authorization. Gate 0 is closed at the product-decision level. The next step is a bounded implementation plan and authored-dependency inventory for review; gameplay work begins only after that plan is approved.
+Gate 0's five decision gates remain closed. This section resolves the technical and authored dependencies using the current `dungeon` repository. Prices and newly authored reward sources below are proposals for one consolidated review, not runtime changes. Approval of this package is the authorization boundary before implementation begins. Earlier Gate 0 statements that called these items implementation dependencies are superseded by these concrete proposals only if the package is approved.
 
-### M6.5A: Bounded Implementation Plan And Authored Dependencies
+### Verified Baseline And Source Owners
 
-Prepare a bounded, gate-by-gate implementation plan and inventory the authored dependencies: stock capacities/generation, eligible crystal and Boss Core sources, Mythril acquisition, final Return Talisman price, component/equipment values, schema fields/versions, and durable per-outing evidence. Map each Gate 0-5 contract to owning services, migration boundaries, and tests. Do not implement gameplay in this stage, reopen approved behavior, or invent unapproved values.
+- Runtime and disk save schemas are both **24**. `GameState.snapshot()` and `PartyState.snapshot()` are the current root and party boundaries. `PartyState` owns shared items/gold, Crafting XP, equipment/modifier instances, and Floor II/III run events; each `PlayerState` owns installed weapon component IDs. No M6.5 vendor/profession/affix/component-stack state exists.
+- `OverworldSession` owns floor starts, encounter results, Rest, extraction, Talisman return, defeat, and floor-clear settlement. Floor I has route-global encounter evidence but no outing ID. Floors II/III have scoped run events which are cleared during settlement. There is no Hub-visit identity or stock-refresh receipt.
+- `HubEconomyService` owns current shared-item buy/sell/load/unload and recipe crafting; current stock is unlimited and `shop_stocked` is only an eligibility flag. `WeaponProgressionService` owns component craft-and-install, improvement, Tier V, and Crafting XP. Preserve its current exact-target/current-slot eligibility and do not add a lifetime craft limit.
+- `ArmorProgressionService`, `EquipmentService`, and the current `AlchemistService` own armor upgrades, equipment ownership, and confirmed sale/dismantle/extraction/affix transactions. M6.5 changes service routing, not those M5 semantics. `OverworldPresenter`, terminal overworld UI, `root/web/python/dd_bridge.py`, and `root/web/play/js/pyd4.js` are projections/dispatch boundaries; Python remains authoritative.
+- Content owners verified: `root/src/app/content/hub_economy.py`, `equipment_spec.py`, `weapon_progression_spec.py`, the four `root/src/app/content/weapons/*/weapon.py` catalogs, enemy tier/item-drop specs, and `root/src/app/content/routes/floor_{one,two,three}/route.py`.
 
-### M6.5B: Vendor Separation And Persistent Systems
+### Proposed Authored Price And Stock Schedule
 
-After approval, introduce the vendor identities and route semantic operations to their owners. Implement only the approved persistent sources of truth for Alchemy/Enchanting progression, discovered affixes, finite stock/player-influenced inventory, visit-scoped buyback, and approved transferable component ownership. Preserve the single authoritative Python domain and shared save architecture; terminal and browser remain projections of Python legality, prices, outcomes, and transaction results.
+All prices are whole gold. Merchant uses base price; Blacksmith uses base price; Alchemist uses only the already-approved `3/4` price. Resale uses the existing `floor(base_price / 2)` rule for eligible shared stacks. Armor keeps its existing direct `sale_value_gold`. A dash means not eligible for vendor resale. Stock is authored per item ID; initial stock equals the stated caps for currently unlocked offers. A qualifying return first allocates eligible player-sold queue units to the specialist, then Merchant overflow, then fills remaining authored stock gaps. The maximum new units for one item on one return is the combined vacant capacity shown by its caps; never exceed either cap or duplicate a unit.
 
-### M6.5C: Economy Refinement And Qualification
+| Alchemical ID | Base / Alchemist | Resale and sale owner | Alchemist / Merchant cap | Initial A / M | Max refill | Availability |
+| --- | ---: | --- | ---: | ---: | ---: | --- |
+| `medicinal_herb` | 4g / 3g | 2g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `clean_water` | 4g / 3g | 2g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `charcoal_dust` (Charcoal Powder) | 4g / 3g | 2g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `sulfur` | 4g / 3g | 2g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `magic_reagent` | 8g / 6g | 4g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `aether_dust` | 8g / 6g | 4g / Alchemist; future queue | 2 / 1 | 2 / 1 | 3 | Start |
+| `healing_potion` | 12g / 9g | 6g / Merchant; no future queue | 1 / 1 | 1 / 1 | 2 | Start |
+| `mana_potion` | 20g / 15g | 10g if sellable / Merchant; no future queue | 1 / 1 | 1 / 1 | 2 | Start |
+| `smoke_bomb` | 12g / 9g | 6g / Merchant; no future queue | 1 / 1 | 1 / 1 | 2 | Start |
 
-Apply approved merchandise and recipe values, check affordability and anti-arbitrage against the existing economy, and qualify ownership, atomicity, save/reload, terminal/browser parity, migrations, and supported runtime behavior. No broad economy rebalance is implied.
+The alchemical schedule and 25% discount are approved. The three consumable resale amounts above expose the single anti-arbitrage approval item below; do not silently alter their prices or the approved output milestones.
 
-## Acceptance And Qualification
+| Smith/general ID group | Base buy price | Resale | Blacksmith / Merchant cap | Initial B / M | Max refill | Sale route and unlock |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `grade_i_metal`, `grade_i_fiber`, `grade_i_timber`, `grade_i_cores` (Scrap metal, Cord, Softwood, Faded Core) | 4g each | 2g each | 2 / 1 each | 2 / 1 | 3 each | Sell to Blacksmith; queue eligible; start |
+| `grade_ii_metal`, `grade_ii_fiber`, `grade_ii_timber`, `grade_ii_cores` (Iron, Cotton, Hardwood, Elemental core) | 8g each | 4g each | 1 / 1 each | 1 / 1 | 2 each | Sell to Blacksmith; queue eligible; after Floor I clear |
+| `grade_iii_metal`, `grade_iii_fiber`, `grade_iii_timber`, `grade_iii_cores` (Steel, Silk, Ironwood, Overcharged core) | 16g each | 8g each | 1 / 1 each | 1 / 1 | 2 each | Sell to Blacksmith; queue eligible; after Floor II clear |
+| `grade_iv_metal`, `grade_iv_fiber`, `grade_iv_timber`, `grade_iv_cores` (Etheral Alloy, Carbon, Elderwood, Singularity Core) | 32g each | 16g each | 1 / 1 each | 1 / 1 | 2 each | Sell to Blacksmith; queue eligible; after Floor III clear |
+| `goblin_scrap` | 3g | 1g | Merchant 1 | 1 | 1 | Merchant general stock; player sale remains Merchant-only; no future queue |
+| `mythril_plate` | 80g | 40g | Blacksmith 1; Merchant 0 | 0 | 0 authored / 1 sale-fed | Blacksmith may buy; only player-sold units queue; no generated stock |
+| `goblin_lord_core` | Not sold | — | 0 / 0 | 0 / 0 | 0 | Boss reward only; no sale or shop stock |
 
-M6.5 implementation closure will require, at minimum:
+All 16 weapon-progression material IDs become Blacksmith merchandise. This explicitly authors a 4g/sellable value for existing `grade_i_fiber` (currently 2g) and `grade_i_cores` (currently zero and not sellable); those are M6.5 item-catalog revisions, not changes to weapon costs or progression. Keep the `metal`, `fiber`, `timber`, and `cores` families distinct from the broader profession families.
 
-- Every relevant action has one clear owner and equivalent legal behavior in Python, terminal, and browser.
-- Merchant, Blacksmith, and Alchemist stock is finite under the approved replenishment contract; Enchanter remains service-only.
-- One Hub Vendors submenu routes to four specialist views; menus and save/load do not replenish. Only a legitimate outing return with encounter progress replenishes once, with retained stock topped up to authored caps.
-- Replenishment is specialist-first with eligible Merchant overflow and no duplicated unit; eligible player-sold stacks stay in current-visit buyback escrow, then enter a persistent future-stock queue after expiry, with excess retained until later qualifying returns.
-- Standard Mana Potions restore 30% of the targeted Drifter's maximum Mana, capped at maximum. Legacy saved Smoke Powder converts 1:1 into canonical `charcoal_dust` / Charcoal Powder exactly once.
-- Grade I-IV Magic Crystals are sourced only from progression-appropriate dungeon rewards and limited Merchant stock; Grade V remains future content and Enchanter remains merchandise-free.
-- The Alchemist owns the rare `2 Boss Cores + 1 Mythril Plate -> 1 Return Talisman` craft only; Merchant exclusively sells Talismans. The craft yields one and receives no Alchemy XP, mastery output, ingredient reduction, or Alchemist discount.
-- Alchemist prices follow the flat 25% discount with exact whole-gold arithmetic and no quantity-dependent rounding; Merchant overflow uses undiscounted prices, and Return Talismans remain Merchant-exclusive under the approved 25% markup direction.
-- Shared Hub merchandise is allocated to specialist stock first and is never duplicated across vendors; Merchant receives only eligible overflow, with finite quantities decremented by authoritative Python transactions.
-- Alchemy and Enchanting use independent party-wide XP curves, awards, and derived levels; Alchemy output milestones, grade-based Enchanting XP/discovery bonuses, and learned-recipe crystal/gold costs match the closed Gate 0-3 tables exactly.
-- Existing M5 extraction and stored-instance affixing retain their costs and behavior without Magic Crystal costs; learned-recipe application remains separate, uses exact-grade crystals, and does not create modifier instances.
-- Alchemy skill, Enchanting skill, learned-affix knowledge, and vendor stock/player-influenced inventory have distinct, validated persistent ownership as approved.
-- Buyback is limited to approved sales from the originating vendor during the current Hub visit, costs exactly the original payout, and restores only outstanding stack quantity or the exact unique instance. Expired unique equipment and its affixes are destroyed, never future stock; eligible remaining stack quantities queue for future allocation without duplication.
-- Rare Return Talisman crafting always previews and requires explicit confirmation; learned-affix application always previews and requires confirmation when it destroys an installed affix. Preserve all existing M5 destructive confirmations.
-- Every new or modified M6.5 transaction publishes only after its complete candidate state commits to the local durable save. Failed local writes leave state unchanged; optional remote synchronization is not required for success.
-- Replaying one submitted operation cannot apply it twice, while a fresh deliberate valid operation may repeat. Reject stale target/resource/stock/visit/confirmation state without mutation or XP.
-- Weapon components use approved shared stack counts when uninstalled; exact compatible installs and craft-and-install return displaced definitions without duplicate/refund exploits. Installed slots remain definition-based. All recovered components, including starter parts, are eligible for sale.
-- Character -> Equipment remains independent; Hub -> Inventory owns supply preparation while preserving M2 rules and item authority.
-- M2 transaction and carrying guarantees and M5 equipment/modifier/destructive-operation guarantees remain intact except for the explicit stock, Alchemy progression, and vendor ownership revisions recorded above.
-- Relevant focused tests, full applicable Python/web suites, content validation, compile/build, browser journeys, migration/profile-service qualification, and pinned runtime checks pass on the exact implementation SHA, with evidence recorded in this plan.
+| Magic Crystal ID | Merchant price | Merchant cap / initial | Max refill | Availability and source |
+| --- | ---: | ---: | ---: | --- |
+| `grade_i_magic_crystal` | 12g | 1 / 1 after unlock | 1 | One deterministic Grade-I crystal on Floor I first clear; Merchant stock unlocks after Floor I clear |
+| `grade_ii_magic_crystal` | 24g | 1 / 1 after unlock | 1 | One deterministic Grade-II crystal on Floor II first clear; Merchant stock unlocks after Floor II clear |
+| `grade_iii_magic_crystal` | 48g | 1 / 1 after unlock | 1 | One deterministic Grade-III crystal on Floor III first clear; Merchant stock unlocks after Floor III clear |
+| `grade_iv_magic_crystal` | 96g | 1 / 0 until unlock | 1 after unlock | Reserved for Floor IV first-clear content; no current source or stock before Floor IV exists |
 
-## Deferred
+Magic Crystals are not player-sellable and are Merchant-only; higher grades never substitute. Each current-floor reward is a guaranteed one-time first-clear settlement award (100% on first clear, zero on replay), not a random drop table. Grade V remains reserved and has no price, source, or offer.
 
-Gate 0 is closed at the product-decision level. The working Alchemist merchandise schedule and final Return Talisman base/purchase price remain authored value dependencies under their approved discount/markup rules. Exact finite-stock capacities and per-return quantities, crystal floor/reward details and prices, qualifying Boss Core IDs, Mythril acquisition, schema field placement/version numbers, and durable outing-progress correlation must be completed during bounded implementation planning. Buyback, expiry, queue, confirmation, local durable commit, rollback, stale-action, and idempotency behavior are fixed by Gate 0-5 and must be implemented and tested without reopening their product rules. The Mana Potion effect, crystal source categories, top-up lifecycle, specialist ownership, 1:1 Smoke Powder migration, Alchemist rare Talisman craft, visit boundary, and all Gate 0-3 numerical contracts remain settled. No component crafting-limit decision is open. New magical effect types, Ring/Pendant disenchantment, invented loot sources, and broad economy rebalance are not approved by this plan.
+| Component group (exact IDs) | Buy price / resale | Blacksmith / Merchant cap | Initial stock | Max refill per ID | Availability |
+| --- | ---: | ---: | --- | ---: | --- |
+| Sunder-Spire starters: `sunder_spire_blade`, `sunder_spire_grip`, `sunder_spire_hilt`, `sunder_spire_crest`; recipes: `sunder_spire_blade_reinforced`, `sunder_spire_grip_braided`, `sunder_spire_hilt_ashwood`, `sunder_spire_crest_faded` | Starter 8g / 4g; recipe 20g / 10g | 1 / 1 | 1 / 1 per ID | 2 | Once matching Drifter is recruited |
+| Sky-Needle starters: `sky_needle_head`, `sky_needle_binding`, `sky_needle_shaft`, `sky_needle_focus`; recipes: `sky_needle_head_balanced`, `sky_needle_binding_conductive`, `sky_needle_shaft_flexible`, `sky_needle_focus_stormglass` | Starter 8g / 4g; recipe 20g / 10g | 1 / 1 | 1 / 1 per ID | 2 | Once matching Drifter is recruited |
+| Sathren starters: `sathren_grip`, `sathren_string`, `sathren_limbs`, `sathren_reservoir`; recipes: `sathren_grip_precision`, `sathren_string_taut`, `sathren_limbs_reinforced`, `sathren_reservoir_alchemical` | Starter 8g / 4g; recipe 20g / 10g | 1 / 1 | 1 / 1 per ID | 2 | Once matching Drifter is recruited |
+| Needle of Plain Iron starters: `needle_focus`, `needle_binding`, `needle_haft`, `needle_seal`; recipes: `needle_focus_fitted`, `needle_binding_warded`, `needle_haft_ashwood`, `needle_seal_faded` | Starter 8g / 4g; recipe 20g / 10g | 1 / 1 | 1 / 1 per ID | 2 | Once matching Drifter is recruited |
+
+Every sale is to Blacksmith, receives same-visit buyback at its exact 4g/10g per-unit payout, and enters its future-stock queue only after buyback expiry. Merchant may sell its separately allocated overflow at the same purchase price. Purchase creates uninstalled shared stacks; install remains exact-weapon/slot validated, consumes one unit, and returns the displaced component, including a starter, without refunding recipe materials or changing Crafting XP.
+
+| Equipment ID | Purchase price | Player sale payout | Vendor stock cap / initial | Max refill | Authored offer |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `field_helm` | 24g | 6g to Blacksmith | Blacksmith 1 / Merchant 1; 1 / 1 | 2 | Common, no modifiers, minimum authored stat roll (Constitution +1) |
+| `field_chest` | 40g | 10g to Blacksmith | Blacksmith 1 / Merchant 1; 1 / 1 | 2 | Common, no modifiers, minimum authored stat roll (Constitution +1, Spirit +0) |
+| `field_gloves` | 24g | 6g to Blacksmith | Blacksmith 1 / Merchant 1; 1 / 1 | 2 | Common, no modifiers, minimum authored stat roll (Strength +1, Dexterity +0) |
+| `field_boots` | 24g | 6g to Blacksmith | Blacksmith 1 / Merchant 1; 1 / 1 | 2 | Common, no modifiers, minimum authored stat roll (Dexterity +1, Intuition +0) |
+| `iron_ring` | 20g | — | Merchant 1 / 1 | 1 | Fixed authored +1 Intuition; no upgrade, dismantle, or disenchant |
+| `wayfinder_pendant` | 20g | — | Merchant 1 / 1 | 1 | Fixed authored +1 Spirit; no upgrade, dismantle, or disenchant |
+
+Purchased armor creates a normal unique secured equipment instance using the fixed common offer above; it does not roll procedural stats or modifiers. Rings and Pendants remain fixed authored items, never procedural and never eligible for disenchantment. Their current templates have no sale value, so this proposal keeps them non-sellable. Armor sale retains existing M5 sale-value payouts, confirmation, and exact-instance same-visit escrow; expired equipment and affixes are destroyed, not queued.
+
+| General merchandise | Price | Sale payout | Cap / initial | Max refill | Owner |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `return_talisman` | Base 80g; Merchant 100g (exact 25% markup) | — | Merchant 1 / 1 | 1 | Merchant-exclusive merchandise; no Alchemist price, sale, or discount |
+
+Merchant is the only offer for Talismans. The separate Alchemist recipe remains exactly `2 goblin_lord_core + 1 mythril_plate -> 1 return_talisman`, one output, confirmed, no Alchemy XP or efficiency. The Talisman value of 100g is intentionally a substantial purchase relative to ordinary consumables, while one first-clear Mythril Plate limits the currently authored rare recipe to one craft.
+
+### Acquisition Sources And Balance Notes
+
+- The existing Goblin Lord definition drops two `goblin_scrap` and one `goblin_lord_core` on a normal victory, and the same authored boss archetype appears on Floors I-III. Only `goblin_lord_core` qualifies for the Talisman recipe; two identical cores may be combined. A normal Floor I clear and Floor II clear supply the two cores without requiring replay farming. Existing replay drops and restrictions remain unchanged.
+- Add one `mythril_plate` to the Floor II boss's first-clear settlement only. This is a single deterministic M6.5 reward, not a new random table; replay never awards another. It is not normally vendor-generated or Merchant stock. The source makes the recipe attainable in currently playable content after Floor II completion; if this one-time authored reward is not accepted, the recipe has no legitimate Mythril source in current content.
+- Grade I/II/III crystals use the corresponding first-clear boss settlement as listed above. Grade IV requires Floor IV first-clear content and is an explicit future-floor dependency, not an early-floor drop. Limited Merchant stock for an unlocked grade is one; each qualifying return tops it up by at most one.
+- On schema-24-to-25 migration, grant the corresponding one-time crystal to an existing save for each of `floor_one_cleared`, `floor_two_cleared`, and `floor_three_cleared`; also grant its one Mythril Plate when `floor_two_cleared` is already true. This is a migration backfill of the newly authored first-clear awards, not a replay reward. The schema bump commits the backfill exactly once. New clears award them in the same atomic first-clear settlement that records the floor clear. Test each legacy-clear combination, repeat migration/reload, and confirm replay cannot duplicate these items.
+- The fixed armor-shop offers are sourced from the four existing armor templates at their minimum authored stats. This is a new deterministic vendor offer, not a claim that M5's generated Floor II armor reward is already wired into ordinary battle rewards.
+- Existing authored enemy gold is 3g/5g/7g/9g for the ordinary Goblin/Warrior/Shaman/Elite tiers and 10g for the Goblin Lord. The 24-40g armor, 20g component recipe, and 100g Talisman offers are intentionally not trivial one-encounter purchases. These are authored economy proposals, not a general enemy reward rebalance.
+
+### Genuine M2 Economy Conflict: Crafted Consumable Resale
+
+Gate 0 preserves M2's half-base resale rule, while the current catalog marks Healing Potions and Smoke Bombs sellable and the approved Alchemy output milestone doubles production from level 25. Under the approved prices, a level-25 craft costs 6g in Healing Potion ingredients and yields two items resalable for 12g (+6g); Mana Potion costs 12g and yields two resalable for 20g (+8g); Smoke Bomb costs 6g and yields two resalable for 12g (+6g). At Alchemy 100, four-output net gains become +18g, +28g, and +18g per craft respectively. Finite input stock limits each visit but qualifying returns can repeat the cycle, so this is a repeatable gold-generation path, not just price display.
+
+**Recommended narrow resolution for approval:** make finished Alchemy outputs (`healing_potion`, `mana_potion`, `smoke_bomb`) ineligible for player sale. This explicitly supersedes the existing M2 sellability flags for those output item IDs while preserving all approved purchase prices, ingredient sale routes, crafting inputs/outputs/XP, buyback rules for other eligible items, and recipe progress. The alternative is provenance-aware item lots that permit resale of purchased consumables but forbid resale of crafted output; that requires additional persistent per-source quantities and changes shared-stack consumption. Do not implement either policy until the user approves one. This is the sole identified product approval blocker in this readiness package.
+
+### Proposed Party State, Migration, And Validation
+
+Add one `PartyState`-owned `hub_economy` snapshot object, with the following canonical fields:
+
+| Field | Shape and owner |
+| --- | --- |
+| `alchemy_xp`, `enchanting_xp` | Nonnegative cumulative integers; independent party-wide tracks, levels derived from the approved curves |
+| `known_affix_ids` | Sorted unique authored modifier-definition IDs; distinct from consumable modifier instances |
+| `component_stacks` | `{component_id: positive quantity}` for uninstalled shared parts; installed slot IDs remain on `PlayerState` |
+| `vendor_stock` | `{vendor_id: {item_id: nonnegative quantity}}` for Merchant, Blacksmith, Alchemist only; Enchanter omitted |
+| `future_stock_queue` | Ordered sale-source records `{sale_id, specialist_id, item_id, remaining_quantity}`; player property cannot also be escrow or vendor stock |
+| `buyback_records` | `{sale_id, vendor_id, visit_id, item_id, remaining_quantity, original_unit_payout}`; unique equipment stores the exact serialized instance and modifier state instead of quantity |
+| `hub_visit_sequence`, `current_hub_visit_id` | Monotonic saved visit identity; a return creates the next identity, vendor navigation does not |
+| `outing_sequence`, `active_outing` | Active record `{outing_id, floor_id, has_encounter_progress}`; created on floor launch and marked only with an authoritative encounter victory/progression commit |
+| `last_settled_outing_id`, `last_replenished_outing_id` | Durable return/refresh evidence; the same outing ID cannot be settled or replenished twice |
+| `transaction_sequence` | Monotonic operation identity; each M6.5 action submits the current expected sequence, and successful local commit advances it once |
+
+Use one forward schema bump: runtime `STATE_SCHEMA_VERSION` **24 -> 25** and disk `DISK_SCHEMA_VERSION` **24 -> 25**, with `migrate_schema24()` following the existing migration chain. Do not change the profile envelope, web/API contract version, or PostgreSQL schema absent a demonstrated need. Historical saves receive zero profession XP, empty knowledge/component queues, valid initial vendor stock for offers unlocked by existing floor-clear flags, the one-time crystal/Mythril backfill for already-cleared Floors I-III as defined above, and empty outing/buyback evidence; existing PlayerState weapon slots, inventory ownership, equipment, and remote history remain untouched. Migration tests must prove the first-clear backfill and 1:1 Smoke Powder conversion each occur exactly once, while preserving existing saved quantities and prior remote revisions.
+
+The same schema-24-to-25 migration converts `shared_items.smoke_powder` into `shared_items.charcoal_dust` at 1:1, merges any existing Charcoal Powder count, and removes the legacy key exactly once. Validate IDs against authored catalogs; enforce integer/nonnegative XP and quantities, stock caps and unlocks, unique known-affix IDs and sale/visit/outing IDs, valid component definition IDs, valid equipment escrow snapshots, and mutually exclusive ownership across shared items, component stacks, buyback escrow, future queues, and vendor stock. Reject malformed current saves before reconstruction.
+
+### Outing Progress And Exactly-Once Refresh
+
+Create a monotonic `outing_id` when `OverworldSession` starts Floor I, II, or III. Expire the previous Hub visit's buyback when the player actually leaves the Hub, move only eligible expired stack sales into the pending queue, and commit the new outing/visit transition locally before publishing it. At each authoritative successful encounter reward/progression commit, set that outing's `has_encounter_progress = true` in the same candidate transaction. This is a single durable eligibility bit, not a second combat/encounter tracker; existing route cursor, defeated encounter state, and Floor II/III run events remain authoritative for battle progress.
+
+Route every legitimate outing end (extraction, Return Talisman, defeat, or floor completion) through one party-state settlement helper. It closes that outing, starts a new Hub visit, and if-and-only-if encounter progress is true and `last_replenished_outing_id` differs, allocates eligible queued sales specialist-first then Merchant, tops remaining unlocked stock to caps, and records the outing ID as replenished in the same local commit. Rest alone, smoke escape, no-progress entry/exit, menu/save/load, and repeated settlement do not qualify. A later outing has a new ID, so deliberate new qualifying returns replenish normally.
+
+### Gate 0-5 Transaction Ownership And Evidence
+
+| Contract | Python owner and state | Focused proof |
+| --- | --- | --- |
+| 1. Uninstalled component buyback | New `HubVendorService`, backed by `component_stacks` and `buyback_records`; `WeaponProgressionService` still owns install legality | Exact quantity/target, including recovered starters; partial/full recovery; component ownership conservation |
+| 2. Exact original payout | `HubVendorService` stores original per-unit payout on each sale receipt; no repricing at buyback | Different sale receipts, price change/discount, partial quantity, round-trip gold |
+| 3. Unique-equipment expiry | Existing equipment sale preview/service routed to Blacksmith; escrow keeps exact instance until visit expiry, then destroys it and affixes | Confirm/cancel, exact instance restore, expiry destruction, never queued |
+| 4. Specialist-first queue and Merchant overflow | `HubVendorService` plus outing-settlement helper; queue record retains sale source until allocation | Specialist capacity, overflow, excess retention, no duplicate across escrow/queue/stock |
+| 5. Rare Talisman craft confirmation | Alchemist-owned explicit preview/confirm service; consumes 2 cores + 1 plate for exactly one | Missing resource, cancel/stale preview, repeat, save failure, no Alchemy XP/output benefit |
+| 6. Learned-affix preview/replacement | Enchanter-facing service reuses existing M5 compatibility and candidate-state patterns; known IDs and crystals in party state | Unknown/known, grade/cost, compatible target, empty/replacement slot, destructive confirm, rollback |
+| 7. Atomic local durable commit | Every new/modified service builds a complete `GameState` candidate and calls the existing `SavePort`; publish only on success | Injected local save failure leaves gold/items/stock/equipment/XP/visit unchanged; remote sync failure after local save does not undo |
+| 8. Same-operation idempotency | `transaction_sequence` is part of party-owned vendor state and every mutation input; stale sequence is rejected, successful local commit advances once | Same sequence retry/reload cannot apply twice; fresh sequence can intentionally repeat; failed save does not consume sequence |
+
+Service routing: `HubVendorService` owns buy/sell/stock/buyback/queue; `WeaponProgressionService` owns craft-and-install/improve/Tier V with component-stack integration; `ArmorProgressionService`/`EquipmentService` retain armor and gear rules under Blacksmith routing; Alchemy recipes and mastery stay in the existing Python economy boundary or one extracted `AlchemyService`; the rare Talisman recipe is an explicit Alchemist operation; existing `AlchemistService` logic is routed through Enchanter ownership and extended only for its separate XP/library/learned-recipe behavior. `OverworldSession` owns visit/outing lifecycle. Terminal/browser expose semantic actions and confirmations only; they do not calculate prices, stock, XP, or legality. Optional remote sync remains outside the local gameplay commit.
+
+### Bounded Implementation Slices
+
+| Slice | Prerequisites | Responsibility and primary seams | Schema | Acceptance and stop condition |
+| --- | --- | --- | --- | --- |
+| A. Authored catalogs | None | Define validated IDs, prices, caps, unlocks, initial stock, floor rewards, and deterministic shop equipment in `content/hub_economy.py`, `equipment_spec.py`, `weapon_progression_spec.py`, weapon catalogs, and focused new vendor/catalog specs. | No | All IDs resolve; discount/markup/resale arithmetic and cap/unlock validation pass. Stop before changing services or UI. |
+| B. State and durable outing foundation | A | Add `PartyState.hub_economy`, `snapshot.py`/`save_document.py` runtime and disk migration 24->25, smoke-powder conversion, visit/outing/return evidence, local candidate-save helpers. | Yes, 25 | Current and historical save round-trips, invalid state rejection, migration once-only, encounter-progress qualification on all floors/return paths, duplicate settlement and injected-write rollback pass. Stop before vendor screens. |
+| C. Vendor navigation | A-B | Add the Vendors submenu and separate Merchant/Blacksmith/Enchanter/Alchemist views through `OverworldSession`, presenter, terminal UI, `dd_bridge.py`, and `pyd4.js`; keep Hub Inventory and Character Equipment separate. | No additional | Every semantic command has one owner; wrong-vendor/invalid-phase actions reject; terminal/browser routing parity passes. Stop before new economic calculations in clients. |
+| D. Finite commerce and components | A-C | Implement stock decrement/top-up, seller queues, buyback escrow, quantity commerce, armor/equipment offers, and component stack purchases/sales/install recovery through `HubVendorService`, `HubEconomyService`, `WeaponProgressionService`, and existing equipment services. | Uses B | Gold, item/component conservation, exact sale payout, expiry, specialist priority, queue overflow, unique-instance escrow, stale sequence, and local-save rollback pass. Stop before professions/recipe effects. |
+| E. Alchemy and Enchanting | A-D and the consumable-resale decision | Implement approved new goods/recipes, mastery output/XP, Mana Potions, Talisman craft, crystals/source awards, Enchanting XP/discovery and learned-affix application using the existing services and M5 compatibility checks. | Uses B | Gate 0-3 values exact; recipe and crystal sources/costs, confirmation, replacement, duplicate learning, rollback, and M5 extraction/stored-modifier regression pass. |
+| F. Cumulative qualification | A-E | End-to-end Hub-to-dungeon-to-Hub stock journeys; terminal/browser semantic parity; historical migration, save/reload, transaction failure, supported runtime, content/build, root/web/service and exact-SHA hosted CI. | No new unless a demonstrated defect | All M6.5 acceptance bullets below pass on the same implementation SHA; record runtime evidence and residual risks. Stop on unrelated baseline browser failures rather than refactoring broadly. |
+
+Focused test ownership by slice: A extends `root/tests/test_content_tooling.py`, `test_weapon_content.py`, `test_route_content.py`, `test_weapon_progression.py`, and adds vendor-catalog validation coverage. B extends `test_save_state.py`, `test_save_document_boundary.py`, `test_legacy_save_migration.py`, and `test_overworld_session.py`. C extends `test_terminal_overworld_ui.py`, `root/web_tests/test_browser_bridge_contract.py`, and browser-smoke vendor navigation. D extends `test_hub_economy.py`, `test_weapon_progression.py`, `test_armor_progression.py`, `test_equipment_service.py`, and `test_alchemist.py` for save/stock/buyback boundaries. E extends `test_hub_economy.py` and `test_alchemist.py`, adds focused profession/learned-affix tests, and adds browser coverage for the new workflows. F runs the relevant cumulative root/web/service suites, browser smoke, migrations/Alembic checks, and pinned MicroPython probe. These are required future tests; no runtime tests were changed in this planning pass.
+
+### Qualification Baseline And Remaining Boundary
+
+The exact Gate 0 baseline `e66a4f066d2dc7083b1c76075239ba7ab392a76f` has [a failing hosted Actions run](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/43612861248). Root/web tests, content validation, compile, browser build, and the PostgreSQL/migration job passed; the main Tests job timed out late in the existing M5 equipment browser journey while waiting for an overworld option. This documentation-only SHA does not demonstrate an M6.5 gameplay regression. Re-run the established smoke on implementation slices; do not undertake broad browser refactoring unless this failure reproduces and blocks the new semantic flow.
+
+Grade IV Crystal sourcing remains a future Floor IV content dependency. The only product approval required before Slice E is the recommended anti-arbitrage policy for crafted consumable resale. All other authored values and technical choices above are ready for one consolidated review. After approval, proceed directly through slices A-F; do not reopen closed Gate 0 contracts or start unrelated milestone work.
+
+Implementation closure still requires the sealed M2 carrying/economy guarantees, M5 equipment/modifier confirmations, all Gate 0-5 transaction invariants, terminal/browser parity, schema/migration compatibility, content/build validation, relevant root/web/profile/PostgreSQL suites, browser journeys, and pinned MicroPython qualification on the exact final implementation SHA. No unrelated M7-M9 work, broad balance pass, Grade V crystal source, procedural jewelry, new combat effect, or general economy redesign is included.
