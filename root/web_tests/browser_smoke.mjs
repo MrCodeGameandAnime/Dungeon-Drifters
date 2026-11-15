@@ -296,17 +296,20 @@ async function controlSignature(page) {
 }
 
 async function clickVisibleOption(page, containerSelector, label) {
-  const buttons = page.locator(`${containerSelector} button`);
+  const button = page
+    .locator(containerSelector)
+    .getByText(label, { exact: true })
+    .locator("xpath=ancestor::button[1]");
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline) {
-    for (let index = 0; index < await buttons.count(); index += 1) {
-      const button = buttons.nth(index);
-      const text = await button.evaluate((element) =>
-        element.querySelector(".choice-label")?.textContent?.trim() || element.textContent.trim(),
-      );
-      if (text?.trim() === label && await button.isEnabled()) {
-        await button.click();
+    try {
+      if (await button.count() && await button.isEnabled()) {
+        await button.click({ timeout: 500 });
         return;
+      }
+    } catch (error) {
+      if (error.name !== "TimeoutError") {
+        throw error;
       }
     }
     await page.waitForTimeout(50);
