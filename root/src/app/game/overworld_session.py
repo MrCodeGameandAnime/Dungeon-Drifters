@@ -13,6 +13,7 @@ from app.content.catalog import (
     get_route_successor_id,
     get_permanent_discovery_source,
 )
+from app.content.hub_economy import get_supply_item
 from app.content.route_spec import RouteNodeKind
 from app.content.armor_spec import get_armor_modifier
 from app.content.equipment_spec import get_equipment_template
@@ -20,6 +21,7 @@ from app.content.weapon_progression_spec import get_material_spec
 from app.game.game_state import GameState
 from app.game.expedition_state import _now_utc
 from app.game.hub_economy import HubEconomyService
+from app.game.alchemy import AlchemyService, AlchemyStatus
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.game.recruitment import available_recruitment_event
@@ -122,6 +124,14 @@ _BATTLE_INPUT_TYPES = (
 _UNHANDLED_ACTION = object()
 
 
+def _is_weapon_material(item_id):
+    try:
+        get_material_spec(item_id)
+    except ValueError:
+        return False
+    return True
+
+
 class OverworldSession:
     FLOOR_ONE_WARNING = (
         "Death means returning to the Hub. All unsecured XP, gold, and items "
@@ -192,6 +202,8 @@ class OverworldSession:
         self._equipment_preview = None
         self._equipment_pending_input = None
         self._equipment_return_screen = OverworldScreen.EQUIPMENT
+        self._alchemy_preview = None
+        self._alchemy_return_screen = OverworldScreen.ALCHEMIST
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
@@ -702,6 +714,10 @@ class OverworldSession:
                 "Materials consumed: "
                 + ", ".join(
                     f"{quantity} {get_material_spec(item_id).display_name}"
+                    if _is_weapon_material(item_id)
+                    else f"{quantity} {get_supply_item(item_id).display_name}"
+                    if get_supply_item(item_id) is not None
+                    else f"{quantity} {item_id.replace('_', ' ')}"
                     for item_id, quantity in preview.material_costs
                 )
             )
@@ -746,7 +762,7 @@ class OverworldSession:
             details.append(
                 "Installed modifiers are preserved; the donor armor is sacrificed."
             )
-        elif preview.action == "affix":
+        elif preview.action in {"affix", "learned_affix"}:
             details.append("The incoming modifier and listed costs will be consumed.")
             if preview.displaced_modifiers:
                 details.append(
@@ -861,34 +877,47 @@ class OverworldSession:
         self._notice = f"Loadout slot {session_input.slot + 1} updated."
 
     def _use_overworld_healing_potion(self, view, session_input):
+        item_id = (
+            self._selected_item_key.split(":", 1)[1]
+            if isinstance(self._selected_item_key, str)
+            and self._selected_item_key.startswith("carried-item:")
+            else None
+        )
         if (
             view.screen is not OverworldScreen.HEALING_TARGETS
             or not any(
                 target.drifter_id == session_input.drifter_id
                 for target in view.healing_targets
             )
-            or self._selected_item_key != "carried-item:healing_potion"
+            or item_id not in {"healing_potion", "mana_potion"}
         ):
-            self._notice = "That healing target is not available."
+            self._notice = "That supply target is not available."
             return
         target = self.game_state.member_for_drifter_id(session_input.drifter_id)
-        before = target.health.current
-        if not self.game_state.party_state.use_healing_potion(
+        resource = (
+            target.health if item_id == "healing_potion" else target.mana_resource
+        )
+        before = resource.current
+        use_supply = (
+            self.game_state.party_state.use_healing_potion
+            if item_id == "healing_potion"
+            else self.game_state.party_state.use_mana_potion
+        )
+        if not use_supply(
             target,
             deployed_members=self.game_state.active_party_members,
         ):
-            self._notice = "The Healing Potion is no longer available."
+            self._notice = "That potion is no longer available."
             return
-        restored = target.health.current - before
+        restored = resource.current - before
         self._screen = OverworldScreen.ITEMS
-        if self.game_state.party_state.carried_items.get("healing_potion", 0):
-            self._selected_item_key = "carried-item:healing_potion"
+        if self.game_state.party_state.carried_items.get(item_id, 0):
+            self._selected_item_key = f"carried-item:{item_id}"
         else:
             self._selected_item_key = None
-        self._notice = (
-            f"Healing Potion restored {restored} HP to "
-            f"{target.character.full_display_name}."
-        )
+        resource_name = "HP" if item_id == "healing_potion" else "Mana"
+        item_name = "Healing Potion" if item_id == "healing_potion" else "Mana Potion"
+        self._notice = f"{item_name} restored {restored} {resource_name} to {target.character.full_display_name}."
 
     def _select_companion(self, view, session_input):
         if view.screen is not OverworldScreen.COMPANION_SELECTION:
@@ -1159,7 +1188,9 @@ class OverworldSession:
             OverworldScreen.BLACKSMITH: {
                 "upgrade", "advance_rarity", "sell", "dismantle"
             },
-            OverworldScreen.ENCHANTER: {"extract", "affix"},
+            OverworldScreen.ENCHANTER: {
+                "extract", "affix", "apply_learned_affix"
+            },
         }.get(view.screen, set())
         if (
             not allowed_operations
@@ -1175,6 +1206,7 @@ class OverworldSession:
             for candidate in equipment.actions
             if candidate.operation == session_input.operation.value
             and candidate.modifier_instance_id == session_input.modifier_instance_id
+            and candidate.affix_id == session_input.affix_id
         )
         if action is None or not action.enabled:
             self._notice = "That equipment action is not available."
@@ -1241,6 +1273,18 @@ class OverworldSession:
                 instance_id=session_input.equipment_instance_id,
                 modifier_instance_id=session_input.modifier_instance_id,
             )
+        elif session_input.operation.value == "apply_learned_affix":
+            if (
+                session_input.expected_transaction_sequence
+                != self.game_state.party_state.hub_economy_state.transaction_sequence
+            ):
+                self._notice = "That Enchanter view is out of date. Reopen it and try again."
+                return
+            preview = AlchemistService.preview_learned_affix(
+                self.game_state,
+                instance_id=session_input.equipment_instance_id,
+                modifier_id=session_input.affix_id,
+            )
         else:
             self._notice = "That equipment action is not available."
             return
@@ -1250,6 +1294,35 @@ class OverworldSession:
                 + preview.status.value.replace("_", " ")
                 + "."
             )
+            return
+        if session_input.operation.value == "apply_learned_affix":
+            if preview.displaced_modifiers:
+                self._equipment_preview = preview
+                self._equipment_pending_input = session_input
+                self._equipment_return_screen = view.screen
+                self._screen = OverworldScreen.EQUIPMENT_CONFIRMATION
+                self._notice = None
+                return
+            result = AlchemistService(
+                save_port=self._save_port_instance()
+            ).apply_learned_affix(
+                self.game_state,
+                instance_id=session_input.equipment_instance_id,
+                modifier_id=session_input.affix_id,
+                confirmation=preview,
+            )
+            if result.status is AlchemistStatus.LEARNED_AFFIX_APPLIED:
+                self._game_state = result.game_state
+                self._notice = (
+                    "Applied learned affix "
+                    f"{get_armor_modifier(session_input.affix_id).name}."
+                )
+            else:
+                self._notice = (
+                    "The learned affix could not be applied: "
+                    + result.status.value.replace("_", " ")
+                    + "."
+                )
             return
         self._equipment_preview = preview
         self._equipment_pending_input = session_input
@@ -1329,6 +1402,26 @@ class OverworldSession:
                     for modifier_id in preview.displaced_modifiers
                 )
                 notice += f" {displaced} was permanently destroyed."
+        elif pending.operation.value == "apply_learned_affix":
+            result = alchemist.apply_learned_affix(
+                self.game_state,
+                instance_id=instance_id,
+                modifier_id=pending.affix_id,
+                confirmation=preview,
+            )
+            success = (
+                AlchemistStatus.REPLACED
+                if preview.displaced_modifiers
+                else AlchemistStatus.LEARNED_AFFIX_APPLIED
+            )
+            incoming = get_armor_modifier(pending.affix_id).name
+            notice = f"Applied learned affix {incoming}."
+            if preview.displaced_modifiers:
+                displaced = ", ".join(
+                    get_armor_modifier(modifier_id).name
+                    for modifier_id in preview.displaced_modifiers
+                )
+                notice += f" {displaced} was permanently destroyed."
         else:
             self._notice = "That confirmation is not available."
             return
@@ -1347,6 +1440,49 @@ class OverworldSession:
                 + result.status.value.replace("_", " ")
                 + "."
             )
+
+    @staticmethod
+    def _alchemy_craft_notice(preview):
+        item_id, quantity = preview.outputs[0]
+        item = get_supply_item(item_id)
+        name = item.display_name if item is not None else item_id.replace("_", " ").title()
+        if quantity != 1:
+            name += "s"
+        notice = f"Crafted {quantity} {name}."
+        if preview.experience_award:
+            notice = (
+                f"Crafted {quantity} {name}; gained "
+                f"{preview.experience_award} Alchemy XP."
+            )
+        return notice
+
+    def _confirm_alchemy_craft(self):
+        if (
+            self._screen is not OverworldScreen.ALCHEMY_CONFIRMATION
+            or self._alchemy_preview is None
+        ):
+            self._notice = "That Alchemy confirmation is not available."
+            return
+        preview = self._alchemy_preview
+        result = AlchemyService(
+            save_port=self._save_port_instance()
+        ).craft_return_talisman(
+            self.game_state,
+            expected_transaction_sequence=preview.transaction_sequence,
+            confirmation=preview,
+        )
+        self._screen = self._alchemy_return_screen
+        self._alchemy_preview = None
+        self._adventure_text = None
+        if result.status is AlchemyStatus.CRAFTED:
+            self._game_state = result.game_state
+            self._notice = self._alchemy_craft_notice(result.preview)
+        else:
+            self._notice = {
+                AlchemyStatus.STALE_TRANSACTION: "That Alchemist view is out of date. Reopen it and try again.",
+                AlchemyStatus.INSUFFICIENT_INGREDIENTS: "The rare recipe ingredients are no longer available.",
+                AlchemyStatus.SAVE_FAILED: "The craft could not be saved; nothing changed.",
+            }.get(result.status, "The Return Talisman craft was rejected.")
 
     def _perform_hub_economy_action(self, view, session_input):
         economy = view.hub_economy
@@ -1399,20 +1535,45 @@ class OverworldSession:
             if view.screen is not OverworldScreen.ALCHEMIST or economy is None:
                 self._notice = "Alchemy recipes are only available from the Alchemist."
                 return
-            service = HubEconomyService(self.game_state)
             recipe = first_or_none(
                 value for value in economy.recipes
                 if value.recipe_id == session_input.recipe_id
             )
-            if recipe is None or not recipe.can_craft:
+            if recipe is None:
                 self._notice = "That Alchemy recipe is not available."
                 return
-            result = service.craft_alchemy(recipe.recipe_id)
-            self._notice = (
-                f"Crafted {recipe.display_name}."
-                if result.success
-                else "The Alchemy recipe could not be completed."
+            service = AlchemyService(save_port=self._save_port_instance())
+            result = service.craft(
+                self.game_state,
+                recipe_id=recipe.recipe_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
             )
+            if result.status is AlchemyStatus.CONFIRMATION_REQUIRED:
+                self._alchemy_preview = result.preview
+                self._alchemy_return_screen = view.screen
+                costs = " + ".join(
+                    f"{quantity} {get_supply_item(item_id).display_name}"
+                    for item_id, quantity in result.preview.ingredient_costs
+                )
+                self._adventure_text = (
+                    f"Confirm crafting {recipe.display_name}? This consumes {costs}. "
+                    "This rare recipe grants no Alchemy XP."
+                )
+                self._screen = OverworldScreen.ALCHEMY_CONFIRMATION
+                self._notice = None
+                return
+            if result.status is AlchemyStatus.CRAFTED:
+                self._game_state = result.game_state
+                self._notice = self._alchemy_craft_notice(result.preview)
+            else:
+                self._notice = {
+                    AlchemyStatus.STALE_TRANSACTION: "That Alchemist view is out of date. Reopen it and try again.",
+                    AlchemyStatus.INSUFFICIENT_INGREDIENTS: "The recipe ingredients are no longer available.",
+                    AlchemyStatus.SAVE_FAILED: "The craft could not be saved; nothing changed.",
+                    AlchemyStatus.NOT_AVAILABLE: "Alchemy is only available at the Hub.",
+                }.get(result.status, "The Alchemy recipe could not be completed.")
             return
 
         operation = session_input.operation.value
@@ -2392,13 +2553,16 @@ class OverworldSession:
             self._open_respec_confirmation(self._build_view())
             return None
         if action is OverworldAction.USE:
+            item_id = (
+                self._selected_item_key.split(":", 1)[1]
+                if isinstance(self._selected_item_key, str)
+                and self._selected_item_key.startswith("carried-item:")
+                else None
+            )
             if (
                 self._screen is not OverworldScreen.ITEMS
-                or self._selected_item_key != "carried-item:healing_potion"
-                or self.game_state.party_state.carried_items.get(
-                    "healing_potion", 0
-                )
-                < 1
+                or item_id not in {"healing_potion", "mana_potion"}
+                or self.game_state.party_state.carried_items.get(item_id, 0) < 1
             ):
                 self._notice = "That item cannot be used right now."
                 return None
@@ -2425,6 +2589,12 @@ class OverworldSession:
             )
             return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+                self._screen = self._alchemy_return_screen
+                self._alchemy_preview = None
+                self._adventure_text = None
+                self._notice = "Cancelled. Nothing changed."
+                return None
             if self._screen is OverworldScreen.EXPEDITION_CONFIRMATION:
                 self._screen = OverworldScreen.EXPEDITION_SETUP
                 self._notice = "Cancelled. No energy was spent."
@@ -2454,6 +2624,9 @@ class OverworldSession:
             self._quit_return_screen = None
             return None
         if action is OverworldAction.CONFIRM:
+            if self._screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+                self._confirm_alchemy_craft()
+                return None
             if self._screen is OverworldScreen.EXPEDITION_CONFIRMATION:
                 return self._confirm_expedition_launch()
             if self._screen is OverworldScreen.DISCOVERY_CONFIRMATION:

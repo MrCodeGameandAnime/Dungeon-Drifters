@@ -47,6 +47,9 @@ class AlchemyRecipeSpec:
     display_name: str
     ingredient_costs: tuple[tuple[str, int], ...]
     outputs: tuple[tuple[str, int], ...]
+    experience_award: int = 0
+    mastery_output: bool = True
+    requires_confirmation: bool = False
 
     def __post_init__(self):
         for name in ("recipe_id", "display_name"):
@@ -68,6 +71,15 @@ class AlchemyRecipeSpec:
                 if quantity < 1:
                     raise ValueError("recipe quantities must be positive")
                 item_ids.add(item_id)
+        if (
+            isinstance(self.experience_award, bool)
+            or not isinstance(self.experience_award, int)
+            or self.experience_award < 0
+        ):
+            raise ValueError("recipe experience must be a non-negative integer")
+        for field_name in ("mastery_output", "requires_confirmation"):
+            if not isinstance(getattr(self, field_name), bool):
+                raise TypeError(f"{field_name} must be a boolean")
 
 
 SUPPLY_ITEMS = (
@@ -116,24 +128,29 @@ ALCHEMY_RECIPES = (
         "Healing Potion",
         (("medicinal_herb", 1), ("clean_water", 1)),
         (("healing_potion", 1),),
-    ),
-    AlchemyRecipeSpec(
-        "smoke_powder",
-        "Smoke Powder",
-        (("goblin_scrap", 1), ("charcoal_dust", 1)),
-        (("smoke_powder", 1),),
+        experience_award=10,
     ),
     AlchemyRecipeSpec(
         "smoke_bomb",
         "Smoke Bomb",
-        (("smoke_powder", 1), ("grade_i_fiber", 1)),
+        (("charcoal_dust", 1), ("sulfur", 1)),
         (("smoke_bomb", 1),),
+        experience_award=15,
+    ),
+    AlchemyRecipeSpec(
+        "mana_potion",
+        "Mana Potion",
+        (("magic_reagent", 1), ("aether_dust", 1)),
+        (("mana_potion", 1),),
+        experience_award=20,
     ),
     AlchemyRecipeSpec(
         "return_talisman",
         "Return Talisman",
-        (("grade_i_cores", 1), ("grade_i_fiber", 1)),
+        (("goblin_lord_core", 2), ("mythril_plate", 1)),
         (("return_talisman", 1),),
+        mastery_output=False,
+        requires_confirmation=True,
     ),
 )
 

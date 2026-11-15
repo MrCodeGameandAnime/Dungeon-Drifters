@@ -36,6 +36,7 @@ class TerminalBattleUI:
         ActionIntent.HEAL: "H",
         ActionIntent.ITEMS: "I",
         ActionIntent.HEALING_POTION: "P",
+        ActionIntent.MANA_POTION: "M",
         ActionIntent.ESCAPE: "E",
         ActionIntent.SUPER: "S",
     }
@@ -114,7 +115,10 @@ class TerminalBattleUI:
         if view.interaction_phase == InteractionPhase.HEALING_TARGETS:
             for option in view.healing_target_options:
                 if choice in (str(option.number), option.display_label.lower(), option.target_id):
-                    return ChooseHealingTarget(option.target_id)
+                    return ChooseHealingTarget(
+                        option.target_id,
+                        view.healing_item_id or "healing_potion",
+                    )
             return None
         if view.interaction_phase == InteractionPhase.INVENTORY:
             return self._translate_inventory_item(view, choice)
@@ -420,11 +424,21 @@ class TerminalBattleUI:
             return tuple(lines)
 
         if view.interaction_phase == InteractionPhase.HEALING_TARGETS:
-            lines = ["Use Healing Potion on:"]
+            is_mana_potion = view.healing_item_id == "mana_potion"
+            lines = [
+                "Use Mana Potion on:" if is_mana_potion else "Use Healing Potion on:"
+            ]
             for option in view.healing_target_options:
+                resource_name = "Mana" if is_mana_potion else "HP"
+                current = (
+                    option.mana_current if is_mana_potion else option.hp_current
+                )
+                maximum = (
+                    option.mana_maximum if is_mana_potion else option.hp_maximum
+                )
                 lines.append(
                     f"{option.number}. {option.display_label} - "
-                    f"HP {option.hp_current}/{option.hp_maximum}"
+                    f"{resource_name} {current}/{maximum}"
                 )
             lines.append("0. Back")
             return tuple(lines)
@@ -590,6 +604,12 @@ class TerminalBattleUI:
             lines.append(
                 f"{actor} used {action}{target_context}. "
                 f"It restored {entry.amount} health."
+            )
+        elif entry.event_type == BattleEventType.MANA_RESTORATION:
+            target_context = self._target_context(actor, entry.target_name)
+            lines.append(
+                f"{actor} used {action}{target_context}. "
+                f"It restored {entry.amount} Mana."
             )
         elif entry.event_type == BattleEventType.DEFEND:
             lines.append(f"{actor} used Defend.")

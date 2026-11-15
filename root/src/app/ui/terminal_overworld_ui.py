@@ -204,6 +204,8 @@ class TerminalOverworldUI:
                         equipment_instance_id=equipment.selected_instance_id,
                         operation=EquipmentOperation(action.operation),
                         modifier_instance_id=action.modifier_instance_id,
+                        affix_id=action.affix_id,
+                        expected_transaction_sequence=view.hub_transaction_sequence,
                     )
 
         if (
@@ -307,7 +309,10 @@ class TerminalOverworldUI:
                 if 0 <= index < len(economy.recipes):
                     recipe = economy.recipes[index]
                     if recipe.can_craft:
-                        return ChooseAlchemyRecipe(recipe.recipe_id)
+                        return ChooseAlchemyRecipe(
+                            recipe.recipe_id,
+                            view.hub_transaction_sequence,
+                        )
                     self._output("That Alchemy recipe is unavailable.")
                     return self._REJECTED
 
@@ -705,11 +710,24 @@ class TerminalOverworldUI:
         elif view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
             lines = [view.equipment_confirmation.title, ""]
             lines.extend(view.equipment_confirmation.details)
+        elif view.screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+            lines = ["CONFIRM ALCHEMY CRAFT", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
         elif view.screen is OverworldScreen.HEALING_TARGETS:
-            lines = ["CHOOSE A DRIFTER TO HEAL", ""]
+            item_id = (
+                view.inventory.selected_item_key.split(":", 1)[1]
+                if view.inventory is not None
+                and view.inventory.selected_item_key is not None
+                else "healing_potion"
+            )
+            is_mana_potion = item_id == "mana_potion"
+            resource_name = "Mana" if is_mana_potion else "HP"
+            lines = [f"CHOOSE A DRIFTER FOR {resource_name.upper()}", ""]
             lines.extend(
                 f"{index}. {target.display_name} | "
-                f"HP {target.hp_current}/{target.hp_maximum}"
+                f"{resource_name} "
+                f"{target.mana_current if is_mana_potion else target.hp_current}/"
+                f"{target.mana_maximum if is_mana_potion else target.hp_maximum}"
                 for index, target in enumerate(view.healing_targets, start=1)
             )
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
@@ -1039,11 +1057,19 @@ class TerminalOverworldUI:
                 for index, offer in enumerate(economy.buybacks, start=1)
             )
         if economy.recipes:
-            lines.extend(("", "ALCHEMY"))
+            lines.extend(
+                (
+                    "",
+                    "ALCHEMY",
+                    f"Level {economy.alchemy_level} | {economy.alchemy_experience} XP",
+                )
+            )
             lines.extend(
                 f"A{index}. {recipe.display_name}: "
                 f"{' + '.join(recipe.ingredient_summary)} -> "
                 f"{' + '.join(recipe.output_summary)}"
+                f" | +{recipe.experience_award} XP"
+                f"{' | confirmation required' if recipe.requires_confirmation else ''}"
                 f"{' [Unavailable]' if not recipe.can_craft else ''}"
                 for index, recipe in enumerate(economy.recipes, start=1)
             )
@@ -1063,6 +1089,16 @@ class TerminalOverworldUI:
         lines = [
             "CHOOSE DRIFTER",
         ]
+        if view.screen is OverworldScreen.ENCHANTER:
+            lines.extend(
+                (
+                    "",
+                    f"ENCHANTING LEVEL {equipment.enchanting_level} | "
+                    f"{equipment.enchanting_experience} XP",
+                    "KNOWN AFFIXES",
+                )
+            )
+            lines.extend(equipment.known_affixes or ("None",))
         lines.extend(
             f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
             for index, target in enumerate(equipment.targets, start=1)
@@ -1340,9 +1376,10 @@ class TerminalOverworldUI:
             OverworldScreen.BLACKSMITH: "BLACKSMITH",
             OverworldScreen.ENCHANTER: "ENCHANTER",
             OverworldScreen.ALCHEMIST: "ALCHEMIST",
+            OverworldScreen.ALCHEMY_CONFIRMATION: "ALCHEMY CONFIRMATION",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
-            OverworldScreen.HEALING_TARGETS: "USE HEALING POTION",
+            OverworldScreen.HEALING_TARGETS: "USE POTION",
             OverworldScreen.DISCOVERY_SEARCHERS: "SEARCH SITE",
             OverworldScreen.DISCOVERY_TARGETS: "CLAIM DISCOVERY",
             OverworldScreen.DISCOVERY_CONFIRMATION: "CONFIRM DISCOVERY",

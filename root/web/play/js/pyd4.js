@@ -270,6 +270,9 @@
       case "healing":
         lines.push(`${actor} used ${action}${targetContext}. It restored ${entry.amount} health.`);
         break;
+      case "mana_restoration":
+        lines.push(`${actor} used ${action}${targetContext}. It restored ${entry.amount} Mana.`);
+        break;
       case "defend":
         lines.push(`${actor} used Defend.`);
         break;
@@ -788,6 +791,24 @@
           : "Equipment",
     );
     renderPartyTargets("equipment-targets", equipment.targets);
+    const enchantingProgress = $("enchanting-progress");
+    enchantingProgress.hidden = view.screen !== "enchanter";
+    enchantingProgress.textContent = view.screen === "enchanter"
+      ? `Enchanting Level ${equipment.enchanting_level} | ${equipment.enchanting_experience} XP`
+      : "";
+    const knownAffixes = $("enchanting-known-affixes");
+    knownAffixes.hidden = view.screen !== "enchanter";
+    clear(knownAffixes);
+    for (const affix of equipment.known_affixes || []) {
+      const row = document.createElement("div");
+      row.textContent = affix;
+      knownAffixes.append(row);
+    }
+    if (!knownAffixes.childElementCount && view.screen === "enchanter") {
+      const empty = document.createElement("div");
+      empty.textContent = "No affix recipes discovered.";
+      knownAffixes.append(empty);
+    }
 
     const inventory = $("equipment-inventory");
     clear(inventory);
@@ -886,6 +907,8 @@
             ...(action.modifier_instance_id
               ? { modifier_instance_id: action.modifier_instance_id }
               : {}),
+            ...(action.affix_id ? { affix_id: action.affix_id } : {}),
+            expected_transaction_sequence: view.hub_transaction_sequence,
           },
           action.enabled,
           action.disabled_reason,
@@ -1085,6 +1108,7 @@
       blacksmith: "Blacksmith",
       hub_inventory: "Hub Inventory",
       alchemist: "Alchemist",
+      alchemy_confirmation: "Confirm Alchemy Craft",
     }[view.screen] || "Hub Services";
     setText("hub-economy-title", title);
     const summary = $("merchant-storage-summary");
@@ -1096,6 +1120,9 @@
     const alchemist = view.screen === "alchemist";
     supplies.hidden = false;
     alchemySection.hidden = !alchemist;
+    $("alchemy-progress").textContent = alchemist
+      ? `Alchemy Level ${economy?.alchemy_level ?? 1} | ${economy?.alchemy_experience ?? 0} XP`
+      : "";
     clear(supplies);
     clear(recipes);
     clear(buybackList);
@@ -1222,10 +1249,16 @@
       title.textContent = recipe.display_name;
       const ingredients = document.createElement("span");
       ingredients.textContent = `${recipe.ingredient_summary.join(" + ")} -> ${recipe.output_summary.join(" + ")}`;
-      description.append(title, ingredients);
+      const details = document.createElement("span");
+      details.textContent = `${recipe.experience_award} Alchemy XP${recipe.requires_confirmation ? " | Confirmation required" : ""}`;
+      description.append(title, ingredients, details);
       row.append(description, makeButton(
         "Craft",
-        { kind: "alchemy_recipe", recipe_id: recipe.recipe_id },
+        {
+          kind: "alchemy_recipe",
+          recipe_id: recipe.recipe_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
+        },
         recipe.can_craft,
         recipe.can_craft ? null : "missing_ingredients",
         "merchant-action",
@@ -1506,12 +1539,21 @@
     const details = $("items-inspection");
     clear(list);
     details.hidden = !inspecting;
-    setText("items-title", choosingHealingTarget ? "Choose a Drifter to Heal" : "Items");
+    const selectedItemId = inventory && inventory.selected_item_key
+      ? inventory.selected_item_key.split(":").pop()
+      : "healing_potion";
+    const usingManaPotion = selectedItemId === "mana_potion";
+    setText(
+      "items-title",
+      choosingHealingTarget
+        ? `Choose a Drifter for ${usingManaPotion ? "Mana" : "HP"}`
+        : "Items",
+    );
 
     if (choosingHealingTarget) {
       for (const target of view.healing_targets || []) {
         list.append(makeButton(
-          `${target.display_name} | HP ${target.hp_current}/${target.hp_maximum}`,
+          `${target.display_name} | ${usingManaPotion ? "Mana" : "HP"} ${usingManaPotion ? target.mana_current : target.hp_current}/${usingManaPotion ? target.mana_maximum : target.hp_maximum}`,
           { kind: "overworld_healing_target", drifter_id: target.drifter_id },
           true,
           null,
@@ -1556,7 +1598,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "vendors", "merchant", "hub_inventory", "blacksmith", "enchanter", "alchemist", "items", "item_inspect", "healing_targets",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "alchemy_confirmation", "vendors", "merchant", "hub_inventory", "blacksmith", "enchanter", "alchemist", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -1618,7 +1660,7 @@
     $("equipment-panel").hidden = !["equipment", "equipment_confirmation", "blacksmith", "enchanter"].includes(view.screen);
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("vendors-panel").hidden = view.screen !== "vendors";
-    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "blacksmith", "alchemist"].includes(view.screen);
+    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "blacksmith", "alchemist", "alchemy_confirmation"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "blacksmith";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
@@ -1632,7 +1674,7 @@
     else if (["equipment", "equipment_confirmation", "enchanter"].includes(view.screen)) renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
     else if (view.screen === "vendors") renderVendorDirectory(view);
-    else if (["merchant", "hub_inventory", "alchemist"].includes(view.screen)) renderHubEconomy(view);
+    else if (["merchant", "hub_inventory", "alchemist", "alchemy_confirmation"].includes(view.screen)) renderHubEconomy(view);
 
     renderInventory($("inventory"), view);
     clear($("actions"));
@@ -1740,12 +1782,13 @@
       setText("controls-title", "Choose a target:");
       renderTargets(targets, view.target_options);
     } else if (phase === "healing_targets") {
-      setText("controls-title", "Use Healing Potion on:");
+      const isManaPotion = view.healing_item_id === "mana_potion";
+      setText("controls-title", isManaPotion ? "Use Mana Potion on:" : "Use Healing Potion on:");
       renderOptions(
         targets,
         view.healing_target_options,
-        (option) => ({ kind: "healing_target", target_id: option.target_id }),
-        (option) => `${option.number}. ${option.display_label} | HP ${option.hp_current}/${option.hp_maximum}`,
+        (option) => ({ kind: "healing_target", target_id: option.target_id, item_id: view.healing_item_id }),
+        (option) => `${option.number}. ${option.display_label} | ${isManaPotion ? "Mana" : "HP"} ${isManaPotion ? option.mana_current : option.hp_current}/${isManaPotion ? option.mana_maximum : option.hp_maximum}`,
         "battle-option target-choice",
       );
       appendBack(targets);

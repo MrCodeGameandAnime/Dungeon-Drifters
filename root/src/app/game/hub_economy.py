@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from app.content.hub_economy import get_alchemy_recipe, get_supply_item
+from app.content.hub_economy import get_supply_item
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase, MAX_CARRIED_SUPPLY_UNITS
 
@@ -89,24 +89,6 @@ class HubEconomyService:
         if not party.unload_carried_supplies({item_id: quantity}):
             return self._rejected("transfer_rejected", item_id, quantity)
         return HubEconomyResult(True, item_id=item_id, quantity=quantity)
-
-    def craft_alchemy(self, recipe_id):
-        if not isinstance(recipe_id, str) or not recipe_id:
-            raise ValueError("recipe_id must be a nonempty string")
-        if not self._at_hub():
-            return self._rejected("hub_only", recipe_id)
-        recipe = get_alchemy_recipe(recipe_id)
-        if recipe is None:
-            return self._rejected("unknown_recipe", recipe_id)
-        party = self._game_state.party_state
-        costs = dict(recipe.ingredient_costs)
-        if any(party.shared_items.get(item_id, 0) < quantity
-               for item_id, quantity in costs.items()):
-            return self._rejected("missing_ingredients", recipe_id)
-        if not party.spend_shared_items(costs):
-            return self._rejected("missing_ingredients", recipe_id)
-        party.add_shared_items(dict(recipe.outputs))
-        return HubEconomyResult(True, item_id=recipe_id)
 
     def _at_hub(self):
         return self._game_state.party_state.phase in {

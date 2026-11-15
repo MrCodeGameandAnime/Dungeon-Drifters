@@ -110,6 +110,7 @@ def test_all_approved_screen_values_are_typed():
         "skills",
         "respec_confirmation",
         "equipment_confirmation",
+        "alchemy_confirmation",
         "weapon",
         "equipment",
         "merchant",

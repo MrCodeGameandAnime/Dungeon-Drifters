@@ -133,7 +133,7 @@ def test_presenter_builds_resource_and_temporary_state_views():
     assert view.enemy.super_current is None
 
 
-def test_presenter_builds_six_ordinary_action_options():
+def test_presenter_builds_seven_ordinary_action_options():
     view, _, _, _ = _build()
 
     assert tuple(option.intent for option in view.action_options) == (
@@ -142,15 +142,18 @@ def test_presenter_builds_six_ordinary_action_options():
         ActionIntent.HEAL,
         ActionIntent.ITEMS,
         ActionIntent.HEALING_POTION,
+        ActionIntent.MANA_POTION,
         ActionIntent.ESCAPE,
     )
-    assert tuple(option.number for option in view.action_options) == (1, 2, 3, 4, 5, 6)
+    assert tuple(option.number for option in view.action_options) == (1, 2, 3, 4, 5, 6, 7)
     assert _option(view, ActionIntent.ATTACK).enabled is True
     assert _option(view, ActionIntent.DEFEND).enabled is True
     assert _option(view, ActionIntent.HEAL).label == "Heal - Full HP"
     assert _option(view, ActionIntent.HEAL).disabled_reason == ActionAvailabilityReason.FULL_HP
     assert _option(view, ActionIntent.ITEMS).enabled is True
     assert _option(view, ActionIntent.ITEMS).disabled_reason is None
+    assert _option(view, ActionIntent.MANA_POTION).enabled is False
+    assert _option(view, ActionIntent.MANA_POTION).disabled_reason == ActionAvailabilityReason.NO_CARRIED_SUPPLY
     assert _option(view, ActionIntent.ESCAPE).disabled_reason == ActionAvailabilityReason.NOT_IMPLEMENTED
 
 

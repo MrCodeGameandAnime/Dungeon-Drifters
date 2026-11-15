@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from app.content.armor_spec import get_armor_modifier, get_armor_rarity
+from app.content.armor_spec import MODIFIER_GRADES, get_armor_modifier, get_armor_rarity
 from app.content.equipment_spec import get_equipment_template
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase
@@ -24,6 +24,7 @@ class AlchemistStatus(StrEnum):
     EXTRACTED = "extracted"
     AFFIXED = "affixed"
     REPLACED = "replaced"
+    LEARNED_AFFIX_APPLIED = "learned_affix_applied"
     INVALID_INSTANCE = "invalid_instance"
     INVALID_MODIFIER = "invalid_modifier"
     NOT_ARMOR = "not_armor"
@@ -162,6 +163,54 @@ class AlchemistService:
             modifier_instance_id=modifier_instance_id,
         )
 
+    @staticmethod
+    def preview_learned_affix(game_state, *, instance_id, modifier_id):
+        item, status = AlchemistService._manageable_armor(game_state, instance_id)
+        if status is not None:
+            return _blocked("learned_affix", status, instance_id)
+        if not isinstance(modifier_id, str) or not modifier_id:
+            return _blocked("learned_affix", AlchemistStatus.INVALID_MODIFIER, instance_id)
+        economy = game_state.party_state.hub_economy_state
+        if not economy.knows_affix(modifier_id):
+            return _blocked("learned_affix", AlchemistStatus.INVALID_MODIFIER, instance_id)
+        try:
+            definition = get_armor_modifier(modifier_id)
+        except (TypeError, ValueError):
+            return _blocked("learned_affix", AlchemistStatus.INVALID_MODIFIER, instance_id)
+        if definition.grade == "V":
+            return _blocked("learned_affix", AlchemistStatus.NOT_AVAILABLE, instance_id)
+        if item.slot_id not in definition.compatible_slots:
+            return _blocked("learned_affix", AlchemistStatus.INCOMPATIBLE, instance_id)
+        if definition.grade not in get_armor_rarity(item.rarity).modifier_grades:
+            return _blocked("learned_affix", AlchemistStatus.GRADE_LOCKED, instance_id)
+        displaced = item.modifier_slots.get(definition.grade)
+        if displaced == modifier_id:
+            return _blocked("learned_affix", AlchemistStatus.SAME_MODIFIER, instance_id)
+
+        grade = MODIFIER_GRADES.index(definition.grade) + 1
+        level = economy.enchanting_level
+        if level == 100:
+            crystal_quantity, gold_per_grade = 1, 4
+        elif level >= 75:
+            crystal_quantity, gold_per_grade = 1, 5
+        elif level >= 50:
+            crystal_quantity, gold_per_grade = 2, 6
+        elif level >= 25:
+            crystal_quantity, gold_per_grade = 2, 7
+        else:
+            crystal_quantity, gold_per_grade = 2, 8
+        crystal_id = f"grade_{definition.grade.lower()}_magic_crystal"
+        return _priced_preview(
+            game_state,
+            "learned_affix",
+            item,
+            gold_cost=gold_per_grade * grade,
+            material_costs=((crystal_id, crystal_quantity),),
+            incoming_modifier=modifier_id,
+            displaced_modifiers=() if displaced is None else (displaced,),
+            destroyed_modifiers=() if displaced is None else (displaced,),
+        )
+
     def sell(self, game_state, *, instance_id, confirmation=None):
         return self._run_confirmed(
             game_state, instance_id, confirmation, self.preview_sale,
@@ -205,6 +254,14 @@ class AlchemistService:
             )
         candidate = game_state.clone()
         party = candidate.party_state
+        if not party.hub_economy_state.advance_transaction(
+            preview.transaction_sequence
+        ):
+            return AlchemistResult(
+                AlchemistStatus.STALE_CONFIRMATION,
+                game_state,
+                preview,
+            )
         if not _spend(party, preview.gold_cost, preview.material_costs):
             return AlchemistResult(AlchemistStatus.INSUFFICIENT_RESOURCES, game_state, preview)
         incoming = party.remove_modifier_instance(modifier_instance_id)
@@ -214,8 +271,70 @@ class AlchemistService:
             modifier_id=incoming.definition_id,
         )
         party.replace_equipment_instance(updated)
+        party.hub_economy_state.add_enchanting_experience(
+            _operation_experience(incoming.grade)
+        )
         candidate._bind_equipment_state()
         return self._commit(candidate, game_state, AlchemistStatus.REPLACED if preview.displaced_modifiers else AlchemistStatus.AFFIXED, preview)
+
+    def apply_learned_affix(
+        self,
+        game_state,
+        *,
+        instance_id,
+        modifier_id,
+        confirmation=None,
+    ):
+        preview = self.preview_learned_affix(
+            game_state,
+            instance_id=instance_id,
+            modifier_id=modifier_id,
+        )
+        if not preview.can_apply:
+            return AlchemistResult(preview.status, game_state, preview)
+        if confirmation is None:
+            return AlchemistResult(
+                AlchemistStatus.CONFIRMATION_REQUIRED,
+                game_state,
+                preview,
+            )
+        if confirmation != preview:
+            return AlchemistResult(
+                AlchemistStatus.STALE_CONFIRMATION,
+                game_state,
+                preview,
+            )
+        candidate = game_state.clone()
+        party = candidate.party_state
+        if not party.hub_economy_state.advance_transaction(
+            preview.transaction_sequence
+        ):
+            return AlchemistResult(
+                AlchemistStatus.STALE_CONFIRMATION,
+                game_state,
+                preview,
+            )
+        if not _spend(party, preview.gold_cost, preview.material_costs):
+            return AlchemistResult(
+                AlchemistStatus.INSUFFICIENT_RESOURCES,
+                game_state,
+                preview,
+            )
+        definition = get_armor_modifier(modifier_id)
+        armor = party.equipment_instance(instance_id)
+        party.replace_equipment_instance(
+            armor.with_modifier(grade=definition.grade, modifier_id=modifier_id)
+        )
+        party.hub_economy_state.add_enchanting_experience(
+            _operation_experience(definition.grade)
+        )
+        candidate._bind_equipment_state()
+        success = (
+            AlchemistStatus.REPLACED
+            if preview.displaced_modifiers
+            else AlchemistStatus.LEARNED_AFFIX_APPLIED
+        )
+        return self._commit(candidate, game_state, success, preview)
 
     @staticmethod
     def cancel(game_state, preview):
@@ -235,19 +354,30 @@ class AlchemistService:
             )
         candidate = game_state.clone()
         party = candidate.party_state
+        if (
+            preview.transaction_sequence is None
+            or not party.hub_economy_state.advance_transaction(
+                preview.transaction_sequence
+            )
+        ):
+            return AlchemistResult(
+                AlchemistStatus.STALE_CONFIRMATION,
+                game_state,
+                preview,
+            )
         if not _spend(party, preview.gold_cost, preview.material_costs):
             return AlchemistResult(AlchemistStatus.INSUFFICIENT_RESOURCES, game_state, preview)
         apply_fn(candidate, preview)
+        if preview.action == "extract":
+            _award_extraction_experience(candidate, preview.extracted_modifiers)
         return self._commit(candidate, game_state, success, preview)
 
     @staticmethod
     def _apply_sale(candidate, preview):
         party = candidate.party_state
-        equipment = party.remove_equipment_instance(preview.equipment_instance_id)
         economy = party.hub_economy_state
+        equipment = party.remove_equipment_instance(preview.equipment_instance_id)
         sequence = preview.transaction_sequence
-        if sequence is None or not economy.advance_transaction(sequence):
-            raise ValueError("equipment sale transaction is stale")
         economy.add_buyback_record(
             {
                 "sale_id": f"sale_{sequence + 1}",
@@ -428,6 +558,21 @@ def _aggregate_modifier_costs(modifier_ids, operation):
         for material_id, quantity in modifier.extraction_material_costs:
             materials[material_id] = materials.get(material_id, 0) + quantity
     return gold, tuple(sorted(materials.items()))
+
+
+def _operation_experience(grade):
+    return (MODIFIER_GRADES.index(grade) + 1) * 10
+
+
+def _award_extraction_experience(game_state, modifier_ids):
+    definitions = tuple(get_armor_modifier(modifier_id) for modifier_id in modifier_ids)
+    highest_grade = max(MODIFIER_GRADES.index(item.grade) + 1 for item in definitions)
+    discovery_bonus = 0
+    economy = game_state.party_state.hub_economy_state
+    for definition in definitions:
+        if economy.learn_affix(definition.modifier_id):
+            discovery_bonus += (MODIFIER_GRADES.index(definition.grade) + 1) * 5
+    economy.add_enchanting_experience(highest_grade * 10 + discovery_bonus)
 
 
 def _has_resources(party, gold, materials):

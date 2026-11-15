@@ -1,6 +1,7 @@
 """Party-owned M6.5 vendor, profession, and outing state."""
 
 from app.content.vendor_catalog import VENDOR_IDS, VENDOR_MERCHANDISE
+from app.content.armor_spec import MODIFIER_DEFINITIONS
 from app.iteration import first_or_none
 from app.snapshot import to_plain_value
 
@@ -10,6 +11,9 @@ _FLOOR_FLAGS = {
     "floor_two": "floor_two_cleared",
     "floor_three": "floor_three_cleared",
 }
+_AUTHORED_AFFIX_IDS = frozenset(
+    modifier.modifier_id for modifier in MODIFIER_DEFINITIONS
+)
 
 
 def new_hub_economy_snapshot(
@@ -96,6 +100,45 @@ class HubEconomyState:
     @property
     def transaction_sequence(self):
         return self._state["transaction_sequence"]
+
+    @property
+    def alchemy_experience(self):
+        return self._state["alchemy_xp"]
+
+    @property
+    def alchemy_level(self):
+        return min(self._state["alchemy_xp"] // 50 + 1, 100)
+
+    @property
+    def enchanting_experience(self):
+        return self._state["enchanting_xp"]
+
+    @property
+    def enchanting_level(self):
+        return min(self._state["enchanting_xp"] // 25 + 1, 100)
+
+    @property
+    def known_affix_ids(self):
+        return tuple(self._state["known_affix_ids"])
+
+    def add_alchemy_experience(self, amount):
+        self._state["alchemy_xp"] += _nonnegative_quantity(amount)
+
+    def add_enchanting_experience(self, amount):
+        self._state["enchanting_xp"] += _nonnegative_quantity(amount)
+
+    def knows_affix(self, modifier_id):
+        return modifier_id in self._state["known_affix_ids"]
+
+    def learn_affix(self, modifier_id):
+        if not isinstance(modifier_id, str) or modifier_id not in _AUTHORED_AFFIX_IDS:
+            raise ValueError("affix ID must reference an authored modifier")
+        known = self._state["known_affix_ids"]
+        if modifier_id in known:
+            return False
+        known.append(modifier_id)
+        known.sort()
+        return True
 
     def vendor_stock_quantity(self, vendor_id, item_id):
         return self._state["vendor_stock"].get(vendor_id, {}).get(item_id, 0)
@@ -345,6 +388,14 @@ def _positive_quantity(quantity):
         raise TypeError("quantity must be an integer")
     if quantity < 1:
         raise ValueError("quantity must be positive")
+    return quantity
+
+
+def _nonnegative_quantity(quantity):
+    if isinstance(quantity, bool) or not isinstance(quantity, int):
+        raise TypeError("experience must be an integer")
+    if quantity < 0:
+        raise ValueError("experience must not be negative")
     return quantity
 
 

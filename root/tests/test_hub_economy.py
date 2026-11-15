@@ -97,28 +97,3 @@ def test_pack_transfer_rejects_materials_or_wrong_phase_without_mutation():
     before = party.snapshot()
     assert service.unload(item_id="healing_potion", quantity=1).reason == "hub_only"
     assert party.snapshot() == before
-
-
-def test_alchemy_consumes_inputs_and_credits_output_atomically_without_crafting_xp():
-    game = hub_game(gold=75)
-    party = game.party_state
-    party.add_shared_items({"medicinal_herb": 1, "clean_water": 1})
-    before_xp = party.crafting_experience
-
-    result = HubEconomyService(game).craft_alchemy("healing_potion")
-
-    assert result.success is True
-    assert party.shared_items == {"healing_potion": 1}
-    assert party.crafting_experience == before_xp
-
-
-def test_alchemy_rejects_missing_inputs_without_partial_mutation():
-    game = hub_game(gold=75)
-    game.party_state.add_shared_items({"medicinal_herb": 2})
-    before = game.party_state.snapshot()
-
-    result = HubEconomyService(game).craft_alchemy("healing_potion")
-
-    assert result.success is False
-    assert result.reason == "missing_ingredients"
-    assert game.party_state.snapshot() == before

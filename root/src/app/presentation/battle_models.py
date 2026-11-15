@@ -13,6 +13,7 @@ class ActionIntent(StrEnum):
     HEAL = "heal"
     ITEMS = "items"
     HEALING_POTION = "healing_potion"
+    MANA_POTION = "mana_potion"
     ESCAPE = "escape"
     SUPER = "super"
 
@@ -50,6 +51,7 @@ class BattleEventType(StrEnum):
     DAMAGE = "damage"
     MISS = "miss"
     HEALING = "healing"
+    MANA_RESTORATION = "mana_restoration"
     DEFEND = "defend"
     UTILITY = "utility"
     ACTION_REJECTED = "action_rejected"
@@ -288,6 +290,8 @@ class HealingTargetOptionView:
     display_label: str
     hp_current: int
     hp_maximum: int
+    mana_current: int | None = None
+    mana_maximum: int | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "target_id", _validate_nonempty_string("target_id", self.target_id))
@@ -298,8 +302,19 @@ class HealingTargetOptionView:
             _validate_nonempty_string("display_label", self.display_label),
         )
         _validate_resource_pair("hp", self.hp_current, self.hp_maximum, optional=False)
-        if self.hp_current <= 0 or self.hp_current >= self.hp_maximum:
-            raise ValueError("healing targets must be living and missing HP")
+        _validate_resource_pair(
+            "mana",
+            self.mana_current,
+            self.mana_maximum,
+            optional=True,
+        )
+        hp_missing = self.hp_current < self.hp_maximum
+        mana_missing = (
+            self.mana_current is not None
+            and self.mana_current < self.mana_maximum
+        )
+        if self.hp_current <= 0 or not (hp_missing or mana_missing):
+            raise ValueError("supply targets must be living and missing HP or Mana")
 
 
 @dataclass(frozen=True)
@@ -503,6 +518,7 @@ class BattleView:
     move_options: tuple[MoveOptionView, ...] = ()
     target_options: tuple[TargetOptionView, ...] = ()
     healing_target_options: tuple[HealingTargetOptionView, ...] = ()
+    healing_item_id: str | None = None
     inventory_items: tuple[InventoryItemOptionView, ...] = ()
     selected_inventory_item: InventoryItemOptionView | None = None
     inventory_commands: tuple[InventoryCommandOptionView, ...] = ()
@@ -567,6 +583,16 @@ class BattleView:
                 HealingTargetOptionView,
             ),
         )
+        object.__setattr__(
+            self,
+            "healing_item_id",
+            _validate_optional_string("healing_item_id", self.healing_item_id),
+        )
+        if self.interaction_phase is InteractionPhase.HEALING_TARGETS:
+            if self.healing_item_id not in {"healing_potion", "mana_potion"}:
+                raise ValueError("potion targeting requires an item identity")
+        elif self.healing_item_id is not None:
+            raise ValueError("healing item identity belongs only to potion targeting")
         object.__setattr__(
             self,
             "inventory_items",
@@ -654,6 +680,7 @@ class BattleView:
             move_options=self.move_options,
             target_options=self.target_options,
             healing_target_options=self.healing_target_options,
+            healing_item_id=self.healing_item_id,
             inventory_items=self.inventory_items,
             selected_inventory_item=self.selected_inventory_item,
             inventory_commands=self.inventory_commands,

@@ -601,6 +601,39 @@ class PartyState:
         target.health.heal(amount)
         return True
 
+    def use_mana_potion(self, target, *, deployed_members):
+        if self._phase not in {
+            DungeonPhase.HUB,
+            DungeonPhase.PARTY_READY,
+            DungeonPhase.OUTING,
+        }:
+            return False
+        if not (
+            self._is_floor_two_helper_party(deployed_members)
+            or self._is_floor_three_boss_party(deployed_members)
+        ):
+            self._validate_party_members(deployed_members)
+        if not isinstance(target, PlayerState) or not any(
+            target is member for member in deployed_members
+        ):
+            return False
+        item = get_supply_item("mana_potion")
+        if (
+            item is None
+            or item.mana_restore_percent <= 0
+            or not target.health.is_alive()
+            or target.mana_resource.current >= target.mana_resource.maximum
+            or self._carried_items.get(item.item_id, 0) < 1
+        ):
+            return False
+        amount = target.mana_resource.maximum * item.mana_restore_percent // 100
+        if amount <= 0:
+            return False
+        if not self.consume_carried_supplies({item.item_id: 1}):
+            return False
+        target.mana_resource.restore(amount)
+        return True
+
     def _is_floor_two_helper_party(self, party_members):
         if (
             not isinstance(party_members, tuple)

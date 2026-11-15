@@ -743,18 +743,40 @@ def _assert_weapon_progression_final_state(state):
 def _prepare_m2_supplies(state):
     from app.game.hub_economy import HubEconomyService
     from app.game.weapon_progression import WeaponProgressionService
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import (
+        ChooseAlchemyRecipe,
+        ChooseHubSupplyAction,
+        ChooseOverworldAction,
+        HubSupplyOperation,
+    )
 
-    game = state["route_game"]
+    session = state["route_session"]
+    game = session.game_state
     party = game.party_state
-    economy = HubEconomyService(game)
+    session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    view = session.submit(ChooseOverworldAction(OverworldAction.ALCHEMIST))
+    if view.screen is not OverworldScreen.ALCHEMIST:
+        raise AssertionError("Hub did not open the Alchemist")
     for item_id, quantity in (
         ("medicinal_herb", 2),
         ("clean_water", 2),
         ("charcoal_dust", 2),
+        ("sulfur", 2),
     ):
-        result = economy.buy(item_id=item_id, quantity=quantity)
-        if not result.success:
+        view = session.current_view()
+        result = session.submit(
+            ChooseHubSupplyAction(
+                HubSupplyOperation.BUY,
+                item_id,
+                expected_transaction_sequence=view.hub_transaction_sequence,
+                quantity=quantity,
+            )
+        )
+        if result.screen is not OverworldScreen.ALCHEMIST:
             raise AssertionError("Hub supplies could not be purchased")
+    game = session.game_state
+    party = game.party_state
 
     class FiberRng:
         def randint(self, start, end):
@@ -786,17 +808,27 @@ def _prepare_m2_supplies(state):
     for recipe_id in (
         "healing_potion",
         "healing_potion",
-        "smoke_powder",
-        "smoke_powder",
         "smoke_bomb",
         "smoke_bomb",
-        "return_talisman",
     ):
-        result = economy.craft_alchemy(recipe_id)
-        if not result.success:
+        view = session.current_view()
+        result = session.submit(
+            ChooseAlchemyRecipe(
+                recipe_id,
+                expected_transaction_sequence=view.hub_transaction_sequence,
+            )
+        )
+        if result.screen is not OverworldScreen.ALCHEMIST:
             raise AssertionError("an approved M2 Alchemy recipe was rejected")
+    game = session.game_state
+    party = game.party_state
     if party.crafting_experience != crafting_experience:
         raise AssertionError("Alchemy awarded weapon Crafting experience")
+    if party.hub_economy_state.alchemy_experience != 50:
+        raise AssertionError("Alchemy progression did not award recipe XP")
+    # Return behavior is qualified with a controlled item; rare acquisition is separate.
+    party.add_shared_items({"return_talisman": 1})
+    economy = HubEconomyService(game)
     for item_id, quantity in (
         ("healing_potion", 2),
         ("smoke_bomb", 2),
@@ -821,6 +853,11 @@ def _prepare_m2_supplies(state):
     state["m2_expected_shared_gold"] = party.shared_gold
     if party.shared_gold != 91:
         raise AssertionError("approved Slice A M2 supply prices changed")
+    state["route_game"] = game
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    hub_view = session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    if hub_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("Alchemist preparation did not return to the Hub")
 
 
 def _m2_healing_potion(state):

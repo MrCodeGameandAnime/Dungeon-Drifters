@@ -16,6 +16,7 @@ const pythonCandidates = [
 let floorTwoProfileEnvelope;
 let m5EquipmentFixtures;
 let m6ExpeditionFixtures;
+let m65ProfessionFixtures;
 for (const pythonExecutable of pythonCandidates) {
   try {
     floorTwoProfileEnvelope = execFileSync(
@@ -33,6 +34,11 @@ for (const pythonExecutable of pythonCandidates) {
       [path.join(repositoryRoot, "web_tests", "m6_browser_save_fixture.py")],
       { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
     ));
+    m65ProfessionFixtures = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m65_profession_browser_fixture.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
     break;
   } catch (error) {
     if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
@@ -46,6 +52,9 @@ if (!m5EquipmentFixtures?.hub || !m5EquipmentFixtures?.outing) {
 }
 if (!m6ExpeditionFixtures?.hub) {
   throw new Error("could not generate the M6 expedition browser save fixture");
+}
+if (!m65ProfessionFixtures?.hub) {
+  throw new Error("could not generate the M6.5 profession browser save fixture");
 }
 const errors = [];
 const pendingRequests = new Map();
@@ -2671,7 +2680,10 @@ try {
   const updateSupply = async (name, action) => {
     const row = supplyRow(name);
     const previous = await row.innerText();
-    await row.getByRole("button", { name: action, exact: true }).click();
+    const button = action === "Sell"
+      ? row.getByRole("button", { name: /^Sell \d+g$/ }).first()
+      : row.getByRole("button", { name: action, exact: true });
+    await button.click();
     await page.waitForFunction(({ itemName, oldText }) => {
       const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
         .find((candidate) => candidate.innerText.includes(itemName));
@@ -2683,11 +2695,6 @@ try {
     const match = text.match(new RegExp(`${kind}\\s+(\\d+)`));
     return Number(match?.[1] || 0);
   };
-  const cordCount = async () => {
-    const text = await page.locator("#merchant-materials").innerText();
-    return Number(text.match(/Cord:\s*(\d+)/i)?.[1] || 0);
-  };
-
   await clickVisibleOption(page, "#overworld-options", "Vendors");
   await clickVisibleOption(page, "#vendors-options", "Blacksmith");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
@@ -2701,20 +2708,6 @@ try {
       .find((candidate) => candidate.innerText.includes("Goblin Lord Core"));
     return !row || row.innerText !== previous;
   }, coreBeforeDismantle);
-
-  for (let attempt = 0; attempt < 20 && await cordCount() < 3; attempt += 1) {
-    const scrapRow = page.locator("#merchant-dismantle .merchant-row")
-      .filter({ hasText: "Goblin Scrap" });
-    requireCondition(await scrapRow.count() === 1, "M2 supply setup exhausted Goblin Scrap before obtaining Cord");
-    const previous = await scrapRow.innerText();
-    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
-    await page.waitForFunction((oldText) => {
-      const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
-        .find((candidate) => candidate.innerText.includes("Goblin Scrap"));
-      return !row || row.innerText !== oldText;
-    }, previous);
-  }
-  requireCondition(await cordCount() >= 3, "M2 supply setup could not obtain three Cord for Alchemy");
 
   await clickVisibleOption(page, "#merchant-options", "Back");
   await page.locator("#merchant-panel").waitFor({ state: "hidden" });
@@ -2738,9 +2731,17 @@ try {
   await updateSupply("Charcoal Powder", "Buy");
   await updateSupply("Charcoal Powder", "Buy");
   requireCondition(
+    (await supplyRow("Sulfur").innerText()).includes("Stock 2 | 3 gold"),
+    "Alchemist did not offer the approved two Sulfur units at 3 gold each",
+  );
+  await updateSupply("Sulfur", "Buy");
+  await updateSupply("Sulfur", "Buy");
+  requireCondition(
     await quantityInSupplyRow("Charcoal Powder", "Stored") === 2 &&
-      await quantityInSupplyRow("Charcoal Powder", "Stock") === 0,
-    "Alchemist purchases did not consume exactly two units of finite Charcoal Powder stock",
+      await quantityInSupplyRow("Charcoal Powder", "Stock") === 0 &&
+      await quantityInSupplyRow("Sulfur", "Stored") === 2 &&
+      await quantityInSupplyRow("Sulfur", "Stock") === 0,
+    "Alchemist purchases did not consume exactly two units of finite smoke-bomb ingredient stock",
   );
   const craftAlchemy = async (name) => {
     const row = page.locator("#merchant-alchemy-recipes .merchant-row")
@@ -2755,13 +2756,49 @@ try {
     await row.getByRole("button", { name: "Craft", exact: true }).click();
     await page.waitForFunction((message) =>
       document.getElementById("notice").textContent === message,
-    `Crafted ${name}.`);
+    name === "Smoke Bomb"
+      ? "Crafted 1 Smoke Bomb; gained 15 Alchemy XP."
+      : "Crafted 1 Mana Potion; gained 20 Alchemy XP.");
   };
-  await craftAlchemy("Smoke Powder");
-  await craftAlchemy("Smoke Powder");
   await craftAlchemy("Smoke Bomb");
   await craftAlchemy("Smoke Bomb");
-  await craftAlchemy("Return Talisman");
+  requireCondition(
+    (await page.locator("#alchemy-progress").innerText()).trim() === "Alchemy Level 1 | 30 XP",
+    `Alchemy recipes did not advance the approved profession track: ${await page.locator("#alchemy-progress").innerText()}`,
+  );
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Merchant");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  const talismanRow = supplyRow("Return Talisman");
+  requireCondition(
+    (await talismanRow.innerText()).includes("Stock 1 | 100 gold"),
+    "Merchant did not offer its single exclusive Return Talisman at 100 gold",
+  );
+  const goldBeforeTalisman = Number(
+    (await page.locator("#merchant-storage-summary").innerText()).match(/Shared gold:\s*(\d+)/)?.[1] || 0,
+  );
+  const talismanGoldShortfall = Math.max(0, 100 - goldBeforeTalisman);
+  if (talismanGoldShortfall > 0) {
+    const scrapQuantity = await quantityInSupplyRow("Goblin Scrap", "Stored");
+    requireCondition(
+      scrapQuantity >= talismanGoldShortfall,
+      `browser fixture could not fund the Merchant Talisman purchase: gold=${goldBeforeTalisman}, scrap=${scrapQuantity}`,
+    );
+    const scrapSaleRow = supplyRow("Goblin Scrap");
+    await scrapSaleRow.locator('input[aria-label="Goblin Scrap sale quantity"]')
+      .fill(String(talismanGoldShortfall));
+    await updateSupply("Goblin Scrap", "Sell");
+  }
+  await updateSupply("Return Talisman", "Buy");
+  requireCondition(
+    await quantityInSupplyRow("Return Talisman", "Stored") === 1 &&
+      await quantityInSupplyRow("Return Talisman", "Stock") === 0,
+    "Merchant Talisman purchase did not consume its single finite stock unit",
+  );
   await clickVisibleOption(page, "#hub-economy-options", "Back");
   await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#vendors-options", "Back");
@@ -2827,6 +2864,17 @@ try {
       carriedItemsText.includes("Return Talisman x1 | Carried Pack"),
     `browser save/reload did not preserve carried supplies separately: ${carriedItemsText}`,
   );
+  await clickVisibleOption(page, "#items-options", "Back");
+  await page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Alchemist");
+  await page.locator("#alchemy-progress").filter({ hasText: "Alchemy Level 1 | 30 XP" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Items");
+  await page.locator("#items-panel").waitFor({ state: "visible" });
   console.log("M2_BROWSER|PREP_ALCHEMY_PACK_SAVE_RELOAD|PASS");
 
   const hubScrapBeforeRun = Number(
@@ -4356,6 +4404,190 @@ try {
     `M6 active assignment did not survive save/reload: ${liveStatusAfterReload}`,
   );
   console.log("M6_BROWSER|PASSIVE_ASSIGNMENT_LAUNCH_RELOAD_STATUS|PASS");
+
+  const m65Page = await browser.newPage();
+  m65Page.setDefaultNavigationTimeout(120000);
+  m65Page.on("pageerror", (error) => errors.push(error.message));
+  await m65Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  const m65ProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await m65Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m65ProfileKey,
+    envelope: m65ProfessionFixtures.hub,
+  });
+  await m65Page.reload({ waitUntil: "domcontentloaded" });
+  await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m65Page.getByRole("button", { name: "Start" }).click();
+  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Options");
+  await clickVisibleOption(m65Page, "#overworld-options", "Load");
+  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
+  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+
+  await clickVisibleOption(m65Page, "#overworld-options", "Vendors");
+  await clickVisibleOption(m65Page, "#vendors-options", "Alchemist");
+  await m65Page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  await m65Page.locator("#alchemy-progress").filter({ hasText: "Alchemy Level 1 | 0 XP" }).waitFor({ state: "visible" });
+  const m65SupplyRow = (name) => m65Page.locator("#merchant-supplies .hub-supply-row")
+    .filter({ hasText: name }).first();
+  const m65UpdateSupply = async (name, action) => {
+    const row = m65SupplyRow(name);
+    const previous = await row.innerText();
+    await row.getByRole("button", { name: action, exact: true }).click();
+    await m65Page.waitForFunction(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: previous });
+  };
+  for (const itemName of ["Charcoal Powder", "Charcoal Powder", "Sulfur", "Sulfur", "Magic Reagent", "Aether Dust"]) {
+    await m65UpdateSupply(itemName, "Buy");
+  }
+  const m65CraftAlchemy = async (name, expectedNotice) => {
+    const row = m65Page.locator("#merchant-alchemy-recipes .merchant-row")
+      .filter({ has: m65Page.locator("strong").getByText(name, { exact: true }) });
+    requireCondition(await row.count() === 1, `M6.5 Alchemist did not offer ${name}`);
+    await row.getByRole("button", { name: "Craft", exact: true }).click();
+    await m65Page.locator("#notice").filter({ hasText: expectedNotice }).waitFor({ state: "visible" });
+  };
+  await m65CraftAlchemy("Smoke Bomb", "Crafted 1 Smoke Bomb; gained 15 Alchemy XP.");
+  await m65CraftAlchemy("Smoke Bomb", "Crafted 1 Smoke Bomb; gained 15 Alchemy XP.");
+  await m65CraftAlchemy("Mana Potion", "Crafted 1 Mana Potion; gained 20 Alchemy XP.");
+  requireCondition(
+    (await m65Page.locator("#alchemy-progress").innerText()).trim() === "Alchemy Level 2 | 50 XP",
+    `Alchemy recipes did not award their authored profession progression: ${await m65Page.locator("#alchemy-progress").innerText()}`,
+  );
+  await clickVisibleOption(m65Page, "#hub-economy-options", "Back");
+  await m65Page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#vendors-options", "Back");
+  await clickVisibleOption(m65Page, "#overworld-options", "Hub Inventory");
+  await m65Page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await m65SupplyRow("Mana Potion").innerText().then((text) => text.includes("Stored 1")),
+    "crafted Mana Potion was not placed in secured Hub storage",
+  );
+  await m65UpdateSupply("Mana Potion", "Load");
+  await clickVisibleOption(m65Page, "#hub-economy-options", "Back");
+  await m65Page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Vendors");
+  await clickVisibleOption(m65Page, "#vendors-options", "Enchanter");
+  await m65Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  await m65Page.locator("#enchanting-progress").filter({ hasText: "Enchanting Level 1 | 0 XP" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m65Page.locator("#enchanting-known-affixes").innerText()).includes("Bastion | Grade I"),
+    "Enchanter did not show the fixture's permanently learned Bastion recipe",
+  );
+  await clickVisibleOption(m65Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await m65Page.locator("#equipment-inventory button").filter({ hasText: "Field Chest" }).click();
+  await m65Page.locator("#equipment-actions button").filter({ hasText: "Apply Learned Bastion" }).click();
+  await m65Page.locator("#notice").filter({ hasText: "Applied learned affix Bastion." }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m65Page.locator("#equipment-inspection-modifiers").innerText()).includes("Bastion"),
+    "Enchanter did not apply the learned Bastion recipe to Branoc's selected armor",
+  );
+  await clickVisibleOption(m65Page, "#equipment-options", "Back");
+  await m65Page.locator("#equipment-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#vendors-options", "Back");
+  await clickVisibleOption(m65Page, "#overworld-options", "Options");
+  await clickVisibleOption(m65Page, "#overworld-options", "Save");
+  await m65Page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await m65Page.reload({ waitUntil: "domcontentloaded" });
+  await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m65Page.getByRole("button", { name: "Start" }).click();
+  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Options");
+  await clickVisibleOption(m65Page, "#overworld-options", "Load");
+  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
+  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Vendors");
+  await clickVisibleOption(m65Page, "#vendors-options", "Alchemist");
+  await m65Page.locator("#alchemy-progress").filter({ hasText: "Alchemy Level 2 | 50 XP" }).waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#hub-economy-options", "Back");
+  await m65Page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#vendors-options", "Enchanter");
+  await m65Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await m65Page.locator("#enchanting-progress").innerText()).trim() === "Enchanting Level 1 | 10 XP",
+    "Enchanter progress did not survive save/reload",
+  );
+  console.log("M65_BROWSER|ALCHEMY_PROFESSION_RECIPE_FLOW|PASS");
+  requireCondition(
+    (await m65Page.locator("#enchanting-progress").innerText()).trim() === "Enchanting Level 1 | 10 XP" &&
+      (await m65Page.locator("#enchanting-known-affixes").innerText()).includes("Bastion | Grade I"),
+    "Enchanter progress or learned recipe did not survive save/reload",
+  );
+  await clickVisibleOption(m65Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
+  await m65Page.locator("#equipment-inventory button").filter({ hasText: "Field Chest" }).click();
+  requireCondition(
+    (await m65Page.locator("#equipment-inspection-modifiers").innerText()).includes("Bastion"),
+    "the learned affix application did not survive save/reload",
+  );
+  console.log("M65_BROWSER|ENCHANTER_LEARNED_AFFIX_RELOAD|PASS");
+
+  await clickVisibleOption(m65Page, "#equipment-options", "Back");
+  await m65Page.locator("#equipment-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#vendors-options", "Back");
+  await clickVisibleOption(m65Page, "#overworld-options", "Items");
+  await m65Page.locator("#items-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#items-list", "Mana Potion x1 | Carried Pack");
+  await clickVisibleOption(m65Page, "#items-options", "Use");
+  await m65Page.locator("#items-title").filter({ hasText: "Choose a Drifter for Mana" }).waitFor({ state: "visible" });
+  const manaTargets = m65Page.locator("#items-list button");
+  const manaTargetLabels = await manaTargets.allInnerTexts();
+  requireCondition(
+    manaTargetLabels.length === 1 && manaTargetLabels[0].includes("Azhvielle, the Unconfessed | Mana 0/"),
+    `Mana Potion targeting did not offer exactly the active Drifter who can benefit: ${JSON.stringify(manaTargetLabels)}`,
+  );
+  await manaTargets.first().click();
+  await m65Page.locator("#notice").filter({ hasText: "Mana Potion restored" }).waitFor({ state: "visible" });
+  requireCondition(
+    (await m65Page.locator("#notice").innerText()).includes("to Azhvielle, the Unconfessed.") &&
+      !(await m65Page.locator("#items-list").innerText()).includes("Mana Potion"),
+    "Mana Potion did not restore the chosen active Drifter and consume exactly one carried potion",
+  );
+  await clickVisibleOption(m65Page, "#items-options", "Back");
+  await m65Page.locator("#items-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Options");
+  await clickVisibleOption(m65Page, "#overworld-options", "Save");
+  await m65Page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await m65Page.reload({ waitUntil: "domcontentloaded" });
+  await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await m65Page.getByRole("button", { name: "Start" }).click();
+  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Options");
+  await clickVisibleOption(m65Page, "#overworld-options", "Load");
+  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
+  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Character");
+  await m65Page.locator("#character-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(m65Page, "#character-targets", "Azhvielle, the Unconfessed");
+  await m65Page.locator("#character-targets button[aria-pressed='true']")
+    .filter({ hasText: "Azhvielle, the Unconfessed" }).waitFor();
+  const azhvielleMana = (await m65Page.locator("#character-resources").innerText())
+    .match(/Mana\s+(\d+)\/(\d+)/);
+  requireCondition(
+    azhvielleMana && Number(azhvielleMana[1]) > 0 && Number(azhvielleMana[1]) < Number(azhvielleMana[2]),
+    `Mana Potion target recovery did not survive save/reload: ${await m65Page.locator("#character-resources").innerText()}`,
+  );
+  await clickVisibleOption(m65Page, "#character-options", "Back");
+  await m65Page.locator("#character-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(m65Page, "#overworld-options", "Items");
+  await m65Page.locator("#items-panel").waitFor({ state: "visible" });
+  requireCondition(
+    !(await m65Page.locator("#items-list").innerText()).includes("Mana Potion"),
+    "consumed Mana Potion reappeared after save/reload",
+  );
+  console.log("M65_BROWSER|MANA_POTION_TARGETING|PASS");
+  requireCondition(errors.length === 0, `M6.5 browser journey produced page errors: ${errors.join("; ")}`);
+  await m65Page.close();
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));

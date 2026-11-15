@@ -333,7 +333,13 @@ def test_merchant_commands_buy_load_and_alchemize_through_session(tmp_path):
     session.submit(ChooseOverworldAction(OverworldAction.BACK))
     session.submit(ChooseOverworldAction("vendors"))
     session.submit(ChooseOverworldAction("alchemist"))
-    session.submit(ChooseAlchemyRecipe("healing_potion"))
+    alchemist_view = session.current_view()
+    session.submit(
+        ChooseAlchemyRecipe(
+            "healing_potion",
+            expected_transaction_sequence=alchemist_view.hub_transaction_sequence,
+        )
+    )
     assert session.game_state.party_state.shared_items == {"healing_potion": 1}
     assert session.game_state.party_state.carried_items == {"healing_potion": 1}
     assert session.game_state.party_state.crafting_experience == 0

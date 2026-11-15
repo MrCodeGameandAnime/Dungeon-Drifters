@@ -301,7 +301,10 @@ def _command_to_input(command):
             command.get("quantity", 1),
         )
     if kind == "alchemy_recipe":
-        return ChooseAlchemyRecipe(_required(command, "recipe_id"))
+        return ChooseAlchemyRecipe(
+            _required(command, "recipe_id"),
+            command.get("expected_transaction_sequence", 0),
+        )
     if kind == "weapon_target":
         return ChooseWeaponTarget(_required(command, "drifter_id"))
     if kind == "equipment_instance":
@@ -312,6 +315,8 @@ def _command_to_input(command):
             _required(command, "equipment_instance_id"),
             EquipmentOperation(_required(command, "operation")),
             command.get("modifier_instance_id"),
+            command.get("affix_id"),
+            command.get("expected_transaction_sequence", 0),
         )
     if kind == "equipment_confirmation":
         return ChooseEquipmentConfirmation(_required(command, "confirmed"))
@@ -322,7 +327,10 @@ def _command_to_input(command):
     if kind == "target":
         return ChooseTarget(_required(command, "target_id"))
     if kind == "healing_target":
-        return ChooseHealingTarget(_required(command, "target_id"))
+        return ChooseHealingTarget(
+            _required(command, "target_id"),
+            command.get("item_id", "healing_potion"),
+        )
     if kind == "inventory_item":
         return ChooseInventoryItem(_required(command, "item_id"))
     if kind == "inventory_command":

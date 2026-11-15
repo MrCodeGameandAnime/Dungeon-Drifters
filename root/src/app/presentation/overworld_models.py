@@ -20,6 +20,7 @@ class OverworldScreen(StrEnum):
     SKILLS = "skills"
     RESPEC_CONFIRMATION = "respec_confirmation"
     EQUIPMENT_CONFIRMATION = "equipment_confirmation"
+    ALCHEMY_CONFIRMATION = "alchemy_confirmation"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
@@ -849,6 +850,8 @@ class HubAlchemyRecipeView:
     ingredient_summary: tuple[str, ...]
     output_summary: tuple[str, ...]
     can_craft: bool
+    experience_award: int = 0
+    requires_confirmation: bool = False
 
     def __post_init__(self):
         _validate_text("recipe_id", self.recipe_id)
@@ -856,6 +859,8 @@ class HubAlchemyRecipeView:
         _validate_text_tuple("ingredient_summary", self.ingredient_summary)
         _validate_text_tuple("output_summary", self.output_summary)
         _validate_bool("can_craft", self.can_craft)
+        _validate_nonnegative("experience_award", self.experience_award)
+        _validate_bool("requires_confirmation", self.requires_confirmation)
 
 
 @dataclass(frozen=True)
@@ -866,11 +871,15 @@ class HubEconomyView:
     items: tuple[HubSupplyItemView, ...]
     recipes: tuple[HubAlchemyRecipeView, ...]
     buybacks: tuple[HubBuybackView, ...] = ()
+    alchemy_level: int = 1
+    alchemy_experience: int = 0
 
     def __post_init__(self):
         _validate_nonnegative("shared_gold", self.shared_gold)
         _validate_nonnegative("carried_units", self.carried_units)
         _validate_nonnegative("carried_capacity", self.carried_capacity)
+        _validate_nonnegative("alchemy_level", self.alchemy_level)
+        _validate_nonnegative("alchemy_experience", self.alchemy_experience)
         if self.carried_units > self.carried_capacity:
             raise ValueError("carried units exceed capacity")
         _validate_instance_tuple("items", self.items, HubSupplyItemView)
@@ -940,12 +949,13 @@ class EquipmentActionView:
     disabled_reason: str | None = None
     summary: str = ""
     modifier_instance_id: str | None = None
+    affix_id: str | None = None
 
     def __post_init__(self):
         for name in ("operation", "label", "summary"):
             _validate_text(name, getattr(self, name))
         _validate_bool("enabled", self.enabled)
-        for name in ("disabled_reason", "modifier_instance_id"):
+        for name in ("disabled_reason", "modifier_instance_id", "affix_id"):
             value = getattr(self, name)
             if value is not None:
                 _validate_text(name, value)
@@ -974,6 +984,9 @@ class EquipmentView:
     selected_instance_id: str | None = None
     modifiers: tuple[EquipmentModifierView, ...] = ()
     actions: tuple[EquipmentActionView, ...] = ()
+    enchanting_level: int = 1
+    enchanting_experience: int = 0
+    known_affixes: tuple[str, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.pendant, AccessorySlotView):
@@ -981,6 +994,9 @@ class EquipmentView:
         if not isinstance(self.ring, AccessorySlotView):
             raise TypeError("ring must be an AccessorySlotView")
         _validate_text_tuple("benefits", self.benefits)
+        _validate_nonnegative("enchanting_level", self.enchanting_level)
+        _validate_nonnegative("enchanting_experience", self.enchanting_experience)
+        _validate_text_tuple("known_affixes", self.known_affixes)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
         _validate_instance_tuple("instances", self.instances, EquipmentInstanceView)
         _validate_instance_tuple("modifiers", self.modifiers, EquipmentModifierView)
@@ -1054,14 +1070,24 @@ class SupplyHealingTargetView:
     display_name: str
     hp_current: int
     hp_maximum: int
+    mana_current: int | None = None
+    mana_maximum: int | None = None
 
     def __post_init__(self):
         _validate_text("drifter_id", self.drifter_id)
         _validate_text("display_name", self.display_name)
         _validate_nonnegative("hp_current", self.hp_current)
         _validate_nonnegative("hp_maximum", self.hp_maximum)
-        if self.hp_current >= self.hp_maximum:
-            raise ValueError("healing targets must be missing HP")
+        if (self.mana_current is None) != (self.mana_maximum is None):
+            raise ValueError("mana target values must be provided together")
+        if self.mana_current is not None:
+            _validate_nonnegative("mana_current", self.mana_current)
+            _validate_nonnegative("mana_maximum", self.mana_maximum)
+        if self.hp_current >= self.hp_maximum and (
+            self.mana_current is None
+            or self.mana_current >= self.mana_maximum
+        ):
+            raise ValueError("supply targets must be missing HP or Mana")
 
 
 @dataclass(frozen=True)

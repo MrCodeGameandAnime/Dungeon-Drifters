@@ -22,6 +22,7 @@ from app.content.advancement_spec import (
 from app.content.armor_spec import get_armor_modifier, get_armor_rarity
 from app.content.equipment_spec import get_equipment_template
 from app.game.alchemist import AlchemistService
+from app.game.alchemy import AlchemyService, AlchemyStatus
 from app.game.armor_progression import ArmorProgressionService
 from app.game.equipment import (
     can_manage_equipment_target,
@@ -119,7 +120,14 @@ _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
 
 
-def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
+def _equipment_action(
+    operation,
+    label,
+    preview,
+    *,
+    modifier_instance_id=None,
+    affix_id=None,
+):
     details = []
     if preview.gold_cost:
         details.append(f"Cost: {preview.gold_cost} gold")
@@ -134,6 +142,10 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
             "Materials: "
             + ", ".join(
                 f"{quantity} {get_material_spec(item_id).display_name}"
+                if _is_weapon_material(item_id)
+                else f"{quantity} {get_supply_item(item_id).display_name}"
+                if get_supply_item(item_id) is not None
+                else f"{quantity} {item_id.replace('_', ' ')}"
                 for item_id, quantity in material_costs
             )
         )
@@ -201,7 +213,16 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         disabled_reason=None if preview.can_apply else preview.status.value,
         summary="; ".join(details) or preview.status.value.replace("_", " "),
         modifier_instance_id=modifier_instance_id,
+        affix_id=affix_id,
     )
+
+
+def _is_weapon_material(item_id):
+    try:
+        get_material_spec(item_id)
+    except ValueError:
+        return False
+    return True
 
 
 def _adjacent_run_counts(values):
@@ -481,7 +502,14 @@ class OverworldPresenter:
                 else None
             ),
             healing_targets=(
-                self._healing_targets(game_state)
+                self._healing_targets(
+                    game_state,
+                    (
+                        selected_item.selection_key.split(":", 1)[1]
+                        if selected_item is not None
+                        else "healing_potion"
+                    ),
+                )
                 if screen is OverworldScreen.HEALING_TARGETS
                 else ()
             ),
@@ -1444,6 +1472,11 @@ class OverworldPresenter:
             ALCHEMY_RECIPES if screen is OverworldScreen.ALCHEMIST else ()
         )
         for recipe in recipe_specs:
+            preview = AlchemyService.preview_recipe(
+                game_state,
+                recipe_id=recipe.recipe_id,
+                expected_transaction_sequence=economy_state.transaction_sequence,
+            )
             recipes.append(
                 HubAlchemyRecipeView(
                     recipe_id=recipe.recipe_id,
@@ -1454,12 +1487,11 @@ class OverworldPresenter:
                     ),
                     output_summary=tuple(
                         f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
-                        for item_id, quantity in recipe.outputs
+                        for item_id, quantity in preview.outputs
                     ),
-                    can_craft=all(
-                        party.shared_items.get(item_id, 0) >= quantity
-                        for item_id, quantity in recipe.ingredient_costs
-                    ),
+                    can_craft=preview.status is AlchemyStatus.READY,
+                    experience_award=preview.experience_award,
+                    requires_confirmation=preview.requires_confirmation,
                 )
             )
         buybacks = []
@@ -1504,6 +1536,8 @@ class OverworldPresenter:
             items=tuple(items),
             recipes=tuple(recipes),
             buybacks=tuple(buybacks),
+            alchemy_level=economy_state.alchemy_level,
+            alchemy_experience=economy_state.alchemy_experience,
         )
 
     @staticmethod
@@ -1718,6 +1752,19 @@ class OverworldPresenter:
                         )
                         for modifier in game_state.party_state.modifier_instances
                     )
+                    action_rows.extend(
+                        _equipment_action(
+                            "apply_learned_affix",
+                            f"Apply Learned {get_armor_modifier(modifier_id).name}",
+                            AlchemistService.preview_learned_affix(
+                                game_state,
+                                instance_id=item.instance_id,
+                                modifier_id=modifier_id,
+                            ),
+                            affix_id=modifier_id,
+                        )
+                        for modifier_id in game_state.party_state.hub_economy_state.known_affix_ids
+                    )
             actions = tuple(action_rows)
         return EquipmentView(
             pendant=AccessorySlotView(
@@ -1747,6 +1794,12 @@ class OverworldPresenter:
                 for modifier in game_state.party_state.modifier_instances
             ),
             actions=actions,
+            enchanting_level=game_state.party_state.hub_economy_state.enchanting_level,
+            enchanting_experience=game_state.party_state.hub_economy_state.enchanting_experience,
+            known_affixes=tuple(
+                f"{get_armor_modifier(modifier_id).name} | Grade {get_armor_modifier(modifier_id).grade}"
+                for modifier_id in game_state.party_state.hub_economy_state.known_affix_ids
+            ),
         )
 
     @staticmethod
@@ -1823,14 +1876,19 @@ class OverworldPresenter:
                     quantity=quantity,
                     description=(spec.description if spec is not None else "Carried supply."),
                     overworld_use_enabled=(
-                        item_id == "healing_potion"
+                        item_id in {"healing_potion", "mana_potion"}
                         and party.phase
                         in {
                             DungeonPhase.HUB,
                             DungeonPhase.PARTY_READY,
                             DungeonPhase.OUTING,
                         }
-                        and bool(OverworldPresenter._healing_targets(game_state))
+                        and bool(
+                            OverworldPresenter._healing_targets(
+                                game_state,
+                                item_id,
+                            )
+                        )
                     ),
                     location_label="Carried Pack",
                 )
@@ -1838,7 +1896,7 @@ class OverworldPresenter:
         return tuple(items)
 
     @staticmethod
-    def _healing_targets(game_state):
+    def _healing_targets(game_state, item_id="healing_potion"):
         party = game_state.party_state
         if party.phase not in {
             DungeonPhase.HUB,
@@ -1846,17 +1904,31 @@ class OverworldPresenter:
             DungeonPhase.OUTING,
         }:
             return ()
-        return tuple(
-            SupplyHealingTargetView(
-                drifter_id=member.character.profile.drifter_id,
-                display_name=member.character.full_display_name,
-                hp_current=member.health.current,
-                hp_maximum=member.health.maximum,
-            )
-            for member in game_state.active_party_members
-            if member.health.is_alive()
-            and member.health.current < member.health.maximum
-        )
+        if item_id not in {"healing_potion", "mana_potion"}:
+            return ()
+        targets = []
+        for member in game_state.active_party_members:
+            if not member.health.is_alive():
+                continue
+            if item_id == "healing_potion":
+                eligible = member.health.current < member.health.maximum
+            else:
+                eligible = (
+                    member.mana_resource.current
+                    < member.mana_resource.maximum
+                )
+            if eligible:
+                targets.append(
+                    SupplyHealingTargetView(
+                        drifter_id=member.character.profile.drifter_id,
+                        display_name=member.character.full_display_name,
+                        hp_current=member.health.current,
+                        hp_maximum=member.health.maximum,
+                        mana_current=member.mana_resource.current,
+                        mana_maximum=member.mana_resource.maximum,
+                    )
+                )
+        return tuple(targets)
 
     @staticmethod
     def _map_view(game_state):
@@ -2226,6 +2298,11 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.HEALING_TARGETS:
             return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm Craft"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
         if screen is OverworldScreen.MAP:
             inspectable = get_inspectable_route_node_spec(
                 game_state.overworld_state.current_route_node_id

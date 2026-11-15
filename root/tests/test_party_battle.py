@@ -354,6 +354,50 @@ def test_party_battle_healing_potion_targets_exact_member_and_consumes_actor_tur
     )
 
 
+def test_party_battle_mana_potion_targets_exact_member_and_consumes_actor_turn():
+    game = completed_hub_game()
+    lead, companion = game.active_party_members
+    party_state = game.party_state
+    party_state.add_shared_items({"mana_potion": 1})
+    assert party_state.load_carried_supplies({"mana_potion": 1})
+    assert party_state.start_floor_one_run() == 100
+    companion.mana_resource.current = 0
+    battle = Battle(
+        lead,
+        (goblin(1),),
+        party=(companion,),
+        party_state=party_state,
+        rng=StableRng(),
+    )
+    try:
+        intent = ActionIntent("mana_potion")
+    except ValueError:
+        intent = None
+    assert intent is not None
+    before_mana = companion.mana_resource.current
+
+    action = next(option for option in battle.current_view().action_options if option.intent is intent)
+    assert action.enabled
+    target_view = battle.submit(ChooseAction(intent))
+    assert target_view.interaction_phase.value == "healing_targets"
+    assert tuple(option.target_id for option in target_view.healing_target_options) == (
+        "drifter_azhvielle",
+    )
+
+    view = battle.submit(ChooseHealingTarget("drifter_azhvielle", "mana_potion"))
+
+    assert companion.mana_resource.current == before_mana + companion.mana_resource.maximum * 30 // 100
+    assert party_state.carried_items == {}
+    assert view.active_player_id == "drifter_azhvielle"
+    assert any(
+        entry.event_type.value == "mana_restoration"
+        and entry.actor_name == lead.display_name
+        and entry.target_name == companion.display_name
+        and entry.amount == companion.mana_resource.maximum * 30 // 100
+        for entry in view.log_entries
+    )
+
+
 def test_party_battle_interleaves_individual_dexterity_order_and_projects_party():
     lead = player("branoc", 6)
     companion = player("azhvielle", 4)

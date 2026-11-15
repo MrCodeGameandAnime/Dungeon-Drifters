@@ -205,10 +205,12 @@ class ChooseBlacksmithInstallComponent:
 @dataclass(frozen=True)
 class ChooseAlchemyRecipe:
     recipe_id: str
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         if not isinstance(self.recipe_id, str) or not self.recipe_id.strip():
             raise ValueError("recipe_id must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
@@ -305,6 +307,7 @@ class EquipmentOperation(StrEnum):
     ADVANCE_RARITY = "advance_rarity"
     EXTRACT = "extract"
     AFFIX = "affix"
+    APPLY_LEARNED_AFFIX = "apply_learned_affix"
     SELL = "sell"
     DISMANTLE = "dismantle"
 
@@ -324,6 +327,8 @@ class ChooseEquipmentAction:
     equipment_instance_id: str
     operation: EquipmentOperation
     modifier_instance_id: str | None = None
+    affix_id: str | None = None
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         object.__setattr__(self, "operation", EquipmentOperation(self.operation))
@@ -336,10 +341,21 @@ class ChooseEquipmentAction:
             or not self.modifier_instance_id.strip()
         ):
             raise ValueError("modifier_instance_id must be nonempty when provided")
+        if self.affix_id is not None and (
+            not isinstance(self.affix_id, str) or not self.affix_id.strip()
+        ):
+            raise ValueError("affix_id must be nonempty when provided")
         if (self.operation is EquipmentOperation.AFFIX) != (
             self.modifier_instance_id is not None
         ):
-            raise ValueError("only affix actions require a modifier instance")
+            raise ValueError("only stored affix actions require a modifier instance")
+        if (self.operation is EquipmentOperation.APPLY_LEARNED_AFFIX) != (
+            self.affix_id is not None
+        ):
+            raise ValueError("only learned affix actions require an affix ID")
+        if self.modifier_instance_id is not None and self.affix_id is not None:
+            raise ValueError("stored and learned affix targets are mutually exclusive")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
