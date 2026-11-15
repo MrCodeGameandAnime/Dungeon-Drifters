@@ -144,6 +144,35 @@
     return button;
   }
 
+  function makeQuantityInput(maximum, label) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "1";
+    input.max = String(Math.max(1, maximum));
+    input.step = "1";
+    input.value = "1";
+    input.inputMode = "numeric";
+    input.className = "merchant-quantity";
+    input.setAttribute("aria-label", `${label} quantity`);
+    return input;
+  }
+
+  function makeQuantityButton(label, command, quantityInput, enabled, reason) {
+    const button = makeButton(label, null, enabled, reason, "merchant-action");
+    if (enabled) {
+      button.addEventListener("click", () => {
+        const quantity = Number(quantityInput.value);
+        if (
+          !Number.isInteger(quantity)
+          || quantity < 1
+          || quantity > Number(quantityInput.max)
+        ) return;
+        send({ ...command, quantity });
+      });
+    }
+    return button;
+  }
+
   function renderOptions(container, options, commandFactory, labelFactory, className) {
     clear(container);
     for (const option of options || []) {
@@ -929,6 +958,7 @@
           kind: "merchant_improve",
           target_drifter_id: merchant.selected_target_id,
           slot_id: slot.slot_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         slot.can_improve,
         slot.blocked_reason,
@@ -966,6 +996,7 @@
           kind: "merchant_dismantle",
           target_drifter_id: merchant.selected_target_id,
           item_id: item.item_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         true,
         null,
@@ -998,6 +1029,7 @@
           kind: "merchant_craft_component",
           target_drifter_id: merchant.selected_target_id,
           component_id: recipe.component_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         recipe.can_craft,
         "insufficient_materials",
@@ -1033,6 +1065,7 @@
       {
         kind: "merchant_tier_v",
         target_drifter_id: merchant.selected_target_id,
+        expected_transaction_sequence: view.hub_transaction_sequence,
       },
       tierV.can_attempt,
       tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
@@ -1049,6 +1082,7 @@
     const economy = view.hub_economy;
     const title = {
       merchant: "Merchant",
+      blacksmith: "Blacksmith",
       hub_inventory: "Hub Inventory",
       alchemist: "Alchemist",
     }[view.screen] || "Hub Services";
@@ -1057,13 +1091,17 @@
     const supplies = $("merchant-supplies");
     const recipes = $("merchant-alchemy-recipes");
     const alchemySection = $("hub-alchemy-section");
+    const buybackSection = $("hub-buyback-section");
+    const buybackList = $("hub-buyback-list");
     const alchemist = view.screen === "alchemist";
-    supplies.hidden = alchemist;
+    supplies.hidden = false;
     alchemySection.hidden = !alchemist;
     clear(supplies);
     clear(recipes);
+    clear(buybackList);
     if (!economy) {
       summary.textContent = "";
+      buybackSection.hidden = true;
       renderDetailOptions("hub-economy-options", view.options);
       return;
     }
@@ -1076,44 +1114,94 @@
       const title = document.createElement("strong");
       title.textContent = item.display_name;
       const quantity = document.createElement("span");
-      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | ${item.base_price} gold` : ""}`;
+      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | Stock ${item.stock_quantity} | ${item.base_price} gold` : ""}`;
       const detail = document.createElement("span");
       detail.textContent = item.description;
       description.append(title, quantity, detail);
       const actions = document.createElement("div");
       actions.className = "merchant-row-actions";
       if (item.shop_stocked) {
-        actions.append(makeButton(
+        const quantityInput = makeQuantityInput(
+          item.max_buy_quantity,
+          `${item.display_name} purchase`,
+        );
+        actions.append(quantityInput, makeQuantityButton(
           "Buy",
-          { kind: "hub_supply", operation: "buy", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "buy",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          quantityInput,
           item.can_buy,
           item.can_buy ? null : "insufficient_gold",
-          "merchant-action",
         ));
       }
       if (item.sellable) {
-        actions.append(makeButton(
-          `Sell ${Math.floor(item.base_price / 2)}g`,
-          { kind: "hub_supply", operation: "sell", item_id: item.item_id },
+        const quantityInput = makeQuantityInput(
+          item.max_sell_quantity,
+          `${item.display_name} sale`,
+        );
+        actions.append(quantityInput, makeQuantityButton(
+          `Sell ${item.resale_price}g`,
+          {
+            kind: "hub_supply",
+            operation: "sell",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          quantityInput,
           item.can_sell,
           item.can_sell ? null : "not_in_storage",
+        ));
+      }
+      if (item.is_component && item.stored_quantity > 0) {
+        actions.append(makeButton(
+          "Install",
+          {
+            kind: "blacksmith_install_component",
+            target_drifter_id: view.merchant?.selected_target_id,
+            component_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          item.can_install_component,
+          item.can_install_component ? null : "incompatible_or_already_installed",
           "merchant-action",
         ));
       }
       if (item.carryable) {
-        actions.append(makeButton(
+        const loadInput = makeQuantityInput(
+          Math.min(item.stored_quantity, economy.carried_capacity - economy.carried_units),
+          `${item.display_name} load`,
+        );
+        actions.append(loadInput, makeQuantityButton(
           "Load",
-          { kind: "hub_supply", operation: "load", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "load",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          loadInput,
           item.can_load,
           item.can_load ? null : (item.stored_quantity ? "pack_full" : "not_in_storage"),
-          "merchant-action",
         ));
-        actions.append(makeButton(
+        const unloadInput = makeQuantityInput(
+          item.carried_quantity,
+          `${item.display_name} unload`,
+        );
+        actions.append(unloadInput, makeQuantityButton(
           "Unload",
-          { kind: "hub_supply", operation: "unload", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "unload",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          unloadInput,
           item.can_unload,
           item.can_unload ? null : "not_in_pack",
-          "merchant-action",
         ));
       }
       row.append(description, actions);
@@ -1143,6 +1231,45 @@
         "merchant-action",
       ));
       recipes.append(row);
+    }
+    const buybacks = economy.buybacks || [];
+    buybackSection.hidden = buybacks.length === 0;
+    for (const offer of buybacks) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = offer.display_name;
+      const details = document.createElement("span");
+      details.textContent = offer.is_unique_equipment
+        ? `Unique item | Buy back for ${offer.unit_price} gold`
+        : `${offer.remaining_quantity} available | ${offer.unit_price} gold each`;
+      description.append(title, details);
+      const actions = document.createElement("div");
+      actions.className = "merchant-row-actions";
+      const quantityInput = makeQuantityInput(
+        offer.remaining_quantity,
+        `${offer.display_name} buyback`,
+      );
+      if (offer.is_unique_equipment) {
+        quantityInput.hidden = true;
+      } else {
+        actions.append(quantityInput);
+      }
+      actions.append(makeQuantityButton(
+        "Buy Back",
+        {
+          kind: "hub_buyback",
+          sale_id: offer.sale_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
+        },
+        quantityInput,
+        offer.can_recover,
+        offer.can_recover ? null : "insufficient_gold",
+      ));
+      row.append(description, actions);
+      buybackList.append(row);
     }
     renderDetailOptions("hub-economy-options", view.options);
   }
@@ -1491,7 +1618,7 @@
     $("equipment-panel").hidden = !["equipment", "equipment_confirmation", "blacksmith", "enchanter"].includes(view.screen);
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
     $("vendors-panel").hidden = view.screen !== "vendors";
-    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "alchemist"].includes(view.screen);
+    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "blacksmith", "alchemist"].includes(view.screen);
     $("merchant-panel").hidden = view.screen !== "blacksmith";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
@@ -1500,6 +1627,7 @@
     else if (view.screen === "blacksmith") {
       renderEquipment(view);
       renderMerchant(view);
+      renderHubEconomy(view);
     }
     else if (["equipment", "equipment_confirmation", "enchanter"].includes(view.screen)) renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);

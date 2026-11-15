@@ -790,17 +790,56 @@ class HubSupplyItemView:
     can_sell: bool
     can_load: bool
     can_unload: bool
+    vendor_id: str | None = None
+    stock_quantity: int = 0
+    resale_price: int = 0
+    is_component: bool = False
+    can_install_component: bool = False
+    max_buy_quantity: int = 0
+    max_sell_quantity: int = 0
 
     def __post_init__(self):
         for name in ("item_id", "display_name", "description"):
             _validate_text(name, getattr(self, name))
-        for name in ("base_price", "stored_quantity", "carried_quantity"):
+        for name in (
+            "base_price",
+            "stored_quantity",
+            "carried_quantity",
+            "stock_quantity",
+            "resale_price",
+            "max_buy_quantity",
+            "max_sell_quantity",
+        ):
             _validate_nonnegative(name, getattr(self, name))
+        if self.vendor_id is not None:
+            _validate_text("vendor_id", self.vendor_id)
         for name in (
             "shop_stocked", "sellable", "carryable", "can_buy",
-            "can_sell", "can_load", "can_unload",
+            "can_sell", "can_load", "can_unload", "is_component",
+            "can_install_component",
         ):
             _validate_bool(name, getattr(self, name))
+
+
+@dataclass(frozen=True)
+class HubBuybackView:
+    sale_id: str
+    item_id: str
+    display_name: str
+    remaining_quantity: int
+    unit_price: int
+    is_unique_equipment: bool
+    can_recover: bool
+
+    def __post_init__(self):
+        for name in ("sale_id", "item_id", "display_name"):
+            _validate_text(name, getattr(self, name))
+        for name in ("remaining_quantity", "unit_price"):
+            _validate_nonnegative(name, getattr(self, name))
+        if self.remaining_quantity < 1:
+            raise ValueError("buyback quantity must be positive")
+        _validate_bool("is_unique_equipment", self.is_unique_equipment)
+        _validate_bool("can_recover", self.can_recover)
 
 
 @dataclass(frozen=True)
@@ -826,6 +865,7 @@ class HubEconomyView:
     carried_capacity: int
     items: tuple[HubSupplyItemView, ...]
     recipes: tuple[HubAlchemyRecipeView, ...]
+    buybacks: tuple[HubBuybackView, ...] = ()
 
     def __post_init__(self):
         _validate_nonnegative("shared_gold", self.shared_gold)
@@ -835,6 +875,7 @@ class HubEconomyView:
             raise ValueError("carried units exceed capacity")
         _validate_instance_tuple("items", self.items, HubSupplyItemView)
         _validate_instance_tuple("recipes", self.recipes, HubAlchemyRecipeView)
+        _validate_instance_tuple("buybacks", self.buybacks, HubBuybackView)
 
 
 @dataclass(frozen=True)
@@ -1083,6 +1124,7 @@ class OverworldView:
     weapon: WeaponView | None = None
     merchant: MerchantView | None = None
     hub_economy: HubEconomyView | None = None
+    hub_transaction_sequence: int = 0
     equipment: EquipmentView | None = None
     equipment_confirmation: EquipmentConfirmationView | None = None
     inventory: InventoryView | None = None
@@ -1110,6 +1152,7 @@ class OverworldView:
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
         _validate_text("location_label", self.location_label)
         _validate_text("adventure_text", self.adventure_text)
+        _validate_nonnegative("hub_transaction_sequence", self.hub_transaction_sequence)
         _validate_instance_tuple("options", self.options, OverworldOptionView)
         _validate_instance_tuple(
             "companion_choices",
@@ -1228,6 +1271,7 @@ class OverworldView:
             raise ValueError("weapon-service data belongs only to the Blacksmith")
         economy_screens = {
             OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
             OverworldScreen.HUB_INVENTORY,
             OverworldScreen.ALCHEMIST,
         }

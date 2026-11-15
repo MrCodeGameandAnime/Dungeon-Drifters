@@ -26,6 +26,8 @@ from app.ui.overworld_ui import (
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseAlchemyRecipe,
+    ChooseBlacksmithInstallComponent,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
@@ -167,7 +169,8 @@ def test_terminal_vendor_screens_keep_service_and_storage_controls_separate():
     assert "Buy" in merchant_text and "Sell" in merchant_text
     assert "Load" not in merchant_text and "ALCHEMY" not in merchant_text
     assert "Load" in inventory_text and "Buy" not in inventory_text
-    assert "ALCHEMY" in alchemist_text and "Buy" not in alchemist_text
+    assert "ALCHEMY" in alchemist_text and "Buy" in alchemist_text
+    assert "HUB STORAGE" in blacksmith_text and "Buy" in blacksmith_text
     assert "COMPONENT RECIPES" in blacksmith_text
     assert "PHYSICAL EQUIPMENT SERVICES" in blacksmith_text
     assert "OWNED EQUIPMENT" in enchanter_text
@@ -240,9 +243,17 @@ def test_merchant_inventory_and_alchemist_recipes_are_separate():
     view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
 
     text = "\n".join(rendered(view))
-    buy, _ = read(view, ["b9"])
+    potion_index = next(
+        index for index, item in enumerate(view.hub_economy.items, start=1)
+        if item.item_id == "healing_potion"
+    )
+    buy, _ = read(view, [f"b{potion_index}"])
     inventory = OverworldPresenter().build(game, screen=OverworldScreen.HUB_INVENTORY)
-    load, _ = read(inventory, ["l9"])
+    potion_storage_index = next(
+        index for index, item in enumerate(inventory.hub_economy.items, start=1)
+        if item.item_id == "healing_potion"
+    )
+    load, _ = read(inventory, [f"l{potion_storage_index}"])
     alchemist = OverworldPresenter().build(game, screen=OverworldScreen.ALCHEMIST)
     alchemy, _ = read(alchemist, ["a1"])
 
@@ -252,6 +263,50 @@ def test_merchant_inventory_and_alchemist_recipes_are_separate():
     assert buy == ChooseHubSupplyAction("buy", "healing_potion")
     assert load == ChooseHubSupplyAction("load", "healing_potion")
     assert alchemy == ChooseAlchemyRecipe("healing_potion")
+
+
+def test_vendor_terminal_supports_quantities_buybacks_and_component_installation():
+    game = hub_game(gold=100)
+    game.party_state.add_shared_items({"healing_potion": 2})
+    ui = TerminalOverworldUI(output_func=lambda _message: None)
+
+    alchemist = OverworldPresenter().build(game, screen=OverworldScreen.ALCHEMIST)
+    herb_index = next(
+        index for index, item in enumerate(alchemist.hub_economy.items, start=1)
+        if item.item_id == "medicinal_herb"
+    )
+    bulk_buy = ui._translate_choice(alchemist, f"b{herb_index} 2")
+
+    economy = game.party_state.hub_economy_state
+    economy.add_buyback_record(
+        {
+            "sale_id": "sale_1",
+            "vendor_id": "alchemist",
+            "visit_id": economy.current_hub_visit_id,
+            "item_id": "medicinal_herb",
+            "remaining_quantity": 2,
+            "original_unit_payout": 2,
+        }
+    )
+    alchemist = OverworldPresenter().build(game, screen=OverworldScreen.ALCHEMIST)
+    buyback = ui._translate_choice(alchemist, "r1 2")
+
+    component_id = "sunder_spire_blade_reinforced"
+    economy.add_component(component_id, 1)
+    blacksmith = OverworldPresenter().build(game, screen=OverworldScreen.BLACKSMITH)
+    component_index = next(
+        index for index, item in enumerate(blacksmith.hub_economy.items, start=1)
+        if item.item_id == component_id
+    )
+    install = ui._translate_choice(blacksmith, f"n{component_index}")
+
+    assert bulk_buy == ChooseHubSupplyAction("buy", "medicinal_herb", 0, 2)
+    assert buyback == ChooseHubBuyback("sale_1", 2, 0)
+    assert install == ChooseBlacksmithInstallComponent(
+        "branoc",
+        component_id,
+        0,
+    )
 
 
 def test_merchant_terminal_inputs_keep_the_exact_target_drifter_id():

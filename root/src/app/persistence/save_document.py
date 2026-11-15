@@ -1138,8 +1138,13 @@ def _validate_hub_economy(state, *, party, player):
 
     component_stacks = state["component_stacks"]
     _require_mapping(component_stacks, "party.hub_economy.component_stacks")
+    known_component_ids = {
+        item.item_id
+        for item in VENDOR_MERCHANDISE
+        if item.category == "component"
+    }
     for component_id, quantity in component_stacks.items():
-        if get_weapon_component_spec(component_id) is None:
+        if component_id not in known_component_ids:
             raise SaveStateValidationError(
                 "party.hub_economy contains an unknown weapon component"
             )
@@ -1204,16 +1209,6 @@ def _validate_hub_economy(state, *, party, player):
                     f"party.hub_economy contains a Drifter-locked offer: {item_id}"
                 )
 
-    for field in ("future_stock_queue", "buyback_records"):
-        if not isinstance(state[field], list):
-            raise SaveStateValidationError(
-                f"party.hub_economy.{field} must be a list"
-            )
-        if state[field]:
-            raise SaveStateValidationError(
-                f"party.hub_economy.{field} is not available before Slice D"
-            )
-
     visit_sequence = state["hub_visit_sequence"]
     current_visit_id = state["current_hub_visit_id"]
     if current_visit_id is not None and (
@@ -1224,6 +1219,124 @@ def _validate_hub_economy(state, *, party, player):
         raise SaveStateValidationError(
             "party.hub_economy.current_hub_visit_id is invalid"
         )
+
+    future_stock_queue = state["future_stock_queue"]
+    buyback_records = state["buyback_records"]
+    for field, value in (
+        ("future_stock_queue", future_stock_queue),
+        ("buyback_records", buyback_records),
+    ):
+        if not isinstance(value, list):
+            raise SaveStateValidationError(
+                f"party.hub_economy.{field} must be a list"
+            )
+
+    merchandise_by_id = {item.item_id: item for item in VENDOR_MERCHANDISE}
+    sale_ids = set()
+    owned_equipment_ids = {
+        item["instance_id"] for item in party.get("equipment_instances", [])
+    }
+    for index, record in enumerate(buyback_records):
+        path = f"party.hub_economy.buyback_records[{index}]"
+        _require_mapping(record, path)
+        is_equipment = "equipment_snapshot" in record
+        expected_keys = (
+            {
+                "sale_id",
+                "vendor_id",
+                "visit_id",
+                "item_id",
+                "original_unit_payout",
+                "equipment_snapshot",
+            }
+            if is_equipment
+            else {
+                "sale_id",
+                "vendor_id",
+                "visit_id",
+                "item_id",
+                "remaining_quantity",
+                "original_unit_payout",
+            }
+        )
+        _require_exact_keys(record, expected_keys, path)
+        sale_id = record["sale_id"]
+        if (
+            not isinstance(sale_id, str)
+            or not sale_id.startswith("sale_")
+            or not sale_id.removeprefix("sale_").isdigit()
+            or int(sale_id.removeprefix("sale_")) < 1
+            or int(sale_id.removeprefix("sale_")) > state["transaction_sequence"]
+            or sale_id in sale_ids
+        ):
+            raise SaveStateValidationError(f"{path}.sale_id is invalid or duplicated")
+        sale_ids.add(sale_id)
+        vendor_id = record["vendor_id"]
+        if vendor_id not in VENDOR_IDS:
+            raise SaveStateValidationError(f"{path}.vendor_id is unknown")
+        if current_visit_id is None or record["visit_id"] != current_visit_id:
+            raise SaveStateValidationError(f"{path}.visit_id is not the active Hub visit")
+        item_id = record["item_id"]
+        merchandise = merchandise_by_id.get(item_id)
+        if merchandise is None or merchandise.sale_vendor_id != vendor_id:
+            raise SaveStateValidationError(f"{path} does not match an authored sale route")
+        if is_equipment:
+            if merchandise.category != "armor":
+                raise SaveStateValidationError(f"{path} is not eligible equipment")
+            equipment_snapshot = record["equipment_snapshot"]
+            try:
+                escrowed = EquipmentInstance.from_snapshot(equipment_snapshot)
+            except (KeyError, TypeError, ValueError) as error:
+                raise SaveStateValidationError(f"{path}.equipment_snapshot is invalid") from error
+            template = get_equipment_template(item_id)
+            if (
+                escrowed.definition_id != item_id
+                or not escrowed.secured
+                or escrowed.instance_id in owned_equipment_ids
+                or template.sale_value_gold != record["original_unit_payout"]
+            ):
+                raise SaveStateValidationError(f"{path} equipment escrow is inconsistent")
+        else:
+            _require_int_min(record["remaining_quantity"], 1, f"{path}.remaining_quantity")
+            if (
+                merchandise.resale_price is None
+                or merchandise.resale_price != record["original_unit_payout"]
+            ):
+                raise SaveStateValidationError(f"{path}.original_unit_payout is invalid")
+        _require_int_min(record["original_unit_payout"], 0, f"{path}.original_unit_payout")
+
+    for index, entry in enumerate(future_stock_queue):
+        path = f"party.hub_economy.future_stock_queue[{index}]"
+        _require_mapping(entry, path)
+        _require_exact_keys(
+            entry,
+            {"sale_id", "specialist_id", "item_id", "remaining_quantity"},
+            path,
+        )
+        sale_id = entry["sale_id"]
+        if (
+            not isinstance(sale_id, str)
+            or not sale_id.startswith("sale_")
+            or not sale_id.removeprefix("sale_").isdigit()
+            or int(sale_id.removeprefix("sale_")) < 1
+            or int(sale_id.removeprefix("sale_")) > state["transaction_sequence"]
+            or sale_id in sale_ids
+        ):
+            raise SaveStateValidationError(f"{path}.sale_id is invalid or duplicated")
+        sale_ids.add(sale_id)
+        merchandise = merchandise_by_id.get(entry["item_id"])
+        if (
+            merchandise is None
+            or not merchandise.future_stock_eligible
+            or merchandise.sale_vendor_id != entry["specialist_id"]
+        ):
+            raise SaveStateValidationError(f"{path} is not an eligible future-stock sale")
+        _require_int_min(
+            entry["remaining_quantity"],
+            1,
+            f"{path}.remaining_quantity",
+        )
+
     outing_sequence = state["outing_sequence"]
     active_outing = state["active_outing"]
     if active_outing is not None:

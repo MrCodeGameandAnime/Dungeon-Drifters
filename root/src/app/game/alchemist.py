@@ -54,6 +54,7 @@ class AlchemistPreview:
     destroys_equipment: bool
     extracted_modifiers: tuple[str, ...]
     can_apply: bool
+    transaction_sequence: int | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,9 @@ class AlchemistService:
             "sell", item, gold_award=spec.sale_value_gold,
             destroyed_modifiers=tuple(item.modifier_slots.values()),
             destroys_equipment=True,
+            transaction_sequence=(
+                game_state.party_state.hub_economy_state.transaction_sequence
+            ),
         )
 
     @staticmethod
@@ -95,6 +99,9 @@ class AlchemistService:
             "dismantle", item, material_yields=spec.dismantle_yields,
             destroyed_modifiers=tuple(item.modifier_slots.values()),
             destroys_equipment=True,
+            transaction_sequence=(
+                game_state.party_state.hub_economy_state.transaction_sequence
+            ),
         )
 
     @staticmethod
@@ -235,8 +242,23 @@ class AlchemistService:
 
     @staticmethod
     def _apply_sale(candidate, preview):
-        candidate.party_state.remove_equipment_instance(preview.equipment_instance_id)
-        candidate.party_state.add_shared_gold(preview.gold_award)
+        party = candidate.party_state
+        equipment = party.remove_equipment_instance(preview.equipment_instance_id)
+        economy = party.hub_economy_state
+        sequence = preview.transaction_sequence
+        if sequence is None or not economy.advance_transaction(sequence):
+            raise ValueError("equipment sale transaction is stale")
+        economy.add_buyback_record(
+            {
+                "sale_id": f"sale_{sequence + 1}",
+                "vendor_id": "blacksmith",
+                "visit_id": economy.current_hub_visit_id,
+                "item_id": equipment.definition_id,
+                "original_unit_payout": preview.gold_award,
+                "equipment_snapshot": equipment.snapshot(),
+            }
+        )
+        party.add_shared_gold(preview.gold_award)
 
     @staticmethod
     def _apply_dismantle(candidate, preview):
@@ -316,6 +338,7 @@ def _preview(
     destroys_equipment=False,
     extracted_modifiers=(),
     modifier_instance_id=None,
+    transaction_sequence=None,
 ):
     return AlchemistPreview(
         action,
@@ -332,13 +355,14 @@ def _preview(
         destroys_equipment,
         tuple(extracted_modifiers),
         True,
+        transaction_sequence,
     )
 
 
 def _blocked(action, status, instance_id, modifier_instance_id=None):
     return AlchemistPreview(
         action, status, instance_id, modifier_instance_id, 0, 0,
-        (), (), None, (), (), False, (), False,
+        (), (), None, (), (), False, (), False, None,
     )
 
 
@@ -370,6 +394,9 @@ def _priced_preview(
         destroys_equipment=destroys_equipment,
         extracted_modifiers=extracted_modifiers,
         modifier_instance_id=modifier_instance_id,
+        transaction_sequence=(
+            game_state.party_state.hub_economy_state.transaction_sequence
+        ),
     )
     if can_pay:
         return preview
@@ -388,6 +415,7 @@ def _priced_preview(
         preview.destroys_equipment,
         preview.extracted_modifiers,
         False,
+        preview.transaction_sequence,
     )
 
 

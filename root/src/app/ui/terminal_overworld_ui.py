@@ -34,6 +34,8 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseBlacksmithInstallComponent,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     HubSupplyOperation,
     ChooseOverworldAction,
@@ -234,22 +236,70 @@ class TerminalOverworldUI:
                     return ChooseWeaponTarget(weapon.targets[index].drifter_id)
         if view.screen in {
             OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
             OverworldScreen.HUB_INVENTORY,
             OverworldScreen.ALCHEMIST,
         } and view.hub_economy is not None:
             economy = view.hub_economy
+            if choice.startswith("r"):
+                parts = choice.split()
+                token = parts[0]
+                if token[1:].isdigit() and len(parts) <= 2:
+                    index = int(token[1:]) - 1
+                    quantity = (
+                        int(parts[1])
+                        if len(parts) == 2 and parts[1].isdigit()
+                        else 1
+                    )
+                    if 0 <= index < len(economy.buybacks):
+                        offer = economy.buybacks[index]
+                        if (
+                            quantity >= 1
+                            and quantity <= offer.remaining_quantity
+                            and offer.can_recover
+                        ):
+                            return ChooseHubBuyback(
+                                offer.sale_id,
+                                quantity,
+                                view.hub_transaction_sequence,
+                            )
+                    self._output("That buyback is unavailable.")
+                    return self._REJECTED
+            parts = choice.split()
+            token = parts[0]
+            if len(parts) > 2 or (
+                len(parts) == 2 and not parts[1].isdigit()
+            ):
+                return self._REJECTED
+            quantity = int(parts[1]) if len(parts) == 2 else 1
             for prefix, operation, enabled_name in (
                 ("b", HubSupplyOperation.BUY, "can_buy"),
                 ("s", HubSupplyOperation.SELL, "can_sell"),
                 ("l", HubSupplyOperation.LOAD, "can_load"),
                 ("u", HubSupplyOperation.UNLOAD, "can_unload"),
             ):
-                if choice.startswith(prefix) and choice[len(prefix):].isdigit():
-                    index = int(choice[len(prefix):]) - 1
+                if token.startswith(prefix) and token[len(prefix):].isdigit():
+                    index = int(token[len(prefix):]) - 1
                     if 0 <= index < len(economy.items):
                         item = economy.items[index]
-                        if getattr(item, enabled_name):
-                            return ChooseHubSupplyAction(operation, item.item_id)
+                        maximum = (
+                            item.max_buy_quantity
+                            if operation is HubSupplyOperation.BUY
+                            else item.max_sell_quantity
+                            if operation is HubSupplyOperation.SELL
+                            else None
+                        )
+                        if (
+                            getattr(item, enabled_name)
+                            and quantity >= 1
+                            and (maximum is None or quantity <= maximum)
+                        ):
+                            return ChooseHubSupplyAction(
+                                operation,
+                                item.item_id,
+                                view.hub_transaction_sequence,
+                                quantity,
+                            )
                         self._output("That Hub supply action is unavailable.")
                         return self._REJECTED
             if view.screen is OverworldScreen.ALCHEMIST and choice.startswith("a") and choice[1:].isdigit():
@@ -263,6 +313,21 @@ class TerminalOverworldUI:
 
         if view.screen is OverworldScreen.BLACKSMITH and view.merchant is not None:
             merchant = view.merchant
+            if choice.startswith("n") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if (
+                    view.hub_economy is not None
+                    and 0 <= index < len(view.hub_economy.items)
+                ):
+                    component = view.hub_economy.items[index]
+                    if component.can_install_component:
+                        return ChooseBlacksmithInstallComponent(
+                            merchant.selected_target_id,
+                            component.item_id,
+                            view.hub_transaction_sequence,
+                        )
+                self._output("That component cannot be installed.")
+                return self._REJECTED
             if choice.startswith("t") and choice[1:].isdigit():
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(merchant.targets):
@@ -277,6 +342,7 @@ class TerminalOverworldUI:
                         return ChooseMerchantCraftComponent(
                             merchant.selected_target_id,
                             recipe.component_id,
+                            view.hub_transaction_sequence,
                         )
                     self._output("Not enough material to craft that component.")
                     return self._REJECTED
@@ -288,6 +354,7 @@ class TerminalOverworldUI:
                         return ChooseMerchantImprove(
                             merchant.selected_target_id,
                             slot.slot_id,
+                            view.hub_transaction_sequence,
                         )
                     self._output(self._merchant_blocked_message(slot.blocked_reason))
                     return self._REJECTED
@@ -298,10 +365,14 @@ class TerminalOverworldUI:
                     return ChooseMerchantDismantle(
                         merchant.selected_target_id,
                         item.item_id,
+                        expected_transaction_sequence=view.hub_transaction_sequence,
                     )
             if choice.lower() == "v":
                 if merchant.tier_v.can_attempt:
-                    return ChooseMerchantTierV(merchant.selected_target_id)
+                    return ChooseMerchantTierV(
+                        merchant.selected_target_id,
+                        view.hub_transaction_sequence,
+                    )
                 self._output("Tier V attempt is unavailable.")
                 return self._REJECTED
 
@@ -620,7 +691,9 @@ class TerminalOverworldUI:
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
         elif view.screen is OverworldScreen.BLACKSMITH:
-            lines = list(self._merchant_lines(view))
+            lines = list(self._hub_economy_lines(view))
+            lines.extend(("", "BLACKSMITH SERVICES", ""))
+            lines.extend(self._merchant_lines(view))
             if view.equipment is not None:
                 lines.extend(("", "PHYSICAL EQUIPMENT SERVICES", ""))
                 lines.extend(self._equipment_lines(view))
@@ -942,9 +1015,13 @@ class TerminalOverworldUI:
             for index, item in enumerate(economy.items, start=1):
                 controls = []
                 if item.shop_stocked:
-                    controls.append(f"B{index} Buy {item.base_price}g")
+                    controls.append(
+                        f"B{index} Buy {item.base_price}g (stock {item.stock_quantity})"
+                    )
                 if item.sellable:
-                    controls.append(f"S{index} Sell {item.base_price // 2}g")
+                    controls.append(f"S{index} Sell {item.resale_price}g")
+                if item.can_install_component:
+                    controls.append(f"N{index} Install on selected Drifter")
                 if item.carryable:
                     controls.extend((f"L{index} Load", f"U{index} Unload"))
                 lines.append(
@@ -954,6 +1031,13 @@ class TerminalOverworldUI:
                 )
         else:
             lines.append("No merchandise is available here.")
+        if economy.buybacks:
+            lines.extend(("", "BUYBACK"))
+            lines.extend(
+                f"R{index}. {offer.display_name} x{offer.remaining_quantity} "
+                f"at {offer.unit_price}g each"
+                for index, offer in enumerate(economy.buybacks, start=1)
+            )
         if economy.recipes:
             lines.extend(("", "ALCHEMY"))
             lines.extend(

@@ -13,6 +13,7 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
+from app.content.vendor_catalog import VENDOR_MERCHANDISE
 from app.content.advancement_combat_spec import get_advancement_move
 from app.content.advancement_spec import (
     AdvancementSkillKind,
@@ -68,6 +69,7 @@ from app.presentation.overworld_models import (
     EquipmentInstanceView,
     EquipmentModifierView,
     HubAlchemyRecipeView,
+    HubBuybackView,
     HubEconomyView,
     HubSupplyItemView,
     InventoryView,
@@ -161,7 +163,7 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         name = get_armor_modifier(incoming_modifier).name
         details.append(f"Incoming modifier consumed: {name}")
     destroyed_modifiers = getattr(preview, "destroyed_modifiers", ())
-    if destroyed_modifiers:
+    if destroyed_modifiers and preview.action != "sell":
         names = ", ".join(
             get_armor_modifier(modifier_id).name
             for modifier_id in destroyed_modifiers
@@ -178,7 +180,9 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         details.append("Donor armor will be destroyed.")
     if preview.action == "sell":
         details.append(
-            "Only authored gold is awarded; installed modifiers are not returned."
+            "Only authored gold is awarded. Exact armor and modifiers remain "
+            "available for buyback during this Hub visit; anything not recovered "
+            "is discarded when the visit ends."
         )
     elif preview.action == "dismantle":
         details.append(
@@ -364,13 +368,21 @@ class OverworldPresenter:
                 else None
             ),
             hub_economy=(
-                self._hub_economy_view(game_state, screen)
+                self._hub_economy_view(
+                    game_state,
+                    screen,
+                    selected_target_id=selected_merchant_target_id,
+                )
                 if screen in {
                     OverworldScreen.MERCHANT,
+                    OverworldScreen.BLACKSMITH,
                     OverworldScreen.HUB_INVENTORY,
                     OverworldScreen.ALCHEMIST,
                 }
                 else None
+            ),
+            hub_transaction_sequence=(
+                game_state.party_state.hub_economy_state.transaction_sequence
             ),
             equipment=(
                 self._equipment_view(
@@ -1273,52 +1285,156 @@ class OverworldPresenter:
         )
 
     @staticmethod
-    def _hub_economy_view(game_state, screen):
+    def _hub_economy_view(game_state, screen, *, selected_target_id=None):
         party = game_state.party_state
         screen = OverworldScreen(screen)
+        vendor_id = {
+            OverworldScreen.MERCHANT: "merchant",
+            OverworldScreen.BLACKSMITH: "blacksmith",
+            OverworldScreen.ALCHEMIST: "alchemist",
+        }.get(screen)
+        if screen is OverworldScreen.BLACKSMITH:
+            available_members = game_state.members_available_to_party
+            if selected_target_id is None:
+                selected_target_id = _member_drifter_spec(
+                    available_members[0]
+                ).drifter_id
+            target = game_state.member_for_drifter_id(selected_target_id)
+            target_weapon = get_weapon_spec(target.signature_weapon_state.weapon_id)
+        else:
+            target = None
+            target_weapon = None
+        economy_state = party.hub_economy_state
+        component_stacks = economy_state.snapshot()["component_stacks"]
         authored_ids = {item.item_id for item in SUPPLY_ITEMS}
         item_ids = [item.item_id for item in SUPPLY_ITEMS]
-        item_ids.extend(
-            sorted((set(party.shared_items) | set(party.carried_items)) - authored_ids)
-        )
+        if vendor_id is not None:
+            item_ids.extend(
+                item.item_id
+                for item in VENDOR_MERCHANDISE
+                if any(offer.vendor_id == vendor_id for offer in item.offers)
+                and item.item_id not in authored_ids
+            )
+        item_ids.extend(sorted(
+            (set(party.shared_items) | set(party.carried_items)
+             | set(component_stacks))
+            - set(item_ids)
+        ))
         items = []
         for item_id in item_ids:
-            if screen is OverworldScreen.ALCHEMIST:
-                continue
             spec = get_supply_item(item_id)
-            stored = party.shared_items.get(item_id, 0)
+            merchandise = first_or_none(
+                row for row in VENDOR_MERCHANDISE if row.item_id == item_id
+            )
+            offer = (
+                None
+                if merchandise is None or vendor_id is None
+                else first_or_none(
+                    row for row in merchandise.offers if row.vendor_id == vendor_id
+                )
+            )
+            stored = (
+                component_stacks.get(item_id, 0)
+                if merchandise is not None and merchandise.category == "component"
+                else party.shared_items.get(item_id, 0)
+            )
             carried = party.carried_items.get(item_id, 0)
             if spec is None:
                 display_name = item_id.replace("_", " ").title()
-                description = "Stored item. No Hub supply action is authored for it."
-                price = 0
-                shop_stocked = sellable = carryable = False
+                description = (
+                    "Blacksmith component"
+                    if merchandise is not None and merchandise.category == "component"
+                    else "Authored vendor merchandise"
+                )
+                base_price = (
+                    merchandise.base_price if merchandise is not None else 0
+                )
+                carryable = False
             else:
                 display_name = spec.display_name
                 description = spec.description
-                price = spec.base_price
-                shop_stocked = (
-                    screen is OverworldScreen.MERCHANT and spec.shop_stocked
-                )
-                sellable = screen is OverworldScreen.MERCHANT and spec.sellable
+                base_price = spec.base_price
                 carryable = (
                     screen is OverworldScreen.HUB_INVENTORY and spec.carryable
                 )
+            if offer is not None:
+                base_price = offer.unit_price
+            shop_stocked = offer is not None
+            stock_quantity = (
+                economy_state.vendor_stock_quantity(vendor_id, item_id)
+                if shop_stocked
+                else 0
+            )
+            sellable = (
+                merchandise is not None
+                and merchandise.sale_vendor_id == vendor_id
+                and merchandise.resale_price is not None
+                and merchandise.category not in {"armor", "accessory"}
+            )
+            is_component = (
+                merchandise is not None and merchandise.category == "component"
+            )
+            can_install_component = False
+            if is_component and target_weapon is not None and stored:
+                try:
+                    component = get_weapon_component_spec(
+                        target_weapon.progression,
+                        item_id,
+                    )
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    can_install_component = (
+                        target.signature_weapon_state.components[component.slot_id]
+                        != component.component_id
+                    )
+            if vendor_id is not None and not (
+                shop_stocked or sellable or stored or carried
+            ):
+                continue
             items.append(
                 HubSupplyItemView(
                     item_id=item_id,
                     display_name=display_name,
                     description=description,
-                    base_price=price,
+                    base_price=base_price,
                     stored_quantity=stored,
                     carried_quantity=carried,
                     shop_stocked=shop_stocked,
                     sellable=sellable,
                     carryable=carryable,
-                    can_buy=shop_stocked and party.shared_gold >= price,
+                    can_buy=(
+                        shop_stocked
+                        and min(
+                            stock_quantity,
+                            party.shared_gold // base_price
+                            if base_price
+                            else stock_quantity,
+                        ) > 0
+                    ),
                     can_sell=sellable and stored > 0,
                     can_load=carryable and stored > 0 and party.carried_item_units < 6,
                     can_unload=carryable and carried > 0,
+                    vendor_id=vendor_id,
+                    stock_quantity=stock_quantity,
+                    resale_price=(
+                        merchandise.resale_price
+                        if sellable and merchandise is not None
+                        else 0
+                    ),
+                    is_component=is_component,
+                    can_install_component=can_install_component,
+                    max_buy_quantity=(
+                        min(
+                            stock_quantity,
+                            party.shared_gold // base_price
+                            if base_price
+                            else stock_quantity,
+                        )
+                        if shop_stocked
+                        else 0
+                    ),
+                    max_sell_quantity=stored if sellable else 0,
                 )
             )
 
@@ -1346,12 +1462,48 @@ class OverworldPresenter:
                     ),
                 )
             )
+        buybacks = []
+        visit_id = economy_state.current_hub_visit_id
+        if vendor_id is not None and visit_id is not None:
+            for record in party.hub_economy["buyback_records"]:
+                if (
+                    record["vendor_id"] != vendor_id
+                    or record["visit_id"] != visit_id
+                ):
+                    continue
+                unique_equipment = "equipment_snapshot" in record
+                supply = get_supply_item(record["item_id"])
+                display_name = (
+                    get_equipment_template(record["item_id"]).name
+                    if unique_equipment
+                    else supply.display_name
+                    if supply is not None
+                    else record["item_id"].replace("_", " ").title()
+                )
+                buybacks.append(
+                    HubBuybackView(
+                        sale_id=record["sale_id"],
+                        item_id=record["item_id"],
+                        display_name=display_name,
+                        remaining_quantity=(
+                            1
+                            if unique_equipment
+                            else record["remaining_quantity"]
+                        ),
+                        unit_price=record["original_unit_payout"],
+                        is_unique_equipment=unique_equipment,
+                        can_recover=(
+                            party.shared_gold >= record["original_unit_payout"]
+                        ),
+                    )
+                )
         return HubEconomyView(
             shared_gold=party.shared_gold,
             carried_units=party.carried_item_units,
             carried_capacity=6,
             items=tuple(items),
             recipes=tuple(recipes),
+            buybacks=tuple(buybacks),
         )
 
     @staticmethod

@@ -322,6 +322,10 @@ class PartyState:
     def hub_economy(self):
         return self._hub_economy.snapshot()
 
+    @property
+    def hub_economy_state(self):
+        return self._hub_economy
+
     def initialize_vendor_stock(self, recruited_drifter_ids):
         self._hub_economy.initialize_unlocked_stock(
             recruited_drifter_ids=recruited_drifter_ids,
@@ -334,10 +338,10 @@ class PartyState:
         settled = self._hub_economy.settle_outing()
         if settled is None:
             return False
-        self._return_to_hub_visit()
+        self._return_to_hub_visit(settled_outing=settled)
         return True
 
-    def _return_to_hub_visit(self):
+    def _return_to_hub_visit(self, *, settled_outing=None):
         self._hub_economy.begin_hub_visit()
         self.initialize_vendor_stock(
             tuple(
@@ -346,10 +350,22 @@ class PartyState:
                 if (drifter_id := _optional_drifter_id(member)) is not None
             )
         )
+        if settled_outing is not None:
+            self._hub_economy.replenish_for_qualifying_return(
+                settled_outing,
+                recruited_drifter_ids=tuple(
+                    drifter_id
+                    for member in self._companions
+                    if (drifter_id := _optional_drifter_id(member)) is not None
+                ),
+                floor_one_cleared=self.floor_one_cleared,
+                floor_two_cleared=self.floor_two_cleared,
+                floor_three_cleared=self.floor_three_cleared,
+            )
 
     def _settle_outing_for_hub_return(self):
-        self._hub_economy.settle_outing()
-        self._return_to_hub_visit()
+        settled = self._hub_economy.settle_outing()
+        self._return_to_hub_visit(settled_outing=settled)
 
     def _begin_m65_outing(self, floor_id):
         self._hub_economy.begin_outing(floor_id)

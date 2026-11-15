@@ -4123,15 +4123,22 @@ try {
   await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Sell" }).waitFor({ state: "visible" });
   const saleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
   requireCondition(
-    saleConfirmation.includes("authored gold") && saleConfirmation.includes("not returned") && saleConfirmation.includes("Vanguard"),
+    saleConfirmation.includes("authored gold") && saleConfirmation.includes("buyback during this Hub visit") && saleConfirmation.includes("Vanguard"),
     `modified armor sale did not warn of modifier loss: ${saleConfirmation}`,
   );
   await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
-  await m5Page.locator("#notice").filter({ hasText: "Installed modifiers were destroyed." }).waitFor({ state: "visible" });
+  await m5Page.locator("#notice").filter({ hasText: "available for buyback during this Hub visit" }).waitFor({ state: "visible" });
   requireCondition(
     !(await m5Page.locator("#equipment-inventory").innerText()).includes("Field Gloves") &&
-      !(await m5Page.locator("#equipment-modifiers").innerText()).includes("Vanguard"),
-    "selling modified armor returned or retained its installed modifier",
+      (await m5Page.locator("#hub-buyback-list").innerText()).includes("Field Gloves"),
+    "selling modified armor did not move the exact instance into same-visit buyback escrow",
+  );
+  await clickVisibleOption(m5Page, "#hub-buyback-list", "Buy Back");
+  await m5Page.locator("#hub-buyback-list").waitFor({ state: "hidden" });
+  await selectM5Equipment("Field Gloves");
+  requireCondition(
+    (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Vanguard"),
+    "same-visit equipment buyback did not restore the attached modifier",
   );
 
   await selectM5Equipment("Field Boots");

@@ -184,6 +184,65 @@ def test_outing_progress_and_settlement_are_recorded_once():
     assert party.hub_economy == before_repeat
 
 
+def test_expired_alchemist_buyback_feeds_specialist_then_merchant_stock_once():
+    game = hub_game()
+    party = game.party_state
+    economy = party.hub_economy_state
+    economy.spend_vendor_stock("alchemist", "medicinal_herb", 2)
+    economy.spend_vendor_stock("merchant", "medicinal_herb", 1)
+    economy.add_buyback_record(
+        {
+            "sale_id": "sale_7",
+            "vendor_id": "alchemist",
+            "visit_id": economy.current_hub_visit_id,
+            "item_id": "medicinal_herb",
+            "remaining_quantity": 5,
+            "original_unit_payout": 2,
+        }
+    )
+
+    economy.leave_hub()
+    assert economy.snapshot()["buyback_records"] == []
+    assert economy.snapshot()["future_stock_queue"] == [
+        {
+            "sale_id": "sale_7",
+            "specialist_id": "alchemist",
+            "item_id": "medicinal_herb",
+            "remaining_quantity": 5,
+        }
+    ]
+
+    settled = {
+        "outing_id": "outing_1",
+        "floor_id": "floor_one",
+        "has_encounter_progress": True,
+    }
+    kwargs = {
+        "recruited_drifter_ids": tuple(
+            member.drifter_id for member in game.recruited_members
+        ),
+        "floor_one_cleared": False,
+        "floor_two_cleared": False,
+        "floor_three_cleared": False,
+    }
+
+    assert economy.replenish_for_qualifying_return(settled, **kwargs)
+    assert economy.vendor_stock_quantity("alchemist", "medicinal_herb") == 2
+    assert economy.vendor_stock_quantity("merchant", "medicinal_herb") == 1
+    assert economy.snapshot()["future_stock_queue"] == [
+        {
+            "sale_id": "sale_7",
+            "specialist_id": "alchemist",
+            "item_id": "medicinal_herb",
+            "remaining_quantity": 2,
+        }
+    ]
+    after_replenishment = economy.snapshot()
+
+    assert not economy.replenish_for_qualifying_return(settled, **kwargs)
+    assert economy.snapshot() == after_replenishment
+
+
 @pytest.mark.parametrize("floor_id", ("floor_one", "floor_two"))
 @pytest.mark.parametrize(
     ("experience", "gold", "items"),

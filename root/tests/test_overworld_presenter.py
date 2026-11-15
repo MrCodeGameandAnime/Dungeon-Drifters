@@ -147,7 +147,7 @@ def test_vendor_views_expose_only_their_owned_actions():
     potion = next(item for item in merchant.hub_economy.items if item.item_id == "healing_potion")
     herb = next(item for item in merchant.hub_economy.items if item.item_id == "medicinal_herb")
     assert potion.can_buy and not potion.can_sell
-    assert herb.can_buy and herb.can_sell
+    assert herb.can_buy and not herb.can_sell
     assert not potion.can_load and not potion.can_unload
 
     inventory = presenter.build(game, screen=OverworldScreen.HUB_INVENTORY)
@@ -156,7 +156,12 @@ def test_vendor_views_expose_only_their_owned_actions():
     assert potion.can_load and potion.can_unload
 
     alchemist = presenter.build(game, screen=OverworldScreen.ALCHEMIST)
-    assert alchemist.hub_economy.items == ()
+    assert alchemist.hub_economy.items
+    alchemist_herb = next(
+        item for item in alchemist.hub_economy.items
+        if item.item_id == "medicinal_herb"
+    )
+    assert alchemist_herb.can_buy and alchemist_herb.can_sell
     assert alchemist.hub_economy.recipes
     recipe = next(
         recipe for recipe in alchemist.hub_economy.recipes
@@ -169,7 +174,7 @@ def test_vendor_views_expose_only_their_owned_actions():
     blacksmith = presenter.build(game, screen=OverworldScreen.BLACKSMITH)
     assert blacksmith.merchant is not None
     assert blacksmith.equipment is not None
-    assert blacksmith.hub_economy is None
+    assert blacksmith.hub_economy is not None
 
     enchanter = presenter.build(game, screen=OverworldScreen.ENCHANTER)
     assert enchanter.equipment is not None

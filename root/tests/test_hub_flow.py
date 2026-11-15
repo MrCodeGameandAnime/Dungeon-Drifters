@@ -33,11 +33,12 @@ from tests.game_test_support import (
 )
 
 
-def make_session(game):
+def make_session(game, *, save_port=None):
     return OverworldSession(
         game,
         battle_factory=lambda *_args, **_kwargs: None,
         enemy_factory=lambda *_args, **_kwargs: None,
+        save_port=save_port,
     )
 
 
@@ -189,7 +190,7 @@ def test_hub_targets_full_roster_and_outing_targets_only_deployed_pair():
 
 def test_merchant_dismantle_and_improvement_spend_shared_materials():
     game = game_at_hub()
-    session = make_session(game)
+    session = make_session(game, save_port=AcceptingSavePort())
     game.party_state.add_shared_items({"goblin_scrap": 1})
     open_vendor(session)
 
@@ -198,26 +199,38 @@ def test_merchant_dismantle_and_improvement_spend_shared_materials():
     )
 
     assert dismantled.screen is OverworldScreen.BLACKSMITH
-    assert "goblin_scrap" not in game.party_state.shared_items
+    assert "goblin_scrap" not in session.game_state.party_state.shared_items
     assert sum(
-        game.party_state.shared_items.get(item_id, 0)
+        session.game_state.party_state.shared_items.get(item_id, 0)
         for item_id in (
             "grade_i_metal",
             "grade_i_fiber",
             "grade_i_timber",
         )
     ) in (1, 2)
-    assert game.party_state.crafting_experience == 0
+    assert session.game_state.party_state.crafting_experience == 0
 
-    metal_before = game.party_state.shared_items.get("grade_i_metal", 0)
-    game.party_state.add_shared_items({"grade_i_metal": 1})
+    metal_before = session.game_state.party_state.shared_items.get(
+        "grade_i_metal", 0
+    )
+    session.game_state.party_state.add_shared_items({"grade_i_metal": 2})
     improved = session.submit(
-        ChooseMerchantImprove("branoc", "blade_guard")
+        ChooseMerchantImprove(
+            "branoc",
+            "blade_guard",
+            expected_transaction_sequence=(
+                session.game_state.party_state.hub_economy_state
+                .transaction_sequence
+            ),
+        )
     )
 
     assert improved.merchant.slots[0].progress > 0
-    assert game.party_state.shared_items.get("grade_i_metal", 0) == metal_before
-    assert game.party_state.crafting_experience == 20
+    assert (
+        session.game_state.party_state.shared_items.get("grade_i_metal", 0)
+        == metal_before + 1
+    )
+    assert session.game_state.party_state.crafting_experience == 20
 
 
 def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
@@ -238,13 +251,17 @@ def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
     }
     game.party_state.add_shared_items(costs)
     monkeypatch.setattr(app.randomness, "randint", lambda _start, _end: 1)
-    session = make_session(game)
+    session = make_session(game, save_port=AcceptingSavePort())
     open_vendor(session)
 
     result = session.submit(ChooseMerchantTierV("branoc"))
 
-    assert player.signature_weapon_state.tier_v_success is True
-    assert game.party_state.shared_items == {}
+    assert (
+        session.game_state.member_for_drifter_id("branoc")
+        .signature_weapon_state.tier_v_success
+        is True
+    )
+    assert session.game_state.party_state.shared_items == {}
     assert "succeeded" in result.notice
 
 

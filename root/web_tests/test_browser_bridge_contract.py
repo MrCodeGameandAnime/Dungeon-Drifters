@@ -26,6 +26,7 @@ from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseBlacksmithInstallComponent,
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
@@ -36,6 +37,8 @@ from app.ui.overworld_ui import (
     ChooseMerchantDismantle,
     ChooseMerchantImprove,
     ChooseMerchantTarget,
+    ChooseHubBuyback,
+    ChooseHubSupplyAction,
     ChooseOverworldAction,
     ChooseOverworldHealingTarget,
     ChooseOverworldItem,
@@ -290,6 +293,7 @@ def test_browser_expedition_clock_query_is_read_only_at_completion_boundary():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
         now_factory=lambda: now,
     )
 
@@ -357,7 +361,7 @@ def test_bridge_keeps_hub_services_on_their_vendor_screens():
         {"kind": "overworld_action", "action": "blacksmith"}
     )
     assert blacksmith["screen"] == OverworldScreen.BLACKSMITH.value
-    assert blacksmith["hub_economy"] is None
+    assert blacksmith["hub_economy"] is not None
     assert blacksmith["merchant"] is not None
 
     runtime.submit({"kind": "overworld_action", "action": "back"})
@@ -375,7 +379,7 @@ def test_bridge_keeps_hub_services_on_their_vendor_screens():
     )
     assert alchemist["screen"] == OverworldScreen.ALCHEMIST.value
     assert alchemist["merchant"] is None
-    assert alchemist["hub_economy"]["items"] == []
+    assert alchemist["hub_economy"]["items"]
     assert alchemist["hub_economy"]["recipes"]
 
     runtime.submit({"kind": "overworld_action", "action": "back"})
@@ -399,6 +403,38 @@ def test_bridge_keeps_hub_services_on_their_vendor_screens():
     assert equipment["hub_economy"] is None
 
 
+def test_bridge_preserves_vendor_quantity_buyback_and_component_targeting():
+    assert bridge._command_to_input(
+        {
+            "kind": "hub_supply",
+            "operation": "buy",
+            "item_id": "medicinal_herb",
+            "quantity": 2,
+            "expected_transaction_sequence": 7,
+        }
+    ) == ChooseHubSupplyAction("buy", "medicinal_herb", 7, 2)
+    assert bridge._command_to_input(
+        {
+            "kind": "hub_buyback",
+            "sale_id": "sale_8",
+            "quantity": 3,
+            "expected_transaction_sequence": 9,
+        }
+    ) == ChooseHubBuyback("sale_8", 3, 9)
+    assert bridge._command_to_input(
+        {
+            "kind": "blacksmith_install_component",
+            "target_drifter_id": "azhvielle",
+            "component_id": "unbound_spear_head",
+            "expected_transaction_sequence": 4,
+        }
+    ) == ChooseBlacksmithInstallComponent(
+        "azhvielle",
+        "unbound_spear_head",
+        4,
+    )
+
+
 def test_bridge_projects_and_submits_blacksmith_weapon_actions():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
@@ -411,6 +447,7 @@ def test_bridge_projects_and_submits_blacksmith_weapon_actions():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
     )
 
     runtime.submit({"kind": "overworld_action", "action": "vendors"})
@@ -439,14 +476,16 @@ def test_bridge_projects_and_submits_blacksmith_weapon_actions():
             "kind": "merchant_dismantle",
             "target_drifter_id": "branoc",
             "item_id": "goblin_scrap",
+            "expected_transaction_sequence": 1,
         }
     )
     assert all(
         material["quantity"] >= 0
         for material in dismantled["merchant"]["materials"]
     )
-    assert game.party_state.shared_items.get("goblin_scrap", 0) == 0
-    assert game.party_state.crafting_experience == 20
+    committed = runtime._session.game_state
+    assert committed.party_state.shared_items.get("goblin_scrap", 0) == 0
+    assert committed.party_state.crafting_experience == 20
 
 
 def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
@@ -468,6 +507,7 @@ def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
     )
 
     runtime.submit({"kind": "overworld_action", "action": "vendors"})
@@ -481,7 +521,8 @@ def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
 
     assert attempted["screen"] == OverworldScreen.BLACKSMITH.value
     assert attempted["merchant"]["tier_v"]["completed"] in (True, False)
-    assert game.party_state.shared_items == {}
+    assert game.party_state.shared_items == costs
+    assert runtime._session.game_state.party_state.shared_items == {}
 
 
 def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
@@ -494,6 +535,7 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
     )
 
     runtime.submit({"kind": "overworld_action", "action": "vendors"})
@@ -513,12 +555,15 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
         recipe["component_id"] != "sunder_spire_blade_reinforced"
         for recipe in crafted["merchant"]["component_recipes"]
     )
-    assert game.player_state.signature_weapon_state.components["blade_guard"] == (
+    committed = runtime._session.game_state
+    assert committed.player_state.signature_weapon_state.components["blade_guard"] == (
         "sunder_spire_blade_reinforced"
     )
-    assert game.party_state.shared_items.get("sunder_spire_blade_reinforced", 0) == 0
-    assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
-    assert game.party_state.crafting_experience == 10
+    assert committed.party_state.hub_economy["component_stacks"] == {
+        "sunder_spire_blade": 1
+    }
+    assert committed.party_state.shared_items.get("grade_i_metal", 0) == 0
+    assert committed.party_state.crafting_experience == 10
 
     runtime.submit({"kind": "overworld_action", "action": "back"})
     runtime.submit({"kind": "overworld_action", "action": "back"})
@@ -529,8 +574,8 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
     assert weapon["weapon"]["components"][0]["installed_component_id"] == (
         "sunder_spire_blade_reinforced"
     )
-    assert game.player_state.combat_moves[0].power == 11
-    assert game.player_state.combat_moves[0].accuracy == 90
+    assert runtime._session.game_state.player_state.combat_moves[0].power == 11
+    assert runtime._session.game_state.player_state.combat_moves[0].accuracy == 90
 
 
 def test_bridge_rejects_the_removed_inventory_component_install_command():

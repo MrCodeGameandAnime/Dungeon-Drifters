@@ -73,6 +73,8 @@ from app.ui.overworld_ui import (
     ChooseEquipmentAction,
     ChooseEquipmentConfirmation,
     ChooseEquipmentInstance,
+    ChooseBlacksmithInstallComponent,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     ChooseAlchemyRecipe,
     ChooseWeaponTarget,
@@ -285,7 +287,10 @@ class OverworldSession:
         view = self._build_view()
         if isinstance(session_input, _BATTLE_INPUT_TYPES):
             return view
-        if isinstance(session_input, (ChooseHubSupplyAction, ChooseAlchemyRecipe)):
+        if isinstance(
+            session_input,
+            (ChooseHubSupplyAction, ChooseHubBuyback, ChooseAlchemyRecipe),
+        ):
             self._perform_hub_economy_action(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChoosePermanentStatIncrease):
@@ -351,6 +356,7 @@ class OverworldSession:
                 ChooseMerchantDismantle,
                 ChooseMerchantCraftComponent,
                 ChooseMerchantTierV,
+                ChooseBlacksmithInstallComponent,
             ),
         ):
             self._perform_merchant_action(view, session_input)
@@ -712,7 +718,7 @@ class OverworldSession:
                 "Incoming modifier consumed: "
                 + get_armor_modifier(preview.incoming_modifier).name
             )
-        if preview.destroyed_modifiers:
+        if preview.destroyed_modifiers and preview.action != "sell":
             names = ", ".join(
                 get_armor_modifier(modifier_id).name
                 for modifier_id in preview.destroyed_modifiers
@@ -728,7 +734,9 @@ class OverworldSession:
             details.append("Donor armor will be destroyed.")
         if preview.action == "sell":
             details.append(
-                "Only authored gold is awarded; attached modifiers are not returned."
+                "Only authored gold is awarded. The exact armor and its modifiers "
+                "remain available for buyback during this Hub visit; anything not "
+                "recovered is discarded when the visit ends."
             )
         elif preview.action == "dismantle":
             details.append(
@@ -1281,7 +1289,10 @@ class OverworldSession:
                 confirmation=preview,
             )
             success = AlchemistStatus.SOLD
-            notice = f"Sold {item_name}; gained {preview.gold_award} gold. Installed modifiers were destroyed."
+            notice = (
+                f"Sold {item_name}; gained {preview.gold_award} gold. "
+                "The exact item is available for buyback during this Hub visit."
+            )
         elif pending.operation.value == "dismantle":
             result = alchemist.dismantle(
                 self.game_state,
@@ -1339,6 +1350,51 @@ class OverworldSession:
 
     def _perform_hub_economy_action(self, view, session_input):
         economy = view.hub_economy
+        if isinstance(session_input, ChooseHubBuyback):
+            if view.screen not in {
+                OverworldScreen.MERCHANT,
+                OverworldScreen.BLACKSMITH,
+                OverworldScreen.ALCHEMIST,
+            } or economy is None:
+                self._notice = "Buyback is only available from the originating vendor."
+                return
+            offer = first_or_none(
+                value for value in economy.buybacks
+                if value.sale_id == session_input.sale_id
+            )
+            if offer is None or session_input.quantity > offer.remaining_quantity:
+                self._notice = "That buyback is no longer available."
+                return
+            vendor_id = {
+                OverworldScreen.MERCHANT: "merchant",
+                OverworldScreen.BLACKSMITH: "blacksmith",
+                OverworldScreen.ALCHEMIST: "alchemist",
+            }[view.screen]
+            from app.game.hub_vendor import HubVendorService
+
+            result = HubVendorService(
+                save_port=self._save_port_instance()
+            ).buyback(
+                self.game_state,
+                vendor_id=vendor_id,
+                sale_id=session_input.sale_id,
+                quantity=session_input.quantity,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            if not result.success:
+                self._notice = {
+                    "stale_transaction": "That vendor view is out of date. Reopen it and try again.",
+                    "insufficient_gold": "You do not have enough gold for that buyback.",
+                    "not_buyback_eligible": "That buyback is no longer available.",
+                    "save_failed": "The buyback could not be saved; nothing changed.",
+                }.get(result.status.value, "That buyback was rejected.")
+                return
+            self._game_state = result.game_state
+            self._notice = f"Recovered {session_input.quantity} {offer.display_name}."
+            return
+
         if isinstance(session_input, ChooseAlchemyRecipe):
             if view.screen is not OverworldScreen.ALCHEMIST or economy is None:
                 self._notice = "Alchemy recipes are only available from the Alchemist."
@@ -1360,19 +1416,23 @@ class OverworldSession:
             return
 
         operation = session_input.operation.value
+        commerce_screen = view.screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ALCHEMIST,
+        }
         expected_screen = (
-            OverworldScreen.MERCHANT
+            commerce_screen
             if operation in {"buy", "sell"}
-            else OverworldScreen.HUB_INVENTORY
+            else view.screen is OverworldScreen.HUB_INVENTORY
         )
-        if view.screen is not expected_screen or economy is None:
+        if not expected_screen or economy is None:
             self._notice = (
-                "Buying and selling belong to the Merchant."
+                "That vendor transaction is not available here."
                 if operation in {"buy", "sell"}
                 else "Supply packing belongs to Hub Inventory."
             )
             return
-        service = HubEconomyService(self.game_state)
 
         item = first_or_none(
             value for value in economy.items
@@ -1381,6 +1441,60 @@ class OverworldSession:
         if item is None:
             self._notice = "That Hub item is not available."
             return
+        if operation in {"buy", "sell"}:
+            from app.game.hub_vendor import HubVendorService
+
+            vendor_id = (
+                "alchemist"
+                if view.screen is OverworldScreen.ALCHEMIST
+                else (
+                    "blacksmith"
+                    if view.screen is OverworldScreen.BLACKSMITH
+                    else "merchant"
+                )
+            )
+            service = HubVendorService(save_port=self._save_port_instance())
+            result = (
+                service.purchase(
+                    self.game_state,
+                    vendor_id=vendor_id,
+                    item_id=item.item_id,
+                    quantity=session_input.quantity,
+                    expected_transaction_sequence=(
+                        session_input.expected_transaction_sequence
+                    ),
+                )
+                if operation == "buy"
+                else service.sell(
+                    self.game_state,
+                    vendor_id=vendor_id,
+                    item_id=item.item_id,
+                    quantity=session_input.quantity,
+                    expected_transaction_sequence=(
+                        session_input.expected_transaction_sequence
+                    ),
+                )
+            )
+            if not result.success:
+                self._notice = {
+                    "stale_transaction": "That vendor view is out of date. Reopen it and try again.",
+                    "out_of_stock": "That offer is out of stock.",
+                    "insufficient_gold": "You do not have enough gold.",
+                    "insufficient_items": "That quantity is no longer available.",
+                    "not_sellable": "That item cannot be sold to this vendor.",
+                    "unavailable_offer": "That offer is not available from this vendor.",
+                    "save_failed": "The transaction could not be saved; nothing changed.",
+                }.get(result.status.value, "That vendor transaction was rejected.")
+                return
+            self._game_state = result.game_state
+            self._notice = (
+                f"Bought {session_input.quantity} {item.display_name}."
+                if operation == "buy"
+                else f"Sold {session_input.quantity} {item.display_name} for {result.gold_delta} gold."
+            )
+            return
+
+        service = HubEconomyService(self.game_state)
         enabled = {
             "buy": item.can_buy,
             "sell": item.can_sell,
@@ -1395,7 +1509,10 @@ class OverworldSession:
                 "unload": "That item is not in the carried pack.",
             }[operation]
             return
-        result = getattr(service, operation)(item_id=item.item_id, quantity=1)
+        result = getattr(service, operation)(
+            item_id=item.item_id,
+            quantity=session_input.quantity,
+        )
         if not result.success:
             self._notice = {
                 "insufficient_gold": "You do not have enough gold.",
@@ -1406,14 +1523,14 @@ class OverworldSession:
             }.get(result.reason, "That Hub supply action was rejected.")
             return
         self._notice = {
-            "buy": f"Bought 1 {item.display_name} into Hub storage.",
-            "sell": f"Sold 1 {item.display_name} for {result.gold_delta} gold.",
-            "load": f"Loaded 1 {item.display_name} into the carried pack.",
-            "unload": f"Returned 1 {item.display_name} to Hub storage.",
+            "buy": f"Bought {session_input.quantity} {item.display_name} into Hub storage.",
+            "sell": f"Sold {session_input.quantity} {item.display_name} for {result.gold_delta} gold.",
+            "load": f"Loaded {session_input.quantity} {item.display_name} into the carried pack.",
+            "unload": f"Returned {session_input.quantity} {item.display_name} to Hub storage.",
         }[operation]
 
     def _perform_merchant_action(self, view, session_input):
-        from app.game.weapon_progression import WeaponProgressionService
+        from app.game.hub_vendor import HubVendorService
 
         merchant = view.merchant
         if view.screen is not OverworldScreen.BLACKSMITH or merchant is None:
@@ -1426,7 +1543,37 @@ class OverworldSession:
             self._notice = "Choose that Drifter before using the Blacksmith."
             return
 
-        service = WeaponProgressionService(self.game_state)
+        service = HubVendorService(save_port=self._save_port_instance())
+        if isinstance(session_input, ChooseBlacksmithInstallComponent):
+            component = first_or_none(
+                item
+                for item in (view.hub_economy.items if view.hub_economy else ())
+                if item.item_id == session_input.component_id
+            )
+            if (
+                target_id != session_input.target_drifter_id
+                or component is None
+                or not component.can_install_component
+            ):
+                self._notice = "That component cannot be installed on the selected Drifter."
+                return
+            result = service.install_component(
+                self.game_state,
+                target_drifter_id=target_id,
+                component_id=component.item_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            if result.success:
+                self._game_state = result.game_state
+                self._notice = (
+                    f"Installed {component.display_name}; the displaced part "
+                    "returned to inventory."
+                )
+            else:
+                self._notice = self._vendor_weapon_failure(result)
+            return
         if isinstance(session_input, ChooseMerchantTierV):
             if merchant.tier_v.completed or not merchant.tier_v.can_attempt:
                 self._notice = (
@@ -1434,16 +1581,25 @@ class OverworldSession:
                     f"{merchant.tier_v.blocked_reason or 'already complete'}."
                 )
                 return
-            result = service.attempt_tier_v(target_drifter_id=target_id)
-            if result.success:
+            result = service.attempt_tier_v(
+                self.game_state,
+                target_drifter_id=target_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            detail = result.detail
+            if result.game_state is not self.game_state:
+                self._game_state = result.game_state
+            if detail is not None and detail.success:
                 self._notice = "Tier V succeeded. Grade-IV materials were consumed."
-            elif result.attempted:
+            elif detail is not None and detail.attempted:
                 self._notice = (
                     "Tier V attempt failed. Grade-IV materials were consumed; "
                     "weapon progress was preserved."
                 )
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
         if isinstance(session_input, ChooseMerchantCraftComponent):
             recipe = first_or_none(
@@ -1455,20 +1611,25 @@ class OverworldSession:
                 self._notice = "That component recipe is not available."
                 return
             result = service.craft_component(
+                self.game_state,
                 target_drifter_id=target_id,
                 component_id=recipe.component_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
             )
             if result.success:
+                self._game_state = result.game_state
                 effect_summary = "; ".join(recipe.effect_summary)
                 self._notice = (
                     f"Crafted and installed {recipe.display_name} in "
-                    f"{recipe.slot_label}. "
-                    f"Crafting Level {result.crafting_level}."
+                    f"{recipe.slot_label}. Crafting Level "
+                    f"{result.detail.crafting_level}."
                 )
                 if effect_summary:
                     self._notice += f" Effects: {effect_summary}."
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
         if isinstance(session_input, ChooseMerchantImprove):
             slot = first_or_none(
@@ -1480,16 +1641,21 @@ class OverworldSession:
                 self._notice = "That weapon improvement is not available."
                 return
             result = service.improve_slot(
+                self.game_state,
                 target_drifter_id=target_id,
                 slot_id=slot.slot_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
             )
             if result.success:
+                self._game_state = result.game_state
                 self._notice = (
-                    f"{slot.label} improved to {result.slot_progress}/100. "
-                    f"Crafting Level {result.crafting_level}."
+                    f"{slot.label} improved to {result.detail.slot_progress}/100. "
+                    f"Crafting Level {result.detail.crafting_level}."
                 )
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
 
         dismantle = first_or_none(
@@ -1500,19 +1666,35 @@ class OverworldSession:
         if dismantle is None or session_input.quantity > dismantle.quantity:
             self._notice = "That dismantling action is not available."
             return
-        result = service.dismantle(
+        result = service.dismantle_materials(
+            self.game_state,
             target_drifter_id=target_id,
             item_id=dismantle.item_id,
             quantity=session_input.quantity,
+            expected_transaction_sequence=(
+                session_input.expected_transaction_sequence
+            ),
         )
         if result.success:
+            self._game_state = result.game_state
             outputs = ", ".join(
                 f"{quantity} {item_id.replace('_', ' ')}"
-                for item_id, quantity in sorted(result.materials.items())
+                for item_id, quantity in sorted(result.detail.materials.items())
             )
             self._notice = f"Dismantled {dismantle.display_name}: {outputs}."
         else:
-            self._notice = "That item is no longer available to dismantle."
+            self._notice = self._vendor_weapon_failure(result)
+
+    @staticmethod
+    def _vendor_weapon_failure(result):
+        if result.status.value == "stale_transaction":
+            return "That Blacksmith view is out of date. Reopen it and try again."
+        if result.status.value == "save_failed":
+            return "The Blacksmith action could not be saved; nothing changed."
+        detail = result.detail
+        return OverworldSession._merchant_failure_message(
+            None if detail is None else detail.reason
+        )
 
     @staticmethod
     def _merchant_failure_message(reason):
