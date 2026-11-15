@@ -315,7 +315,91 @@ def test_bridge_maps_floor_two_helper_command_to_exact_drifter():
     assert command == ChooseFloorTwoBossHelper("joruun")
 
 
-def test_bridge_projects_and_submits_hub_merchant_actions():
+def test_bridge_keeps_hub_services_on_their_vendor_screens():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+    )
+
+    hub = runtime.current_view()
+    assert {option["action"] for option in hub["options"]} >= {
+        "vendors",
+        "hub_inventory",
+    }
+
+    vendors = runtime.submit(
+        {"kind": "overworld_action", "action": "vendors"}
+    )
+    assert vendors["screen"] == OverworldScreen.VENDORS.value
+    assert {option["action"] for option in vendors["options"]} == {
+        "merchant",
+        "blacksmith",
+        "enchanter",
+        "alchemist",
+        "back",
+    }
+
+    merchant = runtime.submit(
+        {"kind": "overworld_action", "action": "merchant"}
+    )
+    assert merchant["screen"] == OverworldScreen.MERCHANT.value
+    assert merchant["merchant"] is None
+    assert merchant["hub_economy"]["recipes"] == []
+    assert all(not item["carryable"] for item in merchant["hub_economy"]["items"])
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    blacksmith = runtime.submit(
+        {"kind": "overworld_action", "action": "blacksmith"}
+    )
+    assert blacksmith["screen"] == OverworldScreen.BLACKSMITH.value
+    assert blacksmith["hub_economy"] is None
+    assert blacksmith["merchant"] is not None
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    enchanter = runtime.submit(
+        {"kind": "overworld_action", "action": "enchanter"}
+    )
+    assert enchanter["screen"] == OverworldScreen.ENCHANTER.value
+    assert enchanter["hub_economy"] is None
+    assert enchanter["merchant"] is None
+    assert enchanter["equipment"] is not None
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    alchemist = runtime.submit(
+        {"kind": "overworld_action", "action": "alchemist"}
+    )
+    assert alchemist["screen"] == OverworldScreen.ALCHEMIST.value
+    assert alchemist["merchant"] is None
+    assert alchemist["hub_economy"]["items"] == []
+    assert alchemist["hub_economy"]["recipes"]
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    inventory = runtime.submit(
+        {"kind": "overworld_action", "action": "hub_inventory"}
+    )
+    assert inventory["screen"] == OverworldScreen.HUB_INVENTORY.value
+    assert inventory["hub_economy"]["recipes"] == []
+    assert any(item["carryable"] for item in inventory["hub_economy"]["items"])
+    assert all(not item["shop_stocked"] for item in inventory["hub_economy"]["items"])
+
+    runtime.submit({"kind": "overworld_action", "action": "back"})
+    runtime.submit({"kind": "overworld_action", "action": "character"})
+    equipment = runtime.submit(
+        {"kind": "overworld_action", "action": "equipment"}
+    )
+    assert equipment["screen"] == OverworldScreen.EQUIPMENT.value
+    assert equipment["equipment"] is not None
+    assert equipment["merchant"] is None
+    assert equipment["hub_economy"] is None
+
+
+def test_bridge_projects_and_submits_blacksmith_weapon_actions():
     runtime = bridge.BrowserRuntime()
     runtime.start_game("branoc")
     game = runtime._game
@@ -329,11 +413,12 @@ def test_bridge_projects_and_submits_hub_merchant_actions():
         enemy_factory=create_enemy_state,
     )
 
+    runtime.submit({"kind": "overworld_action", "action": "vendors"})
     merchant = runtime.submit(
-        {"kind": "overworld_action", "action": "merchant"}
+        {"kind": "overworld_action", "action": "blacksmith"}
     )
 
-    assert merchant["screen"] == OverworldScreen.MERCHANT.value
+    assert merchant["screen"] == OverworldScreen.BLACKSMITH.value
     assert merchant["merchant"]["selected_target_id"] == "branoc"
     assert merchant["merchant"]["weapon_name"] == "Sunder-Spire"
     assert len(merchant["merchant"]["slots"]) == 4
@@ -385,7 +470,8 @@ def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
         enemy_factory=create_enemy_state,
     )
 
-    merchant = runtime.submit({"kind": "overworld_action", "action": "merchant"})
+    runtime.submit({"kind": "overworld_action", "action": "vendors"})
+    merchant = runtime.submit({"kind": "overworld_action", "action": "blacksmith"})
     tier_v_view = merchant["merchant"]["tier_v"]
     assert tier_v_view["can_attempt"] is True
     assert tier_v_view["success_chance_percent"] == 20
@@ -393,7 +479,7 @@ def test_bridge_exposes_and_submits_tier_v_for_the_exact_target():
         {"kind": "merchant_tier_v", "target_drifter_id": "branoc"}
     )
 
-    assert attempted["screen"] == OverworldScreen.MERCHANT.value
+    assert attempted["screen"] == OverworldScreen.BLACKSMITH.value
     assert attempted["merchant"]["tier_v"]["completed"] in (True, False)
     assert game.party_state.shared_items == {}
 
@@ -410,8 +496,9 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
         enemy_factory=create_enemy_state,
     )
 
+    runtime.submit({"kind": "overworld_action", "action": "vendors"})
     merchant = runtime.submit(
-        {"kind": "overworld_action", "action": "merchant"}
+        {"kind": "overworld_action", "action": "blacksmith"}
     )
     assert merchant["merchant"]["component_recipes"][0]["can_craft"] is True
     crafted = runtime.submit(
@@ -433,6 +520,7 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
     assert game.party_state.shared_items.get("grade_i_metal", 0) == 0
     assert game.party_state.crafting_experience == 10
 
+    runtime.submit({"kind": "overworld_action", "action": "back"})
     runtime.submit({"kind": "overworld_action", "action": "back"})
     runtime.submit({"kind": "overworld_action", "action": "character"})
     weapon = runtime.submit(

@@ -166,6 +166,11 @@ def make_step_session(game):
     )
 
 
+def open_vendor(session, action=OverworldAction.BLACKSMITH):
+    session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    return session.submit(ChooseOverworldAction(action))
+
+
 def test_skills_session_purchases_and_equips_for_the_selected_drifter_only():
     game = completed_hub_game()
     branoc = game.member_for_drifter_id("branoc")
@@ -301,21 +306,66 @@ def test_merchant_commands_buy_load_and_alchemize_through_session():
     game = completed_hub_game()
     game.party_state.add_shared_gold(2)
     session = make_step_session(game)
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    session.submit(ChooseOverworldAction("vendors"))
+    session.submit(ChooseOverworldAction("merchant"))
 
     session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
     assert game.party_state.shared_gold == 0
     assert game.party_state.shared_items == {"healing_potion": 1}
 
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction("hub_inventory"))
     session.submit(ChooseHubSupplyAction("load", "healing_potion"))
     assert game.party_state.shared_items == {}
     assert game.party_state.carried_items == {"healing_potion": 1}
 
     game.party_state.add_shared_items({"medicinal_herb": 1, "clean_water": 1})
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction("vendors"))
+    session.submit(ChooseOverworldAction("alchemist"))
     session.submit(ChooseAlchemyRecipe("healing_potion"))
     assert game.party_state.shared_items == {"healing_potion": 1}
     assert game.party_state.carried_items == {"healing_potion": 1}
     assert game.party_state.crafting_experience == 0
+
+
+def test_vendor_navigation_routes_to_each_specialist_and_back():
+    session = make_step_session(completed_hub_game())
+
+    vendors = session.submit(ChooseOverworldAction("vendors"))
+    assert vendors.screen is OverworldScreen.VENDORS
+    assert [option.action.value for option in vendors.options] == [
+        "merchant",
+        "blacksmith",
+        "enchanter",
+        "alchemist",
+        "back",
+    ]
+
+    for action, expected_screen in (
+        ("merchant", OverworldScreen.MERCHANT),
+        ("blacksmith", OverworldScreen.BLACKSMITH),
+        ("enchanter", OverworldScreen.ENCHANTER),
+        ("alchemist", OverworldScreen.ALCHEMIST),
+    ):
+        session.submit(ChooseOverworldAction("vendors"))
+        view = session.submit(ChooseOverworldAction(action))
+        assert view.screen is expected_screen
+        assert session.submit(ChooseOverworldAction("back")).screen is OverworldScreen.VENDORS
+
+
+def test_vendor_navigation_is_rejected_outside_the_hub_without_state_change():
+    game = completed_hub_game()
+    enter_floor_one_rest(game)
+    session = make_step_session(game)
+    before = game.snapshot()
+
+    view = session.submit(ChooseOverworldAction("blacksmith"))
+
+    assert view.screen is OverworldScreen.REST
+    assert view.notice == "That option is not available."
+    assert game.snapshot() == before
 
 
 def test_merchant_stale_or_wrong_screen_commands_do_not_mutate():
@@ -325,8 +375,17 @@ def test_merchant_stale_or_wrong_screen_commands_do_not_mutate():
 
     session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
     assert game.party_state.snapshot() == before
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    session.submit(ChooseOverworldAction("vendors"))
+    session.submit(ChooseOverworldAction("merchant"))
     session.submit(ChooseHubSupplyAction("load", "healing_potion"))
+    assert game.party_state.snapshot() == before
+    session.submit(ChooseAlchemyRecipe("healing_potion"))
+    assert game.party_state.snapshot() == before
+
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    session.submit(ChooseOverworldAction("hub_inventory"))
+    session.submit(ChooseHubSupplyAction("buy", "healing_potion"))
     assert game.party_state.snapshot() == before
 
 
@@ -1123,8 +1182,7 @@ def test_replacing_modifier_requires_confirmation_and_destroys_displaced_modifie
         enemy_factory=lambda *args, **kwargs: None,
         save_port=make_test_save_port(tmp_path / "replace.json"),
     )
-    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
-    session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+    open_vendor(session, OverworldAction.ENCHANTER)
     session.submit(ChooseEquipmentInstance(armor.instance_id))
 
     confirmation = session.submit(
@@ -1147,7 +1205,7 @@ def test_replacing_modifier_requires_confirmation_and_destroys_displaced_modifie
 
     replaced = session.submit(ChooseEquipmentConfirmation(True))
 
-    assert replaced.screen is OverworldScreen.EQUIPMENT
+    assert replaced.screen is OverworldScreen.ENCHANTER
     assert session.game_state.party_state.equipment_instance(
         armor.instance_id
     ).modifier_slots == {"I": "vanguard_grade_i"}
@@ -1177,8 +1235,7 @@ def test_selling_modified_armor_requires_confirmation_and_never_returns_modifier
         enemy_factory=lambda *args, **kwargs: None,
         save_port=make_test_save_port(tmp_path / "sale.json"),
     )
-    session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
-    session.submit(ChooseOverworldAction(OverworldAction.EQUIPMENT))
+    open_vendor(session, OverworldAction.BLACKSMITH)
     session.submit(ChooseEquipmentInstance(armor.instance_id))
 
     confirmation = session.submit(
@@ -1198,7 +1255,7 @@ def test_selling_modified_armor_requires_confirmation_and_never_returns_modifier
 
     sold = session.submit(ChooseEquipmentConfirmation(True))
 
-    assert sold.screen is OverworldScreen.EQUIPMENT
+    assert sold.screen is OverworldScreen.BLACKSMITH
     assert session.game_state.party_state.equipment_instances == ()
     assert session.game_state.party_state.modifier_instances == ()
     assert session.game_state.party_state.shared_gold == initial_gold + 6
@@ -1261,7 +1318,7 @@ def test_hub_component_craft_installs_updates_combat_and_persists():
         enemy_factory=lambda *args, **kwargs: None,
     )
 
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session, OverworldAction.BLACKSMITH)
     crafted = session.submit(
         ChooseMerchantCraftComponent(
             "branoc",
@@ -1290,6 +1347,7 @@ def test_hub_component_craft_installs_updates_combat_and_persists():
     assert "recipe is not available" in duplicate.notice
     assert game.snapshot() == after_craft
 
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
     session.submit(ChooseOverworldAction(OverworldAction.BACK))
     session.submit(ChooseOverworldAction(OverworldAction.CHARACTER))
     session.submit(ChooseOverworldAction(OverworldAction.WEAPON))

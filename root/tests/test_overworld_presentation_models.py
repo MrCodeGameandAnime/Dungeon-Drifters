@@ -97,6 +97,8 @@ def test_all_approved_screen_values_are_typed():
     assert tuple(screen.value for screen in OverworldScreen) == (
         "main",
         "hub",
+        "vendors",
+        "hub_inventory",
         "floor_one_warning",
         "companion_selection",
         "floor_two_helper_selection",
@@ -111,6 +113,9 @@ def test_all_approved_screen_values_are_typed():
         "weapon",
         "equipment",
         "merchant",
+        "blacksmith",
+        "enchanter",
+        "alchemist",
         "items",
         "item_inspect",
         "healing_targets",

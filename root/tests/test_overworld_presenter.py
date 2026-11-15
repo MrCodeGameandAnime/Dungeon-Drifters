@@ -119,30 +119,62 @@ def test_hub_location_label_is_preserved_in_secondary_menus():
     )
 
 
-def test_merchant_view_exposes_storage_pack_and_authored_alchemy_recipes():
+def test_hub_routes_vendor_services_and_storage_to_distinct_menus():
     game = completed_hub_game()
-    game.party_state.add_shared_gold(12)
-    game.party_state.add_shared_items({"healing_potion": 2, "goblin_scrap": 1})
+    view = OverworldPresenter().build(game, screen=OverworldScreen.HUB)
+
+    labels_by_action = {option.action.value: option.label for option in view.options}
+    assert labels_by_action["vendors"] == "Vendors"
+    assert labels_by_action["hub_inventory"] == "Hub Inventory"
+    assert "merchant" not in labels_by_action
+
+
+def test_vendor_views_expose_only_their_owned_actions():
+    game = completed_hub_game()
+    game.party_state.add_shared_gold(200)
+    game.party_state.add_shared_items({
+        "healing_potion": 2,
+        "goblin_scrap": 1,
+        "medicinal_herb": 1,
+        "clean_water": 1,
+    })
     assert game.party_state.load_carried_supplies({"healing_potion": 1})
+    presenter = OverworldPresenter()
 
-    view = OverworldPresenter().build(game, screen=OverworldScreen.MERCHANT)
-
-    assert view.hub_economy.shared_gold == game.party_state.shared_gold
-    assert view.hub_economy.carried_units == 1
-    potion = next(
-        item for item in view.hub_economy.items
-        if item.item_id == "healing_potion"
-    )
-    assert (potion.stored_quantity, potion.carried_quantity) == (1, 1)
+    merchant = presenter.build(game, screen=OverworldScreen.MERCHANT)
+    assert merchant.merchant is None
+    assert merchant.hub_economy.recipes == ()
+    potion = next(item for item in merchant.hub_economy.items if item.item_id == "healing_potion")
+    herb = next(item for item in merchant.hub_economy.items if item.item_id == "medicinal_herb")
     assert potion.can_buy and not potion.can_sell
+    assert herb.can_buy and herb.can_sell
+    assert not potion.can_load and not potion.can_unload
+
+    inventory = presenter.build(game, screen=OverworldScreen.HUB_INVENTORY)
+    potion = next(item for item in inventory.hub_economy.items if item.item_id == "healing_potion")
+    assert not potion.can_buy and not potion.can_sell
     assert potion.can_load and potion.can_unload
+
+    alchemist = presenter.build(game, screen=OverworldScreen.ALCHEMIST)
+    assert alchemist.hub_economy.items == ()
+    assert alchemist.hub_economy.recipes
     recipe = next(
-        recipe for recipe in view.hub_economy.recipes
+        recipe for recipe in alchemist.hub_economy.recipes
         if recipe.recipe_id == "healing_potion"
     )
-    assert recipe.can_craft is False
+    assert recipe.can_craft is True
     assert recipe.ingredient_summary == ("Medicinal Herb x1", "Clean Water x1")
     assert recipe.output_summary == ("Healing Potion x1",)
+
+    blacksmith = presenter.build(game, screen=OverworldScreen.BLACKSMITH)
+    assert blacksmith.merchant is not None
+    assert blacksmith.equipment is not None
+    assert blacksmith.hub_economy is None
+
+    enchanter = presenter.build(game, screen=OverworldScreen.ENCHANTER)
+    assert enchanter.equipment is not None
+    assert enchanter.merchant is None
+    assert enchanter.hub_economy is None
 
 
 def test_items_separate_carried_supplies_from_storage_and_only_pack_is_usable():
@@ -355,7 +387,7 @@ def test_all_drifter_views_expose_complete_authored_data_without_mutation(
         character.character.super_current = 0
 
 
-def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recipes():
+def test_weapon_view_shows_installed_parts_and_blacksmith_offers_recipes():
     player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
@@ -366,7 +398,7 @@ def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recip
     grip = next(slot for slot in weapon.components if slot.slot_id == "grip_binding")
     assert grip.installed_component_id == "sunder_spire_grip"
 
-    merchant = presenter.build(game, screen=OverworldScreen.MERCHANT).merchant
+    merchant = presenter.build(game, screen=OverworldScreen.BLACKSMITH).merchant
     blade_recipe = next(
         recipe
         for recipe in merchant.component_recipes
@@ -381,7 +413,7 @@ def test_weapon_view_shows_installed_parts_and_merchant_offers_uninstalled_recip
     )
 
 
-def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
+def test_blacksmith_tier_v_offer_reports_cost_chance_and_requirements():
     player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)
     assert game.party_state.arrive_at_hub(player)
@@ -398,7 +430,7 @@ def test_merchant_tier_v_offer_reports_cost_chance_and_requirements():
 
     merchant = OverworldPresenter().build(
         game,
-        screen=OverworldScreen.MERCHANT,
+        screen=OverworldScreen.BLACKSMITH,
     ).merchant
 
     assert merchant.tier_v.can_attempt is True
@@ -418,7 +450,7 @@ def test_installed_component_recipe_is_hidden_for_that_drifter():
     player.signature_weapon_state.install_component("grip_binding", installed_id)
     merchant = OverworldPresenter().build(
         game,
-        screen=OverworldScreen.MERCHANT,
+        screen=OverworldScreen.BLACKSMITH,
     ).merchant
 
     assert installed_id not in {
@@ -437,7 +469,7 @@ def test_component_recipe_visibility_is_independent_for_each_drifter():
 
     companion_merchant = OverworldPresenter().build(
         game,
-        screen=OverworldScreen.MERCHANT,
+        screen=OverworldScreen.BLACKSMITH,
         selected_merchant_target_id="azhvielle",
     ).merchant
 
@@ -665,13 +697,26 @@ def test_equipment_view_offers_armor_actions_but_keeps_accessories_static():
         selected_equipment_instance_id=ring.instance_id,
     ).equipment
 
-    assert {action.operation for action in armor_view.actions} == {
-        "equip",
+    assert {action.operation for action in armor_view.actions} == {"equip"}
+    blacksmith_view = presenter.build(
+        game,
+        screen=OverworldScreen.BLACKSMITH,
+        selected_equipment_instance_id=armor.instance_id,
+    ).equipment
+    enchanter_view = presenter.build(
+        game,
+        screen=OverworldScreen.ENCHANTER,
+        selected_equipment_instance_id=armor.instance_id,
+    ).equipment
+
+    assert {action.operation for action in blacksmith_view.actions} == {
         "upgrade",
         "advance_rarity",
-        "extract",
         "sell",
         "dismantle",
+    }
+    assert {action.operation for action in enchanter_view.actions} == {
+        "extract",
         "affix",
     }
     assert armor_view.pendant.label == "Pendant"

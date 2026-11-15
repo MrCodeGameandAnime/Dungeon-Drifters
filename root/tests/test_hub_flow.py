@@ -41,6 +41,11 @@ def make_session(game):
     )
 
 
+def open_vendor(session, action=OverworldAction.BLACKSMITH):
+    session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    return session.submit(ChooseOverworldAction(action))
+
+
 class AcceptingSavePort:
     def inspect(self):
         return SaveLoadResult(SaveLoadStatus.MISSING)
@@ -69,21 +74,27 @@ def test_hub_offers_recruitment_without_surface_route_actions():
     assert OverworldAction.RETRY not in enabled_actions(view)
 
 
-def test_hub_offers_merchant_navigation():
+def test_hub_offers_vendor_navigation():
     session = make_session(game_at_hub())
     view = session.current_view()
 
     assert any(
-        option.label == "Merchant" and option.enabled
+        option.label == "Vendors" and option.enabled
         for option in view.options
     )
 
-    merchant = session.submit(
-        ChooseOverworldAction(OverworldAction.MERCHANT)
-    )
+    vendors = session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    assert [option.label for option in vendors.options] == [
+        "Merchant",
+        "Blacksmith",
+        "Enchanter",
+        "Alchemist",
+        "Back",
+    ]
 
-    assert merchant.screen is OverworldScreen.MERCHANT
-    assert getattr(merchant, "merchant", None) is not None
+    blacksmith = session.submit(ChooseOverworldAction(OverworldAction.BLACKSMITH))
+    assert blacksmith.screen is OverworldScreen.BLACKSMITH
+    assert blacksmith.merchant is not None
 
 
 def test_hub_pair_selection_changes_deployment_by_stable_drifter_id():
@@ -180,13 +191,13 @@ def test_merchant_dismantle_and_improvement_spend_shared_materials():
     game = game_at_hub()
     session = make_session(game)
     game.party_state.add_shared_items({"goblin_scrap": 1})
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session)
 
     dismantled = session.submit(
         ChooseMerchantDismantle("branoc", "goblin_scrap")
     )
 
-    assert dismantled.screen is OverworldScreen.MERCHANT
+    assert dismantled.screen is OverworldScreen.BLACKSMITH
     assert "goblin_scrap" not in game.party_state.shared_items
     assert sum(
         game.party_state.shared_items.get(item_id, 0)
@@ -228,7 +239,7 @@ def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
     game.party_state.add_shared_items(costs)
     monkeypatch.setattr(app.randomness, "randint", lambda _start, _end: 1)
     session = make_session(game)
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session)
 
     result = session.submit(ChooseMerchantTierV("branoc"))
 
@@ -247,13 +258,13 @@ def test_merchant_target_selection_is_reflected_and_stale_targets_are_rejected()
     assert game.party_state.complete_extraction((lead, companion))
     game.party_state.add_shared_items({"grade_i_metal": 1})
     session = make_session(game)
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session)
 
     selected = session.submit(ChooseMerchantTarget("azhvielle"))
     rejected = session.submit(ChooseMerchantImprove("branoc", "blade_guard"))
 
     assert selected.merchant.selected_target_id == "azhvielle"
-    assert rejected.notice == "Choose that Drifter before using the merchant."
+    assert rejected.notice == "Choose that Drifter before using the Blacksmith."
     assert game.party_state.shared_items == {"grade_i_metal": 1}
     assert game.player_state.signature_weapon_state.slot_progress["blade_guard"] == 0
 

@@ -7,6 +7,8 @@ from enum import StrEnum
 class OverworldScreen(StrEnum):
     MAIN = "main"
     HUB = "hub"
+    VENDORS = "vendors"
+    HUB_INVENTORY = "hub_inventory"
     FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
     FLOOR_TWO_HELPER_SELECTION = "floor_two_helper_selection"
@@ -21,6 +23,9 @@ class OverworldScreen(StrEnum):
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
+    BLACKSMITH = "blacksmith"
+    ENCHANTER = "enchanter"
+    ALCHEMIST = "alchemist"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     HEALING_TARGETS = "healing_targets"
@@ -47,7 +52,12 @@ class OverworldAction(StrEnum):
     RESPEC = "respec"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    VENDORS = "vendors"
+    HUB_INVENTORY = "hub_inventory"
     MERCHANT = "merchant"
+    BLACKSMITH = "blacksmith"
+    ENCHANTER = "enchanter"
+    ALCHEMIST = "alchemist"
     CRAFT = "craft"
     INSPECT = "inspect"
     USE = "use"
@@ -1214,10 +1224,22 @@ class OverworldView:
             self.equipment_confirmation is not None
         ):
             raise ValueError("equipment preview belongs only to its confirmation screen")
-        if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
-            raise ValueError("merchant data belongs only to the Merchant screen")
-        if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
-            raise ValueError("Hub economy data belongs only to the Merchant screen")
+        if (self.screen is OverworldScreen.BLACKSMITH) != (self.merchant is not None):
+            raise ValueError("weapon-service data belongs only to the Blacksmith")
+        economy_screens = {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.HUB_INVENTORY,
+            OverworldScreen.ALCHEMIST,
+        }
+        if (self.screen in economy_screens) != (self.hub_economy is not None):
+            raise ValueError("Hub economy data belongs only to its owning view")
+        equipment_screens = {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        }
+        if (self.screen in equipment_screens) != (self.equipment is not None):
+            raise ValueError("equipment data belongs only to equipment services")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
             if not 1 <= len(self.companion_choices) <= 3:
                 raise ValueError("companion selection must offer one to three choices")

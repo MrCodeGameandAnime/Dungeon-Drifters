@@ -189,6 +189,7 @@ class OverworldSession:
         self._selected_equipment_instance_id = None
         self._equipment_preview = None
         self._equipment_pending_input = None
+        self._equipment_return_screen = OverworldScreen.EQUIPMENT
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
@@ -532,7 +533,11 @@ class OverworldSession:
             selected_item_key=self._selected_item_key,
             selected_character_target_id=(
                 self._selected_equipment_target_id
-                if self._screen is OverworldScreen.EQUIPMENT
+                if self._screen in {
+                    OverworldScreen.EQUIPMENT,
+                    OverworldScreen.BLACKSMITH,
+                    OverworldScreen.ENCHANTER,
+                }
                 else self._selected_character_target_id
             ),
             selected_merchant_target_id=(
@@ -1061,7 +1066,7 @@ class OverworldSession:
 
     def _select_merchant_target(self, view, session_input):
         merchant = view.merchant
-        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
+        if view.screen is not OverworldScreen.BLACKSMITH or merchant is None:
             self._notice = "That Drifter is not available."
             return
         if not any(
@@ -1073,6 +1078,7 @@ class OverworldSession:
         self._selected_merchant_target_id = session_input.drifter_id
         self._selected_character_target_id = session_input.drifter_id
         self._selected_weapon_target_id = session_input.drifter_id
+        self._selected_equipment_target_id = session_input.drifter_id
         self._notice = None
 
     def _select_weapon_target(self, view, session_input):
@@ -1097,14 +1103,22 @@ class OverworldSession:
             targets = view.character.targets
         elif view.screen is OverworldScreen.SKILLS and view.skills is not None:
             targets = view.skills.targets
-        elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
+        elif view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        } and view.equipment is not None:
             targets = view.equipment.targets
         if targets is None or not any(
             target.drifter_id == session_input.drifter_id for target in targets
         ):
             self._notice = "That Drifter is not available."
             return
-        if view.screen is OverworldScreen.EQUIPMENT:
+        if view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        }:
             self._selected_equipment_target_id = session_input.drifter_id
         else:
             self._selected_character_target_id = session_input.drifter_id
@@ -1114,7 +1128,11 @@ class OverworldSession:
 
     def _select_equipment_instance(self, view, session_input):
         equipment = view.equipment
-        if view.screen is not OverworldScreen.EQUIPMENT or equipment is None:
+        if view.screen not in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        } or equipment is None:
             self._notice = "That equipment is not available."
             return
         if not any(
@@ -1128,13 +1146,21 @@ class OverworldSession:
 
     def _perform_equipment_action(self, view, session_input):
         equipment = view.equipment
+        allowed_operations = {
+            OverworldScreen.EQUIPMENT: {"equip"},
+            OverworldScreen.BLACKSMITH: {
+                "upgrade", "advance_rarity", "sell", "dismantle"
+            },
+            OverworldScreen.ENCHANTER: {"extract", "affix"},
+        }.get(view.screen, set())
         if (
-            view.screen is not OverworldScreen.EQUIPMENT
+            not allowed_operations
+            or session_input.operation.value not in allowed_operations
             or equipment is None
             or session_input.equipment_instance_id != equipment.selected_instance_id
             or session_input.target_drifter_id != equipment.selected_target_id
         ):
-            self._notice = "Choose that equipment and Drifter before continuing."
+            self._notice = "That equipment service is not available here."
             return
         action = first_or_none(
             candidate
@@ -1212,13 +1238,14 @@ class OverworldSession:
             return
         if not preview.can_apply:
             self._notice = (
-                "That Alchemist action is unavailable: "
+                "That equipment service is unavailable: "
                 + preview.status.value.replace("_", " ")
                 + "."
             )
             return
         self._equipment_preview = preview
         self._equipment_pending_input = session_input
+        self._equipment_return_screen = view.screen
         self._screen = OverworldScreen.EQUIPMENT_CONFIRMATION
         self._notice = None
 
@@ -1231,7 +1258,7 @@ class OverworldSession:
             self._notice = "That confirmation is not available."
             return
         if not session_input.confirmed:
-            self._screen = OverworldScreen.EQUIPMENT
+            self._screen = self._equipment_return_screen
             self._equipment_preview = None
             self._equipment_pending_input = None
             self._notice = "Cancelled. Nothing changed."
@@ -1295,7 +1322,7 @@ class OverworldSession:
             self._notice = "That confirmation is not available."
             return
 
-        self._screen = OverworldScreen.EQUIPMENT
+        self._screen = self._equipment_return_screen
         self._equipment_preview = None
         self._equipment_pending_input = None
         if result.status is success:
@@ -1312,11 +1339,11 @@ class OverworldSession:
 
     def _perform_hub_economy_action(self, view, session_input):
         economy = view.hub_economy
-        if view.screen is not OverworldScreen.MERCHANT or economy is None:
-            self._notice = "That Hub supply action is not available."
-            return
-        service = HubEconomyService(self.game_state)
         if isinstance(session_input, ChooseAlchemyRecipe):
+            if view.screen is not OverworldScreen.ALCHEMIST or economy is None:
+                self._notice = "Alchemy recipes are only available from the Alchemist."
+                return
+            service = HubEconomyService(self.game_state)
             recipe = first_or_none(
                 value for value in economy.recipes
                 if value.recipe_id == session_input.recipe_id
@@ -1332,6 +1359,21 @@ class OverworldSession:
             )
             return
 
+        operation = session_input.operation.value
+        expected_screen = (
+            OverworldScreen.MERCHANT
+            if operation in {"buy", "sell"}
+            else OverworldScreen.HUB_INVENTORY
+        )
+        if view.screen is not expected_screen or economy is None:
+            self._notice = (
+                "Buying and selling belong to the Merchant."
+                if operation in {"buy", "sell"}
+                else "Supply packing belongs to Hub Inventory."
+            )
+            return
+        service = HubEconomyService(self.game_state)
+
         item = first_or_none(
             value for value in economy.items
             if value.item_id == session_input.item_id
@@ -1339,7 +1381,6 @@ class OverworldSession:
         if item is None:
             self._notice = "That Hub item is not available."
             return
-        operation = session_input.operation.value
         enabled = {
             "buy": item.can_buy,
             "sell": item.can_sell,
@@ -1375,14 +1416,14 @@ class OverworldSession:
         from app.game.weapon_progression import WeaponProgressionService
 
         merchant = view.merchant
-        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
-            self._notice = "That merchant action is not available."
+        if view.screen is not OverworldScreen.BLACKSMITH or merchant is None:
+            self._notice = "That Blacksmith action is not available."
             return
         target_id = session_input.target_drifter_id
         if target_id != merchant.selected_target_id or not any(
             target.drifter_id == target_id for target in merchant.targets
         ):
-            self._notice = "Choose that Drifter before using the merchant."
+            self._notice = "Choose that Drifter before using the Blacksmith."
             return
 
         service = WeaponProgressionService(self.game_state)
@@ -1575,10 +1616,28 @@ class OverworldSession:
             OverworldAction.SKILLS: OverworldScreen.SKILLS,
             OverworldAction.WEAPON: OverworldScreen.WEAPON,
             OverworldAction.EQUIPMENT: OverworldScreen.EQUIPMENT,
+            OverworldAction.VENDORS: OverworldScreen.VENDORS,
+            OverworldAction.HUB_INVENTORY: OverworldScreen.HUB_INVENTORY,
             OverworldAction.MERCHANT: OverworldScreen.MERCHANT,
+            OverworldAction.BLACKSMITH: OverworldScreen.BLACKSMITH,
+            OverworldAction.ENCHANTER: OverworldScreen.ENCHANTER,
+            OverworldAction.ALCHEMIST: OverworldScreen.ALCHEMIST,
             OverworldAction.SELECT_PARTY: OverworldScreen.PARTY_SELECTION,
         }
         if action in navigation:
+            if action in {
+                OverworldAction.VENDORS,
+                OverworldAction.HUB_INVENTORY,
+                OverworldAction.MERCHANT,
+                OverworldAction.BLACKSMITH,
+                OverworldAction.ENCHANTER,
+                OverworldAction.ALCHEMIST,
+            } and self.game_state.party_state.phase not in {
+                DungeonPhase.HUB,
+                DungeonPhase.PARTY_READY,
+            }:
+                self._notice = "Vendor services are only available at the Hub."
+                return None
             if (
                 self._screen is OverworldScreen.REST
                 and self.game_state.overworld_state.active_route_id
@@ -2547,7 +2606,7 @@ class OverworldSession:
             self._adventure_text = None
             return
         if self._screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
-            self._screen = OverworldScreen.EQUIPMENT
+            self._screen = self._equipment_return_screen
             self._equipment_preview = None
             self._equipment_pending_input = None
             self._notice = "Cancelled. Nothing changed."
@@ -2583,8 +2642,19 @@ class OverworldSession:
         }:
             self._screen = OverworldScreen.CHARACTER
             return
-        if self._screen is OverworldScreen.MERCHANT:
+        if self._screen is OverworldScreen.VENDORS:
             self._screen = OverworldScreen.HUB
+            return
+        if self._screen is OverworldScreen.HUB_INVENTORY:
+            self._screen = OverworldScreen.HUB
+            return
+        if self._screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+            OverworldScreen.ALCHEMIST,
+        }:
+            self._screen = OverworldScreen.VENDORS
             return
         if self._screen is OverworldScreen.ITEM_INSPECT:
             self._screen = OverworldScreen.ITEMS

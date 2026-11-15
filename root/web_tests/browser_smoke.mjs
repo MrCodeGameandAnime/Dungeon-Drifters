@@ -418,7 +418,8 @@ const hubProjection = {
   location_label: "Floor 1 Hub",
   adventure_text: "You have reached the Floor 1 Hub. Recruit one companion to continue.",
   options: [
-    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
+    { action: "vendors", label: "Vendors", enabled: true, disabled_reason: null },
+    { action: "hub_inventory", label: "Hub Inventory", enabled: true, disabled_reason: null },
     { action: "recruit_companion", label: "Recruit Companion", enabled: true, disabled_reason: null },
     { action: "character", label: "Character", enabled: true, disabled_reason: null },
     { action: "items", label: "Items", enabled: true, disabled_reason: null },
@@ -496,10 +497,23 @@ const securedHubProjection = {
   adventure_text: "You return to the Floor 1 Hub. The tutorial rewards are secured.",
   shared_gold: 19,
   options: [
-    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
-    ...hubProjection.options.slice(2),
+    { action: "vendors", label: "Vendors", enabled: true, disabled_reason: null },
+    { action: "hub_inventory", label: "Hub Inventory", enabled: true, disabled_reason: null },
+    ...hubProjection.options.slice(3),
     { action: "select_party", label: "Choose Party", enabled: true, disabled_reason: null },
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
+  ],
+};
+
+const vendorsProjection = {
+  ...securedHubProjection,
+  screen: "vendors",
+  options: [
+    { action: "merchant", label: "Merchant", enabled: true, disabled_reason: null },
+    { action: "blacksmith", label: "Blacksmith", enabled: true, disabled_reason: null },
+    { action: "enchanter", label: "Enchanter", enabled: true, disabled_reason: null },
+    { action: "alchemist", label: "Alchemist", enabled: true, disabled_reason: null },
+    { action: "back", label: "Back", enabled: true, disabled_reason: null },
   ],
 };
 
@@ -563,7 +577,7 @@ const itemInspectionProjection = {
 
 const merchantProjection = {
   ...securedHubProjection,
-  screen: "merchant",
+  screen: "blacksmith",
   options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
   merchant: {
     crafting_level: 1,
@@ -1672,23 +1686,31 @@ try {
                 window.__fixtureHubPhase = "securedHub";
                 return JSON.stringify(views.securedHub);
               }
-              if (window.__fixtureHubPhase === "securedHub" && command.action === "merchant") {
-                window.__fixtureHubPhase = "merchant";
+              if (window.__fixtureHubPhase === "securedHub" && command.action === "vendors") {
+                window.__fixtureHubPhase = "vendors";
+                return JSON.stringify(views.vendors);
+              }
+              if (window.__fixtureHubPhase === "vendors" && command.action === "blacksmith") {
+                window.__fixtureHubPhase = "blacksmith";
                 return JSON.stringify(views.merchant);
               }
-              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_target" && command.drifter_id === "azhvielle") {
+              if (window.__fixtureHubPhase === "blacksmith" && command.kind === "merchant_target" && command.drifter_id === "azhvielle") {
                 return JSON.stringify(views.merchantAzhvielle);
               }
-              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_improve") {
+              if (window.__fixtureHubPhase === "blacksmith" && command.kind === "merchant_improve") {
                 return JSON.stringify(views.merchantImproved);
               }
-              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_dismantle") {
+              if (window.__fixtureHubPhase === "blacksmith" && command.kind === "merchant_dismantle") {
                 return JSON.stringify(views.merchantDismantled);
               }
-              if (window.__fixtureHubPhase === "merchant" && command.kind === "merchant_craft_component") {
+              if (window.__fixtureHubPhase === "blacksmith" && command.kind === "merchant_craft_component") {
                 return JSON.stringify(views.merchantCrafted);
               }
-              if (window.__fixtureHubPhase === "merchant" && command.action === "back") {
+              if (window.__fixtureHubPhase === "blacksmith" && command.action === "back") {
+                window.__fixtureHubPhase = "vendors";
+                return JSON.stringify(views.vendors);
+              }
+              if (window.__fixtureHubPhase === "vendors" && command.action === "back") {
                 window.__fixtureHubPhase = "securedHub";
                 return JSON.stringify(views.securedHub);
               }
@@ -1821,6 +1843,7 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    vendors: vendorsProjection,
     partySelection: partySelectionProjection,
     partyChosen: partyChosenProjection,
     items: itemsProjection,
@@ -2025,7 +2048,7 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 7 &&
+      await targetPage.locator("#overworld-options button").count() === 8 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
     "returned Hub did not show secured currency or offer Floor 1",
@@ -2054,7 +2077,23 @@ try {
   );
   console.log("PYD7|BROWSER|HUB_OUTING|PASS");
 
-  await clickVisibleOption(targetPage, "#overworld-options", "Merchant");
+  await clickVisibleOption(targetPage, "#overworld-options", "Vendors");
+  await targetPage.locator("#vendors-panel").waitFor({ state: "visible" }).catch(async (error) => {
+    const state = await targetPage.evaluate(() => ({
+      phase: window.__fixtureHubPhase,
+      lastCommand: window.__fixtureCommands.at(-1),
+      badge: document.getElementById("screen-badge")?.textContent?.trim(),
+      vendorsPanelHidden: document.getElementById("vendors-panel")?.hidden,
+      error: document.getElementById("error-message")?.textContent?.trim(),
+    }));
+    throw new Error(`${error.message}; vendor navigation state=${JSON.stringify(state)}`);
+  });
+  requireCondition(
+    await targetPage.locator("#vendors-options button").allInnerTexts().then((labels) =>
+      ["Merchant", "Blacksmith", "Enchanter", "Alchemist"].every((label) => labels.includes(label))),
+    "vendor directory omitted one or more specialist destinations",
+  );
+  await clickVisibleOption(targetPage, "#vendors-options", "Blacksmith");
   await targetPage.locator("#merchant-panel").waitFor({ state: "visible" });
   requireCondition(
     (await targetPage.locator("#merchant-weapon-name").innerText()) === "Sunder-Spire" &&
@@ -2062,14 +2101,14 @@ try {
       await targetPage.locator("#merchant-slots .merchant-row").count() === 4 &&
       await targetPage.locator("#merchant-slots button:enabled").count() === 1 &&
       (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x3"),
-    "Hub Merchant omitted the selected weapon, four slots, authoritative availability, or dismantle offer",
+    "Blacksmith omitted the selected weapon, four slots, authoritative availability, or dismantle offer",
   );
-  console.log("PYD8|BROWSER|HUB_MERCHANT|PASS");
+  console.log("PYD8|BROWSER|HUB_BLACKSMITH|PASS");
   await clickVisibleOption(targetPage, "#merchant-targets", "Azhvielle");
   requireCondition(
     (await targetPage.locator("#merchant-weapon-name").innerText()) === "Needle of Plain Iron" &&
       (await targetPage.locator("#merchant-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
-    "Merchant target selection did not switch to the chosen companion's weapon",
+    "Blacksmith target selection did not switch to the chosen companion's weapon",
   );
   await clickVisibleOption(
     targetPage,
@@ -2079,18 +2118,18 @@ try {
   requireCondition(
     (await targetPage.locator("#merchant-slots .merchant-row").first().innerText()).includes("3/100") &&
       (await targetPage.locator("#merchant-crafting").innerText()).includes("20 XP"),
-    "Merchant improvement did not render the authoritative slot and Crafting updates",
+    "Blacksmith improvement did not render the authoritative slot and Crafting updates",
   );
   await clickVisibleOption(targetPage, "#merchant-dismantle", "Dismantle");
   requireCondition(
     (await targetPage.locator("#merchant-materials").innerText()).includes("Cord: 1") &&
       (await targetPage.locator("#merchant-dismantle").innerText()).includes("Goblin Scrap x2"),
-    "Merchant dismantling did not render the authoritative materials and remaining loot",
+    "Blacksmith dismantling did not render the authoritative materials and remaining loot",
   );
   requireCondition(
     (await targetPage.locator("#merchant-component-recipes").innerText()).includes("Obsidian Focus Fittings") &&
       await targetPage.locator("#merchant-component-recipes button:enabled").count() === 1,
-    "Merchant did not show the available Grade-I component recipe",
+    "Blacksmith did not show the available Grade-I component recipe",
   );
   await clickVisibleOption(targetPage, "#merchant-component-recipes", "Craft & Install");
   requireCondition(
@@ -2100,6 +2139,9 @@ try {
   );
   await clickVisibleOption(targetPage, "#merchant-options", "Back");
   await targetPage.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await targetPage.locator("#vendors-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#vendors-options", "Back");
+  await targetPage.locator("#vendors-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(targetPage, "#overworld-options", "Character");
   await targetPage.locator("#character-panel").waitFor({ state: "visible" });
   requireCondition(
@@ -2135,11 +2177,13 @@ try {
     JSON.stringify(merchantCommands) === JSON.stringify([
       { kind: "overworld_action", action: "select_party" },
       { kind: "active_pair", drifter_ids: ["joruun", "azhvielle"] },
-      { kind: "overworld_action", action: "merchant" },
+      { kind: "overworld_action", action: "vendors" },
+      { kind: "overworld_action", action: "blacksmith" },
       { kind: "merchant_target", drifter_id: "azhvielle" },
       { kind: "merchant_improve", target_drifter_id: "azhvielle", slot_id: "focus_fittings" },
       { kind: "merchant_dismantle", target_drifter_id: "azhvielle", item_id: "goblin_scrap" },
       { kind: "merchant_craft_component", target_drifter_id: "azhvielle", component_id: "needle_focus_fitted" },
+      { kind: "overworld_action", action: "back" },
       { kind: "overworld_action", action: "back" },
       { kind: "overworld_action", action: "character" },
       { kind: "character_target", drifter_id: "azhvielle" },
@@ -2419,7 +2463,8 @@ try {
   await clickVisibleOption(page, "#character-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "hidden" });
 
-  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Blacksmith");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
   await branocMerchantTarget.click();
@@ -2462,6 +2507,8 @@ try {
 
   await clickVisibleOption(page, "#merchant-options", "Back");
   await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Weapon");
@@ -2477,7 +2524,8 @@ try {
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "hidden" });
-  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Blacksmith");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const savedWeaponProgression = {
     crafting: await page.locator("#merchant-crafting").innerText(),
@@ -2492,6 +2540,8 @@ try {
   );
   await clickVisibleOption(page, "#merchant-options", "Back");
   await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Options");
   await page.waitForFunction(
     () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
@@ -2596,7 +2646,8 @@ try {
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Back");
   await page.locator("#character-panel").waitFor({ state: "hidden" });
-  await clickVisibleOption(page, "#overworld-options", "Merchant");
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Blacksmith");
   await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const loadedWeaponProgression = {
     crafting: await page.locator("#merchant-crafting").innerText(),
@@ -2609,6 +2660,11 @@ try {
   );
   requireCondition(errors.length === 0, `browser page errors after weapon save/reload: ${errors.join("; ")}`);
   console.log("PYD7|BROWSER|WEAPON_SAVE_RELOAD|PASS");
+
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
 
   const supplyRow = (name) => page.locator("#merchant-supplies .hub-supply-row")
     .filter({ hasText: name }).first();
@@ -2632,6 +2688,9 @@ try {
     return Number(text.match(/Cord:\s*(\d+)/i)?.[1] || 0);
   };
 
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Blacksmith");
+  await page.locator("#merchant-panel").waitFor({ state: "visible" });
   const bossCore = page.locator("#merchant-dismantle .merchant-row")
     .filter({ hasText: "Goblin Lord Core" });
   requireCondition(await bossCore.count() === 1, "M2 supply setup did not provide a Goblin Lord Core");
@@ -2657,9 +2716,23 @@ try {
   }
   requireCondition(await cordCount() >= 3, "M2 supply setup could not obtain three Cord for Alchemy");
 
+  await clickVisibleOption(page, "#merchant-options", "Back");
+  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Merchant");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
   await updateSupply("Charcoal Powder", "Buy");
   await updateSupply("Charcoal Powder", "Buy");
   await updateSupply("Healing Potion", "Buy");
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Alchemist");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
   const craftAlchemy = async (name) => {
     const row = page.locator("#merchant-alchemy-recipes .merchant-row")
       .filter({ has: page.locator("strong").getByText(name, { exact: true }) });
@@ -2667,21 +2740,25 @@ try {
     if (rowCount !== 1) {
       const recipes = await page.locator("#merchant-alchemy-recipes").innerText();
       const badge = await page.locator("#screen-badge").innerText();
-      throw new Error(`M2 Merchant did not offer ${name} (matches=${rowCount}, screen=${badge}, recipes=${recipes})`);
+      throw new Error(`M2 Alchemist did not offer ${name} (matches=${rowCount}, screen=${badge}, recipes=${recipes})`);
     }
-    const before = await supplyRow(name).innerText();
+    await page.locator("#notice").evaluate((element) => { element.textContent = ""; });
     await row.getByRole("button", { name: "Craft", exact: true }).click();
-    await page.waitForFunction(({ itemName, oldText }) => {
-      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
-        .find((candidate) => candidate.innerText.includes(itemName));
-      return current && current.innerText !== oldText;
-    }, { itemName: name, oldText: before });
+    await page.waitForFunction((message) =>
+      document.getElementById("notice").textContent === message,
+    `Crafted ${name}.`);
   };
   await craftAlchemy("Smoke Powder");
   await craftAlchemy("Smoke Powder");
   await craftAlchemy("Smoke Bomb");
   await craftAlchemy("Smoke Bomb");
   await craftAlchemy("Return Talisman");
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await page.locator("#vendors-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
   requireCondition(
     await quantityInSupplyRow("Healing Potion", "Stored") === 1 &&
       await quantityInSupplyRow("Smoke Bomb", "Stored") === 2 &&
@@ -2699,8 +2776,8 @@ try {
       await quantityInSupplyRow("Return Talisman", "Stored") === 0,
     "loading supplies did not transfer four units out of Hub storage into the pack",
   );
-  await clickVisibleOption(page, "#merchant-options", "Back");
-  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Options");
   await page.waitForFunction(() =>
     [...document.querySelectorAll("#overworld-options button")].some((button) =>
@@ -3431,8 +3508,8 @@ try {
   );
   console.log("M4_BROWSER|EARLY_EXTRACTION_NO_RECRUITMENT|PASS");
 
-  await clickVisibleOption(page, "#overworld-options", "Merchant");
-  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
   let storedHealingPotions = await quantityInSupplyRow("Healing Potion", "Stored");
   while (storedHealingPotions > 0 && await quantityInSupplyRow("Healing Potion", "Carried") < 6) {
     await updateSupply("Healing Potion", "Load");
@@ -3442,8 +3519,8 @@ try {
     await quantityInSupplyRow("Healing Potion", "Carried") === 6,
     "the Floor II replay did not reload a full Healing Potion pack from secured Hub storage",
   );
-  await clickVisibleOption(page, "#merchant-options", "Back");
-  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
 
   await clickVisibleOption(page, "#overworld-options", "Start Floor 2");
   await page.locator("#party-panel").waitFor({ state: "visible" });
@@ -3729,8 +3806,8 @@ try {
   );
   console.log("M4_BROWSER|FLOOR_TWO_REPLAY_PAIR_CHANGE|PASS");
 
-  await clickVisibleOption(page, "#overworld-options", "Merchant");
-  await page.locator("#merchant-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
   let floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
   while (
     floorThreeStoredPotions > 0 &&
@@ -3739,8 +3816,8 @@ try {
     await updateSupply("Healing Potion", "Load");
     floorThreeStoredPotions = await quantityInSupplyRow("Healing Potion", "Stored");
   }
-  await clickVisibleOption(page, "#merchant-options", "Back");
-  await page.locator("#merchant-panel").waitFor({ state: "hidden" });
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
   await clickVisibleOption(page, "#overworld-options", "Start Floor 3");
   await page.locator("#party-panel").waitFor({ state: "visible" });
   for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
@@ -3921,6 +3998,18 @@ try {
   );
   await m5ActionButton("Equip").click();
   await m5Page.locator("#notice").filter({ hasText: "assigned to the selected Drifter" }).waitFor({ state: "visible" });
+  const characterEquipmentActions = await m5Page.locator("#equipment-actions button").allInnerTexts();
+  requireCondition(
+    characterEquipmentActions.length === 1 && characterEquipmentActions[0].includes("Equip") &&
+      !/Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/.test(characterEquipmentActions.join(" ")),
+    `Character Equipment exposed vendor-only services: ${JSON.stringify(characterEquipmentActions)}`,
+  );
+  await clickVisibleOption(m5Page, "#equipment-options", "Back");
+  await clickVisibleOption(m5Page, "#character-options", "Back");
+  await clickVisibleOption(m5Page, "#overworld-options", "Vendors");
+  await clickVisibleOption(m5Page, "#vendors-options", "Blacksmith");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
+  await selectM5Equipment("Field Helm");
   await m5ActionButton("Upgrade").click();
   await m5Page.locator("#notice").filter({ hasText: "Armor stats upgraded." }).waitFor({ state: "visible" });
   await m5ActionButton("Advance Rarity").click();
@@ -3930,8 +4019,8 @@ try {
       (await m5Page.locator("#equipment-inspection-state").innerText()).includes("Equipped by Ser Branoc"),
     "armor upgrade/rarity advancement or exact-target equip did not update its owned instance",
   );
-  await clickVisibleOption(m5Page, "#equipment-options", "Back");
-  await clickVisibleOption(m5Page, "#character-options", "Back");
+  await clickVisibleOption(m5Page, "#merchant-options", "Back");
+  await clickVisibleOption(m5Page, "#vendors-options", "Back");
   await clickVisibleOption(m5Page, "#overworld-options", "Options");
   await clickVisibleOption(m5Page, "#overworld-options", "Save");
   await m5Page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
@@ -3966,8 +4055,25 @@ try {
     "equipment transfer did not target the selected Drifter",
   );
 
+  for (const [name, forbiddenActions] of [
+    ["Iron Ring", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+    ["Wayfinder Pendant", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
+  ]) {
+    await selectM5Equipment(name);
+    const actions = await m5Page.locator("#equipment-actions button").allInnerTexts();
+    requireCondition(
+      actions.length === 1 && !forbiddenActions.test(actions.join(" ")) && actions[0].includes("Equip"),
+      `${name} exposed armor-only or destructive actions: ${JSON.stringify(actions)}`,
+    );
+  }
+  await clickVisibleOption(m5Page, "#equipment-options", "Back");
+  await clickVisibleOption(m5Page, "#character-options", "Back");
+  await clickVisibleOption(m5Page, "#overworld-options", "Vendors");
+  await clickVisibleOption(m5Page, "#vendors-options", "Enchanter");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
   await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
   await selectM5Equipment("Field Helm");
+
   await m5ActionButton("Affix Vanguard").click();
   await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
   const replacementConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
@@ -4007,17 +4113,9 @@ try {
     "confirmed extraction did not destroy the donor while preserving its modifier",
   );
 
-  for (const [name, forbiddenActions] of [
-    ["Iron Ring", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
-    ["Wayfinder Pendant", /Upgrade|Advance Rarity|Extract Modifiers|Affix|Sell|Dismantle/],
-  ]) {
-    await selectM5Equipment(name);
-    const actions = await m5Page.locator("#equipment-actions button").allInnerTexts();
-    requireCondition(
-      actions.length === 1 && !forbiddenActions.test(actions.join(" ")) && actions[0].includes("Equip"),
-      `${name} exposed armor-only or destructive actions: ${JSON.stringify(actions)}`,
-    );
-  }
+  await clickVisibleOption(m5Page, "#equipment-options", "Back");
+  await clickVisibleOption(m5Page, "#vendors-options", "Blacksmith");
+  await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
 
   await selectM5Equipment("Field Gloves");
   await m5ActionButton("Sell").click();

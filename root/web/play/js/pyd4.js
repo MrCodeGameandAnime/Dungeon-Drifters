@@ -750,7 +750,14 @@
 
     const equipment = view.equipment;
     if (!equipment) return;
-    setText("equipment-title", "Equipment");
+    setText(
+      "equipment-title",
+      view.screen === "blacksmith"
+        ? "Blacksmith Services"
+        : view.screen === "enchanter"
+          ? "Enchanter Services"
+          : "Equipment",
+    );
     renderPartyTargets("equipment-targets", equipment.targets);
 
     const inventory = $("equipment-inventory");
@@ -873,12 +880,17 @@
       line.textContent = benefit;
       benefits.append(line);
     }
-    renderDetailOptions("equipment-options", view.options);
+    const blacksmithOwnsBack = view.screen === "blacksmith";
+    $("equipment-options").hidden = blacksmithOwnsBack;
+    if (!blacksmithOwnsBack) {
+      renderDetailOptions("equipment-options", view.options);
+    }
   }
 
   function renderMerchant(view) {
     const merchant = view.merchant;
     if (!merchant) return;
+    setText("merchant-title", "Blacksmith");
     setText(
       "merchant-crafting",
       `Crafting Level ${merchant.crafting_level} | ${merchant.crafting_experience} XP`,
@@ -1026,18 +1038,33 @@
       tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
       "merchant-action",
     ));
-    renderHubEconomy(view.hub_economy);
     renderDetailOptions("merchant-options", view.options);
   }
 
-  function renderHubEconomy(economy) {
+  function renderVendorDirectory(view) {
+    renderDetailOptions("vendors-options", view.options);
+  }
+
+  function renderHubEconomy(view) {
+    const economy = view.hub_economy;
+    const title = {
+      merchant: "Merchant",
+      hub_inventory: "Hub Inventory",
+      alchemist: "Alchemist",
+    }[view.screen] || "Hub Services";
+    setText("hub-economy-title", title);
     const summary = $("merchant-storage-summary");
     const supplies = $("merchant-supplies");
     const recipes = $("merchant-alchemy-recipes");
+    const alchemySection = $("hub-alchemy-section");
+    const alchemist = view.screen === "alchemist";
+    supplies.hidden = alchemist;
+    alchemySection.hidden = !alchemist;
     clear(supplies);
     clear(recipes);
     if (!economy) {
       summary.textContent = "";
+      renderDetailOptions("hub-economy-options", view.options);
       return;
     }
     summary.textContent = `Shared gold: ${economy.shared_gold} | Carried supplies: ${economy.carried_units}/${economy.carried_capacity}`;
@@ -1092,6 +1119,12 @@
       row.append(description, actions);
       supplies.append(row);
     }
+    if (!alchemist && !(economy.items || []).length) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No eligible goods are available.";
+      supplies.append(empty);
+    }
     for (const recipe of economy.recipes || []) {
       const row = document.createElement("div");
       row.className = "merchant-row";
@@ -1111,6 +1144,7 @@
       ));
       recipes.append(row);
     }
+    renderDetailOptions("hub-economy-options", view.options);
   }
 
   function renderDetailOptions(containerId, options) {
@@ -1395,7 +1429,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "merchant", "items", "item_inspect", "healing_targets",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "vendors", "merchant", "hub_inventory", "blacksmith", "enchanter", "alchemist", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -1454,16 +1488,23 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("respec-panel").hidden = view.screen !== "respec_confirmation";
     $("weapon-panel").hidden = view.screen !== "weapon";
-    $("equipment-panel").hidden = !["equipment", "equipment_confirmation"].includes(view.screen);
+    $("equipment-panel").hidden = !["equipment", "equipment_confirmation", "blacksmith", "enchanter"].includes(view.screen);
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
-    $("merchant-panel").hidden = view.screen !== "merchant";
+    $("vendors-panel").hidden = view.screen !== "vendors";
+    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "alchemist"].includes(view.screen);
+    $("merchant-panel").hidden = view.screen !== "blacksmith";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "respec_confirmation") renderRespec(view);
     else if (view.screen === "weapon") renderWeapon(view);
-    else if (["equipment", "equipment_confirmation"].includes(view.screen)) renderEquipment(view);
+    else if (view.screen === "blacksmith") {
+      renderEquipment(view);
+      renderMerchant(view);
+    }
+    else if (["equipment", "equipment_confirmation", "enchanter"].includes(view.screen)) renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
-    else if (view.screen === "merchant") renderMerchant(view);
+    else if (view.screen === "vendors") renderVendorDirectory(view);
+    else if (["merchant", "hub_inventory", "alchemist"].includes(view.screen)) renderHubEconomy(view);
 
     renderInventory($("inventory"), view);
     clear($("actions"));
