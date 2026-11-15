@@ -4132,7 +4132,10 @@ try {
   await m5Page.locator("#equipment-confirmation-title").filter({ hasText: "Sell" }).waitFor({ state: "visible" });
   const saleConfirmation = await m5Page.locator("#equipment-confirmation-content").innerText();
   requireCondition(
-    saleConfirmation.includes("authored gold") && saleConfirmation.includes("buyback during this Hub visit") && saleConfirmation.includes("Vanguard"),
+    saleConfirmation.includes("authored gold") &&
+      saleConfirmation.includes("buyback during this Hub visit") &&
+      saleConfirmation.includes("its modifiers remain available") &&
+      saleConfirmation.includes("anything not recovered is discarded when the visit ends"),
     `modified armor sale did not warn of modifier loss: ${saleConfirmation}`,
   );
   await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
