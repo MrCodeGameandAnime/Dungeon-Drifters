@@ -1,6 +1,6 @@
 # M6.5 Hub Vendor Specialization
 
-**Status:** Gate 0 is closed. Slice A authored catalogs and content validation are implemented. Local qualification: root pytest **2,338 passed**, web pytest **75 passed**, content validation and compileall passed, and the browser build packaged **177 files**. Exact-SHA hosted qualification is pending. Slice B and later slices have not started and remain unauthorized.
+**Status:** Gate 0 is closed. Slice A authored catalogs and content validation are implemented. Local qualification: root pytest **2,338 passed**, web pytest **75 passed**, content validation and compileall passed, the browser build packaged **177 files**, and the full browser smoke passed after correcting one stale label expectation. Hosted run [43635075062](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/43635075062) passed its other checks but failed at that stale browser expectation; the correction awaits exact-SHA hosted qualification. Slice B and later slices have not started and remain unauthorized.
 
 **Planning baseline:** v0.7 merge commit `8a76bf6b857c6b4302b5a013f08e208e2f823a28`; final readiness audit at `e66a4f066d2dc7083b1c76075239ba7ab392a76f` on `dungeon`.
 
@@ -14,6 +14,7 @@
 - `root/src/app/content/vendor_catalog.py` defines validated merchandise offers, finite stock caps/initial/refill quantities, progression unlocks, deterministic equipment policies, Grade I-IV Crystal offers, Grade I-III first-clear rewards, and the reserved Grade V boundary. No service consumes these definitions yet.
 - `root/tools/validate_content.py` includes vendor-catalog validation while preserving normal diagnostics when existing authored content is malformed.
 - Focused catalog/economy/content tests cover IDs, prices, resale eligibility, stock schedules, unlock/source references, compatibility, and validation failures. The generated MicroPython dataclass manifest and existing M2 price-probe expectation were updated for the added content definitions.
+- Hosted run `43635075062` passed the Python, web, content, build, PostgreSQL, and migration checks; its browser smoke used the superseded `Charcoal Dust` label. The existing smoke now expects the approved `Charcoal Powder` label, and the complete browser smoke passes locally.
 - No vendor service, screen, gameplay reward delivery, save schema, or persistence behavior was added. Slice B remains unauthorized.
 
 ## Authority And Scope

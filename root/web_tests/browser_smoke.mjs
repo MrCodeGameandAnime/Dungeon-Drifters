@@ -2650,8 +2650,8 @@ try {
   }
   requireCondition(await cordCount() >= 3, "M2 supply setup could not obtain three Cord for Alchemy");
 
-  await updateSupply("Charcoal Dust", "Buy");
-  await updateSupply("Charcoal Dust", "Buy");
+  await updateSupply("Charcoal Powder", "Buy");
+  await updateSupply("Charcoal Powder", "Buy");
   await updateSupply("Healing Potion", "Buy");
   const craftAlchemy = async (name) => {
     const row = page.locator("#merchant-alchemy-recipes .merchant-row")
