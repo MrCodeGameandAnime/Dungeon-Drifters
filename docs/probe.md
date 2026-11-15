@@ -658,5 +658,9 @@ not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
 The earlier alternate-build diagnostic (486,912 bytes, SHA-256
 `E90AFC976ED7CB2EE530BE7F5D8C769C1F3B562DF4DDB04A6C589177ED912EFE`) is
-superseded and is not counted as pinned evidence. Exact-SHA hosted qualification
-for the updated runtime tooling remains pending.
+superseded and is not counted as pinned evidence. The updated runtime tooling
+was hosted-qualified on exact implementation SHA
+`92b2968e2acf2ba6d4f188ccd2c362fff33059ce` in [Actions run
+43737762509](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/43737762509).
+Both hosted jobs passed, including the cumulative Tests job and the PostgreSQL,
+migration-from-zero, and Alembic parity job.
