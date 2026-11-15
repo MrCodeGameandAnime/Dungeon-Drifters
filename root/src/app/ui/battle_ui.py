@@ -42,9 +42,11 @@ class ChooseTarget:
 @dataclass(frozen=True)
 class ChooseHealingTarget:
     target_id: str
+    item_id: str = "healing_potion"
 
     def __post_init__(self):
         _validate_nonempty_string("target_id", self.target_id)
+        _validate_nonempty_string("item_id", self.item_id)
 
 
 @dataclass(frozen=True)

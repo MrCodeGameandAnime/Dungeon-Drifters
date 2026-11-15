@@ -13,6 +13,7 @@ from app.content.catalog import (
     get_weapon_spec,
 )
 from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
+from app.content.vendor_catalog import VENDOR_MERCHANDISE
 from app.content.advancement_combat_spec import get_advancement_move
 from app.content.advancement_spec import (
     AdvancementSkillKind,
@@ -21,6 +22,7 @@ from app.content.advancement_spec import (
 from app.content.armor_spec import get_armor_modifier, get_armor_rarity
 from app.content.equipment_spec import get_equipment_template
 from app.game.alchemist import AlchemistService
+from app.game.alchemy import AlchemyService, AlchemyStatus
 from app.game.armor_progression import ArmorProgressionService
 from app.game.equipment import (
     can_manage_equipment_target,
@@ -68,6 +70,7 @@ from app.presentation.overworld_models import (
     EquipmentInstanceView,
     EquipmentModifierView,
     HubAlchemyRecipeView,
+    HubBuybackView,
     HubEconomyView,
     HubSupplyItemView,
     InventoryView,
@@ -117,7 +120,24 @@ _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
 
 
-def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
+def _display_item_name(item_id, authored_names):
+    display_name = authored_names.get(item_id)
+    if display_name is not None:
+        return display_name
+    return " ".join(
+        part[:1].upper() + part[1:]
+        for part in item_id.replace("_", " ").split()
+    )
+
+
+def _equipment_action(
+    operation,
+    label,
+    preview,
+    *,
+    modifier_instance_id=None,
+    affix_id=None,
+):
     details = []
     if preview.gold_cost:
         details.append(f"Cost: {preview.gold_cost} gold")
@@ -132,6 +152,10 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
             "Materials: "
             + ", ".join(
                 f"{quantity} {get_material_spec(item_id).display_name}"
+                if _is_weapon_material(item_id)
+                else f"{quantity} {get_supply_item(item_id).display_name}"
+                if get_supply_item(item_id) is not None
+                else f"{quantity} {item_id.replace('_', ' ')}"
                 for item_id, quantity in material_costs
             )
         )
@@ -161,7 +185,7 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         name = get_armor_modifier(incoming_modifier).name
         details.append(f"Incoming modifier consumed: {name}")
     destroyed_modifiers = getattr(preview, "destroyed_modifiers", ())
-    if destroyed_modifiers:
+    if destroyed_modifiers and preview.action != "sell":
         names = ", ".join(
             get_armor_modifier(modifier_id).name
             for modifier_id in destroyed_modifiers
@@ -178,7 +202,9 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         details.append("Donor armor will be destroyed.")
     if preview.action == "sell":
         details.append(
-            "Only authored gold is awarded; installed modifiers are not returned."
+            "Only authored gold is awarded. Exact armor and modifiers remain "
+            "available for buyback during this Hub visit; anything not recovered "
+            "is discarded when the visit ends."
         )
     elif preview.action == "dismantle":
         details.append(
@@ -197,7 +223,16 @@ def _equipment_action(operation, label, preview, *, modifier_instance_id=None):
         disabled_reason=None if preview.can_apply else preview.status.value,
         summary="; ".join(details) or preview.status.value.replace("_", " "),
         modifier_instance_id=modifier_instance_id,
+        affix_id=affix_id,
     )
+
+
+def _is_weapon_material(item_id):
+    try:
+        get_material_spec(item_id)
+    except ValueError:
+        return False
+    return True
 
 
 def _adjacent_run_counts(values):
@@ -265,7 +300,12 @@ class OverworldPresenter:
                     OverworldScreen.PARTY_READY,
                     OverworldScreen.OUTING,
                     OverworldScreen.EXTRACTION,
+                    OverworldScreen.VENDORS,
+                    OverworldScreen.HUB_INVENTORY,
                     OverworldScreen.MERCHANT,
+                    OverworldScreen.BLACKSMITH,
+                    OverworldScreen.ENCHANTER,
+                    OverworldScreen.ALCHEMIST,
                     OverworldScreen.EXPEDITIONS,
                     OverworldScreen.EXPEDITION_SETUP,
                     OverworldScreen.EXPEDITION_CONFIRMATION,
@@ -355,21 +395,38 @@ class OverworldPresenter:
             ),
             merchant=(
                 self._merchant_view(game_state, selected_merchant_target_id)
-                if screen is OverworldScreen.MERCHANT
+                if screen is OverworldScreen.BLACKSMITH
                 else None
             ),
             hub_economy=(
-                self._hub_economy_view(game_state)
-                if screen is OverworldScreen.MERCHANT
+                self._hub_economy_view(
+                    game_state,
+                    screen,
+                    selected_target_id=selected_merchant_target_id,
+                )
+                if screen in {
+                    OverworldScreen.MERCHANT,
+                    OverworldScreen.BLACKSMITH,
+                    OverworldScreen.HUB_INVENTORY,
+                    OverworldScreen.ALCHEMIST,
+                }
                 else None
+            ),
+            hub_transaction_sequence=(
+                game_state.party_state.hub_economy_state.transaction_sequence
             ),
             equipment=(
                 self._equipment_view(
                     game_state,
                     selected_character_target_id,
                     selected_equipment_instance_id,
+                    action_scope=screen,
                 )
-                if screen is OverworldScreen.EQUIPMENT
+                if screen in {
+                    OverworldScreen.EQUIPMENT,
+                    OverworldScreen.BLACKSMITH,
+                    OverworldScreen.ENCHANTER,
+                }
                 else None
             ),
             inventory=(
@@ -455,7 +512,14 @@ class OverworldPresenter:
                 else None
             ),
             healing_targets=(
-                self._healing_targets(game_state)
+                self._healing_targets(
+                    game_state,
+                    (
+                        selected_item.selection_key.split(":", 1)[1]
+                        if selected_item is not None
+                        else "healing_potion"
+                    ),
+                )
                 if screen is OverworldScreen.HEALING_TARGETS
                 else ()
             ),
@@ -650,8 +714,18 @@ class OverworldPresenter:
             return "Your party has set out from the Floor 1 Hub."
         if screen is OverworldScreen.EXTRACTION:
             return "The Goblin trio is defeated. Return to the hub to secure your rewards."
+        if screen is OverworldScreen.VENDORS:
+            return "Choose a specialist for the service you need."
+        if screen is OverworldScreen.HUB_INVENTORY:
+            return "Manage shared storage and prepare the carried supply pack."
         if screen is OverworldScreen.MERCHANT:
-            return "Improve a party Drifter's signature weapon with shared supplies."
+            return "Buy and sell eligible goods with the Merchant."
+        if screen is OverworldScreen.BLACKSMITH:
+            return "Improve weapons and manage physical equipment."
+        if screen is OverworldScreen.ENCHANTER:
+            return "Extract or apply armor modifiers."
+        if screen is OverworldScreen.ALCHEMIST:
+            return "Craft the alchemical recipes currently available to your party."
         if game_state.party_state.phase is DungeonPhase.PARTY_READY:
             return "Your party is assembled and ready to set out."
         if game_state.party_state.tutorial_complete:
@@ -1249,75 +1323,231 @@ class OverworldPresenter:
         )
 
     @staticmethod
-    def _hub_economy_view(game_state):
+    def _hub_economy_view(game_state, screen, *, selected_target_id=None):
         party = game_state.party_state
+        screen = OverworldScreen(screen)
+        vendor_id = {
+            OverworldScreen.MERCHANT: "merchant",
+            OverworldScreen.BLACKSMITH: "blacksmith",
+            OverworldScreen.ALCHEMIST: "alchemist",
+        }.get(screen)
+        if screen is OverworldScreen.BLACKSMITH:
+            available_members = game_state.members_available_to_party
+            if selected_target_id is None:
+                selected_target_id = _member_drifter_spec(
+                    available_members[0]
+                ).drifter_id
+            target = game_state.member_for_drifter_id(selected_target_id)
+            target_weapon = get_weapon_spec(target.signature_weapon_state.weapon_id)
+        else:
+            target = None
+            target_weapon = None
+        economy_state = party.hub_economy_state
+        component_stacks = economy_state.snapshot()["component_stacks"]
         authored_ids = {item.item_id for item in SUPPLY_ITEMS}
         item_ids = [item.item_id for item in SUPPLY_ITEMS]
-        item_ids.extend(
-            sorted((set(party.shared_items) | set(party.carried_items)) - authored_ids)
-        )
+        if vendor_id is not None:
+            item_ids.extend(
+                item.item_id
+                for item in VENDOR_MERCHANDISE
+                if any(offer.vendor_id == vendor_id for offer in item.offers)
+                and item.item_id not in authored_ids
+            )
+        item_ids.extend(sorted(
+            (set(party.shared_items) | set(party.carried_items)
+             | set(component_stacks))
+            - set(item_ids)
+        ))
         items = []
         for item_id in item_ids:
             spec = get_supply_item(item_id)
-            stored = party.shared_items.get(item_id, 0)
+            merchandise = first_or_none(
+                row for row in VENDOR_MERCHANDISE if row.item_id == item_id
+            )
+            offer = (
+                None
+                if merchandise is None or vendor_id is None
+                else first_or_none(
+                    row for row in merchandise.offers if row.vendor_id == vendor_id
+                )
+            )
+            stored = (
+                component_stacks.get(item_id, 0)
+                if merchandise is not None and merchandise.category == "component"
+                else party.shared_items.get(item_id, 0)
+            )
             carried = party.carried_items.get(item_id, 0)
             if spec is None:
                 display_name = item_id.replace("_", " ").title()
-                description = "Stored item. No Hub supply action is authored for it."
-                price = 0
-                shop_stocked = sellable = carryable = False
+                description = (
+                    "Blacksmith component"
+                    if merchandise is not None and merchandise.category == "component"
+                    else "Authored vendor merchandise"
+                )
+                base_price = (
+                    merchandise.base_price if merchandise is not None else 0
+                )
+                carryable = False
             else:
                 display_name = spec.display_name
                 description = spec.description
-                price = spec.base_price
-                shop_stocked = spec.shop_stocked
-                sellable = spec.sellable
-                carryable = spec.carryable
+                base_price = spec.base_price
+                carryable = (
+                    screen is OverworldScreen.HUB_INVENTORY and spec.carryable
+                )
+            if offer is not None:
+                base_price = offer.unit_price
+            shop_stocked = offer is not None
+            stock_quantity = (
+                economy_state.vendor_stock_quantity(vendor_id, item_id)
+                if shop_stocked
+                else 0
+            )
+            sellable = (
+                merchandise is not None
+                and merchandise.sale_vendor_id == vendor_id
+                and merchandise.resale_price is not None
+                and merchandise.category not in {"armor", "accessory"}
+            )
+            is_component = (
+                merchandise is not None and merchandise.category == "component"
+            )
+            can_install_component = False
+            if is_component and target_weapon is not None and stored:
+                try:
+                    component = get_weapon_component_spec(
+                        target_weapon.progression,
+                        item_id,
+                    )
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    can_install_component = (
+                        target.signature_weapon_state.components[component.slot_id]
+                        != component.component_id
+                    )
+            if vendor_id is not None and not (
+                shop_stocked or sellable or stored or carried
+            ):
+                continue
             items.append(
                 HubSupplyItemView(
                     item_id=item_id,
                     display_name=display_name,
                     description=description,
-                    base_price=price,
+                    base_price=base_price,
                     stored_quantity=stored,
                     carried_quantity=carried,
                     shop_stocked=shop_stocked,
                     sellable=sellable,
                     carryable=carryable,
-                    can_buy=shop_stocked and party.shared_gold >= price,
+                    can_buy=(
+                        shop_stocked
+                        and min(
+                            stock_quantity,
+                            party.shared_gold // base_price
+                            if base_price
+                            else stock_quantity,
+                        ) > 0
+                    ),
                     can_sell=sellable and stored > 0,
                     can_load=carryable and stored > 0 and party.carried_item_units < 6,
                     can_unload=carryable and carried > 0,
+                    vendor_id=vendor_id,
+                    stock_quantity=stock_quantity,
+                    resale_price=(
+                        merchandise.resale_price
+                        if sellable and merchandise is not None
+                        else 0
+                    ),
+                    is_component=is_component,
+                    can_install_component=can_install_component,
+                    max_buy_quantity=(
+                        min(
+                            stock_quantity,
+                            party.shared_gold // base_price
+                            if base_price
+                            else stock_quantity,
+                        )
+                        if shop_stocked
+                        else 0
+                    ),
+                    max_sell_quantity=stored if sellable else 0,
                 )
             )
 
         names = {item.item_id: item.display_name for item in SUPPLY_ITEMS}
         recipes = []
-        for recipe in ALCHEMY_RECIPES:
+        recipe_specs = (
+            ALCHEMY_RECIPES if screen is OverworldScreen.ALCHEMIST else ()
+        )
+        for recipe in recipe_specs:
+            preview = AlchemyService.preview_recipe(
+                game_state,
+                recipe_id=recipe.recipe_id,
+                expected_transaction_sequence=economy_state.transaction_sequence,
+            )
             recipes.append(
                 HubAlchemyRecipeView(
                     recipe_id=recipe.recipe_id,
                     display_name=recipe.display_name,
                     ingredient_summary=tuple(
-                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        f"{_display_item_name(item_id, names)} x{quantity}"
                         for item_id, quantity in recipe.ingredient_costs
                     ),
                     output_summary=tuple(
-                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
-                        for item_id, quantity in recipe.outputs
+                        f"{_display_item_name(item_id, names)} x{quantity}"
+                        for item_id, quantity in preview.outputs
                     ),
-                    can_craft=all(
-                        party.shared_items.get(item_id, 0) >= quantity
-                        for item_id, quantity in recipe.ingredient_costs
-                    ),
+                    can_craft=preview.status is AlchemyStatus.READY,
+                    experience_award=preview.experience_award,
+                    requires_confirmation=preview.requires_confirmation,
                 )
             )
+        buybacks = []
+        visit_id = economy_state.current_hub_visit_id
+        if vendor_id is not None and visit_id is not None:
+            for record in party.hub_economy["buyback_records"]:
+                if (
+                    record["vendor_id"] != vendor_id
+                    or record["visit_id"] != visit_id
+                ):
+                    continue
+                unique_equipment = "equipment_snapshot" in record
+                supply = get_supply_item(record["item_id"])
+                display_name = (
+                    get_equipment_template(record["item_id"]).name
+                    if unique_equipment
+                    else supply.display_name
+                    if supply is not None
+                    else record["item_id"].replace("_", " ").title()
+                )
+                buybacks.append(
+                    HubBuybackView(
+                        sale_id=record["sale_id"],
+                        item_id=record["item_id"],
+                        display_name=display_name,
+                        remaining_quantity=(
+                            1
+                            if unique_equipment
+                            else record["remaining_quantity"]
+                        ),
+                        unit_price=record["original_unit_payout"],
+                        is_unique_equipment=unique_equipment,
+                        can_recover=(
+                            party.shared_gold >= record["original_unit_payout"]
+                        ),
+                    )
+                )
         return HubEconomyView(
             shared_gold=party.shared_gold,
             carried_units=party.carried_item_units,
             carried_capacity=6,
             items=tuple(items),
             recipes=tuple(recipes),
+            buybacks=tuple(buybacks),
+            alchemy_level=economy_state.alchemy_level,
+            alchemy_experience=economy_state.alchemy_experience,
         )
 
     @staticmethod
@@ -1345,7 +1575,14 @@ class OverworldPresenter:
         return tuple(effects)
 
     @staticmethod
-    def _equipment_view(game_state, selected_target_id, selected_instance_id=None):
+    def _equipment_view(
+        game_state,
+        selected_target_id,
+        selected_instance_id=None,
+        *,
+        action_scope=OverworldScreen.EQUIPMENT,
+    ):
+        action_scope = OverworldScreen(action_scope)
         member_specs = tuple(
             (member, _member_drifter_spec(member))
             for member in equipment_target_members(game_state)
@@ -1446,26 +1683,28 @@ class OverworldPresenter:
             already_equipped = (
                 equipped.get(selected_item.slot_id) == selected_item.instance_id
             )
-            action_rows = [
-                EquipmentActionView(
-                    operation="equip",
-                    label="Equip",
-                    enabled=not already_equipped and target_can_manage,
-                    disabled_reason=(
-                        "already_equipped"
-                        if already_equipped
-                        else (
-                            None
-                            if target_can_manage
-                            else "save_checkpoint_required"
-                        )
-                    ),
-                    summary=f"Equip on {member.character.full_display_name}",
+            action_rows = []
+            if action_scope is OverworldScreen.EQUIPMENT:
+                action_rows.append(
+                    EquipmentActionView(
+                        operation="equip",
+                        label="Equip",
+                        enabled=not already_equipped and target_can_manage,
+                        disabled_reason=(
+                            "already_equipped"
+                            if already_equipped
+                            else (
+                                None
+                                if target_can_manage
+                                else "save_checkpoint_required"
+                            )
+                        ),
+                        summary=f"Equip on {member.character.full_display_name}",
+                    )
                 )
-            ]
             if item.category == "armor":
-                action_rows.extend(
-                    (
+                if action_scope is OverworldScreen.BLACKSMITH:
+                    action_rows.extend((
                         _equipment_action(
                             "upgrade",
                             "Upgrade",
@@ -1478,14 +1717,6 @@ class OverworldPresenter:
                             "advance_rarity",
                             "Advance Rarity",
                             ArmorProgressionService.preview_rarity_advance(
-                                game_state,
-                                instance_id=item.instance_id,
-                            ),
-                        ),
-                        _equipment_action(
-                            "extract",
-                            "Extract Modifiers",
-                            AlchemistService.preview_extraction(
                                 game_state,
                                 instance_id=item.instance_id,
                             ),
@@ -1506,21 +1737,44 @@ class OverworldPresenter:
                                 instance_id=item.instance_id,
                             ),
                         ),
+                    ))
+                elif action_scope is OverworldScreen.ENCHANTER:
+                    action_rows.append(
+                        _equipment_action(
+                            "extract",
+                            "Extract Modifiers",
+                            AlchemistService.preview_extraction(
+                                game_state,
+                                instance_id=item.instance_id,
+                            ),
+                        )
                     )
-                )
-                action_rows.extend(
-                    _equipment_action(
-                        "affix",
-                        f"Affix {get_armor_modifier(modifier.definition_id).name}",
-                        AlchemistService.preview_affix(
-                            game_state,
-                            instance_id=item.instance_id,
+                    action_rows.extend(
+                        _equipment_action(
+                            "affix",
+                            f"Affix {get_armor_modifier(modifier.definition_id).name}",
+                            AlchemistService.preview_affix(
+                                game_state,
+                                instance_id=item.instance_id,
+                                modifier_instance_id=modifier.instance_id,
+                            ),
                             modifier_instance_id=modifier.instance_id,
-                        ),
-                        modifier_instance_id=modifier.instance_id,
+                        )
+                        for modifier in game_state.party_state.modifier_instances
                     )
-                    for modifier in game_state.party_state.modifier_instances
-                )
+                    action_rows.extend(
+                        _equipment_action(
+                            "apply_learned_affix",
+                            f"Apply Learned {get_armor_modifier(modifier_id).name}",
+                            AlchemistService.preview_learned_affix(
+                                game_state,
+                                instance_id=item.instance_id,
+                                modifier_id=modifier_id,
+                            ),
+                            affix_id=modifier_id,
+                        )
+                        for modifier_id in game_state.party_state.hub_economy_state.known_affix_ids
+                    )
             actions = tuple(action_rows)
         return EquipmentView(
             pendant=AccessorySlotView(
@@ -1550,6 +1804,12 @@ class OverworldPresenter:
                 for modifier in game_state.party_state.modifier_instances
             ),
             actions=actions,
+            enchanting_level=game_state.party_state.hub_economy_state.enchanting_level,
+            enchanting_experience=game_state.party_state.hub_economy_state.enchanting_experience,
+            known_affixes=tuple(
+                f"{get_armor_modifier(modifier_id).name} | Grade {get_armor_modifier(modifier_id).grade}"
+                for modifier_id in game_state.party_state.hub_economy_state.known_affix_ids
+            ),
         )
 
     @staticmethod
@@ -1626,14 +1886,19 @@ class OverworldPresenter:
                     quantity=quantity,
                     description=(spec.description if spec is not None else "Carried supply."),
                     overworld_use_enabled=(
-                        item_id == "healing_potion"
+                        item_id in {"healing_potion", "mana_potion"}
                         and party.phase
                         in {
                             DungeonPhase.HUB,
                             DungeonPhase.PARTY_READY,
                             DungeonPhase.OUTING,
                         }
-                        and bool(OverworldPresenter._healing_targets(game_state))
+                        and bool(
+                            OverworldPresenter._healing_targets(
+                                game_state,
+                                item_id,
+                            )
+                        )
                     ),
                     location_label="Carried Pack",
                 )
@@ -1641,7 +1906,7 @@ class OverworldPresenter:
         return tuple(items)
 
     @staticmethod
-    def _healing_targets(game_state):
+    def _healing_targets(game_state, item_id="healing_potion"):
         party = game_state.party_state
         if party.phase not in {
             DungeonPhase.HUB,
@@ -1649,17 +1914,31 @@ class OverworldPresenter:
             DungeonPhase.OUTING,
         }:
             return ()
-        return tuple(
-            SupplyHealingTargetView(
-                drifter_id=member.character.profile.drifter_id,
-                display_name=member.character.full_display_name,
-                hp_current=member.health.current,
-                hp_maximum=member.health.maximum,
-            )
-            for member in game_state.active_party_members
-            if member.health.is_alive()
-            and member.health.current < member.health.maximum
-        )
+        if item_id not in {"healing_potion", "mana_potion"}:
+            return ()
+        targets = []
+        for member in game_state.active_party_members:
+            if not member.health.is_alive():
+                continue
+            if item_id == "healing_potion":
+                eligible = member.health.current < member.health.maximum
+            else:
+                eligible = (
+                    member.mana_resource.current
+                    < member.mana_resource.maximum
+                )
+            if eligible:
+                targets.append(
+                    SupplyHealingTargetView(
+                        drifter_id=member.character.profile.drifter_id,
+                        display_name=member.character.full_display_name,
+                        hp_current=member.health.current,
+                        hp_maximum=member.health.maximum,
+                        mana_current=member.mana_resource.current,
+                        mana_maximum=member.mana_resource.maximum,
+                    )
+                )
+        return tuple(targets)
 
     @staticmethod
     def _map_view(game_state):
@@ -1790,9 +2069,13 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.HUB:
             party_state = game_state.party_state
-            merchant_action = ()
+            vendor_actions = ()
+            inventory_action = ()
             if party_state.phase is DungeonPhase.HUB:
-                merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
+                vendor_actions = (enabled(OverworldAction.VENDORS, "Vendors"),)
+                inventory_action = (
+                    enabled(OverworldAction.HUB_INVENTORY, "Hub Inventory"),
+                )
                 if party_state.tutorial_complete:
                     recruitment_actions = (
                         (
@@ -1857,18 +2140,34 @@ class OverworldPresenter:
                 else:
                     party_actions = ()
             elif party_state.phase is DungeonPhase.PARTY_READY:
-                merchant_action = (enabled(OverworldAction.MERCHANT, "Merchant"),)
+                vendor_actions = (enabled(OverworldAction.VENDORS, "Vendors"),)
+                inventory_action = (
+                    enabled(OverworldAction.HUB_INVENTORY, "Hub Inventory"),
+                )
                 party_actions = (
                     enabled(OverworldAction.READY, "Ready / Set Out"),
                 )
             else:
                 party_actions = ()
-            return merchant_action + party_actions + (
+            return vendor_actions + inventory_action + party_actions + (
                 enabled(OverworldAction.CHARACTER, "Character"),
                 enabled(OverworldAction.ITEMS, "Items"),
                 enabled(OverworldAction.MAP, "Map"),
                 enabled(OverworldAction.OPTIONS, "Options"),
             )
+        if screen is OverworldScreen.VENDORS:
+            if game_state.party_state.phase in {
+                DungeonPhase.HUB,
+                DungeonPhase.PARTY_READY,
+            }:
+                return (
+                    enabled(OverworldAction.MERCHANT, "Merchant"),
+                    enabled(OverworldAction.BLACKSMITH, "Blacksmith"),
+                    enabled(OverworldAction.ENCHANTER, "Enchanter"),
+                    enabled(OverworldAction.ALCHEMIST, "Alchemist"),
+                    enabled(OverworldAction.BACK, "Back"),
+                )
+            return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.EXPEDITIONS:
             actions = ()
             if game_state.party_state.phase is DungeonPhase.HUB:
@@ -1968,7 +2267,12 @@ class OverworldPresenter:
             OverworldScreen.WEAPON,
             OverworldScreen.EQUIPMENT,
             OverworldScreen.MERCHANT,
+            OverworldScreen.HUB_INVENTORY,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+            OverworldScreen.ALCHEMIST,
             OverworldScreen.ITEM_INSPECT,
+            OverworldScreen.VENDORS,
         }:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.ITEMS:
@@ -2004,6 +2308,11 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.HEALING_TARGETS:
             return (enabled(OverworldAction.BACK, "Back"),)
+        if screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+            return (
+                enabled(OverworldAction.CONFIRM, "Confirm Craft"),
+                enabled(OverworldAction.CANCEL, "Cancel"),
+            )
         if screen is OverworldScreen.MAP:
             inspectable = get_inspectable_route_node_spec(
                 game_state.overworld_state.current_route_node_id

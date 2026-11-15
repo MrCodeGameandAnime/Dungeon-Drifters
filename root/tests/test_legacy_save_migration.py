@@ -69,6 +69,7 @@ def _schema22_save_with_orphaned_run_event():
     document = build_save_document(_game_state())
     document["schema_version"] = 22
     document.pop("expedition")
+    document["party"].pop("hub_economy")
     for key in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",

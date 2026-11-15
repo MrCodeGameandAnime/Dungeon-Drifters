@@ -115,7 +115,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 10]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 11]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
@@ -125,6 +125,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "M4_FLOOR_THREE_PROBE",
         "M5_EQUIPMENT_PROBE",
         "M6_EXPEDITION_PROBE",
+        "M65_PROFESSION_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
@@ -132,6 +133,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "ROUTE_FINAL_STATE"
     )
     assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index("M6_EXPEDITION_PROBE")
+    assert stages.index("ROUTE_SESSION_TEARDOWN") > stages.index("M65_PROFESSION_PROBE")
 
 
 def test_floor_three_probe_covers_tier_two_recruitment_full_boss_and_teardown():

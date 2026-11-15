@@ -83,8 +83,10 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         '"character_target", drifter_id: "azhvielle"',
         '"3 x Goblin Scrap"',
         "PYD9|BROWSER|SHARED_ITEMS_INSPECT|PASS",
-        'clickVisibleOption(targetPage, "#overworld-options", "Merchant")',
-        'PYD8|BROWSER|HUB_MERCHANT|PASS',
+        'clickVisibleOption(targetPage, "#overworld-options", "Vendors")',
+        'clickVisibleOption(targetPage, "#vendors-options", "Blacksmith")',
+        'PYD8|BROWSER|HUB_BLACKSMITH|PASS',
+        'clickVisibleOption(page, "#overworld-options", "Hub Inventory")',
         '"Shared gold: 19"',
         '"Recruitment cost: 65"',
         '"120 EXP | 9 gold"',
@@ -191,6 +193,26 @@ def test_browser_smoke_persists_active_pair_and_exact_member_progression():
     hub_ready = source.index('textContent.trim() === "HUB"', back)
     character = source.index('clickVisibleOption(page, "#overworld-options", "Character")', back)
     assert back < hub_ready < character
+
+
+def test_browser_smoke_covers_m65_professions_and_mana_potion():
+    source = SMOKE_PATH.read_text()
+
+    for required in (
+        'M65_BROWSER|ALCHEMY_PROFESSION_RECIPE_FLOW|PASS',
+        'M65_BROWSER|ENCHANTER_LEARNED_AFFIX_RELOAD|PASS',
+        'M65_BROWSER|MANA_POTION_TARGETING|PASS',
+        'm65ProfessionFixtures.hub',
+        'Alchemy Level 2 | 50 XP',
+        'Enchanting Level 1 | 0 XP',
+        'Choose a Drifter for Mana',
+        'Applied learned affix Bastion.',
+        'Crafted 1 Smoke Bomb; gained 15 Alchemy XP.',
+        'Crafted 1 Mana Potion; gained 20 Alchemy XP.',
+    ):
+        assert required in source
+
+    assert 'craftAlchemy("Smoke Powder")' not in source
 
 
 def test_browser_skills_panel_exposes_purchase_loadout_and_respec_contracts():

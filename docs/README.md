@@ -2,16 +2,16 @@
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
-**Current version: v0.7**
+**Current version: v0.8**
 
 Choose one of four distinct Drifters, master their unique combat style, grow
 stronger through battle, evolve their signature weapon, and push deeper into
 a dangerous world shaped by each character's identity and abilities.
 
-The game is in active development. The current v0.7 build includes the surface
-route, the Hub, and the first three dungeon floors. The same Python gameplay
-runtime is playable in the browser and through the terminal; later floors
-remain in development.
+The game is in active development. The current v0.8 build includes the surface
+route, the Hub, the first three dungeon floors, and a specialized Hub economy.
+The same Python gameplay runtime is playable in the browser and through the
+terminal; later floors remain in development.
 
 ## The Drifters
 
@@ -75,9 +75,16 @@ covers the route through the Floor III boss:
 - Assign the reserve pair to passive, 20-minute expeditions targeting
   completed floors. Training and eligible floor-material assignments are
   available; energy gates expeditions only, never ordinary dungeon play.
-- Craft and install signature-weapon components, improve weapon slots, manage
-  armor and fixed Ring/Pendant equipment, and use the Alchemist's armor and
-  modifier services. Ordinary Floor II armor-drop sources are not yet authored.
+- Use four specialized Hub vendors: the Merchant for general commerce, the
+  Blacksmith for weapons and armor, the Enchanter for armor modifiers and
+  learned affixes, and the Alchemist for consumables and recipes.
+- Buy and sell through finite vendor stock, use eligible same-visit buyback,
+  and replenish stock after qualifying outings. Trade uninstalled weapon
+  components while keeping installed parts attached to each weapon.
+- Craft and improve signature weapons, upgrade armor, and manage fixed
+  Ring/Pendant equipment. Build separate Alchemy and Enchanting progression,
+  master consumable recipes, craft Mana Potions, and apply permanently learned
+  armor affixes with Magic Crystals.
 - Inspect the party, inventory, map, and equipment; save, quit, load, and
   continue with persistent progression. Cloud synchronization is optional.
 

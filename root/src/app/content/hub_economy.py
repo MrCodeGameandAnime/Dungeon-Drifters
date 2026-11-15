@@ -1,4 +1,4 @@
-"""Provisional Floor I merchant goods and Alchemy recipes."""
+"""Authored shared-item definitions and existing Alchemy recipes."""
 
 from dataclasses import dataclass
 
@@ -13,6 +13,7 @@ class SupplyItemSpec:
     shop_stocked: bool = False
     carryable: bool = False
     healing_percent: int = 0
+    mana_restore_percent: int = 0
 
     def __post_init__(self):
         for name in ("item_id", "display_name", "description"):
@@ -32,6 +33,12 @@ class SupplyItemSpec:
             or not 0 <= self.healing_percent <= 100
         ):
             raise ValueError("healing_percent must be an integer from 0 to 100")
+        if (
+            isinstance(self.mana_restore_percent, bool)
+            or not isinstance(self.mana_restore_percent, int)
+            or not 0 <= self.mana_restore_percent <= 100
+        ):
+            raise ValueError("mana_restore_percent must be an integer from 0 to 100")
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,9 @@ class AlchemyRecipeSpec:
     display_name: str
     ingredient_costs: tuple[tuple[str, int], ...]
     outputs: tuple[tuple[str, int], ...]
+    experience_award: int = 0
+    mastery_output: bool = True
+    requires_confirmation: bool = False
 
     def __post_init__(self):
         for name in ("recipe_id", "display_name"):
@@ -61,29 +71,55 @@ class AlchemyRecipeSpec:
                 if quantity < 1:
                     raise ValueError("recipe quantities must be positive")
                 item_ids.add(item_id)
+        if (
+            isinstance(self.experience_award, bool)
+            or not isinstance(self.experience_award, int)
+            or self.experience_award < 0
+        ):
+            raise ValueError("recipe experience must be a non-negative integer")
+        for field_name in ("mastery_output", "requires_confirmation"):
+            if not isinstance(getattr(self, field_name), bool):
+                raise TypeError(f"{field_name} must be a boolean")
 
 
 SUPPLY_ITEMS = (
     SupplyItemSpec("goblin_scrap", "Goblin Scrap", "Useful salvage from goblins.", 3, True),
     SupplyItemSpec("goblin_lord_core", "Goblin Lord Core", "A rare core taken from the Floor I boss.", 0, False),
-    SupplyItemSpec("grade_i_fiber", "Cord", "Grade-I fiber used for bindings and field craft.", 2, False, True),
-    SupplyItemSpec("grade_i_cores", "Faded Core", "A faintly charged Grade-I core.", 0, False),
-    SupplyItemSpec("medicinal_herb", "Medicinal Herb", "A common restorative plant.", 2, True, True),
-    SupplyItemSpec("clean_water", "Clean Water", "Water suitable for alchemical preparations.", 1, True, True),
-    SupplyItemSpec("charcoal_dust", "Charcoal Dust", "Fine charcoal used in smoke preparations.", 2, True, True),
+    SupplyItemSpec("grade_i_fiber", "Cord", "Grade-I fiber used for bindings and field craft.", 4, False, True),
+    SupplyItemSpec("grade_i_cores", "Faded Core", "A faintly charged Grade-I core.", 4, False),
+    SupplyItemSpec("medicinal_herb", "Medicinal Herb", "A common restorative plant.", 4, True, True),
+    SupplyItemSpec("clean_water", "Clean Water", "Water suitable for alchemical preparations.", 4, True, True),
+    SupplyItemSpec("charcoal_dust", "Charcoal Powder", "Fine charcoal used in alchemical preparations.", 4, True, True),
     SupplyItemSpec("smoke_powder", "Smoke Powder", "An intermediate alchemical mixture.", 0, False),
     SupplyItemSpec(
         "healing_potion",
         "Healing Potion",
         "Restores 40% of a Drifter's maximum HP.",
-        8,
-        True,
+        12,
+        False,
         True,
         True,
         healing_percent=40,
     ),
-    SupplyItemSpec("smoke_bomb", "Smoke Bomb", "Ends a non-boss encounter without rewards.", 10, True, False, True),
-    SupplyItemSpec("return_talisman", "Return Talisman", "Returns to the Hub with adjusted XP only.", 16, False, False, True),
+    SupplyItemSpec("smoke_bomb", "Smoke Bomb", "Ends a non-boss encounter without rewards.", 12, False, False, True),
+    SupplyItemSpec("return_talisman", "Return Talisman", "Returns to the Hub with adjusted XP only.", 80, False, False, True),
+    SupplyItemSpec("sulfur", "Sulfur", "A reactive alchemical ingredient.", 4, False),
+    SupplyItemSpec("magic_reagent", "Magic Reagent", "A concentrated alchemical reagent.", 8, False),
+    SupplyItemSpec("aether_dust", "Aether Dust", "Fine residue used in mana preparations.", 8, False),
+    SupplyItemSpec(
+        "mana_potion",
+        "Mana Potion",
+        "Restores 30% of a Drifter's maximum Mana.",
+        20,
+        False,
+        carryable=True,
+        mana_restore_percent=30,
+    ),
+    SupplyItemSpec("grade_i_magic_crystal", "Grade-I Magic Crystal", "A Grade-I crystal used for learned affixes.", 12, False),
+    SupplyItemSpec("grade_ii_magic_crystal", "Grade-II Magic Crystal", "A Grade-II crystal used for learned affixes.", 24, False),
+    SupplyItemSpec("grade_iii_magic_crystal", "Grade-III Magic Crystal", "A Grade-III crystal used for learned affixes.", 48, False),
+    SupplyItemSpec("grade_iv_magic_crystal", "Grade-IV Magic Crystal", "A Grade-IV crystal reserved for later-floor content.", 96, False),
+    SupplyItemSpec("mythril_plate", "Mythril Plate", "A rare smithing plate used in the Return Talisman recipe.", 80, False),
 )
 
 ALCHEMY_RECIPES = (
@@ -92,24 +128,29 @@ ALCHEMY_RECIPES = (
         "Healing Potion",
         (("medicinal_herb", 1), ("clean_water", 1)),
         (("healing_potion", 1),),
-    ),
-    AlchemyRecipeSpec(
-        "smoke_powder",
-        "Smoke Powder",
-        (("goblin_scrap", 1), ("charcoal_dust", 1)),
-        (("smoke_powder", 1),),
+        experience_award=10,
     ),
     AlchemyRecipeSpec(
         "smoke_bomb",
         "Smoke Bomb",
-        (("smoke_powder", 1), ("grade_i_fiber", 1)),
+        (("charcoal_dust", 1), ("sulfur", 1)),
         (("smoke_bomb", 1),),
+        experience_award=15,
+    ),
+    AlchemyRecipeSpec(
+        "mana_potion",
+        "Mana Potion",
+        (("magic_reagent", 1), ("aether_dust", 1)),
+        (("mana_potion", 1),),
+        experience_award=20,
     ),
     AlchemyRecipeSpec(
         "return_talisman",
         "Return Talisman",
-        (("grade_i_cores", 1), ("grade_i_fiber", 1)),
+        (("goblin_lord_core", 2), ("mythril_plate", 1)),
         (("return_talisman", 1),),
+        mastery_output=False,
+        requires_confirmation=True,
     ),
 )
 

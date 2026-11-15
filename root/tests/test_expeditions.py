@@ -624,13 +624,20 @@ def test_completed_assignment_keeps_material_report_when_active_pair_dies(tmp_pa
         now_factory=lambda: datetime(2026, 11, 10, 12, 20, tzinfo=timezone.utc),
     )
 
+    party_members = session.game_state.active_party_members
     session._finalize_floor_one_battle(
         None,
         winner="enemy",
         current_node_id="floor_one_battle_01",
         exp_reward=0,
         gold_reward=0,
-        party_members=session.game_state.active_party_members,
+        party_members=party_members,
+        checkpoints=tuple(
+            member.create_battle_checkpoint() for member in party_members
+        ),
+        carried_supplies_checkpoint=(
+            session.game_state.party_state.carried_items
+        ),
     )
 
     assert session.current_view().screen is OverworldScreen.HUB

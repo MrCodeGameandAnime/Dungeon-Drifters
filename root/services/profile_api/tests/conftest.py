@@ -120,6 +120,13 @@ def remove_m5_equipment_state(payload, historical_schema):
     return payload
 
 
+def remove_m65_party_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        party.pop("hub_economy", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

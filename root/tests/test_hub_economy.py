@@ -11,8 +11,8 @@ def test_purchase_uses_shared_gold_and_adds_only_to_secured_storage():
     result = service.buy(item_id="healing_potion", quantity=2)
 
     assert result.success is True
-    assert result.gold_delta == -16
-    assert game.party_state.shared_gold == 59
+    assert result.gold_delta == -24
+    assert game.party_state.shared_gold == 51
     assert game.party_state.shared_items == {"healing_potion": 2}
     assert game.party_state.carried_items == {}
 
@@ -53,6 +53,22 @@ def test_sale_uses_only_stored_sellable_items_and_floors_half_price():
     assert game.party_state.shared_items["goblin_lord_core"] == 1
 
 
+@pytest.mark.parametrize(
+    "item_id",
+    ("healing_potion", "mana_potion", "smoke_bomb"),
+)
+def test_finished_alchemy_consumables_cannot_be_sold_regardless_of_origin(item_id):
+    game = hub_game(gold=0)
+    game.party_state.add_shared_items({item_id: 2})
+    before = game.party_state.snapshot()
+
+    result = HubEconomyService(game).sell(item_id=item_id, quantity=1)
+
+    assert result.success is False
+    assert result.reason == "not_sellable"
+    assert game.party_state.snapshot() == before
+
+
 def test_pack_transfer_loads_and_unloads_without_changing_gold():
     game = hub_game(gold=75)
     party = game.party_state
@@ -81,28 +97,3 @@ def test_pack_transfer_rejects_materials_or_wrong_phase_without_mutation():
     before = party.snapshot()
     assert service.unload(item_id="healing_potion", quantity=1).reason == "hub_only"
     assert party.snapshot() == before
-
-
-def test_alchemy_consumes_inputs_and_credits_output_atomically_without_crafting_xp():
-    game = hub_game(gold=75)
-    party = game.party_state
-    party.add_shared_items({"medicinal_herb": 1, "clean_water": 1})
-    before_xp = party.crafting_experience
-
-    result = HubEconomyService(game).craft_alchemy("healing_potion")
-
-    assert result.success is True
-    assert party.shared_items == {"healing_potion": 1}
-    assert party.crafting_experience == before_xp
-
-
-def test_alchemy_rejects_missing_inputs_without_partial_mutation():
-    game = hub_game(gold=75)
-    game.party_state.add_shared_items({"medicinal_herb": 2})
-    before = game.party_state.snapshot()
-
-    result = HubEconomyService(game).craft_alchemy("healing_potion")
-
-    assert result.success is False
-    assert result.reason == "missing_ingredients"
-    assert game.party_state.snapshot() == before

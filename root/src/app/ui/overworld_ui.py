@@ -164,20 +164,53 @@ class HubSupplyOperation(StrEnum):
 class ChooseHubSupplyAction:
     operation: HubSupplyOperation
     item_id: str
+    expected_transaction_sequence: int = 0
+    quantity: int = 1
 
     def __post_init__(self):
         object.__setattr__(self, "operation", HubSupplyOperation(self.operation))
         if not isinstance(self.item_id, str) or not self.item_id.strip():
             raise ValueError("item_id must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
+        _validate_quantity(self.quantity)
+
+
+@dataclass(frozen=True)
+class ChooseHubBuyback:
+    sale_id: str
+    quantity: int = 1
+    expected_transaction_sequence: int = 0
+
+    def __post_init__(self):
+        if not isinstance(self.sale_id, str) or not self.sale_id.strip():
+            raise ValueError("sale_id must be a nonempty string")
+        _validate_quantity(self.quantity)
+        _validate_transaction_sequence(self.expected_transaction_sequence)
+
+
+@dataclass(frozen=True)
+class ChooseBlacksmithInstallComponent:
+    target_drifter_id: str
+    component_id: str
+    expected_transaction_sequence: int = 0
+
+    def __post_init__(self):
+        for name in ("target_drifter_id", "component_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
 class ChooseAlchemyRecipe:
     recipe_id: str
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         if not isinstance(self.recipe_id, str) or not self.recipe_id.strip():
             raise ValueError("recipe_id must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
@@ -193,12 +226,14 @@ class ChooseCharacterTarget:
 class ChooseMerchantImprove:
     target_drifter_id: str
     slot_id: str
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         for name in ("target_drifter_id", "slot_id"):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
@@ -206,6 +241,7 @@ class ChooseMerchantDismantle:
     target_drifter_id: str
     item_id: str
     quantity: int = 1
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         for name in ("target_drifter_id", "item_id"):
@@ -216,27 +252,44 @@ class ChooseMerchantDismantle:
             raise TypeError("quantity must be an integer")
         if self.quantity < 1:
             raise ValueError("quantity must be positive")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
 class ChooseMerchantCraftComponent:
     target_drifter_id: str
     component_id: str
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         for name in ("target_drifter_id", "component_id"):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
 class ChooseMerchantTierV:
     target_drifter_id: str
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         if not isinstance(self.target_drifter_id, str) or not self.target_drifter_id.strip():
             raise ValueError("target_drifter_id must be a nonempty string")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
+
+
+def _validate_transaction_sequence(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("transaction sequence must be a nonnegative integer")
+
+
+def _validate_quantity(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError("quantity must be an integer")
+    if value < 1:
+        raise ValueError("quantity must be positive")
 
 
 @dataclass(frozen=True)
@@ -254,6 +307,7 @@ class EquipmentOperation(StrEnum):
     ADVANCE_RARITY = "advance_rarity"
     EXTRACT = "extract"
     AFFIX = "affix"
+    APPLY_LEARNED_AFFIX = "apply_learned_affix"
     SELL = "sell"
     DISMANTLE = "dismantle"
 
@@ -273,6 +327,8 @@ class ChooseEquipmentAction:
     equipment_instance_id: str
     operation: EquipmentOperation
     modifier_instance_id: str | None = None
+    affix_id: str | None = None
+    expected_transaction_sequence: int = 0
 
     def __post_init__(self):
         object.__setattr__(self, "operation", EquipmentOperation(self.operation))
@@ -285,10 +341,21 @@ class ChooseEquipmentAction:
             or not self.modifier_instance_id.strip()
         ):
             raise ValueError("modifier_instance_id must be nonempty when provided")
+        if self.affix_id is not None and (
+            not isinstance(self.affix_id, str) or not self.affix_id.strip()
+        ):
+            raise ValueError("affix_id must be nonempty when provided")
         if (self.operation is EquipmentOperation.AFFIX) != (
             self.modifier_instance_id is not None
         ):
-            raise ValueError("only affix actions require a modifier instance")
+            raise ValueError("only stored affix actions require a modifier instance")
+        if (self.operation is EquipmentOperation.APPLY_LEARNED_AFFIX) != (
+            self.affix_id is not None
+        ):
+            raise ValueError("only learned affix actions require an affix ID")
+        if self.modifier_instance_id is not None and self.affix_id is not None:
+            raise ValueError("stored and learned affix targets are mutually exclusive")
+        _validate_transaction_sequence(self.expected_transaction_sequence)
 
 
 @dataclass(frozen=True)
@@ -317,6 +384,8 @@ OverworldInput: TypeAlias = Union[
     ChooseCharacterTarget,
     ChooseMerchantTarget,
     ChooseHubSupplyAction,
+    ChooseHubBuyback,
+    ChooseBlacksmithInstallComponent,
     ChooseAlchemyRecipe,
     ChooseMerchantImprove,
     ChooseMerchantDismantle,

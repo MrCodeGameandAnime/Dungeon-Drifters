@@ -13,6 +13,7 @@ from app.content.catalog import (
     get_route_successor_id,
     get_permanent_discovery_source,
 )
+from app.content.hub_economy import get_supply_item
 from app.content.route_spec import RouteNodeKind
 from app.content.armor_spec import get_armor_modifier
 from app.content.equipment_spec import get_equipment_template
@@ -20,6 +21,7 @@ from app.content.weapon_progression_spec import get_material_spec
 from app.game.game_state import GameState
 from app.game.expedition_state import _now_utc
 from app.game.hub_economy import HubEconomyService
+from app.game.alchemy import AlchemyService, AlchemyStatus
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
 from app.game.party_state import DungeonPhase, PartyState
 from app.game.recruitment import available_recruitment_event
@@ -73,6 +75,8 @@ from app.ui.overworld_ui import (
     ChooseEquipmentAction,
     ChooseEquipmentConfirmation,
     ChooseEquipmentInstance,
+    ChooseBlacksmithInstallComponent,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     ChooseAlchemyRecipe,
     ChooseWeaponTarget,
@@ -118,6 +122,25 @@ _BATTLE_INPUT_TYPES = (
     GoBack,
 )
 _UNHANDLED_ACTION = object()
+
+
+def _replace_instance_attributes(existing, updated):
+    if type(existing) is not type(updated):
+        raise TypeError("cannot replace state across different types")
+    updated_attributes = updated.__dict__
+    for name in tuple(existing.__dict__):
+        if name not in updated_attributes:
+            delattr(existing, name)
+    for name, value in updated_attributes.items():
+        setattr(existing, name, value)
+
+
+def _is_weapon_material(item_id):
+    try:
+        get_material_spec(item_id)
+    except ValueError:
+        return False
+    return True
 
 
 class OverworldSession:
@@ -189,6 +212,9 @@ class OverworldSession:
         self._selected_equipment_instance_id = None
         self._equipment_preview = None
         self._equipment_pending_input = None
+        self._equipment_return_screen = OverworldScreen.EQUIPMENT
+        self._alchemy_preview = None
+        self._alchemy_return_screen = OverworldScreen.ALCHEMIST
         self._adventure_text = None
         self._notice = None
         self._quit_return_screen = None
@@ -284,7 +310,10 @@ class OverworldSession:
         view = self._build_view()
         if isinstance(session_input, _BATTLE_INPUT_TYPES):
             return view
-        if isinstance(session_input, (ChooseHubSupplyAction, ChooseAlchemyRecipe)):
+        if isinstance(
+            session_input,
+            (ChooseHubSupplyAction, ChooseHubBuyback, ChooseAlchemyRecipe),
+        ):
             self._perform_hub_economy_action(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChoosePermanentStatIncrease):
@@ -350,6 +379,7 @@ class OverworldSession:
                 ChooseMerchantDismantle,
                 ChooseMerchantCraftComponent,
                 ChooseMerchantTierV,
+                ChooseBlacksmithInstallComponent,
             ),
         ):
             self._perform_merchant_action(view, session_input)
@@ -532,7 +562,11 @@ class OverworldSession:
             selected_item_key=self._selected_item_key,
             selected_character_target_id=(
                 self._selected_equipment_target_id
-                if self._screen is OverworldScreen.EQUIPMENT
+                if self._screen in {
+                    OverworldScreen.EQUIPMENT,
+                    OverworldScreen.BLACKSMITH,
+                    OverworldScreen.ENCHANTER,
+                }
                 else self._selected_character_target_id
             ),
             selected_merchant_target_id=(
@@ -691,6 +725,10 @@ class OverworldSession:
                 "Materials consumed: "
                 + ", ".join(
                     f"{quantity} {get_material_spec(item_id).display_name}"
+                    if _is_weapon_material(item_id)
+                    else f"{quantity} {get_supply_item(item_id).display_name}"
+                    if get_supply_item(item_id) is not None
+                    else f"{quantity} {item_id.replace('_', ' ')}"
                     for item_id, quantity in preview.material_costs
                 )
             )
@@ -707,7 +745,7 @@ class OverworldSession:
                 "Incoming modifier consumed: "
                 + get_armor_modifier(preview.incoming_modifier).name
             )
-        if preview.destroyed_modifiers:
+        if preview.destroyed_modifiers and preview.action != "sell":
             names = ", ".join(
                 get_armor_modifier(modifier_id).name
                 for modifier_id in preview.destroyed_modifiers
@@ -723,7 +761,9 @@ class OverworldSession:
             details.append("Donor armor will be destroyed.")
         if preview.action == "sell":
             details.append(
-                "Only authored gold is awarded; attached modifiers are not returned."
+                "Only authored gold is awarded. The exact armor and its modifiers "
+                "remain available for buyback during this Hub visit; anything not "
+                "recovered is discarded when the visit ends."
             )
         elif preview.action == "dismantle":
             details.append(
@@ -733,7 +773,7 @@ class OverworldSession:
             details.append(
                 "Installed modifiers are preserved; the donor armor is sacrificed."
             )
-        elif preview.action == "affix":
+        elif preview.action in {"affix", "learned_affix"}:
             details.append("The incoming modifier and listed costs will be consumed.")
             if preview.displaced_modifiers:
                 details.append(
@@ -848,34 +888,47 @@ class OverworldSession:
         self._notice = f"Loadout slot {session_input.slot + 1} updated."
 
     def _use_overworld_healing_potion(self, view, session_input):
+        item_id = (
+            self._selected_item_key.split(":", 1)[1]
+            if isinstance(self._selected_item_key, str)
+            and self._selected_item_key.startswith("carried-item:")
+            else None
+        )
         if (
             view.screen is not OverworldScreen.HEALING_TARGETS
             or not any(
                 target.drifter_id == session_input.drifter_id
                 for target in view.healing_targets
             )
-            or self._selected_item_key != "carried-item:healing_potion"
+            or item_id not in {"healing_potion", "mana_potion"}
         ):
-            self._notice = "That healing target is not available."
+            self._notice = "That supply target is not available."
             return
         target = self.game_state.member_for_drifter_id(session_input.drifter_id)
-        before = target.health.current
-        if not self.game_state.party_state.use_healing_potion(
+        resource = (
+            target.health if item_id == "healing_potion" else target.mana_resource
+        )
+        before = resource.current
+        use_supply = (
+            self.game_state.party_state.use_healing_potion
+            if item_id == "healing_potion"
+            else self.game_state.party_state.use_mana_potion
+        )
+        if not use_supply(
             target,
             deployed_members=self.game_state.active_party_members,
         ):
-            self._notice = "The Healing Potion is no longer available."
+            self._notice = "That potion is no longer available."
             return
-        restored = target.health.current - before
+        restored = resource.current - before
         self._screen = OverworldScreen.ITEMS
-        if self.game_state.party_state.carried_items.get("healing_potion", 0):
-            self._selected_item_key = "carried-item:healing_potion"
+        if self.game_state.party_state.carried_items.get(item_id, 0):
+            self._selected_item_key = f"carried-item:{item_id}"
         else:
             self._selected_item_key = None
-        self._notice = (
-            f"Healing Potion restored {restored} HP to "
-            f"{target.character.full_display_name}."
-        )
+        resource_name = "HP" if item_id == "healing_potion" else "Mana"
+        item_name = "Healing Potion" if item_id == "healing_potion" else "Mana Potion"
+        self._notice = f"{item_name} restored {restored} {resource_name} to {target.character.full_display_name}."
 
     def _select_companion(self, view, session_input):
         if view.screen is not OverworldScreen.COMPANION_SELECTION:
@@ -1061,7 +1114,7 @@ class OverworldSession:
 
     def _select_merchant_target(self, view, session_input):
         merchant = view.merchant
-        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
+        if view.screen is not OverworldScreen.BLACKSMITH or merchant is None:
             self._notice = "That Drifter is not available."
             return
         if not any(
@@ -1073,6 +1126,7 @@ class OverworldSession:
         self._selected_merchant_target_id = session_input.drifter_id
         self._selected_character_target_id = session_input.drifter_id
         self._selected_weapon_target_id = session_input.drifter_id
+        self._selected_equipment_target_id = session_input.drifter_id
         self._notice = None
 
     def _select_weapon_target(self, view, session_input):
@@ -1097,14 +1151,22 @@ class OverworldSession:
             targets = view.character.targets
         elif view.screen is OverworldScreen.SKILLS and view.skills is not None:
             targets = view.skills.targets
-        elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
+        elif view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        } and view.equipment is not None:
             targets = view.equipment.targets
         if targets is None or not any(
             target.drifter_id == session_input.drifter_id for target in targets
         ):
             self._notice = "That Drifter is not available."
             return
-        if view.screen is OverworldScreen.EQUIPMENT:
+        if view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        }:
             self._selected_equipment_target_id = session_input.drifter_id
         else:
             self._selected_character_target_id = session_input.drifter_id
@@ -1114,7 +1176,11 @@ class OverworldSession:
 
     def _select_equipment_instance(self, view, session_input):
         equipment = view.equipment
-        if view.screen is not OverworldScreen.EQUIPMENT or equipment is None:
+        if view.screen not in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        } or equipment is None:
             self._notice = "That equipment is not available."
             return
         if not any(
@@ -1128,19 +1194,30 @@ class OverworldSession:
 
     def _perform_equipment_action(self, view, session_input):
         equipment = view.equipment
+        allowed_operations = {
+            OverworldScreen.EQUIPMENT: {"equip"},
+            OverworldScreen.BLACKSMITH: {
+                "upgrade", "advance_rarity", "sell", "dismantle"
+            },
+            OverworldScreen.ENCHANTER: {
+                "extract", "affix", "apply_learned_affix"
+            },
+        }.get(view.screen, set())
         if (
-            view.screen is not OverworldScreen.EQUIPMENT
+            not allowed_operations
+            or session_input.operation.value not in allowed_operations
             or equipment is None
             or session_input.equipment_instance_id != equipment.selected_instance_id
             or session_input.target_drifter_id != equipment.selected_target_id
         ):
-            self._notice = "Choose that equipment and Drifter before continuing."
+            self._notice = "That equipment service is not available here."
             return
         action = first_or_none(
             candidate
             for candidate in equipment.actions
             if candidate.operation == session_input.operation.value
             and candidate.modifier_instance_id == session_input.modifier_instance_id
+            and candidate.affix_id == session_input.affix_id
         )
         if action is None or not action.enabled:
             self._notice = "That equipment action is not available."
@@ -1207,18 +1284,60 @@ class OverworldSession:
                 instance_id=session_input.equipment_instance_id,
                 modifier_instance_id=session_input.modifier_instance_id,
             )
+        elif session_input.operation.value == "apply_learned_affix":
+            if (
+                session_input.expected_transaction_sequence
+                != self.game_state.party_state.hub_economy_state.transaction_sequence
+            ):
+                self._notice = "That Enchanter view is out of date. Reopen it and try again."
+                return
+            preview = AlchemistService.preview_learned_affix(
+                self.game_state,
+                instance_id=session_input.equipment_instance_id,
+                modifier_id=session_input.affix_id,
+            )
         else:
             self._notice = "That equipment action is not available."
             return
         if not preview.can_apply:
             self._notice = (
-                "That Alchemist action is unavailable: "
+                "That equipment service is unavailable: "
                 + preview.status.value.replace("_", " ")
                 + "."
             )
             return
+        if session_input.operation.value == "apply_learned_affix":
+            if preview.displaced_modifiers:
+                self._equipment_preview = preview
+                self._equipment_pending_input = session_input
+                self._equipment_return_screen = view.screen
+                self._screen = OverworldScreen.EQUIPMENT_CONFIRMATION
+                self._notice = None
+                return
+            result = AlchemistService(
+                save_port=self._save_port_instance()
+            ).apply_learned_affix(
+                self.game_state,
+                instance_id=session_input.equipment_instance_id,
+                modifier_id=session_input.affix_id,
+                confirmation=preview,
+            )
+            if result.status is AlchemistStatus.LEARNED_AFFIX_APPLIED:
+                self._game_state = result.game_state
+                self._notice = (
+                    "Applied learned affix "
+                    f"{get_armor_modifier(session_input.affix_id).name}."
+                )
+            else:
+                self._notice = (
+                    "The learned affix could not be applied: "
+                    + result.status.value.replace("_", " ")
+                    + "."
+                )
+            return
         self._equipment_preview = preview
         self._equipment_pending_input = session_input
+        self._equipment_return_screen = view.screen
         self._screen = OverworldScreen.EQUIPMENT_CONFIRMATION
         self._notice = None
 
@@ -1231,7 +1350,7 @@ class OverworldSession:
             self._notice = "That confirmation is not available."
             return
         if not session_input.confirmed:
-            self._screen = OverworldScreen.EQUIPMENT
+            self._screen = self._equipment_return_screen
             self._equipment_preview = None
             self._equipment_pending_input = None
             self._notice = "Cancelled. Nothing changed."
@@ -1254,7 +1373,10 @@ class OverworldSession:
                 confirmation=preview,
             )
             success = AlchemistStatus.SOLD
-            notice = f"Sold {item_name}; gained {preview.gold_award} gold. Installed modifiers were destroyed."
+            notice = (
+                f"Sold {item_name}; gained {preview.gold_award} gold. "
+                "The exact item is available for buyback during this Hub visit."
+            )
         elif pending.operation.value == "dismantle":
             result = alchemist.dismantle(
                 self.game_state,
@@ -1291,11 +1413,31 @@ class OverworldSession:
                     for modifier_id in preview.displaced_modifiers
                 )
                 notice += f" {displaced} was permanently destroyed."
+        elif pending.operation.value == "apply_learned_affix":
+            result = alchemist.apply_learned_affix(
+                self.game_state,
+                instance_id=instance_id,
+                modifier_id=pending.affix_id,
+                confirmation=preview,
+            )
+            success = (
+                AlchemistStatus.REPLACED
+                if preview.displaced_modifiers
+                else AlchemistStatus.LEARNED_AFFIX_APPLIED
+            )
+            incoming = get_armor_modifier(pending.affix_id).name
+            notice = f"Applied learned affix {incoming}."
+            if preview.displaced_modifiers:
+                displaced = ", ".join(
+                    get_armor_modifier(modifier_id).name
+                    for modifier_id in preview.displaced_modifiers
+                )
+                notice += f" {displaced} was permanently destroyed."
         else:
             self._notice = "That confirmation is not available."
             return
 
-        self._screen = OverworldScreen.EQUIPMENT
+        self._screen = self._equipment_return_screen
         self._equipment_preview = None
         self._equipment_pending_input = None
         if result.status is success:
@@ -1310,25 +1452,157 @@ class OverworldSession:
                 + "."
             )
 
+    @staticmethod
+    def _alchemy_craft_notice(preview):
+        item_id, quantity = preview.outputs[0]
+        item = get_supply_item(item_id)
+        name = item.display_name if item is not None else item_id.replace("_", " ").title()
+        if quantity != 1:
+            name += "s"
+        notice = f"Crafted {quantity} {name}."
+        if preview.experience_award:
+            notice = (
+                f"Crafted {quantity} {name}; gained "
+                f"{preview.experience_award} Alchemy XP."
+            )
+        return notice
+
+    def _confirm_alchemy_craft(self):
+        if (
+            self._screen is not OverworldScreen.ALCHEMY_CONFIRMATION
+            or self._alchemy_preview is None
+        ):
+            self._notice = "That Alchemy confirmation is not available."
+            return
+        preview = self._alchemy_preview
+        result = AlchemyService(
+            save_port=self._save_port_instance()
+        ).craft_return_talisman(
+            self.game_state,
+            expected_transaction_sequence=preview.transaction_sequence,
+            confirmation=preview,
+        )
+        self._screen = self._alchemy_return_screen
+        self._alchemy_preview = None
+        self._adventure_text = None
+        if result.status is AlchemyStatus.CRAFTED:
+            self._game_state = result.game_state
+            self._notice = self._alchemy_craft_notice(result.preview)
+        else:
+            self._notice = {
+                AlchemyStatus.STALE_TRANSACTION: "That Alchemist view is out of date. Reopen it and try again.",
+                AlchemyStatus.INSUFFICIENT_INGREDIENTS: "The rare recipe ingredients are no longer available.",
+                AlchemyStatus.SAVE_FAILED: "The craft could not be saved; nothing changed.",
+            }.get(result.status, "The Return Talisman craft was rejected.")
+
     def _perform_hub_economy_action(self, view, session_input):
         economy = view.hub_economy
-        if view.screen is not OverworldScreen.MERCHANT or economy is None:
-            self._notice = "That Hub supply action is not available."
+        if isinstance(session_input, ChooseHubBuyback):
+            if view.screen not in {
+                OverworldScreen.MERCHANT,
+                OverworldScreen.BLACKSMITH,
+                OverworldScreen.ALCHEMIST,
+            } or economy is None:
+                self._notice = "Buyback is only available from the originating vendor."
+                return
+            offer = first_or_none(
+                value for value in economy.buybacks
+                if value.sale_id == session_input.sale_id
+            )
+            if offer is None or session_input.quantity > offer.remaining_quantity:
+                self._notice = "That buyback is no longer available."
+                return
+            vendor_id = {
+                OverworldScreen.MERCHANT: "merchant",
+                OverworldScreen.BLACKSMITH: "blacksmith",
+                OverworldScreen.ALCHEMIST: "alchemist",
+            }[view.screen]
+            from app.game.hub_vendor import HubVendorService
+
+            result = HubVendorService(
+                save_port=self._save_port_instance()
+            ).buyback(
+                self.game_state,
+                vendor_id=vendor_id,
+                sale_id=session_input.sale_id,
+                quantity=session_input.quantity,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            if not result.success:
+                self._notice = {
+                    "stale_transaction": "That vendor view is out of date. Reopen it and try again.",
+                    "insufficient_gold": "You do not have enough gold for that buyback.",
+                    "not_buyback_eligible": "That buyback is no longer available.",
+                    "save_failed": "The buyback could not be saved; nothing changed.",
+                }.get(result.status.value, "That buyback was rejected.")
+                return
+            self._game_state = result.game_state
+            self._notice = f"Recovered {session_input.quantity} {offer.display_name}."
             return
-        service = HubEconomyService(self.game_state)
+
         if isinstance(session_input, ChooseAlchemyRecipe):
+            if view.screen is not OverworldScreen.ALCHEMIST or economy is None:
+                self._notice = "Alchemy recipes are only available from the Alchemist."
+                return
             recipe = first_or_none(
                 value for value in economy.recipes
                 if value.recipe_id == session_input.recipe_id
             )
-            if recipe is None or not recipe.can_craft:
+            if recipe is None:
                 self._notice = "That Alchemy recipe is not available."
                 return
-            result = service.craft_alchemy(recipe.recipe_id)
+            service = AlchemyService(save_port=self._save_port_instance())
+            result = service.craft(
+                self.game_state,
+                recipe_id=recipe.recipe_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            if result.status is AlchemyStatus.CONFIRMATION_REQUIRED:
+                self._alchemy_preview = result.preview
+                self._alchemy_return_screen = view.screen
+                costs = " + ".join(
+                    f"{quantity} {get_supply_item(item_id).display_name}"
+                    for item_id, quantity in result.preview.ingredient_costs
+                )
+                self._adventure_text = (
+                    f"Confirm crafting {recipe.display_name}? This consumes {costs}. "
+                    "This rare recipe grants no Alchemy XP."
+                )
+                self._screen = OverworldScreen.ALCHEMY_CONFIRMATION
+                self._notice = None
+                return
+            if result.status is AlchemyStatus.CRAFTED:
+                self._game_state = result.game_state
+                self._notice = self._alchemy_craft_notice(result.preview)
+            else:
+                self._notice = {
+                    AlchemyStatus.STALE_TRANSACTION: "That Alchemist view is out of date. Reopen it and try again.",
+                    AlchemyStatus.INSUFFICIENT_INGREDIENTS: "The recipe ingredients are no longer available.",
+                    AlchemyStatus.SAVE_FAILED: "The craft could not be saved; nothing changed.",
+                    AlchemyStatus.NOT_AVAILABLE: "Alchemy is only available at the Hub.",
+                }.get(result.status, "The Alchemy recipe could not be completed.")
+            return
+
+        operation = session_input.operation.value
+        commerce_screen = view.screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ALCHEMIST,
+        }
+        expected_screen = (
+            commerce_screen
+            if operation in {"buy", "sell"}
+            else view.screen is OverworldScreen.HUB_INVENTORY
+        )
+        if not expected_screen or economy is None:
             self._notice = (
-                f"Crafted {recipe.display_name}."
-                if result.success
-                else "The Alchemy recipe could not be completed."
+                "That vendor transaction is not available here."
+                if operation in {"buy", "sell"}
+                else "Supply packing belongs to Hub Inventory."
             )
             return
 
@@ -1339,7 +1613,60 @@ class OverworldSession:
         if item is None:
             self._notice = "That Hub item is not available."
             return
-        operation = session_input.operation.value
+        if operation in {"buy", "sell"}:
+            from app.game.hub_vendor import HubVendorService
+
+            vendor_id = (
+                "alchemist"
+                if view.screen is OverworldScreen.ALCHEMIST
+                else (
+                    "blacksmith"
+                    if view.screen is OverworldScreen.BLACKSMITH
+                    else "merchant"
+                )
+            )
+            service = HubVendorService(save_port=self._save_port_instance())
+            result = (
+                service.purchase(
+                    self.game_state,
+                    vendor_id=vendor_id,
+                    item_id=item.item_id,
+                    quantity=session_input.quantity,
+                    expected_transaction_sequence=(
+                        session_input.expected_transaction_sequence
+                    ),
+                )
+                if operation == "buy"
+                else service.sell(
+                    self.game_state,
+                    vendor_id=vendor_id,
+                    item_id=item.item_id,
+                    quantity=session_input.quantity,
+                    expected_transaction_sequence=(
+                        session_input.expected_transaction_sequence
+                    ),
+                )
+            )
+            if not result.success:
+                self._notice = {
+                    "stale_transaction": "That vendor view is out of date. Reopen it and try again.",
+                    "out_of_stock": "That offer is out of stock.",
+                    "insufficient_gold": "You do not have enough gold.",
+                    "insufficient_items": "That quantity is no longer available.",
+                    "not_sellable": "That item cannot be sold to this vendor.",
+                    "unavailable_offer": "That offer is not available from this vendor.",
+                    "save_failed": "The transaction could not be saved; nothing changed.",
+                }.get(result.status.value, "That vendor transaction was rejected.")
+                return
+            self._game_state = result.game_state
+            self._notice = (
+                f"Bought {session_input.quantity} {item.display_name}."
+                if operation == "buy"
+                else f"Sold {session_input.quantity} {item.display_name} for {result.gold_delta} gold."
+            )
+            return
+
+        service = HubEconomyService(self.game_state)
         enabled = {
             "buy": item.can_buy,
             "sell": item.can_sell,
@@ -1354,7 +1681,10 @@ class OverworldSession:
                 "unload": "That item is not in the carried pack.",
             }[operation]
             return
-        result = getattr(service, operation)(item_id=item.item_id, quantity=1)
+        result = getattr(service, operation)(
+            item_id=item.item_id,
+            quantity=session_input.quantity,
+        )
         if not result.success:
             self._notice = {
                 "insufficient_gold": "You do not have enough gold.",
@@ -1365,27 +1695,57 @@ class OverworldSession:
             }.get(result.reason, "That Hub supply action was rejected.")
             return
         self._notice = {
-            "buy": f"Bought 1 {item.display_name} into Hub storage.",
-            "sell": f"Sold 1 {item.display_name} for {result.gold_delta} gold.",
-            "load": f"Loaded 1 {item.display_name} into the carried pack.",
-            "unload": f"Returned 1 {item.display_name} to Hub storage.",
+            "buy": f"Bought {session_input.quantity} {item.display_name} into Hub storage.",
+            "sell": f"Sold {session_input.quantity} {item.display_name} for {result.gold_delta} gold.",
+            "load": f"Loaded {session_input.quantity} {item.display_name} into the carried pack.",
+            "unload": f"Returned {session_input.quantity} {item.display_name} to Hub storage.",
         }[operation]
 
     def _perform_merchant_action(self, view, session_input):
-        from app.game.weapon_progression import WeaponProgressionService
+        from app.game.hub_vendor import HubVendorService
 
         merchant = view.merchant
-        if view.screen is not OverworldScreen.MERCHANT or merchant is None:
-            self._notice = "That merchant action is not available."
+        if view.screen is not OverworldScreen.BLACKSMITH or merchant is None:
+            self._notice = "That Blacksmith action is not available."
             return
         target_id = session_input.target_drifter_id
         if target_id != merchant.selected_target_id or not any(
             target.drifter_id == target_id for target in merchant.targets
         ):
-            self._notice = "Choose that Drifter before using the merchant."
+            self._notice = "Choose that Drifter before using the Blacksmith."
             return
 
-        service = WeaponProgressionService(self.game_state)
+        service = HubVendorService(save_port=self._save_port_instance())
+        if isinstance(session_input, ChooseBlacksmithInstallComponent):
+            component = first_or_none(
+                item
+                for item in (view.hub_economy.items if view.hub_economy else ())
+                if item.item_id == session_input.component_id
+            )
+            if (
+                target_id != session_input.target_drifter_id
+                or component is None
+                or not component.can_install_component
+            ):
+                self._notice = "That component cannot be installed on the selected Drifter."
+                return
+            result = service.install_component(
+                self.game_state,
+                target_drifter_id=target_id,
+                component_id=component.item_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            if result.success:
+                self._game_state = result.game_state
+                self._notice = (
+                    f"Installed {component.display_name}; the displaced part "
+                    "returned to inventory."
+                )
+            else:
+                self._notice = self._vendor_weapon_failure(result)
+            return
         if isinstance(session_input, ChooseMerchantTierV):
             if merchant.tier_v.completed or not merchant.tier_v.can_attempt:
                 self._notice = (
@@ -1393,16 +1753,25 @@ class OverworldSession:
                     f"{merchant.tier_v.blocked_reason or 'already complete'}."
                 )
                 return
-            result = service.attempt_tier_v(target_drifter_id=target_id)
-            if result.success:
+            result = service.attempt_tier_v(
+                self.game_state,
+                target_drifter_id=target_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
+            )
+            detail = result.detail
+            if result.game_state is not self.game_state:
+                self._game_state = result.game_state
+            if detail is not None and detail.success:
                 self._notice = "Tier V succeeded. Grade-IV materials were consumed."
-            elif result.attempted:
+            elif detail is not None and detail.attempted:
                 self._notice = (
                     "Tier V attempt failed. Grade-IV materials were consumed; "
                     "weapon progress was preserved."
                 )
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
         if isinstance(session_input, ChooseMerchantCraftComponent):
             recipe = first_or_none(
@@ -1414,20 +1783,25 @@ class OverworldSession:
                 self._notice = "That component recipe is not available."
                 return
             result = service.craft_component(
+                self.game_state,
                 target_drifter_id=target_id,
                 component_id=recipe.component_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
             )
             if result.success:
+                self._game_state = result.game_state
                 effect_summary = "; ".join(recipe.effect_summary)
                 self._notice = (
                     f"Crafted and installed {recipe.display_name} in "
-                    f"{recipe.slot_label}. "
-                    f"Crafting Level {result.crafting_level}."
+                    f"{recipe.slot_label}. Crafting Level "
+                    f"{result.detail.crafting_level}."
                 )
                 if effect_summary:
                     self._notice += f" Effects: {effect_summary}."
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
         if isinstance(session_input, ChooseMerchantImprove):
             slot = first_or_none(
@@ -1439,16 +1813,21 @@ class OverworldSession:
                 self._notice = "That weapon improvement is not available."
                 return
             result = service.improve_slot(
+                self.game_state,
                 target_drifter_id=target_id,
                 slot_id=slot.slot_id,
+                expected_transaction_sequence=(
+                    session_input.expected_transaction_sequence
+                ),
             )
             if result.success:
+                self._game_state = result.game_state
                 self._notice = (
-                    f"{slot.label} improved to {result.slot_progress}/100. "
-                    f"Crafting Level {result.crafting_level}."
+                    f"{slot.label} improved to {result.detail.slot_progress}/100. "
+                    f"Crafting Level {result.detail.crafting_level}."
                 )
             else:
-                self._notice = self._merchant_failure_message(result.reason)
+                self._notice = self._vendor_weapon_failure(result)
             return
 
         dismantle = first_or_none(
@@ -1459,19 +1838,35 @@ class OverworldSession:
         if dismantle is None or session_input.quantity > dismantle.quantity:
             self._notice = "That dismantling action is not available."
             return
-        result = service.dismantle(
+        result = service.dismantle_materials(
+            self.game_state,
             target_drifter_id=target_id,
             item_id=dismantle.item_id,
             quantity=session_input.quantity,
+            expected_transaction_sequence=(
+                session_input.expected_transaction_sequence
+            ),
         )
         if result.success:
+            self._game_state = result.game_state
             outputs = ", ".join(
                 f"{quantity} {item_id.replace('_', ' ')}"
-                for item_id, quantity in sorted(result.materials.items())
+                for item_id, quantity in sorted(result.detail.materials.items())
             )
             self._notice = f"Dismantled {dismantle.display_name}: {outputs}."
         else:
-            self._notice = "That item is no longer available to dismantle."
+            self._notice = self._vendor_weapon_failure(result)
+
+    @staticmethod
+    def _vendor_weapon_failure(result):
+        if result.status.value == "stale_transaction":
+            return "That Blacksmith view is out of date. Reopen it and try again."
+        if result.status.value == "save_failed":
+            return "The Blacksmith action could not be saved; nothing changed."
+        detail = result.detail
+        return OverworldSession._merchant_failure_message(
+            None if detail is None else detail.reason
+        )
 
     @staticmethod
     def _merchant_failure_message(reason):
@@ -1575,10 +1970,28 @@ class OverworldSession:
             OverworldAction.SKILLS: OverworldScreen.SKILLS,
             OverworldAction.WEAPON: OverworldScreen.WEAPON,
             OverworldAction.EQUIPMENT: OverworldScreen.EQUIPMENT,
+            OverworldAction.VENDORS: OverworldScreen.VENDORS,
+            OverworldAction.HUB_INVENTORY: OverworldScreen.HUB_INVENTORY,
             OverworldAction.MERCHANT: OverworldScreen.MERCHANT,
+            OverworldAction.BLACKSMITH: OverworldScreen.BLACKSMITH,
+            OverworldAction.ENCHANTER: OverworldScreen.ENCHANTER,
+            OverworldAction.ALCHEMIST: OverworldScreen.ALCHEMIST,
             OverworldAction.SELECT_PARTY: OverworldScreen.PARTY_SELECTION,
         }
         if action in navigation:
+            if action in {
+                OverworldAction.VENDORS,
+                OverworldAction.HUB_INVENTORY,
+                OverworldAction.MERCHANT,
+                OverworldAction.BLACKSMITH,
+                OverworldAction.ENCHANTER,
+                OverworldAction.ALCHEMIST,
+            } and self.game_state.party_state.phase not in {
+                DungeonPhase.HUB,
+                DungeonPhase.PARTY_READY,
+            }:
+                self._notice = "Vendor services are only available at the Hub."
+                return None
             if (
                 self._screen is OverworldScreen.REST
                 and self.game_state.overworld_state.active_route_id
@@ -1929,7 +2342,6 @@ class OverworldSession:
 
     def _start_floor_two(self):
         party_state = self.game_state.party_state
-        overworld = self.game_state.overworld_state
         if (
             party_state.floor_two_cleared
             and floor_two_replay_requires_available_helper(
@@ -1941,43 +2353,7 @@ class OverworldSession:
                 "for the Floor II boss."
             )
             return None
-        party_snapshot = party_state.snapshot()
-        overworld_snapshot = overworld.snapshot()
-        party_members = self.game_state.active_party_members
-        checkpoints = tuple(
-            member.create_battle_checkpoint() for member in party_members
-        )
-        try:
-            party_state.start_floor_two_run()
-            self._select_party_target(party_members[0])
-            overworld.begin_route("floor_two")
-            self._screen = OverworldScreen.MAIN
-            self._adventure_text = "Your party sets out into Floor 2."
-            battle = self._create_active_battle(ui=None)
-            if battle is None:
-                raise RuntimeError("the first Floor 2 encounter is unavailable")
-        except Exception:
-            for member, checkpoint in zip(party_members, checkpoints):
-                member.restore_battle_checkpoint(checkpoint)
-            self.game_state._party_state = PartyState.from_snapshot(
-                party_snapshot,
-                companions=party_state.companions,
-                active_drifter_ids=party_state.active_drifter_ids,
-            )
-            self.game_state._overworld_state = OverworldState.from_snapshot(
-                overworld_snapshot
-            )
-            self._active_battle = None
-            self._active_battle_context = None
-            self._screen = OverworldScreen.HUB
-            self._adventure_text = None
-            self._notice = "The Floor 2 run could not be started."
-            return None
-
-        battle_view = battle.current_view()
-        if battle.is_complete:
-            self._finalize_active_battle()
-        return battle_view
+        return self._start_route("floor_two")
 
     def _start_floor_three(self):
         party_state = self.game_state.party_state
@@ -1992,87 +2368,28 @@ class OverworldSession:
             self._notice = "Recruit D3 and D4 before starting Floor 3."
             return None
 
-        party_snapshot = party_state.snapshot()
-        overworld_snapshot = overworld.snapshot()
-        party_members = self.game_state.active_party_members
-        checkpoints = tuple(
-            member.create_battle_checkpoint() for member in party_members
-        )
-        try:
-            party_state.start_floor_three_run()
-            self._select_party_target(party_members[0])
-            overworld.begin_route("floor_three")
-            self._screen = OverworldScreen.MAIN
-            self._adventure_text = "Your party sets out into Floor 3."
-            battle = self._create_active_battle(ui=None)
-            if battle is None:
-                raise RuntimeError("the first Floor 3 encounter is unavailable")
-        except Exception:
-            for member, checkpoint in zip(party_members, checkpoints):
-                member.restore_battle_checkpoint(checkpoint)
-            self.game_state._party_state = PartyState.from_snapshot(
-                party_snapshot,
-                companions=party_state.companions,
-                active_drifter_ids=party_state.active_drifter_ids,
-            )
-            self.game_state._overworld_state = OverworldState.from_snapshot(
-                overworld_snapshot
-            )
-            self._active_battle = None
-            self._active_battle_context = None
-            self._screen = OverworldScreen.HUB
-            self._adventure_text = None
-            self._notice = "The Floor 3 run could not be started."
-            return None
-
-        battle_view = battle.current_view()
-        if battle.is_complete:
-            self._finalize_active_battle()
-        return battle_view
+        return self._start_route("floor_three")
 
     def _return_to_hub(self):
-        if self.game_state.expedition_state.active_assignment is None:
+        route_id = self.game_state.overworld_state.active_route_id
+        dungeon_extraction = route_id in {"floor_one", "floor_two", "floor_three"}
+        if not dungeon_extraction:
             party_state = self.game_state.party_state
-            route_id = self.game_state.overworld_state.active_route_id
-            dungeon_extraction = route_id in {
-                "floor_one",
-                "floor_two",
-                "floor_three",
-            }
             secured_items = dict(party_state.outing_rewards.items)
-            complete_extraction = {
-                "floor_one": party_state.complete_extraction,
-                "floor_two": party_state.complete_floor_two_extraction,
-                "floor_three": party_state.complete_floor_three_extraction,
-            }.get(route_id, party_state.complete_extraction)
-            if not complete_extraction(self.game_state.active_party_members):
+            if not party_state.complete_extraction(self.game_state.active_party_members):
                 self._notice = "Those rewards are no longer available."
                 return
             self.game_state._bind_equipment_state()
             self._restore_recruited_party()
-            if dungeon_extraction:
-                self.game_state.overworld_state.return_to_surface_entrance()
             self._screen = OverworldScreen.HUB
-            if dungeon_extraction:
-                floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[route_id]
-                self._adventure_text = (
-                    f"You extract from Floor {floor_number} to the Hub. "
-                    "Your run rewards are secured and your "
-                    + "recruited Drifters are fully restored. "
-                    + _item_reward_text(secured_items, prefix="Items secured:")
-                )
-                self._persist_floor_one_hub_outcome()
-            else:
-                self._adventure_text = (
-                    "You return to the Floor 1 Hub. The tutorial rewards are secured. "
-                    + _item_reward_text(secured_items, prefix="Items secured:")
-                )
+            self._adventure_text = (
+                "You return to the Floor 1 Hub. The tutorial rewards are secured. "
+                + _item_reward_text(secured_items, prefix="Items secured:")
+            )
             return
 
         candidate = self.game_state.clone()
         party_state = candidate.party_state
-        route_id = candidate.overworld_state.active_route_id
-        dungeon_extraction = route_id in {"floor_one", "floor_two", "floor_three"}
         secured_items = dict(party_state.outing_rewards.items)
         secured_base_xp = party_state.outing_rewards.experience
         complete_extraction = {
@@ -2087,64 +2404,24 @@ class OverworldSession:
             return
         self._restore_members(candidate.recruited_members)
         candidate._bind_equipment_state()
-        if dungeon_extraction:
-            candidate.overworld_state.return_to_surface_entrance()
-            settled = self._persist_outing_terminal_state(
-                candidate,
-                secured_base_xp=secured_base_xp,
-            )
-            if settled is None:
-                return
-            self._game_state = settled
-        else:
-            self._game_state = candidate
+        candidate.overworld_state.return_to_surface_entrance()
+        settled = self._persist_outing_terminal_state(
+            candidate,
+            secured_base_xp=secured_base_xp,
+        )
+        if settled is None:
+            return
+        self._publish_saved_candidate(self.game_state, settled)
         self._screen = OverworldScreen.HUB
-        if dungeon_extraction:
-            floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[route_id]
-            self._adventure_text = (
-                f"You extract from Floor {floor_number} to the Hub. "
-                "Your run rewards are secured and your "
-                + "recruited Drifters are fully restored. "
-                + _item_reward_text(secured_items, prefix="Items secured:")
-            )
-        else:
-            self._adventure_text = (
-                "You return to the Floor 1 Hub. The tutorial rewards are secured. "
-                + _item_reward_text(secured_items, prefix="Items secured:")
-            )
+        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[route_id]
+        self._adventure_text = (
+            f"You extract from Floor {floor_number} to the Hub. "
+            "Your run rewards are secured and your "
+            + "recruited Drifters are fully restored. "
+            + _item_reward_text(secured_items, prefix="Items secured:")
+        )
 
     def _return_with_talisman(self):
-        if self.game_state.expedition_state.active_assignment is None:
-            party_state = self.game_state.party_state
-            if (
-                self.game_state.floor_two_boss_settlement_pending
-                or self.game_state.overworld_state.active_route_id
-                not in {"floor_one", "floor_two", "floor_three"}
-                or self.game_state.floor_three_boss_settlement_pending
-                or party_state.phase is not DungeonPhase.OUTING
-            ):
-                self._notice = "The Return Talisman cannot be used here."
-                return
-            if not self._persist_floor_one_talisman_fallback():
-                return
-            if not party_state.return_with_talisman(
-                self.game_state.active_party_members,
-                recruited_members=self.game_state.recruited_members,
-            ):
-                self._notice = "The Return Talisman is no longer available."
-                return
-            self.game_state._bind_equipment_state()
-            self._restore_recruited_party()
-            self.game_state.overworld_state.return_to_surface_entrance()
-            self._screen = OverworldScreen.HUB
-            self._adventure_text = (
-                "The Return Talisman brings your party back to the Hub. "
-                "Adjusted XP is secured; run gold and items are lost."
-            )
-            self._selected_item_key = None
-            self._notice = None
-            return
-
         candidate = self.game_state.clone()
         party_state = candidate.party_state
         if (
@@ -2179,7 +2456,7 @@ class OverworldSession:
         )
         if settled is None:
             return
-        self._game_state = settled
+        self._publish_saved_candidate(self.game_state, settled)
         self._screen = OverworldScreen.HUB
         self._adventure_text = (
             "The Return Talisman brings your party back to the Hub. "
@@ -2190,29 +2467,6 @@ class OverworldSession:
 
     def _restore_recruited_party(self):
         self._restore_members(self.game_state.recruited_members)
-
-    def _persist_floor_one_talisman_fallback(self):
-        fallback = self.game_state.clone()
-        if not fallback.party_state.return_with_talisman(
-            fallback.active_party_members,
-            recruited_members=fallback.recruited_members,
-        ):
-            self._notice = "The Return Talisman is no longer available."
-            return False
-        self._restore_members(fallback.recruited_members)
-        fallback._bind_equipment_state()
-        fallback.overworld_state.return_to_surface_entrance()
-        try:
-            result = self._save_port_instance().save(fallback)
-        except (SavePortError, TypeError, ValueError):
-            result = None
-        if result is None or result.status is not SaveLoadStatus.SAVED:
-            self._notice = (
-                "The Hub return could not be saved. The last committed save "
-                "remains available."
-            )
-            return False
-        return True
 
     @staticmethod
     def _restore_members(members):
@@ -2310,13 +2564,16 @@ class OverworldSession:
             self._open_respec_confirmation(self._build_view())
             return None
         if action is OverworldAction.USE:
+            item_id = (
+                self._selected_item_key.split(":", 1)[1]
+                if isinstance(self._selected_item_key, str)
+                and self._selected_item_key.startswith("carried-item:")
+                else None
+            )
             if (
                 self._screen is not OverworldScreen.ITEMS
-                or self._selected_item_key != "carried-item:healing_potion"
-                or self.game_state.party_state.carried_items.get(
-                    "healing_potion", 0
-                )
-                < 1
+                or item_id not in {"healing_potion", "mana_potion"}
+                or self.game_state.party_state.carried_items.get(item_id, 0) < 1
             ):
                 self._notice = "That item cannot be used right now."
                 return None
@@ -2343,6 +2600,12 @@ class OverworldSession:
             )
             return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+                self._screen = self._alchemy_return_screen
+                self._alchemy_preview = None
+                self._adventure_text = None
+                self._notice = "Cancelled. Nothing changed."
+                return None
             if self._screen is OverworldScreen.EXPEDITION_CONFIRMATION:
                 self._screen = OverworldScreen.EXPEDITION_SETUP
                 self._notice = "Cancelled. No energy was spent."
@@ -2372,6 +2635,9 @@ class OverworldSession:
             self._quit_return_screen = None
             return None
         if action is OverworldAction.CONFIRM:
+            if self._screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+                self._confirm_alchemy_craft()
+                return None
             if self._screen is OverworldScreen.EXPEDITION_CONFIRMATION:
                 return self._confirm_expedition_launch()
             if self._screen is OverworldScreen.DISCOVERY_CONFIRMATION:
@@ -2411,39 +2677,55 @@ class OverworldSession:
         return _UNHANDLED_ACTION
 
     def _start_floor_one(self):
-        party_state = self.game_state.party_state
-        overworld = self.game_state.overworld_state
-        party_snapshot = party_state.snapshot()
-        overworld_snapshot = overworld.snapshot()
-        party_members = self.game_state.active_party_members
-        checkpoints = tuple(
-            member.create_battle_checkpoint() for member in party_members
-        )
+        return self._start_route("floor_one")
+
+    def _start_route(self, floor_id):
+        original_game = self.game_state
+        candidate = original_game.clone()
+        party_state = candidate.party_state
+        party_members = original_game.active_party_members
+        checkpoints = tuple(member.create_battle_checkpoint() for member in party_members)
+        previous_target = self._selected_character_target_id
+        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[
+            floor_id
+        ]
+        self._game_state = candidate
         try:
-            party_state.start_floor_one_run()
+            start_run = {
+                "floor_one": party_state.start_floor_one_run,
+                "floor_two": party_state.start_floor_two_run,
+                "floor_three": party_state.start_floor_three_run,
+            }[floor_id]
+            start_run()
+            candidate._player_state = original_game.player_state
+            candidate._party_state = PartyState.from_snapshot(
+                candidate.party_state.snapshot(),
+                companions=original_game.party_state.companions,
+                active_drifter_ids=candidate.party_state.active_drifter_ids,
+            )
+            candidate._bind_equipment_state()
+            party_members = candidate.active_party_members
             self._select_party_target(party_members[0])
-            overworld.begin_route("floor_one")
+            candidate.overworld_state.begin_route(floor_id)
             self._screen = OverworldScreen.MAIN
-            self._adventure_text = "Your party sets out into Floor 1."
+            self._adventure_text = f"Your party sets out into Floor {floor_number}."
             battle = self._create_active_battle(ui=None)
             if battle is None:
-                raise RuntimeError("the first Floor 1 encounter is unavailable")
+                raise RuntimeError("the first floor encounter is unavailable")
+            saved = self._save_port_instance().save(candidate)
+            if saved.status is not SaveLoadStatus.SAVED:
+                raise SavePortError("the outing start could not be saved")
+            self._publish_saved_candidate(original_game, candidate)
         except Exception:
             for member, checkpoint in zip(party_members, checkpoints):
                 member.restore_battle_checkpoint(checkpoint)
-            self.game_state._party_state = PartyState.from_snapshot(
-                party_snapshot,
-                companions=party_state.companions,
-                active_drifter_ids=party_state.active_drifter_ids,
-            )
-            self.game_state._overworld_state = OverworldState.from_snapshot(
-                overworld_snapshot
-            )
+            self._game_state = original_game
             self._active_battle = None
             self._active_battle_context = None
             self._screen = OverworldScreen.HUB
             self._adventure_text = None
-            self._notice = "The Floor 1 run could not be started."
+            self._selected_character_target_id = previous_target
+            self._notice = f"The Floor {floor_number} run could not be started."
             return None
 
         battle_view = battle.current_view()
@@ -2451,16 +2733,43 @@ class OverworldSession:
             self._finalize_active_battle()
         return battle_view
 
-    def _persist_floor_one_hub_outcome(self):
-        try:
-            result = self._save_port_instance().save(self.game_state)
-        except (SavePortError, TypeError, ValueError):
-            result = None
-        if result is None or result.status is not SaveLoadStatus.SAVED:
-            self._notice = (
-                "The Hub return could not be saved. The last committed save "
-                "remains available."
-            )
+    def _publish_saved_candidate(self, original_game, candidate):
+        candidate_members = {
+            member.character.profile.drifter_id: member
+            for member in candidate.recruited_members
+        }
+        published_members = []
+        for existing in original_game.recruited_members:
+            drifter_id = existing.character.profile.drifter_id
+            updated = candidate_members.pop(drifter_id)
+            if existing is not updated:
+                _replace_instance_attributes(existing, updated)
+            published_members.append(existing)
+        published_members.extend(candidate_members.values())
+
+        original_party = original_game.party_state
+        replacement_party = PartyState.from_snapshot(
+            candidate.party_state.snapshot(),
+            companions=tuple(published_members[1:]),
+            active_drifter_ids=candidate.party_state.active_drifter_ids,
+        )
+        _replace_instance_attributes(original_party, replacement_party)
+        if self._active_battle is not None:
+            self._active_battle._party_state = original_party
+
+        for attribute in (
+            "_story_state",
+            "_world_state",
+            "_overworld_state",
+            "_expedition_state",
+        ):
+            existing = getattr(original_game, attribute)
+            updated = getattr(candidate, attribute)
+            _replace_instance_attributes(existing, updated)
+        original_game._metadata = dict(candidate._metadata)
+        original_game._bind_equipment_state()
+        self._game_state = original_game
+        return original_game
 
     def _persist_outing_terminal_state(self, candidate, *, secured_base_xp):
         from app.game.expeditions import (
@@ -2660,7 +2969,7 @@ class OverworldSession:
             self._adventure_text = None
             return
         if self._screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
-            self._screen = OverworldScreen.EQUIPMENT
+            self._screen = self._equipment_return_screen
             self._equipment_preview = None
             self._equipment_pending_input = None
             self._notice = "Cancelled. Nothing changed."
@@ -2696,8 +3005,19 @@ class OverworldSession:
         }:
             self._screen = OverworldScreen.CHARACTER
             return
-        if self._screen is OverworldScreen.MERCHANT:
+        if self._screen is OverworldScreen.VENDORS:
             self._screen = OverworldScreen.HUB
+            return
+        if self._screen is OverworldScreen.HUB_INVENTORY:
+            self._screen = OverworldScreen.HUB
+            return
+        if self._screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+            OverworldScreen.ALCHEMIST,
+        }:
+            self._screen = OverworldScreen.VENDORS
             return
         if self._screen is OverworldScreen.ITEM_INSPECT:
             self._screen = OverworldScreen.ITEMS
@@ -2900,7 +3220,7 @@ class OverworldSession:
             checkpoints,
             (
                 self.game_state.party_state.carried_items
-                if is_floor_two or is_floor_three
+                if is_party_run
                 else None
             ),
         )
@@ -2981,6 +3301,8 @@ class OverworldSession:
                 exp_reward=exp_reward,
                 gold_reward=gold_reward,
                 party_members=party_members,
+                checkpoints=checkpoints,
+                carried_supplies_checkpoint=carried_supplies_checkpoint,
             )
             return None
 
@@ -3095,33 +3417,22 @@ class OverworldSession:
         current_node = get_route_node_spec(current_node_id)
 
         if winner != "player":
-            if self.game_state.expedition_state.active_assignment is None:
-                if not party_state.fail_floor_two_run(
-                    self.game_state.active_party_members,
-                    recruited_members=self.game_state.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 2 defeat could not be cleared")
-                self.game_state._bind_equipment_state()
-                overworld.return_to_surface_entrance()
-                self._restore_recruited_party()
-                self._persist_floor_one_hub_outcome()
-            else:
-                candidate = self.game_state.clone()
-                if not candidate.party_state.fail_floor_two_run(
-                    candidate.active_party_members,
-                    recruited_members=candidate.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 2 defeat could not be cleared")
-                candidate._bind_equipment_state()
-                candidate.overworld_state.return_to_surface_entrance()
-                self._restore_members(candidate.recruited_members)
-                settled = self._persist_outing_terminal_state(
-                    candidate,
-                    secured_base_xp=0,
-                )
-                if settled is None:
-                    return
-                self._game_state = settled
+            candidate = self.game_state.clone()
+            if not candidate.party_state.fail_floor_two_run(
+                candidate.active_party_members,
+                recruited_members=candidate.recruited_members,
+            ):
+                raise RuntimeError("the Floor 2 defeat could not be cleared")
+            candidate._bind_equipment_state()
+            candidate.overworld_state.return_to_surface_entrance()
+            self._restore_members(candidate.recruited_members)
+            settled = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=0,
+            )
+            if settled is None:
+                return
+            self._publish_saved_candidate(self.game_state, settled)
             self._screen = OverworldScreen.HUB
             self._adventure_text = (
                 "The party was defeated. All unsecured XP, gold, items, and "
@@ -3135,6 +3446,7 @@ class OverworldSession:
                 )
             next_node_id = get_route_successor_id(current_node_id)
             candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
             if current_node.kind is not RouteNodeKind.BOSS:
                 if next_node_id is None:
                     raise RuntimeError(
@@ -3246,7 +3558,7 @@ class OverworldSession:
             self._notice = "The Floor 2 clear could not be saved."
             return False
 
-        self._game_state = saved_state
+        self._publish_saved_candidate(self.game_state, saved_state)
         self._screen = OverworldScreen.HUB
         self._adventure_text = (
             "The Goblin Lord is defeated. Floor 2 is cleared; all run rewards "
@@ -3273,33 +3585,22 @@ class OverworldSession:
         current_node = get_route_node_spec(current_node_id)
 
         if winner != "player":
-            if self.game_state.expedition_state.active_assignment is None:
-                if not party_state.fail_floor_three_run(
-                    self.game_state.active_party_members,
-                    recruited_members=self.game_state.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 3 defeat could not be cleared")
-                self.game_state._bind_equipment_state()
-                overworld.return_to_surface_entrance()
-                self._restore_recruited_party()
-                self._persist_floor_one_hub_outcome()
-            else:
-                candidate = self.game_state.clone()
-                if not candidate.party_state.fail_floor_three_run(
-                    candidate.active_party_members,
-                    recruited_members=candidate.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 3 defeat could not be cleared")
-                candidate._bind_equipment_state()
-                candidate.overworld_state.return_to_surface_entrance()
-                self._restore_members(candidate.recruited_members)
-                settled = self._persist_outing_terminal_state(
-                    candidate,
-                    secured_base_xp=0,
-                )
-                if settled is None:
-                    return
-                self._game_state = settled
+            candidate = self.game_state.clone()
+            if not candidate.party_state.fail_floor_three_run(
+                candidate.active_party_members,
+                recruited_members=candidate.recruited_members,
+            ):
+                raise RuntimeError("the Floor 3 defeat could not be cleared")
+            candidate._bind_equipment_state()
+            candidate.overworld_state.return_to_surface_entrance()
+            self._restore_members(candidate.recruited_members)
+            settled = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=0,
+            )
+            if settled is None:
+                return
+            self._publish_saved_candidate(self.game_state, settled)
             self._screen = OverworldScreen.HUB
             self._adventure_text = (
                 "The party was defeated. All unsecured XP, gold, items, and "
@@ -3313,6 +3614,7 @@ class OverworldSession:
                 )
             next_node_id = get_route_successor_id(current_node_id)
             candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
             if current_node.kind is not RouteNodeKind.BOSS:
                 if next_node_id is None:
                     raise RuntimeError(
@@ -3435,7 +3737,7 @@ class OverworldSession:
             self._notice = "The Floor 3 clear could not be saved."
             return False
 
-        self._game_state = saved_state
+        self._publish_saved_candidate(self.game_state, saved_state)
         self._screen = OverworldScreen.HUB
         self._adventure_text = (
             "The Floor 3 boss is defeated. Floor 3 is cleared; rewards are "
@@ -3453,6 +3755,8 @@ class OverworldSession:
         exp_reward,
         gold_reward,
         party_members,
+        checkpoints,
+        carried_supplies_checkpoint,
     ):
         party_state = self.game_state.party_state
         overworld = self.game_state.overworld_state
@@ -3467,33 +3771,9 @@ class OverworldSession:
                 boss_items = dict(
                     get_encounter_item_rewards(current_node.encounter_id)
                 )
-                if self.game_state.expedition_state.active_assignment is None:
-                    party_state.add_floor_one_rewards(
-                        experience=exp_reward,
-                        gold=gold_reward,
-                        items=boss_items,
-                    )
-                    secured_items = dict(party_state.outing_rewards.items)
-                    if not party_state.complete_floor_one_boss(party_members):
-                        raise RuntimeError(
-                            "Floor 1 boss rewards could not be secured"
-                        )
-                    self._restore_recruited_party()
-                    overworld.return_to_surface_entrance()
-                    self._screen = OverworldScreen.HUB
-                    self._adventure_text = (
-                        "The Goblin Lord is defeated. Floor 1 is cleared; all run "
-                        + "rewards are secured and your recruited party returns to the Hub. "
-                        + _item_reward_text(secured_items, prefix="Items secured:")
-                    )
-                    self._persist_floor_one_hub_outcome()
-                    self._selected_item_key = None
-                    self._active_battle = None
-                    self._active_battle_context = None
-                    return
-
                 candidate = self.game_state.clone()
                 candidate_party = candidate.party_state
+                candidate_party._mark_encounter_progress()
                 candidate_party.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,
@@ -3516,7 +3796,7 @@ class OverworldSession:
                 )
                 if saved_state is None:
                     return
-                self._game_state = saved_state
+                self._publish_saved_candidate(self.game_state, saved_state)
                 self._screen = OverworldScreen.HUB
                 self._adventure_text = (
                     "The Goblin Lord is defeated. Floor 1 is cleared; all run "
@@ -3527,7 +3807,9 @@ class OverworldSession:
                 item_rewards = dict(
                     get_encounter_item_rewards(current_node.encounter_id)
                 )
-                party_state.add_floor_one_rewards(
+                candidate = self.game_state.clone()
+                candidate.party_state._mark_encounter_progress()
+                candidate.party_state.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,
                     items=item_rewards,
@@ -3538,12 +3820,38 @@ class OverworldSession:
                         "a Floor 1 encounter must have an authored successor"
                     )
                 next_node = get_route_node_spec(next_node_id)
-                overworld.advance_to(
+                candidate.overworld_state.advance_to(
                     next_node_id,
                     contextual_phase=self._contextual_phase_for_node(
                         next_node.kind
                     ),
                 )
+                try:
+                    saved = self._save_port_instance().save(candidate)
+                except (OSError, SavePortError, TypeError, ValueError):
+                    saved = None
+                if saved is None or saved.status is not SaveLoadStatus.SAVED:
+                    for member, checkpoint in zip(party_members, checkpoints):
+                        member.restore_battle_checkpoint(checkpoint)
+                    self.game_state.party_state.restore_carried_supplies_checkpoint(
+                        carried_supplies_checkpoint
+                    )
+                    self.game_state.overworld_state.set_contextual_route_phase(
+                        ContextualRoutePhase.RETRY
+                    )
+                    self._screen = OverworldScreen.MAIN
+                    self._adventure_text = (
+                        f"{current_node.display_label} is defeated, but its "
+                        "rewards could not be saved. Retry the encounter."
+                    )
+                    self._notice = (
+                        "The Floor 1 encounter outcome could not be saved."
+                    )
+                    self._selected_item_key = None
+                    self._active_battle = None
+                    self._active_battle_context = None
+                    return
+                self._publish_saved_candidate(self.game_state, candidate)
                 self._screen = (
                     OverworldScreen.REST
                     if next_node.kind is RouteNodeKind.REST
@@ -3556,33 +3864,22 @@ class OverworldSession:
                     f"The route continues toward {next_node.display_label}."
                 )
         else:
-            if self.game_state.expedition_state.active_assignment is None:
-                if not party_state.fail_floor_one_run(
-                    party_members,
-                    recruited_members=self.game_state.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 1 defeat could not be cleared")
-                self.game_state._bind_equipment_state()
-                overworld.return_to_surface_entrance()
-                self._restore_recruited_party()
-                self._persist_floor_one_hub_outcome()
-            else:
-                candidate = self.game_state.clone()
-                if not candidate.party_state.fail_floor_one_run(
-                    candidate.active_party_members,
-                    recruited_members=candidate.recruited_members,
-                ):
-                    raise RuntimeError("the Floor 1 defeat could not be cleared")
-                candidate._bind_equipment_state()
-                candidate.overworld_state.return_to_surface_entrance()
-                self._restore_members(candidate.recruited_members)
-                saved_state = self._persist_outing_terminal_state(
-                    candidate,
-                    secured_base_xp=0,
-                )
-                if saved_state is None:
-                    return
-                self._game_state = saved_state
+            candidate = self.game_state.clone()
+            if not candidate.party_state.fail_floor_one_run(
+                candidate.active_party_members,
+                recruited_members=candidate.recruited_members,
+            ):
+                raise RuntimeError("the Floor 1 defeat could not be cleared")
+            candidate._bind_equipment_state()
+            candidate.overworld_state.return_to_surface_entrance()
+            self._restore_members(candidate.recruited_members)
+            saved_state = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=0,
+            )
+            if saved_state is None:
+                return
+            self._publish_saved_candidate(self.game_state, saved_state)
             self._screen = OverworldScreen.HUB
             self._adventure_text = (
                 "The party was defeated. All unsecured XP, gold, and items "

@@ -144,6 +144,35 @@
     return button;
   }
 
+  function makeQuantityInput(maximum, label) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "1";
+    input.max = String(Math.max(1, maximum));
+    input.step = "1";
+    input.value = "1";
+    input.inputMode = "numeric";
+    input.className = "merchant-quantity";
+    input.setAttribute("aria-label", `${label} quantity`);
+    return input;
+  }
+
+  function makeQuantityButton(label, command, quantityInput, enabled, reason) {
+    const button = makeButton(label, null, enabled, reason, "merchant-action");
+    if (enabled) {
+      button.addEventListener("click", () => {
+        const quantity = Number(quantityInput.value);
+        if (
+          !Number.isInteger(quantity)
+          || quantity < 1
+          || quantity > Number(quantityInput.max)
+        ) return;
+        send({ ...command, quantity });
+      });
+    }
+    return button;
+  }
+
   function renderOptions(container, options, commandFactory, labelFactory, className) {
     clear(container);
     for (const option of options || []) {
@@ -240,6 +269,9 @@
         break;
       case "healing":
         lines.push(`${actor} used ${action}${targetContext}. It restored ${entry.amount} health.`);
+        break;
+      case "mana_restoration":
+        lines.push(`${actor} used ${action}${targetContext}. It restored ${entry.amount} Mana.`);
         break;
       case "defend":
         lines.push(`${actor} used Defend.`);
@@ -750,8 +782,33 @@
 
     const equipment = view.equipment;
     if (!equipment) return;
-    setText("equipment-title", "Equipment");
+    setText(
+      "equipment-title",
+      view.screen === "blacksmith"
+        ? "Blacksmith Services"
+        : view.screen === "enchanter"
+          ? "Enchanter Services"
+          : "Equipment",
+    );
     renderPartyTargets("equipment-targets", equipment.targets);
+    const enchantingProgress = $("enchanting-progress");
+    enchantingProgress.hidden = view.screen !== "enchanter";
+    enchantingProgress.textContent = view.screen === "enchanter"
+      ? `Enchanting Level ${equipment.enchanting_level} | ${equipment.enchanting_experience} XP`
+      : "";
+    const knownAffixes = $("enchanting-known-affixes");
+    knownAffixes.hidden = view.screen !== "enchanter";
+    clear(knownAffixes);
+    for (const affix of equipment.known_affixes || []) {
+      const row = document.createElement("div");
+      row.textContent = affix;
+      knownAffixes.append(row);
+    }
+    if (!knownAffixes.childElementCount && view.screen === "enchanter") {
+      const empty = document.createElement("div");
+      empty.textContent = "No affix recipes discovered.";
+      knownAffixes.append(empty);
+    }
 
     const inventory = $("equipment-inventory");
     clear(inventory);
@@ -850,6 +907,8 @@
             ...(action.modifier_instance_id
               ? { modifier_instance_id: action.modifier_instance_id }
               : {}),
+            ...(action.affix_id ? { affix_id: action.affix_id } : {}),
+            expected_transaction_sequence: view.hub_transaction_sequence,
           },
           action.enabled,
           action.disabled_reason,
@@ -873,12 +932,17 @@
       line.textContent = benefit;
       benefits.append(line);
     }
-    renderDetailOptions("equipment-options", view.options);
+    const blacksmithOwnsBack = view.screen === "blacksmith";
+    $("equipment-options").hidden = blacksmithOwnsBack;
+    if (!blacksmithOwnsBack) {
+      renderDetailOptions("equipment-options", view.options);
+    }
   }
 
   function renderMerchant(view) {
     const merchant = view.merchant;
     if (!merchant) return;
+    setText("merchant-title", "Blacksmith");
     setText(
       "merchant-crafting",
       `Crafting Level ${merchant.crafting_level} | ${merchant.crafting_experience} XP`,
@@ -917,6 +981,7 @@
           kind: "merchant_improve",
           target_drifter_id: merchant.selected_target_id,
           slot_id: slot.slot_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         slot.can_improve,
         slot.blocked_reason,
@@ -954,6 +1019,7 @@
           kind: "merchant_dismantle",
           target_drifter_id: merchant.selected_target_id,
           item_id: item.item_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         true,
         null,
@@ -986,6 +1052,7 @@
           kind: "merchant_craft_component",
           target_drifter_id: merchant.selected_target_id,
           component_id: recipe.component_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
         },
         recipe.can_craft,
         "insufficient_materials",
@@ -1021,23 +1088,48 @@
       {
         kind: "merchant_tier_v",
         target_drifter_id: merchant.selected_target_id,
+        expected_transaction_sequence: view.hub_transaction_sequence,
       },
       tierV.can_attempt,
       tierV.blocked_reason || (tierV.completed ? "already_complete" : null),
       "merchant-action",
     ));
-    renderHubEconomy(view.hub_economy);
     renderDetailOptions("merchant-options", view.options);
   }
 
-  function renderHubEconomy(economy) {
+  function renderVendorDirectory(view) {
+    renderDetailOptions("vendors-options", view.options);
+  }
+
+  function renderHubEconomy(view) {
+    const economy = view.hub_economy;
+    const title = {
+      merchant: "Merchant",
+      blacksmith: "Blacksmith",
+      hub_inventory: "Hub Inventory",
+      alchemist: "Alchemist",
+      alchemy_confirmation: "Confirm Alchemy Craft",
+    }[view.screen] || "Hub Services";
+    setText("hub-economy-title", title);
     const summary = $("merchant-storage-summary");
     const supplies = $("merchant-supplies");
     const recipes = $("merchant-alchemy-recipes");
+    const alchemySection = $("hub-alchemy-section");
+    const buybackSection = $("hub-buyback-section");
+    const buybackList = $("hub-buyback-list");
+    const alchemist = view.screen === "alchemist";
+    supplies.hidden = false;
+    alchemySection.hidden = !alchemist;
+    $("alchemy-progress").textContent = alchemist
+      ? `Alchemy Level ${economy?.alchemy_level ?? 1} | ${economy?.alchemy_experience ?? 0} XP`
+      : "";
     clear(supplies);
     clear(recipes);
+    clear(buybackList);
     if (!economy) {
       summary.textContent = "";
+      buybackSection.hidden = true;
+      renderDetailOptions("hub-economy-options", view.options);
       return;
     }
     summary.textContent = `Shared gold: ${economy.shared_gold} | Carried supplies: ${economy.carried_units}/${economy.carried_capacity}`;
@@ -1049,48 +1141,104 @@
       const title = document.createElement("strong");
       title.textContent = item.display_name;
       const quantity = document.createElement("span");
-      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | ${item.base_price} gold` : ""}`;
+      quantity.textContent = `Stored ${item.stored_quantity} | Carried ${item.carried_quantity}${item.shop_stocked ? ` | Stock ${item.stock_quantity} | ${item.base_price} gold` : ""}`;
       const detail = document.createElement("span");
       detail.textContent = item.description;
       description.append(title, quantity, detail);
       const actions = document.createElement("div");
       actions.className = "merchant-row-actions";
       if (item.shop_stocked) {
-        actions.append(makeButton(
+        const quantityInput = makeQuantityInput(
+          item.max_buy_quantity,
+          `${item.display_name} purchase`,
+        );
+        actions.append(quantityInput, makeQuantityButton(
           "Buy",
-          { kind: "hub_supply", operation: "buy", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "buy",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          quantityInput,
           item.can_buy,
           item.can_buy ? null : "insufficient_gold",
-          "merchant-action",
         ));
       }
       if (item.sellable) {
-        actions.append(makeButton(
-          `Sell ${Math.floor(item.base_price / 2)}g`,
-          { kind: "hub_supply", operation: "sell", item_id: item.item_id },
+        const quantityInput = makeQuantityInput(
+          item.max_sell_quantity,
+          `${item.display_name} sale`,
+        );
+        actions.append(quantityInput, makeQuantityButton(
+          `Sell ${item.resale_price}g`,
+          {
+            kind: "hub_supply",
+            operation: "sell",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          quantityInput,
           item.can_sell,
           item.can_sell ? null : "not_in_storage",
+        ));
+      }
+      if (item.is_component && item.stored_quantity > 0) {
+        actions.append(makeButton(
+          "Install",
+          {
+            kind: "blacksmith_install_component",
+            target_drifter_id: view.merchant?.selected_target_id,
+            component_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          item.can_install_component,
+          item.can_install_component ? null : "incompatible_or_already_installed",
           "merchant-action",
         ));
       }
       if (item.carryable) {
-        actions.append(makeButton(
+        const loadInput = makeQuantityInput(
+          Math.min(item.stored_quantity, economy.carried_capacity - economy.carried_units),
+          `${item.display_name} load`,
+        );
+        actions.append(loadInput, makeQuantityButton(
           "Load",
-          { kind: "hub_supply", operation: "load", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "load",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          loadInput,
           item.can_load,
           item.can_load ? null : (item.stored_quantity ? "pack_full" : "not_in_storage"),
-          "merchant-action",
         ));
-        actions.append(makeButton(
+        const unloadInput = makeQuantityInput(
+          item.carried_quantity,
+          `${item.display_name} unload`,
+        );
+        actions.append(unloadInput, makeQuantityButton(
           "Unload",
-          { kind: "hub_supply", operation: "unload", item_id: item.item_id },
+          {
+            kind: "hub_supply",
+            operation: "unload",
+            item_id: item.item_id,
+            expected_transaction_sequence: view.hub_transaction_sequence,
+          },
+          unloadInput,
           item.can_unload,
           item.can_unload ? null : "not_in_pack",
-          "merchant-action",
         ));
       }
       row.append(description, actions);
       supplies.append(row);
+    }
+    if (!alchemist && !(economy.items || []).length) {
+      const empty = document.createElement("p");
+      empty.className = "merchant-empty";
+      empty.textContent = "No eligible goods are available.";
+      supplies.append(empty);
     }
     for (const recipe of economy.recipes || []) {
       const row = document.createElement("div");
@@ -1101,16 +1249,62 @@
       title.textContent = recipe.display_name;
       const ingredients = document.createElement("span");
       ingredients.textContent = `${recipe.ingredient_summary.join(" + ")} -> ${recipe.output_summary.join(" + ")}`;
-      description.append(title, ingredients);
+      const details = document.createElement("span");
+      details.textContent = `${recipe.experience_award} Alchemy XP${recipe.requires_confirmation ? " | Confirmation required" : ""}`;
+      description.append(title, ingredients, details);
       row.append(description, makeButton(
         "Craft",
-        { kind: "alchemy_recipe", recipe_id: recipe.recipe_id },
+        {
+          kind: "alchemy_recipe",
+          recipe_id: recipe.recipe_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
+        },
         recipe.can_craft,
         recipe.can_craft ? null : "missing_ingredients",
         "merchant-action",
       ));
       recipes.append(row);
     }
+    const buybacks = economy.buybacks || [];
+    buybackSection.hidden = buybacks.length === 0;
+    for (const offer of buybacks) {
+      const row = document.createElement("div");
+      row.className = "merchant-row";
+      const description = document.createElement("div");
+      description.className = "merchant-row-description";
+      const title = document.createElement("strong");
+      title.textContent = offer.display_name;
+      const details = document.createElement("span");
+      details.textContent = offer.is_unique_equipment
+        ? `Unique item | Buy back for ${offer.unit_price} gold`
+        : `${offer.remaining_quantity} available | ${offer.unit_price} gold each`;
+      description.append(title, details);
+      const actions = document.createElement("div");
+      actions.className = "merchant-row-actions";
+      const quantityInput = makeQuantityInput(
+        offer.remaining_quantity,
+        `${offer.display_name} buyback`,
+      );
+      if (offer.is_unique_equipment) {
+        quantityInput.hidden = true;
+      } else {
+        actions.append(quantityInput);
+      }
+      actions.append(makeQuantityButton(
+        "Buy Back",
+        {
+          kind: "hub_buyback",
+          sale_id: offer.sale_id,
+          expected_transaction_sequence: view.hub_transaction_sequence,
+        },
+        quantityInput,
+        offer.can_recover,
+        offer.can_recover ? null : "insufficient_gold",
+      ));
+      row.append(description, actions);
+      buybackList.append(row);
+    }
+    renderDetailOptions("hub-economy-options", view.options);
   }
 
   function renderDetailOptions(containerId, options) {
@@ -1345,12 +1539,21 @@
     const details = $("items-inspection");
     clear(list);
     details.hidden = !inspecting;
-    setText("items-title", choosingHealingTarget ? "Choose a Drifter to Heal" : "Items");
+    const selectedItemId = inventory && inventory.selected_item_key
+      ? inventory.selected_item_key.split(":").pop()
+      : "healing_potion";
+    const usingManaPotion = selectedItemId === "mana_potion";
+    setText(
+      "items-title",
+      choosingHealingTarget
+        ? `Choose a Drifter for ${usingManaPotion ? "Mana" : "HP"}`
+        : "Items",
+    );
 
     if (choosingHealingTarget) {
       for (const target of view.healing_targets || []) {
         list.append(makeButton(
-          `${target.display_name} | HP ${target.hp_current}/${target.hp_maximum}`,
+          `${target.display_name} | ${usingManaPotion ? "Mana" : "HP"} ${usingManaPotion ? target.mana_current : target.hp_current}/${usingManaPotion ? target.mana_maximum : target.hp_maximum}`,
           { kind: "overworld_healing_target", drifter_id: target.drifter_id },
           true,
           null,
@@ -1395,7 +1598,7 @@
 
   function renderOverworld(view) {
     const characterMenuScreens = [
-      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "merchant", "items", "item_inspect", "healing_targets",
+      "character", "skills", "respec_confirmation", "weapon", "equipment", "equipment_confirmation", "alchemy_confirmation", "vendors", "merchant", "hub_inventory", "blacksmith", "enchanter", "alchemist", "items", "item_inspect", "healing_targets",
     ];
     const characterMenuActive = characterMenuScreens.includes(view.screen);
     const mainScreen = view.screen === "main";
@@ -1454,16 +1657,24 @@
     $("skills-panel").hidden = view.screen !== "skills";
     $("respec-panel").hidden = view.screen !== "respec_confirmation";
     $("weapon-panel").hidden = view.screen !== "weapon";
-    $("equipment-panel").hidden = !["equipment", "equipment_confirmation"].includes(view.screen);
+    $("equipment-panel").hidden = !["equipment", "equipment_confirmation", "blacksmith", "enchanter"].includes(view.screen);
     $("items-panel").hidden = !["items", "item_inspect", "healing_targets"].includes(view.screen);
-    $("merchant-panel").hidden = view.screen !== "merchant";
+    $("vendors-panel").hidden = view.screen !== "vendors";
+    $("hub-economy-panel").hidden = !["merchant", "hub_inventory", "blacksmith", "alchemist", "alchemy_confirmation"].includes(view.screen);
+    $("merchant-panel").hidden = view.screen !== "blacksmith";
     if (view.screen === "character") renderCharacter(view);
     else if (view.screen === "skills") renderSkills(view);
     else if (view.screen === "respec_confirmation") renderRespec(view);
     else if (view.screen === "weapon") renderWeapon(view);
-    else if (["equipment", "equipment_confirmation"].includes(view.screen)) renderEquipment(view);
+    else if (view.screen === "blacksmith") {
+      renderEquipment(view);
+      renderMerchant(view);
+      renderHubEconomy(view);
+    }
+    else if (["equipment", "equipment_confirmation", "enchanter"].includes(view.screen)) renderEquipment(view);
     else if (["items", "item_inspect", "healing_targets"].includes(view.screen)) renderOverworldItems(view);
-    else if (view.screen === "merchant") renderMerchant(view);
+    else if (view.screen === "vendors") renderVendorDirectory(view);
+    else if (["merchant", "hub_inventory", "alchemist", "alchemy_confirmation"].includes(view.screen)) renderHubEconomy(view);
 
     renderInventory($("inventory"), view);
     clear($("actions"));
@@ -1571,12 +1782,13 @@
       setText("controls-title", "Choose a target:");
       renderTargets(targets, view.target_options);
     } else if (phase === "healing_targets") {
-      setText("controls-title", "Use Healing Potion on:");
+      const isManaPotion = view.healing_item_id === "mana_potion";
+      setText("controls-title", isManaPotion ? "Use Mana Potion on:" : "Use Healing Potion on:");
       renderOptions(
         targets,
         view.healing_target_options,
-        (option) => ({ kind: "healing_target", target_id: option.target_id }),
-        (option) => `${option.number}. ${option.display_label} | HP ${option.hp_current}/${option.hp_maximum}`,
+        (option) => ({ kind: "healing_target", target_id: option.target_id, item_id: view.healing_item_id }),
+        (option) => `${option.number}. ${option.display_label} | ${isManaPotion ? "Mana" : "HP"} ${isManaPotion ? option.mana_current : option.hp_current}/${isManaPotion ? option.mana_maximum : option.hp_maximum}`,
         "battle-option target-choice",
       );
       appendBack(targets);

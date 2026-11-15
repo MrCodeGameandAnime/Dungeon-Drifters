@@ -7,6 +7,8 @@ from enum import StrEnum
 class OverworldScreen(StrEnum):
     MAIN = "main"
     HUB = "hub"
+    VENDORS = "vendors"
+    HUB_INVENTORY = "hub_inventory"
     FLOOR_ONE_WARNING = "floor_one_warning"
     COMPANION_SELECTION = "companion_selection"
     FLOOR_TWO_HELPER_SELECTION = "floor_two_helper_selection"
@@ -18,9 +20,13 @@ class OverworldScreen(StrEnum):
     SKILLS = "skills"
     RESPEC_CONFIRMATION = "respec_confirmation"
     EQUIPMENT_CONFIRMATION = "equipment_confirmation"
+    ALCHEMY_CONFIRMATION = "alchemy_confirmation"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
     MERCHANT = "merchant"
+    BLACKSMITH = "blacksmith"
+    ENCHANTER = "enchanter"
+    ALCHEMIST = "alchemist"
     ITEMS = "items"
     ITEM_INSPECT = "item_inspect"
     HEALING_TARGETS = "healing_targets"
@@ -47,7 +53,12 @@ class OverworldAction(StrEnum):
     RESPEC = "respec"
     WEAPON = "weapon"
     EQUIPMENT = "equipment"
+    VENDORS = "vendors"
+    HUB_INVENTORY = "hub_inventory"
     MERCHANT = "merchant"
+    BLACKSMITH = "blacksmith"
+    ENCHANTER = "enchanter"
+    ALCHEMIST = "alchemist"
     CRAFT = "craft"
     INSPECT = "inspect"
     USE = "use"
@@ -780,17 +791,56 @@ class HubSupplyItemView:
     can_sell: bool
     can_load: bool
     can_unload: bool
+    vendor_id: str | None = None
+    stock_quantity: int = 0
+    resale_price: int = 0
+    is_component: bool = False
+    can_install_component: bool = False
+    max_buy_quantity: int = 0
+    max_sell_quantity: int = 0
 
     def __post_init__(self):
         for name in ("item_id", "display_name", "description"):
             _validate_text(name, getattr(self, name))
-        for name in ("base_price", "stored_quantity", "carried_quantity"):
+        for name in (
+            "base_price",
+            "stored_quantity",
+            "carried_quantity",
+            "stock_quantity",
+            "resale_price",
+            "max_buy_quantity",
+            "max_sell_quantity",
+        ):
             _validate_nonnegative(name, getattr(self, name))
+        if self.vendor_id is not None:
+            _validate_text("vendor_id", self.vendor_id)
         for name in (
             "shop_stocked", "sellable", "carryable", "can_buy",
-            "can_sell", "can_load", "can_unload",
+            "can_sell", "can_load", "can_unload", "is_component",
+            "can_install_component",
         ):
             _validate_bool(name, getattr(self, name))
+
+
+@dataclass(frozen=True)
+class HubBuybackView:
+    sale_id: str
+    item_id: str
+    display_name: str
+    remaining_quantity: int
+    unit_price: int
+    is_unique_equipment: bool
+    can_recover: bool
+
+    def __post_init__(self):
+        for name in ("sale_id", "item_id", "display_name"):
+            _validate_text(name, getattr(self, name))
+        for name in ("remaining_quantity", "unit_price"):
+            _validate_nonnegative(name, getattr(self, name))
+        if self.remaining_quantity < 1:
+            raise ValueError("buyback quantity must be positive")
+        _validate_bool("is_unique_equipment", self.is_unique_equipment)
+        _validate_bool("can_recover", self.can_recover)
 
 
 @dataclass(frozen=True)
@@ -800,6 +850,8 @@ class HubAlchemyRecipeView:
     ingredient_summary: tuple[str, ...]
     output_summary: tuple[str, ...]
     can_craft: bool
+    experience_award: int = 0
+    requires_confirmation: bool = False
 
     def __post_init__(self):
         _validate_text("recipe_id", self.recipe_id)
@@ -807,6 +859,8 @@ class HubAlchemyRecipeView:
         _validate_text_tuple("ingredient_summary", self.ingredient_summary)
         _validate_text_tuple("output_summary", self.output_summary)
         _validate_bool("can_craft", self.can_craft)
+        _validate_nonnegative("experience_award", self.experience_award)
+        _validate_bool("requires_confirmation", self.requires_confirmation)
 
 
 @dataclass(frozen=True)
@@ -816,15 +870,21 @@ class HubEconomyView:
     carried_capacity: int
     items: tuple[HubSupplyItemView, ...]
     recipes: tuple[HubAlchemyRecipeView, ...]
+    buybacks: tuple[HubBuybackView, ...] = ()
+    alchemy_level: int = 1
+    alchemy_experience: int = 0
 
     def __post_init__(self):
         _validate_nonnegative("shared_gold", self.shared_gold)
         _validate_nonnegative("carried_units", self.carried_units)
         _validate_nonnegative("carried_capacity", self.carried_capacity)
+        _validate_nonnegative("alchemy_level", self.alchemy_level)
+        _validate_nonnegative("alchemy_experience", self.alchemy_experience)
         if self.carried_units > self.carried_capacity:
             raise ValueError("carried units exceed capacity")
         _validate_instance_tuple("items", self.items, HubSupplyItemView)
         _validate_instance_tuple("recipes", self.recipes, HubAlchemyRecipeView)
+        _validate_instance_tuple("buybacks", self.buybacks, HubBuybackView)
 
 
 @dataclass(frozen=True)
@@ -889,12 +949,13 @@ class EquipmentActionView:
     disabled_reason: str | None = None
     summary: str = ""
     modifier_instance_id: str | None = None
+    affix_id: str | None = None
 
     def __post_init__(self):
         for name in ("operation", "label", "summary"):
             _validate_text(name, getattr(self, name))
         _validate_bool("enabled", self.enabled)
-        for name in ("disabled_reason", "modifier_instance_id"):
+        for name in ("disabled_reason", "modifier_instance_id", "affix_id"):
             value = getattr(self, name)
             if value is not None:
                 _validate_text(name, value)
@@ -923,6 +984,9 @@ class EquipmentView:
     selected_instance_id: str | None = None
     modifiers: tuple[EquipmentModifierView, ...] = ()
     actions: tuple[EquipmentActionView, ...] = ()
+    enchanting_level: int = 1
+    enchanting_experience: int = 0
+    known_affixes: tuple[str, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.pendant, AccessorySlotView):
@@ -930,6 +994,9 @@ class EquipmentView:
         if not isinstance(self.ring, AccessorySlotView):
             raise TypeError("ring must be an AccessorySlotView")
         _validate_text_tuple("benefits", self.benefits)
+        _validate_nonnegative("enchanting_level", self.enchanting_level)
+        _validate_nonnegative("enchanting_experience", self.enchanting_experience)
+        _validate_text_tuple("known_affixes", self.known_affixes)
         _validate_instance_tuple("targets", self.targets, MerchantTargetView)
         _validate_instance_tuple("instances", self.instances, EquipmentInstanceView)
         _validate_instance_tuple("modifiers", self.modifiers, EquipmentModifierView)
@@ -1003,14 +1070,24 @@ class SupplyHealingTargetView:
     display_name: str
     hp_current: int
     hp_maximum: int
+    mana_current: int | None = None
+    mana_maximum: int | None = None
 
     def __post_init__(self):
         _validate_text("drifter_id", self.drifter_id)
         _validate_text("display_name", self.display_name)
         _validate_nonnegative("hp_current", self.hp_current)
         _validate_nonnegative("hp_maximum", self.hp_maximum)
-        if self.hp_current >= self.hp_maximum:
-            raise ValueError("healing targets must be missing HP")
+        if (self.mana_current is None) != (self.mana_maximum is None):
+            raise ValueError("mana target values must be provided together")
+        if self.mana_current is not None:
+            _validate_nonnegative("mana_current", self.mana_current)
+            _validate_nonnegative("mana_maximum", self.mana_maximum)
+        if self.hp_current >= self.hp_maximum and (
+            self.mana_current is None
+            or self.mana_current >= self.mana_maximum
+        ):
+            raise ValueError("supply targets must be missing HP or Mana")
 
 
 @dataclass(frozen=True)
@@ -1073,6 +1150,7 @@ class OverworldView:
     weapon: WeaponView | None = None
     merchant: MerchantView | None = None
     hub_economy: HubEconomyView | None = None
+    hub_transaction_sequence: int = 0
     equipment: EquipmentView | None = None
     equipment_confirmation: EquipmentConfirmationView | None = None
     inventory: InventoryView | None = None
@@ -1100,6 +1178,7 @@ class OverworldView:
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
         _validate_text("location_label", self.location_label)
         _validate_text("adventure_text", self.adventure_text)
+        _validate_nonnegative("hub_transaction_sequence", self.hub_transaction_sequence)
         _validate_instance_tuple("options", self.options, OverworldOptionView)
         _validate_instance_tuple(
             "companion_choices",
@@ -1214,10 +1293,23 @@ class OverworldView:
             self.equipment_confirmation is not None
         ):
             raise ValueError("equipment preview belongs only to its confirmation screen")
-        if (self.screen is OverworldScreen.MERCHANT) != (self.merchant is not None):
-            raise ValueError("merchant data belongs only to the Merchant screen")
-        if (self.screen is OverworldScreen.MERCHANT) != (self.hub_economy is not None):
-            raise ValueError("Hub economy data belongs only to the Merchant screen")
+        if (self.screen is OverworldScreen.BLACKSMITH) != (self.merchant is not None):
+            raise ValueError("weapon-service data belongs only to the Blacksmith")
+        economy_screens = {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.HUB_INVENTORY,
+            OverworldScreen.ALCHEMIST,
+        }
+        if (self.screen in economy_screens) != (self.hub_economy is not None):
+            raise ValueError("Hub economy data belongs only to its owning view")
+        equipment_screens = {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        }
+        if (self.screen in equipment_screens) != (self.equipment is not None):
+            raise ValueError("equipment data belongs only to equipment services")
         if self.screen is OverworldScreen.COMPANION_SELECTION:
             if not 1 <= len(self.companion_choices) <= 3:
                 raise ValueError("companion selection must offer one to three choices")

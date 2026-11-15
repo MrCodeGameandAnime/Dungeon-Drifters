@@ -634,3 +634,33 @@ The smoke passed both M6 markers for once-only report claim and passive
 assignment launch/reload/status. Hosted CI does not execute the pinned
 MicroPython binary. Keep the local runtime and hosted service evidence distinct;
 together they complete M6 qualification.
+
+## M6.5 Runtime Qualification (2026-11-15)
+
+The cumulative M6.5 profession probe exercises Alchemy craft/save
+reconstruction plus Enchanter discovery, application, and persistence. The
+exact pinned Windows executable was found in the Codex package cache:
+
+`C:\Users\User\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\DungeonDrifters\micropython\v1.29.0\source\ports\windows\build-standard\micropython.exe`
+
+It is MicroPython v1.29.0 for win32, 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. The
+current runtime qualification matrix passed with CPython native and forced
+overlay, then the exact pinned executable at 1280K (stable pass 3/3). At 1152K
+the full cumulative probe consistently reaches the expected memory-limit
+classification (3/3). An exploratory sweep reported 1224K as passing, but a
+subsequent full-matrix confirmation classified all three 1224K attempts as
+memory limits; that point is treated as transitional and is not claimed stable.
+The active qualification profile remains the conservative 1280K stable / 1152K
+memory-limit pair. Earlier 1152K-stable M4/M5 results remain historical evidence
+for those earlier trees. These heap values qualify this Windows probe contract,
+not a hardware-wide MicroPython compatibility or product memory-budget claim.
+
+The earlier alternate-build diagnostic (486,912 bytes, SHA-256
+`E90AFC976ED7CB2EE530BE7F5D8C769C1F3B562DF4DDB04A6C589177ED912EFE`) is
+superseded and is not counted as pinned evidence. The updated runtime tooling
+was hosted-qualified on exact implementation SHA
+`92b2968e2acf2ba6d4f188ccd2c362fff33059ce` in [Actions run
+43737762509](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/43737762509).
+Both hosted jobs passed, including the cumulative Tests job and the PostgreSQL,
+migration-from-zero, and Alembic parity job.

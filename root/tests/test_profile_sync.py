@@ -52,6 +52,7 @@ def _legacy_schema9_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 9
     payload.pop("expedition")
+    payload["party"].pop("hub_economy")
     payload["player"].pop("equipment_refs")
     payload["party"].pop("equipment_instances")
     payload["party"].pop("modifier_instances")

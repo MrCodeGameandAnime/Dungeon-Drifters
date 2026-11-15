@@ -4,6 +4,8 @@ from app.combat.battle import Battle
 from app.content.catalog import DRIFTER_SPECS, create_enemy_state, get_drifter_spec
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import COMPANION_RECRUITMENT_COST, DungeonPhase
+from app.persistence.ports import SaveLoadResult
+from app.persistence.save_port_contract import SaveLoadStatus
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent
 from app.presentation.battle_models import BattleView
@@ -31,12 +33,29 @@ from tests.game_test_support import (
 )
 
 
-def make_session(game):
+def make_session(game, *, save_port=None):
     return OverworldSession(
         game,
         battle_factory=lambda *_args, **_kwargs: None,
         enemy_factory=lambda *_args, **_kwargs: None,
+        save_port=save_port,
     )
+
+
+def open_vendor(session, action=OverworldAction.BLACKSMITH):
+    session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    return session.submit(ChooseOverworldAction(action))
+
+
+class AcceptingSavePort:
+    def inspect(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def load(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def save(self, _game_state):
+        return SaveLoadResult(SaveLoadStatus.SAVED)
 
 
 def enabled_actions(view):
@@ -56,21 +75,27 @@ def test_hub_offers_recruitment_without_surface_route_actions():
     assert OverworldAction.RETRY not in enabled_actions(view)
 
 
-def test_hub_offers_merchant_navigation():
+def test_hub_offers_vendor_navigation():
     session = make_session(game_at_hub())
     view = session.current_view()
 
     assert any(
-        option.label == "Merchant" and option.enabled
+        option.label == "Vendors" and option.enabled
         for option in view.options
     )
 
-    merchant = session.submit(
-        ChooseOverworldAction(OverworldAction.MERCHANT)
-    )
+    vendors = session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    assert [option.label for option in vendors.options] == [
+        "Merchant",
+        "Blacksmith",
+        "Enchanter",
+        "Alchemist",
+        "Back",
+    ]
 
-    assert merchant.screen is OverworldScreen.MERCHANT
-    assert getattr(merchant, "merchant", None) is not None
+    blacksmith = session.submit(ChooseOverworldAction(OverworldAction.BLACKSMITH))
+    assert blacksmith.screen is OverworldScreen.BLACKSMITH
+    assert blacksmith.merchant is not None
 
 
 def test_hub_pair_selection_changes_deployment_by_stable_drifter_id():
@@ -105,6 +130,7 @@ def test_selected_pair_is_the_pair_deployed_for_floor_one():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=AcceptingSavePort(),
     )
     session.submit(ChooseOverworldAction(OverworldAction.SELECT_PARTY))
     session.submit(ChooseActivePair(("joruun", "azhvielle")))
@@ -164,35 +190,47 @@ def test_hub_targets_full_roster_and_outing_targets_only_deployed_pair():
 
 def test_merchant_dismantle_and_improvement_spend_shared_materials():
     game = game_at_hub()
-    session = make_session(game)
+    session = make_session(game, save_port=AcceptingSavePort())
     game.party_state.add_shared_items({"goblin_scrap": 1})
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session)
 
     dismantled = session.submit(
         ChooseMerchantDismantle("branoc", "goblin_scrap")
     )
 
-    assert dismantled.screen is OverworldScreen.MERCHANT
-    assert "goblin_scrap" not in game.party_state.shared_items
+    assert dismantled.screen is OverworldScreen.BLACKSMITH
+    assert "goblin_scrap" not in session.game_state.party_state.shared_items
     assert sum(
-        game.party_state.shared_items.get(item_id, 0)
+        session.game_state.party_state.shared_items.get(item_id, 0)
         for item_id in (
             "grade_i_metal",
             "grade_i_fiber",
             "grade_i_timber",
         )
     ) in (1, 2)
-    assert game.party_state.crafting_experience == 0
+    assert session.game_state.party_state.crafting_experience == 0
 
-    metal_before = game.party_state.shared_items.get("grade_i_metal", 0)
-    game.party_state.add_shared_items({"grade_i_metal": 1})
+    metal_before = session.game_state.party_state.shared_items.get(
+        "grade_i_metal", 0
+    )
+    session.game_state.party_state.add_shared_items({"grade_i_metal": 2})
     improved = session.submit(
-        ChooseMerchantImprove("branoc", "blade_guard")
+        ChooseMerchantImprove(
+            "branoc",
+            "blade_guard",
+            expected_transaction_sequence=(
+                session.game_state.party_state.hub_economy_state
+                .transaction_sequence
+            ),
+        )
     )
 
     assert improved.merchant.slots[0].progress > 0
-    assert game.party_state.shared_items.get("grade_i_metal", 0) == metal_before
-    assert game.party_state.crafting_experience == 20
+    assert (
+        session.game_state.party_state.shared_items.get("grade_i_metal", 0)
+        == metal_before + 1
+    )
+    assert session.game_state.party_state.crafting_experience == 20
 
 
 def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
@@ -213,13 +251,17 @@ def test_merchant_tier_v_action_uses_the_selected_drifter_and_spends_cost(
     }
     game.party_state.add_shared_items(costs)
     monkeypatch.setattr(app.randomness, "randint", lambda _start, _end: 1)
-    session = make_session(game)
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    session = make_session(game, save_port=AcceptingSavePort())
+    open_vendor(session)
 
     result = session.submit(ChooseMerchantTierV("branoc"))
 
-    assert player.signature_weapon_state.tier_v_success is True
-    assert game.party_state.shared_items == {}
+    assert (
+        session.game_state.member_for_drifter_id("branoc")
+        .signature_weapon_state.tier_v_success
+        is True
+    )
+    assert session.game_state.party_state.shared_items == {}
     assert "succeeded" in result.notice
 
 
@@ -233,13 +275,13 @@ def test_merchant_target_selection_is_reflected_and_stale_targets_are_rejected()
     assert game.party_state.complete_extraction((lead, companion))
     game.party_state.add_shared_items({"grade_i_metal": 1})
     session = make_session(game)
-    session.submit(ChooseOverworldAction(OverworldAction.MERCHANT))
+    open_vendor(session)
 
     selected = session.submit(ChooseMerchantTarget("azhvielle"))
     rejected = session.submit(ChooseMerchantImprove("branoc", "blade_guard"))
 
     assert selected.merchant.selected_target_id == "azhvielle"
-    assert rejected.notice == "Choose that Drifter before using the merchant."
+    assert rejected.notice == "Choose that Drifter before using the Blacksmith."
     assert game.party_state.shared_items == {"grade_i_metal": 1}
     assert game.player_state.signature_weapon_state.slot_progress["blade_guard"] == 0
 

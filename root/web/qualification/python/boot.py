@@ -3,7 +3,11 @@ import sys
 
 from app.combat.battle import Battle
 from app.combat.result import MoveResult
-from app.content.catalog import create_enemy_state
+from app.content.catalog import (
+    create_enemy_state,
+    get_route_spec,
+    get_route_successor_id,
+)
 from app.game.new_game import create_new_game
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import DungeonPhase
@@ -516,9 +520,27 @@ def _qualify_route():
         raise AssertionError("Floor 1 polluted Surface encounter history")
     if len(battle_factory.battles) - floor_one_battle_start != 10:
         raise AssertionError("Floor 1 did not complete exactly ten Battles")
-    if len(save_port.saved_states) != 3:
-        raise AssertionError("Floor 1 did not persist both Rest fallbacks and its Hub outcome")
-    for fallback in save_port.saved_states[:2]:
+    floor_route = get_route_spec("floor_one")
+    saved_route_nodes = {
+        state.overworld_state.current_route_node_id
+        for state in save_port.saved_states
+        if state.overworld_state.active_route_id == "floor_one"
+    }
+    persisted_checkpoints = {floor_route.nodes[0].node_id} | {
+        get_route_successor_id(node.node_id)
+        for node in floor_route.nodes
+        if node.encounter_id is not None and node.kind.value != "boss"
+    }
+    if not persisted_checkpoints.issubset(saved_route_nodes):
+        raise AssertionError("Floor 1 encounter outcomes were not saved")
+    fallbacks = [
+        state
+        for state in save_port.saved_states[:-1]
+        if state.party_state.phase is DungeonPhase.HUB
+    ]
+    if len(fallbacks) != 2:
+        raise AssertionError("Floor 1 did not persist both Rest fallbacks")
+    for fallback in fallbacks:
         if fallback is game:
             raise AssertionError("Rest fallback aliased the live run")
         if fallback.party_state.phase is not DungeonPhase.HUB:
@@ -527,7 +549,7 @@ def _qualify_route():
             raise AssertionError("Rest fallback did not return to the Surface entrance")
         if fallback.party_state.outing_rewards.experience or fallback.party_state.outing_rewards.gold:
             raise AssertionError("Rest fallback retained unsecured rewards")
-    if save_port.saved_states[2] is not game:
+    if save_port.saved_states[-1].snapshot() != game.snapshot():
         raise AssertionError("Floor 1 clear did not persist its Hub outcome")
     for member in party_members:
         if member.health.current != member.health.maximum:
@@ -587,6 +609,7 @@ def _qualify_route():
         )
     if replay_extraction.outing_rewards.gold != expected_replay_gold:
         raise AssertionError("replay extraction gold was not rounded up at half")
+    saved_count_before_return = len(save_port.saved_states)
     replay_hub = session.submit(
         ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
     )
@@ -605,16 +628,9 @@ def _qualify_route():
         raise AssertionError("replay extraction did not secure its gold")
     if game.party_state.floor_one_runs_started_after_clear != 1:
         raise AssertionError("early extraction did not count the replay run")
-    if len(save_port.saved_states) != 5:
-        raise AssertionError("early extraction did not persist its fallback and Hub outcome")
-    extraction_fallback = save_port.saved_states[3]
-    if extraction_fallback is game:
-        raise AssertionError("extraction fallback aliased the live run")
-    if extraction_fallback.party_state.phase is not DungeonPhase.HUB:
-        raise AssertionError("extraction fallback did not bank the partial run")
-    if extraction_fallback.party_state.shared_gold != game.party_state.shared_gold:
-        raise AssertionError("extraction fallback did not bank partial gold")
-    if save_port.saved_states[4] is not game:
+    if len(save_port.saved_states) != saved_count_before_return + 1:
+        raise AssertionError("early extraction did not commit exactly once")
+    if save_port.saved_states[-1].snapshot() != game.snapshot():
         raise AssertionError("early extraction did not persist the final Hub outcome")
     for member in party_members:
         if member.health.current != member.health.maximum:

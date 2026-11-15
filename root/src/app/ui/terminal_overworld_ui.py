@@ -34,6 +34,8 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseBlacksmithInstallComponent,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     HubSupplyOperation,
     ChooseOverworldAction,
@@ -55,7 +57,12 @@ class TerminalOverworldUI:
         OverworldAction.RESPEC: "R",
         OverworldAction.WEAPON: "W",
         OverworldAction.EQUIPMENT: "E",
-        OverworldAction.MERCHANT: "T",
+        OverworldAction.VENDORS: "V",
+        OverworldAction.HUB_INVENTORY: "I",
+        OverworldAction.MERCHANT: "M",
+        OverworldAction.BLACKSMITH: "B",
+        OverworldAction.ENCHANTER: "E",
+        OverworldAction.ALCHEMIST: "A",
         OverworldAction.CRAFT: "C",
         OverworldAction.INSPECT: "I",
         OverworldAction.USE: "U",
@@ -169,7 +176,11 @@ class TerminalOverworldUI:
             party_targets = view.character.targets
         elif view.screen is OverworldScreen.SKILLS and view.skills is not None:
             party_targets = view.skills.targets
-        elif view.screen is OverworldScreen.EQUIPMENT and view.equipment is not None:
+        elif view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.ENCHANTER,
+        } and view.equipment is not None:
             party_targets = view.equipment.targets
             equipment = view.equipment
             if choice.startswith("e") and choice[1:].isdigit():
@@ -193,7 +204,21 @@ class TerminalOverworldUI:
                         equipment_instance_id=equipment.selected_instance_id,
                         operation=EquipmentOperation(action.operation),
                         modifier_instance_id=action.modifier_instance_id,
+                        affix_id=action.affix_id,
+                        expected_transaction_sequence=view.hub_transaction_sequence,
                     )
+
+        if (
+            view.screen is OverworldScreen.BLACKSMITH
+            and view.merchant is not None
+            and choice.startswith("t")
+            and choice[1:].isdigit()
+        ):
+            index = int(choice[1:]) - 1
+            if 0 <= index < len(view.merchant.targets):
+                return ChooseMerchantTarget(
+                    view.merchant.targets[index].drifter_id
+                )
 
         if view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
             if choice == "y":
@@ -211,32 +236,103 @@ class TerminalOverworldUI:
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(weapon.targets):
                     return ChooseWeaponTarget(weapon.targets[index].drifter_id)
-        if view.screen is OverworldScreen.MERCHANT and view.merchant is not None:
-            merchant = view.merchant
+        if view.screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.BLACKSMITH,
+            OverworldScreen.HUB_INVENTORY,
+            OverworldScreen.ALCHEMIST,
+        } and view.hub_economy is not None:
             economy = view.hub_economy
-            if economy is not None:
-                for prefix, operation, enabled_name in (
-                    ("b", HubSupplyOperation.BUY, "can_buy"),
-                    ("s", HubSupplyOperation.SELL, "can_sell"),
-                    ("l", HubSupplyOperation.LOAD, "can_load"),
-                    ("u", HubSupplyOperation.UNLOAD, "can_unload"),
-                ):
-                    if choice.startswith(prefix) and choice[len(prefix):].isdigit():
-                        index = int(choice[len(prefix):]) - 1
-                        if 0 <= index < len(economy.items):
-                            item = economy.items[index]
-                            if getattr(item, enabled_name):
-                                return ChooseHubSupplyAction(operation, item.item_id)
-                            self._output("That Hub supply action is unavailable.")
-                            return self._REJECTED
-                if choice.startswith("a") and choice[1:].isdigit():
-                    index = int(choice[1:]) - 1
-                    if 0 <= index < len(economy.recipes):
-                        recipe = economy.recipes[index]
-                        if recipe.can_craft:
-                            return ChooseAlchemyRecipe(recipe.recipe_id)
-                        self._output("That Alchemy recipe is unavailable.")
+            if choice.startswith("r"):
+                parts = choice.split()
+                token = parts[0]
+                if token[1:].isdigit() and len(parts) <= 2:
+                    index = int(token[1:]) - 1
+                    quantity = (
+                        int(parts[1])
+                        if len(parts) == 2 and parts[1].isdigit()
+                        else 1
+                    )
+                    if 0 <= index < len(economy.buybacks):
+                        offer = economy.buybacks[index]
+                        if (
+                            quantity >= 1
+                            and quantity <= offer.remaining_quantity
+                            and offer.can_recover
+                        ):
+                            return ChooseHubBuyback(
+                                offer.sale_id,
+                                quantity,
+                                view.hub_transaction_sequence,
+                            )
+                    self._output("That buyback is unavailable.")
+                    return self._REJECTED
+            parts = choice.split()
+            token = parts[0]
+            if len(parts) > 2 or (
+                len(parts) == 2 and not parts[1].isdigit()
+            ):
+                return self._REJECTED
+            quantity = int(parts[1]) if len(parts) == 2 else 1
+            for prefix, operation, enabled_name in (
+                ("b", HubSupplyOperation.BUY, "can_buy"),
+                ("s", HubSupplyOperation.SELL, "can_sell"),
+                ("l", HubSupplyOperation.LOAD, "can_load"),
+                ("u", HubSupplyOperation.UNLOAD, "can_unload"),
+            ):
+                if token.startswith(prefix) and token[len(prefix):].isdigit():
+                    index = int(token[len(prefix):]) - 1
+                    if 0 <= index < len(economy.items):
+                        item = economy.items[index]
+                        maximum = (
+                            item.max_buy_quantity
+                            if operation is HubSupplyOperation.BUY
+                            else item.max_sell_quantity
+                            if operation is HubSupplyOperation.SELL
+                            else None
+                        )
+                        if (
+                            getattr(item, enabled_name)
+                            and quantity >= 1
+                            and (maximum is None or quantity <= maximum)
+                        ):
+                            return ChooseHubSupplyAction(
+                                operation,
+                                item.item_id,
+                                view.hub_transaction_sequence,
+                                quantity,
+                            )
+                        self._output("That Hub supply action is unavailable.")
                         return self._REJECTED
+            if view.screen is OverworldScreen.ALCHEMIST and choice.startswith("a") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if 0 <= index < len(economy.recipes):
+                    recipe = economy.recipes[index]
+                    if recipe.can_craft:
+                        return ChooseAlchemyRecipe(
+                            recipe.recipe_id,
+                            view.hub_transaction_sequence,
+                        )
+                    self._output("That Alchemy recipe is unavailable.")
+                    return self._REJECTED
+
+        if view.screen is OverworldScreen.BLACKSMITH and view.merchant is not None:
+            merchant = view.merchant
+            if choice.startswith("n") and choice[1:].isdigit():
+                index = int(choice[1:]) - 1
+                if (
+                    view.hub_economy is not None
+                    and 0 <= index < len(view.hub_economy.items)
+                ):
+                    component = view.hub_economy.items[index]
+                    if component.can_install_component:
+                        return ChooseBlacksmithInstallComponent(
+                            merchant.selected_target_id,
+                            component.item_id,
+                            view.hub_transaction_sequence,
+                        )
+                self._output("That component cannot be installed.")
+                return self._REJECTED
             if choice.startswith("t") and choice[1:].isdigit():
                 index = int(choice[1:]) - 1
                 if 0 <= index < len(merchant.targets):
@@ -251,6 +347,7 @@ class TerminalOverworldUI:
                         return ChooseMerchantCraftComponent(
                             merchant.selected_target_id,
                             recipe.component_id,
+                            view.hub_transaction_sequence,
                         )
                     self._output("Not enough material to craft that component.")
                     return self._REJECTED
@@ -262,6 +359,7 @@ class TerminalOverworldUI:
                         return ChooseMerchantImprove(
                             merchant.selected_target_id,
                             slot.slot_id,
+                            view.hub_transaction_sequence,
                         )
                     self._output(self._merchant_blocked_message(slot.blocked_reason))
                     return self._REJECTED
@@ -272,10 +370,14 @@ class TerminalOverworldUI:
                     return ChooseMerchantDismantle(
                         merchant.selected_target_id,
                         item.item_id,
+                        expected_transaction_sequence=view.hub_transaction_sequence,
                     )
             if choice.lower() == "v":
                 if merchant.tier_v.can_attempt:
-                    return ChooseMerchantTierV(merchant.selected_target_id)
+                    return ChooseMerchantTierV(
+                        merchant.selected_target_id,
+                        view.hub_transaction_sequence,
+                    )
                 self._output("Tier V attempt is unavailable.")
                 return self._REJECTED
 
@@ -446,6 +548,14 @@ class TerminalOverworldUI:
             lines = ["ADVENTURE", ""]
             lines.extend(self._wrapped(view.adventure_text, width))
             lines.extend(("", f"Shared gold: {view.shared_gold}"))
+        elif view.screen is OverworldScreen.VENDORS:
+            lines = ["HUB SERVICES", "", "Choose a specialist for the service you need."]
+        elif view.screen in {
+            OverworldScreen.MERCHANT,
+            OverworldScreen.HUB_INVENTORY,
+            OverworldScreen.ALCHEMIST,
+        }:
+            lines = list(self._hub_economy_lines(view))
         elif view.screen is OverworldScreen.EXPEDITIONS:
             lines = [
                 "EXPEDITION ENERGY",
@@ -585,18 +695,39 @@ class TerminalOverworldUI:
             lines = list(self._respec_lines(view, width))
         elif view.screen is OverworldScreen.WEAPON:
             lines = list(self._weapon_lines(view, width))
-        elif view.screen is OverworldScreen.MERCHANT:
-            lines = list(self._merchant_lines(view))
-        elif view.screen is OverworldScreen.EQUIPMENT:
+        elif view.screen is OverworldScreen.BLACKSMITH:
+            lines = list(self._hub_economy_lines(view))
+            lines.extend(("", "BLACKSMITH SERVICES", ""))
+            lines.extend(self._merchant_lines(view))
+            if view.equipment is not None:
+                lines.extend(("", "PHYSICAL EQUIPMENT SERVICES", ""))
+                lines.extend(self._equipment_lines(view))
+        elif view.screen in {
+            OverworldScreen.EQUIPMENT,
+            OverworldScreen.ENCHANTER,
+        }:
             lines = list(self._equipment_lines(view))
         elif view.screen is OverworldScreen.EQUIPMENT_CONFIRMATION:
             lines = [view.equipment_confirmation.title, ""]
             lines.extend(view.equipment_confirmation.details)
+        elif view.screen is OverworldScreen.ALCHEMY_CONFIRMATION:
+            lines = ["CONFIRM ALCHEMY CRAFT", ""]
+            lines.extend(self._wrapped(view.adventure_text, width))
         elif view.screen is OverworldScreen.HEALING_TARGETS:
-            lines = ["CHOOSE A DRIFTER TO HEAL", ""]
+            item_id = (
+                view.inventory.selected_item_key.split(":", 1)[1]
+                if view.inventory is not None
+                and view.inventory.selected_item_key is not None
+                else "healing_potion"
+            )
+            is_mana_potion = item_id == "mana_potion"
+            resource_name = "Mana" if is_mana_potion else "HP"
+            lines = [f"CHOOSE A DRIFTER FOR {resource_name.upper()}", ""]
             lines.extend(
                 f"{index}. {target.display_name} | "
-                f"HP {target.hp_current}/{target.hp_maximum}"
+                f"{resource_name} "
+                f"{target.mana_current if is_mana_potion else target.hp_current}/"
+                f"{target.mana_maximum if is_mana_potion else target.hp_maximum}"
                 for index, target in enumerate(view.healing_targets, start=1)
             )
         elif view.screen in {OverworldScreen.ITEMS, OverworldScreen.ITEM_INSPECT}:
@@ -888,22 +1019,27 @@ class TerminalOverworldUI:
             lines.append(
                 f"V. Attempt Tier V ({tier_v.success_chance_percent}% chance)"
             )
+        return tuple(lines)
+
+    @staticmethod
+    def _hub_economy_lines(view):
         economy = view.hub_economy
-        if economy is not None:
-            lines.extend(
-                (
-                    "",
-                    "HUB STORAGE",
-                    f"Shared gold: {economy.shared_gold}",
-                    f"CARRIED SUPPLIES {economy.carried_units}/{economy.carried_capacity}",
-                )
-            )
+        lines = [
+            "HUB STORAGE",
+            f"Shared gold: {economy.shared_gold}",
+            f"CARRIED SUPPLIES {economy.carried_units}/{economy.carried_capacity}",
+        ]
+        if economy.items:
             for index, item in enumerate(economy.items, start=1):
                 controls = []
                 if item.shop_stocked:
-                    controls.append(f"B{index} Buy {item.base_price}g")
+                    controls.append(
+                        f"B{index} Buy {item.base_price}g (stock {item.stock_quantity})"
+                    )
                 if item.sellable:
-                    controls.append(f"S{index} Sell {item.base_price // 2}g")
+                    controls.append(f"S{index} Sell {item.resale_price}g")
+                if item.can_install_component:
+                    controls.append(f"N{index} Install on selected Drifter")
                 if item.carryable:
                     controls.extend((f"L{index} Load", f"U{index} Unload"))
                 lines.append(
@@ -911,11 +1047,29 @@ class TerminalOverworldUI:
                     f"carried {item.carried_quantity}"
                     + (" | " + " | ".join(controls) if controls else "")
                 )
-            lines.extend(("", "ALCHEMY"))
+        else:
+            lines.append("No merchandise is available here.")
+        if economy.buybacks:
+            lines.extend(("", "BUYBACK"))
+            lines.extend(
+                f"R{index}. {offer.display_name} x{offer.remaining_quantity} "
+                f"at {offer.unit_price}g each"
+                for index, offer in enumerate(economy.buybacks, start=1)
+            )
+        if economy.recipes:
+            lines.extend(
+                (
+                    "",
+                    "ALCHEMY",
+                    f"Level {economy.alchemy_level} | {economy.alchemy_experience} XP",
+                )
+            )
             lines.extend(
                 f"A{index}. {recipe.display_name}: "
                 f"{' + '.join(recipe.ingredient_summary)} -> "
                 f"{' + '.join(recipe.output_summary)}"
+                f" | +{recipe.experience_award} XP"
+                f"{' | confirmation required' if recipe.requires_confirmation else ''}"
                 f"{' [Unavailable]' if not recipe.can_craft else ''}"
                 for index, recipe in enumerate(economy.recipes, start=1)
             )
@@ -935,6 +1089,16 @@ class TerminalOverworldUI:
         lines = [
             "CHOOSE DRIFTER",
         ]
+        if view.screen is OverworldScreen.ENCHANTER:
+            lines.extend(
+                (
+                    "",
+                    f"ENCHANTING LEVEL {equipment.enchanting_level} | "
+                    f"{equipment.enchanting_experience} XP",
+                    "KNOWN AFFIXES",
+                )
+            )
+            lines.extend(equipment.known_affixes or ("None",))
         lines.extend(
             f"T{index}. {'> ' if target.selected else ''}{target.display_name}"
             for index, target in enumerate(equipment.targets, start=1)
@@ -1097,6 +1261,12 @@ class TerminalOverworldUI:
             )
         ):
             return "N"
+        if (
+            view is not None
+            and view.screen is OverworldScreen.VENDORS
+            and option.action is OverworldAction.BACK
+        ):
+            return "X"
         return self._ACTION_KEYS[option.action]
 
     @staticmethod
@@ -1200,10 +1370,16 @@ class TerminalOverworldUI:
             OverworldScreen.WEAPON: "WEAPON",
             OverworldScreen.EQUIPMENT: "EQUIPMENT",
             OverworldScreen.EQUIPMENT_CONFIRMATION: "CONFIRM EQUIPMENT ACTION",
+            OverworldScreen.VENDORS: "VENDORS",
+            OverworldScreen.HUB_INVENTORY: "HUB INVENTORY",
             OverworldScreen.MERCHANT: "MERCHANT",
+            OverworldScreen.BLACKSMITH: "BLACKSMITH",
+            OverworldScreen.ENCHANTER: "ENCHANTER",
+            OverworldScreen.ALCHEMIST: "ALCHEMIST",
+            OverworldScreen.ALCHEMY_CONFIRMATION: "ALCHEMY CONFIRMATION",
             OverworldScreen.ITEMS: "ITEMS",
             OverworldScreen.ITEM_INSPECT: "ITEM INSPECTION",
-            OverworldScreen.HEALING_TARGETS: "USE HEALING POTION",
+            OverworldScreen.HEALING_TARGETS: "USE POTION",
             OverworldScreen.DISCOVERY_SEARCHERS: "SEARCH SITE",
             OverworldScreen.DISCOVERY_TARGETS: "CLAIM DISCOVERY",
             OverworldScreen.DISCOVERY_CONFIRMATION: "CONFIRM DISCOVERY",

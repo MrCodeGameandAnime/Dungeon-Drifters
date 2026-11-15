@@ -1,5 +1,24 @@
 # Dungeon Drifters Change Log
 
+## v0.8
+
+v0.8 completes the M6.5 Hub specialization and economy expansion:
+
+- reorganized Hub services around four specialists: Merchant, Blacksmith,
+  Enchanter, and Alchemist
+- added finite vendor stock, qualifying-return replenishment, same-visit
+  buyback, and routing of eligible sold goods into future vendor stock
+- added quantity-based shared inventory for tradeable weapon components,
+  including recovery of displaced installed parts
+- added independent persistent Alchemy and Enchanting progression, deterministic
+  recipe mastery, Mana Potions, and rare Return Talisman crafting
+- added permanent discovered-affix knowledge and learned-affix application
+  with grade-matched Magic Crystals, while preserving M5 modifier extraction
+- migrated and validated the new Hub economy state, with atomic local
+  transactions and protection against duplicate or partial operations
+- qualified the cumulative Python, web, content, browser, PostgreSQL, migration,
+  and build checks; separately qualified the pinned MicroPython runtime
+
 ## v0.7
 
 v0.7 expands the playable dungeon route through the Floor III boss and adds

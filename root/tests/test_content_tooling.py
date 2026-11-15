@@ -1,5 +1,6 @@
 import ast
 import hashlib
+import importlib
 import os
 import shutil
 import subprocess
@@ -215,6 +216,24 @@ def test_builtin_validation_is_read_only_and_has_no_todo_markers():
         "route": 4,
         "recruitment_event": 3,
     }
+
+
+def test_builtin_content_validation_reports_invalid_vendor_catalog(monkeypatch):
+    validator = importlib.import_module("tools.validate_content")
+    vendor_catalog = importlib.import_module("app.content.vendor_catalog")
+    invalid_first_offer = replace(
+        vendor_catalog.VENDOR_MERCHANDISE[0],
+        item_id="missing_catalog_item",
+    )
+    monkeypatch.setattr(
+        vendor_catalog,
+        "VENDOR_MERCHANDISE",
+        (invalid_first_offer, *vendor_catalog.VENDOR_MERCHANDISE[1:]),
+    )
+
+    errors, _ = validator.validate_content()
+
+    assert any(error.startswith("vendor content:") for error in errors)
 
 
 def test_weapon_progression_content_validation_rejects_unknown_wielder_move():

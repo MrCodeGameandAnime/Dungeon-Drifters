@@ -15,7 +15,7 @@ Explicit exclusions: `docs/future/longterm.md` and everything under `docs/future
 | Included source | Delivery owner in this roadmap |
 | --- | --- |
 | [Party and Expedition Core Loop](../../future/party-and-expedition-core-loop.md) | M1 roster architecture and staged recruitment, M6 expeditions, M8 regions/story/later full-party bosses |
-| [Dungeon Progression, Difficulty, and Economy](../../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M8 content, M9 economy/optional services |
+| [Dungeon Progression, Difficulty, and Economy](../../future/dungeon-progression-difficulty-and-economy.md) | M2 supplies/extraction, M4 pressure, M5 equipment, M6 energy, M6.5 vendor ownership plus persistent professions, affix discovery, and finite vendor inventory, M8 content, M9 economy/optional services |
 | [Character Growth and Stat Scaling](../../future/character-growth-and-stat-scaling.md) | M3 advancement, M7 Momentum interaction, M8 permanent discoveries, M9 tuning |
 | [Enemy Archetypes, Scaling, and Capability Progression](../../future/enemy-archetypes-scaling-and-capability-progression.md) | M4 enemy systems, M8 encounters/bosses/visual content |
 | [Momentum](../../future/momentum.md) | M7 temporary combat mechanic |
@@ -60,6 +60,7 @@ M0 baseline/decisions
   -> M5 persistent armor and accessories
   -> Floor 3 full-roster boss gate
   -> M6 expeditions on already-completed floors and the two-plus-two loop
+  -> M6.5 Hub vendor specialization (persistent Hub professions, affix knowledge, and finite stock; no M7-M9 dependency)
   -> M7 Momentum
   -> M8 complete region loop and staged later-floor content
   -> M9 integrated balance and release qualification
@@ -118,7 +119,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
   - Existing rest extraction keeps 50% XP/gold and all items; the broad economy doc describes full normal extraction. Preserve the explicit Floor I rest rule unless separately changed (M2).
   - Ordinary floor encounters and earlier floor bosses use the currently legal active party. Floor 3 is the first planned full four-Drifter boss battle; later major dungeon/region bosses may reconverge all four. Do not turn every floor boss into a four-person fight (M4/M8).
   - M3 Gate 0 resolves move progression: preserve current and legacy kits; new GP-purchased normal/mana skills join the permanent per-Drifter move pool and can be equipped in four normal slots; the additional Super unlocks at Level 50 outside those slots. Flat prices are 1 GP per permanent stat, 2 GP per single-purchase passive skill, and 3 GP per active skill, with no premiums; exact effects remain open (M3).
-  - Future equipment-expedition weapon rewards and component installation/removal services must not reintroduce random replacement signature weapons or stackable signature parts (M2/M6).
+  - Future equipment-expedition weapon rewards and component installation/removal services must not reintroduce random replacement signature weapons. The former M2/M6 prohibition on stackable signature parts remains the v0.7 baseline but is explicitly superseded by M6.5 Gate 0-1A **for uninstalled tradeable component stacks only**. Installed signature-weapon slots remain definition-based; this does not permit stacking entire signature weapons.
   - Hub return currently restores HP/mana. Persistent injuries, durability, and treatment are optional new systems, not permission to remove that recovery (M4/M8).
   - Armor ring/amulet language versus economy ring/pendant language needs one accessory-slot vocabulary (M5).
   - M6 expedition completion uses 20 minutes of real elapsed time; energy regenerates at one point per nine minutes. Neither gameplay-event repetition nor waiting commands author progress.
@@ -294,7 +295,7 @@ The economy document includes real-money acceleration and numerous optional exam
 
 ## Implementation Documents
 
-These are planning drafts for review, not authorization to implement M1-M9 continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone.
+These are planning drafts for review, not authorization to implement milestones continuously. M0 remains the entry/decision contract above rather than a separate gameplay implementation milestone. M6.5 is an optional Hub systems side mission, not a prerequisite for M7-M9; its approved scope includes Hub Inventory, typed material families (including Grade I-V Magic Crystals required for learned-affix application), new Alchemist consumables/materials, specialist-first finite vendor stock with Merchant overflow, an Alchemist-owned rare Return Talisman crafting service with Merchant-exclusive sales, party-wide Alchemy and Enchanting progression, deterministic Alchemy mastery output, permanent affix discovery, shared component stacks, and same-visit vendor buyback. M6.5 Gate 0 (Gates 0-1 through 0-5) is complete at the product-decision level. Review the consolidated implementation-readiness package and resolve its single crafted-consumable resale policy before runtime work; Gate 0 closure is not implementation authorization.
 
 | Milestone | Implementation document | Entry dependency |
 | --- | --- | --- |
@@ -304,6 +305,7 @@ These are planning drafts for review, not authorization to implement M1-M9 conti
 | M4 | [Enemy progression](m4-enemy-progression.md) | M2/M3 for M4A; M5 for the M4B Floor III readiness proof |
 | M5 | [Armor and accessories](m5-armor-accessories.md) | M1-M3 and accepted M4A |
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
+| M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; Gate 0 product contracts complete; review the consolidated readiness package and settle crafted-consumable resale before runtime work; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
 | M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
@@ -317,7 +319,7 @@ Every linked plan inherits this section. Baseline observations refer to `8099b89
 - Fixed requirements come from the roadmap and owning design. An example, possible mechanic, or provisional number does not become fixed merely because a plan mentions it. Record contradictions and secure approval at the affected gate before changing behavior.
 - Preserve the Surface opening, 65-gold D2 recruitment, safe tutorial/reset exception, individual Dexterity turns, immediate reordering of unacted combatants, Floor I's ten battles/two rests, Recover staying at Rest, checkpoint no-rewind behavior, and Hub-return full HP/mana.
 - Preserve Floor I rest extraction: half adjusted XP/gold, equal participant XP shares rounded down, fractional gold rounded up, all items kept. Preserve boss full banking and replay XP rates 50/40/30/20. These rules do not automatically define every later floor's exits or full-party boss XP.
-- Preserve signature-weapon craft-and-install, exact Drifter IDs, separate slot improvement, 25/50/75/100 gates, Tier V state, identity recomputation, shared Crafting/materials, and no stackable signature-part ownership. No replacement weapon loot or alternate-part collection is introduced implicitly.
+- Preserve signature-weapon craft-and-install, exact Drifter IDs, separate slot improvement, 25/50/75/100 gates, Tier V state, identity recomputation, and shared Crafting/materials. M6.5 Gate 0-1A supersedes the former no-stackable-signature-parts rule only for uninstalled tradeable component stacks; installation returns displaced parts to shared inventory. Preserve the current `WeaponProgressionService.craft_component()` eligibility and current-slot `already_installed` check, with no new lifetime/per-Drifter crafting restriction. No replacement weapon loot or alternate-part collection is introduced implicitly.
 - One authoritative state object per recruited Drifter; persistent source state in existing snapshots/save documents; transient combat state in `CombatState`/Battle. Never persist duplicated derived stats or client-owned eligibility/reward rules.
 - Extend schemas deliberately when source state changes. Validate before reconstruction, migrate defensive copies, verify historical envelope digests before migration, and leave historical remote revisions/digests immutable. Exercise current remote revision advancement. Do not preassign later schema numbers or change the envelope/API/database/provider architecture for convenience.
 - Reject forged/stale inputs with no partial mutation. For operations involving required durable checkpoints, prove failed writes cannot spend twice, grant twice, change location, or restore a forfeited run. Use existing SavePort/coordinator boundaries; local saves remain independent of cloud availability.
@@ -354,4 +356,4 @@ Finish with `git diff --check`, content/manifest drift checks, a scoped cumulati
 
 ## Immediate Next Step
 
-Review the nine plans, resolve M1's entry decisions, then authorize M1 alone. The original starting Drifter's narrative role versus active-slot identity remains a product decision; the planning pass does not decide it. Later decisions are scheduled at their owning gates rather than blocking all implementation up front.
+M6.5 Gate 0 is complete at the product-decision level, and the consolidated implementation-readiness package is recorded in `m6-5-hub-vendors.md`. Review its proposed authored values and the single crafted-consumable resale policy before implementation. Once approved, proceed directly through the bounded slices in that package; preserve the eight Gate 0-5 transaction contracts, M2/M5 behavior except where explicitly superseded, and local commit success independent of optional remote sync. This package is planning only; gameplay implementation remains unauthorized until reviewed and approved.

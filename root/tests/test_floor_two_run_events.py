@@ -147,6 +147,27 @@ def test_run_event_service_resolves_enemy_drops_and_encounter_rewards_once():
     )
 
 
+def test_unverified_zero_reward_event_does_not_qualify_outing():
+    events = load_event_module()
+    game = floor_two_game()
+
+    result = events.RunEventService(
+        save_port=MemorySavePort(),
+        rng=SequenceRng([]),
+    ).resolve_encounter_rewards(
+        game,
+        node_id="floor_two_battle_01",
+        experience=0,
+        gold=0,
+        enemy_drop_tables=((),),
+    )
+
+    assert result.status.value == "resolved"
+    assert result.game_state.party_state.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is False
+
+
 def test_failed_drop_commit_leaves_rewards_and_event_evidence_unchanged():
     event_module = load_event_module()
     assert event_module is not None
@@ -651,7 +672,12 @@ def test_run_event_evidence_and_discovered_source_survive_save_reload():
         "ancient_well_floor2_01",
     )
     assert restored.party_state.shared_gold == initial_shared_gold + 12
-    assert restored.party_state.shared_items == {"grade_ii_metal": 1}
+    assert restored.party_state.shared_items == {
+        "grade_ii_metal": 1,
+        "grade_i_magic_crystal": 1,
+        "grade_ii_magic_crystal": 1,
+        "mythril_plate": 1,
+    }
 
     assert restored.party_state.start_floor_two_run(
         run_id_factory=lambda: "floor-two-run-retry"
@@ -743,6 +769,7 @@ def test_legacy_settled_search_history_is_ignored_after_pair_change():
     legacy_save = build_save_document(game)
     legacy_save["schema_version"] = 22
     legacy_save.pop("expedition")
+    legacy_save["party"].pop("hub_economy")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",

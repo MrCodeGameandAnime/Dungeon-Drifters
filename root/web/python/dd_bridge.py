@@ -36,6 +36,7 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseBlacksmithInstallComponent,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseExpeditionPlan,
@@ -50,6 +51,7 @@ from app.ui.overworld_ui import (
     ChooseMerchantImprove,
     ChooseMerchantTarget,
     ChooseMerchantTierV,
+    ChooseHubBuyback,
     ChooseHubSupplyAction,
     ChooseAlchemyRecipe,
     ChooseEquipmentAction,
@@ -259,27 +261,50 @@ def _command_to_input(command):
         return ChooseMerchantImprove(
             _required(command, "target_drifter_id"),
             _required(command, "slot_id"),
+            command.get("expected_transaction_sequence", 0),
         )
     if kind == "merchant_dismantle":
         return ChooseMerchantDismantle(
             _required(command, "target_drifter_id"),
             _required(command, "item_id"),
             command.get("quantity", 1),
+            command.get("expected_transaction_sequence", 0),
         )
     if kind == "merchant_craft_component":
         return ChooseMerchantCraftComponent(
             _required(command, "target_drifter_id"),
             _required(command, "component_id"),
+            command.get("expected_transaction_sequence", 0),
         )
     if kind == "merchant_tier_v":
-        return ChooseMerchantTierV(_required(command, "target_drifter_id"))
+        return ChooseMerchantTierV(
+            _required(command, "target_drifter_id"),
+            command.get("expected_transaction_sequence", 0),
+        )
+    if kind == "blacksmith_install_component":
+        return ChooseBlacksmithInstallComponent(
+            _required(command, "target_drifter_id"),
+            _required(command, "component_id"),
+            command.get("expected_transaction_sequence", 0),
+        )
+    if kind == "hub_buyback":
+        return ChooseHubBuyback(
+            _required(command, "sale_id"),
+            command.get("quantity", 1),
+            command.get("expected_transaction_sequence", 0),
+        )
     if kind == "hub_supply":
         return ChooseHubSupplyAction(
             _required(command, "operation"),
             _required(command, "item_id"),
+            command.get("expected_transaction_sequence", 0),
+            command.get("quantity", 1),
         )
     if kind == "alchemy_recipe":
-        return ChooseAlchemyRecipe(_required(command, "recipe_id"))
+        return ChooseAlchemyRecipe(
+            _required(command, "recipe_id"),
+            command.get("expected_transaction_sequence", 0),
+        )
     if kind == "weapon_target":
         return ChooseWeaponTarget(_required(command, "drifter_id"))
     if kind == "equipment_instance":
@@ -290,6 +315,8 @@ def _command_to_input(command):
             _required(command, "equipment_instance_id"),
             EquipmentOperation(_required(command, "operation")),
             command.get("modifier_instance_id"),
+            command.get("affix_id"),
+            command.get("expected_transaction_sequence", 0),
         )
     if kind == "equipment_confirmation":
         return ChooseEquipmentConfirmation(_required(command, "confirmed"))
@@ -300,7 +327,10 @@ def _command_to_input(command):
     if kind == "target":
         return ChooseTarget(_required(command, "target_id"))
     if kind == "healing_target":
-        return ChooseHealingTarget(_required(command, "target_id"))
+        return ChooseHealingTarget(
+            _required(command, "target_id"),
+            command.get("item_id", "healing_potion"),
+        )
     if kind == "inventory_item":
         return ChooseInventoryItem(_required(command, "item_id"))
     if kind == "inventory_command":

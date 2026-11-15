@@ -233,6 +233,9 @@ def test_floor_three_encounter_victory_commits_rewards_without_banking_xp():
         and event["kind"] == "encounter_rewards"
         for event in party.resolved_run_events
     )
+    assert party.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is True
     assert {
         member.character.profile.drifter_id: experience_state(member)
         for member in session.game_state.recruited_members
@@ -383,7 +386,7 @@ def test_floor_three_reward_save_failure_restores_encounter_checkpoint_and_suppl
             **kwargs,
         ),
         enemy_factory=create_enemy_state,
-        save_port=RecordingSavePort(fail_on_save_calls={1}),
+        save_port=RecordingSavePort(fail_on_save_calls={2}),
         run_event_rng=StableRng(),
     )
     session.submit(ChooseOverworldAction(OverworldAction.START_FLOOR_THREE))

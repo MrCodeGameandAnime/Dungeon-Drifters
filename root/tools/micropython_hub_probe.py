@@ -364,6 +364,11 @@ def _open_floor_one_warning(state):
     party = game.party_state
     members = (game.player_state,) + party.companions
     state["floor_one_route"] = route
+    state["floor_one_game_identity"] = game
+    state["floor_one_party_identity"] = party
+    state["floor_one_member_identities"] = members
+    state["floor_one_world_identity"] = game.world_state
+    state["floor_one_overworld_identity"] = game.overworld_state
     state["floor_one_battle_compositions"] = []
     state["floor_one_world_history"] = game.world_state.defeated_encounters
     state["floor_one_xp_before"] = tuple(
@@ -399,6 +404,21 @@ def _set_out_floor_one(state):
     )
     if not isinstance(battle_view, BattleView):
         raise AssertionError("Set Out did not start the first Floor 1 battle")
+    if session.game_state is not state["floor_one_game_identity"]:
+        raise AssertionError("Set Out replaced the live GameState instance")
+    if game.party_state is not state["floor_one_party_identity"]:
+        raise AssertionError("Set Out replaced the live PartyState instance")
+    live_members = (game.player_state,) + game.party_state.companions
+    for member, original_member in zip(
+        live_members,
+        state["floor_one_member_identities"],
+    ):
+        if member is not original_member:
+            raise AssertionError("Set Out replaced a live recruited Drifter")
+    if game.world_state is not state["floor_one_world_identity"]:
+        raise AssertionError("Set Out replaced the live WorldState instance")
+    if game.overworld_state is not state["floor_one_overworld_identity"]:
+        raise AssertionError("Set Out replaced the live OverworldState instance")
     if game.party_state.phase is not DungeonPhase.OUTING:
         raise AssertionError("Set Out did not begin a dangerous run")
     if game.party_state.outing_xp_multiplier_percent != 100:
@@ -597,7 +617,7 @@ def _assert_floor_one_final_state(state):
         raise AssertionError("first clear changed the Floor 1 XP rate")
     if party.shared_gold != state["floor_one_gold_before"] + _FLOOR_ONE_EXPECTED_REWARDS[1]:
         raise AssertionError("Floor 1 gold was not fully secured")
-    if state["route_battle_factory"].saved_game_state is not game:
+    if state["route_battle_factory"].saved_game_state.snapshot() != game.snapshot():
         raise AssertionError("boss clear did not save the Hub outcome")
     if (
         party.outing_rewards.experience,
@@ -738,23 +758,47 @@ def _assert_weapon_progression_final_state(state):
         != game.party_state.companions[0].signature_weapon_state.weapon_id
     ):
         raise AssertionError("companion weapon state changed during save round-trip")
+    state.pop("weapon_progression_saved_snapshot", None)
+    state.pop("weapon_progression_restored_game", None)
 
 
 def _prepare_m2_supplies(state):
     from app.game.hub_economy import HubEconomyService
     from app.game.weapon_progression import WeaponProgressionService
+    from app.presentation.overworld_models import OverworldAction, OverworldScreen
+    from app.ui.overworld_ui import (
+        ChooseAlchemyRecipe,
+        ChooseHubSupplyAction,
+        ChooseOverworldAction,
+        HubSupplyOperation,
+    )
 
-    game = state["route_game"]
+    session = state["route_session"]
+    game = session.game_state
     party = game.party_state
-    economy = HubEconomyService(game)
+    session.submit(ChooseOverworldAction(OverworldAction.VENDORS))
+    view = session.submit(ChooseOverworldAction(OverworldAction.ALCHEMIST))
+    if view.screen is not OverworldScreen.ALCHEMIST:
+        raise AssertionError("Hub did not open the Alchemist")
     for item_id, quantity in (
         ("medicinal_herb", 2),
         ("clean_water", 2),
         ("charcoal_dust", 2),
+        ("sulfur", 2),
     ):
-        result = economy.buy(item_id=item_id, quantity=quantity)
-        if not result.success:
+        view = session.current_view()
+        result = session.submit(
+            ChooseHubSupplyAction(
+                HubSupplyOperation.BUY,
+                item_id,
+                expected_transaction_sequence=view.hub_transaction_sequence,
+                quantity=quantity,
+            )
+        )
+        if result.screen is not OverworldScreen.ALCHEMIST:
             raise AssertionError("Hub supplies could not be purchased")
+    game = session.game_state
+    party = game.party_state
 
     class FiberRng:
         def randint(self, start, end):
@@ -786,17 +830,27 @@ def _prepare_m2_supplies(state):
     for recipe_id in (
         "healing_potion",
         "healing_potion",
-        "smoke_powder",
-        "smoke_powder",
         "smoke_bomb",
         "smoke_bomb",
-        "return_talisman",
     ):
-        result = economy.craft_alchemy(recipe_id)
-        if not result.success:
+        view = session.current_view()
+        result = session.submit(
+            ChooseAlchemyRecipe(
+                recipe_id,
+                expected_transaction_sequence=view.hub_transaction_sequence,
+            )
+        )
+        if result.screen is not OverworldScreen.ALCHEMIST:
             raise AssertionError("an approved M2 Alchemy recipe was rejected")
+    game = session.game_state
+    party = game.party_state
     if party.crafting_experience != crafting_experience:
         raise AssertionError("Alchemy awarded weapon Crafting experience")
+    if party.hub_economy_state.alchemy_experience != 50:
+        raise AssertionError("Alchemy progression did not award recipe XP")
+    # Return behavior is qualified with a controlled item; rare acquisition is separate.
+    party.add_shared_items({"return_talisman": 1})
+    economy = HubEconomyService(game)
     for item_id, quantity in (
         ("healing_potion", 2),
         ("smoke_bomb", 2),
@@ -819,8 +873,13 @@ def _prepare_m2_supplies(state):
     if restored.snapshot() != snapshot:
         raise AssertionError("prepared supplies changed during save round-trip")
     state["m2_expected_shared_gold"] = party.shared_gold
-    if party.shared_gold != 105:
-        raise AssertionError("provisional M2 purchase costs changed")
+    if party.shared_gold != 91:
+        raise AssertionError("approved Slice A M2 supply prices changed")
+    state["route_game"] = game
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    hub_view = session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    if hub_view.screen is not OverworldScreen.HUB:
+        raise AssertionError("Alchemist preparation did not return to the Hub")
 
 
 def _m2_healing_potion(state):
@@ -1265,3 +1324,16 @@ def run(state, complete_battle, run_stage):
     run_stage("M3_ADVANCEMENT_ROUNDTRIP", lambda: _m3_roundtrip_advancement(state))
     run_stage("M3_ADVANCEMENT_MOVE_EFFECT", lambda: _m3_use_advancement_move(state))
     run_stage("M3_ADVANCEMENT_FINAL_STATE", lambda: _m3_assert_advancement_final_state(state))
+    catalog = state["catalog"]
+    route_game = state["route_game"]
+    route_session = state["route_session"]
+    route_battle_factory = state["route_battle_factory"]
+    route_enemy_factory = state["route_enemy_factory"]
+    expected_shared_gold = state["m2_expected_shared_gold"]
+    state.clear()
+    state["catalog"] = catalog
+    state["route_game"] = route_game
+    state["route_session"] = route_session
+    state["route_battle_factory"] = route_battle_factory
+    state["route_enemy_factory"] = route_enemy_factory
+    state["m2_expected_shared_gold"] = expected_shared_gold

@@ -64,6 +64,7 @@ class BattlePresenter:
         active_player_id=None,
         carried_items=None,
         smoke_escape_allowed=False,
+        healing_item_id=None,
     ):
         phase = InteractionPhase(interaction_phase)
         enemies = self._normalize_enemies(enemy=enemy, enemies=enemies)
@@ -132,6 +133,12 @@ class BattlePresenter:
             if member.health.is_alive()
             and member.health.current < member.health.maximum
         )
+        mana_targets = tuple(
+            member
+            for member in (party or ())
+            if member.health.is_alive()
+            and member.mana_resource.current < member.mana_resource.maximum
+        )
         view_player = self._combatant_view(
             player,
             enemies[0] if len(enemies) == 1 else None,
@@ -158,6 +165,10 @@ class BattlePresenter:
                     and carried_items.get("healing_potion", 0) > 0
                 ),
                 has_healing_target=bool(healing_targets),
+                has_mana_potion=bool(
+                    carried_items and carried_items.get("mana_potion", 0) > 0
+                ),
+                has_mana_target=bool(mana_targets),
             )
         )
         move_options = self._move_options(
@@ -175,6 +186,11 @@ class BattlePresenter:
             selected_move_key,
             originating_move_phase,
         )
+        selected_targets = (
+            mana_targets
+            if healing_item_id == "mana_potion"
+            else healing_targets
+        )
         healing_target_options = (
             tuple(
                 HealingTargetOptionView(
@@ -183,8 +199,10 @@ class BattlePresenter:
                     display_label=member.display_name,
                     hp_current=member.health.current,
                     hp_maximum=member.health.maximum,
+                    mana_current=member.mana_resource.current,
+                    mana_maximum=member.mana_resource.maximum,
                 )
-                for index, member in enumerate(healing_targets, start=1)
+                for index, member in enumerate(selected_targets, start=1)
             )
             if phase == InteractionPhase.HEALING_TARGETS
             else ()
@@ -214,6 +232,11 @@ class BattlePresenter:
             move_options=move_options,
             target_options=target_options,
             healing_target_options=healing_target_options,
+            healing_item_id=(
+                healing_item_id
+                if phase == InteractionPhase.HEALING_TARGETS
+                else None
+            ),
             inventory_items=inventory_items,
             selected_inventory_item=selected_item,
             inventory_commands=inventory_commands,
@@ -403,6 +426,8 @@ class BattlePresenter:
         smoke_escape_allowed=False,
         has_healing_potion=False,
         has_healing_target=False,
+        has_mana_potion=False,
+        has_mana_target=False,
     ):
         regular_moves = self._regular_moves(player)
         can_defend = bool(player.can_defend)
@@ -463,8 +488,21 @@ class BattlePresenter:
                 ),
             ),
             self._action_option(
-                ActionIntent.ESCAPE,
+                ActionIntent.MANA_POTION,
                 6,
+                "Mana Potion",
+                enabled=has_mana_potion and has_mana_target,
+                disabled_reason=(
+                    None
+                    if has_mana_potion and has_mana_target
+                    else ActionAvailabilityReason.NO_CARRIED_SUPPLY
+                    if not has_mana_potion
+                    else ActionAvailabilityReason.NO_HEALING_TARGET
+                ),
+            ),
+            self._action_option(
+                ActionIntent.ESCAPE,
+                7,
                 "Smoke Bomb" if smoke_escape_allowed and has_smoke_bomb else "Escape",
                 enabled=smoke_escape_allowed and has_smoke_bomb,
                 disabled_reason=(

@@ -24,6 +24,7 @@ class GameState:
         drifter_id = _canonical_drifter_id(player_state)
         if drifter_id is not None:
             self._party_state._set_active_drifter_ids((drifter_id,))
+            self._party_state.initialize_vendor_stock((drifter_id,))
         self._metadata = {}
 
     @property

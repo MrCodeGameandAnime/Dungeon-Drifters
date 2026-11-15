@@ -63,6 +63,7 @@ def test_floor_three_run_identity_and_rest_checkpoint_round_trip():
     assert party.start_floor_three_run(
         run_id_factory=lambda: "floor-three-checkpoint"
     ) == 100
+    party._mark_encounter_progress()
     game.overworld_state.begin_route("floor_three")
     route = get_route_spec("floor_three")
     midway_rest_index = next(
@@ -130,3 +131,61 @@ def test_floor_three_clear_splits_pre_boss_xp_to_pair_then_boss_xp_four_ways():
         member.character.profile.drifter_id: member.exp_state.current
         for member in members
     } == expected_by_id
+
+
+def test_floor_three_first_clear_crystal_is_not_duplicated_by_replay():
+    game = floor_two_ready_game()
+    service = RunEventService(
+        save_port=MemorySavePort(),
+        rng=NoDropRng(),
+    )
+
+    for run_id in ("floor-three-first-clear", "floor-three-replay"):
+        game.party_state.start_floor_three_run(
+            run_id_factory=lambda run_id=run_id: run_id
+        )
+        result = service.resolve_encounter_rewards(
+            game,
+            node_id="floor_three_battle_10",
+            experience=101,
+            gold=0,
+            enemy_drop_tables=((),),
+        )
+        assert result.status.value == "resolved"
+        game = result.game_state
+        assert game.party_state.complete_floor_three_boss(
+            game.recruited_members,
+            boss_experience=101,
+        )
+
+    assert game.party_state.floor_three_cleared is True
+    assert game.party_state.shared_items["grade_iii_magic_crystal"] == 1
+
+
+def test_floor_three_first_clear_crystal_is_not_duplicated_by_replay():
+    game = floor_two_ready_game()
+    service = RunEventService(
+        save_port=MemorySavePort(),
+        rng=NoDropRng(),
+    )
+
+    for run_id in ("floor-three-first-clear", "floor-three-replay"):
+        game.party_state.start_floor_three_run(
+            run_id_factory=lambda run_id=run_id: run_id
+        )
+        result = service.resolve_encounter_rewards(
+            game,
+            node_id="floor_three_battle_10",
+            experience=101,
+            gold=0,
+            enemy_drop_tables=((),),
+        )
+        assert result.status.value == "resolved"
+        game = result.game_state
+        assert game.party_state.complete_floor_three_boss(
+            game.recruited_members,
+            boss_experience=101,
+        )
+
+    assert game.party_state.floor_three_cleared is True
+    assert game.party_state.shared_items["grade_iii_magic_crystal"] == 1

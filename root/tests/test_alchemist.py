@@ -521,3 +521,249 @@ def test_affix_rejects_incompatible_authored_modifier(monkeypatch):
 
     assert preview.status is AlchemistStatus.INCOMPATIBLE
     assert not preview.can_apply
+
+
+def test_extraction_preserves_modifier_payout_and_adds_first_discovery_xp():
+    game = _game_with_armor(
+        rarity="rare",
+        modifiers={"I": "bastion_grade_i", "III": "force_grade_iii"},
+    )
+    game.party_state.add_shared_items({"grade_iii_cores": 2})
+    service = AlchemistService(save_port=MemorySavePort())
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_extraction(game, instance_id=item_id)
+
+    result = service.extract(game, instance_id=item_id, confirmation=preview)
+
+    economy = result.game_state.party_state.hub_economy_state
+    assert result.status is AlchemistStatus.EXTRACTED
+    assert {item.definition_id for item in result.game_state.party_state.modifier_instances} == {
+        "bastion_grade_i",
+        "force_grade_iii",
+    }
+    assert economy.known_affix_ids == ("bastion_grade_i", "force_grade_iii")
+    assert economy.enchanting_experience == 50
+    assert economy.enchanting_level == 3
+
+
+def test_repeated_affix_discovery_keeps_instance_payout_without_duplicate_bonus():
+    game = _game_with_armor(
+        rarity="rare",
+        modifiers={"III": "force_grade_iii"},
+    )
+    game.party_state.add_shared_items({"grade_iii_cores": 2})
+    second = EquipmentInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000510",
+        definition_id="field_chest",
+        source_id="floor_two_reward_02",
+        secured=True,
+        stat_bonuses={"constitution": 2},
+        rarity="rare",
+        modifier_slots={"III": "force_grade_iii"},
+    )
+    game.party_state.add_equipment_instance(second)
+    service = AlchemistService(save_port=MemorySavePort())
+    first_id = "00000000-0000-4000-8000-000000000501"
+
+    first_preview = service.preview_extraction(game, instance_id=first_id)
+    first = service.extract(game, instance_id=first_id, confirmation=first_preview)
+    second_preview = service.preview_extraction(
+        first.game_state,
+        instance_id=second.instance_id,
+    )
+    repeated = service.extract(
+        first.game_state,
+        instance_id=second.instance_id,
+        confirmation=second_preview,
+    )
+
+    assert first.game_state.party_state.hub_economy_state.enchanting_experience == 45
+    assert repeated.game_state.party_state.hub_economy_state.enchanting_experience == 75
+    assert repeated.game_state.party_state.hub_economy_state.known_affix_ids == (
+        "force_grade_iii",
+    )
+    assert len(repeated.game_state.party_state.modifier_instances) == 2
+
+
+def test_stored_affix_application_awards_grade_xp_without_learning_recipe():
+    game = _game_with_armor(modifiers={})
+    modifier = ArmorModifierInstance.create(
+        instance_id="00000000-0000-4000-8000-000000000511",
+        definition_id="bastion_grade_i",
+        source_id="stored_affix_xp_test",
+        secured=True,
+    )
+    game.party_state.add_modifier_instance(modifier)
+    service = AlchemistService(save_port=MemorySavePort())
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_affix(
+        game,
+        instance_id=item_id,
+        modifier_instance_id=modifier.instance_id,
+    )
+
+    result = service.affix(
+        game,
+        instance_id=item_id,
+        modifier_instance_id=modifier.instance_id,
+        confirmation=preview,
+    )
+
+    economy = result.game_state.party_state.hub_economy_state
+    assert result.status is AlchemistStatus.AFFIXED
+    assert economy.enchanting_experience == 10
+    assert economy.known_affix_ids == ()
+
+
+def test_learned_affix_application_uses_mastery_cost_and_durable_transaction():
+    game = _game_with_armor(modifiers={})
+    game.party_state.add_shared_items({"grade_i_magic_crystal": 2})
+    game.party_state.hub_economy_state.learn_affix("bastion_grade_i")
+    service = AlchemistService(save_port=MemorySavePort())
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+    )
+
+    required = service.apply_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+    )
+    result = service.apply_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+        confirmation=preview,
+    )
+
+    assert required.status is AlchemistStatus.CONFIRMATION_REQUIRED
+    assert preview.gold_cost == 8
+    assert preview.material_costs == (("grade_i_magic_crystal", 2),)
+    assert result.status is AlchemistStatus.LEARNED_AFFIX_APPLIED
+    assert result.game_state.party_state.equipment_instance(item_id).modifier_slots == {
+        "I": "bastion_grade_i",
+    }
+    assert result.game_state.party_state.shared_items.get("grade_i_magic_crystal", 0) == 0
+    assert result.game_state.party_state.hub_economy_state.enchanting_experience == 10
+    assert result.game_state.party_state.hub_economy_state.known_affix_ids == (
+        "bastion_grade_i",
+    )
+
+
+def test_learned_affix_replacement_requires_confirming_permanent_loss():
+    game = _game_with_armor(modifiers={"I": "bastion_grade_i"})
+    game.party_state.add_shared_items({"grade_i_magic_crystal": 2})
+    game.party_state.hub_economy_state.learn_affix("vanguard_grade_i")
+    service = AlchemistService(save_port=MemorySavePort())
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="vanguard_grade_i",
+    )
+
+    result = service.apply_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="vanguard_grade_i",
+        confirmation=preview,
+    )
+
+    assert preview.displaced_modifiers == ("bastion_grade_i",)
+    assert preview.destroyed_modifiers == ("bastion_grade_i",)
+    assert result.status is AlchemistStatus.REPLACED
+    assert result.game_state.party_state.equipment_instance(item_id).modifier_slots == {
+        "I": "vanguard_grade_i",
+    }
+
+
+def test_learned_affix_save_failure_rolls_back_crystals_equipment_and_xp():
+    game = _game_with_armor(modifiers={})
+    game.party_state.add_shared_items({"grade_i_magic_crystal": 2})
+    game.party_state.hub_economy_state.learn_affix("bastion_grade_i")
+    service = AlchemistService(save_port=MemorySavePort(SaveLoadStatus.INVALID))
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+    )
+    before = copy.deepcopy(game.snapshot())
+
+    result = service.apply_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+        confirmation=preview,
+    )
+
+    assert result.status is AlchemistStatus.SAVE_FAILED
+    assert result.game_state is game
+    assert game.snapshot() == before
+
+
+@pytest.mark.parametrize(
+    ("experience", "crystals", "gold"),
+    ((0, 2, 24), (600, 2, 21), (1225, 2, 18), (1850, 1, 15), (2475, 1, 12)),
+)
+def test_learned_grade_three_costs_follow_each_enchanting_level_band(
+    experience,
+    crystals,
+    gold,
+):
+    game = _game_with_armor(rarity="rare", modifiers={})
+    game.party_state.hub_economy_state.add_enchanting_experience(experience)
+    game.party_state.hub_economy_state.learn_affix("force_grade_iii")
+    game.party_state.add_shared_items({"grade_iii_magic_crystal": crystals})
+
+    preview = AlchemistService.preview_learned_affix(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000501",
+        modifier_id="force_grade_iii",
+    )
+
+    assert preview.can_apply
+    assert preview.gold_cost == gold
+    assert preview.material_costs == (("grade_iii_magic_crystal", crystals),)
+
+
+def test_grade_five_learned_affix_is_unavailable_without_grade_five_content():
+    game = _game_with_armor(rarity="legendary", modifiers={})
+    game.party_state.hub_economy_state.learn_affix("resolve_grade_v")
+
+    preview = AlchemistService.preview_learned_affix(
+        game,
+        instance_id="00000000-0000-4000-8000-000000000501",
+        modifier_id="resolve_grade_v",
+    )
+
+    assert preview.status is AlchemistStatus.NOT_AVAILABLE
+    assert not preview.can_apply
+
+
+def test_learned_affix_preview_goes_stale_after_another_hub_transaction():
+    game = _game_with_armor(modifiers={})
+    game.party_state.add_shared_items({"grade_i_magic_crystal": 2})
+    game.party_state.hub_economy_state.learn_affix("bastion_grade_i")
+    service = AlchemistService(save_port=MemorySavePort())
+    item_id = "00000000-0000-4000-8000-000000000501"
+    preview = service.preview_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+    )
+    game.party_state.hub_economy_state.advance_transaction(0)
+    before = copy.deepcopy(game.snapshot())
+
+    result = service.apply_learned_affix(
+        game,
+        instance_id=item_id,
+        modifier_id="bastion_grade_i",
+        confirmation=preview,
+    )
+
+    assert result.status is AlchemistStatus.STALE_CONFIRMATION
+    assert game.snapshot() == before

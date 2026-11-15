@@ -1,4 +1,4 @@
-"""Schema-24 save documents and canonical in-memory reconstruction."""
+"""Schema-25 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -21,6 +21,12 @@ from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
     get_weapon_component_spec,
 )
+from app.content.vendor_catalog import (
+    VENDOR_IDS,
+    VENDOR_MERCHANDISE,
+    FIRST_CLEAR_REWARDS,
+)
+from app.game.hub_economy_state import new_hub_economy_snapshot
 from app.game.game_state import GameState
 from app.game.expedition_state import ExpeditionState
 from app.game.overworld_state import ContextualRoutePhase, OverworldState
@@ -106,7 +112,8 @@ _PRE_ALCHEMIST_DISK_SCHEMA_VERSION = 20
 _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION = 21
 _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION = 22
 _PRE_M6_DISK_SCHEMA_VERSION = 23
-DISK_SCHEMA_VERSION = 24
+_PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION = 24
+DISK_SCHEMA_VERSION = 25
 
 
 class SaveStateValidationError(ValueError):
@@ -114,7 +121,11 @@ class SaveStateValidationError(ValueError):
 
 
 def _validate_migrated_current_document(document):
-    _add_expedition_defaults(document)
+    if "expedition" not in document:
+        _add_expedition_defaults(document)
+    party = document.get("party")
+    if isinstance(party, dict) and "hub_economy" not in party:
+        _add_hub_economy_defaults(document)
     _validate_document(document, schema_version=DISK_SCHEMA_VERSION)
     return document
 
@@ -368,12 +379,21 @@ def migrate_schema23(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_expedition_defaults(migrated)
+    return _validate_migrated_current_document(migrated)
+
+
+def migrate_schema24(document):
+    """Add party-owned vendor state to immutable schema-24 saves."""
+    _validate_plain_document(document)
     _validate_document(
-        migrated,
-        schema_version=DISK_SCHEMA_VERSION,
+        document,
+        schema_version=_PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION,
         require_active_run_scope=True,
     )
-    return migrated
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_hub_economy_defaults(migrated)
+    return _validate_migrated_current_document(migrated)
 
 
 def validate_legacy_schema9_document(document):
@@ -415,7 +435,7 @@ def validate_legacy_schema11_document(document):
         historical,
         schema_version=_PREVIOUS_DISK_SCHEMA_VERSION_CURRENT,
     )
-    historical["schema_version"] = DISK_SCHEMA_VERSION
+    historical["schema_version"] = _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION
     _add_legacy_active_drifter_ids(historical)
     _add_carried_supply_defaults(historical)
     _add_advancement_defaults(historical)
@@ -423,7 +443,10 @@ def validate_legacy_schema11_document(document):
     _add_floor_two_defaults(historical)
     _add_equipment_defaults(historical)
     _add_expedition_defaults(historical)
-    _validate_document(historical, schema_version=DISK_SCHEMA_VERSION)
+    _validate_document(
+        historical,
+        schema_version=_PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION,
+    )
     return deepcopy(document)
 
 
@@ -536,6 +559,17 @@ def validate_legacy_schema23_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema24_document(document):
+    """Validate an immutable schema-24 profile before vendor-state migration."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -544,7 +578,7 @@ def validate_legacy_schema8_document(document):
 
 
 def validate_profile_payload(document):
-    """Validate current payloads or immutable schema-8 through schema-22 history."""
+    """Validate current payloads or immutable historical profile documents."""
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _LEGACY_DISK_SCHEMA_VERSION
@@ -627,6 +661,12 @@ def validate_profile_payload(document):
         and document.get("schema_version") == _PRE_M6_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema23_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema24_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -726,6 +766,8 @@ def validate_save_document(document):
         return migrate_schema22(document)
     if schema_version == _PRE_M6_DISK_SCHEMA_VERSION:
         return migrate_schema23(document)
+    if schema_version == _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
+        return migrate_schema24(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -872,13 +914,13 @@ def _validate_document(
         "party",
         "metadata",
     }
-    if schema_version >= DISK_SCHEMA_VERSION:
+    if schema_version >= _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
         allowed_keys.add("expedition")
     _require_mapping(document, "game")
     _require_exact_keys(document, allowed_keys, "game")
     if document["schema_version"] != schema_version:
         raise SaveStateValidationError("save schema version mismatch")
-    if schema_version >= DISK_SCHEMA_VERSION:
+    if schema_version >= _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
         try:
             ExpeditionState.from_snapshot(document["expedition"])
         except (KeyError, TypeError, ValueError) as error:
@@ -989,6 +1031,7 @@ def _validate_document(
         require_floor_three_state=(
             schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
         ),
+        require_hub_economy=(schema_version >= DISK_SCHEMA_VERSION),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -997,18 +1040,38 @@ def _validate_document(
             else equipment_bonuses_by_member[1:]
         ),
     )
+    allow_floor_one_expedition_launch = (
+        schema_version >= _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION
+        and document["expedition"]["active_assignment"] is not None
+    )
+    allow_floor_one_progress_checkpoint = False
+    if schema_version >= DISK_SCHEMA_VERSION:
+        active_outing = document["party"]["hub_economy"]["active_outing"]
+        allow_floor_one_expedition_launch = allow_floor_one_expedition_launch or (
+            active_outing is not None
+            and active_outing["floor_id"] == "floor_one"
+            and not active_outing["has_encounter_progress"]
+        )
+        allow_floor_one_progress_checkpoint = (
+            active_outing is not None
+            and active_outing["floor_id"] == "floor_one"
+            and active_outing["has_encounter_progress"]
+        )
     _validate_route_party_relationship(
         document["overworld"],
         document["party"],
         require_floor_three_state=(
             schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
         ),
-        allow_floor_one_expedition_launch=(
-            schema_version >= DISK_SCHEMA_VERSION
-            and document["expedition"]["active_assignment"] is not None
-        ),
+        allow_floor_one_expedition_launch=allow_floor_one_expedition_launch,
+        allow_floor_one_progress_checkpoint=allow_floor_one_progress_checkpoint,
     )
     if schema_version >= DISK_SCHEMA_VERSION:
+        _validate_route_hub_economy_relationship(
+            document["overworld"],
+            document["party"],
+        )
+    if schema_version >= _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
         _validate_expedition_relationships(
             document["expedition"],
             document["player"],
@@ -1024,6 +1087,333 @@ def _validate_document(
             document["world"], document["party"]
         )
     validate_plain_value(document["metadata"], "game.metadata")
+
+
+def _validate_hub_economy(state, *, party, player):
+    expected_keys = {
+        "alchemy_xp",
+        "enchanting_xp",
+        "known_affix_ids",
+        "component_stacks",
+        "vendor_stock",
+        "future_stock_queue",
+        "buyback_records",
+        "hub_visit_sequence",
+        "current_hub_visit_id",
+        "outing_sequence",
+        "active_outing",
+        "last_settled_outing_id",
+        "last_replenished_outing_id",
+        "transaction_sequence",
+    }
+    _require_mapping(state, "party.hub_economy")
+    _require_exact_keys(state, expected_keys, "party.hub_economy")
+    for field in (
+        "alchemy_xp",
+        "enchanting_xp",
+        "hub_visit_sequence",
+        "outing_sequence",
+        "transaction_sequence",
+    ):
+        _require_int_min(state[field], 0, f"party.hub_economy.{field}")
+
+    from app.content.armor_spec import MODIFIER_DEFINITIONS
+
+    known_affix_ids = state["known_affix_ids"]
+    if not isinstance(known_affix_ids, list) or any(
+        not isinstance(value, str) for value in known_affix_ids
+    ):
+        raise SaveStateValidationError(
+            "party.hub_economy.known_affix_ids must be a list of IDs"
+        )
+    if known_affix_ids != sorted(set(known_affix_ids)):
+        raise SaveStateValidationError(
+            "party.hub_economy.known_affix_ids must be sorted and unique"
+        )
+    known_affixes = {item.modifier_id for item in MODIFIER_DEFINITIONS}
+    if any(value not in known_affixes for value in known_affix_ids):
+        raise SaveStateValidationError(
+            "party.hub_economy contains an unknown discovered affix"
+        )
+
+    component_stacks = state["component_stacks"]
+    _require_mapping(component_stacks, "party.hub_economy.component_stacks")
+    known_component_ids = {
+        item.item_id
+        for item in VENDOR_MERCHANDISE
+        if item.category == "component"
+    }
+    for component_id, quantity in component_stacks.items():
+        if component_id not in known_component_ids:
+            raise SaveStateValidationError(
+                "party.hub_economy contains an unknown weapon component"
+            )
+        _require_int_min(
+            quantity,
+            1,
+            f"party.hub_economy.component_stacks.{component_id}",
+        )
+
+    stock = state["vendor_stock"]
+    _require_mapping(stock, "party.hub_economy.vendor_stock")
+    _require_exact_keys(stock, set(VENDOR_IDS), "party.hub_economy.vendor_stock")
+    offer_specs = {
+        (offer.vendor_id, item.item_id): offer
+        for item in VENDOR_MERCHANDISE
+        for offer in item.offers
+    }
+    recruited_ids = {_canonical_profile(player).drifter_id}
+    recruited_ids.update(
+        _canonical_profile(member).drifter_id
+        for member in party.get("companions", [])
+    )
+    floor_clears = {
+        "floor_one": party.get("floor_one_cleared", False),
+        "floor_two": party.get("floor_two_cleared", False),
+        "floor_three": party.get("floor_three_cleared", False),
+        "floor_four": False,
+    }
+    for vendor_id in VENDOR_IDS:
+        vendor_stock = stock[vendor_id]
+        _require_mapping(
+            vendor_stock,
+            f"party.hub_economy.vendor_stock.{vendor_id}",
+        )
+        for item_id, quantity in vendor_stock.items():
+            _require_int_min(
+                quantity,
+                0,
+                f"party.hub_economy.vendor_stock.{vendor_id}.{item_id}",
+            )
+            offer = offer_specs.get((vendor_id, item_id))
+            if offer is None or offer.future_content:
+                raise SaveStateValidationError(
+                    f"party.hub_economy contains an unknown {vendor_id} offer"
+                )
+            if quantity > offer.stock_cap:
+                raise SaveStateValidationError(
+                    f"party.hub_economy stock exceeds its cap: {item_id}"
+                )
+            if (
+                offer.unlock_after_floor is not None
+                and not floor_clears.get(offer.unlock_after_floor, False)
+            ):
+                raise SaveStateValidationError(
+                    f"party.hub_economy contains a locked offer: {item_id}"
+                )
+            if (
+                offer.unlock_drifter_id is not None
+                and offer.unlock_drifter_id not in recruited_ids
+            ):
+                raise SaveStateValidationError(
+                    f"party.hub_economy contains a Drifter-locked offer: {item_id}"
+                )
+
+    visit_sequence = state["hub_visit_sequence"]
+    current_visit_id = state["current_hub_visit_id"]
+    if current_visit_id is not None and (
+        not isinstance(current_visit_id, str)
+        or visit_sequence < 1
+        or current_visit_id != f"hub_visit_{visit_sequence}"
+    ):
+        raise SaveStateValidationError(
+            "party.hub_economy.current_hub_visit_id is invalid"
+        )
+
+    future_stock_queue = state["future_stock_queue"]
+    buyback_records = state["buyback_records"]
+    for field, value in (
+        ("future_stock_queue", future_stock_queue),
+        ("buyback_records", buyback_records),
+    ):
+        if not isinstance(value, list):
+            raise SaveStateValidationError(
+                f"party.hub_economy.{field} must be a list"
+            )
+
+    merchandise_by_id = {item.item_id: item for item in VENDOR_MERCHANDISE}
+    sale_ids = set()
+    owned_equipment_ids = {
+        item["instance_id"] for item in party.get("equipment_instances", [])
+    }
+    for index, record in enumerate(buyback_records):
+        path = f"party.hub_economy.buyback_records[{index}]"
+        _require_mapping(record, path)
+        is_equipment = "equipment_snapshot" in record
+        expected_keys = (
+            {
+                "sale_id",
+                "vendor_id",
+                "visit_id",
+                "item_id",
+                "original_unit_payout",
+                "equipment_snapshot",
+            }
+            if is_equipment
+            else {
+                "sale_id",
+                "vendor_id",
+                "visit_id",
+                "item_id",
+                "remaining_quantity",
+                "original_unit_payout",
+            }
+        )
+        _require_exact_keys(record, expected_keys, path)
+        sale_id = record["sale_id"]
+        if (
+            not isinstance(sale_id, str)
+            or not sale_id.startswith("sale_")
+            or not sale_id.removeprefix("sale_").isdigit()
+            or int(sale_id.removeprefix("sale_")) < 1
+            or int(sale_id.removeprefix("sale_")) > state["transaction_sequence"]
+            or sale_id in sale_ids
+        ):
+            raise SaveStateValidationError(f"{path}.sale_id is invalid or duplicated")
+        sale_ids.add(sale_id)
+        vendor_id = record["vendor_id"]
+        if vendor_id not in VENDOR_IDS:
+            raise SaveStateValidationError(f"{path}.vendor_id is unknown")
+        if current_visit_id is None or record["visit_id"] != current_visit_id:
+            raise SaveStateValidationError(f"{path}.visit_id is not the active Hub visit")
+        item_id = record["item_id"]
+        merchandise = merchandise_by_id.get(item_id)
+        if merchandise is None or merchandise.sale_vendor_id != vendor_id:
+            raise SaveStateValidationError(f"{path} does not match an authored sale route")
+        if is_equipment:
+            if merchandise.category != "armor":
+                raise SaveStateValidationError(f"{path} is not eligible equipment")
+            equipment_snapshot = record["equipment_snapshot"]
+            try:
+                escrowed = EquipmentInstance.from_snapshot(equipment_snapshot)
+            except (KeyError, TypeError, ValueError) as error:
+                raise SaveStateValidationError(f"{path}.equipment_snapshot is invalid") from error
+            template = get_equipment_template(item_id)
+            if (
+                escrowed.definition_id != item_id
+                or not escrowed.secured
+                or escrowed.instance_id in owned_equipment_ids
+                or template.sale_value_gold != record["original_unit_payout"]
+            ):
+                raise SaveStateValidationError(f"{path} equipment escrow is inconsistent")
+        else:
+            _require_int_min(record["remaining_quantity"], 1, f"{path}.remaining_quantity")
+            if (
+                merchandise.resale_price is None
+                or merchandise.resale_price != record["original_unit_payout"]
+            ):
+                raise SaveStateValidationError(f"{path}.original_unit_payout is invalid")
+        _require_int_min(record["original_unit_payout"], 0, f"{path}.original_unit_payout")
+
+    for index, entry in enumerate(future_stock_queue):
+        path = f"party.hub_economy.future_stock_queue[{index}]"
+        _require_mapping(entry, path)
+        _require_exact_keys(
+            entry,
+            {"sale_id", "specialist_id", "item_id", "remaining_quantity"},
+            path,
+        )
+        sale_id = entry["sale_id"]
+        if (
+            not isinstance(sale_id, str)
+            or not sale_id.startswith("sale_")
+            or not sale_id.removeprefix("sale_").isdigit()
+            or int(sale_id.removeprefix("sale_")) < 1
+            or int(sale_id.removeprefix("sale_")) > state["transaction_sequence"]
+            or sale_id in sale_ids
+        ):
+            raise SaveStateValidationError(f"{path}.sale_id is invalid or duplicated")
+        sale_ids.add(sale_id)
+        merchandise = merchandise_by_id.get(entry["item_id"])
+        if (
+            merchandise is None
+            or not merchandise.future_stock_eligible
+            or merchandise.sale_vendor_id != entry["specialist_id"]
+        ):
+            raise SaveStateValidationError(f"{path} is not an eligible future-stock sale")
+        _require_int_min(
+            entry["remaining_quantity"],
+            1,
+            f"{path}.remaining_quantity",
+        )
+
+    outing_sequence = state["outing_sequence"]
+    active_outing = state["active_outing"]
+    if active_outing is not None:
+        _require_mapping(active_outing, "party.hub_economy.active_outing")
+        _require_exact_keys(
+            active_outing,
+            {"outing_id", "floor_id", "has_encounter_progress"},
+            "party.hub_economy.active_outing",
+        )
+        outing_id = active_outing["outing_id"]
+        if (
+            not isinstance(outing_id, str)
+            or outing_sequence < 1
+            or outing_id != f"outing_{outing_sequence}"
+        ):
+            raise SaveStateValidationError(
+                "party.hub_economy.active_outing.outing_id is invalid"
+            )
+        if active_outing["floor_id"] not in {
+            "floor_one",
+            "floor_two",
+            "floor_three",
+        } or not isinstance(active_outing["has_encounter_progress"], bool):
+            raise SaveStateValidationError(
+                "party.hub_economy.active_outing is invalid"
+            )
+        if current_visit_id is not None:
+            raise SaveStateValidationError(
+                "an active outing cannot have an active Hub visit"
+            )
+    for field in ("last_settled_outing_id", "last_replenished_outing_id"):
+        value = state[field]
+        if value is not None and (
+            not isinstance(value, str)
+            or not value.startswith("outing_")
+            or not value.removeprefix("outing_").isdigit()
+            or int(value.removeprefix("outing_")) > outing_sequence
+        ):
+            raise SaveStateValidationError(
+                f"party.hub_economy.{field} is invalid"
+            )
+
+
+def _validate_route_hub_economy_relationship(overworld, party):
+    route_id = overworld["active_route_id"]
+    active_outing = party["hub_economy"]["active_outing"]
+    if route_id == "surface":
+        if active_outing is not None:
+            raise SaveStateValidationError(
+                "an active outing cannot be saved on the Surface route"
+            )
+        return
+
+    if active_outing is None or active_outing["floor_id"] != route_id:
+        raise SaveStateValidationError(
+            "the active outing must match the active dungeon route"
+        )
+
+    route_nodes = {
+        "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
+        "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
+        "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+    }[route_id]
+    current_node_id = overworld["current_route_node_id"]
+    if current_node_id not in route_nodes:
+        raise SaveStateValidationError(
+            "the active outing route cursor is invalid"
+        )
+    if not active_outing["has_encounter_progress"]:
+        progressed = route_nodes.index(current_node_id) > 0 or any(
+            event["kind"] == "encounter_rewards"
+            for event in party.get("resolved_run_events", [])
+        )
+        if progressed:
+            raise SaveStateValidationError(
+                "outing progress is missing from the active outing ledger"
+            )
 
 
 def _validate_legacy_current_document(
@@ -1265,6 +1655,7 @@ def _validate_party(
     require_carried_supplies=False,
     require_floor_two_state=False,
     require_floor_three_state=False,
+    require_hub_economy=False,
     require_active_run_scope=False,
     require_equipment_instances=False,
     require_generated_equipment_state=False,
@@ -1312,7 +1703,15 @@ def _validate_party(
         expected_keys.add("equipment_instances")
     if require_modifier_instances:
         expected_keys.add("modifier_instances")
+    if require_hub_economy:
+        expected_keys.add("hub_economy")
     _require_exact_keys(party, expected_keys, "party")
+    if require_hub_economy:
+        _validate_hub_economy(
+            party["hub_economy"],
+            party=party,
+            player=player,
+        )
     if require_equipment_instances and equipment_by_id is None:
         equipment_by_id = _validate_equipment_instances(
             party["equipment_instances"],
@@ -2062,6 +2461,75 @@ def _add_expedition_defaults(document):
     document["expedition"] = ExpeditionState().snapshot()
 
 
+def _add_hub_economy_defaults(document):
+    party = document.get("party")
+    player = document.get("player")
+    if not isinstance(party, dict) or not isinstance(player, dict):
+        raise SaveStateValidationError(
+            "legacy save is missing M6.5 party ownership state"
+        )
+    if "hub_economy" in party:
+        raise SaveStateValidationError(
+            "legacy party already contains M6.5 vendor state"
+        )
+    companions = party.get("companions")
+    shared_items = party.get("shared_items")
+    if not isinstance(companions, list) or not isinstance(shared_items, dict):
+        raise SaveStateValidationError(
+            "legacy party roster or shared inventory is invalid"
+        )
+    recruited_ids = [_canonical_profile(player).drifter_id]
+    recruited_ids.extend(_canonical_profile(companion).drifter_id for companion in companions)
+    clear_flags = {
+        "floor_one": party.get("floor_one_cleared", False),
+        "floor_two": party.get("floor_two_cleared", False),
+        "floor_three": party.get("floor_three_cleared", False),
+    }
+    party["hub_economy"] = new_hub_economy_snapshot(
+        recruited_drifter_ids=recruited_ids,
+        floor_one_cleared=clear_flags["floor_one"],
+        floor_two_cleared=clear_flags["floor_two"],
+        floor_three_cleared=clear_flags["floor_three"],
+    )
+    overworld = document.get("overworld")
+    route_id = (
+        overworld.get("active_route_id", "surface")
+        if isinstance(overworld, dict)
+        else "surface"
+    )
+    if route_id in {"floor_one", "floor_two", "floor_three"} and (
+        party.get("phase") == DungeonPhase.OUTING.value
+    ):
+        route_nodes = {
+            "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
+            "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
+            "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+        }[route_id]
+        current_node_id = overworld.get("current_route_node_id")
+        progress = current_node_id in route_nodes[1:] or any(
+            isinstance(event, dict)
+            and event.get("kind") == "encounter_rewards"
+            for event in party.get("resolved_run_events", [])
+        )
+        party["hub_economy"]["outing_sequence"] = 1
+        party["hub_economy"]["active_outing"] = {
+            "outing_id": "outing_1",
+            "floor_id": route_id,
+            "has_encounter_progress": progress,
+        }
+
+    smoke_powder = shared_items.pop("smoke_powder", 0)
+    if smoke_powder:
+        shared_items["charcoal_dust"] = (
+            shared_items.get("charcoal_dust", 0) + smoke_powder
+        )
+    for reward in FIRST_CLEAR_REWARDS:
+        if clear_flags.get(reward.floor_id, False):
+            shared_items[reward.item_id] = (
+                shared_items.get(reward.item_id, 0) + reward.quantity
+            )
+
+
 def _add_armor_generation_defaults(document):
     party = document.get("party")
     instances = party.get("equipment_instances") if isinstance(party, dict) else None
@@ -2715,6 +3183,7 @@ def _validate_route_party_relationship(
     *,
     require_floor_three_state=False,
     allow_floor_one_expedition_launch=False,
+    allow_floor_one_progress_checkpoint=False,
 ):
     route_id = overworld["active_route_id"]
     phase = DungeonPhase(party["phase"])
@@ -2778,6 +3247,21 @@ def _validate_route_party_relationship(
         == ContextualRoutePhase.ENTER_ENCOUNTER.value
     ):
         return
+    if allow_floor_one_progress_checkpoint:
+        route_node_index = _FLOOR_ONE_ROUTE_NODE_IDS.index(current_node.node_id)
+        previous_node = (
+            get_route_node_spec(_FLOOR_ONE_ROUTE_NODE_IDS[route_node_index - 1])
+            if route_node_index > 0
+            else None
+        )
+        if (
+            current_node.kind is RouteNodeKind.COMBAT
+            and previous_node is not None
+            and previous_node.kind is RouteNodeKind.COMBAT
+            and overworld["current_contextual_route_phase"]
+            == ContextualRoutePhase.ENTER_ENCOUNTER.value
+        ):
+            return
     if current_node.kind is not RouteNodeKind.REST:
         raise SaveStateValidationError(
             "only a Floor 1 Rest can be saved during an outing"

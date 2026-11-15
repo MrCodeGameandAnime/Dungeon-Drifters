@@ -229,7 +229,10 @@ def test_floor_one_safe_boss_return_banks_pack_and_death_discards_it():
     party.add_floor_one_rewards(experience=20, gold=5)
 
     assert party.complete_floor_one_boss(members)
-    assert party.shared_items == {"healing_potion": 2}
+    assert party.shared_items == {
+        "healing_potion": 2,
+        "grade_i_magic_crystal": 1,
+    }
     assert party.carried_items == {}
 
     party.add_shared_items({"healing_potion": 1})
@@ -238,7 +241,10 @@ def test_floor_one_safe_boss_return_banks_pack_and_death_discards_it():
     party.add_floor_one_rewards(experience=20, gold=5)
 
     assert party.fail_floor_one_run(members)
-    assert party.shared_items == {"healing_potion": 2}
+    assert party.shared_items == {
+        "healing_potion": 2,
+        "grade_i_magic_crystal": 1,
+    }
     assert party.carried_items == {}
 
 

@@ -131,6 +131,7 @@ class Battle:
         self.interaction_phase = InteractionPhase.ACTIONS
         self._selected_inventory_item_id = None
         self._selected_inventory_companion_id = None
+        self._selected_healing_item_id = None
         self._selected_move_key = None
         self._originating_move_phase = None
         self._started = False
@@ -664,6 +665,7 @@ class Battle:
                 else None
             ),
             smoke_escape_allowed=self._smoke_escape_allowed,
+            healing_item_id=self._selected_healing_item_id,
         )
 
     def _render_current_view(self):
@@ -809,7 +811,11 @@ class Battle:
                 self._clear_inventory_navigation()
                 self.interaction_phase = InteractionPhase.INVENTORY
                 return False
-            if battle_input.intent == ActionIntent.HEALING_POTION:
+            if battle_input.intent in {
+                ActionIntent.HEALING_POTION,
+                ActionIntent.MANA_POTION,
+            }:
+                self._selected_healing_item_id = battle_input.intent.value
                 self.interaction_phase = InteractionPhase.HEALING_TARGETS
                 return False
             if battle_input.intent == ActionIntent.ESCAPE:
@@ -963,20 +969,34 @@ class Battle:
                 or self._party_state is None
             ):
                 return False
-            before_healing = target.health.current
-            if not self._party_state.use_healing_potion(
+            item_id = battle_input.item_id
+            resource = (
+                target.health
+                if item_id == "healing_potion"
+                else target.mana_resource
+            )
+            before_restoring = resource.current
+            use_potion = (
+                self._party_state.use_healing_potion
+                if item_id == "healing_potion"
+                else self._party_state.use_mana_potion
+            )
+            if not use_potion(
                 target,
                 deployed_members=tuple(self.party_states),
             ):
                 return False
-            healing = target.health.current
+            restored = resource.current - before_restoring
+            is_healing = item_id == "healing_potion"
             item = MoveResult(
                 accepted=True,
                 hit=True,
-                move_name="Healing Potion",
+                move_name=(
+                    "Healing Potion" if is_healing else "Mana Potion"
+                ),
                 resource_spent=0,
                 damage=0,
-                healing=healing - before_healing,
+                healing=restored,
                 statuses_applied=(),
                 reason=None,
             )
@@ -985,8 +1005,13 @@ class Battle:
                 item,
                 actor=self.player_state,
                 target=target,
-                event_type=BattleEventType.HEALING,
+                event_type=(
+                    BattleEventType.HEALING
+                    if is_healing
+                    else BattleEventType.MANA_RESTORATION
+                ),
             )
+            self._selected_healing_item_id = None
             self._complete_accepted_action(
                 self.player_state,
                 self.enemies,
@@ -1005,6 +1030,7 @@ class Battle:
             return
         if self.interaction_phase == InteractionPhase.HEALING_TARGETS:
             self.interaction_phase = InteractionPhase.ACTIONS
+            self._selected_healing_item_id = None
             return
         if self.interaction_phase == InteractionPhase.INVENTORY_ITEM:
             self.interaction_phase = InteractionPhase.INVENTORY
@@ -1138,7 +1164,8 @@ class Battle:
                 return InputRejectionReason.TARGET_UNAVAILABLE
             return (
                 None
-                if any(
+                if battle_input.item_id == view.healing_item_id
+                and any(
                     option.target_id == battle_input.target_id
                     for option in view.healing_target_options
                 )
