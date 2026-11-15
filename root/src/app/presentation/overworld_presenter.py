@@ -120,6 +120,16 @@ _SURFACE_ROUTE = get_route_spec("surface")
 _FIRST_SURFACE_NODE_ID = _SURFACE_ROUTE.nodes[0].node_id
 
 
+def _display_item_name(item_id, authored_names):
+    display_name = authored_names.get(item_id)
+    if display_name is not None:
+        return display_name
+    return " ".join(
+        part[:1].upper() + part[1:]
+        for part in item_id.replace("_", " ").split()
+    )
+
+
 def _equipment_action(
     operation,
     label,
@@ -1482,11 +1492,11 @@ class OverworldPresenter:
                     recipe_id=recipe.recipe_id,
                     display_name=recipe.display_name,
                     ingredient_summary=tuple(
-                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        f"{_display_item_name(item_id, names)} x{quantity}"
                         for item_id, quantity in recipe.ingredient_costs
                     ),
                     output_summary=tuple(
-                        f"{names.get(item_id, item_id.replace('_', ' ').title())} x{quantity}"
+                        f"{_display_item_name(item_id, names)} x{quantity}"
                         for item_id, quantity in preview.outputs
                     ),
                     can_craft=preview.status is AlchemyStatus.READY,

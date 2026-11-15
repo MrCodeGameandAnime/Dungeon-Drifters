@@ -364,6 +364,11 @@ def _open_floor_one_warning(state):
     party = game.party_state
     members = (game.player_state,) + party.companions
     state["floor_one_route"] = route
+    state["floor_one_game_identity"] = game
+    state["floor_one_party_identity"] = party
+    state["floor_one_member_identities"] = members
+    state["floor_one_world_identity"] = game.world_state
+    state["floor_one_overworld_identity"] = game.overworld_state
     state["floor_one_battle_compositions"] = []
     state["floor_one_world_history"] = game.world_state.defeated_encounters
     state["floor_one_xp_before"] = tuple(
@@ -399,6 +404,21 @@ def _set_out_floor_one(state):
     )
     if not isinstance(battle_view, BattleView):
         raise AssertionError("Set Out did not start the first Floor 1 battle")
+    if session.game_state is not state["floor_one_game_identity"]:
+        raise AssertionError("Set Out replaced the live GameState instance")
+    if game.party_state is not state["floor_one_party_identity"]:
+        raise AssertionError("Set Out replaced the live PartyState instance")
+    live_members = (game.player_state,) + game.party_state.companions
+    for member, original_member in zip(
+        live_members,
+        state["floor_one_member_identities"],
+    ):
+        if member is not original_member:
+            raise AssertionError("Set Out replaced a live recruited Drifter")
+    if game.world_state is not state["floor_one_world_identity"]:
+        raise AssertionError("Set Out replaced the live WorldState instance")
+    if game.overworld_state is not state["floor_one_overworld_identity"]:
+        raise AssertionError("Set Out replaced the live OverworldState instance")
     if game.party_state.phase is not DungeonPhase.OUTING:
         raise AssertionError("Set Out did not begin a dangerous run")
     if game.party_state.outing_xp_multiplier_percent != 100:

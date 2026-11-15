@@ -124,6 +124,17 @@ _BATTLE_INPUT_TYPES = (
 _UNHANDLED_ACTION = object()
 
 
+def _replace_instance_attributes(existing, updated):
+    if type(existing) is not type(updated):
+        raise TypeError("cannot replace state across different types")
+    updated_attributes = updated.__dict__
+    for name in tuple(existing.__dict__):
+        if name not in updated_attributes:
+            delattr(existing, name)
+    for name, value in updated_attributes.items():
+        setattr(existing, name, value)
+
+
 def _is_weapon_material(item_id):
     try:
         get_material_spec(item_id)
@@ -2732,8 +2743,7 @@ class OverworldSession:
             drifter_id = existing.character.profile.drifter_id
             updated = candidate_members.pop(drifter_id)
             if existing is not updated:
-                existing.__dict__.clear()
-                existing.__dict__.update(updated.__dict__)
+                _replace_instance_attributes(existing, updated)
             published_members.append(existing)
         published_members.extend(candidate_members.values())
 
@@ -2743,8 +2753,7 @@ class OverworldSession:
             companions=tuple(published_members[1:]),
             active_drifter_ids=candidate.party_state.active_drifter_ids,
         )
-        original_party.__dict__.clear()
-        original_party.__dict__.update(replacement_party.__dict__)
+        _replace_instance_attributes(original_party, replacement_party)
         if self._active_battle is not None:
             self._active_battle._party_state = original_party
 
@@ -2756,8 +2765,7 @@ class OverworldSession:
         ):
             existing = getattr(original_game, attribute)
             updated = getattr(candidate, attribute)
-            existing.__dict__.clear()
-            existing.__dict__.update(updated.__dict__)
+            _replace_instance_attributes(existing, updated)
         original_game._metadata = dict(candidate._metadata)
         original_game._bind_equipment_state()
         self._game_state = original_game

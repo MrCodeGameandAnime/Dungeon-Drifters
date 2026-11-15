@@ -743,6 +743,19 @@ def _run_m6_probe():
     _emit_memory("M6_PROBE_RELEASED")
 
 
+def _run_m65_probe():
+    tools_path = sys.argv[0].replace("\\", "/").rsplit("/", 1)[0]
+    sys.path.insert(0, tools_path)
+    try:
+        import micropython_m65_probe
+
+        micropython_m65_probe.run(STATE, _run_stage)
+    finally:
+        sys.path.remove(tools_path)
+        sys.modules.pop("micropython_m65_probe", None)
+    _emit_memory("M65_PROBE_RELEASED")
+
+
 def _assert_route_live_state():
     from app.presentation.overworld_models import OverworldScreen
 
@@ -852,6 +865,7 @@ def main():
     _run_stage("M4_FLOOR_THREE_PROBE", _run_floor_three_probe)
     _run_stage("M5_EQUIPMENT_PROBE", _run_m5_probe)
     _run_stage("M6_EXPEDITION_PROBE", _run_m6_probe)
+    _run_stage("M65_PROFESSION_PROBE", _run_m65_probe)
     _run_stage("ROUTE_SESSION_TEARDOWN", _teardown_route_session)
 
     print("MYP|RESULT|RAW_PROBE_STAGES_COMPLETE")

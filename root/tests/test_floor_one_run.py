@@ -1206,10 +1206,22 @@ def test_set_out_starts_the_four_goblin_battle_with_both_drifters():
 
 def test_set_out_battle_uses_the_live_recruited_drifter_instances():
     game = game_at_completed_hub()
+    party = game.party_state
+    world = game.world_state
+    overworld = game.overworld_state
+    members = game.recruited_members
     session = make_session(game)
 
     set_out(session)
 
+    assert session.game_state is game
+    assert game.party_state is party
+    assert game.world_state is world
+    assert game.overworld_state is overworld
+    assert all(
+        current is original
+        for current, original in zip(game.recruited_members, members)
+    )
     battle_members = session.active_battle.party_states
     assert len(battle_members) == len(game.active_party_members)
     assert all(
