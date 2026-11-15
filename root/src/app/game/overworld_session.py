@@ -3083,6 +3083,7 @@ class OverworldSession:
                 )
             next_node_id = get_route_successor_id(current_node_id)
             candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
             if current_node.kind is not RouteNodeKind.BOSS:
                 if next_node_id is None:
                     raise RuntimeError(
@@ -3250,6 +3251,7 @@ class OverworldSession:
                 )
             next_node_id = get_route_successor_id(current_node_id)
             candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
             if current_node.kind is not RouteNodeKind.BOSS:
                 if next_node_id is None:
                     raise RuntimeError(
@@ -3408,6 +3410,7 @@ class OverworldSession:
                 )
                 candidate = self.game_state.clone()
                 candidate_party = candidate.party_state
+                candidate_party._mark_encounter_progress()
                 candidate_party.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,
@@ -3442,6 +3445,7 @@ class OverworldSession:
                     get_encounter_item_rewards(current_node.encounter_id)
                 )
                 candidate = self.game_state.clone()
+                candidate.party_state._mark_encounter_progress()
                 candidate.party_state.add_floor_one_rewards(
                     experience=exp_reward,
                     gold=gold_reward,

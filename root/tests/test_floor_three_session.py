@@ -233,6 +233,9 @@ def test_floor_three_encounter_victory_commits_rewards_without_banking_xp():
         and event["kind"] == "encounter_rewards"
         for event in party.resolved_run_events
     )
+    assert party.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is True
     assert {
         member.character.profile.drifter_id: experience_state(member)
         for member in session.game_state.recruited_members

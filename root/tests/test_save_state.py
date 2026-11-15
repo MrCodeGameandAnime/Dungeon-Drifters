@@ -159,7 +159,7 @@ def _floor_two_discovery_game(*, found=True, searcher="branoc"):
     assert party.start_floor_one_run() == 100
     assert party.complete_floor_one_boss(game.active_party_members)
     party.start_floor_two_run(run_id_factory=lambda: "save-validation-run")
-    party._hub_economy.mark_encounter_progress()
+    party._mark_encounter_progress()
     game.overworld_state.begin_route("floor_two")
     route = get_route_spec("floor_two")
     for index, node in enumerate(route.nodes[1:], start=1):
@@ -238,6 +238,7 @@ def _floor_three_rest_game_with_rewards():
     assert party.start_floor_three_run(
         run_id_factory=lambda: "save-validation-floor-three"
     ) == 100
+    party._mark_encounter_progress()
 
     game.overworld_state.begin_route("floor_three")
     route = get_route_spec("floor_three")

@@ -147,6 +147,27 @@ def test_run_event_service_resolves_enemy_drops_and_encounter_rewards_once():
     )
 
 
+def test_unverified_zero_reward_event_does_not_qualify_outing():
+    events = load_event_module()
+    game = floor_two_game()
+
+    result = events.RunEventService(
+        save_port=MemorySavePort(),
+        rng=SequenceRng([]),
+    ).resolve_encounter_rewards(
+        game,
+        node_id="floor_two_battle_01",
+        experience=0,
+        gold=0,
+        enemy_drop_tables=((),),
+    )
+
+    assert result.status.value == "resolved"
+    assert result.game_state.party_state.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is False
+
+
 def test_failed_drop_commit_leaves_rewards_and_event_evidence_unchanged():
     event_module = load_event_module()
     assert event_module is not None

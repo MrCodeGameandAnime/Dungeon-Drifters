@@ -175,6 +175,25 @@ def test_schema20_equipment_history_remains_envelope_immutable():
     assert restored.payload == original
 
 
+def test_schema24_remote_history_remains_envelope_immutable():
+    payload = copy.deepcopy(_payload())
+    payload["schema_version"] = 24
+    payload["party"].pop("hub_economy")
+    original = copy.deepcopy(payload)
+    document = profile_envelope_to_document(_envelope())
+    document["payload"] = payload
+    document["payload_sha256"] = hashlib.sha256(
+        canonical_json_bytes(payload)
+    ).hexdigest()
+    original_document = copy.deepcopy(document)
+
+    restored = validate_profile_envelope(document)
+
+    assert document == original_document
+    assert restored.payload == original
+    assert restored.payload_sha256 == original_document["payload_sha256"]
+
+
 @pytest.mark.parametrize(
     "mutate",
     (

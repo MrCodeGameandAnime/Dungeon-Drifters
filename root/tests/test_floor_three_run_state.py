@@ -63,7 +63,7 @@ def test_floor_three_run_identity_and_rest_checkpoint_round_trip():
     assert party.start_floor_three_run(
         run_id_factory=lambda: "floor-three-checkpoint"
     ) == 100
-    party._hub_economy.mark_encounter_progress()
+    party._mark_encounter_progress()
     game.overworld_state.begin_route("floor_three")
     route = get_route_spec("floor_three")
     midway_rest_index = next(

@@ -773,6 +773,9 @@ class PartyState:
             items=items,
         )
 
+    def _mark_encounter_progress(self):
+        return self._hub_economy.mark_encounter_progress()
+
     def record_run_event(self, event):
         normalized = _run_event(event)
         if (
@@ -1040,7 +1043,6 @@ class PartyState:
             current.gold + additions.gold,
             combined_items,
         )
-        self._hub_economy.mark_encounter_progress()
         self._outing_rewards = updated_rewards
 
     def add_floor_one_rewards(self, *, experience, gold, items=None):
@@ -1056,7 +1058,6 @@ class PartyState:
             current.gold + rewards.gold,
             combined_items,
         )
-        self._hub_economy.mark_encounter_progress()
         self._outing_rewards = updated_rewards
 
     def begin_floor_one_extraction(self, *, partial):

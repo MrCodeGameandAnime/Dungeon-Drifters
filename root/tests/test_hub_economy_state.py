@@ -40,7 +40,7 @@ def _schema24(document):
 
 def _progressed_floor_one_rest_game():
     game = floor_one_rest_game()
-    game.party_state.add_floor_one_rewards(experience=0, gold=0)
+    game.party_state._mark_encounter_progress()
     return game
 
 
@@ -134,6 +134,7 @@ def test_progressed_floor_one_checkpoint_can_round_trip_after_saved_victory():
     assert game.party_state.start_floor_one_run() == 100
     game.overworld_state.begin_route("floor_one")
     game.party_state.add_floor_one_rewards(experience=20, gold=2)
+    game.party_state._mark_encounter_progress()
     game.overworld_state.advance_to(
         "floor_one_battle_02",
         contextual_phase=ContextualRoutePhase.ENTER_ENCOUNTER,
@@ -168,6 +169,8 @@ def test_outing_progress_and_settlement_are_recorded_once():
     }
 
     party.add_floor_one_rewards(experience=0, gold=0, items={})
+    assert party.hub_economy["active_outing"]["has_encounter_progress"] is False
+    party._mark_encounter_progress()
     assert party.hub_economy["active_outing"]["has_encounter_progress"] is True
     assert party.fail_floor_one_run(game.active_party_members)
     settled = party.hub_economy
@@ -179,6 +182,33 @@ def test_outing_progress_and_settlement_are_recorded_once():
     before_repeat = party.hub_economy
     assert not party.settle_active_outing()
     assert party.hub_economy == before_repeat
+
+
+@pytest.mark.parametrize("floor_id", ("floor_one", "floor_two"))
+@pytest.mark.parametrize(
+    ("experience", "gold", "items"),
+    ((0, 0, {}), (5, 2, {"healing_potion": 1})),
+)
+def test_reward_mutation_alone_does_not_qualify_outing(
+    floor_id, experience, gold, items
+):
+    game = completed_hub_game()
+    party = game.party_state
+    if floor_id == "floor_two":
+        assert party.start_floor_one_run() == 100
+        assert party.complete_floor_one_boss(game.active_party_members)
+        party.start_floor_two_run(run_id_factory=lambda: "reward-only-outing")
+    else:
+        party.start_floor_one_run()
+
+    award = (
+        party.add_floor_one_rewards
+        if floor_id == "floor_one"
+        else party.add_floor_two_rewards
+    )
+    award(experience=experience, gold=gold, items=items)
+
+    assert party.hub_economy["active_outing"]["has_encounter_progress"] is False
 
 
 @pytest.mark.parametrize("floor_id", ("floor_one", "floor_two"))

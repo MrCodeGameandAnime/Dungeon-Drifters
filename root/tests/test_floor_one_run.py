@@ -908,6 +908,28 @@ def test_floor_one_victory_saves_progress_with_rewards_and_route_advance():
     assert committed.overworld_state.current_route_node_id == "floor_one_battle_02"
 
 
+def test_floor_one_zero_reward_victory_still_qualifies_outing():
+    game = game_at_completed_hub()
+    session = make_session(game)
+    set_out(session)
+    context = session._active_battle_context
+    session._active_battle_context = (
+        context[0],
+        context[1],
+        0,
+        0,
+        *context[4:],
+    )
+
+    win_current_battle(session)
+
+    assert game.party_state.outing_rewards.experience == 0
+    assert game.party_state.outing_rewards.gold == 0
+    assert game.party_state.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is True
+
+
 def test_floor_one_saved_victory_reloads_and_continues_from_next_encounter(
     tmp_path,
 ):
@@ -1262,6 +1284,9 @@ def test_floor_two_victory_persists_rewards_and_advances_checkpoint_once():
     assert committed.party_state.outing_rewards.experience == 80
     assert committed.party_state.outing_rewards.gold == 6
     assert committed.party_state.resolved_run_events
+    assert committed.party_state.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is True
     assert session.game_state.overworld_state.current_route_node_id == (
         "floor_two_battle_02"
     )
@@ -1333,6 +1358,9 @@ def test_floor_two_failed_reward_save_restores_carried_potion_and_party_checkpoi
         "items": {},
     }
     assert party.resolved_run_events == ()
+    assert party.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is False
 
     retry = session.submit(ChooseOverworldAction(OverworldAction.RETRY))
     assert isinstance(retry, BattleView)
@@ -1355,6 +1383,9 @@ def test_floor_two_failed_reward_save_restores_carried_potion_and_party_checkpoi
         "items": {},
     }
     assert party.resolved_run_events == ()
+    assert party.hub_economy["active_outing"][
+        "has_encounter_progress"
+    ] is False
 
     retry = session.submit(ChooseOverworldAction(OverworldAction.RETRY))
     assert isinstance(retry, BattleView)
