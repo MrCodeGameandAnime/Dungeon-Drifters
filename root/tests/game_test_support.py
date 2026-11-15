@@ -76,6 +76,7 @@ def enter_floor_one_rest(game, rest_index=0):
     route = get_route_spec("floor_one")
     rest = tuple(node for node in route.nodes if node.kind is RouteNodeKind.REST)[rest_index]
     game.party_state.start_floor_one_run()
+    game.party_state._hub_economy.mark_encounter_progress()
     game.overworld_state.begin_route(route.route_id)
     for node in route.nodes[1:]:
         previous = get_route_node_spec(game.overworld_state.current_route_node_id)

@@ -2071,7 +2071,11 @@ try {
       (await targetPage.locator("#merchant-targets button[aria-pressed='true']").innerText()) === "Azhvielle",
     "Merchant target selection did not switch to the chosen companion's weapon",
   );
-  await clickVisibleOption(targetPage, "#merchant-slots", "Improve");
+  await clickVisibleOption(
+    targetPage,
+    "#merchant-slots .merchant-row:first-child",
+    "Improve",
+  );
   requireCondition(
     (await targetPage.locator("#merchant-slots .merchant-row").first().innerText()).includes("3/100") &&
       (await targetPage.locator("#merchant-crafting").innerText()).includes("20 XP"),

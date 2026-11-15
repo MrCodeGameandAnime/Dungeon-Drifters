@@ -365,7 +365,7 @@ def parse_conflict_snapshot(encoded):
 def _validated_profile_payload(payload):
     if not isinstance(payload, dict) or type(payload.get("schema_version")) is not int:
         raise ProfileEnvelopeValidationError(
-            "payload must be a schema-8 through schema-24 object"
+            "payload must be a schema-8 through schema-25 object"
         )
     try:
         if payload["schema_version"] == 8 and "party" not in payload:

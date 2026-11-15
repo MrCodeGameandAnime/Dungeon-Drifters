@@ -156,32 +156,41 @@ def test_floor_two_event_evidence_is_kept_until_each_run_settlement():
     game = floor_one_cleared_game()
     party = game.party_state
     assert party.start_floor_two_run(run_id_factory=lambda: "retained-search") == 100
+    game.overworld_state.begin_route("floor_two")
     add_search_evidence(party, "retained-search")
     assert len(party.resolved_run_events) == 1
     assert party.fail_floor_two_run(game.active_party_members)
     assert party.resolved_run_events == ()
+    game.overworld_state.return_to_surface_entrance()
 
     assert party.start_floor_two_run(run_id_factory=lambda: "extract-search") == 100
+    game.overworld_state.begin_route("floor_two")
     add_search_evidence(party, "extract-search")
-    assert party.begin_floor_two_extraction(partial=True)
-    assert len(party.resolved_run_events) == 1
     restored = reconstruct_game_state(build_save_document(game))
     assert len(restored.party_state.resolved_run_events) == 1
+    assert restored.party_state.phase is DungeonPhase.OUTING
+    assert party.begin_floor_two_extraction(partial=True)
+    assert len(party.resolved_run_events) == 1
     assert party.complete_floor_two_extraction(game.active_party_members)
     assert party.resolved_run_events == ()
+    game.overworld_state.return_to_surface_entrance()
 
     party.add_shared_items({"return_talisman": 1})
     assert party.load_carried_supplies({"return_talisman": 1})
     assert party.start_floor_two_run(run_id_factory=lambda: "talisman-search") == 100
+    game.overworld_state.begin_route("floor_two")
     add_search_evidence(party, "talisman-search")
     assert party.return_with_talisman(game.active_party_members)
     assert party.resolved_run_events == ()
+    game.overworld_state.return_to_surface_entrance()
 
     assert party.start_floor_two_run(run_id_factory=lambda: "boss-search") == 100
+    game.overworld_state.begin_route("floor_two")
     add_search_evidence(party, "boss-search")
     assert party.resolved_run_events
     assert party.complete_floor_two_boss(game.active_party_members)
     assert party.resolved_run_events == ()
+    game.overworld_state.return_to_surface_entrance()
 
 
 def test_floor_two_run_identity_requires_the_floor_one_unlock():
@@ -202,6 +211,7 @@ def test_floor_two_partial_extraction_banks_half_rewards_and_returns_supplies():
     party.add_shared_items({"smoke_bomb": 1})
     assert party.load_carried_supplies({"smoke_bomb": 1})
     assert party.start_floor_two_run(run_id_factory=lambda: "extract-run") == 100
+    game.overworld_state.begin_route("floor_two")
     party.add_floor_two_rewards(
         experience=100,
         gold=11,
@@ -211,6 +221,10 @@ def test_floor_two_partial_extraction_banks_half_rewards_and_returns_supplies():
     initial_xp = tuple(member.exp_state.current for member in members)
     expected_awards = party.secured_xp_awards(members, 50)
 
+    restored = reconstruct_game_state(build_save_document(game))
+    assert restored.party_state.floor_two_run_id == "extract-run"
+    assert restored.party_state.phase is DungeonPhase.OUTING
+
     assert party.begin_floor_two_extraction(partial=True)
     assert party.phase is DungeonPhase.EXTRACTION
     assert party.outing_rewards.snapshot() == {
@@ -219,15 +233,15 @@ def test_floor_two_partial_extraction_banks_half_rewards_and_returns_supplies():
         "items": {"goblin_scrap": 2},
     }
 
-    restored = reconstruct_game_state(build_save_document(game))
-    assert restored.party_state.floor_two_run_id == "extract-run"
-    assert restored.party_state.phase is DungeonPhase.EXTRACTION
-
     assert party.complete_floor_two_extraction(members)
     assert party.phase is DungeonPhase.HUB
     assert party.floor_two_run_id is None
     assert party.shared_gold == initial_gold + 6
-    assert party.shared_items == {"goblin_scrap": 2, "smoke_bomb": 1}
+    assert party.shared_items == {
+        "goblin_scrap": 2,
+        "smoke_bomb": 1,
+        "grade_i_magic_crystal": 1,
+    }
     assert party.carried_items == {}
     assert tuple(
         member.exp_state.current - old for member, old in zip(members, initial_xp)
@@ -358,7 +372,10 @@ def test_floor_two_return_talisman_banks_only_full_adjusted_xp():
     assert party.phase is DungeonPhase.HUB
     assert party.floor_two_run_id is None
     assert party.shared_gold == secured_gold
-    assert party.shared_items == {"smoke_bomb": 1}
+    assert party.shared_items == {
+        "smoke_bomb": 1,
+        "grade_i_magic_crystal": 1,
+    }
     assert party.carried_items == {}
     assert tuple(
         member.exp_state.current - old for member, old in zip(members, initial_xp)

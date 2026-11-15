@@ -50,8 +50,13 @@ def main():
         raise AssertionError("the fixture could not load its Floor II healing supplies")
     if party.carried_items != {"healing_potion": 6}:
         raise AssertionError("the fixture did not retain its loaded Floor II healing supplies")
-    if party.shared_items != {"healing_potion": 6}:
-        raise AssertionError("the fixture did not retain reserve Healing Potions in Hub storage")
+    if party.shared_items != {
+        "healing_potion": 6,
+        "grade_i_magic_crystal": 1,
+    }:
+        raise AssertionError(
+            "the fixture did not retain reserve supplies and the first-clear reward"
+        )
     envelope = build_profile_envelope(
         build_save_document(game),
         profile_id=PROFILE_ID,

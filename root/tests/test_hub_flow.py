@@ -4,6 +4,8 @@ from app.combat.battle import Battle
 from app.content.catalog import DRIFTER_SPECS, create_enemy_state, get_drifter_spec
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import COMPANION_RECRUITMENT_COST, DungeonPhase
+from app.persistence.ports import SaveLoadResult
+from app.persistence.save_port_contract import SaveLoadStatus
 from app.player.player_state import PlayerState
 from app.presentation.battle_models import ActionIntent
 from app.presentation.battle_models import BattleView
@@ -37,6 +39,17 @@ def make_session(game):
         battle_factory=lambda *_args, **_kwargs: None,
         enemy_factory=lambda *_args, **_kwargs: None,
     )
+
+
+class AcceptingSavePort:
+    def inspect(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def load(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def save(self, _game_state):
+        return SaveLoadResult(SaveLoadStatus.SAVED)
 
 
 def enabled_actions(view):
@@ -105,6 +118,7 @@ def test_selected_pair_is_the_pair_deployed_for_floor_one():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=AcceptingSavePort(),
     )
     session.submit(ChooseOverworldAction(OverworldAction.SELECT_PARTY))
     session.submit(ChooseActivePair(("joruun", "azhvielle")))

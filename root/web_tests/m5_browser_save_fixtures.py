@@ -155,6 +155,7 @@ def _outing_game():
         raise AssertionError("could not clear Floor I fixture setup")
     if not party.start_floor_two_run(run_id_factory=lambda: "m5-browser-return-run"):
         raise AssertionError("could not begin Floor II fixture setup")
+    party._hub_economy.mark_encounter_progress()
     game.overworld_state.begin_route("floor_two")
     route = get_route_spec("floor_two")
     for node in route.nodes[1:11]:

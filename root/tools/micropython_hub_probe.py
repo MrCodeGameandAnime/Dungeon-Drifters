@@ -597,7 +597,7 @@ def _assert_floor_one_final_state(state):
         raise AssertionError("first clear changed the Floor 1 XP rate")
     if party.shared_gold != state["floor_one_gold_before"] + _FLOOR_ONE_EXPECTED_REWARDS[1]:
         raise AssertionError("Floor 1 gold was not fully secured")
-    if state["route_battle_factory"].saved_game_state is not game:
+    if state["route_battle_factory"].saved_game_state.snapshot() != game.snapshot():
         raise AssertionError("boss clear did not save the Hub outcome")
     if (
         party.outing_rewards.experience,

@@ -14,6 +14,7 @@ from app.content.catalog import (
     create_enemy_state,
     get_encounter_spec,
     get_route_spec,
+    get_route_successor_id,
 )
 from app.game.overworld_session import OverworldSession
 from app.game.expedition_state import ExpeditionState
@@ -1180,14 +1181,30 @@ def test_bridge_completes_floor_one_through_semantic_actions():
     assert game.world_state.defeated_encounters == surface_history
     assert game.overworld_state.current_route_node_id == "surface_dungeon_entrance"
     saved_states = runtime._session._save_port.saved_states
-    assert len(saved_states) == 3
-    for fallback in saved_states[:2]:
+    saved_route_nodes = {
+        state.overworld_state.current_route_node_id
+        for state in saved_states
+        if state.overworld_state.active_route_id == "floor_one"
+    }
+    persisted_checkpoints = {floor_route.nodes[0].node_id} | {
+        get_route_successor_id(node.node_id)
+        for node in floor_route.nodes
+        if node.encounter_id is not None and node.kind.value != "boss"
+    }
+    assert persisted_checkpoints.issubset(saved_route_nodes)
+    fallbacks = [
+        state
+        for state in saved_states[:-1]
+        if state.party_state.phase is DungeonPhase.HUB
+    ]
+    assert len(fallbacks) == 2
+    for fallback in fallbacks:
         assert fallback is not game
         assert fallback.party_state.phase is DungeonPhase.HUB
         assert fallback.overworld_state.current_route_node_id == "surface_dungeon_entrance"
         assert fallback.party_state.outing_rewards.experience == 0
         assert fallback.party_state.outing_rewards.gold == 0
-    assert saved_states[2] is game
+    assert saved_states[-1].snapshot() == game.snapshot()
     for member in (game.player_state, *game.party_state.companions):
         assert member.health.current == member.health.maximum
         assert member.mana_resource.current == member.mana_resource.maximum

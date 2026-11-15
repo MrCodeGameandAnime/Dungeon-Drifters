@@ -16,9 +16,11 @@ from app.items.equipment import EquipmentInstance
 from app.items.armor_modifier import ArmorModifierInstance
 from app.player.scaling import secured_xp_bonus_bps_from_intuition
 from app.content.hub_economy import get_supply_item
+from app.content.vendor_catalog import FIRST_CLEAR_REWARDS
 from app.game.floor_two_boss_helper import (
     floor_two_replay_requires_available_helper,
 )
+from app.game.hub_economy_state import HubEconomyState
 from app.snapshot import to_plain_value
 
 
@@ -96,6 +98,7 @@ class PartyState:
         self._floor_three_run_id = None
         self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
+        self._hub_economy = HubEconomyState()
 
     @property
     def companions(self):
@@ -315,6 +318,42 @@ class PartyState:
     def resolved_run_events(self):
         return tuple(to_plain_value(event, "party.resolved_run_events") for event in self._resolved_run_events)
 
+    @property
+    def hub_economy(self):
+        return self._hub_economy.snapshot()
+
+    def initialize_vendor_stock(self, recruited_drifter_ids):
+        self._hub_economy.initialize_unlocked_stock(
+            recruited_drifter_ids=recruited_drifter_ids,
+            floor_one_cleared=self.floor_one_cleared,
+            floor_two_cleared=self.floor_two_cleared,
+            floor_three_cleared=self.floor_three_cleared,
+        )
+
+    def settle_active_outing(self):
+        settled = self._hub_economy.settle_outing()
+        if settled is None:
+            return False
+        self._return_to_hub_visit()
+        return True
+
+    def _return_to_hub_visit(self):
+        self._hub_economy.begin_hub_visit()
+        self.initialize_vendor_stock(
+            tuple(
+                drifter_id
+                for member in self._companions
+                if (drifter_id := _optional_drifter_id(member)) is not None
+            )
+        )
+
+    def _settle_outing_for_hub_return(self):
+        self._hub_economy.settle_outing()
+        self._return_to_hub_visit()
+
+    def _begin_m65_outing(self, floor_id):
+        self._hub_economy.begin_outing(floor_id)
+
     def arrive_at_hub(self, lead):
         _require_player_state(lead, "lead")
         if self._phase is not DungeonPhase.OUTSIDE:
@@ -325,6 +364,14 @@ class PartyState:
             return False
         self._shared_gold += route_gold
         self._phase = DungeonPhase.HUB
+        self.initialize_vendor_stock(
+            tuple(
+                drifter_id
+                for member in (lead,) + self._companions
+                if (drifter_id := _optional_drifter_id(member)) is not None
+            )
+        )
+        self._hub_economy.begin_hub_visit()
         return True
 
     def recruit_companion(
@@ -353,6 +400,10 @@ class PartyState:
         first_companion = not self._companions
         self._shared_gold -= cost
         self._companions = self._companions + (companion,)
+        self.initialize_vendor_stock(
+            (lead_id, companion_id)
+            + tuple(_drifter_id(member) for member in self._companions[:-1])
+        )
         if first_companion and not self._tutorial_complete:
             self._set_active_drifter_ids((lead_id, companion_id))
             self._phase = DungeonPhase.PARTY_READY
@@ -389,6 +440,7 @@ class PartyState:
 
         self._shared_gold -= cost
         self._companions = self._companions + (companion,)
+        self.initialize_vendor_stock(roster_ids + (companion_id,))
         return True
 
     def select_active_pair(self, drifter_ids, *, recruited_ids):
@@ -591,6 +643,7 @@ class PartyState:
     def begin_outing(self):
         if self._phase is not DungeonPhase.PARTY_READY:
             return False
+        self._hub_economy.leave_hub()
         self._outing_rewards = OutingRewards()
         self._phase = DungeonPhase.OUTING
         return True
@@ -602,6 +655,8 @@ class PartyState:
             raise ValueError("a Floor 1 run can only start from the Hub")
         if len(self._active_drifter_ids) != 2:
             raise ValueError("a Floor 1 run requires the two-Drifter party")
+
+        self._begin_m65_outing("floor_one")
 
         rate = 100
         if self.floor_one_cleared:
@@ -642,6 +697,7 @@ class PartyState:
             run_id = str(run_id)
         if not _valid_run_id(run_id):
             raise ValueError("run ID must be a non-empty lowercase token")
+        self._begin_m65_outing("floor_two")
         rate = 100
         if self.floor_two_cleared:
             rate = _FLOOR_ONE_REPLAY_XP_RATES[
@@ -675,6 +731,7 @@ class PartyState:
             run_id = str(run_id)
         if not _valid_run_id(run_id):
             raise ValueError("run ID must be a non-empty lowercase token")
+        self._begin_m65_outing("floor_three")
         rate = 100
         if self.floor_three_cleared:
             rate = _FLOOR_ONE_REPLAY_XP_RATES[
@@ -782,6 +839,7 @@ class PartyState:
         self._floor_two_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def fail_floor_three_run(self, party_members, *, recruited_members=None):
@@ -803,6 +861,7 @@ class PartyState:
         self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def complete_floor_two_boss(self, party_members):
@@ -824,12 +883,15 @@ class PartyState:
         self._bank_rewards(party_members, payout)
         self._secure_unsecured_equipment()
         self.return_carried_supplies()
+        if not self._floor_two_cleared:
+            self._grant_first_clear_rewards("floor_two")
         self._floor_two_cleared = True
         self._outing_rewards = OutingRewards()
         self._floor_two_run_id = None
         self._floor_two_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def complete_floor_three_boss(self, party_members, *, boss_experience):
@@ -895,12 +957,15 @@ class PartyState:
         )
         self._secure_unsecured_equipment()
         self.return_carried_supplies()
+        if not self._floor_three_cleared:
+            self._grant_first_clear_rewards("floor_three")
         self._floor_three_cleared = True
         self._outing_rewards = OutingRewards()
         self._floor_three_run_id = None
         self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def begin_floor_two_extraction(self, *, partial):
@@ -943,6 +1008,7 @@ class PartyState:
         self._floor_two_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def complete_floor_three_extraction(self, party_members):
@@ -960,6 +1026,7 @@ class PartyState:
         self._floor_three_outing_xp_multiplier_percent = 100
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def _add_outing_rewards(self, *, experience, gold, items=None):
@@ -968,11 +1035,13 @@ class PartyState:
         combined_items = current.items
         for item_id, quantity in additions.items.items():
             combined_items[item_id] = combined_items.get(item_id, 0) + quantity
-        self._outing_rewards = OutingRewards(
+        updated_rewards = OutingRewards(
             current.experience + additions.experience,
             current.gold + additions.gold,
             combined_items,
         )
+        self._hub_economy.mark_encounter_progress()
+        self._outing_rewards = updated_rewards
 
     def add_floor_one_rewards(self, *, experience, gold, items=None):
         if not self.tutorial_complete or self._phase is not DungeonPhase.OUTING:
@@ -982,11 +1051,13 @@ class PartyState:
         combined_items = current.items
         for item_id, quantity in rewards.items.items():
             combined_items[item_id] = combined_items.get(item_id, 0) + quantity
-        self._outing_rewards = OutingRewards(
+        updated_rewards = OutingRewards(
             current.experience + rewards.experience,
             current.gold + rewards.gold,
             combined_items,
         )
+        self._hub_economy.mark_encounter_progress()
+        self._outing_rewards = updated_rewards
 
     def begin_floor_one_extraction(self, *, partial):
         if not isinstance(partial, bool):
@@ -1028,10 +1099,19 @@ class PartyState:
         self._bank_rewards(party_members, rewards)
         self._secure_unsecured_equipment()
         self.return_carried_supplies()
+        first_clear_floor = "floor_two" if floor_two_extraction else "floor_one"
+        already_cleared = (
+            self._floor_two_cleared
+            if floor_two_extraction
+            else self._floor_one_cleared
+        )
+        if not already_cleared:
+            self._grant_first_clear_rewards(first_clear_floor)
         self._floor_one_cleared = True
         self._outing_rewards = OutingRewards()
         self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def fail_floor_one_run(self, party_members, *, recruited_members=None):
@@ -1048,6 +1128,7 @@ class PartyState:
         self._restore_party(party_members)
         self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def cancel_outing_start(self):
@@ -1055,6 +1136,7 @@ class PartyState:
             return False
         self._outing_rewards = OutingRewards()
         self._phase = DungeonPhase.PARTY_READY
+        self._hub_economy.cancel_outing()
         return True
 
     def begin_extraction(self, *, experience, gold, items=None):
@@ -1081,6 +1163,7 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._outing_xp_multiplier_percent = 100
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def return_with_talisman(self, party_members, *, recruited_members=None):
@@ -1131,6 +1214,7 @@ class PartyState:
             self._floor_three_outing_xp_multiplier_percent = 100
             self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
         return True
 
     def reset_failed_tutorial(self, party_members):
@@ -1140,6 +1224,7 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._restore_party(party_members)
         self._phase = DungeonPhase.PARTY_READY
+        self._hub_economy.cancel_outing()
         return True
 
     @classmethod
@@ -1183,6 +1268,7 @@ class PartyState:
             state._set_active_drifter_ids(active_drifter_ids)
         state._shared_gold = _nonnegative("shared_gold", snapshot["shared_gold"])
         state._shared_items = _item_stacks(snapshot["shared_items"])
+        state._hub_economy = HubEconomyState(snapshot.get("hub_economy"))
         state._carried_items = _item_stacks(snapshot.get("carried_items", {}))
         if sum(state._carried_items.values()) > MAX_CARRIED_SUPPLY_UNITS:
             raise ValueError("carried supplies exceed the six-unit capacity")
@@ -1404,6 +1490,7 @@ class PartyState:
                 self.floor_three_outing_xp_multiplier_percent
             ),
             "resolved_run_events": list(self.resolved_run_events),
+            "hub_economy": self.hub_economy,
         }
         return snapshot
 
@@ -1499,6 +1586,13 @@ class PartyState:
         for item_id, quantity in rewards.items.items():
             self._shared_items[item_id] = self._shared_items.get(item_id, 0) + quantity
 
+    def _grant_first_clear_rewards(self, floor_id):
+        for reward in FIRST_CLEAR_REWARDS:
+            if reward.floor_id == floor_id:
+                self._shared_items[reward.item_id] = (
+                    self._shared_items.get(reward.item_id, 0) + reward.quantity
+                )
+
     def _secure_unsecured_equipment(self):
         self._equipment_instances = [
             item if item.secured else item.with_security(secured=True)
@@ -1566,6 +1660,12 @@ def _drifter_id(player_state):
     if drifter_id is None:
         raise ValueError("party members must have canonical Drifter profiles")
     return _canonical_id(drifter_id, "Drifter ID")
+
+
+def _optional_drifter_id(player_state):
+    profile = player_state.character.profile
+    drifter_id = getattr(profile, "drifter_id", None)
+    return None if drifter_id is None else _canonical_id(drifter_id, "Drifter ID")
 
 
 def _canonical_id(value, name):
