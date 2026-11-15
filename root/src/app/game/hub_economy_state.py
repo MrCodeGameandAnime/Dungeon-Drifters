@@ -308,6 +308,9 @@ class HubEconomyState:
         if (
             not isinstance(settled_outing, dict)
             or not settled_outing.get("has_encounter_progress")
+            or self._state["last_settled_outing_id"] is None
+            or settled_outing.get("outing_id")
+            != self._state["last_settled_outing_id"]
             or settled_outing.get("outing_id")
             == self._state["last_replenished_outing_id"]
         ):

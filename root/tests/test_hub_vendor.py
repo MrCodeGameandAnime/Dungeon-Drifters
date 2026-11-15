@@ -205,7 +205,7 @@ def test_component_sale_buyback_and_expiry_conserve_inventory_and_future_stock()
     ] == 1
 
     party = recovered.game_state.party_state
-    party.hub_economy_state.leave_hub()
+    party.hub_economy_state.begin_outing("floor_one")
     assert party.hub_economy["buyback_records"] == []
     assert party.hub_economy["future_stock_queue"] == [
         {
@@ -215,12 +215,10 @@ def test_component_sale_buyback_and_expiry_conserve_inventory_and_future_stock()
             "remaining_quantity": 1,
         }
     ]
+    party.hub_economy_state.mark_encounter_progress()
+    settled_outing = party.hub_economy_state.settle_outing()
     assert party.hub_economy_state.replenish_for_qualifying_return(
-        {
-            "outing_id": "outing_1",
-            "floor_id": "floor_one",
-            "has_encounter_progress": True,
-        },
+        settled_outing,
         recruited_drifter_ids=tuple(
             member.drifter_id for member in recovered.game_state.recruited_members
         ),

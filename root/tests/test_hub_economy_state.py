@@ -201,7 +201,7 @@ def test_expired_alchemist_buyback_feeds_specialist_then_merchant_stock_once():
         }
     )
 
-    economy.leave_hub()
+    economy.begin_outing("floor_one")
     assert economy.snapshot()["buyback_records"] == []
     assert economy.snapshot()["future_stock_queue"] == [
         {
@@ -212,11 +212,8 @@ def test_expired_alchemist_buyback_feeds_specialist_then_merchant_stock_once():
         }
     ]
 
-    settled = {
-        "outing_id": "outing_1",
-        "floor_id": "floor_one",
-        "has_encounter_progress": True,
-    }
+    economy.mark_encounter_progress()
+    settled = economy.settle_outing()
     kwargs = {
         "recruited_drifter_ids": tuple(
             member.drifter_id for member in game.recruited_members
@@ -225,6 +222,13 @@ def test_expired_alchemist_buyback_feeds_specialist_then_merchant_stock_once():
         "floor_two_cleared": False,
         "floor_three_cleared": False,
     }
+
+    unrelated_receipt = dict(settled, outing_id="unrelated_outing")
+    before_rejected_receipt = economy.snapshot()
+    assert not economy.replenish_for_qualifying_return(
+        unrelated_receipt, **kwargs
+    )
+    assert economy.snapshot() == before_rejected_receipt
 
     assert economy.replenish_for_qualifying_return(settled, **kwargs)
     assert economy.vendor_stock_quantity("alchemist", "medicinal_herb") == 2
