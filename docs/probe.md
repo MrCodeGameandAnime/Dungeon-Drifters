@@ -634,3 +634,22 @@ The smoke passed both M6 markers for once-only report claim and passive
 assignment launch/reload/status. Hosted CI does not execute the pinned
 MicroPython binary. Keep the local runtime and hosted service evidence distinct;
 together they complete M6 qualification.
+
+## M6.5 Runtime Diagnostic (2026-11-15)
+
+The M6.5 profession probe was added to the cumulative runtime probe and
+exercised Alchemy craft/save reconstruction plus Enchanter discovery,
+application, and persistence. The recorded pinned executable was unavailable
+at its expected path:
+
+`C:\Users\User\AppData\Local\DungeonDrifters\micropython\v1.29.0\source\ports\windows\build-standard\micropython.exe`
+
+A different local MicroPython v1.29.0 build was used only for diagnostic
+coverage. It was 486,912 bytes with SHA-256
+`E90AFC976ED7CB2EE530BE7F5D8C769C1F3B562DF4DDB04A6C589177ED912EFE`, not the
+pinned 488,960-byte artifact identified above. The complete cumulative probe,
+including M6.5, passed at 1536K. Exploratory 1152K and 1280K runs of this
+alternate build failed at earlier cumulative stages; no stable memory frontier
+is claimed from those runs. This diagnostic does not satisfy the pinned runtime
+qualification requirement. M6.5 remains open pending a run with the exact
+recorded executable on the accepted implementation SHA.
