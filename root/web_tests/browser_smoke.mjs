@@ -2723,8 +2723,6 @@ try {
   await clickVisibleOption(page, "#overworld-options", "Vendors");
   await clickVisibleOption(page, "#vendors-options", "Merchant");
   await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
-  await updateSupply("Charcoal Powder", "Buy");
-  await updateSupply("Charcoal Powder", "Buy");
   await updateSupply("Healing Potion", "Buy");
   await clickVisibleOption(page, "#hub-economy-options", "Back");
   await page.locator("#hub-economy-panel").waitFor({ state: "hidden" });
@@ -2733,6 +2731,17 @@ try {
   await clickVisibleOption(page, "#overworld-options", "Vendors");
   await clickVisibleOption(page, "#vendors-options", "Alchemist");
   await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  requireCondition(
+    (await supplyRow("Charcoal Powder").innerText()).includes("Stock 2 | 3 gold"),
+    "Alchemist did not offer the approved two Charcoal Powder units at 3 gold each",
+  );
+  await updateSupply("Charcoal Powder", "Buy");
+  await updateSupply("Charcoal Powder", "Buy");
+  requireCondition(
+    await quantityInSupplyRow("Charcoal Powder", "Stored") === 2 &&
+      await quantityInSupplyRow("Charcoal Powder", "Stock") === 0,
+    "Alchemist purchases did not consume exactly two units of finite Charcoal Powder stock",
+  );
   const craftAlchemy = async (name) => {
     const row = page.locator("#merchant-alchemy-recipes .merchant-row")
       .filter({ has: page.locator("strong").getByText(name, { exact: true }) });
