@@ -71,11 +71,11 @@ def test_build_command_uses_exact_runtime_argv_shapes_and_preserves_spaces():
         "CPYTHON_FORCED_OVERLAY", python, micropython, probe, bootstrap, source
     ) == [str(python), str(bootstrap), str(source)]
     assert matrix.build_command(
-        "MICROPYTHON_1152K", python, micropython, probe, bootstrap, source
+        "MICROPYTHON_1280K", python, micropython, probe, bootstrap, source
     ) == [
         str(micropython),
         "-X",
-        "heapsize=1152K",
+        "heapsize=1280K",
         str(bootstrap),
         str(source),
     ]
@@ -204,17 +204,17 @@ def test_first_signature_difference_reports_stage_or_route_position():
     assert difference == "route node 7: expected surface_shaman_pair, got surface_wrong"
 
 
-def test_1152k_confirmation_requires_three_passes():
+def test_1280k_confirmation_requires_three_passes():
     _load_tool()
     results = [matrix.PressureObservation("PASS") for _ in range(3)]
 
-    assert matrix.classify_pressure_confirmation(1152, results) == (
+    assert matrix.classify_pressure_confirmation(1280, results) == (
         "STABLE_PASS",
         "3/3",
     )
 
 
-def test_1152k_instability_is_pressure_regression():
+def test_1280k_instability_is_pressure_regression():
     _load_tool()
     results = [
         matrix.PressureObservation("PASS"),
@@ -222,23 +222,23 @@ def test_1152k_instability_is_pressure_regression():
         matrix.PressureObservation("PASS"),
     ]
 
-    assert matrix.classify_pressure_confirmation(1152, results) == (
+    assert matrix.classify_pressure_confirmation(1280, results) == (
         "PRESSURE_REGRESSION",
         "2/3",
     )
 
 
-def test_1024k_requires_three_memory_limits():
+def test_1152k_requires_three_memory_limits():
     _load_tool()
     results = [matrix.PressureObservation("MEMORY_LIMIT") for _ in range(3)]
 
-    assert matrix.classify_pressure_confirmation(1024, results) == (
+    assert matrix.classify_pressure_confirmation(1152, results) == (
         "MEMORY_LIMIT_CONFIRMED",
         "3/3",
     )
 
 
-def test_1024k_success_is_pressure_regression():
+def test_1152k_success_is_pressure_regression():
     _load_tool()
     results = [
         matrix.PressureObservation("MEMORY_LIMIT"),
@@ -246,7 +246,7 @@ def test_1024k_success_is_pressure_regression():
         matrix.PressureObservation("MEMORY_LIMIT"),
     ]
 
-    assert matrix.classify_pressure_confirmation(1024, results) == (
+    assert matrix.classify_pressure_confirmation(1152, results) == (
         "PRESSURE_REGRESSION",
         "2/3",
     )

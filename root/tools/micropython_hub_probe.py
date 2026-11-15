@@ -758,6 +758,8 @@ def _assert_weapon_progression_final_state(state):
         != game.party_state.companions[0].signature_weapon_state.weapon_id
     ):
         raise AssertionError("companion weapon state changed during save round-trip")
+    state.pop("weapon_progression_saved_snapshot", None)
+    state.pop("weapon_progression_restored_game", None)
 
 
 def _prepare_m2_supplies(state):
@@ -1322,3 +1324,16 @@ def run(state, complete_battle, run_stage):
     run_stage("M3_ADVANCEMENT_ROUNDTRIP", lambda: _m3_roundtrip_advancement(state))
     run_stage("M3_ADVANCEMENT_MOVE_EFFECT", lambda: _m3_use_advancement_move(state))
     run_stage("M3_ADVANCEMENT_FINAL_STATE", lambda: _m3_assert_advancement_final_state(state))
+    catalog = state["catalog"]
+    route_game = state["route_game"]
+    route_session = state["route_session"]
+    route_battle_factory = state["route_battle_factory"]
+    route_enemy_factory = state["route_enemy_factory"]
+    expected_shared_gold = state["m2_expected_shared_gold"]
+    state.clear()
+    state["catalog"] = catalog
+    state["route_game"] = route_game
+    state["route_session"] = route_session
+    state["route_battle_factory"] = route_battle_factory
+    state["route_enemy_factory"] = route_enemy_factory
+    state["m2_expected_shared_gold"] = expected_shared_gold

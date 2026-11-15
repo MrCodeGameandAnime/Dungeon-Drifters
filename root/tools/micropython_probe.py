@@ -777,6 +777,7 @@ def _assert_route_live_state():
     expected_shared_gold = STATE.get("m2_expected_shared_gold", 115)
     if party.shared_gold != expected_shared_gold:
         raise AssertionError("Hub shared gold changed after qualification setup")
+    STATE.pop("m2_expected_shared_gold", None)
     if not party.tutorial_complete or not party.floor_one_cleared:
         raise AssertionError("Hub progression was incomplete after Floor 1")
     if party.outing_rewards.experience or party.outing_rewards.gold:
@@ -809,14 +810,17 @@ def _teardown_route_session():
     del STATE["route_session"]
     del STATE["route_battle_factory"]
     del STATE["route_enemy_factory"]
-    del STATE["floor_one_route"]
-    del STATE["floor_one_battle_compositions"]
-    del STATE["floor_one_world_history"]
-    del STATE["floor_one_xp_before"]
-    del STATE["floor_one_gold_before"]
-    del STATE["floor_one_route_rewards"]
-    del STATE["floor_one_pending_xp"]
-    del STATE["floor_one_pending_gold"]
+    for key in (
+        "floor_one_route",
+        "floor_one_battle_compositions",
+        "floor_one_world_history",
+        "floor_one_xp_before",
+        "floor_one_gold_before",
+        "floor_one_route_rewards",
+        "floor_one_pending_xp",
+        "floor_one_pending_gold",
+    ):
+        STATE.pop(key, None)
     gc.collect()
     if any(
         key in STATE

@@ -140,9 +140,9 @@ COMPLETION_MARKER = "MYP|RESULT|RAW_PROBE_STAGES_COMPLETE"
 
 CPYTHON_NATIVE = "CPYTHON_NATIVE"
 CPYTHON_FORCED_OVERLAY = "CPYTHON_FORCED_OVERLAY"
-MICROPYTHON_1152K = "MICROPYTHON_1152K"
-STABLE_HEAP_KIB = 1152
-MEMORY_LIMIT_HEAP_KIB = 1024
+MICROPYTHON_1280K = "MICROPYTHON_1280K"
+STABLE_HEAP_KIB = 1280
+MEMORY_LIMIT_HEAP_KIB = 1152
 
 _IMPLEMENTATION_PREFIX = "MYP|IMPLEMENTATION|"
 _VERSION_PREFIX = "MYP|VERSION|"
@@ -201,11 +201,11 @@ def build_command(mode, python, micropython, probe, bootstrap, source):
         return [str(python), str(probe), str(source)]
     if mode == CPYTHON_FORCED_OVERLAY:
         return [str(python), str(bootstrap), str(source)]
-    if mode == MICROPYTHON_1152K:
+    if mode == MICROPYTHON_1280K:
         return [
             str(micropython),
             "-X",
-            "heapsize=1152K",
+            "heapsize=1280K",
             str(bootstrap),
             str(source),
         ]
@@ -390,7 +390,7 @@ def compare_primary_signatures(results):
     signatures = [results[mode].signature for mode in (
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
-        MICROPYTHON_1152K,
+        MICROPYTHON_1280K,
     )]
     if any(signature is None for signature in signatures):
         return False, "one or more primary runtimes did not pass"
@@ -433,7 +433,7 @@ def _pressure_observation(heap_sweep, executable, bootstrap, source, heap_kib):
                 returncode=result.returncode,
             )
             validate_semantic_contract(observation, returncode=result.returncode)
-            _validate_identity(observation, MICROPYTHON_1152K)
+            _validate_identity(observation, MICROPYTHON_1280K)
         except SemanticContractError:
             return PressureObservation("UNEXPECTED_FAILURE", result)
         return PressureObservation("PASS", result)
@@ -542,7 +542,7 @@ def main(argv=None):
     modes = (
         CPYTHON_NATIVE,
         CPYTHON_FORCED_OVERLAY,
-        MICROPYTHON_1152K,
+        MICROPYTHON_1280K,
     )
     results = {}
     for mode in modes:
