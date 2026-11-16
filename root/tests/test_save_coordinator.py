@@ -178,6 +178,43 @@ def test_restart_load_returns_a_fresh_game_state_from_the_same_profile(tmp_path)
     assert loaded.game_state.snapshot() == original.snapshot()
 
 
+def test_sync_failure_does_not_invalidate_committed_local_save(tmp_path):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    _save_old_envelope(
+        store,
+        account_id=ACCOUNT_ID,
+        remote_revision=3,
+        sync_state=SyncState.CLEAN,
+    )
+
+    class FailingSyncCoordinator:
+        profile_id = PROFILE_ID
+
+        def sync_pending(self):
+            raise ValueError("remote sync failed")
+
+    original = _game_state(gold=71)
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        sync_coordinator=FailingSyncCoordinator(),
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    saved = coordinator.save(original)
+
+    assert saved.status is SaveLoadStatus.SAVED
+    assert saved.error is None
+    committed = store.load(PROFILE_ID).envelope
+    assert committed.payload == build_save_document(original)
+
+    loaded = _coordinator(store.root).load()
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.snapshot() == original.snapshot()
+
+
 def test_invalid_profile_is_reported_and_not_overwritten(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     coordinator = _coordinator(store.root)

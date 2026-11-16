@@ -86,7 +86,8 @@ covers the route through the Floor III boss:
   master consumable recipes, craft Mana Potions, and apply permanently learned
   armor affixes with Magic Crystals.
 - Inspect the party, inventory, map, and equipment; save, quit, load, and
-  continue with persistent progression. Cloud synchronization is optional.
+  continue with persistent progression. v0.8 builds use local saves; cloud
+  synchronization is not enabled.
 
 Further dungeon floors, additional expedition reward sources, and M7-M9
 systems remain future work.
@@ -144,17 +145,17 @@ stores the stable profile ID, optional DD account association, local sequence,
 accepted remote revision, sync state, and payload digest. The local profile
 store is authoritative for immediate play: saves are committed locally first,
 and a player can continue playing, saving, quitting, and loading without an
-account or network connection.
+account or network connection. **Cloud synchronization is not enabled in v0.8
+builds.** The repository contains profile-sync interfaces and a DD-owned
+HTTPS/JSON API backed by PostgreSQL as integration foundations for future host
+support; they do not provide account linking or cloud sync in the v0.8 game.
 
-Optional cloud sync uses the DD-owned HTTPS/JSON profile API backed by
-PostgreSQL. The game depends on profile and transport interfaces, not on
-FastAPI, a vendor SDK, or a particular HTTP library. Host adapters supply
-transport and credential storage; credentials never enter a game-state payload
-or profile envelope. Cloud revisions are immutable and idempotent. A stale
-revision preserves the local branch and remote head as separate conflict
+The synchronization foundation keeps remote revisions immutable and idempotent.
+A stale revision preserves the local branch and remote head as separate conflict
 evidence; resolving it is explicit, with recovery data retained before the
-active profile changes. Sync ordering never depends on timestamps or silently
-merges progression.
+active profile changes. Sync ordering does not depend on timestamps or silently
+merge progression. These are architectural contracts, not features enabled in
+the distributed v0.8 builds.
 
 Accounts, linked platform identities, sessions, and entitlements remain service
 data outside progression. Entitlements are account-scoped and service-owned;

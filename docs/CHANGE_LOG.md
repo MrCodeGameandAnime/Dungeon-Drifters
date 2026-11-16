@@ -4,6 +4,10 @@
 
 v0.8 completes the M6.5 Hub specialization and economy expansion:
 
+The v0.8 game uses local profile saves. Cloud synchronization is not enabled in
+the distributed builds; the profile-sync interfaces and service are integration
+foundations for future host support.
+
 - reorganized Hub services around four specialists: Merchant, Blacksmith,
   Enchanter, and Alchemist
 - added finite vendor stock, qualifying-return replenishment, same-visit
@@ -51,7 +55,7 @@ establishes the first dungeon progression loop:
 
 - added a Pyodide-powered Play page while preserving the existing public site
   structure and navigation
-- added local-first profile saves and optional synchronization through the
+- added local-first profile saves and a synchronization foundation through the
   Dungeon Drifters profile API, including explicit conflict recovery
 - added the Hub onboarding loop: recruit a companion, fight as a two-Drifter
   party, return to the Hub, and secure the tutorial rewards

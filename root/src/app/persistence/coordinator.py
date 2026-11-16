@@ -128,7 +128,11 @@ class SaveCoordinator:
             self._sync_coordinator is not None
             and committed.envelope.sync_state is SyncState.PENDING
         ):
-            self._sync_coordinator.sync_pending()
+            try:
+                self._sync_coordinator.sync_pending()
+            except Exception:
+                # The local profile is already committed and verified.
+                pass
         return SaveLoadResult(status=SaveLoadStatus.SAVED)
 
     def load(self):
