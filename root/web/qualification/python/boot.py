@@ -418,6 +418,7 @@ def _qualify_route():
     party_members = (game.player_state, companion)
     floor_one_xp_before = tuple(_total_experience(member) for member in party_members)
     floor_one_world_history = game.world_state.defeated_encounters
+    floor_one_save_start = len(save_port.saved_states)
     warning = session.submit(
         ChooseOverworldAction(OverworldAction.START_FLOOR_ONE)
     )
@@ -535,7 +536,7 @@ def _qualify_route():
         raise AssertionError("Floor 1 encounter outcomes were not saved")
     fallbacks = [
         state
-        for state in save_port.saved_states[:-1]
+        for state in save_port.saved_states[floor_one_save_start:-1]
         if state.party_state.phase is DungeonPhase.HUB
     ]
     if len(fallbacks) != 2:

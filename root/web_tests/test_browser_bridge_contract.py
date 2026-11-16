@@ -1018,6 +1018,7 @@ def test_bridge_projects_authoritative_hub_party_battle_and_extraction_flow():
         game,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
     )
 
     hub = runtime.current_view()
@@ -1241,6 +1242,7 @@ def test_bridge_completes_floor_one_through_semantic_actions():
     runtime.submit({"kind": "overworld_action", "action": "return_to_hub"})
     surface_history = game.world_state.defeated_encounters
 
+    floor_one_save_start = len(runtime._session._save_port.saved_states)
     warning = runtime.submit(
         {"kind": "overworld_action", "action": "start_floor_one"}
     )
@@ -1327,7 +1329,7 @@ def test_bridge_completes_floor_one_through_semantic_actions():
     assert persisted_checkpoints.issubset(saved_route_nodes)
     fallbacks = [
         state
-        for state in saved_states[:-1]
+        for state in saved_states[floor_one_save_start:-1]
         if state.party_state.phase is DungeonPhase.HUB
     ]
     assert len(fallbacks) == 2

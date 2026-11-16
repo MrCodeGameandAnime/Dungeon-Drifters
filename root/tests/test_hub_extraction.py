@@ -5,7 +5,8 @@ from app.content.catalog import create_enemy_state
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import DungeonPhase
-from app.persistence.ports import SaveLoadStatus
+from app.items.equipment import EquipmentInstance
+from app.persistence.ports import SaveLoadResult, SaveLoadStatus
 from app.persistence.save_document import build_save_document, reconstruct_game_state
 from app.player.character_run_state import FIRE_INFUSION_REQUIREMENTS, InfusionKind
 from app.player.player_state import PlayerState
@@ -30,7 +31,38 @@ class StableRng:
         return values[0]
 
 
-def ready_party():
+class AcceptingSavePort:
+    def inspect(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+    def save(self, _game_state):
+        return SaveLoadResult(SaveLoadStatus.SAVED)
+
+    def load(self):
+        return SaveLoadResult(SaveLoadStatus.MISSING)
+
+
+class FailNextSavePort:
+    def __init__(self, delegate):
+        self.delegate = delegate
+        self.fail_next = False
+        self.save_calls = 0
+
+    def inspect(self):
+        return self.delegate.inspect()
+
+    def save(self, game_state):
+        self.save_calls += 1
+        if self.fail_next:
+            self.fail_next = False
+            raise ValueError("injected save failure")
+        return self.delegate.save(game_state)
+
+    def load(self):
+        return self.delegate.load()
+
+
+def ready_party(save_port=None):
     game = game_at_hub()
     session = OverworldSession(
         game,
@@ -43,6 +75,9 @@ def ready_party():
         enemy_factory=lambda archetype_id, tier=0: create_enemy_state(
             archetype_id,
             tier=tier,
+        ),
+        save_port=(
+            AcceptingSavePort() if save_port is None else save_port
         ),
     )
     session.submit(ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION))
@@ -76,10 +111,22 @@ def test_ready_starts_the_authored_party_encounter_and_victory_opens_extraction(
     )
 
 
-def test_extraction_delays_rewards_then_banks_once_and_restores_both_drifters():
-    game, session, _ = ready_party()
+def test_extraction_delays_rewards_then_banks_once_and_restores_both_drifters(
+    tmp_path,
+):
+    save_port = make_test_save_port(tmp_path / "tutorial-save.json")
+    game, session, _ = ready_party(save_port)
     lead = game.player_state
     companion = game.party_state.companions[0]
+    game.party_state.add_equipment_instance(
+        EquipmentInstance.create(
+            instance_id="00000000-0000-4000-8000-000000000091",
+            definition_id="field_helm",
+            source_id="tutorial_reward_01",
+            secured=False,
+            stat_bonuses={"constitution": 1},
+        )
+    )
     lead.health.take_damage(25)
     lead.mana_resource.spend(min(lead.mana_resource.current, 7))
     companion.health.take_damage(31)
@@ -120,12 +167,105 @@ def test_extraction_delays_rewards_then_banks_once_and_restores_both_drifters():
     }
     assert pending.outing_rewards.experience == 120
 
-    reloaded = reconstruct_game_state(build_save_document(game))
+    loaded = save_port.load()
+    assert loaded.status is SaveLoadStatus.LOADED
+    reloaded = loaded.game_state
     assert reloaded.party_state.phase is DungeonPhase.HUB
     assert reloaded.party_state.tutorial_complete is True
     assert reloaded.party_state.shared_gold == 19
+    assert reloaded.party_state.shared_items == {"goblin_scrap": 3}
+    assert reloaded.party_state.active_drifter_ids == ("branoc", "azhvielle")
+    assert tuple(
+        member.character.profile.drifter_id
+        for member in reloaded.party_state.companions
+    ) == ("azhvielle",)
+    assert reloaded.party_state.hub_economy_state.current_hub_visit_id is not None
     assert reloaded.player_state.exp_state.current == 60
     assert reloaded.party_state.companions[0].exp_state.current == 60
+    assert (
+        reloaded.player_state.health.current
+        == reloaded.player_state.health.maximum
+    )
+    assert (
+        reloaded.player_state.mana_resource.current
+        == reloaded.player_state.mana_resource.maximum
+    )
+    assert (
+        reloaded.party_state.companions[0].health.current
+        == reloaded.party_state.companions[0].health.maximum
+    )
+    assert (
+        reloaded.party_state.companions[0].mana_resource.current
+        == reloaded.party_state.companions[0].mana_resource.maximum
+    )
+    secured_equipment = reloaded.party_state.equipment_instances[0]
+    assert secured_equipment.instance_id == (
+        "00000000-0000-4000-8000-000000000091"
+    )
+    assert secured_equipment.secured is True
+
+
+def test_tutorial_extraction_save_failure_keeps_pending_rewards_for_exactly_once_retry(
+    tmp_path,
+):
+    delegate = make_test_save_port(tmp_path / "tutorial-save.json")
+    save_port = FailNextSavePort(delegate)
+    game, session, _ = ready_party(save_port)
+    for enemy in session.active_battle.enemies:
+        enemy.health.take_damage(enemy.health.current)
+    session.submit(ChooseAction(ActionIntent.DEFEND))
+    before = game.snapshot()
+    saves_before = save_port.save_calls
+    save_port.fail_next = True
+
+    failed = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+
+    assert failed.screen.value == "extraction"
+    assert failed.notice == (
+        "The outing return could not be saved. The last committed save remains available."
+    )
+    assert game.snapshot() == before
+    assert game.party_state.phase is DungeonPhase.EXTRACTION
+    assert game.party_state.tutorial_complete is False
+    assert "tutorial rewards are secured" not in (
+        failed.adventure_text or ""
+    ).lower()
+    assert failed.outing_rewards.experience == 120
+    assert failed.outing_rewards.gold == 9
+    assert save_port.save_calls == saves_before + 1
+
+    retried = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+
+    assert retried.screen.value == "hub"
+    assert game.party_state.phase is DungeonPhase.HUB
+    assert game.party_state.tutorial_complete is True
+    assert game.party_state.shared_gold == 19
+    assert game.party_state.shared_items == {"goblin_scrap": 3}
+    assert game.player_state.exp_state.current == 60
+    assert game.party_state.companions[0].exp_state.current == 60
+    assert save_port.save_calls == saves_before + 2
+
+    duplicate = session.submit(
+        ChooseOverworldAction(OverworldAction.RETURN_TO_HUB)
+    )
+    assert duplicate.notice == "That option is not available."
+    assert game.party_state.shared_gold == 19
+    assert game.party_state.shared_items == {"goblin_scrap": 3}
+    assert game.player_state.exp_state.current == 60
+    assert game.party_state.companions[0].exp_state.current == 60
+    assert save_port.save_calls == saves_before + 2
+
+    loaded = delegate.load()
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.party_state.tutorial_complete is True
+    assert loaded.game_state.party_state.shared_gold == 19
+    assert loaded.game_state.party_state.shared_items == {"goblin_scrap": 3}
+    assert loaded.game_state.player_state.exp_state.current == 60
+    assert loaded.game_state.party_state.companions[0].exp_state.current == 60
 
 
 def test_pending_extraction_round_trips_without_banking_rewards():
@@ -313,6 +453,7 @@ def test_load_restores_phase_screen_narrative_and_load_notice(
                 enemy_factory=lambda archetype_id, tier=0: create_enemy_state(
                     archetype_id, tier=tier
                 ),
+                save_port=AcceptingSavePort(),
             )
             setup.submit(
                 ChooseOverworldAction(OverworldAction.RECRUIT_COMPANION)
