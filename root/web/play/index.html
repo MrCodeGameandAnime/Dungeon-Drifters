@@ -29,6 +29,40 @@
         </p>
       </section>
     </main>
+    <dialog id="saved-game-dialog" class="save-dialog" aria-labelledby="saved-game-title">
+      <div class="save-dialog-content">
+        <p class="eyebrow">SAVED GAME FOUND</p>
+        <h2 id="saved-game-title">Continue your journey?</h2>
+        <p>Your saved progress is ready to continue, or you can begin a new game.</p>
+        <div class="save-dialog-actions">
+          <button id="continue-saved-game" type="button">Continue</button>
+          <button id="start-new-game" type="button">New Game</button>
+          <button id="cancel-save-choice" type="button">Back</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="save-replacement-dialog" class="save-dialog" aria-labelledby="save-replacement-title">
+      <div class="save-dialog-content">
+        <p class="eyebrow">REPLACE SAVED GAME</p>
+        <h2 id="save-replacement-title">Start a new game?</h2>
+        <p>Starting a new game will replace your saved progress after its first successful save. The current save stays intact until then.</p>
+        <div class="save-dialog-actions">
+          <button id="confirm-new-game" type="button">Replace Saved Game</button>
+          <button id="cancel-replacement" type="button">Cancel</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="save-unavailable-dialog" class="save-dialog" aria-labelledby="save-unavailable-title">
+      <div class="save-dialog-content">
+        <p class="eyebrow">SAVE NOT CHANGED</p>
+        <h2 id="save-unavailable-title">Saved game needs attention</h2>
+        <p id="save-unavailable-message" role="status"></p>
+        <div class="save-dialog-actions">
+          <button id="retry-save-detection" type="button">Try Again</button>
+          <button id="close-save-unavailable" type="button">Back</button>
+        </div>
+      </div>
+    </dialog>
     <div id="error" class="status-panel error-panel" role="alert" hidden>
       <p class="eyebrow">PLAYTEST ERROR</p>
       <h1>We could not start the game</h1>

@@ -107,6 +107,23 @@ button:disabled {
   text-align: center;
 }
 
+.save-dialog {
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: .65rem;
+  color: var(--ink);
+  background: #101b1d;
+  box-shadow: var(--shadow);
+}
+
+.save-dialog::backdrop { background: rgb(0 0 0 / 72%); }
+.save-dialog-content { display: grid; gap: .7rem; }
+.save-dialog-content h2, .save-dialog-content p { margin: 0; }
+.save-dialog-content p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
+.save-dialog-actions { display: grid; gap: .55rem; margin-top: .35rem; }
+.save-dialog-actions button:first-child { border-color: var(--accent); }
+
 .error-panel {
   width: min(92vw, 42rem);
   min-height: var(--app-height, 100dvh);

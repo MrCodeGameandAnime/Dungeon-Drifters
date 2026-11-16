@@ -53,6 +53,7 @@ from app.ui.overworld_ui import (
 )
 from tests.game_test_support import (
     completed_hub_game,
+    hub_game,
     enter_floor_one_rest,
     three_member_hub_game,
 )
@@ -140,23 +141,16 @@ def test_browser_save_survives_runtime_reload_and_restores_weapon_progression():
         {"kind": "overworld_action", "action": "save"}
     )
     assert saved["notice"] == "Game saved."
+    saved_sequence = bridge.parse_profile_envelope(
+        storage.values[bridge._BROWSER_PROFILE_KEY].encode("utf-8")
+    ).local_sequence
 
     reloaded_runtime = bridge.BrowserRuntime(storage=storage)
-    reloaded_runtime.start_game("joruun")
-    options = reloaded_runtime.submit(
-        {"kind": "overworld_action", "action": "options"}
-    )
-    assert any(
-        item["action"] == "load" and item["enabled"]
-        for item in options["options"]
-    )
-    confirmation = reloaded_runtime.submit(
-        {"kind": "overworld_action", "action": "load"}
-    )
-    assert confirmation["screen"] == OverworldScreen.LOAD_CONFIRMATION.value
-    restored = reloaded_runtime.submit(
-        {"kind": "overworld_action", "action": "confirm"}
-    )
+    assert reloaded_runtime.startup_status()["status"] == "valid"
+    assert reloaded_runtime._session is None
+    continued = reloaded_runtime.continue_game()
+    assert continued["status"] == "loaded"
+    restored = continued["view"]
 
     assert restored["screen"] == OverworldScreen.MAIN.value
     restored_game = reloaded_runtime._session.game_state
@@ -165,6 +159,131 @@ def test_browser_save_survives_runtime_reload_and_restores_weapon_progression():
         "blade_guard"
     ] == 25
     assert restored_game.party_state.shared_items == {"scrap_metal": 3}
+    reloaded_runtime.submit({"kind": "overworld_action", "action": "options"})
+    assert reloaded_runtime.submit(
+        {"kind": "overworld_action", "action": "save"}
+    )["notice"] == "Game saved."
+    assert bridge.parse_profile_envelope(
+        storage.values[bridge._BROWSER_PROFILE_KEY].encode("utf-8")
+    ).local_sequence == saved_sequence + 1
+
+
+def _settle_tutorial_using_browser_store(runtime):
+    game = hub_game()
+    bridge._activate_session(runtime, game, "branoc")
+    runtime.submit({"kind": "overworld_action", "action": "recruit_companion"})
+    runtime.submit(
+        {
+            "kind": "companion",
+            "drifter_id": "azhvielle",
+            "event_id": "floor_one_d2_recruitment",
+        }
+    )
+    runtime.submit({"kind": "overworld_action", "action": "ready"})
+    for enemy in runtime._session.active_battle.enemies:
+        enemy.health.take_damage(enemy.health.current)
+    runtime.submit({"kind": "action", "intent": "defend"})
+    return game, runtime.submit(
+        {"kind": "overworld_action", "action": "return_to_hub"}
+    )
+
+
+def test_unconfirmed_new_game_cannot_replace_profile_at_manual_or_tutorial_save():
+    storage = MemoryBrowserStorage()
+    original_runtime = bridge.BrowserRuntime(storage=storage)
+    original_runtime.start_game("branoc")
+    original_runtime._game.player_state.add_gold(41)
+    original_runtime.submit({"kind": "overworld_action", "action": "options"})
+    original_runtime.submit({"kind": "overworld_action", "action": "save"})
+    original_profile = storage.values[bridge._BROWSER_PROFILE_KEY]
+
+    reloaded_runtime = bridge.BrowserRuntime(storage=storage)
+    assert reloaded_runtime.request_new_game()["status"] == "confirmation"
+    with pytest.raises(bridge.ProfileStoreError):
+        reloaded_runtime.start_game("joruun")
+    with pytest.raises(bridge.ProfileStoreError):
+        reloaded_runtime.load_scenario("H01B")
+
+    # Exercise the session boundary too, as an automatic tutorial settlement
+    # must remain protected even if a caller bypasses the startup presentation.
+    game, failed_return = _settle_tutorial_using_browser_store(reloaded_runtime)
+
+    assert failed_return["screen"] == OverworldScreen.EXTRACTION.value
+    assert "could not be saved" in failed_return["notice"].lower()
+    assert storage.values[bridge._BROWSER_PROFILE_KEY] == original_profile
+    assert game.party_state.tutorial_complete is False
+
+
+def test_confirmed_new_game_can_persist_automatic_tutorial_settlement():
+    storage = MemoryBrowserStorage()
+    original_runtime = bridge.BrowserRuntime(storage=storage)
+    original_runtime.start_game("branoc")
+    original_runtime.submit({"kind": "overworld_action", "action": "options"})
+    original_runtime.submit({"kind": "overworld_action", "action": "save"})
+    original_profile = storage.values[bridge._BROWSER_PROFILE_KEY]
+
+    replacement_runtime = bridge.BrowserRuntime(storage=storage)
+    replacement_runtime.request_new_game()
+    assert replacement_runtime.confirm_new_game(True)["status"] == "selection"
+    game, returned = _settle_tutorial_using_browser_store(replacement_runtime)
+
+    assert returned["screen"] == OverworldScreen.HUB.value
+    assert game.party_state.tutorial_complete is True
+    assert storage.values[bridge._BROWSER_PROFILE_KEY] != original_profile
+    persisted = bridge.BrowserLocalProfileStore(storage).load(
+        bridge._BROWSER_PROFILE_ID
+    )
+    assert persisted.status is bridge.ProfileStoreStatus.VALID
+    assert persisted.envelope.payload["party"]["tutorial_complete"] is True
+
+
+def test_confirmed_replacement_and_cancel_have_safe_profile_boundaries():
+    storage = MemoryBrowserStorage()
+    original_runtime = bridge.BrowserRuntime(storage=storage)
+    original_runtime.start_game("branoc")
+    original_runtime.submit({"kind": "overworld_action", "action": "options"})
+    original_runtime.submit({"kind": "overworld_action", "action": "save"})
+    original_profile = storage.values[bridge._BROWSER_PROFILE_KEY]
+    original_sequence = bridge.parse_profile_envelope(
+        original_profile.encode("utf-8")
+    ).local_sequence
+
+    canceled_runtime = bridge.BrowserRuntime(storage=storage)
+    assert canceled_runtime.request_new_game()["status"] == "confirmation"
+    assert canceled_runtime.confirm_new_game(False)["status"] == "valid"
+    assert storage.values[bridge._BROWSER_PROFILE_KEY] == original_profile
+
+    replacement_runtime = bridge.BrowserRuntime(storage=storage)
+    assert replacement_runtime.confirm_new_game(True)["status"] == "selection"
+    replacement_runtime.start_game("joruun")
+    replacement_runtime.submit({"kind": "overworld_action", "action": "options"})
+    saved = replacement_runtime.submit(
+        {"kind": "overworld_action", "action": "save"}
+    )
+    assert saved["notice"] == "Game saved."
+
+    replacement_profile = bridge.parse_profile_envelope(
+        storage.values[bridge._BROWSER_PROFILE_KEY].encode("utf-8")
+    )
+    assert replacement_profile.local_sequence == original_sequence + 1
+    assert (
+        replacement_profile.payload["player"]["identity"]["profile"]["choice"]
+        == "4"
+    )
+
+
+def test_invalid_browser_profile_cannot_be_replaced_through_new_game():
+    storage = MemoryBrowserStorage()
+    storage.setItem(bridge._BROWSER_PROFILE_KEY, "not a profile envelope")
+    runtime = bridge.BrowserRuntime(storage=storage)
+
+    assert runtime.startup_status()["status"] == "invalid"
+    assert runtime.request_new_game()["status"] == "blocked"
+    assert runtime.confirm_new_game(True)["status"] == "blocked"
+    with pytest.raises(bridge.ProfileStoreError):
+        runtime.start_game("azhvielle")
+    assert storage.values[bridge._BROWSER_PROFILE_KEY] == "not a profile envelope"
+
 
 def test_bridge_starts_the_canonical_headless_runtime():
     runtime = bridge.BrowserRuntime()

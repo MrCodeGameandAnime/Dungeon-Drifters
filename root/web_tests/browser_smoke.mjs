@@ -359,6 +359,35 @@ async function clickVisibleOption(page, containerSelector, label) {
   );
 }
 
+async function restartForNewGame(page) {
+  await page.locator("#restart").click();
+  await page.waitForFunction(() => {
+    const selection = document.getElementById("selection-screen");
+    return !selection.hidden ||
+      document.getElementById("saved-game-dialog").open ||
+      document.getElementById("save-replacement-dialog").open ||
+      document.getElementById("save-unavailable-dialog").open;
+  });
+  if (await page.locator("#saved-game-dialog").isVisible()) {
+    await page.getByRole("button", { name: "New Game" }).click();
+    await page.locator("#save-replacement-dialog").waitFor({ state: "visible" });
+  }
+  if (await page.locator("#save-replacement-dialog").isVisible()) {
+    await page.getByRole("button", { name: "Replace Saved Game" }).click();
+  }
+  if (await page.locator("#save-unavailable-dialog").isVisible()) {
+    throw new Error("restart opened the invalid-save recovery dialog");
+  }
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+}
+
+async function continueSavedGameAfterReload(page) {
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.locator("#saved-game-dialog").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+}
+
 const targetProjection = {
   interaction_phase: "targets",
   player: {
@@ -1029,8 +1058,7 @@ try {
     await page.locator("#shortcut-dialog").isHidden(),
     "the picker-only shortcut opened during gameplay",
   );
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   await page.keyboard.press("Shift+Alt+C");
   await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
   await page.locator("#shortcut-code").fill("F01BA");
@@ -1041,8 +1069,7 @@ try {
       (await page.locator("#hub-shared-gold").innerText()).includes("106"),
     "the Floor 1 shortcut did not load its Branoc/Azhvielle clear state",
   );
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   const utilityIcons = await page.locator(".header-actions img").evaluateAll((images) => images.map((image) => {
@@ -1461,8 +1488,7 @@ try {
     "semantic input did not return an authoritative Battle phase",
   );
 
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   requireCondition(
     await page.locator("#overworld-screen").isHidden() && await page.locator("#battle-screen").isHidden() &&
       await page.locator("#drifter-options [data-drifter-id]").count() === 4,
@@ -1485,8 +1511,7 @@ try {
     switchedName.includes("Azhvielle"),
     `selecting a different Drifter after Restart did not start that character: ${switchedName}`,
   );
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   await page.evaluate(async () => {
@@ -1656,6 +1681,9 @@ try {
             { drifter_id: "zhaivra", choice: "3", short_name: "Zhaivra Kelyth", archetype_name: "Rogue Archer", combat_role: "Alchemical Marksman", selection_summary: "precise, prepared, resource-limited", sprite_url: "assets/drifters/zhaivra.png" },
             { drifter_id: "joruun", choice: "4", short_name: "Joruun Veyr", archetype_name: "Monk", combat_role: "Elemental Skirmisher", selection_summary: "mobile, adaptable, physically costly", sprite_url: "assets/drifters/joruun.png" },
           ]);
+          if (source === "startup_status_json()") return JSON.stringify({ status: "missing" });
+          if (source === "request_new_game_json()") return JSON.stringify({ status: "selection" });
+          if (source === "confirm_new_game_json(_confirmed_new_game_json)") return JSON.stringify({ status: "selection" });
           if (source === "start_game_json(_selected_drifter_id)") {
             window.__fixtureSelectedDrifter = window.__fixtureGlobals._selected_drifter_id;
             window.__fixtureStartCalls.push(window.__fixtureSelectedDrifter);
@@ -2009,8 +2037,7 @@ try {
     window.__fixtureHubPhase = "hub";
     window.__fixtureCommands = [];
   });
-  await targetPage.locator("#restart").click();
-  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(targetPage);
   await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
   requireCondition(
@@ -2322,8 +2349,7 @@ try {
     window.__fixtureHubPhase = "hub";
     window.__fixtureCommands = [];
   });
-  await targetPage.locator("#restart").click();
-  await targetPage.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(targetPage);
   await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#overworld-screen").waitFor({ state: "visible" });
   await clickVisibleOption(targetPage, "#overworld-options", "Recruit Companion");
@@ -2350,8 +2376,7 @@ try {
   );
   console.log("PYD7|BROWSER|DEFEAT_RESELECT|PASS");
 
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Options");
@@ -2368,31 +2393,59 @@ try {
     throw new Error(startupError || errors.join("; ") || error.message);
   });
   await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#saved-game-dialog").waitFor({ state: "visible" });
+  const savedEnvelopeBeforeChoice = await page.evaluate(() => {
+    const key = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+    return localStorage.getItem(key);
+  });
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   requireCondition(
     (await page.locator("#character-name").innerText()).includes("Ser Branoc") &&
       await page.locator("#location-label").innerText() === "Goblin Ambush",
-    "browser reload and Load did not restore the saved Drifter and route",
+    "startup Continue did not restore the saved Drifter and route",
+  );
+  await page.locator("#restart").click();
+  await page.locator("#save-replacement-dialog").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator("#saved-game-dialog").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "New Game" }).click();
+  await page.locator("#save-replacement-dialog").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator("#saved-game-dialog").waitFor({ state: "visible" });
+  requireCondition(
+    await page.evaluate(() => {
+      const key = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+      return localStorage.getItem(key);
+    }) === savedEnvelopeBeforeChoice,
+    "canceling new-game replacement changed the saved profile",
+  );
+  await page.getByRole("button", { name: "New Game" }).click();
+  await page.locator("#save-replacement-dialog").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Replace Saved Game" }).click();
+  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
+  await page.locator("#overworld-screen").waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Options");
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  const replacedProfile = await page.evaluate(() => {
+    const key = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+    return JSON.parse(localStorage.getItem(key));
+  });
+  const previousSequence = JSON.parse(savedEnvelopeBeforeChoice).local_sequence;
+  requireCondition(
+    replacedProfile.local_sequence === previousSequence + 1 &&
+      replacedProfile.payload.player.identity.profile.choice === "4",
+    "confirmed New Game did not replace the profile exactly once with the chosen Drifter",
   );
   requireCondition(errors.length === 0, `browser page errors after save/reload: ${errors.join("; ")}`);
   console.log("PYD7|BROWSER|SAVE_RELOAD|PASS");
+  console.log("F1_BROWSER|CONTINUE_REPLACE_CANCEL|PASS");
 
-  await page.locator("#restart").click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
+  await restartForNewGame(page);
   await page.keyboard.press("Shift+Alt+C");
   await page.locator("#shortcut-dialog").waitFor({ state: "visible" });
   await page.locator("#shortcut-code").fill("F01BA");
@@ -2564,20 +2617,7 @@ try {
     const startupError = await page.locator("#error-message").innerText().catch(() => "");
     throw new Error(startupError || errors.join("; ") || error.message);
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   const restoredHubState = {
     location: await page.locator("#location-label").innerText(),
     adventure: await page.locator("#adventure-text").innerText(),
@@ -2586,7 +2626,7 @@ try {
   };
   requireCondition(
     restoredHubState.location === "Floor 1 Hub",
-    `browser reload and Load did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
+    `browser Continue did not restore Branoc's weapon progression: ${JSON.stringify(restoredHubState)}`,
   );
   await clickVisibleOption(page, "#overworld-options", "Choose Party");
   await page.waitForFunction(
@@ -2835,20 +2875,7 @@ try {
   await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, { timeout: 120000 });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(() =>
-    document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(() =>
-    document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   await clickVisibleOption(page, "#overworld-options", "Items");
   await page.locator("#items-panel").waitFor({ state: "visible" });
   await page.waitForFunction(() => {
@@ -3154,20 +3181,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   await clickVisibleOption(page, "#overworld-options", "Character");
   await page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(page, "#character-options", "Skills");
@@ -3217,20 +3231,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="joruun"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   requireCondition(
     await page.locator("#screen-badge").innerText() === "HUB" &&
       await page.locator("#location-label").innerText() === "Floor 1 Hub" &&
@@ -3652,20 +3653,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   requireCondition(
     await page.locator("#screen-badge").innerText() === "REST" &&
       await page.locator("#location-label").innerText() === "Pre-Boss Rest" &&
@@ -3719,20 +3707,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   requireCondition(
     await page.locator("#screen-badge").innerText() === "REST" &&
       !(await page.locator("#overworld-options button").allInnerTexts()).includes("Choose Boss Helper"),
@@ -3934,20 +3909,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   requireCondition(
     await page.locator("#screen-badge").innerText() === "REST" &&
       await page.locator("#location-label").innerText() === "Pre-Boss Rest",
@@ -3986,20 +3948,7 @@ try {
   await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.locator("#selection-screen").waitFor({ state: "visible" });
-  await page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(page, "#overworld-options", "Options");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "OPTIONS",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Load");
-  await page.waitForFunction(
-    () => document.getElementById("screen-badge").textContent.trim() === "LOAD_CONFIRMATION",
-  );
-  await clickVisibleOption(page, "#overworld-options", "Confirm");
-  await page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(page);
   const floorThreeClearAfterReload = await page.evaluate((key) => {
     const envelope = JSON.parse(localStorage.getItem(key));
     return envelope?.payload?.party?.floor_three_cleared;
@@ -4025,15 +3974,7 @@ try {
   await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m5Page.getByRole("button", { name: "Start" }).click();
-  await m5Page.locator("#selection-screen").waitFor({ state: "visible" });
-  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Options");
-  await clickVisibleOption(m5Page, "#overworld-options", "Load");
-  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
-  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m5Page);
   await clickVisibleOption(m5Page, "#overworld-options", "Character");
   await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
   await clickVisibleOption(m5Page, "#character-options", "Equipment");
@@ -4085,14 +4026,7 @@ try {
   await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m5Page.getByRole("button", { name: "Start" }).click();
-  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Options");
-  await clickVisibleOption(m5Page, "#overworld-options", "Load");
-  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
-  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m5Page);
   await clickVisibleOption(m5Page, "#overworld-options", "Character");
   await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
   await clickVisibleOption(m5Page, "#character-options", "Equipment");
@@ -4229,14 +4163,7 @@ try {
   await m5Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m5Page.getByRole("button", { name: "Start" }).click();
-  await m5Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m5Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Options");
-  await clickVisibleOption(m5Page, "#overworld-options", "Load");
-  await m5Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#overworld-options", "Confirm");
-  await m5Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m5Page);
   requireCondition(
     await m5Page.locator("#screen-badge").innerText() === "REST" &&
       await m5Page.locator("#location-label").innerText() === "Pre-Boss Rest",
@@ -4270,14 +4197,7 @@ try {
   await m6Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m6Page.getByRole("button", { name: "Start" }).click();
-  await m6Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m6Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m6Page, "#overworld-options", "Options");
-  await clickVisibleOption(m6Page, "#overworld-options", "Load");
-  await m6Page.locator("#overworld-options button").filter({ hasText: "Confirm" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m6Page, "#overworld-options", "Confirm");
-  await m6Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m6Page);
   await clickVisibleOption(m6Page, "#overworld-options", "Expeditions");
   await m6Page.locator("#expedition-panel").waitFor({ state: "visible" });
   await m6Page.locator("#expedition-energy").filter({ hasText: "Energy 100/100" }).waitFor({ state: "visible" });
@@ -4387,13 +4307,7 @@ try {
   await m6Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m6Page.getByRole("button", { name: "Start" }).click();
-  await m6Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m6Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m6Page, "#overworld-options", "Options");
-  await clickVisibleOption(m6Page, "#overworld-options", "Load");
-  await clickVisibleOption(m6Page, "#overworld-options", "Confirm");
-  await m6Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m6Page);
   await m6Page.locator("#expedition-live-status").filter({ hasText: "Floor III" }).waitFor({ state: "visible" });
   await clickVisibleOption(m6Page, "#route-actions", "Enter Encounter");
   await m6Page.locator("#battle-screen").waitFor({ state: "visible" });
@@ -4418,13 +4332,7 @@ try {
   await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m65Page.getByRole("button", { name: "Start" }).click();
-  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m65Page, "#overworld-options", "Options");
-  await clickVisibleOption(m65Page, "#overworld-options", "Load");
-  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
-  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m65Page);
 
   await clickVisibleOption(m65Page, "#overworld-options", "Vendors");
   await clickVisibleOption(m65Page, "#vendors-options", "Alchemist");
@@ -4497,13 +4405,7 @@ try {
   await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m65Page.getByRole("button", { name: "Start" }).click();
-  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m65Page, "#overworld-options", "Options");
-  await clickVisibleOption(m65Page, "#overworld-options", "Load");
-  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
-  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m65Page);
   await clickVisibleOption(m65Page, "#overworld-options", "Vendors");
   await clickVisibleOption(m65Page, "#vendors-options", "Alchemist");
   await m65Page.locator("#alchemy-progress").filter({ hasText: "Alchemy Level 2 | 50 XP" }).waitFor({ state: "visible" });
@@ -4559,13 +4461,7 @@ try {
   await m65Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
     timeout: 120000,
   });
-  await m65Page.getByRole("button", { name: "Start" }).click();
-  await m65Page.locator('#drifter-options [data-drifter-id="branoc"]').click();
-  await m65Page.locator("#overworld-screen").waitFor({ state: "visible" });
-  await clickVisibleOption(m65Page, "#overworld-options", "Options");
-  await clickVisibleOption(m65Page, "#overworld-options", "Load");
-  await clickVisibleOption(m65Page, "#overworld-options", "Confirm");
-  await m65Page.locator("#notice").filter({ hasText: "Saved session loaded." }).waitFor({ state: "visible" });
+  await continueSavedGameAfterReload(m65Page);
   await clickVisibleOption(m65Page, "#overworld-options", "Character");
   await m65Page.locator("#character-panel").waitFor({ state: "visible" });
   await clickVisibleOption(m65Page, "#character-targets", "Azhvielle, the Unconfessed");
@@ -4588,6 +4484,44 @@ try {
   console.log("M65_BROWSER|MANA_POTION_TARGETING|PASS");
   requireCondition(errors.length === 0, `M6.5 browser journey produced page errors: ${errors.join("; ")}`);
   await m65Page.close();
+
+  const invalidSavePage = await browser.newPage();
+  invalidSavePage.on("pageerror", (error) => errors.push(error.message));
+  await invalidSavePage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await invalidSavePage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  const invalidProfileKey = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+  await invalidSavePage.evaluate((key) => localStorage.setItem(key, "not a profile envelope"), invalidProfileKey);
+  await invalidSavePage.reload({ waitUntil: "domcontentloaded" });
+  await invalidSavePage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await invalidSavePage.getByRole("button", { name: "Start" }).click();
+  await invalidSavePage.locator("#save-unavailable-dialog").waitFor({ state: "visible" });
+  await invalidSavePage.getByRole("button", { name: "Try Again" }).click();
+  await invalidSavePage.locator("#save-unavailable-dialog").waitFor({ state: "visible" });
+  await invalidSavePage.getByRole("button", { name: "Back" }).click();
+  await invalidSavePage.getByRole("button", { name: "Start" }).waitFor({ state: "visible" });
+  requireCondition(
+    await invalidSavePage.evaluate((key) => localStorage.getItem(key), invalidProfileKey) ===
+      "not a profile envelope",
+    "startup recovery controls modified an invalid saved profile",
+  );
+  await invalidSavePage.getByRole("button", { name: "Start" }).click();
+  await invalidSavePage.locator("#save-unavailable-dialog").waitFor({ state: "visible" });
+  requireCondition(
+    await invalidSavePage.locator("#selection-screen").isHidden() &&
+      await invalidSavePage.locator("#save-unavailable-dialog").isVisible(),
+    "an invalid existing save allowed startup to continue into New Game",
+  );
+  requireCondition(
+    await invalidSavePage.evaluate((key) => localStorage.getItem(key), invalidProfileKey) ===
+      "not a profile envelope",
+    "starting with an invalid profile overwrote the original data",
+  );
+  console.log("F1_BROWSER|INVALID_SAVE_PRESERVED|PASS");
+  await invalidSavePage.close();
 
   const qualification = page;
   qualification.on("pageerror", (error) => errors.push(error.message));
