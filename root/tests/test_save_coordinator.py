@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -175,6 +176,99 @@ def test_restart_load_returns_a_fresh_game_state_from_the_same_profile(tmp_path)
     assert restarted.profile_id == PROFILE_ID
     assert loaded.status is SaveLoadStatus.LOADED
     assert loaded.game_state is not original
+    assert loaded.game_state.snapshot() == original.snapshot()
+
+
+def test_sync_failure_is_logged_without_invalidating_local_save(tmp_path, caplog):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    _save_old_envelope(
+        store,
+        account_id=ACCOUNT_ID,
+        remote_revision=3,
+        sync_state=SyncState.CLEAN,
+    )
+
+    class FailingSyncCoordinator:
+        profile_id = PROFILE_ID
+        calls = 0
+
+        def sync_pending(self):
+            self.calls += 1
+            raise ValueError("credential=sync-secret payload=gold-71")
+
+    original = _game_state(gold=71)
+    sync = FailingSyncCoordinator()
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        sync_coordinator=sync,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.persistence.coordinator"):
+        saved = coordinator.save(original)
+
+    assert sync.calls == 1
+    assert "ValueError" in caplog.text
+    assert "Traceback (most recent call last)" in caplog.text
+    assert "sync_pending" in caplog.text
+    assert "sync-secret" not in caplog.text
+    assert "gold-71" not in caplog.text
+    assert saved.status is SaveLoadStatus.SAVED
+    assert saved.error is None
+    committed = store.load(PROFILE_ID).envelope
+    assert committed.payload == build_save_document(original)
+
+    loaded = _coordinator(store.root).load()
+
+    assert loaded.status is SaveLoadStatus.LOADED
+    assert loaded.game_state.snapshot() == original.snapshot()
+
+
+def test_sync_logging_failure_does_not_invalidate_local_save(tmp_path, monkeypatch):
+    store = LocalProfileStore(tmp_path / "profiles-home")
+    _save_old_envelope(
+        store,
+        account_id=ACCOUNT_ID,
+        remote_revision=3,
+        sync_state=SyncState.CLEAN,
+    )
+
+    class FailingSyncCoordinator:
+        profile_id = PROFILE_ID
+        calls = 0
+
+        def sync_pending(self):
+            self.calls += 1
+            raise ValueError("sync failed")
+
+    logger_calls = []
+    logger = logging.getLogger("app.persistence.coordinator")
+
+    def failing_log(*args, **kwargs):
+        logger_calls.append(args[0])
+        raise RuntimeError("diagnostic sink failed")
+
+    monkeypatch.setattr(logger, "error", failing_log)
+    original = _game_state(gold=72)
+    sync = FailingSyncCoordinator()
+    coordinator = SaveCoordinator(
+        store,
+        PROFILE_ID,
+        sync_coordinator=sync,
+        client_save_id_factory=lambda: NEW_SAVE_ID,
+        now_factory=lambda: SAVED_AT,
+    )
+
+    saved = coordinator.save(original)
+    loaded = _coordinator(store.root).load()
+
+    assert logger_calls
+    assert sync.calls == 1
+    assert saved.status is SaveLoadStatus.SAVED
+    assert store.load(PROFILE_ID).envelope.payload == build_save_document(original)
+    assert loaded.status is SaveLoadStatus.LOADED
     assert loaded.game_state.snapshot() == original.snapshot()
 
 

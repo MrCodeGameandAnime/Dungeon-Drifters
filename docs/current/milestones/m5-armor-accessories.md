@@ -8,6 +8,8 @@
 
 **Architecture:** Authored armor templates, modifier definitions, and floor rarity tables feed an injected-RNG generator at an authoritative reward boundary. Generated outcomes become unique persisted equipment instances; equipped references remain per Drifter. Armor upgrades, rarity advancement, and modifier extraction/affixing are separate authoritative transactions using existing inventory, resource, save, and combat-effect boundaries.
 
+**v0.8 ownership note:** The service references below record M5-era ownership. M6.5 superseded the consumable recipe owner: current Alchemy recipes use `AlchemyService`, while Hub Inventory supply packing/unpacking continues through `HubEconomyService.load()` and `unload()`. The legacy `HubEconomyService.buy()` and `sell()` methods are retained; current finite-stock vendor commerce is handled by `HubVendorService`. M5's separation of weapon Crafting XP from ordinary Alchemy remains in force; M6.5 added its own Alchemy XP progression.
+
 **Tech Stack:** Existing Python domain/content/persistence layers, current shared inventory and run-event services, terminal/Pyodide clients, pytest/Playwright, PostgreSQL profile service, and pinned MicroPython qualification.
 
 ## Scope And Authority
@@ -28,7 +30,7 @@ The current branch is `dungeon` at `ab1988b0a534beaef2c574c46d661a6ed507b3e3`, a
 - `PlayerState` has generic slots (`weapon`, `off_hand`, `head`, `body`, `accessory`) and persists the existing weapon, but there is no armor/modifier instance inventory. Signature-weapon progression remains separate and unchanged.
 - `PlayerState.effective_stat()` composes permanent stats with weapon bonuses. M3 combat/passive effects have their own existing projection. M5 must use those boundaries, not add a parallel combat-effect or resistance framework.
 - Maximum HP/Mana currently derive from permanent Constitution/Spirit, level, and discovery bonuses. Equipment changes never heal/refill. If an allowed equipment effect later changes a maximum, recalculate and clamp current resources only when the maximum decreases.
-- `PartyState` owns shared stack items, carried supplies, gold, and `OutingRewards`; the six-unit limit applies to carried supplies only. `HubEconomyService` handles shop and consumable alchemy recipes. Armor modifier services must be a distinct responsibility and must not change weapon Crafting XP or ordinary consumable alchemy.
+- At the M5 entry baseline, `PartyState` owned shared stack items, carried supplies, gold, and `OutingRewards`; the six-unit limit applied to carried supplies only. `HubEconomyService` handled shop and consumable Alchemy recipes. M6.5 later moved recipe crafting to `AlchemyService` and added separate Alchemy XP; armor-modifier operations remain separate from both Alchemy recipes and weapon Crafting XP.
 - `RunEventService` resolves Floor II drops at the victory boundary and stores event results in `resolved_run_events`; current drops are stack item IDs and quantities. M5 must add equipment-instance evidence to this existing authoritative boundary so load/retry cannot reroll or duplicate a drop.
 - Existing death, Return Talisman, Rest extraction, and boss-return owners are `PartyState` and `OverworldSession`. Preserve their reward semantics and extend their candidate-state transactions to equipment instances and equipped references.
 
@@ -128,7 +130,7 @@ Proof: one early armor instance advances through its authored stat track and rar
 
 ### Gate 4 - Alchemist: Armor Modifier Extraction, Affixing, And Replacement
 
-- [x] Add a distinct equipment-modifier service; keep `HubEconomyService` consumable recipes and weapon Crafting XP unchanged.
+- [x] Add a distinct equipment-modifier service. At the M5 baseline, consumable recipes remained in `HubEconomyService` and weapon Crafting XP was unchanged; M6.5 later moved recipe ownership to `AlchemyService` and added separate Alchemy XP without changing weapon Crafting XP.
 - [x] Implement separate Hub sale and material-dismantle actions for secured, unreferenced instances, with authored per-item eligibility/results, preview, explicit confirmation, and atomic gold/material accounting. These actions never extract modifiers; static accessories participate only when their authored definitions permit that action.
 - [x] Extraction accepts secured, unequipped armor only, consumes authored gold/alchemical materials, destroys exactly one donor, and creates persistent modifier instances for its eligible installed modifiers. Accessories reject extraction regardless of caller/client.
 - [x] Affixing accepts a compatible modifier instance and armor grade slot, consumes the modifier exactly once plus authored costs, and commits atomically.

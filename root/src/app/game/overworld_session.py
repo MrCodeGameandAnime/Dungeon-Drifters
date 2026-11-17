@@ -2374,13 +2374,22 @@ class OverworldSession:
         route_id = self.game_state.overworld_state.active_route_id
         dungeon_extraction = route_id in {"floor_one", "floor_two", "floor_three"}
         if not dungeon_extraction:
-            party_state = self.game_state.party_state
+            candidate = self.game_state.clone()
+            party_state = candidate.party_state
             secured_items = dict(party_state.outing_rewards.items)
-            if not party_state.complete_extraction(self.game_state.active_party_members):
+            secured_base_xp = party_state.outing_rewards.experience
+            if not party_state.complete_extraction(candidate.active_party_members):
                 self._notice = "Those rewards are no longer available."
                 return
-            self.game_state._bind_equipment_state()
-            self._restore_recruited_party()
+            self._restore_members(candidate.recruited_members)
+            candidate._bind_equipment_state()
+            settled = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=secured_base_xp,
+            )
+            if settled is None:
+                return
+            self._publish_saved_candidate(self.game_state, settled)
             self._screen = OverworldScreen.HUB
             self._adventure_text = (
                 "You return to the Floor 1 Hub. The tutorial rewards are secured. "

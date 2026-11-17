@@ -154,6 +154,10 @@ def test_shell_boot_wraps_the_existing_bridge():
     assert "current_expedition_clock_text_json" in boot
     assert "submit_json" in boot
     assert "restart_game_json" in boot
+    assert "startup_status_json" in boot
+    assert "request_new_game_json" in boot
+    assert "confirm_new_game_json" in boot
+    assert "continue_game_json" in boot
     assert "json.dumps" in boot
 
 
@@ -165,6 +169,10 @@ def test_shell_javascript_uses_authoritative_projection_and_commands():
     assert 'fetch("python/dd_bridge.py")' in javascript
     assert 'pythonJson("boot()")' in javascript
     assert "start_game_json(_selected_drifter_id)" in javascript
+    assert 'pythonJson("startup_status_json()")' in javascript
+    assert 'pythonJson("continue_game_json()")' in javascript
+    assert 'pythonJson("request_new_game_json()")' in javascript
+    assert 'pythonJson("confirm_new_game_json(_confirmed_new_game_json)")' in javascript
     assert "current_view_json()" in javascript
     assert "submit_json(_browser_command_json)" in javascript
     assert "showDrifterSelection()" in javascript

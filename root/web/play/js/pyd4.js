@@ -43,6 +43,7 @@
 
   function showDrifterSelection() {
     state = null;
+    closeSaveDialogs();
     if ($("shortcut-dialog").open) $("shortcut-dialog").close();
     showApp();
     $("selection-screen").hidden = false;
@@ -51,6 +52,134 @@
     $("app").removeAttribute("data-interaction-phase");
     $("battle-screen").removeAttribute("data-interaction-phase");
     renderDrifterSelection();
+  }
+
+  function closeSaveDialogs() {
+    for (const id of ["saved-game-dialog", "save-replacement-dialog", "save-unavailable-dialog"]) {
+      if ($(id).open) $(id).close();
+    }
+  }
+
+  function showStartupDialog(id) {
+    state = null;
+    showApp();
+    $("selection-screen").hidden = true;
+    $("overworld-screen").hidden = true;
+    $("battle-screen").hidden = true;
+    closeSaveDialogs();
+    $(id).showModal();
+  }
+
+  async function openStartupFlow() {
+    try {
+      const status = await pythonJson("startup_status_json()");
+      if (status.status === "missing") {
+        showDrifterSelection();
+      } else if (status.status === "valid") {
+        showStartupDialog("saved-game-dialog");
+      } else {
+        showSaveUnavailable(status.error);
+      }
+    } catch (error) {
+      showError(error);
+      console.error(error);
+    }
+  }
+
+  async function openNewGameFlow() {
+    try {
+      const result = await pythonJson("request_new_game_json()");
+      if (result.status === "selection") {
+        showDrifterSelection();
+      } else if (result.status === "confirmation") {
+        showStartupDialog("save-replacement-dialog");
+      } else {
+        showSaveUnavailable(result.error);
+      }
+    } catch (error) {
+      showError(error);
+      console.error(error);
+    }
+  }
+
+  function showSaveUnavailable(message) {
+    setText(
+      "save-unavailable-message",
+      message || "The existing save could not be read. It has not been changed.",
+    );
+    showStartupDialog("save-unavailable-dialog");
+  }
+
+  async function continueSavedGame() {
+    try {
+      const result = await pythonJson("continue_game_json()");
+      if (result.status !== "loaded") {
+        showSaveUnavailable(result.error);
+        return;
+      }
+      closeSaveDialogs();
+      state = result.view;
+      render();
+    } catch (error) {
+      showSaveUnavailable(`${error.name || "Error"}: ${error.message || error}`);
+      console.error(error);
+    }
+  }
+
+  async function confirmNewGame() {
+    try {
+      pyodide.globals.set("_confirmed_new_game_json", "true");
+      const result = await pythonJson("confirm_new_game_json(_confirmed_new_game_json)");
+      if (result.status === "selection") {
+        showDrifterSelection();
+      } else {
+        showSaveUnavailable(result.error);
+      }
+    } catch (error) {
+      showSaveUnavailable(`${error.name || "Error"}: ${error.message || error}`);
+      console.error(error);
+    }
+  }
+
+  async function cancelNewGameConfirmation() {
+    try {
+      pyodide.globals.set("_confirmed_new_game_json", "false");
+      const status = await pythonJson("confirm_new_game_json(_confirmed_new_game_json)");
+      if (status.status === "valid") {
+        showStartupDialog("saved-game-dialog");
+      } else if (status.status === "missing") {
+        showDrifterSelection();
+      } else {
+        showSaveUnavailable(status.error);
+      }
+    } catch (error) {
+      showSaveUnavailable(`${error.name || "Error"}: ${error.message || error}`);
+      console.error(error);
+    }
+  }
+
+  async function retrySaveDetection() {
+    try {
+      const status = await pythonJson("startup_status_json()");
+      if (status.status === "valid") {
+        showStartupDialog("saved-game-dialog");
+      } else if (status.status === "missing") {
+        showDrifterSelection();
+      } else {
+        showSaveUnavailable(status.error);
+      }
+    } catch (error) {
+      showSaveUnavailable(`${error.name || "Error"}: ${error.message || error}`);
+      console.error(error);
+    }
+  }
+
+  function returnToTitle() {
+    closeSaveDialogs();
+    $("app").hidden = true;
+    $("start-screen").hidden = false;
+    $("start").disabled = false;
+    setText("start", "Start");
   }
 
   function renderDrifterSelection() {
@@ -1866,7 +1995,7 @@
       pyodide.globals.set("_browser_command_json", JSON.stringify(command));
       state = await pythonJson("submit_json(_browser_command_json)");
       if (state === "select_drifter") {
-        showDrifterSelection();
+        await openNewGameFlow();
         return;
       }
       if (state && state.interaction_phase === "complete") {
@@ -1886,7 +2015,18 @@
       state = await pythonJson("start_game_json(_selected_drifter_id)");
       render();
     } catch (error) {
-      showError(error);
+      try {
+        const status = await pythonJson("startup_status_json()");
+        if (status.status === "valid") {
+          showStartupDialog("saved-game-dialog");
+        } else if (status.status === "invalid") {
+          showSaveUnavailable(status.error);
+        } else {
+          showError(error);
+        }
+      } catch (statusError) {
+        showError(statusError);
+      }
       console.error(error);
     }
   }
@@ -1894,7 +2034,7 @@
   async function restart() {
     try {
       await requestImmersion();
-      showDrifterSelection();
+      await openNewGameFlow();
     } catch (error) {
       showError(error);
       console.error(error);
@@ -1992,8 +2132,16 @@
     $("start").disabled = true;
     startMusic();
     await requestImmersion();
-    showDrifterSelection();
+    await openStartupFlow();
   });
+
+  $("continue-saved-game").addEventListener("click", continueSavedGame);
+  $("start-new-game").addEventListener("click", openNewGameFlow);
+  $("cancel-save-choice").addEventListener("click", returnToTitle);
+  $("confirm-new-game").addEventListener("click", confirmNewGame);
+  $("cancel-replacement").addEventListener("click", cancelNewGameConfirmation);
+  $("retry-save-detection").addEventListener("click", retrySaveDetection);
+  $("close-save-unavailable").addEventListener("click", returnToTitle);
 
   $("sound-toggle").addEventListener("click", function () {
     const audio = $("theme-music");

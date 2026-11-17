@@ -23,6 +23,7 @@ from app.persistence.ports import (
     ProfileStoreResult,
     ProfileStoreStatus,
 )
+from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import (
     ChooseAction,
     ChooseHealingTarget,
@@ -91,6 +92,17 @@ class BrowserLocalProfileStore:
 
     def __init__(self, storage):
         self._storage = storage
+        self._write_authorized = False
+
+    def authorize_existing_profile(self):
+        """Allow writes after an explicit Continue or replacement decision."""
+        if self.load(_BROWSER_PROFILE_ID).status is not ProfileStoreStatus.VALID:
+            return False
+        self._write_authorized = True
+        return True
+
+    def revoke_write_authorization(self):
+        self._write_authorized = False
 
     def inspect(self, profile_id):
         result = self.load(profile_id)
@@ -147,6 +159,10 @@ class BrowserLocalProfileStore:
         if current.status is ProfileStoreStatus.INVALID:
             raise ProfileStoreError("existing browser profile is invalid")
         if current.status is ProfileStoreStatus.VALID:
+            if not self._write_authorized:
+                raise ProfileStoreError(
+                    "existing browser profile requires an explicit startup decision"
+                )
             previous = current.envelope
             if envelope.local_sequence < previous.local_sequence:
                 raise ProfileStoreError("local profile sequence cannot go backwards")
@@ -172,6 +188,7 @@ class BrowserLocalProfileStore:
             or committed.envelope != envelope
         ):
             raise ProfileStoreError("saved browser profile did not validate after commit")
+        self._write_authorized = True
 
     def list_profiles(self):
         result = self.load(_BROWSER_PROFILE_ID)
@@ -361,21 +378,13 @@ def drifter_roster():
 
 def _activate_session(runtime, game, drifter_id, adventure_text=None):
     runtime._game = game
-    save_port = (
-        None
-        if runtime._storage is None
-        else SaveCoordinator(
-            BrowserLocalProfileStore(runtime._storage),
-            _BROWSER_PROFILE_ID,
-        )
-    )
     runtime._session = OverworldSession(
         game,
         ui=None,
         battle_factory=Battle,
         enemy_factory=create_enemy_state,
         battle_ui_factory=None,
-        save_port=save_port,
+        save_port=runtime._save_port,
     )
     runtime._session._adventure_text = adventure_text
     runtime._drifter_id = drifter_id
@@ -387,14 +396,108 @@ class BrowserRuntime:
         self._session = None
         self._drifter_id = None
         self._storage = _get_browser_storage() if storage is None else storage
+        self._profile_store = (
+            None
+            if self._storage is None
+            else BrowserLocalProfileStore(self._storage)
+        )
+        self._save_port = (
+            None
+            if self._profile_store is None
+            else SaveCoordinator(self._profile_store, _BROWSER_PROFILE_ID)
+        )
+        self._new_game_confirmed = False
+        self._new_game_session_authorized = False
+
+    def startup_status(self):
+        if self._save_port is None:
+            return {"status": "missing"}
+        result = self._save_port.inspect()
+        if result.status is SaveLoadStatus.VALID:
+            return {"status": "valid"}
+        if result.status is SaveLoadStatus.INVALID:
+            return {
+                "status": "invalid",
+                "error": result.error or "The browser save could not be read.",
+            }
+        return {"status": "missing"}
+
+    def request_new_game(self):
+        status = self.startup_status()
+        if status["status"] == "valid":
+            return {"status": "confirmation"}
+        if status["status"] == "invalid":
+            return {"status": "blocked", "error": status["error"]}
+        return {"status": "selection"}
+
+    def confirm_new_game(self, confirmed):
+        if not isinstance(confirmed, bool):
+            raise TypeError("confirmed must be a bool")
+        if not confirmed:
+            return self.startup_status()
+        status = self.startup_status()
+        if status["status"] == "invalid":
+            return {"status": "blocked", "error": status["error"]}
+        if status["status"] == "valid":
+            if not self._profile_store.authorize_existing_profile():
+                return {
+                    "status": "blocked",
+                    "error": "The browser save changed and could not be confirmed.",
+                }
+        self._new_game_confirmed = True
+        return {"status": "selection"}
+
+    def continue_game(self):
+        status = self.startup_status()
+        if status["status"] != "valid":
+            return {
+                "status": status["status"],
+                "error": status.get("error"),
+            }
+        if not self._profile_store.authorize_existing_profile():
+            return {
+                "status": "invalid",
+                "error": "The browser save changed and could not be loaded.",
+            }
+        result = self._save_port.load()
+        if result.status is not SaveLoadStatus.LOADED:
+            self._profile_store.revoke_write_authorization()
+            return {"status": "invalid", "error": result.error}
+        game = result.game_state
+        drifter_id = game.player_state.character.profile.drifter_id
+        self._new_game_confirmed = False
+        self._new_game_session_authorized = False
+        _activate_session(self, game, drifter_id)
+        return {"status": "loaded", "view": self.current_view()}
+
+    def _authorize_new_game_start(self, *, allow_current_new_game=False):
+        status = self.startup_status()
+        if status["status"] == "invalid":
+            raise ProfileStoreError(status["error"])
+        if status["status"] == "valid":
+            if self._new_game_confirmed:
+                if not self._profile_store.authorize_existing_profile():
+                    raise ProfileStoreError(
+                        "the browser save changed before replacement was confirmed"
+                    )
+            elif not (
+                allow_current_new_game and self._new_game_session_authorized
+            ):
+                raise ProfileStoreError(
+                    "continue the saved game or confirm starting a new game"
+                )
+        self._new_game_confirmed = False
+        self._new_game_session_authorized = True
 
     def start_game(self, drifter_id="branoc"):
         game = create_new_game(drifter_id)
+        self._authorize_new_game_start()
         _activate_session(self, game, drifter_id)
         return self.current_view()
 
     def load_scenario(self, code):
         game, drifter_id, adventure_text = build_browser_test_scenario(code)
+        self._authorize_new_game_start(allow_current_new_game=True)
         _activate_session(self, game, drifter_id, adventure_text)
         return self.current_view()
 
@@ -444,6 +547,22 @@ def submit(command):
 
 def restart_game():
     return _runtime.restart_game()
+
+
+def startup_status():
+    return _runtime.startup_status()
+
+
+def request_new_game():
+    return _runtime.request_new_game()
+
+
+def confirm_new_game(confirmed):
+    return _runtime.confirm_new_game(confirmed)
+
+
+def continue_game():
+    return _runtime.continue_game()
 
 
 def load_scenario(code):

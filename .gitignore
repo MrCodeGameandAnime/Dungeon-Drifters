@@ -51,6 +51,7 @@ qodana.sarif.json
 root/res/maps/
 root/res/menu/
 *.zip
+!docs/old/*.zip
 *.tar
 *.tar.gz
 *.bak

@@ -3,7 +3,9 @@
 import argparse
 import importlib.util
 import json
+import os
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +15,35 @@ PYODIDE_VERSION = "314.0.7"
 
 def _repository_root():
     return Path(__file__).resolve().parents[2]
+
+
+def validate_output_root(output_root, repository_root=None):
+    repository_root = Path(repository_root or _repository_root()).resolve()
+    output_root = Path(output_root).resolve()
+    try:
+        relative_output = output_root.relative_to(repository_root)
+    except ValueError:
+        system_temp_root = Path(tempfile.gettempdir()).resolve()
+        if output_root == system_temp_root or system_temp_root not in output_root.parents:
+            raise ValueError(
+                "external build output must be a descendant of the system temp directory"
+            )
+        return output_root
+
+    web_dist = (repository_root / "root" / "web" / "dist").resolve()
+    pages_dist = (repository_root / "root" / "pages-dist").resolve()
+    if (
+        output_root == web_dist
+        or output_root == pages_dist
+        or pages_dist in output_root.parents
+    ):
+        return output_root
+
+    if os.environ.get("DD_KEEP_PREVIEWS") != "1":
+        raise ValueError("custom repository build output requires DD_KEEP_PREVIEWS=1")
+    if not any(part.startswith(".pytest-tmp-") for part in relative_output.parts):
+        raise ValueError("preview output must use a gitignored .pytest-tmp-* path")
+    return output_root
 
 
 def _runtime_builder():
@@ -38,7 +69,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     """Stage one deterministic static site around the authoritative app archive."""
     repository_root = _repository_root()
     source_root = Path(source_root)
-    output_root = Path(output_root)
+    output_root = validate_output_root(output_root, repository_root)
     shell_root = Path(shell_root or repository_root / "root" / "web" / "play")
     bridge_path = Path(bridge_path or repository_root / "root" / "web" / "python" / "dd_bridge.py")
     asset_root = repository_root / "root" / "res"

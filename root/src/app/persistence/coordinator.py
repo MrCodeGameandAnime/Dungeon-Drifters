@@ -128,7 +128,28 @@ class SaveCoordinator:
             self._sync_coordinator is not None
             and committed.envelope.sync_state is SyncState.PENDING
         ):
-            self._sync_coordinator.sync_pending()
+            try:
+                self._sync_coordinator.sync_pending()
+            except Exception as sync_error:
+                try:
+                    import logging
+                    import traceback
+
+                    frames = traceback.extract_tb(sync_error.__traceback__)
+                    stack = "\n".join(
+                        f'  File "{frame.filename}", line {frame.lineno}, '
+                        f"in {frame.name}"
+                        for frame in frames
+                    )
+                    logging.getLogger(__name__).error(
+                        "Optional post-commit profile sync failed (%s).\n"
+                        "Traceback (most recent call last):\n%s",
+                        type(sync_error).__name__,
+                        stack,
+                    )
+                except Exception:
+                    # Diagnostics cannot undo a committed local save.
+                    pass
         return SaveLoadResult(status=SaveLoadStatus.SAVED)
 
     def load(self):

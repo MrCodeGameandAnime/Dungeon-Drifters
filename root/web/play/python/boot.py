@@ -29,6 +29,22 @@ def restart_game_json():
     return _json(dd_bridge.restart_game())
 
 
+def startup_status_json():
+    return _json(dd_bridge.startup_status())
+
+
+def request_new_game_json():
+    return _json(dd_bridge.request_new_game())
+
+
+def confirm_new_game_json(confirmed_json):
+    return _json(dd_bridge.confirm_new_game(json.loads(confirmed_json)))
+
+
+def continue_game_json():
+    return _json(dd_bridge.continue_game())
+
+
 def load_scenario_json(code):
     return _json(dd_bridge.load_scenario(code))
 
