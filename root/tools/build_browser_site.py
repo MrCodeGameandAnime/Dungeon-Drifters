@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +23,11 @@ def validate_output_root(output_root, repository_root=None):
     try:
         relative_output = output_root.relative_to(repository_root)
     except ValueError:
+        system_temp_root = Path(tempfile.gettempdir()).resolve()
+        if output_root == system_temp_root or system_temp_root not in output_root.parents:
+            raise ValueError(
+                "external build output must be a descendant of the system temp directory"
+            )
         return output_root
 
     web_dist = (repository_root / "root" / "web" / "dist").resolve()

@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -81,6 +82,37 @@ def test_preview_opt_in_accepts_gitignored_path_and_standard_build_paths(monkeyp
         REPOSITORY_ROOT / "root" / "pages-dist" / "play"
     ).resolve()
     assert site_builder.validate_output_root(tmp_path / "site") == (tmp_path / "site").resolve()
+
+
+def test_external_build_outputs_must_be_strict_descendants_of_system_temp(tmp_path):
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    safe_output = temp_root / "dd-browser-build-contract"
+    outside_output = REPOSITORY_ROOT.parent / "dd-browser-build-contract"
+
+    assert site_builder.validate_output_root(safe_output) == safe_output.resolve()
+    with pytest.raises(ValueError, match="descendant of the system temp directory"):
+        site_builder.validate_output_root(temp_root)
+    with pytest.raises(ValueError, match="descendant of the system temp directory"):
+        site_builder.validate_output_root(outside_output)
+
+
+@pytest.mark.parametrize("builder", ("browser", "pages"))
+def test_rejected_external_build_preserves_existing_output(monkeypatch, tmp_path, builder):
+    allowed_temp = tmp_path / "system-temp"
+    allowed_temp.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(allowed_temp))
+    output = tmp_path / "existing-output"
+    output.mkdir()
+    marker = output / "keep.txt"
+    marker.write_text("do not delete", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="descendant of the system temp directory"):
+        if builder == "browser":
+            site_builder.build_site(ROOT / "src", output)
+        else:
+            pages_builder.build_pages_site(output)
+
+    assert marker.read_text(encoding="utf-8") == "do not delete"
 
 
 def test_site_builder_stages_utility_icons_without_modifying_source_images(tmp_path):
