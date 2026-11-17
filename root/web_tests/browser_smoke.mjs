@@ -2531,20 +2531,45 @@ try {
   const branocMerchantTarget = page.locator("#merchant-targets button").filter({ hasText: "Ser Branoc" });
   await branocMerchantTarget.click();
 
+  const scrapRow = page.locator("#merchant-dismantle .merchant-row").filter({ hasText: "Goblin Scrap" });
+  requireCondition(await scrapRow.count() === 1, "weapon save/reload scenario did not provide Goblin Scrap");
+  const scrapBeforeDismantle = await scrapRow.innerText();
+  await scrapRow.getByRole("button", { name: "Dismantle" }).click();
+  await page.waitForFunction((previous) => {
+    const row = [...document.querySelectorAll("#merchant-dismantle .merchant-row")]
+      .find((candidate) => candidate.innerText.includes("Goblin Scrap"));
+    return row && row.innerText !== previous;
+  }, scrapBeforeDismantle);
+  requireCondition(
+    Number((await scrapRow.innerText()).match(/Goblin Scrap x(\d+)/)?.[1] || 0) ===
+      Number(scrapBeforeDismantle.match(/Goblin Scrap x(\d+)/)?.[1] || 0) - 1,
+    "Blacksmith dismantling did not consume exactly one Goblin Scrap",
+  );
+
+  const metalStockRow = page.locator("#merchant-supplies .hub-supply-row")
+    .filter({ hasText: "Grade I Metal" });
+  requireCondition(
+    await metalStockRow.count() === 1 &&
+      (await metalStockRow.innerText()).includes("Stock 2 | 4 gold"),
+    "Blacksmith did not offer its two authored Grade-I metal units",
+  );
+  for (let purchase = 0; purchase < 2; purchase += 1) {
+    const previous = await metalStockRow.innerText();
+    await metalStockRow.getByRole("button", { name: "Buy", exact: true }).click();
+    await page.waitForFunction((prior) => {
+      const row = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes("Grade I Metal"));
+      return row && row.innerText !== prior;
+    }, previous);
+  }
   const scrapMetalCount = async () => {
     const text = await page.locator("#merchant-materials").innerText();
     return Number(text.match(/Scrap metal:\s*(\d+)/i)?.[1] || 0);
   };
-  const scrapRow = page.locator("#merchant-dismantle .merchant-row").filter({ hasText: "Goblin Scrap" });
-  requireCondition(await scrapRow.count() === 1, "weapon save/reload scenario did not provide Goblin Scrap");
-  for (let attempt = 0; attempt < 30 && await scrapMetalCount() < 2; attempt += 1) {
-    const previous = await page.locator("#merchant-dismantle").innerText();
-    await scrapRow.getByRole("button", { name: "Dismantle" }).click();
-    await page.waitForFunction((prior) =>
-      document.getElementById("merchant-dismantle").innerText !== prior,
-    previous);
-  }
-  requireCondition(await scrapMetalCount() >= 2, "Goblin Scrap did not yield enough metal to craft and improve Branoc's weapon");
+  requireCondition(
+    await scrapMetalCount() >= 2,
+    "Blacksmith metal purchases did not provide enough material to craft and improve Branoc's weapon",
+  );
 
   const bladeRecipe = page.locator("#merchant-component-recipes .merchant-row")
     .filter({ hasText: "Reinforced Blade and Guard" });
