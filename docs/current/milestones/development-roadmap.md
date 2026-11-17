@@ -224,14 +224,15 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 **Depends on:** Stable M3 critical/scaling rules and M4 mitigation/AI. Can be scheduled before M6 if a combat-focused milestone is preferred.
 
-1. Resolve the small numerical contract: maximum, successful-action gain, meaningful-damage loss, preservation, critical conversion/cap, and limited Intuition interaction.
-2. Store Momentum only in encounter combat state, reset on entry/exit, and keep it out of permanent PlayerState, save progression, and ResourceType.
-3. Apply gain once per successful damaging action, not once per hit. Misses do not remove existing Momentum; Defend and sufficient mitigation preserve it under the agreed rules.
-4. Add visible combat feedback and explicitly authored enemy access only if approved.
+1. Implement one shared, encounter-wide contested control value for the Drifter and enemy factions; the working scale is 0-10 with 5 neutral. This supersedes the earlier per-combatant Momentum design.
+2. Resolve the action, damage, defense, healing, and critical-conversion contract before implementation. Successful offense and meaningful incoming damage should influence control, but exact eligibility, amounts, thresholds, rounding, and ordering remain open.
+3. Let action opportunities arise naturally from party/enemy counts without round-based evaluation, headcount normalization, or automatic comeback bonuses.
+4. Apply faction-wide critical advantages according to which side controls the shared value; neutral yields no Momentum-derived critical bonus. Keep the value encounter-scoped and out of permanent PlayerState, saves, Mana, Super, and ResourceType.
+5. Present the Python-authoritative value consistently in terminal and browser clients. No client-side gameplay calculation or automatic rubber-banding.
 
-**Proof:** Deterministic gain/loss/preservation, multi-hit behavior, cap interaction, party-member isolation, and reset after every encounter. No permanent save-state or mana-cost changes.
+**Proof:** Deterministic shared-state changes and faction-wide critical effects match the approved event matrix; multi-hit/split/target behavior cannot double-count accidentally; state resets after every encounter; no persistent save-state or unrelated resource changes.
 
-**Decide at entry:** The unresolved formulas and enemy access. Natural decay, thresholds required by moves, and character-specific exceptions are optional choices, not implied requirements.
+**Design status:** The shared contested model supersedes the individual model, but Gate 0 remains open. Gain/loss arithmetic, critical mapping and ordering, defensive/healing interactions, Intuition and authored exceptions, and final interface rules require explicit resolution. See [M7 plan](m7-momentum.md) and [Momentum design](../../future/momentum.md).
 
 ## M8 - Finish The Region, Story, And Content Loop
 
