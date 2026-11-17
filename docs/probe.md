@@ -2,6 +2,8 @@
 
 **Status:** supplemental run log. The Hub-only, Floor One, signature-weapon, M3, M4A baseline, and M5 records below remain historical checkpoints. The 2026-11-09 M4 temporary-helper/Hub-recruitment revision passed pinned MicroPython v1.29.0 locally: 1152K stable 3/3 and the expected 1024K memory-limit classification 3/3. Its exact-SHA hosted workflow also passed on `0aa4ecd5c15013af9c1456db8a53ada50e58357b` ([run 42704099577](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/42704099577)). These values qualify this Windows probe contract only; they are not a hardware-wide MicroPython compatibility or product memory-budget claim.
 
+The historical evidence cited below is stored in `docs/old/7.1.26-10.30.26.zip`. Extract the archive into `docs/old/` to make the referenced `docs/old/mpy/` and `docs/old/save/` paths available.
+
 ## Earlier Sealed Baseline
 
 There is already substantial historical probe evidence; this Hub run does not erase it:
