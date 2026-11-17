@@ -4,6 +4,8 @@ import os
 import re
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).parents[1]
 REPOSITORY_ROOT = ROOT.parent
@@ -45,6 +47,40 @@ def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
     assert (output / ".nojekyll").is_file()
     assert (output / "build-metadata.json").is_file()
     assert not (output / "app").exists()
+
+
+def test_custom_repository_build_output_requires_preview_opt_in(monkeypatch):
+    output = REPOSITORY_ROOT / "root" / "web" / ".pytest-tmp-contract-preview"
+    monkeypatch.delenv("DD_KEEP_PREVIEWS", raising=False)
+
+    with pytest.raises(ValueError, match="DD_KEEP_PREVIEWS=1"):
+        site_builder.validate_output_root(output)
+    with pytest.raises(ValueError, match="DD_KEEP_PREVIEWS=1"):
+        site_builder.build_site(ROOT / "src", output)
+    with pytest.raises(ValueError, match="DD_KEEP_PREVIEWS=1"):
+        pages_builder.build_pages_site(output)
+
+
+def test_preview_opt_in_requires_gitignored_output_path(monkeypatch):
+    output = REPOSITORY_ROOT / "root" / "web" / "browser-preview"
+    monkeypatch.setenv("DD_KEEP_PREVIEWS", "1")
+
+    with pytest.raises(ValueError, match=r"gitignored \.pytest-tmp-\* path"):
+        site_builder.validate_output_root(output)
+
+
+def test_preview_opt_in_accepts_gitignored_path_and_standard_build_paths(monkeypatch, tmp_path):
+    preview = REPOSITORY_ROOT / "root" / "web" / ".pytest-tmp-contract-preview"
+    monkeypatch.setenv("DD_KEEP_PREVIEWS", "1")
+
+    assert site_builder.validate_output_root(preview) == preview.resolve()
+    assert site_builder.validate_output_root(REPOSITORY_ROOT / "root" / "web" / "dist") == (
+        REPOSITORY_ROOT / "root" / "web" / "dist"
+    ).resolve()
+    assert site_builder.validate_output_root(REPOSITORY_ROOT / "root" / "pages-dist" / "play") == (
+        REPOSITORY_ROOT / "root" / "pages-dist" / "play"
+    ).resolve()
+    assert site_builder.validate_output_root(tmp_path / "site") == (tmp_path / "site").resolve()
 
 
 def test_site_builder_stages_utility_icons_without_modifying_source_images(tmp_path):

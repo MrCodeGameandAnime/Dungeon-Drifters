@@ -29,7 +29,7 @@ def _browser_site_builder():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.build_site
+    return module
 
 
 def _copy_public_assets(repository_root, output_root):
@@ -42,7 +42,8 @@ def _copy_public_assets(repository_root, output_root):
 
 def build_pages_site(output_root):
     repository_root = _repository_root()
-    output_root = Path(output_root)
+    browser_site_builder = _browser_site_builder()
+    output_root = browser_site_builder.validate_output_root(output_root)
     if output_root.exists():
         if output_root.is_dir():
             shutil.rmtree(output_root)
@@ -55,7 +56,7 @@ def build_pages_site(output_root):
     shutil.copytree(repository_root / "root" / "web" / "site", output_root / "site")
     _copy_public_assets(repository_root, output_root)
 
-    _browser_site_builder()(
+    browser_site_builder.build_site(
         repository_root / "root" / "src",
         output_root / "play",
         shell_root=repository_root / "root" / "web" / "play",
