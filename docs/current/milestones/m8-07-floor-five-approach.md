@@ -8,6 +8,12 @@
 
 Deliver the paired seven-node approach that reveals the reunion arena through a real victory and returns to the Hub without inserting or swapping party members.
 
+## Approval Boundary
+
+**Already-approved inputs:** preserve the two-plus-two roster loop, M1 pair selection, M2 outing settlement, M6 passive expedition behavior, and M7 Momentum.
+
+**Still pending:** M8-D1 Floor-V content, M8-D3 discovery/knowledge rules, and M8-D5 expedition coexistence. The route and arena reveal remain proposals until those decisions are resolved.
+
 ## Scope
 
 - Add the six parent-manifest Floor-V ordinary encounters and `floor_five_approach`: six battles plus `floor_five_rest_midpoint`.
@@ -24,7 +30,19 @@ No reunion boss, Floor-V clear, first-clear boss reward, new discovery service, 
 
 Use existing route/content/session/run-event/save owners, revalidated at package entry. The route is a paired outing and uses normal durable outcome/return semantics. Do not add a parallel campaign engine or client-side arena unlock.
 
-## Tests And Closure
+**Persistence impact:** M8.1 owns durable arena-reveal state. This package records it through that owner after genuine victory; no separate route-completion schema is proposed.
 
-Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity. Run root/web, content validation, compile/build, real browser smoke, PostgreSQL/migration/Alembic and pinned MicroPython exact-SHA qualification. Require independent review and record CI/closure evidence.
+## Tests, Package Gates, And Qualification History
+
+Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity.
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D3/D5 and upstream M8.4/M8.5 contracts.
+- **Gate B, implementation and focused tests:** Not started; route, reveal, discovery-placement and settlement red/green tests.
+- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, real browser smoke, PostgreSQL/migration/Alembic and pinned MicroPython.
+
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Require independent review and record CI/closure evidence.
 

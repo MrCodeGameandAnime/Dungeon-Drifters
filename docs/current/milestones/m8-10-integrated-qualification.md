@@ -8,6 +8,12 @@
 
 Prove the complete approved Floors IV–V expansion as one persistent, terminal/browser-parity campaign loop and publish the final M8 closure record.
 
+## Approval Boundary
+
+**Already-approved inputs:** all previously sealed M1-M7/M6.5 contracts remain regression-protected; only approved M8 manifest rows may be qualified as delivered.
+
+**Still pending:** all M8-D1–D6 must be explicitly resolved before this package starts. This package cannot convert a proposed or omitted row into an approval.
+
 ## Qualification Journeys
 
 - New and migrated profile reaches Floor IV through the existing Floor I–III/recruitment sequence; verify no early unlock or changed prior behavior.
@@ -31,4 +37,14 @@ This is qualification and closure, not a container for unfinished features or si
 ## Closure
 
 M8 closes only when every approved manifest row is implemented or explicitly approved-deferred/excluded, all required exact-SHA qualification is green, no M8 child remains open, and prior sealed M1–M7/M6.5 behavior remains protected. A green subset or a reduced manifest without explicit approval is not closure.
+
+## Package Gates And Qualification History
+
+- **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures and M8-D1–D6 decisions are reviewed.
+- **Gate B, cumulative execution:** Not started; run every required journey and platform/service qualification against one exact candidate SHA.
+- **Gate C, independent audit and closure:** Not run; resolve findings, publish the final evidence record, then close M8 only by explicit acceptance.
+
+| Final implementation SHA | Hosted CI URL/results | Pinned MicroPython evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not qualified | Not run | Not run | Pending | Open |
 

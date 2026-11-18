@@ -6,7 +6,13 @@
 
 ## Goal
 
-Create and integrate the finite static art set for the approved regions and enemies while retaining the existing semantic/text battle presentation.
+Create and integrate the finite static art set for the proposed regions and enemies if approved, while retaining the existing semantic/text battle presentation.
+
+## Approval Boundary
+
+**Already-approved inputs:** Python remains authoritative for gameplay and clients remain projections/adapters; M7's shared combat model is unchanged.
+
+**Still pending:** M8-D1 content identity and M8-D6 visual scope/fallback requirements. The eight listed assets are proposed IDs, not a commission or an approved asset style.
 
 ## Scope
 
@@ -19,7 +25,19 @@ Create and integrate the finite static art set for the approved regions and enem
 
 No new combat renderer, animation engine, 3D scene, gameplay logic, external payment or unsupported asset pipeline. Begin only after M8-D1/D6 and the stable IDs are approved. This can run in parallel with M8.2–M8.8 after IDs stabilize; final integration is included in M8.10.
 
-## Tests And Closure
+**Persistence impact:** none for an asset-only implementation. If asset references alter serialized content identities, stop and review that scope separately.
 
-Use existing asset/content checks and browser build. Test all eight ID references resolve, no blank primary media, alt text/fallbacks are present, intended crops render at desktop/mobile sizes, and non-visual clients remain functional. Run relevant root/web/build/content checks and exact-SHA hosted workflow; record reviewer disposition, asset manifest, CI URL and closure here and in the parent. No MicroPython rerun is needed for asset-only changes unless shared runtime code is touched.
+## Package Gates And Qualification History
+
+Use existing asset/content checks and browser build. Test all eight ID references resolve, no blank primary media, alt text/fallbacks are present, intended crops render at desktop/mobile sizes, and non-visual clients remain functional.
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D6 and approve stable asset IDs/style/source requirements.
+- **Gate B, asset integration and focused checks:** Not started; content-reference, fallback and responsive rendering checks.
+- **Gate C, exact-SHA qualification and closure:** Not run; relevant root/web/build/content checks and hosted workflow. No MicroPython rerun for asset-only changes unless shared runtime code is touched.
+
+| Implementation SHA | Hosted CI URL/results | Asset/build evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Record reviewer disposition, final asset manifest, CI URL and closure here and in the parent.
 

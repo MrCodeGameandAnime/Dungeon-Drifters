@@ -6,7 +6,13 @@
 
 ## Goal
 
-Provide the authoritative, persistent progression and knowledge foundation required by the approved Floor-IV/V manifest. This package owns eligibility and facts, not the playable floor content that sets the later clear outcomes.
+Provide the authoritative, persistent progression and knowledge foundation required by the proposed Floor-IV/V manifest if approved. This package owns eligibility and facts, not the playable floor content that sets the later clear outcomes.
+
+## Approval Boundary
+
+**Already-approved inputs:** preserve M1's permanent roster/active-pair separation, M6's completed-floor expedition rule and energy independence from dungeon play, M7's combat state, and the existing save/history trust boundary.
+
+**Still pending:** M8-D1 (finite scope), M8-D3 (knowledge/reveal contract), and M8-D5 (reunion/assignment boundary). No implementation begins until Gate 0 resolves them.
 
 ## Scope
 
@@ -37,10 +43,17 @@ Entry requires approval of the relevant parent decisions. M8.2 consumes the Floo
 
 Plan the schema migration from the actual entry schema. New saves and migrated saves must agree; missing facts remain Unknown and missing clears remain false. Test valid/invalid/stale entry offers, all six pairs, four-member eligibility, the expedition block, duplicate event submission, save failure, reload, and terminal/browser parity. Test that viewing a destination never upgrades a fact.
 
-## Work-Package Completion
+M8.1 owns the migration for clear/knowledge state. M8.3 and M8.8 write through its canonical clear boundary and must not introduce duplicate completion fields.
 
-1. Approve this package and its parent decisions before coding.
-2. Implement the progression/fact contract with focused red/green tests and an independent diff review.
-3. Run root and web tests, content validation, compile/build checks, browser journeys, persistence/PostgreSQL migration checks, and the pinned MicroPython probe because shared state and save code are touched.
-4. Record exact implementation SHA, hosted run URL/results, migration evidence, review disposition, and closure status here and in the parent. Do not close on local tests alone.
+## Package Gates And Qualification History
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D3/D5 and review this scope before implementation.
+- **Gate B, implementation and focused tests:** Not started; use red/green tests and independent diff review.
+- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migrations and pinned MicroPython are required because shared state/save code is touched.
+
+| Implementation SHA | Hosted CI URL/results | Migration/runtime evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Do not close on local tests alone. Record exact SHA, exact run URL/results, migration evidence, reviewer disposition and closure status here and in the parent.
 

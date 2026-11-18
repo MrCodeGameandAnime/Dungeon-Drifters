@@ -8,6 +8,12 @@
 
 Add the finite Grade-II, Grade-III, and Grade-IV recipes for the existing signature-weapon component families while preserving M3/M6.5 crafting and inventory contracts.
 
+## Approval Boundary
+
+**Already-approved inputs:** preserve M3's current weapon Crafting eligibility/progression and M6.5's shared component stacks, quantity commerce, and displaced-component recovery.
+
+**Still pending:** M8-D1 and the exact authored grade progression, effects, and material costs. The recipe ID pattern and manifest examples do not approve numeric values.
+
 ## Scope
 
 - 48 recipes: 16 existing Grade-I component identities x three new grades. Stable IDs follow `m8_<existing_component_id>_grade_ii`, `_grade_iii`, and `_grade_iv`, as enumerated by the parent manifest.
@@ -28,7 +34,19 @@ No signature identity changes, new crafting progression, new component family, r
 | Shared component stacks and commerce | M6.5 vendor/component inventory owner in `root/src/app/game/` | Purchased/recovered unit is consumed on install; displaced component returns atomically. |
 | Tier unlock evidence | M8.1 clear owner; M8.3 Floor-IV completion | Availability derives from authoritative clear state, not client state or a parallel recipe-purchase flag. |
 
-## Tests And Closure
+**Persistence impact:** no per-character recipe-purchase state is proposed; availability derives from canonical floor clear evidence. Revalidate at entry. Any unavoidable new persistent state needs a reviewed migration plan.
 
-Parameterize definition coverage across all 48 IDs. Test each grade locked before its clear and available after, migrated old saves, exact Drifter and slot validation, already-installed component handling, insufficient materials, stack consumption/recovery, failed-save rollback, buy/sell quantities, and representative combat-stat projection in terminal/browser clients. Run root/web, content validation, compile/build, browser smoke, PostgreSQL/migration parity, and pinned MicroPython qualification on the exact SHA because shared catalog/runtime compatibility is in scope. Record review, hosted CI URL, full SHA and closure result before calling M8.2 complete.
+## Tests, Package Gates, And Qualification History
+
+Parameterize definition coverage across all 48 IDs. Test each grade locked before its clear and available after, migrated old saves, exact Drifter and slot validation, already-installed component handling, insufficient materials, stack consumption/recovery, failed-save rollback, buy/sell quantities, and representative combat-stat projection in terminal/browser clients.
+
+- **Gate A, plan approval:** Open; M8-D1 and all authored effects/costs must be reviewed.
+- **Gate B, implementation and focused tests:** Not started; red/green recipe, ownership, transaction and projection tests.
+- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migration parity, and pinned MicroPython because shared catalog/runtime compatibility is in scope.
+
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Record review, hosted CI URL, full SHA and closure result before calling M8.2 complete.
 

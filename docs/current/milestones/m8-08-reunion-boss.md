@@ -8,6 +8,12 @@
 
 Deliver the separate four-permanent-Drifter reunion battle, its exactly-once Floor-V clear and reward settlement, and return to ordinary two-plus-two play.
 
+## Approval Boundary
+
+**Already-approved inputs:** preserve M4B's existing four-member battle, shared XP split among participants followed by personal Intuition, and prior pair-earned XP attribution; preserve M6's assignment energy/settlement contract.
+
+**Still pending:** M8-D1 final boss/reward scope and M8-D5 assignment availability, entry sequence, and confirmation that the M4B XP contract is used here.
+
 ## Scope
 
 - Launch `m8_ashen_regent_boss` from Hub only after M8.7's durable `m8_ashen_arena_revealed` evidence.
@@ -23,7 +29,19 @@ No mid-run party swap, active assignment during the boss, all-four ordinary Floo
 
 Revalidate M4B participant/reward settlement in `root/src/app/game/overworld_session.py` and `party_state.py`, M8.1 clear/entry evidence, M8.5 assignment/report state, and current save validation. No parallel XP or settlement algorithm.
 
-## Tests And Closure
+**Persistence impact:** M8.1 owns Floor-V clear migration/state. This package must use that boundary for boss settlement and add no competing clear marker.
 
-Cover all-four required, any active pair restored afterward, assignment rejection/settlement boundary, unclaimed settled report allowed, victory/defeat, XP split and personal Intuition rounding, pre-boss pair history unchanged, one-time Floor-V clear/rewards, failed writes/retry/reload, no duplicate combatants, and terminal/browser journeys. Run root/web, content/build, PostgreSQL/migration/Alembic, browser smoke and pinned MicroPython exact-SHA qualification. Close with independent review and linked hosted evidence.
+## Tests, Package Gates, And Qualification History
+
+Cover all-four required, any active pair restored afterward, assignment rejection/settlement boundary, unclaimed settled report allowed, victory/defeat, XP split and personal Intuition rounding, pre-boss pair history unchanged, one-time Floor-V clear/rewards, failed writes/retry/reload, no duplicate combatants, and terminal/browser journeys.
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D5 and upstream M8.1/M8.5/M8.7 state contracts.
+- **Gate B, implementation and focused tests:** Not started; entry, combat, XP, settlement and retry red/green tests.
+- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content/build, PostgreSQL/migration/Alembic, browser smoke and pinned MicroPython.
+
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Close with independent review and linked hosted evidence.
 

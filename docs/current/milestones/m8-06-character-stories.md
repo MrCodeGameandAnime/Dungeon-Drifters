@@ -8,6 +8,12 @@
 
 Deliver the finite optional pair and character story content without changing the permanent roster, combat rules, or global pair eligibility.
 
+## Approval Boundary
+
+**Already-approved inputs:** all six permanent Drifter pairs remain legal under M1; story state must use the authoritative Python runtime and existing save semantics.
+
+**Still pending:** M8-D1 and M8-D2. Scene count, exact choices/text, and any mechanical consequence remain proposals; no numeric relationship system or combat benefit is approved.
+
 ## Scope
 
 - Author the six parent-manifest pair scenes at `floor_four_rest_midpoint`, keyed by sorted permanent Drifter identities, for all six legal pairs.
@@ -23,7 +29,17 @@ No relationship score, mandatory pair gate, combo attack, combat synergy, auto-r
 
 Revalidate `root/src/app/game/story_state.py`, `world_state.py`, `overworld_session.py`, terminal presenters/inputs, `root/web/python/dd_bridge.py`, and `root/web/play/js/pyd4.js`. Test all six pairs in both active orders, only active pair participation where required, repeated interaction, cancelled choice, save failure, reload, migrated saves, report-before-scene ordering, and terminal/browser semantic parity.
 
-## Work-Package Completion
+**Persistence impact:** use the current durable event/decision owner where it can express the scenes selected for approval. No new schema is assumed; if validation requires a schema change, define its migration and backward-compatibility tests before implementation.
 
-Approve D1/D2 first; implement with focused story-state tests and content validation; obtain independent review; run relevant root/web and browser tests plus exact-SHA hosted cumulative qualification. Because shared Python story state is touched, run the pinned MicroPython probe. Record the tested SHA, CI URL/results, and closure in this document and parent.
+## Package Gates And Qualification History
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D2, including any player choices and their permitted effects.
+- **Gate B, implementation and focused tests:** Not started; story content/state red/green tests and content validation.
+- **Gate C, exact-SHA qualification and closure:** Not run; relevant root/web and browser tests, hosted cumulative CI, and pinned MicroPython because shared Python story state is touched.
+
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Record the tested SHA, CI URL/results, reviewer disposition and closure in this document and the parent.
 

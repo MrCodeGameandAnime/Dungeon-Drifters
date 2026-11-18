@@ -8,6 +8,12 @@
 
 Deliver the first playable M8 route using the approved two-Drifter ordinary and paired-boss loop, existing combat resolver, M7 Momentum, and authoritative Floor-IV clear evidence.
 
+## Approval Boundary
+
+**Already-approved inputs:** preserve M1's two-person ordinary outings and legal pair selection, M4's recruitment/XP ownership rules, M7's shared Momentum contract, and M6's completed-floor eligibility.
+
+**Still pending:** M8-D1 finite content and M8-D6 enemy/hazard/presentation scope. Enemy identities, tier profiles, material drop rates, and first-clear values remain proposals until approved.
+
 ## Scope
 
 - Add the parent manifest's 12-node `floor_four` route: nine ordinary battles, midpoint Rest, pre-boss Rest, and paired Tidebound Curator boss.
@@ -20,11 +26,23 @@ Deliver the first playable M8 route using the approved two-Drifter ordinary and 
 
 No permanent discoveries, live armor/recovery rewards, expedition category/report work, Floor-V route, extra recruitment, or four-member boss. M8.4 owns discovery, armor and recovery reward integration. Until M8.4, Rest nodes must not imply those sources are available. M8.5 owns expedition access to the completed destination.
 
+**Persistence impact:** Floor-IV clear storage and migration belong to M8.1. This package authors the genuine victory that sets that evidence; it must not add a second completion record.
+
 ## Ownership
 
 Route and encounter catalog owners are `root/src/app/content/route_spec.py`, `root/src/app/content/routes/`, `enemy_spec.py`, `catalog.py`, and generated catalog tooling. Session, route cursor, reward, and clear ownership remain in `root/src/app/game/overworld_session.py`, `overworld_state.py`, `party_state.py`, and existing run-event owners. Revalidate exact call sites before implementation; do not add new APIs to this plan by assumption.
 
-## Tests And Closure
+## Tests, Package Gates, And Qualification History
 
-Test route reachability/node order, every encounter definition, tier-3 validation, Floor-IV unlock from M8.1, two-member deployment, pair XP and Intuition, M7 symmetry, material grade provenance, first-clear idempotency, Rest checkpoint reload, boss settlement retry, failed writes and unchanged I-III behavior. Qualify root/web suites, content validation, compile/build, terminal and real browser journeys, PostgreSQL/migrations and pinned MicroPython on the exact SHA. Close only with independent review and green hosted evidence recorded here and in the parent.
+Test route reachability/node order, every encounter definition, tier-3 validation, Floor-IV unlock from M8.1, two-member deployment, pair XP and Intuition, M7 symmetry, material grade provenance, first-clear idempotency, Rest checkpoint reload, boss settlement retry, failed writes and unchanged I-III behavior.
+
+- **Gate A, plan approval:** Open; resolve M8-D1/D6 and content/balance review.
+- **Gate B, implementation and focused tests:** Not started; route, enemy, reward and progression red/green coverage.
+- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, terminal/browser journeys, PostgreSQL/migrations and pinned MicroPython.
+
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| --- | --- | --- | --- | --- |
+| Not implemented | Not run | Not run | Pending | Open |
+
+Close only with independent review and green hosted evidence recorded here and in the parent.
 
