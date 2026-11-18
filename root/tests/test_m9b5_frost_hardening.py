@@ -144,7 +144,7 @@ def test_frostbite_rebuilds_during_active_frostbite_without_extra_stack():
     state.apply_frost_charge(source, target)
     state.apply_frost_charge(source, target)
 
-    tick = state.complete_accepted_action(target, (source,))
+    tick, _ = state.advance_start_turn(target, opposing_sources=(source,))
     proc = state.apply_frost_charge(source, target)
 
     assert _outcome_types(tick) == (CombatOutcomeType.FROSTBITE_TICK,)
@@ -166,7 +166,7 @@ def test_burn_poison_frostbite_tick_order_and_lethal_burn_cleanup():
     state.apply_poison(source, target)
     state.apply_frostbite(source, target, damage_per_tick=5, ticks=3)
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert _outcome_types(outcomes) == (
         CombatOutcomeType.BURN_TICK,
@@ -189,7 +189,7 @@ def test_poison_then_frostbite_order_and_later_tick_cleanup():
     state.apply_poison(source, target)
     state.apply_frostbite(source, target, damage_per_tick=5, ticks=3)
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert _outcome_types(outcomes) == (
         CombatOutcomeType.BURN_TICK,
@@ -214,7 +214,7 @@ def test_lethal_frostbite_clears_all_statuses_without_natural_expiration():
     state.apply_frost_charge(source, target)
     state.apply_frozen(source, target)
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert _outcome_types(outcomes)[:3] == (
         CombatOutcomeType.BURN_TICK,
@@ -284,7 +284,7 @@ def test_long_target_completes_three_charge_frozen_and_three_frostbite_ticks():
         CombatOutcomeType.FROZEN_EXPIRED,
     )
     ticks = [
-        state.complete_accepted_action(target, (actor,))
+        state.advance_start_turn(target, opposing_sources=(actor,))[0]
         for _ in range(3)
     ]
     assert [_outcome_types(outcome) for outcome in ticks] == [

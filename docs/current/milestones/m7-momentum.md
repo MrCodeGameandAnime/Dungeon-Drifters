@@ -2,7 +2,7 @@
 
 > The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 was planning-only: gameplay contracts, source-seam audit, and presentation were approved without gameplay changes. Implementation is now proceeding under the separately approved M7 authorization.
 
-**Status:** Gate 1 implementation complete locally; Gate 2 is next. Exact-SHA hosted qualification is pending the Gate 1 push.
+**Status:** Gate 1 is pushed with a browser-build test-count correction; its corrective hosted run is not yet visible. Gate 2 implementation and local root qualification are complete; exact-SHA hosted qualification remains open.
 
 **Goal:** Add a temporary, encounter-wide measure of contested battlefield control. Control can improve the controlling faction's critical-hit frequency and, at approved dominance thresholds, outgoing damage and incoming mitigation. Momentum is not a spendable resource or permanent progression system.
 
@@ -138,25 +138,27 @@ This audit confirms a bounded integration path and identifies the intentional Do
 
 **Gate 1 proof:** One authoritative shared value with validated bounds and complete encounter lifecycle isolation.
 
-**Gate 1 local evidence:** `root/tests/test_combat_state.py` and `root/tests/test_party_battle.py` pass; the complete root suite passes with 2,432 tests. Hosted qualification is pending for the exact Gate 1 commit.
+**Gate 1 evidence:** Initial implementation commit `ffc5f1e5f8d2d92eaa36667717a2531bb8d90702`. Its hosted run exposed two browser-build assertions still expecting 180 packaged runtime files after the new Momentum module raised the count to 181. The focused correction is commit `8ca28a246b29af8a6afd89e3d1c6e5093426e056`; `root/web_tests/test_browser_site_build_contract.py` passes (15 tests). The exact-SHA hosted run for the correction has not appeared in Actions yet. The initial Gate 1 hosted failure is therefore corrected in source but not yet hosted-qualified.
 
 ## Gate 2 - Action, Damage, And Critical Resolution
 
-- [ ] Integrate the approved event matrix at authoritative action/damage boundaries, not from UI logs or per-component callbacks unless the approved rule explicitly requires that granularity.
-- [ ] Test standard/enhanced damage at the 10% boundary, defended shift reduction, misses, zero actual damage, rejected inputs, healing, split-component aggregation, and every approved exceptional damage source.
-- [ ] Verify Enemy +1 (position 4) plus an undefended enhanced 2-tick shift becomes Drifter +1 (position 6); verify Drifter +1 plus an enemy standard 1-tick shift returns to neutral, and reverse faction roles.
-- [ ] Test start-of-turn Burn 5 + Poison 5 against 100 pre-phase HP as one enhanced contribution; test mixed sources count only opposing-faction actual damage and same-faction/unattributed damage is ignored for Momentum.
-- [ ] Verify DoT and its duration advancement occur before stun/frozen suppression without consuming, clearing, or expiring that suppression; verify suppression still skips the action if the combatant survives, and lethal DoT prevents the action.
-- [ ] Test that an action uses pre-action Momentum for its critical and applicable damage bonuses, then applies its damage shift for subsequent actions; criticals receive no separate Momentum multiplier.
-- [ ] Test the approved advantage table at +2, +3, +4, and +5: no damage/mitigation bonus at +2, 5%/5% at +3 and +4, and 10%/10% at +5 rather than cumulative 15%.
-- [ ] Test that both factions receive equivalent bonuses, that a generated Momentum shift only affects later actions, and that crossing below +3 or from +5 to +4 immediately removes or reduces the applicable tier.
-- [ ] Test approved integer-floor composition and ordering with existing modifiers; verify final actual HP damage controls the standard/enhanced threshold.
-- [ ] Verify action counts are naturally respected without round-based normalization or additional headcount shifts.
-- [ ] Test that the critical rule maps shared control to the appropriate faction's attacks and respects the approved 35% cap and pre-action update ordering.
-- [ ] Verify neutral grants neither faction a Momentum-derived critical bonus.
-- [ ] Include deterministic tests at neutral and each finalized critical threshold, including any feedback from a critical hit to Momentum.
+- [x] Integrate the approved event matrix at authoritative action/damage boundaries, not from UI logs or per-component callbacks unless the approved rule explicitly requires that granularity.
+- [x] Test standard/enhanced damage at the 10% boundary, defended shift reduction, misses, zero actual damage, rejected inputs, healing, split-component aggregation, and every approved exceptional damage source.
+- [x] Verify Enemy +1 (position 4) plus an undefended enhanced 2-tick shift becomes Drifter +1 (position 6); verify Drifter +1 plus an enemy standard 1-tick shift returns to neutral, and reverse faction roles.
+- [x] Test start-of-turn Burn 5 + Poison 5 against 100 pre-phase HP as one enhanced contribution; test mixed sources count only opposing-faction actual damage and same-faction/unattributed damage is ignored for Momentum.
+- [x] Verify DoT and its duration advancement occur before stun/frozen suppression without consuming, clearing, or expiring that suppression; verify suppression still skips the action if the combatant survives, and lethal DoT prevents the action.
+- [x] Test that an action uses pre-action Momentum for its critical and applicable damage bonuses, then applies its damage shift for subsequent actions; criticals receive no separate Momentum multiplier.
+- [x] Test the approved advantage table at +2, +3, +4, and +5: no damage/mitigation bonus at +2, 5%/5% at +3 and +4, and 10%/10% at +5 rather than cumulative 15%.
+- [x] Test that both factions receive equivalent bonuses, that a generated Momentum shift only affects later actions, and that crossing below +3 or from +5 to +4 immediately removes or reduces the applicable tier.
+- [x] Test approved integer-floor composition and ordering with existing modifiers; verify final actual HP damage controls the standard/enhanced threshold.
+- [x] Verify action counts are naturally respected without round-based normalization or additional headcount shifts.
+- [x] Test that the critical rule maps shared control to the appropriate faction's attacks and respects the approved 35% cap and pre-action update ordering.
+- [x] Verify neutral grants neither faction a Momentum-derived critical bonus.
+- [x] Include deterministic tests at neutral and each finalized critical threshold, including any feedback from a critical hit to Momentum.
 
 **Gate 2 proof:** Seeded resolution and state changes match the Gate 0 matrix for both sides, with no duplicate contribution from split-component representation or presentation logs. Multi-hit, multi-target, and simultaneous attacks remain outside M7 unless separately reviewed and approved.
+
+**Gate 2 local evidence:** Focused combat/status regression tests passed (320 tests before the final threshold and zero-damage cases); the new zero-actual-damage regression passed independently; the complete root suite passed: `2,488 passed in 157.24s`. Hosted exact-SHA qualification is pending the Gate 2 push. Gate 2 does not claim browser, hosted-service, migration, or pinned MicroPython qualification; those remain in Gate 3/4.
 
 ## Gate 3 - Feedback, Clients, And Save Exclusion
 

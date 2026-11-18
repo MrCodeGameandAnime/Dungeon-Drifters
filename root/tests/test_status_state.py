@@ -74,10 +74,53 @@ def test_poison_application_snapshots_potency_without_immediate_damage():
     assert poison == PoisonStatus(source, target, POISON_DURATION_TICKS, 5)
 
     source.dexterity = 100
-    tick = state.advance_after_accepted_action(target)
+    tick, _ = state.advance_turn_start(target)
 
     assert tick[0].outcome_type == CombatOutcomeType.POISON_TICK
     assert tick[0].amount == 5
+
+
+def test_turn_start_status_phase_reports_only_actual_opposing_source_damage():
+    ally = FakeCombatant("ally")
+    first_enemy = FakeCombatant("first enemy")
+    second_enemy = FakeCombatant("second enemy")
+    target = FakeCombatant("target")
+    state = StatusState()
+    state.apply_burn(ally, target)
+    state.apply_poison(first_enemy, target)
+    state.apply_frostbite(second_enemy, target, damage_per_tick=5, ticks=3)
+
+    before = target.health.current
+    outcomes, opposing_damage = state.advance_turn_start(
+        target,
+        opposing_sources=(first_enemy, second_enemy),
+    )
+
+    assert target.health.current == before - 17
+    assert tuple(outcome.amount for outcome in outcomes if outcome.amount) == (
+        7,
+        5,
+        5,
+    )
+    assert opposing_damage == 10
+
+
+def test_turn_start_dot_advances_without_consuming_pending_stun():
+    source = FakeCombatant("source")
+    target = FakeCombatant("target")
+    state = StatusState()
+    state.apply_stun(source, target)
+    state.apply_frostbite(source, target, damage_per_tick=5, ticks=3)
+
+    outcomes, _ = state.advance_turn_start(target, opposing_sources=(source,))
+
+    assert tuple(outcome.outcome_type for outcome in outcomes) == (
+        CombatOutcomeType.FROSTBITE_TICK,
+    )
+    assert state.stun_active(target)
+    assert state.consume_action_opportunity_suppression(target)[0].outcome_type == (
+        CombatOutcomeType.STUN_TRIGGERED
+    )
 
 
 def test_burn_application_snapshots_potency_without_immediate_damage():
@@ -97,12 +140,12 @@ def test_burn_application_snapshots_potency_without_immediate_damage():
         burn.remaining_ticks = 1
 
     source.intelligence = 100
-    tick = state.advance_after_accepted_action(target)
+    tick, _ = state.advance_turn_start(target)
 
     assert tick[0].amount == 7
 
 
-def test_burn_advances_only_after_afflicted_actor_accepted_action():
+def test_burn_advances_at_afflicted_actor_turn_start_only():
     source = FakeCombatant("source")
     target = FakeCombatant("target")
     unrelated = FakeCombatant("unrelated")
@@ -114,12 +157,16 @@ def test_burn_advances_only_after_afflicted_actor_accepted_action():
     assert target.health.current == 100
     assert state.burn_status(target).remaining_ticks == 3
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, opposing_damage = state.advance_start_turn(
+        target,
+        opposing_sources=(source,),
+    )
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.BURN_TICK,
     )
     assert outcomes[0].amount == 7
+    assert opposing_damage == 7
     assert target.health.current == 93
     assert state.burn_status(target).remaining_ticks == 2
 
@@ -130,10 +177,10 @@ def test_burn_ticks_exactly_three_times_then_expires():
     state = CombatState()
     state.apply_burn(source, target)
 
-    first = state.complete_accepted_action(target, (source,))
-    second = state.complete_accepted_action(target, (source,))
-    third = state.complete_accepted_action(target, (source,))
-    fourth = state.complete_accepted_action(target, (source,))
+    first, _ = state.advance_start_turn(target, opposing_sources=(source,))
+    second, _ = state.advance_start_turn(target, opposing_sources=(source,))
+    third, _ = state.advance_start_turn(target, opposing_sources=(source,))
+    fourth, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert tuple(outcome.outcome_type for outcome in first) == (
         CombatOutcomeType.BURN_TICK,
@@ -156,7 +203,7 @@ def test_poison_ticks_exactly_four_times_then_expires():
     state = StatusState()
     state.apply_poison(source, target)
 
-    outcomes = [state.advance_after_accepted_action(target) for _ in range(4)]
+    outcomes = [state.advance_turn_start(target)[0] for _ in range(4)]
 
     assert tuple(outcome.outcome_type for outcome in outcomes[0]) == (
         CombatOutcomeType.POISON_TICK,
@@ -177,7 +224,7 @@ def test_poison_bypasses_defend_and_brace_without_consuming_combat_resources():
     state.activate_brace(target)
     state.apply_poison(source, target)
 
-    state.complete_accepted_action(target, (source,))
+    state.advance_start_turn(target, opposing_sources=(source,))
 
     assert target.health.current == 95
     assert state.is_defending(target) is True
@@ -190,7 +237,7 @@ def test_poison_reports_actual_capped_damage_and_clears_after_defeat():
     state = StatusState()
     state.apply_poison(source, target)
 
-    outcomes = state.advance_after_accepted_action(target)
+    outcomes, _ = state.advance_turn_start(target)
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.POISON_TICK,
@@ -208,7 +255,7 @@ def test_burn_reports_actual_capped_damage_and_clears_after_defeat():
     state = CombatState()
     state.apply_burn(source, target)
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert target.health.current == 0
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
@@ -227,7 +274,7 @@ def test_burn_bypasses_defend_and_brace_without_consuming_combat_resources():
     state.activate_brace(target)
     state.apply_burn(source, target)
 
-    state.complete_accepted_action(target, (source,))
+    state.advance_start_turn(target, opposing_sources=(source,))
 
     assert target.health.current == 93
     assert state.is_defending(target) is True
@@ -241,7 +288,7 @@ def test_burn_tick_spends_no_mana_and_grants_no_super():
     mana_before = target.mana_resource.current
     super_before = target.super_resource.current
 
-    state.complete_accepted_action(target, ())
+    state.advance_start_turn(target, opposing_sources=(target,))
 
     assert target.mana_resource.current == mana_before
     assert target.super_resource.current == super_before
@@ -255,7 +302,7 @@ def test_burn_refreshes_duration_and_retains_stronger_snapshotted_potency():
     state = StatusState()
 
     state.apply_burn(strong, target)
-    state.advance_after_accepted_action(target)
+    state.advance_turn_start(target)
     weak_refresh = state.apply_burn(weak, target)
     retained = state.burn_status(target)
 
@@ -280,7 +327,7 @@ def test_poison_refreshes_duration_and_retains_stronger_snapshotted_potency():
     state = StatusState()
 
     state.apply_poison(strong, target)
-    state.advance_after_accepted_action(target)
+    state.advance_turn_start(target)
     weak_refresh = state.apply_poison(weak, target)
     retained = state.poison_status(target)
 
@@ -297,7 +344,7 @@ def test_burn_and_poison_coexist_in_deterministic_tick_order():
 
     state.apply_burn(source, target)
     state.apply_poison(source, target)
-    outcomes = state.advance_after_accepted_action(target)
+    outcomes, _ = state.advance_turn_start(target)
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.BURN_TICK,
@@ -313,7 +360,7 @@ def test_burn_lethal_tick_clears_poison_without_post_defeat_damage():
     state.apply_burn(source, target)
     state.apply_poison(source, target)
 
-    outcomes = state.advance_after_accepted_action(target)
+    outcomes, _ = state.advance_turn_start(target)
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.BURN_TICK,
@@ -332,7 +379,7 @@ def test_poison_lethal_tick_clears_remaining_burn_status():
     state.apply_burn(source, target)
     state.apply_poison(source, target)
 
-    outcomes = state.advance_after_accepted_action(target)
+    outcomes, _ = state.advance_turn_start(target)
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.BURN_TICK,

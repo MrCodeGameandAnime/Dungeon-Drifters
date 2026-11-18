@@ -439,26 +439,59 @@ class StatusState:
             active.append(StatusKind.STUN)
         return tuple(active)
 
-    def advance_after_accepted_action(self, actor):
+    def advance_turn_start(self, actor, opposing_sources=()):
+        if not isinstance(opposing_sources, tuple):
+            raise TypeError("opposing_sources must be a tuple")
         if not self._has_status_associated_with(actor):
-            return ()
+            return (), 0
         if not actor.is_alive():
-            return self._clear_defeated_statuses(actor)
+            return self._clear_defeated_statuses(actor), 0
         if (
             self._find_burn(actor) is None
             and self._find_poison(actor) is None
             and self._find_frostbite(actor) is None
         ):
-            return ()
+            return (), 0
 
-        outcomes = list(self._advance_burn(actor))
+        outcomes = []
+        opposing_damage = 0
+        burn = self._find_burn(actor)
+        burn_outcomes = self._advance_burn(actor)
+        outcomes.extend(burn_outcomes)
+        if burn is not None and _source_is_opposing(burn.source, opposing_sources):
+            opposing_damage += _tick_damage(burn_outcomes, CombatOutcomeType.BURN_TICK)
+
         if actor.is_alive():
-            outcomes.extend(self._advance_poison(actor))
+            poison = self._find_poison(actor)
+            poison_outcomes = self._advance_poison(actor)
+            outcomes.extend(poison_outcomes)
+            if poison is not None and _source_is_opposing(
+                poison.source,
+                opposing_sources,
+            ):
+                opposing_damage += _tick_damage(
+                    poison_outcomes,
+                    CombatOutcomeType.POISON_TICK,
+                )
         if actor.is_alive():
-            outcomes.extend(self._advance_frostbite(actor))
+            frostbites = tuple(
+                status
+                for status in self._frostbites
+                if status.target is actor
+            )
+            frostbite_outcomes = self._advance_frostbite(actor)
+            outcomes.extend(frostbite_outcomes)
+            if any(
+                _source_is_opposing(status.source, opposing_sources)
+                for status in frostbites
+            ):
+                opposing_damage += _tick_damage(
+                    frostbite_outcomes,
+                    CombatOutcomeType.FROSTBITE_TICK,
+                )
         if not actor.is_alive():
             outcomes.extend(self._clear_defeated_statuses(actor))
-        return tuple(outcomes)
+        return tuple(outcomes), opposing_damage
 
     def clear_defeated_target(self, target):
         if not self._has_status_associated_with(target) or target.is_alive():
@@ -815,6 +848,18 @@ def _apply_status_potency(base_damage, potency_bonus_bps):
 def _validate_potency_bonus(value):
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError("potency_bonus_bps must be an integer")
+
+
+def _source_is_opposing(source, opposing_sources):
+    return any(source is candidate for candidate in opposing_sources)
+
+
+def _tick_damage(outcomes, tick_type):
+    return sum(
+        outcome.amount
+        for outcome in outcomes
+        if outcome.outcome_type is tick_type
+    )
 
 
 def _validate_burn_source(source):

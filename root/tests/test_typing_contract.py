@@ -205,6 +205,7 @@ def test_current_protocol_runtime_checks_are_explicitly_audited():
     assert {
         ("app.combat.battle", "is_enemy_combatant"),
         ("app.combat.resolver", "is_combatant"),
+        ("app.combat.resolver", "is_enemy_combatant"),
         ("app.game.overworld_session", "is_overworld_ui"),
     } == {
         (module, predicate)

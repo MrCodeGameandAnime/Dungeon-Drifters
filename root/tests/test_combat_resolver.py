@@ -19,6 +19,8 @@ from app.combat.move import (
     TargetType,
 )
 from app.combat.resolver import CombatResolver
+from app.combat.passive_effect import PassiveCombatEffect, PassiveEffectKind
+from app.combat.result import CombatOutcomeType
 from app.player.character_run_state import (
     FIRE_INFUSION_REQUIREMENTS,
     InfusionKind,
@@ -81,6 +83,11 @@ class SimpleCombatant:
 
     def is_alive(self):
         return self.health.is_alive()
+
+
+class SimpleEnemyCombatant(SimpleCombatant):
+    archetype_id = "simple_enemy"
+    tier = 0
 
 
 def make_move(
@@ -2229,6 +2236,677 @@ def test_split_components_apply_minimum_once_after_sum_and_critical_once_per_mov
     assert result.damage == 1
     assert result.critical is True
     assert rng.calls == [(1, 100), (1, 100)]
+
+
+@pytest.mark.parametrize(
+    "is_enemy, position, expected_damage",
+    (
+        (False, 8, 21),
+        (False, 9, 21),
+        (False, 10, 22),
+        (True, 2, 21),
+        (True, 1, 21),
+        (True, 0, 22),
+    ),
+)
+def test_momentum_outgoing_damage_bonus_is_symmetric(
+    is_enemy,
+    position,
+    expected_damage,
+):
+    move = make_move(
+        name="momentum strike",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor_type = SimpleEnemyCombatant if is_enemy else SimpleCombatant
+    target_type = SimpleCombatant if is_enemy else SimpleEnemyCombatant
+    actor = actor_type(moves=(move,), generates_super=False)
+    target = target_type(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(position - 5)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == expected_damage
+
+
+@pytest.mark.parametrize(
+    "target_is_enemy, position, expected_damage",
+    (
+        (False, 7, 20),
+        (False, 8, 19),
+        (False, 9, 19),
+        (False, 10, 18),
+        (True, 3, 20),
+        (True, 2, 19),
+        (True, 1, 19),
+        (True, 0, 18),
+    ),
+)
+def test_momentum_incoming_mitigation_is_symmetric(
+    target_is_enemy,
+    position,
+    expected_damage,
+):
+    move = make_move(
+        name="momentum strike",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    target_type = SimpleEnemyCombatant if target_is_enemy else SimpleCombatant
+    actor_type = SimpleCombatant if target_is_enemy else SimpleEnemyCombatant
+    actor = actor_type(moves=(move,), generates_super=False)
+    target = target_type(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(position - 5)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == expected_damage
+
+
+@pytest.mark.parametrize(
+    "power, expected_position",
+    ((9, 6), (10, 7)),
+)
+def test_attack_momentum_uses_final_actual_damage_threshold(power, expected_position):
+    move = make_move(
+        name="threshold strike",
+        power=power,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target.health.take_damage(target.health.current - 100)
+    state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == power
+    assert state.momentum.position == expected_position
+
+
+def test_attack_with_zero_actual_hp_damage_does_not_shift_momentum():
+    move = make_move(
+        name="zero-damage strike",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant()
+    target.health.take_damage = lambda amount: None
+    state = CombatState()
+    state.momentum.shift(3)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.accepted is True
+    assert result.hit is True
+    assert result.damage == 0
+    assert state.momentum.position == 8
+
+
+@pytest.mark.parametrize(
+    "is_enemy, starting_position, expected_position",
+    ((False, 4, 6), (True, 6, 4)),
+)
+def test_enhanced_attacks_cross_neutral_symmetrically(
+    is_enemy,
+    starting_position,
+    expected_position,
+):
+    move = make_move(
+        name="cross-neutral strike",
+        power=11,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor_type = SimpleEnemyCombatant if is_enemy else SimpleCombatant
+    target_type = SimpleCombatant if is_enemy else SimpleEnemyCombatant
+    actor = actor_type(moves=(move,), generates_super=False)
+    target = target_type(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target.health.take_damage(target.health.current - 100)
+    state = CombatState()
+    state.momentum.shift(starting_position - 5)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage >= 10
+    assert state.momentum.position == expected_position
+
+
+def test_split_attack_aggregates_actual_damage_for_one_momentum_contribution():
+    move = _split_test_move(
+        (
+            _damage_component(
+                DamageComponentIdentity.PHYSICAL,
+                DamageDefenseClass.PHYSICAL,
+                5,
+            ),
+            _damage_component(
+                DamageComponentIdentity.MAGICAL,
+                DamageDefenseClass.MAGICAL,
+                5,
+            ),
+        ),
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target.health.take_damage(target.health.current - 100)
+    state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == 10
+    assert state.momentum.position == 7
+
+
+@pytest.mark.parametrize("defense", ("defend", "brace", "both"))
+def test_active_defense_reduces_momentum_once_per_resolved_attack(defense):
+    move = make_move(
+        name="defended strike",
+        power=40,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+        defend_reductions={DamageType.PHYSICAL: 50},
+    )
+    state = CombatState()
+    if defense in {"defend", "both"}:
+        state.activate_defend(target)
+    if defense in {"brace", "both"}:
+        state.activate_brace(target, incoming_reduction_percent=40)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage >= 10
+    assert state.momentum.position == 6
+
+
+def test_momentum_uses_pre_action_bonuses_then_shifts_for_later_actions():
+    move = make_move(
+        name="momentum strike",
+        power=20,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(2)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == 20
+    assert state.momentum.position == 9
+
+
+@pytest.mark.parametrize(
+    "is_enemy, position",
+    ((False, 6), (True, 4)),
+)
+def test_momentum_critical_bonus_is_symmetric_and_uses_pre_action_state(
+    is_enemy,
+    position,
+):
+    move = make_move(
+        name="critical momentum strike",
+        power=10,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor_type = SimpleEnemyCombatant if is_enemy else SimpleCombatant
+    target_type = SimpleCombatant if is_enemy else SimpleEnemyCombatant
+    actor = actor_type(moves=(move,), generates_super=False)
+    actor._effective_stats["intuition"] = 100
+    target = target_type(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(position - 5)
+
+    result = CombatResolver(rng=ScriptedRng(1, 17)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.critical is True
+
+
+@pytest.mark.parametrize("is_enemy", (False, True))
+def test_critical_shift_from_one_attack_only_affects_the_next_attack(is_enemy):
+    move = make_move(
+        name="sequential momentum strike",
+        power=11,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor_type = SimpleEnemyCombatant if is_enemy else SimpleCombatant
+    target_type = SimpleCombatant if is_enemy else SimpleEnemyCombatant
+    actor = actor_type(moves=(move,), generates_super=False)
+    actor._effective_stats["intuition"] = 10
+    target_stats = {
+        "constitution": 1,
+        "spirit": 1,
+        "intelligence": 10,
+        "strength": 10,
+        "dexterity": 10,
+        "intuition": 10,
+    }
+    first_target = target_type(effective_stats=target_stats.copy())
+    second_target = target_type(effective_stats=target_stats.copy())
+    first_target.health.take_damage(first_target.health.current - 100)
+    second_target.health.take_damage(second_target.health.current - 100)
+    state = CombatState()
+    resolver = CombatResolver(rng=ScriptedRng(1, 1, 1, 4))
+
+    first = resolver.resolve_move(
+        actor,
+        first_target,
+        move.name,
+        combat_state=state,
+    )
+    first_position = 5 + (-2 if is_enemy else 2)
+    assert state.momentum.position == first_position
+    assert first.critical is False
+
+    second = resolver.resolve_move(
+        actor,
+        second_target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert second.critical is True
+    assert state.momentum.position == 5 + (-4 if is_enemy else 4)
+
+
+@pytest.mark.parametrize("critical_roll, expected", ((35, True), (36, False)))
+def test_momentum_critical_bonus_respects_existing_critical_cap(
+    critical_roll,
+    expected,
+):
+    move = make_move(
+        name="capped critical strike",
+        power=1,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    actor._effective_stats["intuition"] = 100
+    actor.combat_passive_effects = (
+        PassiveCombatEffect(PassiveEffectKind.CRITICAL, 100),
+    )
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(5)
+
+    result = CombatResolver(rng=ScriptedRng(1, critical_roll)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.critical is expected
+
+
+@pytest.mark.parametrize(
+    "power, expected_damage, expected_position",
+    ((7, 10, 7), (6, 9, 6)),
+)
+def test_critical_actual_hp_damage_controls_momentum_threshold(
+    power,
+    expected_damage,
+    expected_position,
+):
+    move = make_move(
+        name="critical threshold strike",
+        power=power,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    actor._effective_stats["intuition"] = 100
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target.health.take_damage(target.health.current - 100)
+    state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == expected_damage
+    assert state.momentum.position == expected_position
+
+
+def test_momentum_damage_flooring_follows_attacker_modifiers():
+    move = make_move(
+        name="rounded momentum strike",
+        power=19,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    actor.combat_passive_effects = (
+        PassiveCombatEffect(
+            PassiveEffectKind.DAMAGE_OUTPUT,
+            5,
+            damage_class=DamageDefenseClass.PHYSICAL,
+        ),
+    )
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    state = CombatState()
+    state.momentum.shift(5)
+
+    result = CombatResolver(rng=ScriptedRng(1, 100)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == 20
+
+
+def test_momentum_mitigation_follows_defense_before_critical_multiplier():
+    move = make_move(
+        name="mitigated momentum strike",
+        power=4,
+        scales_with=(ScalingAttribute.NONE,),
+        damage_type=DamageType.PHYSICAL,
+    )
+    actor = SimpleEnemyCombatant(moves=(move,), generates_super=False)
+    actor._effective_stats["intuition"] = 100
+    target = SimpleCombatant(
+        can_defend=True,
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+        defend_reductions={DamageType.PHYSICAL: 33},
+    )
+    state = CombatState()
+    state.momentum.shift(5)
+    state.activate_defend(target)
+
+    result = CombatResolver(rng=ScriptedRng(1, 1)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == 3
+    assert state.momentum.position == 10
+
+
+@pytest.mark.parametrize("outcome", ("miss", "healing", "rejected", "same_faction"))
+def test_non_opposing_or_non_damaging_actions_do_not_shift_momentum(outcome):
+    state = CombatState()
+    state.momentum.shift(3)
+    if outcome == "healing":
+        move = make_move(
+            name="self heal",
+            kind=MoveKind.HEALING,
+            power=10,
+            scales_with=(ScalingAttribute.NONE,),
+            target=TargetType.SELF,
+            damage_type=DamageType.HEALING,
+        )
+        actor = SimpleCombatant(moves=(move,), generates_super=False)
+        actor.health.take_damage(10)
+        target = actor
+        rng = ScriptedRng(1)
+    elif outcome == "rejected":
+        move = make_move(
+            name="unaffordable strike",
+            resource_type=ResourceType.MANA,
+            resource_cost=1000,
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        actor = SimpleCombatant(moves=(move,), generates_super=False)
+        target = SimpleEnemyCombatant()
+        rng = ScriptedRng()
+    else:
+        move = make_move(
+            name="non-shifting strike",
+            accuracy=0 if outcome == "miss" else 100,
+            scales_with=(ScalingAttribute.NONE,),
+        )
+        actor = SimpleCombatant(moves=(move,), generates_super=False)
+        target = (
+            SimpleCombatant()
+            if outcome == "same_faction"
+            else SimpleEnemyCombatant()
+        )
+        rng = ScriptedRng(100, 100) if outcome == "miss" else ScriptedRng(1, 100)
+
+    result = CombatResolver(rng=rng).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    if outcome == "miss":
+        assert result.hit is False
+    else:
+        assert result.accepted is (outcome != "rejected")
+    assert state.momentum.position == 8
+
+
+def test_unattributed_environmental_damage_does_not_shift_momentum():
+    target = SimpleCombatant()
+    state = CombatState()
+    state.momentum.shift(3)
+
+    result = CombatResolver(rng=ScriptedRng()).resolve_environmental_physical_damage(
+        target,
+        10,
+        combat_state=state,
+    )
+
+    assert result.damage > 0
+    assert state.momentum.position == 8
+
+
+def test_gravemantle_self_backlash_does_not_increase_attack_momentum_damage():
+    move = Move(
+        name="backlash momentum test",
+        kind=MoveKind.DAMAGE,
+        resource_type=ResourceType.NONE,
+        resource_cost=0,
+        power=2,
+        scales_with=(ScalingAttribute.NONE,),
+        accuracy=100,
+        target=TargetType.ENEMY,
+        damage_type=DamageType.MAGICAL,
+        mechanic="gravemantle_rupture",
+        description="A low-damage spell with authored self-backlash.",
+        is_spell=True,
+    )
+    actor = SimpleCombatant(moves=(move,), generates_super=False)
+    target = SimpleEnemyCombatant(
+        effective_stats={
+            "constitution": 1,
+            "spirit": 1,
+            "intelligence": 10,
+            "strength": 10,
+            "dexterity": 10,
+            "intuition": 10,
+        },
+    )
+    target.health.take_damage(target.health.current - 60)
+    state = CombatState()
+
+    result = CombatResolver(rng=ScriptedRng(1, 100, 1, 6)).resolve_move(
+        actor,
+        target,
+        move.name,
+        combat_state=state,
+    )
+
+    assert result.damage == 2
+    assert actor.health.current < actor.health.maximum
+    assert any(
+        outcome.outcome_type is CombatOutcomeType.BACKLASH_DAMAGE
+        and outcome.amount == 6
+        for outcome in result.outcomes
+    )
+    assert state.momentum.position == 6
 
 
 @pytest.mark.parametrize(

@@ -65,6 +65,21 @@ def test_combat_state_momentum_is_encounter_local_and_resettable():
     assert first_state.momentum.position == 5
 
 
+@pytest.mark.parametrize("position", range(11))
+def test_momentum_bonus_table_is_symmetric_for_both_factions(position):
+    momentum = CombatState().momentum
+    momentum.shift(position - 5)
+
+    for is_enemy, advantage in (
+        (False, max(0, position - 5)),
+        (True, max(0, 5 - position)),
+    ):
+        expected_damage_bonus = 10 if advantage == 5 else 5 if advantage >= 3 else 0
+        assert momentum.critical_bonus_percent_points(is_enemy) == advantage * 2
+        assert momentum.outgoing_damage_bonus_percent(is_enemy) == expected_damage_bonus
+        assert momentum.incoming_mitigation_percent(is_enemy) == expected_damage_bonus
+
+
 def test_mutable_containers_are_per_instance():
     first_state = CombatState()
     second_state = CombatState()
