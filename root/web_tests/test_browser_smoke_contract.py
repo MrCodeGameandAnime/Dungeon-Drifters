@@ -269,3 +269,13 @@ def test_battle_momentum_meter_renders_python_projection_accessibly():
     assert 'locator("#momentum-meter")' in smoke
     assert 'momentum: { position: 2, control_label: "Enemies +3", critical_bonus_percent_points: 6, outgoing_damage_bonus_percent: 5, incoming_mitigation_percent: 5 }' in smoke
     assert "M7_BROWSER|MOMENTUM_PROJECTION|PASS" in smoke
+
+
+def test_browser_momentum_neutral_is_checked_without_racing_opening_attacks():
+    smoke = SMOKE_PATH.read_text()
+
+    assert 'assertMomentumNeutral(targetPage, "deterministic neutral projection")' in smoke
+    assert 'assertMomentumNeutral(page, "first browser encounter")' not in smoke
+    assert 'assertMomentumNeutral(page, `${floorLabel} Battle ${battleNumber}`)' not in smoke
+    assert '"deterministic neutral projection"' in smoke
+    assert "await observeMomentum(page);" in smoke

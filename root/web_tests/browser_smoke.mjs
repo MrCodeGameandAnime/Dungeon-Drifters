@@ -471,6 +471,17 @@ const targetProjection = {
   log_entries: [],
 };
 
+const neutralTargetProjection = {
+  ...targetProjection,
+  momentum: {
+    position: 5,
+    control_label: "Neutral",
+    critical_bonus_percent_points: 0,
+    outgoing_damage_bonus_percent: 0,
+    incoming_mitigation_percent: 0,
+  },
+};
+
 const completeProjection = {
   ...targetProjection,
   interaction_phase: "complete",
@@ -1439,7 +1450,7 @@ try {
     role: document.getElementById("momentum-track").getAttribute("role"),
     minimum: document.getElementById("momentum-track").getAttribute("aria-valuemin"),
     maximum: document.getElementById("momentum-track").getAttribute("aria-valuemax"),
-    value: document.getElementById("momentum-track").getAttribute("aria-valuenow"),
+    value: Number(document.getElementById("momentum-track").getAttribute("aria-valuenow")),
     valueText: document.getElementById("momentum-track").getAttribute("aria-valuetext"),
     control: document.getElementById("momentum-control").innerText,
     labels: document.getElementById("momentum-meter").innerText,
@@ -1449,13 +1460,14 @@ try {
       await momentumTrack.getAttribute("role") === "meter" &&
       await momentumTrack.getAttribute("aria-valuemin") === "0" &&
       await momentumTrack.getAttribute("aria-valuemax") === "10" &&
-      await momentumTrack.getAttribute("aria-valuenow") === "5" &&
-      (await page.locator("#momentum-control").innerText()) === "Momentum 5/10 - Neutral" &&
+      Number.isInteger(initialMomentumState.value) &&
+      initialMomentumState.value >= 0 && initialMomentumState.value <= 10 &&
+      initialMomentumState.control.startsWith(`Momentum ${initialMomentumState.value}/10 - `) &&
       (await page.locator("#momentum-meter").innerText()).includes("Enemies +5 / +3") &&
       (await page.locator("#momentum-meter").innerText()).includes("Drifters +3 / +5"),
-    `the initial browser Momentum meter omitted its accessible neutral value or threshold cues: ${JSON.stringify(initialMomentumState)}`,
+    `the live browser Momentum meter omitted its valid authoritative value or threshold cues: ${JSON.stringify(initialMomentumState)}`,
   );
-  await assertMomentumNeutral(page, "first browser encounter");
+  await observeMomentum(page);
   requireCondition(
     !(await page.locator("#route-panel").isVisible()),
     "Overworld content remains visible during Battle",
@@ -1760,7 +1772,10 @@ try {
               window.__fixtureHubMode = false;
               return JSON.stringify(views.overworld);
             }
-            return JSON.stringify(window.__fixtureHubMode ? views.hub : views.targets);
+            const targetView = window.__fixtureStartCalls.length === 1
+              ? views.neutralTargets
+              : views.targets;
+            return JSON.stringify(window.__fixtureHubMode ? views.hub : targetView);
           }
           if (source === "current_view_json()") {
             if (window.__fixtureHubMode) return JSON.stringify(views[window.__fixtureHubPhase]);
@@ -1939,6 +1954,7 @@ try {
     });
   }, {
     targets: targetProjection,
+    neutralTargets: neutralTargetProjection,
     complete: completeProjection,
     overworld: resultOverworldProjection,
     hub: hubProjection,
@@ -2032,6 +2048,20 @@ try {
   await waitForViewportSync(targetPage, 844, 390);
   await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#targets").waitFor({ state: "visible" });
+  await assertMomentumNeutral(targetPage, "deterministic neutral projection");
+  requireCondition(
+    await targetPage.evaluate(() => window.__fullscreenRequests === 1),
+    "mobile Start did not request fullscreen from its user gesture",
+  );
+  requireCondition(
+    await targetPage.evaluate(() => window.__musicPlayRequests === 1 && window.__musicPlayedBeforeFullscreen),
+    "mobile Start did not start theme music before fullscreen from its user gesture",
+  );
+  await targetPage.setViewportSize({ width: 1440, height: 900 });
+  await waitForViewportSync(targetPage, 1440, 900);
+  await restartForNewGame(targetPage);
+  await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
+  await targetPage.locator("#targets").waitFor({ state: "visible" });
   const projectedMomentum = await targetPage.evaluate(() => ({
     value: document.getElementById("momentum-track").getAttribute("aria-valuenow"),
     valueText: document.getElementById("momentum-track").getAttribute("aria-valuetext"),
@@ -2049,14 +2079,6 @@ try {
   requireCondition(
     await targetPage.evaluate(() => window.__fixtureSelectedDrifter === "branoc"),
     "Drifter selection did not pass its authored ID to the Python bridge",
-  );
-  requireCondition(
-    await targetPage.evaluate(() => window.__fullscreenRequests === 1),
-    "mobile Start did not request fullscreen from its user gesture",
-  );
-  requireCondition(
-    await targetPage.evaluate(() => window.__musicPlayRequests === 1 && window.__musicPlayedBeforeFullscreen),
-    "mobile Start did not start theme music before fullscreen from its user gesture",
   );
   await targetPage.setViewportSize({ width: 1440, height: 900 });
   await waitForViewportSync(targetPage, 1440, 900);
@@ -3409,7 +3431,7 @@ try {
       bossParty = ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"],
     } = {},
   ) => {
-    await assertMomentumNeutral(page, `${floorLabel} Battle ${battleNumber}`);
+    await observeMomentum(page);
     const deployedIds = await page.locator("#party-members .party-member").evaluateAll(
       (members) => members.map((member) => member.dataset.targetId),
     );

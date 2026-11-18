@@ -2,7 +2,7 @@
 
 > The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 was planning-only: gameplay contracts, source-seam audit, and presentation were approved without gameplay changes. Implementation is now proceeding under the separately approved M7 authorization.
 
-**Status:** Gate 1 is pushed with a browser-build test-count correction; its corrective hosted run is not yet visible. Gate 2 implementation and local root qualification are complete; exact-SHA hosted qualification remains open.
+**Status:** Gates 1 and 2 are hosted-qualified. Gate 3's first exact-SHA run passed the main test and PostgreSQL jobs but exposed a browser-smoke timing assumption; the smoke correction now passes locally and awaits exact-SHA hosted qualification. Gate 4 remains open.
 
 **Goal:** Add a temporary, encounter-wide measure of contested battlefield control. Control can improve the controlling faction's critical-hit frequency and, at approved dominance thresholds, outgoing damage and incoming mitigation. Momentum is not a spendable resource or permanent progression system.
 
@@ -169,7 +169,9 @@ This audit confirms a bounded integration path and identifies the intentional Do
 
 **Gate 3 proof:** Semantic parity across clients and no accidental persistence or duplicated client rules.
 
-**Gate 3 local evidence:** Root suite passed (`2,500 passed`); web suite passed (`89 passed`); authored content validation passed; Python compileall passed; generated MicroPython dataclass manifest check passed (`186` entries); browser site build passed (`181` runtime files); full Playwright smoke passed, including `M7_BROWSER|MOMENTUM_PROJECTION|PASS` and `M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS`. The smoke verified the accessible 0-10 meter, exact +3 projected bonuses, marker alignment, neutral startup, live faction labels from real resolved combat, neutral reset for Floor II/III encounters, and desktop/mobile viewport fit. Save-document round-trip tests confirm Momentum is absent from persisted profiles. Exact-SHA hosted qualification follows the Gate 3 push; pinned MicroPython executable qualification remains Gate 4 work.
+**Gate 3 local evidence:** Root suite passed (`2,500 passed`); web suite passed (`90 passed`); authored content validation passed; Python compileall passed; generated MicroPython dataclass manifest check passed (`186` entries); browser site build passed (`181` runtime files); full Playwright smoke passed, including `M7_BROWSER|MOMENTUM_PROJECTION|PASS` and `M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS`. The smoke verified the accessible 0-10 meter, exact +3 projected bonuses, marker alignment, neutral projection, live faction labels from real resolved combat, and desktop/mobile viewport fit. Save-document round-trip tests confirm Momentum is absent from persisted profiles.
+
+The first exact-SHA hosted run for `7d45421ab950b48c346b971f34e48b995817b235` ([run 44333974611](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/44333974611)) passed root and web tests, content validation, compile, browser build, PostgreSQL, and migration checks, but browser smoke sampled the meter after an automatic enemy opening attack and incorrectly required neutral. The smoke now tests neutral through a deterministic browser projection and checks live battle values without assuming no opening action has resolved. The full corrected browser smoke and all 90 web tests pass locally; exact-SHA hosted requalification is pending. Pinned MicroPython executable qualification remains Gate 4 work.
 
 ## Gate 4 - Runtime And Cumulative Qualification
 
