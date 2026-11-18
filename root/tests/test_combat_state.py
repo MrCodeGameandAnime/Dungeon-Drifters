@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pytest
+
 from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
 from app.combat.combat_state import CombatState
@@ -27,6 +29,40 @@ def test_combat_state_starts_with_empty_temporary_state():
     assert not hasattr(combat_state, "statuses")
     assert combat_state.buffs == {}
     assert combat_state.debuffs == {}
+    assert combat_state.momentum.position == 5
+
+
+def test_momentum_is_bounded_integer_state_that_clamps_at_both_ends():
+    momentum = CombatState().momentum
+
+    assert momentum.shift(20) == 10
+    assert momentum.shift(-20) == 0
+    assert momentum.shift(7) == 7
+    assert momentum.shift(-7) == 0
+
+
+def test_momentum_rejects_non_integer_shifts_without_changing_position():
+    momentum = CombatState().momentum
+    momentum.shift(2)
+
+    for invalid in (True, 1.5, "1", None):
+        with pytest.raises((TypeError, ValueError)):
+            momentum.shift(invalid)
+        assert momentum.position == 7
+
+
+def test_combat_state_momentum_is_encounter_local_and_resettable():
+    first_state = CombatState()
+    second_state = CombatState()
+
+    first_state.momentum.shift(3)
+
+    assert first_state.momentum.position == 8
+    assert second_state.momentum.position == 5
+
+    first_state.momentum.reset()
+
+    assert first_state.momentum.position == 5
 
 
 def test_mutable_containers_are_per_instance():

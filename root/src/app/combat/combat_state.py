@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.combat.arcane import ArcaneDischarge, GRAVEMANTLE_RULES
 from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
+from app.combat.momentum import MomentumState
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
 from app.combat.status_state import StatusState
 
@@ -42,6 +43,7 @@ class CombatState:
         self._heal_cooldowns = []
         self._arcane_charge_states = []
         self._status_state = StatusState()
+        self.momentum = MomentumState()
         self.buffs = {}
         self.debuffs = {}
 

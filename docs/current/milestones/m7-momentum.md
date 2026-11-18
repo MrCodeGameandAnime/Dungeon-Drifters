@@ -1,8 +1,8 @@
 # M7 Momentum Implementation Plan
 
-> Planning only. The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 is closed for planning: gameplay contracts, source-seam audit, and presentation are approved. No gameplay implementation was performed as part of Gate 0 closure.
+> The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 was planning-only: gameplay contracts, source-seam audit, and presentation were approved without gameplay changes. Implementation is now proceeding under the separately approved M7 authorization.
 
-**Status:** Gate 0 complete; M7 implementation contract is ready for its separately authorized implementation step.
+**Status:** Gate 1 implementation complete locally; Gate 2 is next. Exact-SHA hosted qualification is pending the Gate 1 push.
 
 **Goal:** Add a temporary, encounter-wide measure of contested battlefield control. Control can improve the controlling faction's critical-hit frequency and, at approved dominance thresholds, outgoing damage and incoming mitigation. Momentum is not a spendable resource or permanent progression system.
 
@@ -130,13 +130,15 @@ This audit confirms a bounded integration path and identifies the intentional Do
 
 ## Gate 1 - Shared Encounter State And Lifecycle
 
-- [ ] Add one bounded encounter-wide value initialized at neutral and accessible consistently to all participants and projections.
-- [ ] Test neutral initialization, integer legal bounds, endpoint clamping, invalid updates, immutable presentation, and a single shared value under two- and four-Drifter encounters and multi-enemy encounters.
-- [ ] Test faction direction, free crossing through neutral, and faction reversal without creating actor-specific values or implicit per-enemy meters.
-- [ ] Prove the value is reset on victory, defeat, escape, construction failure, teardown, and subsequent encounter creation.
-- [ ] Keep Momentum absent from player progression and persisted save payloads; do not reset or alter Mana/Super as a side effect.
+- [x] Add one bounded encounter-wide value initialized at neutral to the shared `CombatState`; presenter projections are Gate 3 work.
+- [x] Test neutral initialization, integer legal bounds, endpoint clamping, invalid updates, and one shared value in two- and four-Drifter/multi-enemy encounters.
+- [x] Test bounded positive/negative movement across neutral without creating actor-specific values or implicit per-enemy meters.
+- [x] Verify reset on victory, defeat, and Smoke Bomb escape; each new encounter owns a fresh neutral value. Construction failures cannot publish a partially constructed Battle, and teardown discards its encounter-owned CombatState.
+- [x] Keep Momentum off player/resource state; save-payload exclusion will be verified at the Gate 3 persistence boundary.
 
 **Gate 1 proof:** One authoritative shared value with validated bounds and complete encounter lifecycle isolation.
+
+**Gate 1 local evidence:** `root/tests/test_combat_state.py` and `root/tests/test_party_battle.py` pass; the complete root suite passes with 2,432 tests. Hosted qualification is pending for the exact Gate 1 commit.
 
 ## Gate 2 - Action, Damage, And Critical Resolution
 

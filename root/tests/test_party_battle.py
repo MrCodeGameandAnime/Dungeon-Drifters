@@ -76,6 +76,76 @@ def test_single_drifter_battle_does_not_allocate_party_turn_state():
     assert battle.party == (battle.player_state,)
 
 
+def test_battle_uses_one_shared_momentum_value_for_all_combatants():
+    rosters = (
+        ("branoc", "azhvielle"),
+        ("branoc", "azhvielle", "zhaivra", "joruun"),
+    )
+
+    for roster in rosters:
+        members = tuple(
+            player(drifter_id, 40 - index * 5)
+            for index, drifter_id in enumerate(roster)
+        )
+        enemies = (goblin(5), goblin(4))
+        battle = Battle(
+            members[0],
+            enemies,
+            party=members[1:],
+            rng=StableRng(),
+        )
+
+        momentum = battle.combat_state.momentum
+        momentum.shift(2)
+
+        assert battle.combat_state.momentum is momentum
+        assert momentum.position == 7
+        assert all(not hasattr(member, "momentum") for member in members)
+        assert all(not hasattr(enemy, "momentum") for enemy in enemies)
+
+
+@pytest.mark.parametrize("winner", ("player", "enemy"))
+def test_encounter_completion_resets_momentum(winner):
+    battle = Battle(player("branoc", 6), (goblin(5),), rng=StableRng())
+    battle.combat_state.momentum.shift(4)
+
+    battle._finish(winner)
+
+    assert battle.combat_state.momentum.position == 5
+
+
+def test_new_encounter_starts_neutral_after_previous_encounter_ends():
+    previous = Battle(player("branoc", 6), (goblin(5),), rng=StableRng())
+    previous.combat_state.momentum.shift(4)
+    previous._finish("player")
+
+    current = Battle(player("azhvielle", 5), (goblin(4),), rng=StableRng())
+
+    assert current.combat_state.momentum.position == 5
+    assert current.combat_state.momentum is not previous.combat_state.momentum
+
+
+def test_smoke_escape_resets_momentum():
+    battle = Battle(
+        player("branoc", 6),
+        (goblin(5),),
+        rng=StableRng(),
+        smoke_escape_allowed=True,
+        party_state=SimpleNamespace(
+            carried_items={"smoke_bomb": 1},
+            consume_carried_supplies=lambda _items: True,
+        ),
+    )
+    battle.combat_state.momentum.shift(-4)
+
+    view = battle.submit(ChooseAction(ActionIntent.ESCAPE))
+
+    assert battle.is_complete
+    assert battle.winner == "escaped"
+    assert battle.combat_state.momentum.position == 5
+    assert view is battle.current_view()
+
+
 def test_party_battle_requires_player_states_with_unique_canonical_drifter_ids():
     lead = player("branoc", 6)
 

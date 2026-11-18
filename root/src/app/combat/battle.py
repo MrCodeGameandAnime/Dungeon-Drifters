@@ -473,6 +473,7 @@ class Battle:
         self.interaction_phase = InteractionPhase.COMPLETE
         self._clear_inventory_navigation()
         self._clear_move_target_navigation()
+        self.combat_state.momentum.reset()
         self._final_view = self._build_view()
         return self._final_view
 
@@ -839,6 +840,7 @@ class Battle:
                 self.interaction_phase = InteractionPhase.COMPLETE
                 self._clear_inventory_navigation()
                 self._clear_move_target_navigation()
+                self.combat_state.momentum.reset()
                 self._final_view = self._build_view()
                 return True
             if battle_input.intent == ActionIntent.DEFEND:
