@@ -2,7 +2,7 @@
 
 ## Status
 
-**M7 design in progress; implementation deferred.** The November 17, 2026 revisions supersede the earlier individual-combatant Momentum proposal. The shared scale, damage-shift contract, critical progression, defense rule, attribution, DoT timing/suppression safeguard, and damage arithmetic are approved for planning. Gate 0 remains open for review of the terminal/browser presentation proposal in the M7 milestone plan.
+**M7 Gate 0 closed for planning; gameplay implementation remains a separate next step.** The November 17, 2026 revisions supersede the earlier individual-combatant Momentum proposal. The shared scale, damage-shift contract, critical progression, defense rule, attribution, DoT timing/suppression safeguard, damage arithmetic, and terminal/browser presentation are approved.
 
 ## Core Identity
 
@@ -16,7 +16,7 @@ Enemy control                         Drifter control
                                       neutral
 ```
 
-Positions 0-4 favor enemies; positions 6-10 favor Drifters. Relative control is Enemy +5 through Enemy +1, Neutral, and Drifter +1 through Drifter +5. The bar clamps at 0 and 10 and crosses neutral freely, without a barrier or conversion penalty. The M7 plan records a shared numeric bar and active-bonus readout for both clients; final visual styling remains a presentation task.
+Positions 0-4 favor enemies; positions 6-10 favor Drifters. Relative control is Enemy +5 through Enemy +1, Neutral, and Drifter +1 through Drifter +5. The bar clamps at 0 and 10 and crosses neutral freely, without a barrier or conversion penalty. The approved shared meter uses visible +3 landmarks at positions 2 and 8 and +5 endpoints at positions 0 and 10, plus plain-text active-bonus readouts in both clients; final visual styling remains an implementation detail.
 
 | Bar position | Relative control |
 |---:|---|
@@ -196,13 +196,15 @@ No save-schema migration is expected solely for this temporary state. Re-enterin
 14. Runaway control is possible by design; no automatic comeback, passive decay, or rubber-band mechanic is added.
 15. Momentum is temporary, encounter-owned, non-spendable, and independent of Mana/Super.
 
-## Gate 0 Review Hold
+## Gate 0 Closure
 
-Gameplay rules and arithmetic are approved. The presentation proposal is recorded in [the M7 milestone plan](../current/milestones/m7-momentum.md) and remains for review before Gate 0 closes:
+Gameplay rules, arithmetic, source-seam audit, deterministic event matrix, and shared-meter presentation are approved and recorded in [the M7 milestone plan](../current/milestones/m7-momentum.md). Gate 0 is closed for planning. Its closure records the implementation contract but does not implement gameplay.
 
-- Review the single shared 0-10 bar, relative-control label, active-bonus text, terminal/browser parity, and feedback behavior.
-- Complete final Gate 0 closeout and contract synchronization. This documentation update does not authorize gameplay implementation.
+- The meter includes visible +3 and +5 threshold cues on both faction sides, with text labels so state is not conveyed by color alone.
+- The browser and terminal display the same Python-authoritative position and active bonuses; neither client calculates combat outcomes.
+- The final deterministic event matrix covers attribution, defense reduction, mixed-source DoT, suppression preservation, damage ordering, threshold changes, and faction symmetry.
+- M7 implementation remains a separate next step; no gameplay code was changed in this planning closure.
 
 ## Implementation Boundary
 
-M7 remains in design review. Do not implement active Momentum state, formulas, critical changes, UI, save fields, or special enemy/move behavior from this document alone. The scale, damage shifts, defense reduction, DoT attribution/suppression behavior, critical progression, and +3/+5 arithmetic are approved planning inputs. Gate 0 remains open for review of the presentation proposal and final contract synchronization. The revised specification remains a single shared contested system, not the superseded per-combatant model.
+M7's Gate 0 contract is closed for planning. The scale, damage shifts, defense reduction, DoT attribution/suppression behavior, critical progression, +3/+5 arithmetic, and presentation are approved inputs. This closure does not itself authorize or implement gameplay; implementation is a separate next step. The shared specification remains one contested encounter value, not the superseded per-combatant model.

@@ -1,8 +1,8 @@
 # M7 Momentum Implementation Plan
 
-> Planning only. The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gameplay contracts below are approved; Gate 0 remains open for review of the presentation proposal. No gameplay implementation is authorized.
+> Planning only. The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 is closed for planning: gameplay contracts, source-seam audit, and presentation are approved. No gameplay implementation was performed as part of Gate 0 closure.
 
-**Status:** Core gameplay and arithmetic contracts approved; shared terminal/browser presentation proposal recorded for review. No implementation authorized.
+**Status:** Gate 0 complete; M7 implementation contract is ready for its separately authorized implementation step.
 
 **Goal:** Add a temporary, encounter-wide measure of contested battlefield control. Control can improve the controlling faction's critical-hit frequency and, at approved dominance thresholds, outgoing damage and incoming mitigation. Momentum is not a spendable resource or permanent progression system.
 
@@ -78,9 +78,11 @@ No headcount normalization, passive numerical-superiority shift, automatic comeb
 
 Show one shared Momentum strip throughout battle, not separate meters for individual Drifters or enemies. The strip represents all eleven positions, with Enemy +5 at 0, Neutral at 5, and Drifter +5 at 10. Always pair the marker with a plain-text position and relative-control label, such as `Momentum 8/10 - Drifters +3`.
 
+Mark the +3 advantage thresholds at positions 2 (Enemy +3) and 8 (Drifter +3), where the 5% damage and mitigation tier begins. Mark the +5 endpoints at positions 0 and 10, where the 10% tier applies. Use visible notches or equivalent distinct markers plus a short text legend; do not rely on color alone. The current marker and bonus text must make clear which side's threshold is active.
+
 When a faction controls Momentum, show its currently active advantages in the same view, using explicit units: for example, `Drifters: critical chance +6 percentage points; outgoing damage +5%; incoming mitigation +5%`. At neutral, show that neither side has a Momentum bonus. The displayed values come from the Python-owned view; browser JavaScript only renders them.
 
-The browser proposal is an accessible 0-10 meter with a value-text label identifying the controlling faction and active bonuses. The terminal proposal is a compact text/bar line in the existing battle status area, readable in both framed and linear layouts. Refresh the same authoritative view after each attack and after the DoT phase, before the next action. The bar and bonus line provide shift feedback; do not add a duplicate log entry for each tick. Final styling and exact layout remain subject to review and responsive qualification.
+The browser proposal is an accessible 0-10 meter with a value-text label identifying the controlling faction, the +3/+5 threshold landmarks, and active bonuses. The terminal proposal is a compact text/bar line in the existing battle status area, readable in both framed and linear layouts, with the threshold cues also understandable in narrow linear output. Refresh the same authoritative view after each attack and after the DoT phase, before the next action. The bar and bonus line provide shift feedback; do not add a duplicate log entry for each tick. The semantic treatment and threshold cues are approved; exact styling and layout remain subject to implementation qualification.
 
 ## Architecture And Implementation Boundary
 
@@ -88,9 +90,15 @@ The shared value belongs to the encounter's authoritative combat state. Combat a
 
 There must not be per-Drifter or per-enemy Momentum pools. All faction-wide advantage effects derive from the single encounter value. The design does not require a new move, enemy, `ResourceType`, persistent `PlayerState` field, or saved Momentum value merely to demonstrate the system.
 
-The repository audit confirms current moves resolve one target and one hit per action; split components are combined into one applied result. Existing DoT ticks currently occur after an accepted action. M7 intentionally moves them to the approved start-of-turn boundary, including turns where action suppression is consumed afterward. Preserve the suppression behavior and all other combat behavior. Do not prescribe stale class or method names as settled APIs.
+### Final Repository Seam Audit
 
-## Gate 0 - Resolve The Gameplay Contract
+- `root/src/app/combat/resolver.py` resolves a move against one target with one hit roll; split components are resolved through the existing damage path, summed into one applied move result, and receive one critical multiplier. Actual HP removed is available after applying damage. The existing critical chance cap is 35% (`MAX_ORDINARY_CRIT_CHANCE`).
+- `root/src/app/combat/battle.py` checks action-opportunity suppression before an actor acts. `root/src/app/combat/combat_state.py` currently advances DoT through `complete_accepted_action()`, after an accepted action. `root/src/app/combat/status_state.py` stores source and target on DoT statuses and keeps stun/frozen suppression in separate state collections. M7 must move the DoT phase to the start-of-turn boundary without allowing duration advancement to consume or expire the pending suppression; defeated-combatant cleanup remains responsible for clearing statuses after lethal DoT.
+- `root/src/app/presentation/battle_models.py` defines immutable `BattleView` and reconstructs it in `with_expedition_status()`; no Momentum projection exists yet. `root/src/app/presentation/battle_presenter.py` builds the view, `root/src/app/ui/terminal_battle_ui.py` owns framed and linear rendering, `root/web/python/dd_bridge.py` recursively projects dataclasses, and `root/web/play/js/pyd4.js` renders the browser view. M7 must expose one Python-authoritative projection, preserve it through view-copy paths, and render it in both clients without client-side combat calculations.
+
+This audit confirms a bounded integration path and identifies the intentional DoT scheduling change. It does not freeze future API names or authorize implementation.
+
+## Gate 0 - Contract And Final Verification
 
 - Approved: integer range 0-10, neutral/start at 5, faction direction, endpoint bounds, and free crossing through neutral; no fractional Momentum.
 - Approved: standard 1-tick and enhanced 2-tick attack contributions, inclusive 10% actual-damage threshold, and no additional damage tiers.
@@ -101,12 +109,24 @@ The repository audit confirms current moves resolve one target and one hit per a
 - Approved: +3/+4 grant +5% outgoing damage and +5% incoming mitigation; +5 grants +10% of each, noncumulatively and symmetrically. Apply with the existing integer-floor ordering: outgoing after attacker modifiers/before defenses; mitigation after defenses/before critical.
 - Approved: only damage attributable to an opposing faction contributes. Same-faction, self-backlash, and unattributed environmental damage do not shift Momentum; mixed-source DoT counts only eligible opposing-faction actual damage in its single contribution.
 - Resolved for current combat model: one target and one hit per move action, sequentially resolved. Future multi-hit, multi-target, or simultaneous mechanics require their own reviewed rule before introduction.
-- [ ] Review the terminal/browser presentation proposal below.
+- [x] Approve the shared terminal/browser meter with relative-control labels, active bonuses, and visible +3/+5 threshold cues.
 - [x] Complete the M7 entry audit of current action, status, critical, defense, and client seams.
-- [ ] Verify the deterministic event matrix covers +2, +3, +4, and +5, immediate loss or reduction when crossing thresholds, and symmetric behavior for both factions.
+- [x] Record the deterministic event matrix below, including both factions, defense reduction, mixed-source DoT, and threshold updates.
 - Approved: no special Momentum modifiers for Intuition, individual moves, bosses, or non-damaging effects; healing contributes zero. Other damage follows the universal rules when attributable to an opposing faction.
 
-**Gate 0 proof:** A normative event-and-effect matrix with deterministic examples for both factions, approved arithmetic/order, DoT attribution and suppression behavior, and reviewed terminal/browser presentation. The gameplay rules and arithmetic are approved; Gate 0 remains open pending presentation review and final contract synchronization.
+### Deterministic Event Matrix
+
+| Event | Example and authoritative result |
+| --- | --- |
+| Drifter standard attack | At position 4 (Enemy +1), remove 9 of 100 pre-hit HP: one tick toward Drifters, ending at 5. If applicable active Defend/Brace reduces the contribution, it becomes zero and stays at 4. |
+| Enemy enhanced attack | At position 6 (Drifter +1), remove 10 of 100 pre-hit HP: two ticks toward enemies, ending at 4. If applicable active Defend/Brace reduces the contribution once, it becomes one tick and ends at 5. |
+| Split attack | Sum actual HP removed across its components and classify once against pre-attack HP. A 4+6 result against 100 HP is one enhanced attack and contributes two ticks, not one contribution per component. |
+| Mixed-source DoT | Against 100 pre-phase HP, opposing-faction sources remove 5+5 HP while same-faction and unattributed sources remove 4+1 HP. All damage resolves normally; only the eligible opposing-faction 10 counts, producing one enhanced two-tick contribution. DoT does not receive the active-attack one-tick reduction. |
+| Suppressed turn | Resolve DoT and its duration advancement before the suppression check without consuming, clearing, or expiring the pending stun/frozen opportunity. If the combatant survives, the ordinary check still suppresses the action; if DoT defeats them, no action occurs. |
+| No eligible damage event | Miss, zero actual HP damage, healing, rejected action, same-faction damage, self-backlash, or unattributed environmental damage causes no Momentum change. |
+| Dynamic thresholds | At +2/+3/+4/+5, the controlling faction receives +4/+6/+8/+10 critical percentage points and 0%/5%/5%/10% damage and mitigation. The enemy faction uses the identical table. Read bonuses from pre-action Momentum; apply an attack's shift only after its damage resolves. Crossing +5 to +4 reduces the damage/mitigation tier to 5%; crossing +3 to +2 removes it. |
+
+**Gate 0 status: CLOSED FOR PLANNING.** The event matrix, approved arithmetic and attribution rules, repository seam audit, and user-approved terminal/browser presentation are recorded. M7's implementation remains a separate next step; no gameplay code was changed in this closure.
 
 ## Gate 1 - Shared Encounter State And Lifecycle
 
@@ -153,7 +173,7 @@ The repository audit confirms current moves resolve one target and one hit per a
 
 **Closure:** The approved shared contested mechanic is implemented and qualified with deterministic action/critical behavior, faction-wide projection, encounter reset, client parity, and no save or unrelated combat regressions.
 
-## Gate 0 Decision Status
+## Gate 0 Decision Record
 
 | ID | Decision and status |
 | --- | --- |
@@ -161,7 +181,7 @@ The repository audit confirms current moves resolve one target and one hit per a
 | M7-D2 | Resolved: opposing-faction attribution; mixed-source DoT counts eligible opposing damage only. Applicable active Defend/Brace reduces attack contribution once; no reduction from passive or Momentum mitigation. Start-of-turn DoT precedes suppression without consuming it. |
 | M7-D3 | Resolved: +2 critical percentage points per faction advantage level, capped by the existing 35% critical cap. |
 | M7-D4 | Resolved: no special Momentum modifiers for Intuition, individual moves, bosses, or non-damaging effects; healing is zero. Unattributed and same-faction damage do not shift Momentum. |
-| M7-D5 | Presentation proposal recorded above; review pending. |
+| M7-D5 | Resolved: one shared terminal/browser meter with relative-control and active-bonus text, visible +3/+5 threshold cues, and Python-authoritative values. |
 | M7-D6 | Resolved: preserve integer-floor damage ordering; outgoing Momentum bonus after attacker modifiers/before defenses; Momentum mitigation after defenses/before critical; classify using final actual HP removed. |
 
-The integer scale, 1/2-tick damage shifts, 10% threshold, defense reduction, start-of-turn DoT ordering/attribution and suppression preservation, critical progression, and +3/+5 arithmetic are approved planning contracts. Gate 0 remains open for review of the presentation proposal and final contract synchronization. Do not reintroduce the superseded per-combatant model or infer missing values from historical examples.
+The integer scale, 1/2-tick damage shifts, 10% threshold, defense reduction, start-of-turn DoT ordering/attribution and suppression preservation, critical progression, +3/+5 arithmetic, and presentation are approved planning contracts. Gate 0 is closed for planning. Do not reintroduce the superseded per-combatant model or infer missing values from historical examples.
