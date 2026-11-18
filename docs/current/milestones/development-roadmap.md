@@ -236,7 +236,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 ## M8 - Finish The Region, Story, And Content Loop
 
-**Depends on:** M1-M6; integrate M7 if it is accepted into the release.
+**Depends on:** M1-M7 and sealed M6.5. M7 and M6.5 are present in the current `dungeon` tree and are regression-protected inputs to M8; M8 does not make their inclusion optional.
 
 1. Agree a finite content manifest: floors/regions, enemies, encounters, bosses, recruitment beats, required pairings, expeditions, equipment, techniques, discoveries, and narrative events. The future docs do not specify enough content to claim an entire campaign is finished.
 2. Add dungeon selection, known/rumored information, free-choice/required-character/locked-pair restrictions, and discoveries from scouting, NPCs, documents, and prior attempts.
@@ -308,7 +308,7 @@ These are planning drafts for review, not authorization to implement milestones 
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
 | M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; Gate 0 product contracts complete; review the consolidated readiness package and settle crafted-consumable resale before runtime work; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
-| M8 | [Region and content loop](m8-region-content-loop.md) | M1-M6; M7 only if selected for the release |
+| M8 | [Region and content loop](m8-region-content-loop.md) | M1-M7 and M6.5; finite manifest and M8-D1 through D6 approval required before implementation |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
 **Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 uses already-authored, completed floors for expedition destinations; M8 authors the remaining region/floor content and missing reward sources.
