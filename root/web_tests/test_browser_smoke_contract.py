@@ -5,6 +5,7 @@ ROOT = Path(__file__).parents[1]
 SMOKE_PATH = ROOT / "web_tests" / "browser_smoke.mjs"
 SHELL_PATH = ROOT / "web" / "play" / "index.html"
 SCRIPT_PATH = ROOT / "web" / "play" / "js" / "pyd4.js"
+CSS_PATH = ROOT / "web" / "play" / "styles.css"
 
 
 def test_headless_smoke_uses_real_browser_and_authoritative_signals():
@@ -241,3 +242,40 @@ def test_browser_skills_panel_exposes_purchase_loadout_and_respec_contracts():
     assert 'kind: "advancement_equip"' in script
     assert 'view.screen === "respec_confirmation"' in script
     assert 'view.respec_preview' in script
+
+
+def test_battle_momentum_meter_renders_python_projection_accessibly():
+    shell = SHELL_PATH.read_text()
+    script = SCRIPT_PATH.read_text()
+    styles = CSS_PATH.read_text()
+    smoke = SMOKE_PATH.read_text()
+
+    assert 'id="momentum-meter"' in shell
+    assert 'id="momentum-track"' in shell
+    assert 'role="meter"' in shell
+    assert 'id="momentum-control"' in shell
+    assert 'id="momentum-bonuses"' in shell
+    assert "function renderMomentumMeter(momentum)" in script
+    assert "renderMomentumMeter(view.momentum)" in script
+    for field in (
+        "momentum.position",
+        "momentum.control_label",
+        "momentum.critical_bonus_percent_points",
+        "momentum.outgoing_damage_bonus_percent",
+        "momentum.incoming_mitigation_percent",
+    ):
+        assert field in script
+    assert ".momentum-track" in styles
+    assert 'locator("#momentum-meter")' in smoke
+    assert 'momentum: { position: 2, control_label: "Enemies +3", critical_bonus_percent_points: 6, outgoing_damage_bonus_percent: 5, incoming_mitigation_percent: 5 }' in smoke
+    assert "M7_BROWSER|MOMENTUM_PROJECTION|PASS" in smoke
+
+
+def test_browser_momentum_neutral_is_checked_without_racing_opening_attacks():
+    smoke = SMOKE_PATH.read_text()
+
+    assert 'assertMomentumNeutral(targetPage, "deterministic neutral projection")' in smoke
+    assert 'assertMomentumNeutral(page, "first browser encounter")' not in smoke
+    assert 'assertMomentumNeutral(page, `${floorLabel} Battle ${battleNumber}`)' not in smoke
+    assert '"deterministic neutral projection"' in smoke
+    assert "await observeMomentum(page);" in smoke

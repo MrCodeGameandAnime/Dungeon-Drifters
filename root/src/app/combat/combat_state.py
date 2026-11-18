@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.combat.arcane import ArcaneDischarge, GRAVEMANTLE_RULES
 from app.combat.brace import BRACE_RULES
 from app.combat.move import DamageType
+from app.combat.momentum import MomentumState
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
 from app.combat.status_state import StatusState
 
@@ -42,6 +43,7 @@ class CombatState:
         self._heal_cooldowns = []
         self._arcane_charge_states = []
         self._status_state = StatusState()
+        self.momentum = MomentumState()
         self.buffs = {}
         self.debuffs = {}
 
@@ -329,6 +331,12 @@ class CombatState:
     def clear_statuses(self):
         self._status_state.clear_all()
 
+    def advance_start_turn(self, actor, opposing_sources=()):
+        return self._status_state.advance_turn_start(
+            actor,
+            opposing_sources=opposing_sources,
+        )
+
     def clear_defeated_combatant(self, combatant):
         if not self._combatant_is_defeated(combatant):
             return ()
@@ -374,9 +382,6 @@ class CombatState:
         if reduce_heal_cooldown and not actor_defeated:
             self._decrement_heal_cooldown(actor)
 
-        if not actor_defeated:
-            outcomes.extend(self._status_state.advance_after_accepted_action(actor))
-            outcomes.extend(self.clear_defeated_combatant(actor))
         self.advance_turn()
         return tuple(outcomes)
 

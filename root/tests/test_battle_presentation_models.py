@@ -21,6 +21,7 @@ from app.presentation.battle_models import (
     InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
+    MomentumView,
     SuperMeterView,
     TargetOptionView,
 )
@@ -71,6 +72,7 @@ def _view(**overrides):
         "player": _combatant(),
         "enemies": (_enemy(),),
         "super_meter": _meter(),
+        "momentum": MomentumView(5, "Neutral", 0, 0, 0),
     }
     values.update(overrides)
     return BattleView(**values)
@@ -118,6 +120,7 @@ def test_models_are_frozen():
             "Infused Barb",
         ),
         _meter(),
+        MomentumView(8, "Drifters +3", 6, 5, 5),
         BattleLogEntry(BattleEventType.ENCOUNTER_START),
         BattleVisualView(("player",), ("enemy",)),
         _view(),
@@ -126,6 +129,21 @@ def test_models_are_frozen():
     for model in models:
         with pytest.raises(FrozenInstanceError):
             setattr(model, "unexpected", True)
+
+
+def test_battle_view_copy_preserves_authoritative_momentum_projection():
+    momentum = MomentumView(8, "Drifters +3", 6, 5, 5)
+    view = _view(momentum=momentum)
+
+    copied = view.with_expedition_status("Expedition underway")
+
+    assert copied.momentum is momentum
+
+
+@pytest.mark.parametrize("position", (-1, 11))
+def test_momentum_view_rejects_positions_outside_shared_meter(position):
+    with pytest.raises(ValueError, match="position"):
+        MomentumView(position, "Drifters +1", 2, 0, 0)
 
 
 def test_model_collections_require_tuples():

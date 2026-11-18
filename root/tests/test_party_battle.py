@@ -2,6 +2,7 @@ import pytest
 from types import SimpleNamespace
 
 from app.combat.battle import Battle
+from app.combat.result import CombatOutcomeType
 from app.combat.resolver import CombatResolver
 from app.content.catalog import (
     create_enemy_state,
@@ -74,6 +75,172 @@ def test_single_drifter_battle_does_not_allocate_party_turn_state():
     assert not hasattr(battle, "_party_turn_queue")
     assert not hasattr(battle, "_party_dexterity_snapshot")
     assert battle.party == (battle.player_state,)
+
+
+def test_battle_uses_one_shared_momentum_value_for_all_combatants():
+    rosters = (
+        ("branoc", "azhvielle"),
+        ("branoc", "azhvielle", "zhaivra", "joruun"),
+    )
+
+    for roster in rosters:
+        members = tuple(
+            player(drifter_id, 40 - index * 5)
+            for index, drifter_id in enumerate(roster)
+        )
+        enemies = (goblin(5), goblin(4))
+        battle = Battle(
+            members[0],
+            enemies,
+            party=members[1:],
+            rng=StableRng(),
+        )
+
+        momentum = battle.combat_state.momentum
+        momentum.shift(2)
+
+        assert battle.combat_state.momentum is momentum
+        assert momentum.position == 7
+        assert all(not hasattr(member, "momentum") for member in members)
+        assert all(not hasattr(enemy, "momentum") for enemy in enemies)
+
+
+@pytest.mark.parametrize("winner", ("player", "enemy"))
+def test_encounter_completion_resets_momentum(winner):
+    battle = Battle(player("branoc", 6), (goblin(5),), rng=StableRng())
+    battle.combat_state.momentum.shift(4)
+
+    battle._finish(winner)
+
+    assert battle.combat_state.momentum.position == 5
+
+
+def test_new_encounter_starts_neutral_after_previous_encounter_ends():
+    previous = Battle(player("branoc", 6), (goblin(5),), rng=StableRng())
+    previous.combat_state.momentum.shift(4)
+    previous._finish("player")
+
+    current = Battle(player("azhvielle", 5), (goblin(4),), rng=StableRng())
+
+    assert current.combat_state.momentum.position == 5
+    assert current.combat_state.momentum is not previous.combat_state.momentum
+
+
+def test_smoke_escape_resets_momentum():
+    battle = Battle(
+        player("branoc", 6),
+        (goblin(5),),
+        rng=StableRng(),
+        smoke_escape_allowed=True,
+        party_state=SimpleNamespace(
+            carried_items={"smoke_bomb": 1},
+            consume_carried_supplies=lambda _items: True,
+        ),
+    )
+    battle.combat_state.momentum.shift(-4)
+
+    view = battle.submit(ChooseAction(ActionIntent.ESCAPE))
+
+    assert battle.is_complete
+    assert battle.winner == "escaped"
+    assert battle.combat_state.momentum.position == 5
+    assert view is battle.current_view()
+
+
+def test_start_turn_mixed_dot_counts_only_opposing_sources_once():
+    lead = player("branoc", 40)
+    companion = player("azhvielle", 20)
+    enemies = (goblin(5), goblin(4))
+    battle = Battle(
+        lead,
+        enemies,
+        ui=object(),
+        party=(companion,),
+        rng=StableRng(),
+    )
+    lead.health.take_damage(lead.health.current - 100)
+    state = battle.combat_state
+    state.apply_burn(companion, lead)
+    enemies[0].permanent_stats.set_stat("dexterity", 100)
+    state.apply_poison(enemies[0], lead)
+    lead.character.dexterity = 100
+    state.apply_frostbite(enemies[1], lead, damage_per_tick=5, ticks=3)
+    before = lead.health.current
+
+    battle._ensure_started()
+
+    assert lead.health.current < before
+    assert any(
+        outcome.outcome_type == CombatOutcomeType.BURN_TICK
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    )
+    assert any(
+        outcome.outcome_type == CombatOutcomeType.POISON_TICK
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    )
+    assert any(
+        outcome.outcome_type == CombatOutcomeType.FROSTBITE_TICK
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    )
+    assert state.momentum.position == 3
+    assert state.turn_count == 0
+
+
+def test_start_turn_dot_preserves_stun_for_normal_action_suppression():
+    lead = player("branoc", 40)
+    companion = player("azhvielle", 20)
+    enemy = goblin(5)
+    battle = Battle(
+        lead,
+        (enemy,),
+        ui=object(),
+        party=(companion,),
+        rng=StableRng(),
+    )
+    battle.combat_state.apply_stun(enemy, lead)
+    battle.combat_state.apply_frostbite(
+        enemy,
+        lead,
+        damage_per_tick=5,
+        ticks=3,
+    )
+
+    battle._ensure_started()
+
+    outcomes = tuple(
+        outcome.outcome_type
+        for entry in battle.presentation_session.entries
+        for outcome in entry.outcomes
+    )
+    assert CombatOutcomeType.FROSTBITE_TICK in outcomes
+    assert CombatOutcomeType.STUN_TRIGGERED in outcomes
+    assert battle.combat_state.turn_count == 0
+
+
+def test_lethal_start_turn_dot_prevents_the_combatant_action():
+    player_state = player("branoc", 6)
+    enemy = goblin(5)
+    battle = Battle(player_state, (enemy,), ui=object(), rng=StableRng())
+    player_state.health.take_damage(player_state.health.current - 1)
+    battle.combat_state.apply_frostbite(
+        enemy,
+        player_state,
+        damage_per_tick=1,
+        ticks=1,
+    )
+
+    battle._ensure_started()
+
+    assert battle.is_complete
+    assert battle.winner == "enemy"
+    assert battle.combat_state.turn_count == 0
+    assert any(
+        entry.event_type == BattleEventType.DEFEAT
+        for entry in battle.presentation_session.entries
+    )
 
 
 def test_party_battle_requires_player_states_with_unique_canonical_drifter_ids():

@@ -508,11 +508,39 @@ class BattleVisualView:
 
 
 @dataclass(frozen=True)
+class MomentumView:
+    position: int
+    control_label: str
+    critical_bonus_percent_points: int
+    outgoing_damage_bonus_percent: int
+    incoming_mitigation_percent: int
+
+    def __post_init__(self):
+        position = _validate_nonnegative_integer("position", self.position)
+        if position > 10:
+            raise ValueError("position must not exceed 10")
+        object.__setattr__(
+            self,
+            "control_label",
+            _validate_nonempty_string("control_label", self.control_label),
+        )
+        for name in (
+            "critical_bonus_percent_points",
+            "outgoing_damage_bonus_percent",
+            "incoming_mitigation_percent",
+        ):
+            value = _validate_nonnegative_integer(name, getattr(self, name))
+            if value > 100:
+                raise ValueError(f"{name} must not exceed 100")
+
+
+@dataclass(frozen=True)
 class BattleView:
     interaction_phase: InteractionPhase
     player: CombatantView
     enemies: tuple[EnemyCombatantView, ...]
     super_meter: SuperMeterView
+    momentum: MomentumView
     encounter_label: str = "Battle"
     action_options: tuple[ActionOptionView, ...] = ()
     move_options: tuple[MoveOptionView, ...] = ()
@@ -549,6 +577,7 @@ class BattleView:
         if len({enemy.target_id for enemy in self.enemies}) != len(self.enemies):
             raise ValueError("enemy target IDs must be unique")
         _validate_instance("super_meter", self.super_meter, SuperMeterView)
+        _validate_instance("momentum", self.momentum, MomentumView)
         object.__setattr__(
             self,
             "encounter_label",
@@ -675,6 +704,7 @@ class BattleView:
             player=self.player,
             enemies=self.enemies,
             super_meter=self.super_meter,
+            momentum=self.momentum,
             encounter_label=self.encounter_label,
             action_options=self.action_options,
             move_options=self.move_options,

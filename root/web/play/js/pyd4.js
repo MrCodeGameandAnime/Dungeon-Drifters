@@ -1824,6 +1824,37 @@
     $("super-ready").hidden = !(meter && meter.activation_offered);
   }
 
+  function renderMomentumMeter(momentum) {
+    const activeBonuses = [];
+    if (momentum.critical_bonus_percent_points) {
+      activeBonuses.push(
+        `Critical chance +${momentum.critical_bonus_percent_points} percentage points`,
+      );
+    }
+    if (momentum.outgoing_damage_bonus_percent) {
+      activeBonuses.push(
+        `Outgoing damage +${momentum.outgoing_damage_bonus_percent}%`,
+      );
+    }
+    if (momentum.incoming_mitigation_percent) {
+      activeBonuses.push(
+        `Incoming mitigation +${momentum.incoming_mitigation_percent}%`,
+      );
+    }
+    const bonusText = activeBonuses.length
+      ? activeBonuses.join("; ")
+      : "No Momentum bonuses active";
+    setText(
+      "momentum-control",
+      `Momentum ${momentum.position}/10 - ${momentum.control_label}`,
+    );
+    setText("momentum-bonuses", bonusText);
+    const track = $("momentum-track");
+    track.setAttribute("aria-valuenow", String(momentum.position));
+    track.setAttribute("aria-valuetext", `${momentum.control_label}. ${bonusText}`);
+    track.style.setProperty("--momentum-position", String(momentum.position));
+  }
+
   function renderPartyMembers(members) {
     const container = $("party-members");
     clear(container);
@@ -1882,6 +1913,7 @@
     renderPlayer(view.player);
     renderEnemies(view.enemies);
     renderLog(view.log_entries);
+    renderMomentumMeter(view.momentum);
     renderSuperMeter(view.super_meter);
 
     const actions = $("actions");

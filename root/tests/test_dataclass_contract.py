@@ -23,6 +23,7 @@ from app.presentation.battle_models import (
     CombatantView,
     EnemyCombatantView,
     InteractionPhase,
+    MomentumView,
     SuperMeterView,
 )
 from app.ui.battle_ui import ChooseAction
@@ -87,6 +88,7 @@ def _battle_view(**overrides):
             activation_key="S",
             activation_offered=False,
         ),
+        "momentum": MomentumView(5, "Neutral", 0, 0, 0),
     }
     values.update(overrides)
     return BattleView(**values)
@@ -114,10 +116,10 @@ def test_production_dataclass_surface_is_exactly_audited():
     texts = tuple(path.read_text(encoding="utf-8") for path in files)
 
     assert len(import_files) == 49
-    assert sum(text.count("@dataclass") for text in texts) == 185
-    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 182
+    assert sum(text.count("@dataclass") for text in texts) == 186
+    assert sum(text.count("@dataclass(frozen=True)") for text in texts) == 183
     assert sum(text.count("@dataclass\n") for text in texts) == 3
-    assert sum(text.count("def __post_init__(self)") for text in texts) == 145
+    assert sum(text.count("def __post_init__(self)") for text in texts) == 146
     assert sum(text.count("field(default_factory=") for text in texts) == 1
 
     forbidden = (

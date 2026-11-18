@@ -128,6 +128,38 @@ def test_presenter_builds_resource_and_temporary_state_views():
     assert (view.player.super_current, view.player.super_maximum) == (0, 100)
     assert view.player.defending is True
     assert view.player.temporary_labels == ("Defending", "Brace")
+
+
+@pytest.mark.parametrize(
+    "position, expected_label, expected_critical, expected_damage",
+    (
+        (5, "Neutral", 0, 0),
+        (2, "Enemies +3", 6, 5),
+        (0, "Enemies +5", 10, 10),
+        (8, "Drifters +3", 6, 5),
+        (10, "Drifters +5", 10, 10),
+    ),
+)
+def test_presenter_projects_shared_momentum_and_active_advantages(
+    position,
+    expected_label,
+    expected_critical,
+    expected_damage,
+):
+    player, enemy, combat_state = _battle_values()
+    combat_state.momentum.shift(position - 5)
+
+    view = BattlePresenter().build(
+        player=player,
+        enemy=enemy,
+        combat_state=combat_state,
+    )
+
+    assert view.momentum.position == position
+    assert view.momentum.control_label == expected_label
+    assert view.momentum.critical_bonus_percent_points == expected_critical
+    assert view.momentum.outgoing_damage_bonus_percent == expected_damage
+    assert view.momentum.incoming_mitigation_percent == expected_damage
     assert (view.enemy.hp_current, view.enemy.hp_maximum) == (60, 60)
     assert view.enemy.mana_current is None
     assert view.enemy.super_current is None

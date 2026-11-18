@@ -307,7 +307,7 @@ def test_accepted_preparation_allows_exactly_one_enemy_response():
     assert battle.combat_state.turn_count == 2
 
 
-def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
+def test_lethal_start_turn_burn_prevents_player_preparation_and_enemy_response():
     player_state = PlayerState(create_drifter("zhaivra"))
     resolver = RecordingResolver()
     battle = Battle(
@@ -326,14 +326,12 @@ def test_lethal_player_lifecycle_after_preparation_prevents_enemy_response():
 
     assert winner == "enemy"
     assert resolver.calls == []
-    assert battle.combat_state.turn_count == 1
+    assert battle.combat_state.turn_count == 0
     assert tuple(
         outcome.outcome_type
         for entry in battle.presentation_session.entries
         for outcome in entry.outcomes
     ) == (
-        CombatOutcomeType.COMPOUNDS_CONSUMED,
-            CombatOutcomeType.FIRE_INFUSION_PREPARED,
         CombatOutcomeType.BURN_TICK,
         CombatOutcomeType.BURN_EXPIRED,
     )
@@ -352,7 +350,7 @@ def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
 
     assert winner == "player"
     assert ui.input_views == []
-    assert battle.combat_state.turn_count == 1
+    assert battle.combat_state.turn_count == 0
     assert tuple(entry.event_type for entry in battle.presentation_session.entries[-2:]) == (
         BattleEventType.STATUS,
         BattleEventType.VICTORY,
@@ -369,7 +367,7 @@ def test_enemy_burn_lifecycle_resolves_victory_before_player_prompt():
     assert status_entry.outcomes[0].amount == 1
 
 
-def test_burn_does_not_tick_during_navigation_or_rejected_action():
+def test_burn_ticks_once_before_navigation_and_rejected_actions():
     player_state = PlayerState(create_drifter("zhaivra"))
     resolver = RecordingResolver(
         accepted_result(),
@@ -393,15 +391,16 @@ def test_burn_does_not_tick_during_navigation_or_rejected_action():
 
     assert battle.player_action() is True
 
-    assert all(view.player.hp_current == before for view in ui.input_views)
+    assert all(view.player.hp_current == before - 7 for view in ui.input_views)
     assert player_state.health.current == before - 7
     assert battle.combat_state.turn_count == 1
-    status_entries = tuple(
-        entry
-        for entry in battle.presentation_session.entries
-        if entry.event_type == BattleEventType.STATUS
+    first_view_ticks = tuple(
+        outcome.outcome_type
+        for entry in ui.input_views[0].log_entries
+        for outcome in entry.outcomes
+        if outcome.outcome_type == CombatOutcomeType.BURN_TICK
     )
-    assert len(status_entries) == 1
+    assert first_view_ticks == (CombatOutcomeType.BURN_TICK,)
 
 
 def test_battle_accepts_player_state_and_uses_wrapped_character():
@@ -1291,7 +1290,7 @@ def test_battle_starts_from_existing_persistent_health():
     assert player_state.health.current == player_state.health.maximum - 10
 
 
-@pytest.mark.parametrize(("drifter_id", "move_key", "expected_turns"), (("joruun", "2", 5), ("branoc", "4", 7)))
+@pytest.mark.parametrize(("drifter_id", "move_key", "expected_turns"), (("joruun", "2", 3), ("branoc", "4", 5)))
 def test_victory_returns_player_and_counts_completed_actions(drifter_id, move_key, expected_turns):
     player_state = PlayerState(create_drifter(drifter_id))
     battle = Battle(player_state, EnemyState(create_enemy_definition("goblin")))

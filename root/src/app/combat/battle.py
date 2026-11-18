@@ -135,6 +135,7 @@ class Battle:
         self._selected_move_key = None
         self._originating_move_phase = None
         self._started = False
+        self._turn_start_actor = None
         self._player_side_turn = None
         self._winner_result = None
         self._final_view = None
@@ -311,6 +312,11 @@ class Battle:
             return
         while not self.is_complete:
             if self._player_side_turn:
+                self._advance_start_turn_effects(self.player_state)
+                winner = self._winner()
+                if winner is not None:
+                    self._finish(winner)
+                    return
                 if self._skip_action_opportunity_suppression(self.player_state):
                     self._player_side_turn = False
                     continue
@@ -339,20 +345,28 @@ class Battle:
             if not actor.is_alive():
                 self._consume_party_turn(actor)
                 continue
-            if self._is_party_member(actor):
+            actor_is_party_member = self._is_party_member(actor)
+            if actor_is_party_member:
                 self._activate_party_member(actor)
-                if self._skip_action_opportunity_suppression(actor):
-                    self._consume_party_turn(actor)
-                    continue
-                return
-            self._resolve_pending_cave_in()
+            else:
+                self._resolve_pending_cave_in()
+                winner = self._winner()
+                if winner is not None:
+                    self._finish(winner)
+                    return
+            self._advance_start_turn_effects(actor)
             winner = self._winner()
             if winner is not None:
                 self._finish(winner)
                 return
+            if not actor.is_alive():
+                self._consume_party_turn(actor)
+                continue
             if self._skip_action_opportunity_suppression(actor):
                 self._consume_party_turn(actor)
                 continue
+            if actor_is_party_member:
+                return
             self._process_enemy_action(actor)
             winner = self._winner()
             if winner is not None:
@@ -473,6 +487,8 @@ class Battle:
         self.interaction_phase = InteractionPhase.COMPLETE
         self._clear_inventory_navigation()
         self._clear_move_target_navigation()
+        self._turn_start_actor = None
+        self.combat_state.momentum.reset()
         self._final_view = self._build_view()
         return self._final_view
 
@@ -492,6 +508,7 @@ class Battle:
         presentation_target=None,
     ):
         if result.accepted:
+            self._turn_start_actor = None
             if reduce_heal_cooldown:
                 outcomes = self.combat_state.complete_accepted_action(
                     actor,
@@ -691,6 +708,11 @@ class Battle:
         self._ensure_started()
         while not self.is_complete:
             if self._player_side_turn:
+                self._advance_start_turn_effects(self.player_state)
+                winner = self._winner()
+                if winner is not None:
+                    self._finish(winner)
+                    break
                 if self._skip_action_opportunity_suppression(self.player_state):
                     self._player_side_turn = False
                     continue
@@ -739,6 +761,7 @@ class Battle:
         outcomes = self.combat_state.consume_action_opportunity_suppression(actor)
         if not outcomes:
             return False
+        self._turn_start_actor = None
         opposing_name = (
             self._enemy_group_label()
             if self._is_party_member(actor)
@@ -760,7 +783,47 @@ class Battle:
         )
         return True
 
+    def _advance_start_turn_effects(self, actor):
+        if self._turn_start_actor is actor:
+            return ()
+        self._turn_start_actor = actor
+        opposing_sources = (
+            self._party_members if self._party_mode else (self.player_state,)
+        ) if is_enemy_combatant(actor) else self.enemies
+        hp_before_phase = actor.health.current
+        outcomes, opposing_damage = self.combat_state.advance_start_turn(
+            actor,
+            opposing_sources=opposing_sources,
+        )
+        if outcomes:
+            self._record_lifecycle_outcomes(actor, actor, outcomes)
+        if opposing_damage and hp_before_phase:
+            contribution = (
+                2 if opposing_damage * 10 >= hp_before_phase else 1
+            )
+            self.combat_state.momentum.shift(
+                contribution if is_enemy_combatant(actor) else -contribution
+            )
+        if not actor.is_alive():
+            self._turn_start_actor = None
+            self.combat_state.clear_defeated_combatant(actor)
+        return outcomes
+
     def player_action(self):
+        if self.ui is None:
+            raise RuntimeError("Battle UI is required by Battle.player_action()")
+        self._advance_start_turn_effects(self.player_state)
+        winner = self._winner()
+        if winner is not None:
+            self._finish(winner)
+            return True
+        if not self.player_state.is_alive():
+            return True
+        if self._skip_action_opportunity_suppression(self.player_state):
+            return True
+        return self._read_player_action()
+
+    def _read_player_action(self):
         if self.ui is None:
             raise RuntimeError("Battle UI is required by Battle.player_action()")
         self.interaction_phase = InteractionPhase.ACTIONS
@@ -839,6 +902,7 @@ class Battle:
                 self.interaction_phase = InteractionPhase.COMPLETE
                 self._clear_inventory_navigation()
                 self._clear_move_target_navigation()
+                self.combat_state.momentum.reset()
                 self._final_view = self._build_view()
                 return True
             if battle_input.intent == ActionIntent.DEFEND:
@@ -1236,6 +1300,13 @@ class Battle:
             self._resolve_pending_cave_in()
             if self._winner() is not None:
                 return
+            self._advance_start_turn_effects(enemy)
+            winner = self._winner()
+            if winner is not None:
+                self._finish(winner)
+                return
+            if not enemy.is_alive():
+                continue
             if self._skip_action_opportunity_suppression(enemy):
                 continue
             self._process_enemy_action(enemy)
@@ -1311,4 +1382,15 @@ class Battle:
 
     def enemy_action(self, enemy=None):
         enemy = self.foe if enemy is None else enemy
+        if not any(current is enemy for current in self.enemies):
+            raise ValueError("enemy does not belong to this Battle")
+        self._advance_start_turn_effects(enemy)
+        winner = self._winner()
+        if winner is not None:
+            self._finish(winner)
+            return True
+        if not enemy.is_alive():
+            return True
+        if self._skip_action_opportunity_suppression(enemy):
+            return True
         return self._process_enemy_action(enemy)

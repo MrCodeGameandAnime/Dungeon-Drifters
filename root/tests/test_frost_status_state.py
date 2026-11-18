@@ -133,7 +133,7 @@ def test_frozen_consumes_before_stun_and_preserves_stun():
     assert not state.stun_active(target)
 
 
-def test_frostbite_ticks_after_accepted_actions_and_refreshes():
+def test_frostbite_ticks_at_turn_start_and_refreshes():
     state = CombatState()
     source = Combatant("source")
     target = Combatant("target", hp=30)
@@ -155,13 +155,13 @@ def test_frostbite_ticks_after_accepted_actions_and_refreshes():
     assert state.frostbite_status(target).damage_per_tick == 9
     assert state.frostbite_status(target).remaining_ticks == 3
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
     assert outcome_types(outcomes) == (CombatOutcomeType.FROSTBITE_TICK,)
     assert outcomes[0].amount == 9
     assert state.frostbite_status(target).remaining_ticks == 2
 
-    state.complete_accepted_action(target, (source,))
-    final = state.complete_accepted_action(target, (source,))
+    state.advance_start_turn(target, opposing_sources=(source,))
+    final, _ = state.advance_start_turn(target, opposing_sources=(source,))
     assert outcome_types(final) == (
         CombatOutcomeType.FROSTBITE_TICK,
         CombatOutcomeType.FROSTBITE_EXPIRED,

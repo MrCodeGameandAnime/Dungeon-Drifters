@@ -18,6 +18,7 @@ FLOOR_THREE_PROBE_PATH = (
 )
 M5_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m5_probe.py"
 M6_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m6_probe.py"
+M7_PROBE_PATH = Path(__file__).parents[1] / "tools" / "micropython_m7_probe.py"
 
 SEALED_STAGE_PREFIX = (
     "SOURCE_PATH",
@@ -115,7 +116,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
 
     route_stage_index = stages.index("ROUTE_CONSTRUCTION")
     assert route_stage_index >= len(SEALED_STAGE_PREFIX)
-    assert tuple(stages[route_stage_index : route_stage_index + 11]) == (
+    assert tuple(stages[route_stage_index : route_stage_index + 12]) == (
         "ROUTE_CONSTRUCTION",
         "ROUTE_INITIAL_VIEW",
         "SURFACE_ROUTE_COMPLETE",
@@ -126,6 +127,7 @@ def test_probe_preserves_myp17_stage_prefix_before_route_qualification():
         "M5_EQUIPMENT_PROBE",
         "M6_EXPEDITION_PROBE",
         "M65_PROFESSION_PROBE",
+        "M7_MOMENTUM_PROBE",
         "ROUTE_SESSION_TEARDOWN",
     )
 
@@ -254,6 +256,39 @@ def test_m6_probe_covers_energy_timer_settlement_claim_and_snapshot():
     assert tuple(expected_stages[start : start + len(stages) + 1]) == (
         *stages,
         "M6_EXPEDITION_PROBE",
+    )
+
+
+def test_m7_probe_covers_shared_momentum_directions_projection_and_reset():
+    source = M7_PROBE_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(M7_PROBE_PATH))
+    assert _assigned_literal(tree, "_M7_STAGE_NAMES") == (
+        "M7_SHARED_MOMENTUM",
+    )
+    for required in (
+        "CombatState",
+        "momentum.shift(3)",
+        "momentum.shift(-8)",
+        "critical_bonus_percent_points",
+        "outgoing_damage_bonus_percent",
+        "incoming_mitigation_percent",
+        "momentum.reset()",
+    ):
+        assert required in source
+
+    probe_source = _probe_source()
+    assert "import micropython_m7_probe" in probe_source
+    assert '_run_stage("M7_MOMENTUM_PROBE", _run_m7_probe)' in probe_source
+
+    runtime = Path(__file__).parents[1] / "tools" / "runtime_qualification_matrix.py"
+    runtime_tree = ast.parse(runtime.read_text(encoding="utf-8"))
+    expected_stages = _assigned_literal(runtime_tree, "EXPECTED_STAGES")
+    start = expected_stages.index("M65_PROFESSION_PROBE")
+    assert expected_stages[start : start + 4] == (
+        "M65_PROFESSION_PROBE",
+        "M7_SHARED_MOMENTUM",
+        "M7_MOMENTUM_PROBE",
+        "ROUTE_SESSION_TEARDOWN",
     )
 
 

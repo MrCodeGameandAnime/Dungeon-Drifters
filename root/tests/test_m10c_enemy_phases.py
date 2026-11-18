@@ -155,7 +155,7 @@ def test_suppressed_enemy_preserves_protection_until_next_accepted_enemy_action(
     ) > 0
 
 
-def test_frozen_then_stun_suppress_consecutive_enemy_phases_without_lifecycle():
+def test_frozen_then_stun_suppress_consecutive_enemy_phases_after_dot():
     resolver = RecordingResolver()
     battle = _battle(count=2, resolver=resolver)
     player = battle.player_state
@@ -183,9 +183,13 @@ def test_frozen_then_stun_suppress_consecutive_enemy_phases_without_lifecycle():
     assert resolver.calls == []
     assert battle.combat_state.turn_count == 0
     assert battle.combat_state.heal_cooldown_remaining(enemy) == 3
-    assert enemy.health.current == hp_before
+    assert enemy.health.current < hp_before
+    assert battle.combat_state.burn_status(enemy).remaining_ticks == 2
+    assert battle.combat_state.poison_status(enemy).remaining_ticks == 3
+    assert battle.combat_state.frostbite_status(enemy).remaining_ticks == 2
     assert enemy.mana_resource.current == mana_before
     assert enemy.super_resource.current == super_before
+    hp_after_first = enemy.health.current
 
     battle.enemy_phase()
 
@@ -193,16 +197,20 @@ def test_frozen_then_stun_suppress_consecutive_enemy_phases_without_lifecycle():
     assert resolver.calls == []
     assert battle.combat_state.turn_count == 0
     assert battle.combat_state.heal_cooldown_remaining(enemy) == 3
-    assert enemy.health.current == hp_before
+    assert enemy.health.current < hp_after_first
+    assert battle.combat_state.burn_status(enemy).remaining_ticks == 1
+    assert battle.combat_state.poison_status(enemy).remaining_ticks == 2
+    assert battle.combat_state.frostbite_status(enemy).remaining_ticks == 1
     assert enemy.mana_resource.current == mana_before
     assert enemy.super_resource.current == super_before
+    hp_after_second = enemy.health.current
 
     battle.enemy_phase()
 
     assert len(resolver.calls) == 1
     assert battle.combat_state.turn_count == 1
     assert battle.combat_state.heal_cooldown_remaining(enemy) == 2
-    assert enemy.health.current < hp_before
+    assert enemy.health.current < hp_after_second
 
 
 def test_enemy_resolver_rejection_is_invariant_failure_without_lifecycle_or_retry():
@@ -301,10 +309,16 @@ def test_suppressed_player_is_followed_by_complete_living_enemy_phase():
     assert not battle.combat_state.frozen_active(player)
     assert battle.combat_state.turn_count == len(battle.enemies)
     assert battle.combat_state.heal_cooldown_remaining(player) == 3
-    assert battle.combat_state.burn_status(player) is burn_before
-    assert battle.combat_state.poison_status(player) is poison_before
-    assert battle.combat_state.frostbite_status(player) is frostbite_before
-    assert player.health.current == hp_before
+    burn_after = battle.combat_state.burn_status(player)
+    poison_after = battle.combat_state.poison_status(player)
+    frostbite_after = battle.combat_state.frostbite_status(player)
+    assert burn_after.source is burn_before.source
+    assert burn_after.remaining_ticks == burn_before.remaining_ticks - 2
+    assert poison_after.source is poison_before.source
+    assert poison_after.remaining_ticks == poison_before.remaining_ticks - 2
+    assert frostbite_after.source is frostbite_before.source
+    assert frostbite_after.remaining_ticks == frostbite_before.remaining_ticks - 2
+    assert player.health.current < hp_before
     assert player.mana_resource.current == mana_before
     assert player.super_resource.current == super_before
 
@@ -421,7 +435,8 @@ def test_lethal_frostbite_lifecycle_clears_all_non_status_temporary_state():
     state.activate_arcane_instability(actor)
     state.apply_frostbite(source, actor, damage_per_tick=5, ticks=3)
 
-    state.complete_accepted_action(actor, (source,))
+    state.advance_start_turn(actor, opposing_sources=(source,))
+    state.clear_defeated_combatant(actor)
 
     assert not actor.is_alive()
     assert not state.is_defending(actor)
@@ -431,4 +446,4 @@ def test_lethal_frostbite_lifecycle_clears_all_non_status_temporary_state():
     assert not state.arcane_overcharge_active(actor)
     assert not state.arcane_instability_active(actor)
     assert state.active_status_kinds(actor) == ()
-    assert state.turn_count == 1
+    assert state.turn_count == 0

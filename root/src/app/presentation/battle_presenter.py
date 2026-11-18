@@ -26,6 +26,7 @@ from app.presentation.battle_models import (
     InventoryItemOptionView,
     MoveAvailabilityReason,
     MoveOptionView,
+    MomentumView,
     PartyCombatantView,
     SuperMeterView,
     TargetOptionView,
@@ -227,6 +228,7 @@ class BattlePresenter:
             player=view_player,
             enemies=enemy_views,
             super_meter=super_meter,
+            momentum=self._momentum_view(combat_state),
             encounter_label=encounter_label,
             action_options=action_options,
             move_options=move_options,
@@ -246,6 +248,33 @@ class BattlePresenter:
             log_entries=log_entries,
             visual=BattleVisualView(),
             party_members=party_member_views,
+        )
+
+    @staticmethod
+    def _momentum_view(combat_state):
+        momentum = combat_state.momentum
+        position = momentum.position
+        if position < momentum.NEUTRAL_POSITION:
+            control_label = f"Enemies +{momentum.advantage_for(True)}"
+        elif position > momentum.NEUTRAL_POSITION:
+            control_label = f"Drifters +{momentum.advantage_for(False)}"
+        else:
+            control_label = "Neutral"
+        return MomentumView(
+            position=position,
+            control_label=control_label,
+            critical_bonus_percent_points=max(
+                momentum.critical_bonus_percent_points(False),
+                momentum.critical_bonus_percent_points(True),
+            ),
+            outgoing_damage_bonus_percent=max(
+                momentum.outgoing_damage_bonus_percent(False),
+                momentum.outgoing_damage_bonus_percent(True),
+            ),
+            incoming_mitigation_percent=max(
+                momentum.incoming_mitigation_percent(False),
+                momentum.incoming_mitigation_percent(True),
+            ),
         )
 
     @staticmethod

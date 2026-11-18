@@ -6,7 +6,7 @@ from app.combat.arcane import GRAVEMANTLE_RULES
 from app.combat.infused_barb import INFUSED_BARB_MECHANIC
 from app.combat.frost import FROST_ATTACK_MECHANIC, FROST_RULES
 from app.combat.combat_state import CombatState, HEAL_COOLDOWN_ACTIONS
-from app.combat.combatant import is_combatant
+from app.combat.combatant import is_combatant, is_enemy_combatant
 from app.combat.move import (
     DamageComponentIdentity,
     DamageDefenseClass,
@@ -247,6 +247,7 @@ class CombatResolver:
         )
 
         damage = 0
+        hp_before_damage = None
         healing = 0
         critical = False
         if hit:
@@ -259,6 +260,7 @@ class CombatResolver:
                     target=target,
                     combat_state=combat_state,
                 )
+                hp_before_damage = target.health.current
                 damage = _apply_damage(
                     actor,
                     target,
@@ -402,6 +404,15 @@ class CombatResolver:
                             target=CombatOutcomeTarget.ACTOR,
                         )
                     )
+
+        _apply_attack_momentum(
+            combat_state,
+            actor,
+            target,
+            move,
+            hp_before_damage,
+            damage,
+        )
 
         return MoveResult(
             accepted=True,
@@ -943,6 +954,7 @@ def _landed_damage(
             * (100 + storm_damage_bonus_percent)
             // 100
         )
+    scaled_power = _momentum_outgoing_damage(actor, scaled_power, combat_state)
     mitigation = _mitigation(target, move.damage_type)
     mitigation += _passive_mitigation_bonus(
         target,
@@ -990,6 +1002,12 @@ def _landed_damage(
         move.damage_type,
         damage_after_brace,
         combat_state,
+    )
+    final_damage = _momentum_incoming_mitigation(
+        target,
+        final_damage,
+        combat_state,
+        minimum_damage=1,
     )
     if critical:
         return max(
@@ -1041,6 +1059,7 @@ def _landed_component_damage(
     ):
         if bonus_percent:
             scaled_power = scaled_power * (100 + bonus_percent) // 100
+    scaled_power = _momentum_outgoing_damage(actor, scaled_power, combat_state)
 
     mitigation = _mitigation(target, defense_type)
     mitigation += _passive_mitigation_bonus(
@@ -1089,13 +1108,81 @@ def _landed_component_damage(
             defense_type,
         ),
     )
-    return _defended_damage(
+    damage = _defended_damage(
         target,
         defense_type,
         damage,
         combat_state,
         minimum_damage=0,
     )
+    return _momentum_incoming_mitigation(
+        target,
+        damage,
+        combat_state,
+        minimum_damage=0,
+    )
+
+
+def _momentum_outgoing_damage(actor, damage, combat_state):
+    if combat_state is None:
+        return damage
+    bonus = combat_state.momentum.outgoing_damage_bonus_percent(
+        is_enemy_combatant(actor)
+    )
+    return damage * (100 + bonus) // 100
+
+
+def _momentum_incoming_mitigation(
+    target,
+    damage,
+    combat_state,
+    *,
+    minimum_damage,
+):
+    if combat_state is None:
+        return damage
+    reduction = combat_state.momentum.incoming_mitigation_percent(
+        is_enemy_combatant(target)
+    )
+    return max(minimum_damage, damage * (100 - reduction) // 100)
+
+
+def _apply_attack_momentum(
+    combat_state,
+    actor,
+    target,
+    move,
+    hp_before_damage,
+    actual_damage,
+):
+    if (
+        combat_state is None
+        or hp_before_damage is None
+        or actual_damage <= 0
+        or is_enemy_combatant(actor) == is_enemy_combatant(target)
+    ):
+        return
+
+    contribution = 2 if actual_damage * 10 >= hp_before_damage else 1
+    if _active_defense_reduces_momentum(target, move, combat_state):
+        contribution = max(0, contribution - 1)
+    if contribution:
+        combat_state.momentum.shift(
+            -contribution if is_enemy_combatant(actor) else contribution
+        )
+
+
+def _active_defense_reduces_momentum(target, move, combat_state):
+    if combat_state.is_defending(target):
+        return True
+    if not combat_state.brace_incoming_protection_active(target):
+        return False
+    if move.damage_components:
+        return any(
+            component.defense_class is DamageDefenseClass.PHYSICAL
+            for component in move.damage_components
+        )
+    return move.damage_type is DamageType.PHYSICAL
 
 
 def _arcane_instability_damage(target, damage_type, damage, combat_state):
@@ -1424,6 +1511,10 @@ def _final_crit_chance(
             combat_state,
             condition_context,
             PassiveEffectKind.CRITICAL,
+        )
+    if combat_state is not None:
+        raw_crit_chance += combat_state.momentum.critical_bonus_percent_points(
+            is_enemy_combatant(actor)
         )
     return min(MAX_ORDINARY_CRIT_CHANCE, raw_crit_chance)
 

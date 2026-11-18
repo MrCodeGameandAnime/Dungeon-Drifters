@@ -118,6 +118,7 @@ def test_deterministic_joruun_goblin_routes(monkeypatch, route, expected, forbid
     monkeypatch.setattr(battle_module.random, "choice", lambda moves: moves[0])
     player = PlayerState(create_drifter("joruun"))
     enemy = EnemyState(create_enemy_definition("goblin"))
+    enemy.health.increase_maximum(200, increase_current=True)
     ui = JoruunRouteUI(route)
     session = RecordingPresentationSession()
     battle = Battle(
@@ -169,7 +170,7 @@ def test_storm_statuses_coexist_with_burn_and_poison_without_changing_ticks():
     state.apply_conductive(source, target)
     state.apply_turbulence(source, target)
 
-    outcomes = state.complete_accepted_action(target, (source,))
+    outcomes, _ = state.advance_start_turn(target, opposing_sources=(source,))
 
     assert tuple(outcome.outcome_type for outcome in outcomes) == (
         CombatOutcomeType.BURN_TICK,

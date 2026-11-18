@@ -160,6 +160,7 @@ def test_presenter_lists_owned_items_not_recipe_actions_and_retains_unrelated_it
     enemy = EnemyState(create_enemy_definition("goblin"))
     presenter = BattlePresenter()
     combat_state = SimpleNamespace(
+        momentum=CombatState().momentum,
         is_defending=lambda _actor: False,
         brace_incoming_protection_active=lambda _actor: False,
         arcane_overcharge_active=lambda _actor: False,

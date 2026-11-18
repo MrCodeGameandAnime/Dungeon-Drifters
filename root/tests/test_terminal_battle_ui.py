@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from app.presentation.battle_models import (
     ActionAvailabilityReason,
     ActionIntent,
@@ -18,6 +20,7 @@ from app.presentation.battle_models import (
     InputRejectionReason,
     MoveAvailabilityReason,
     MoveOptionView,
+    MomentumView,
     SuperMeterView,
 )
 from app.combat.result import CombatOutcome, CombatOutcomeTarget, CombatOutcomeType
@@ -60,6 +63,7 @@ def _view(
     inventory_inspection=None,
     inventory_companions=(),
     inventory_confirmation=None,
+    momentum=None,
     log_entries=(),
 ):
     player = CombatantView("Ser Branoc", 116, 116, 46, 46, 0, 100)
@@ -101,6 +105,7 @@ def _view(
             activation_key="S",
             activation_offered=super_ready,
         ),
+        momentum=momentum or MomentumView(5, "Neutral", 0, 0, 0),
         action_options=actions,
         move_options=move_options,
         inventory_items=inventory_items,
@@ -1114,6 +1119,35 @@ def test_super_meter_is_persistent_and_ready_text_matches_availability():
     assert "SUPER [" in ready_text
     assert "100/100 READY" in ready_text
     assert "[S] Super" in ready_text
+
+
+@pytest.mark.parametrize("width", (80, 34))
+def test_momentum_meter_shows_shared_control_thresholds_and_bonus_text(width):
+    ui, harness = _ui(())
+    ui._width_provider = lambda: width
+    ui.render(
+        _view(
+            momentum=MomentumView(8, "Drifters +3", 6, 5, 5),
+        )
+    )
+    rendered = "\n".join(harness.lines)
+
+    assert "Momentum 8/10 - Drifters +3" in rendered
+    assert "N neutral" in rendered
+    assert "| +3" in rendered
+    assert "! +5" in rendered
+    assert "Critical chance +6 pp" in rendered
+    assert "Outgoing damage +5%" in rendered
+    assert "Incoming mitigation +5%" in rendered
+
+
+def test_terminal_momentum_neutral_label_explains_no_advantage():
+    ui, harness = _ui(())
+    ui.render(_view())
+
+    rendered = "\n".join(harness.lines)
+    assert "Momentum 5/10 - Neutral" in rendered
+    assert "No Momentum bonuses active" in rendered
 
 
 def test_interactive_ansi_mode_refreshes_without_retaining_state():
