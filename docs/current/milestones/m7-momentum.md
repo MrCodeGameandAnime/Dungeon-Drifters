@@ -1,8 +1,8 @@
 # M7 Momentum Implementation Plan
 
-> The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 was planning-only: gameplay contracts, source-seam audit, and presentation were approved without gameplay changes. Implementation is now proceeding under the separately approved M7 authorization.
+> The November 17, 2026 design revision supersedes the earlier per-combatant Momentum model. Gate 0 was planning-only: gameplay contracts, source-seam audit, and presentation were approved without gameplay changes. Gameplay implementation was separately authorized and is now complete under the M7 gates recorded below.
 
-**Status:** Gates 1 through 3 are hosted-qualified. Gate 4's pinned runtime matrix and cumulative local checks pass; exact-SHA hosted qualification is pending.
+**Status:** M7 Gates 1 through 4 are implemented and qualified. The final Gate 4 implementation is hosted-qualified on its exact SHA; see the Gate 4 evidence below.
 
 **Goal:** Add a temporary, encounter-wide measure of contested battlefield control. Control can improve the controlling faction's critical-hit frequency and, at approved dominance thresholds, outgoing damage and incoming mitigation. Momentum is not a spendable resource or permanent progression system.
 
@@ -176,10 +176,12 @@ The first exact-SHA hosted run for `7d45421ab950b48c346b971f34e48b995817b235` ([
 ## Gate 4 - Runtime And Cumulative Qualification
 
 - [x] Extend the pinned runtime probe with bounded shared-state updates, both faction directions, critical projection, and reset behavior.
-- [ ] Run the applicable cumulative Python, web, content, build, browser, hosted service, migration, and exact-SHA CI checks.
-- [ ] Record exact runtime and hosted evidence; do not describe deferred checks as passed.
+- [x] Run the applicable cumulative Python, web, content, build, browser, hosted service, migration, and exact-SHA CI checks.
+- [x] Record exact runtime and hosted evidence; do not describe deferred checks as passed.
 
-**Gate 4 local evidence:** The exact pinned Windows MicroPython v1.29.0 executable was verified at 488,960 bytes with SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. The cumulative matrix passed CPython 3.14.6 native, CPython forced overlay, MicroPython default, and semantic parity; 1280K was stable pass 3/3 and 1152K reached the expected memory-limit classification 3/3, ending with `MYP20|RESULT|CLOSURE_COMPLETE`. The M7 runtime stage checks neutral initialization, shared object identity, Drifter and enemy +3 projections, Drifter +5 projection, endpoint clamping, and reset to neutral with no remaining bonuses. Cumulative local checks passed: root pytest (`2,501 passed in 157.89s`), web pytest (`90 passed in 7.68s`), authored content validation (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 4 routes, 3 recruitment events), compileall, 181-file browser build, and the full Playwright smoke including `M7_BROWSER|MOMENTUM_PROJECTION|PASS` and `M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS`. Exact-SHA hosted qualification for the Gate 4 implementation remains pending.
+**Gate 4 local evidence:** The exact pinned Windows MicroPython v1.29.0 executable was verified at 488,960 bytes with SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. The cumulative matrix passed CPython 3.14.6 native, CPython forced overlay, MicroPython default, and semantic parity; 1280K was stable pass 3/3 and 1152K reached the expected memory-limit classification 3/3, ending with `MYP20|RESULT|CLOSURE_COMPLETE`. The M7 runtime stage checks neutral initialization, shared object identity, Drifter and enemy +3 projections, Drifter +5 projection, endpoint clamping, and reset to neutral with no remaining bonuses. Cumulative local checks passed: root pytest (`2,501 passed in 157.89s`), web pytest (`90 passed in 7.68s`), authored content validation (5 enemies, 4 weapons, 4 Drifters, 11 encounters, 4 routes, 3 recruitment events), compileall, 181-file browser build, and the full Playwright smoke including `M7_BROWSER|MOMENTUM_PROJECTION|PASS` and `M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS`.
+
+**Gate 4 hosted evidence:** Implementation SHA `e0616fe998319c430586ec72cee94dd8db2deb3c` passed both hosted jobs in exact-SHA [Actions run 44341214070](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/44341214070). The Tests job passed, including root/web tests, content validation, compile, browser build, and full headless browser smoke. The Profile Service (PostgreSQL) job passed service integration, migration-from-zero, and Alembic model parity.
 
 **Closure:** The approved shared contested mechanic is implemented and qualified with deterministic action/critical behavior, faction-wide projection, encounter reset, client parity, and no save or unrelated combat regressions.
 
