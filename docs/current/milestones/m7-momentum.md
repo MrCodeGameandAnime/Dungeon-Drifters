@@ -138,7 +138,7 @@ This audit confirms a bounded integration path and identifies the intentional Do
 
 **Gate 1 proof:** One authoritative shared value with validated bounds and complete encounter lifecycle isolation.
 
-**Gate 1 evidence:** Initial implementation commit `ffc5f1e5f8d2d92eaa36667717a2531bb8d90702`. Its hosted run exposed two browser-build assertions still expecting 180 packaged runtime files after the new Momentum module raised the count to 181. The focused correction is commit `8ca28a246b29af8a6afd89e3d1c6e5093426e056`; `root/web_tests/test_browser_site_build_contract.py` passes (15 tests). The exact-SHA hosted run for the correction has not appeared in Actions yet. The initial Gate 1 hosted failure is therefore corrected in source but not yet hosted-qualified.
+**Gate 1 evidence:** Initial implementation commit `ffc5f1e5f8d2d92eaa36667717a2531bb8d90702` exposed two browser-build assertions still expecting 180 packaged runtime files after the new Momentum module raised the count to 181. The focused correction is `8ca28a246b29af8a6afd89e3d1c6e5093426e056`; the focused site-build tests passed (15 tests), and exact-SHA hosted run [44321015360](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/44321015360) passed.
 
 ## Gate 2 - Action, Damage, And Critical Resolution
 
@@ -158,16 +158,18 @@ This audit confirms a bounded integration path and identifies the intentional Do
 
 **Gate 2 proof:** Seeded resolution and state changes match the Gate 0 matrix for both sides, with no duplicate contribution from split-component representation or presentation logs. Multi-hit, multi-target, and simultaneous attacks remain outside M7 unless separately reviewed and approved.
 
-**Gate 2 local evidence:** Focused combat/status regression tests passed (320 tests before the final threshold and zero-damage cases); the new zero-actual-damage regression passed independently; the complete root suite passed: `2,488 passed in 157.24s`. Hosted exact-SHA qualification is pending the Gate 2 push. Gate 2 does not claim browser, hosted-service, migration, or pinned MicroPython qualification; those remain in Gate 3/4.
+**Gate 2 evidence:** Focused combat/status regression tests passed (320 tests before the final threshold and zero-damage cases); the new zero-actual-damage regression passed independently; the complete root suite at Gate 2 passed (`2,488 passed in 157.24s`). Exact-SHA hosted run [44323423132](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/44323423132) passed for commit `6c86574e7438b2e1c70c33ea251bec56e47f2bd8`.
 
 ## Gate 3 - Feedback, Clients, And Save Exclusion
 
-- [ ] Presenter, terminal, and browser contract tests show the same authoritative shared value and correct faction advantage.
-- [ ] Built-browser coverage exercises a meaningful shift in both directions, neutral behavior, and encounter reset without client-authored game state.
-- [ ] Check desktop and mobile layouts and terminal readability; feedback must not obscure targets, HP/Mana/Super, or actions.
-- [ ] Verify save/reload boundaries contain no Momentum state and starting a new encounter always starts neutral.
+- [x] Presenter, terminal, and browser contract tests show the same authoritative shared value and correct faction advantage.
+- [x] Built-browser coverage exercises meaningful shifts for both factions, neutral behavior, and encounter resets without client-authored game state.
+- [x] Check desktop, landscape-mobile, and portrait-mobile layouts and terminal readability; feedback does not obscure targets, HP/Mana/Super, or actions.
+- [x] Verify save/reload boundaries contain no Momentum state and starting a new encounter always starts neutral.
 
 **Gate 3 proof:** Semantic parity across clients and no accidental persistence or duplicated client rules.
+
+**Gate 3 local evidence:** Root suite passed (`2,500 passed`); web suite passed (`89 passed`); authored content validation passed; Python compileall passed; generated MicroPython dataclass manifest check passed (`186` entries); browser site build passed (`181` runtime files); full Playwright smoke passed, including `M7_BROWSER|MOMENTUM_PROJECTION|PASS` and `M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS`. The smoke verified the accessible 0-10 meter, exact +3 projected bonuses, marker alignment, neutral startup, live faction labels from real resolved combat, neutral reset for Floor II/III encounters, and desktop/mobile viewport fit. Save-document round-trip tests confirm Momentum is absent from persisted profiles. Exact-SHA hosted qualification follows the Gate 3 push; pinned MicroPython executable qualification remains Gate 4 work.
 
 ## Gate 4 - Runtime And Cumulative Qualification
 

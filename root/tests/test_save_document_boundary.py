@@ -3,7 +3,12 @@ import json
 
 import pytest
 
-from app.content.catalog import get_drifter_spec_by_choice, get_route_spec
+from app.combat.battle import Battle
+from app.content.catalog import (
+    create_enemy_state,
+    get_drifter_spec_by_choice,
+    get_route_spec,
+)
 from app.game.overworld_state import OverworldState
 from app.game.weapon_progression import WeaponProgressionService
 from app.game.game_state import GameState
@@ -17,6 +22,31 @@ from app.persistence.save_document import (
 )
 from app.player.player_state import PlayerState
 from game_test_support import completed_hub_game, hub_game
+
+
+def test_encounter_momentum_is_excluded_from_save_payload_and_round_trip():
+    game_state = hub_game()
+    battle = Battle(
+        game_state.player_state,
+        (create_enemy_state("goblin"),),
+    )
+    battle.combat_state.momentum.shift(5)
+
+    document = build_save_document(game_state)
+
+    def contains_momentum_key(value):
+        if isinstance(value, dict):
+            return "momentum" in value or any(
+                contains_momentum_key(child) for child in value.values()
+            )
+        if isinstance(value, list):
+            return any(contains_momentum_key(child) for child in value)
+        return False
+
+    assert battle.combat_state.momentum.position == 10
+    assert not contains_momentum_key(document)
+    restored = reconstruct_game_state(document)
+    assert build_save_document(restored) == document
 
 
 def test_storage_neutral_codec_preserves_starting_payload_bytes():

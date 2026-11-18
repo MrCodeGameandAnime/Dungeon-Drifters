@@ -57,9 +57,38 @@ if (!m65ProfessionFixtures?.hub) {
   throw new Error("could not generate the M6.5 profession browser save fixture");
 }
 const errors = [];
+const observedMomentumLabels = new Set();
 const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
 await mkdir(screenshotDirectory, { recursive: true });
+
+async function observeMomentum(page) {
+  const state = await page.locator("#momentum-track").evaluate((track) => ({
+    position: Number(track.getAttribute("aria-valuenow")),
+    label: document.getElementById("momentum-control").textContent.trim(),
+    valueText: track.getAttribute("aria-valuetext"),
+    markerPositionError: (() => {
+      const trackRect = track.getBoundingClientRect();
+      const markerRect = document.getElementById("momentum-marker").getBoundingClientRect();
+      const actual = markerRect.left + markerRect.width / 2 - trackRect.left;
+      return Math.abs(actual - trackRect.width * Number(track.getAttribute("aria-valuenow")) / 10);
+    })(),
+  }));
+  requireCondition(
+    state.markerPositionError <= 2,
+    `Momentum marker does not follow its authoritative value: ${JSON.stringify(state)}`,
+  );
+  observedMomentumLabels.add(state.label.replace(/^Momentum \d+\/10 - /, ""));
+  return state;
+}
+
+async function assertMomentumNeutral(page, label) {
+  const state = await observeMomentum(page);
+  requireCondition(
+    state.position === 5 && state.label === "Momentum 5/10 - Neutral",
+    `${label} did not start at neutral Momentum: ${JSON.stringify(state)}`,
+  );
+}
 
 async function captureScreenshot(page, name) {
   const output = path.join(screenshotDirectory, `${name}.png`);
@@ -267,6 +296,9 @@ async function inspectViewport(page) {
       shellRect: (() => { const rect = shell.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, height: rect.height, clientHeight: shell.clientHeight, scrollHeight: shell.scrollHeight }; })(),
       battleRect: { top: battleRect.top, bottom: battleRect.bottom, height: battleRect.height },
       battleStatusRect: (() => { const rect = document.getElementById("battle-status").getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; })(),
+      momentumRect: (() => { const rect = document.getElementById("momentum-meter").getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; })(),
+      momentumVisible: (() => { const element = document.getElementById("momentum-meter"); const rect = element.getBoundingClientRect(); return !element.hidden && getComputedStyle(element).display !== "none" && rect.width > 0 && rect.height > 0; })(),
+      controlsRect: (() => { const rect = controls.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; })(),
       shellOverflowX: shell.scrollWidth > shell.clientWidth + 1,
       shellOverflowY: shell.scrollHeight > shell.clientHeight + 1,
       battleWithinViewport: battleRect.top >= -1 && battleRect.bottom <= window.innerHeight + 1,
@@ -290,9 +322,16 @@ async function assertBattleViewport(page, expectedPhase, label) {
   );
   requireCondition(metrics.battleWithinViewport, `${label} clipped the active Battle surface: ${JSON.stringify(metrics)}`);
   requireCondition(
+    metrics.momentumVisible && metrics.momentumRect.top >= -1 &&
+      metrics.momentumRect.bottom <= metrics.viewportHeight + 1 &&
+      metrics.momentumRect.bottom <= metrics.controlsRect.top + 1,
+    `${label} hid, clipped, or overlapped the Momentum meter: ${JSON.stringify(metrics)}`,
+  );
+  requireCondition(
     metrics.activePhases.join(",") === expectedPhase,
     `${label} changed the active interaction phase: ${JSON.stringify(metrics.activePhases)}`,
   );
+  await observeMomentum(page);
   return metrics;
 }
 
@@ -406,6 +445,7 @@ const targetProjection = {
     { target_id: "enemy_2", display_label: "Goblin 2", hp_current: 43, hp_maximum: 60, temporary_labels: ["Guarding"], defeated: false },
   ],
   super_meter: { current: 45, maximum: 100, fill_bps: 4500, ready: false, activation_key: "S", activation_offered: false },
+  momentum: { position: 2, control_label: "Enemies +3", critical_bonus_percent_points: 6, outgoing_damage_bonus_percent: 5, incoming_mitigation_percent: 5 },
   encounter_label: "Goblin Pair",
   visual: { player_lines: ["Ser Branoc"], enemy_lines: [] },
   action_options: [],
@@ -1377,7 +1417,7 @@ try {
   );
 
   const battleOrder = await page.evaluate(() => {
-    const ids = ["battle-status", "battle-matchup", "battle-log", "controls-panel", "super-meter"];
+    const ids = ["battle-status", "momentum-meter", "battle-matchup", "battle-log", "controls-panel", "super-meter"];
     const elements = ids.map((id) => document.getElementById(id));
     return elements.every((element, index) =>
       element && (index === elements.length - 1 ||
@@ -1389,6 +1429,33 @@ try {
     await page.locator("#battle-status").isVisible(),
     "Battle status region is not visible",
   );
+  const momentumMeter = page.locator("#momentum-meter");
+  const momentumTrack = page.locator("#momentum-track");
+  const initialMomentumState = await page.evaluate(() => ({
+    meterVisible: (() => {
+      const meter = document.getElementById("momentum-meter");
+      return !meter.hidden && getComputedStyle(meter).display !== "none";
+    })(),
+    role: document.getElementById("momentum-track").getAttribute("role"),
+    minimum: document.getElementById("momentum-track").getAttribute("aria-valuemin"),
+    maximum: document.getElementById("momentum-track").getAttribute("aria-valuemax"),
+    value: document.getElementById("momentum-track").getAttribute("aria-valuenow"),
+    valueText: document.getElementById("momentum-track").getAttribute("aria-valuetext"),
+    control: document.getElementById("momentum-control").innerText,
+    labels: document.getElementById("momentum-meter").innerText,
+  }));
+  requireCondition(
+    await momentumMeter.isVisible() &&
+      await momentumTrack.getAttribute("role") === "meter" &&
+      await momentumTrack.getAttribute("aria-valuemin") === "0" &&
+      await momentumTrack.getAttribute("aria-valuemax") === "10" &&
+      await momentumTrack.getAttribute("aria-valuenow") === "5" &&
+      (await page.locator("#momentum-control").innerText()) === "Momentum 5/10 - Neutral" &&
+      (await page.locator("#momentum-meter").innerText()).includes("Enemies +5 / +3") &&
+      (await page.locator("#momentum-meter").innerText()).includes("Drifters +3 / +5"),
+    `the initial browser Momentum meter omitted its accessible neutral value or threshold cues: ${JSON.stringify(initialMomentumState)}`,
+  );
+  await assertMomentumNeutral(page, "first browser encounter");
   requireCondition(
     !(await page.locator("#route-panel").isVisible()),
     "Overworld content remains visible during Battle",
@@ -1965,6 +2032,20 @@ try {
   await waitForViewportSync(targetPage, 844, 390);
   await targetPage.locator('#drifter-options [data-drifter-id="branoc"]').click();
   await targetPage.locator("#targets").waitFor({ state: "visible" });
+  const projectedMomentum = await targetPage.evaluate(() => ({
+    value: document.getElementById("momentum-track").getAttribute("aria-valuenow"),
+    valueText: document.getElementById("momentum-track").getAttribute("aria-valuetext"),
+    label: document.getElementById("momentum-control").innerText,
+    bonuses: document.getElementById("momentum-bonuses").innerText,
+  }));
+  requireCondition(
+    projectedMomentum.value === "2" &&
+      projectedMomentum.label === "Momentum 2/10 - Enemies +3" &&
+      projectedMomentum.bonuses === "Critical chance +6 percentage points; Outgoing damage +5%; Incoming mitigation +5%" &&
+      projectedMomentum.valueText === "Enemies +3. Critical chance +6 percentage points; Outgoing damage +5%; Incoming mitigation +5%",
+    `browser did not faithfully render the Python-projected +3 Momentum bonuses: ${JSON.stringify(projectedMomentum)}`,
+  );
+  console.log("M7_BROWSER|MOMENTUM_PROJECTION|PASS");
   requireCondition(
     await targetPage.evaluate(() => window.__fixtureSelectedDrifter === "branoc"),
     "Drifter selection did not pass its authored ID to the Python bridge",
@@ -2968,6 +3049,7 @@ try {
     }, selector);
     requireCondition(clicked, `no enabled battle choice matched ${selector}`);
     await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+    await observeMomentum(page);
   };
   const resolveAttackChoice = async () => {
     await page.waitForFunction(() =>
@@ -3327,6 +3409,7 @@ try {
       bossParty = ["drifter_branoc", "drifter_azhvielle", "drifter_joruun"],
     } = {},
   ) => {
+    await assertMomentumNeutral(page, `${floorLabel} Battle ${battleNumber}`);
     const deployedIds = await page.locator("#party-members .party-member").evaluateAll(
       (members) => members.map((member) => member.dataset.targetId),
     );
@@ -3378,6 +3461,7 @@ try {
       await page.waitForFunction(
         () => !window.__DD_FLOOR_TWO_TARGET_BUTTON__?.isConnected,
       );
+      await observeMomentum(page);
     };
     const resolveFloorTwoAttackChoice = async () => {
       await page.waitForFunction(() =>
@@ -4585,6 +4669,13 @@ try {
   console.log("PYD7|BROWSER|FULL_ROUTE|PASS");
   console.log("PYD7|BROWSER|FLOOR_ONE_FULL_CLEAR|PASS");
   console.log("PYD7|BROWSER|FLOOR_ONE_REPLAY_EXTRACTION|PASS");
+  requireCondition(
+    observedMomentumLabels.has("Neutral") &&
+      [...observedMomentumLabels].some((label) => label.startsWith("Enemies +")) &&
+      [...observedMomentumLabels].some((label) => label.startsWith("Drifters +")),
+    `real browser combat did not render neutral control and meaningful shifts for both factions: ${JSON.stringify([...observedMomentumLabels])}`,
+  );
+  console.log("M7_BROWSER|MOMENTUM_BOTH_FACTIONS_AND_NEUTRAL|PASS");
 } finally {
   await browser.close();
 }

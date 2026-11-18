@@ -227,6 +227,7 @@ class TerminalBattleUI:
         ]
         if view.interaction_phase != InteractionPhase.COMPLETE:
             sections.append(self._control_lines(view, width - 4))
+        sections.append(self._momentum_lines(view, width - 4))
         sections.append((self._super_meter_line(view, width - 4),))
         for section_index, section in enumerate(sections):
             if section_index:
@@ -260,6 +261,7 @@ class TerminalBattleUI:
         if view.interaction_phase != InteractionPhase.COMPLETE:
             lines.append("ACTIONS")
             lines.extend(self._control_lines(view, width))
+        lines.extend(self._momentum_lines(view, width))
         lines.append(self._super_meter_line(view, width))
         return tuple(
             wrapped
@@ -511,6 +513,34 @@ class TerminalBattleUI:
             ]
         lines.append("0. Back")
         return tuple(lines)
+
+    def _momentum_lines(self, view, width):
+        momentum = view.momentum
+        landmarks = ["!", ".", "|", ".", ".", "N", ".", ".", "|", ".", "!"]
+        landmarks[momentum.position] = "●" if self._unicode_enabled else "X"
+        control_track = " ".join(landmarks)
+        bonuses = []
+        if momentum.critical_bonus_percent_points:
+            bonuses.append(f"Critical chance +{momentum.critical_bonus_percent_points} pp")
+        if momentum.outgoing_damage_bonus_percent:
+            bonuses.append(f"Outgoing damage +{momentum.outgoing_damage_bonus_percent}%")
+        if momentum.incoming_mitigation_percent:
+            bonuses.append(f"Incoming mitigation +{momentum.incoming_mitigation_percent}%")
+        lines = [
+            f"Momentum {momentum.position}/10 - {momentum.control_label}",
+            f"Control [{control_track}]",
+            "Landmarks: ! +5, | +3, N neutral",
+        ]
+        if bonuses:
+            lines.append("Momentum bonuses:")
+            lines.extend(bonuses)
+        else:
+            lines.append("No Momentum bonuses active")
+        return tuple(
+            wrapped
+            for line in lines
+            for wrapped in self._wrap(line, width)
+        )
 
     def _super_meter_line(self, view, width):
         meter = view.super_meter

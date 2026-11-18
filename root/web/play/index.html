@@ -328,6 +328,24 @@
           </section>
         </div>
 
+        <section id="momentum-meter" class="momentum-meter" aria-label="Battle Momentum">
+          <p id="momentum-control" class="momentum-control">Momentum 5/10 - Neutral</p>
+          <div id="momentum-track" class="momentum-track" role="meter" aria-label="Battle Momentum" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5" aria-valuetext="Neutral">
+            <span class="momentum-threshold" data-position="0" aria-hidden="true"></span>
+            <span class="momentum-threshold" data-position="2" aria-hidden="true"></span>
+            <span class="momentum-threshold" data-position="5" aria-hidden="true"></span>
+            <span class="momentum-threshold" data-position="8" aria-hidden="true"></span>
+            <span class="momentum-threshold" data-position="10" aria-hidden="true"></span>
+            <span id="momentum-marker" class="momentum-marker" aria-hidden="true"></span>
+          </div>
+          <div class="momentum-landmarks" aria-hidden="true">
+            <span>Enemies +5 / +3</span>
+            <span>Neutral</span>
+            <span>Drifters +3 / +5</span>
+          </div>
+          <p id="momentum-bonuses" class="momentum-bonuses">No Momentum bonuses active</p>
+        </section>
+
         <div id="battle-matchup" class="battle-matchup" aria-label="Battle matchup"></div>
         <div id="battle-log" class="battle-log" aria-label="Battle log" aria-live="polite"></div>
 

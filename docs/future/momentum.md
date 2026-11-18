@@ -2,7 +2,7 @@
 
 ## Status
 
-**M7 Gate 0 closed for planning; gameplay implementation remains a separate next step.** The November 17, 2026 revisions supersede the earlier individual-combatant Momentum proposal. The shared scale, damage-shift contract, critical progression, defense rule, attribution, DoT timing/suppression safeguard, damage arithmetic, and terminal/browser presentation are approved.
+**M7 Gate 0 is closed; implementation status is tracked in the current milestone plan.** The November 17, 2026 revisions supersede the earlier individual-combatant Momentum proposal. The shared scale, damage-shift contract, critical progression, defense rule, attribution, DoT timing/suppression safeguard, damage arithmetic, and terminal/browser presentation are approved.
 
 ## Core Identity
 
@@ -203,8 +203,8 @@ Gameplay rules, arithmetic, source-seam audit, deterministic event matrix, and s
 - The meter includes visible +3 and +5 threshold cues on both faction sides, with text labels so state is not conveyed by color alone.
 - The browser and terminal display the same Python-authoritative position and active bonuses; neither client calculates combat outcomes.
 - The final deterministic event matrix covers attribution, defense reduction, mixed-source DoT, suppression preservation, damage ordering, threshold changes, and faction symmetry.
-- M7 implementation remains a separate next step; no gameplay code was changed in this planning closure.
+- At Gate 0 closure, M7 implementation remained a separate next step; no gameplay code was changed in that planning closure. Current implementation and qualification progress is tracked in the [M7 milestone plan](../current/milestones/m7-momentum.md).
 
 ## Implementation Boundary
 
-M7's Gate 0 contract is closed for planning. The scale, damage shifts, defense reduction, DoT attribution/suppression behavior, critical progression, +3/+5 arithmetic, and presentation are approved inputs. This closure does not itself authorize or implement gameplay; implementation is a separate next step. The shared specification remains one contested encounter value, not the superseded per-combatant model.
+M7's Gate 0 contract is closed for planning. The scale, damage shifts, defense reduction, DoT attribution/suppression behavior, critical progression, +3/+5 arithmetic, and presentation are approved inputs. Gate 0 closure itself did not implement gameplay; implementation progress and remaining qualification are tracked in the [M7 milestone plan](../current/milestones/m7-momentum.md). The shared specification remains one contested encounter value, not the superseded per-combatant model.
