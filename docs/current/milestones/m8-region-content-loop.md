@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. Approve a finite release manifest before authoring content; the source examples do not define a whole campaign automatically.
 
-**Status:** Gate 0 entry audit and finite-manifest proposal; decisions M8-D1 through M8-D6 are pending review. No M8 gameplay work is authorized by this document.
+**Status:** Gate 0 audit and ten-package decomposition proposal; M8-D1 through M8-D6 remain pending review. No M8 gameplay work is authorized by this document or its child plans.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -174,7 +174,7 @@ All six pair scenes remain optional content and no pairing is globally disabled.
 | --- | --- | --- | --- | --- |
 | `ancient_well_floor4_01` | Search at `floor_four_rest_midpoint`; proposed base chance 1,000 bps | Existing `RunEventService` search + `PermanentDiscoveryService` claim | Ancient Well, +5 max HP to one player-selected active Drifter; claim is source-specific and one-time. | Search outcome persists on reload/retry; selected target receives once; death/loss follows approved run/claim rules. |
 | `forgotten_altar_floor4_01` | Search at `floor_four_rest_pre_boss`; proposed base chance 1,000 bps | Existing discovery search/claim owners | Forgotten Altar, +5 max Mana to one active Drifter. | Confirm target choice, cap cancel/consume behavior, replay and failed-write atomicity. |
-| `spirit_relic_floor5_01` | Search in the Floor-V approach; proposed base chance 1,000 bps | Existing discovery search/claim owners | Spirit Relic, exactly +3 GP to one active Drifter. | Search/save/reload/claim once; verify active-target rejection and no duplicate GP. |
+| `spirit_relic_floor5_01` | Search at `floor_five_rest_midpoint`; proposed base chance 1,000 bps | M8.4 discovery definition/claim owner; M8.7 route placement | Spirit Relic, exactly +3 GP to one active Drifter. | Search/save/reload/claim once; verify active-target rejection and no duplicate GP. |
 | `m8_floor_four_metal_drop_01` | Genuine victory against a `reliquary_sentinel` on Floor IV | Enemy drop catalog + `RunEventService` + shared material inventory | Eligible Grade-IV Metal; chance/quantity authored at Gate 2, never a guaranteed arbitrary item. | Drop provenance and no Grade-IV source on Floors I-III. |
 | `m8_floor_four_fiber_drop_01` | Genuine victory against a `drowned_stalker` on Floor IV | Enemy drop catalog + `RunEventService` + shared material inventory | Eligible Grade-IV Fiber; chance/quantity authored at Gate 2. | Same source, retry and floor-boundary proof. |
 | `m8_floor_four_timber_drop_01` | Genuine victory against an `ashbound_hound` on Floor IV | Enemy drop catalog + `RunEventService` + shared material inventory | Eligible Grade-IV Timber; chance/quantity authored at Gate 2. | Same source, retry and floor-boundary proof. |
@@ -263,11 +263,11 @@ No branch makes an expedition assignment a hard prerequisite for story completio
 
 Dungeon selection shows only approved known/rumored information: level guidance, enemies, hazard/resistance/weakness/material hints, story relevance, required members, boss progress and meaningful expedition progress information. Unknown is distinct from absent or false. Reports/NPCs/documents/previous attempts/scouting reveal authored facts through stable discovery identities, not by revealing the full underlying definition by default.
 
-Free-choice destinations accept any legal recruited pair. Character-story destinations require one named recruited member and allow a legal partner; locked-pair destinations require the authored pair. Full-party events require all four and the explicit availability/story gate. No required identity is manufactured or auto-recruited to satisfy entry. Soft power recommendations are not hard level locks. Preserve M1 narrative-lead policy without using active-slot order as character identity.
+The proposed Floor-IV/V paired routes accept any legal recruited pair. The optional archive scene requires Azhvielle to be in the active pair; no proposed destination locks a specific pair. The reunion event requires all four and its explicit availability gate. No required identity is manufactured or auto-recruited to satisfy entry. Soft power recommendations are not hard level locks. Preserve M1 narrative-lead policy without using active-slot order as character identity.
 
 ### Pair And Story Outcomes
 
-All six pairings remain legally usable once all four are recruited; a selected dungeon can favor or require a pair without making the others invalid globally. Author the finite selected dialogue, relationship flags and useful mechanical interactions. Possible combination attacks, trust/conflict systems or environmental solutions require actual approved mechanics; a line of dialogue does not count as a functioning synergy system.
+All six pairings remain legally usable once all four are recruited. This proposal authors finite optional dialogue and durable event evidence only. Numeric relationship progression, combat synergy, combination attacks, trust/conflict systems, or mechanical environmental solutions require separate explicit approval; dialogue alone is not a mechanical synergy.
 
 Event completion, one-time rewards, requirements and decisions must remain consistent through repeated interaction, return, death and reload. This finite proposal introduces no portable quest/story item: destination and story progression use durable event/knowledge evidence. If a later approved content row needs an item, its M2 secured/unsecured, death-loss, source-reacquisition, and atomic-consumption behavior must be named before implementation. Do not make every discovered item permanently secured to protect a hypothetical key.
 
@@ -289,7 +289,7 @@ Complete Scouting/Story/Elite expedition assignments and real information/story/
 
 ## State, Persistence, And Integration
 
-Authored content owns destinations, facts, requirements, event/reward IDs, route graph and actual text/assets. StoryState owns completed events/decisions/relationships where appropriate; WorldState owns discovered/consumed source evidence; route/run state owns cursor/outcomes/unsecured rewards; roster/advancement/equipment/expedition owners remain authoritative for their own fields. Add focused new state only if existing typed owners cannot express the approved contract safely.
+Authored content owns destinations, facts, requirements, event/reward IDs, route graph and actual text/assets. StoryState owns completed events and approved decisions; WorldState owns discovered/consumed source evidence; route/run state owns cursor/outcomes/unsecured rewards; roster/advancement/equipment/expedition owners remain authoritative for their own fields. Numeric relationship progression is not in this proposal. Add focused new state only if existing typed owners cannot express the approved contract safely.
 
 The original route spec is linear with global node IDs and specific node kinds. If selected content needs branches, encounters triggered by choices or a floor selector, extend that authored/session contract deliberately; do not run a parallel campaign engine in the browser. Revalidate concrete modules from accepted M1-M7 and M6.5 before planning file edits. Expected integration includes `root/src/app/content/`, game story/world/overworld/party state, session orchestration, presenters/inputs, content tooling and built browser adapters.
 
@@ -303,67 +303,28 @@ Terminal/browser expose equivalent destination facts, restrictions, roster choic
 
 Provide the selected release's enemy/region assets with stable IDs, dimensions, readable fallbacks and actual content associations; preserve source artwork. Enemy portraits do not authorize a new graphical combat renderer, animation engine, transmog or 3D dependency. Missing required assets/references are build/content validation failures or explicitly approved fallbacks, not silently blank primary media.
 
-## Review Focus
+## M8.1-M8.10 Proposed Work Packages
 
-- Unknown/rumored knowledge must not become a confirmed spoiler on load; Gate 1 checks exact reveal state.
-- Required characters must not be auto-recruited or swapped in during a run; Gate 1 rejects illegal deployment.
-- Durable story evidence and permanent discovery claims must not disappear or duplicate across failure/reload; Gate 2 checks approved source and claim behavior. This manifest has no portable quest keys.
-- A reunion boss must not use members simultaneously assigned to an expedition; Gate 4 tests settlement and availability.
-- Later-floor source/component integration must not yield higher grades early or revive stacked signature parts; Gate 2 checks content and actual rewards.
+The following ten documents define independently reviewable work packages. They are proposals derived from the audited manifest, not implementation authorization. The parent remains authoritative for the finite inventory, shared contracts, route graph and M8-D1 through D6 decisions; child documents own their package-specific planning, tests and closure record.
 
-## Gates And Tests
+| Package | Plan | Scope boundary | Proposed dependencies | Status |
+| --- | --- | --- | --- | --- |
+| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Clear state, destination eligibility, knowledge facts, migrations and client projections. | Gate 0 approval. | Draft; pending review. |
+| M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 clear-state contract. | Draft; pending review. |
+| M8.3 | [Drowned Reliquary, Floor IV](m8-03-floor-four.md) | Twelve-node paired route, nine ordinary encounters, Curator boss, material sources and first clear. | M8.1; M8.2 package boundary. | Draft; pending review. |
+| M8.4 | [Permanent discoveries, armor and recovery rewards](m8-04-discoveries-and-rewards.md) | Generalize reward boundaries; register three discovery rewards; connect live Floor-IV armor/recovery sources. | M8.3 route and source nodes. | Draft; pending review. |
+| M8.5 | [Expedition expansion](m8-05-expedition-expansion.md) | Completed-floor eligibility and frozen Material/Equipment/Recovery/Scouting/Story/Elite reports where sourced. | M8.1, M8.3, M8.4; D5. | Draft; pending review. |
+| M8.6 | [Character stories and pair interactions](m8-06-character-stories.md) | Six pair scenes, optional Azhvielle archive, optional expedition-story consumer. | M8.1 knowledge; M8.5 Story report; D2. | Draft; pending review. |
+| M8.7 | [Ashen Vault, Floor V approach](m8-07-floor-five-approach.md) | Seven-node paired approach, Spirit Relic placement, durable arena reveal. | M8.1, M8.4, M8.5; Floor-IV clear. | Draft; pending review. |
+| M8.8 | [Ashen Regent and full-party reunion](m8-08-reunion-boss.md) | Separate four-member Hub boss, settlement, Floor-V clear and return to pair play. | M8.1, M8.5, M8.7; D5. | Draft; pending review. |
+| M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Two region illustrations and six static enemy/boss portraits; no new combat renderer. | Stable IDs; D1 and D6. Can run alongside M8.2-M8.8. | Draft; pending review. |
+| M8.10 | [Integrated campaign qualification](m8-10-integrated-qualification.md) | Cumulative progression journeys, cross-client/persistence checks and M8 closure evidence. | M8.1-M8.9 accepted; D1-D6 resolved. | Draft; pending review. |
 
-### Gate 0 - Entry Audit And Manifest Approval (Open)
+**Dependency graph:** `M8.1 -> M8.2 -> M8.3 -> M8.4 -> M8.5 -> M8.6 -> M8.7 -> M8.8 -> M8.10`; M8.9 may proceed in parallel after the manifest IDs and visual scope are approved and must integrate before M8.10. M8.7 specifically consumes M8.4's Spirit Relic definition/claim behavior and M8.5's approved expedition coexistence contract; it owns only the Floor-V route placement. M8.3 does not expose armor/recovery/discovery rewards before M8.4. M8.5 may define later-floor report support before Floor V completes, but the Floor-V Material report remains unavailable until M8.8 records the genuine clear.
 
-- [x] Revalidate current M1-M7/M6.5 source state and accepted milestone evidence against the `29bab31` baseline; record actual counts, owners, gaps, asset inventory and current schema.
-- [x] Produce a proposed finite manifest with stable IDs, prerequisites, owner, effect, unlock path and proof journey for each proposed content class.
-- [ ] Obtain explicit approval or edits for M8-D1 through M8-D6 below. The recommendations are not approvals.
-- [ ] Reconcile the route graph with completed-floor expedition eligibility; no required content may depend on an assignment that targets only a not-yet-completed floor.
-- [ ] Approve M8-D4's no-portable-key scope and four-party expedition settlement before implementation.
+Each child package must complete its own planning approval, implementation, focused/regression tests, independent review, exact-SHA hosted CI, and closure record. Applicable cumulative suites and pinned MicroPython evidence are required when shared Python runtime/save state is changed. A failing package reopens only its owning scope unless the review demonstrates a cross-package contract defect. No package can close by inheriting another package's green run.
 
-Proof: every approved row has a legal acquisition/entry/consumer/return path and a named owner; no unknown campaign-size promise remains. Gate 0 is not closed by this audit.
-
-### Gate 1 - Route, Clear State, Knowledge And Restriction Contracts
-
-- [ ] Define typed floor-IV/V clear and route relationships, legacy-schema defaults, content validation and client projections without changing I-III saves/semantics.
-- [ ] Red/green tests for Unknown/Rumored/Confirmed facts, authored reveal sources, locked destination versus soft recommendation, free/required-character/full-roster entry, and stale offers with no mutation.
-- [ ] Implement selection/knowledge through accepted content/session/presenter boundaries. Round-trip fact/source IDs without revealing hidden content on load.
-- [ ] Prove terminal/browser make the same exact-ID eligibility decisions and all six pairings remain legal outside explicitly approved content restrictions.
-
-Proof: an approved reveal changes an actionable destination, pair or preparation choice; a label-only hint is not knowledge progression.
-
-### Gate 2 - Finite Routes, Enemies, Rewards, Components And Discoveries
-
-- [ ] Author only the approved Floor-IV/V routes, encounter/boss IDs, tier-3 profiles, Grade-IV source map, first-clear awards, M5 armor/recovery source and Grade II-IV component recipes.
-- [ ] Connect approved well/altar/relic sources to existing M3/M4 search and one-time claim services; test selected target, duplicate use, failed commit and death/extraction provenance. Do not add an unmanifested quest item.
-- [ ] Extend authored-content checks for route reachability, exact prerequisites, source/grade boundaries, item/reward provenance, discovery IDs, enemy move/effect support and selected media.
-
-Proof: each approved route/content/reward row is playable and observable, not merely accepted by a data constructor; generated armor evidence persists through Rest/save/reload.
-
-### Gate 3 - Pair Story, Knowledge Sources And Expedition Consumers
-
-- [ ] Author the approved finite pair-scene variants and optional character scene; do not add numeric relationship state or combat synergies unless M8-D2 explicitly approves them.
-- [ ] Extend M6 reports with immutable, validated Scouting/Story/Elite outcomes and unique equipment where approved; apply changes only on exactly-once claim.
-- [ ] Show each selected report fact/story/resource changes a later legitimate choice. Test save/load, interrupted outings, failed writes, cancellation/return, stale claims and no duplicate effect.
-
-Proof: selected pair/expedition content has a real downstream consumer in both clients; every unselected illustrative system has an explicit disposition.
-
-### Gate 4 - Four-Drifter Reunion And Post-Boss Return
-
-- [ ] Use approved M8-D5 entry, assignment settlement and XP rules; all four are available before launch, no dual deployment, no mid-run party swap.
-- [ ] Test four-member victory/defeat, one-time clear/rewards, gate evidence and return to normal pair selection. One Drifter's defeat cannot prematurely end the four-member battle.
-- [ ] Preserve earlier pair-earned rewards and expedition attribution. Inject failed writes at entry/clear/return and reload from disk/browser storage.
-
-Proof: actual approved later reunion battle, distinct from Floor III, with settled expedition state and no M8 effect on Floor I-III.
-
-### Gate 5 - Finite Release Loop And Cumulative Qualification
-
-- [ ] Terminal and built-browser journeys cover preparation -> knowledge -> legal pair -> Floor IV -> M6 reports -> Floor V approach -> settled four-party boss -> Hub return, with save/reload at supported checkpoints.
-- [ ] Reconfirm all six pairings for legal play and approved story restrictions using focused matrices, not six duplicate full-campaign smokes.
-- [ ] Extend the real pinned probe only for new ownership/state transitions. Run root/web/service suites, migration-from-zero, Alembic parity, content/build checks, browser smoke and exact-SHA hosted qualification.
-- [ ] Record each manifest row as implemented, approved-deferred, or excluded; no placeholders count as delivered content.
-
-Closure: every approved manifest row has gameplay and acceptance evidence; no content-only placeholder is described as playable. Existing recruitment/extraction/M2-M7/M6.5 behavior is preserved and all excluded examples have explicit disposition.
+Gate 0 remains open until the user reviews the decomposition and explicitly resolves M8-D1 through D6. The prior source audit and finite manifest above remain the planning authority; the child documents do not independently redefine them.
 
 ## M8-D1 Through M8-D6: Approval Required
 
@@ -397,11 +358,11 @@ All six rows below are **proposals for review**, not approved decisions. Recomme
 
 | Decision | Status at audit | Blocks |
 | --- | --- | --- |
-| M8-D1 finite scope/manifest | Proposed; approval required | Gates 1-5 |
-| M8-D2 pair story/synergy | Proposed; approval required | Gates 1 and 3 |
-| M8-D3 knowledge/discoveries | Proposed; approval required | Gates 1-2 |
-| M8-D4 quest-item loss/security | Proposed; approval required | Gates 2 and 4 |
-| M8-D5 reunion/expedition/XP | Proposed; approval required | Gate 4 |
-| M8-D6 hazards/assets/renderer | Proposed; approval required | Gates 1-2 and 5 |
+| M8-D1 finite scope/manifest | Proposed; approval required | All implementation packages |
+| M8-D2 pair story/synergy | Proposed; approval required | M8.6 |
+| M8-D3 knowledge/discoveries | Proposed; approval required | M8.1, M8.4, M8.5 and M8.7 |
+| M8-D4 quest-item loss/security | Proposed; approval required | M8.4 and any future item-gated scope; current manifest proposes no portable key |
+| M8-D5 reunion/expedition/XP | Proposed; approval required | M8.5, M8.7 and M8.8 |
+| M8-D6 hazards/assets/renderer | Proposed; approval required | M8.3 and M8.9 |
 
 Exact future signatures are deliberately left for repository revalidation, not replaced with fabricated APIs in this plan.
