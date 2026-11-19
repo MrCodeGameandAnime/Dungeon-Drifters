@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. Approve a finite release manifest before authoring content; the source examples do not define a whole campaign automatically.
 
-**Status:** Gate 0 open and ten-package planning structure accepted; M8-D1 through M8-D6 remain pending review. No M8 gameplay work is authorized by this document or its child plans.
+**Status:** Gate 0 remains open. M8-D1 regional architecture is approved; the finite content manifest and M8-D2 through M8-D6 remain pending. No M8 gameplay work is authorized by this document or its child plans.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -28,11 +28,11 @@ Non-goals: defining an unlimited campaign, reimplementing systems, redoing canon
 
 The October `8099b895` baseline paragraph is historical and incorrect for M8 entry. At the audited baseline, Surface and Floors I-III are live, M1-M7 and M6.5 are present, runtime/disk schema is 25, and the route/content catalog contains 4 routes, 48 route nodes, 11 encounter definitions, 5 enemy archetypes, 4 Drifters, 3 recruitment-event definitions, and 1 active permanent-discovery source. The audited source files and resulting gaps are recorded below. No claim of whole-campaign completion is made.
 
-Gate 0 must approve a finite set of named destinations, routes, encounters, bosses, story events, discoveries, rewards, expedition consumers, component recipes, and assets. The proposal below gives each item a stable proposed ID, prerequisite, owner, effect, unlock path, and proof journey. Names drawn from future-design examples remain proposals until M8-D1 is approved.
+Gate 0 must approve a finite set of named destinations, routes, encounters, bosses, story events, discoveries, rewards, expedition consumers, component recipes, and assets. The proposal below gives each item a stable proposed ID, prerequisite, owner, effect, unlock path, and proof journey. Names drawn from future-design examples remain proposals until the finite-manifest portion of M8-D1 is approved.
 
-The recommendations deliberately bound M8 to the proposed Floors IV-V content below. They do not introduce a Floor VI, an unlimited campaign, a new combat renderer, or speculative APIs/schema numbers. Gate 0 remains open until the user reviews M8-D1 through M8-D6.
+The recommendations deliberately bound playable M8 content to the proposed Floors IV-V below. M8-D1 additionally approves a durable Region 2 unlock with no Region 2 routes in M8. It does not introduce Floor VI, an unlimited campaign, a new combat renderer, or speculative APIs/schema numbers. Gate 0 remains open until the remaining manifest and M8-D2 through M8-D6 are reviewed.
 
-**Proposed finite inventory:** 2 destinations, 3 routes, 20 route nodes, 17 encounters (15 ordinary plus 2 bosses), 4 ordinary archetypes plus 2 bosses, 13 story-event/scene IDs, 4 knowledge-fact IDs, 3 permanent-discovery sources, 9 ordinary/first-clear reward sources, 7 expedition consumers, 48 component recipes, and 8 static assets. Counts describe this proposal; any approved reduction must remove dependent rows and graph edges as well.
+**Proposed finite inventory:** 2 playable M8 destinations (Drowned Reliquary/Floor IV and Ashen Vault/Floor V approach), 1 unlocked-but-not-playable Region 2 portal entry after the Floor V boss, 3 routes, 20 route nodes, 17 encounters (15 ordinary plus 2 bosses), 4 ordinary archetypes plus 2 bosses, 13 story-event/scene IDs, 4 knowledge-fact IDs, 3 permanent-discovery sources, 9 ordinary/first-clear reward sources, 7 expedition consumers, 48 component recipes, and 8 static assets. Counts describe this proposal; any approved reduction must remove dependent rows and graph edges as well.
 
 ## Entry Audit At `29bab31`
 
@@ -83,9 +83,22 @@ The milestone plans record sealed qualification for these systems. M7's latest i
 
 The future enemy-design document's statement that current archetypes only accept tier 0 is stale relative to M4. The live source and M4 contract above are authoritative; the future design remains useful for the separation of archetype, rank, tier and encounter stage. No unrelated future document is rewritten by this audit.
 
-## Proposed Finite M8 Manifest (Pending M8-D1)
+## Proposed Finite M8 Manifest (M8-D1 Finite Scope Pending)
 
-Every row in this section is a proposal, not implemented content or an approved product decision. The IDs are reserved here as stable recommendations so they can be accepted or edited explicitly. Names `Drowned Reliquary` and `Ashen Vault` are examples in the future designs; this proposal selects them only for review.
+Except for the explicitly approved Regional Architecture section below, every row in this manifest is a proposal, not implemented content or an approved product decision. The IDs are reserved here as stable recommendations so they can be accepted or edited explicitly. Names `Drowned Reliquary` and `Ashen Vault` are examples in the future designs; this proposal selects them only for review.
+
+### Approved Regional Architecture (M8-D1)
+
+The following architecture is approved; it does not approve every proposed M8 route, encounter, reward, recipe, or story event.
+
+| Region ID | Authored membership | Portal state and entry | Owner / proof |
+| --- | --- | --- | --- |
+| `region_1` | Existing Surface and Floors I-III, plus proposed `drowned_reliquary`/Floor IV and `ashen_vault`/Floor V. These named destinations belong to the initial region and are not separate regions. | Initial campaign region remains available through the existing Hub progression. After unlocking Region 2, Region 1 stays permanently available for eligible content and replay. | Authored region-to-destination membership; M8.1 owns portal projection and normal Hub navigation. Verify old saves, both clients, revisit, and no prior-clear/reward regression. |
+| `region_2` | No playable destinations or routes are authored for M8. Region membership must be explicit when future content is added; never derive it from a floor-number range. | Unlocked exactly once by the genuine Floor V boss victory, durably with Floor V clear. It is visible as unlocked in the Hub Region Portal, but entry is unavailable while it has no playable content; show a clear unavailable-content explanation. It remains unlocked across reload. | M8.8 writes the unlock through M8.1's canonical progression owner. Verify success, failed-write rollback, reload, visible-but-unplayable state, and no empty route entry. |
+
+Five floors per region is the standard design target, not an engine limit. A region may contain multiple named destinations/dungeons. All regional travel uses the existing Hub and preserves outing, active-pair, expedition, settlement, and save contracts. Region unlock and individual floor-clear evidence are distinct. Unlocking never auto-clears a floor or grants its rewards. Do not add a separate Hub, open-world map, procedural region generation, travel economy, or new campaign engine.
+
+The IDs `region_1` and `region_2` are planning identifiers for this approved two-region direction; final authored IDs and presentation copy must be revalidated during M8.1 planning. Region 2's final name, visual identity, routes, enemies, and playable release scope remain future content decisions.
 
 ### Destinations And Routes
 
@@ -152,8 +165,8 @@ The route/node IDs above are proposed IDs in addition to the encounter IDs. Gate
 | `m8_pair_scene_branoc_azhvielle`, `m8_pair_scene_branoc_joruun`, `m8_pair_scene_branoc_zhaivra`, `m8_pair_scene_azhvielle_joruun`, `m8_pair_scene_azhvielle_zhaivra`, `m8_pair_scene_joruun_zhaivra` | Pair present at `floor_four_rest_midpoint` | Pair-scene content keyed by sorted permanent Drifter IDs; generic `StoryState` event/decision evidence | One finite dialogue variant for each of six legal pairs; records completion, no numeric relationship meter and no combat bonus in this proposal. | Table-driven test across all six permutations/reversed active order; replay shows no duplicate effect. |
 | `m8_azh_archive_memory` | Floor IV reached and Azhvielle is in the active pair at `floor_four_rest_midpoint` | Optional Rest/story interaction | Reveals the proposed `m8_fact_ashen_regent` and a story scene; does not block Floor IV/V access or replace a member automatically. | Reject when Azhvielle is benched; repeat later with her active and verify exact fact/event persistence. |
 | `m8_ashen_arena_revealed` | Genuine victory at `floor_five_battle_06` | Route completion/story-state boundary | Makes the standalone reunion route available after return to Hub. It is not granted by a failed/abandoned encounter. | Inject victory-save failure, reload and retry; no premature route availability or duplicate event. |
-| `m8_ashen_regent_defeated` | Victory in `m8_ashen_regent_boss` | M4B-style four-member boss settlement and `PartyState` clear evidence | Completes Floor V once, grants approved first-clear rewards, returns all four to Hub. | Win/reload/repeat; preserve pre-boss pair and prior expedition attribution. |
-| `m8_future_region_report` | `m8_ashen_regent_defeated` | Story/knowledge event owner | Records a rumor that the wider campaign continues; no Floor VI destination or playable content is promised by this manifest. | Verify narrative marker only; no phantom destination, route, or reward. |
+| `m8_ashen_regent_defeated` | Victory in `m8_ashen_regent_boss` | M4B-style four-member boss settlement and `PartyState` clear evidence | Atomically completes Floor V once and records the distinct Region 2 unlock, grants approved first-clear rewards, and returns all four to Hub. | Win/reload/repeat; verify both durable facts, preserve pre-boss pair and prior expedition attribution. |
+| `m8_future_region_report` | `m8_ashen_regent_defeated` and durable `region_2` unlock | M8.8 settlement writes the unlock; M8.1 Region Portal projects it. A separate Hub report is optional proposed presentation, not an unlock owner or prerequisite. | If retained, confirms the already-unlocked Region 2 and explains that no playable route is authored; it is not merely a rumor and grants no floor clear or reward. The portal itself must satisfy the approved visibility/explanation contract without this event. | Defeat the Regent, return to Hub, verify portal state and unavailable explanation, reload, revisit Region 1, and confirm Region 2 remains unlocked but cannot be entered. |
 | `m8_story_reliquary_echo` | Claim of `m8_floor_four_story_report` | M6 report claim boundary + `StoryState` | Records the optional echo and enables the approved optional scene; no progression gate or combat benefit. | Claim once, verify scene enabled after reload, duplicate claim has no second effect. |
 | `m8_reliquary_echo_scene` | `m8_story_reliquary_echo` recorded; available at Hub | Authored optional story scene + `StoryState` | One finite non-pair-specific scene; records completion only. | Available only after report claim; replay and reload do not repeat one-time effects. |
 
@@ -238,6 +251,8 @@ Existing: Surface -> Floor I clear -> Floor II
          -> four permanent Drifters -> M6 unlock
 
 M8 proposal:
+Hub Region Portal -> Region 1 (existing initial campaign; membership explicitly authored)
+  -> Surface -> Floors I-III (existing progression)
 Floor III clear + roster of four
   -> Hub briefing: Drowned Reliquary = Rumored
   -> Floor IV paired route (any legal pair)
@@ -252,7 +267,10 @@ Floor III clear + roster of four
   -> arena reveal event
   -> Floor V Reunion route (all four, no active assignment)
   -> Ashen Regent victory; Floor V completion/reward once
+       -> Region 2 unlock recorded once, distinct from the Floor V clear
   -> Hub, all four reunited, normal two-plus-two loop remains available
+  -> Region Portal shows Region 2 as unlocked but unavailable until content exists
+  -> Region 1 and its eligible completed content remain revisit-able
 ```
 
 No branch makes an expedition assignment a hard prerequisite for story completion. The proposed Scouting report changes knowledge and preparation, not basic destination eligibility. No expedition member is used in a boss while assigned; a completed but unclaimed report does not make a permanent Drifter unavailable.
@@ -289,7 +307,7 @@ Complete Scouting/Story/Elite expedition assignments and real information/story/
 
 ## State, Persistence, And Integration
 
-Authored content owns destinations, facts, requirements, event/reward IDs, route graph and actual text/assets. StoryState owns completed events and approved decisions; WorldState owns discovered/consumed source evidence; route/run state owns cursor/outcomes/unsecured rewards; roster/advancement/equipment/expedition owners remain authoritative for their own fields. Numeric relationship progression is not in this proposal. Add focused new state only if existing typed owners cannot express the approved contract safely.
+Authored content owns regions, explicit region-to-destination membership, facts, requirements, event/reward IDs, route graph and actual text/assets. The canonical progression owner stores durable region unlocks separately from floor clears. StoryState owns completed events and approved decisions; WorldState owns discovered/consumed source evidence; route/run state owns cursor/outcomes/unsecured rewards; roster/advancement/equipment/expedition owners remain authoritative for their own fields. Numeric relationship progression is not in this proposal. Add focused new state only if existing typed owners cannot express the approved contract safely.
 
 The original route spec is linear with global node IDs and specific node kinds. If selected content needs branches, encounters triggered by choices or a floor selector, extend that authored/session contract deliberately; do not run a parallel campaign engine in the browser. Revalidate concrete modules from accepted M1-M7 and M6.5 before planning file edits. Expected integration includes `root/src/app/content/`, game story/world/overworld/party state, session orchestration, presenters/inputs, content tooling and built browser adapters.
 
@@ -305,19 +323,19 @@ Provide the selected release's enemy/region assets with stable IDs, dimensions, 
 
 ## M8.1-M8.10 Proposed Work Packages
 
-The following ten documents define independently reviewable work packages. They are proposals derived from the audited manifest, not implementation authorization. The parent remains authoritative for the finite inventory, shared contracts, route graph and M8-D1 through D6 decisions; child documents own their package-specific planning, tests and closure record.
+The following ten documents define independently reviewable work packages. They are proposals derived from the audited manifest, not implementation authorization. The parent remains authoritative for the finite inventory, approved regional architecture, shared contracts, route graph, pending M8-D1 finite manifest and M8-D2 through D6 decisions; child documents own their package-specific planning, tests and closure record.
 
 | Package | Plan | Scope boundary | Proposed dependencies | Status |
 | --- | --- | --- | --- | --- |
-| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Clear state, destination eligibility, knowledge facts, migrations and client projections. | Gate 0 approval. | Draft; pending review. |
+| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Gate 0 closure; D3/D5 and finite manifest review. | Draft; pending review. |
 | M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 clear-state contract. | Draft; pending review. |
 | M8.3 | [Drowned Reliquary, Floor IV](m8-03-floor-four.md) | Twelve-node paired route, nine ordinary encounters, Curator boss, material sources and first clear. | M8.1; M8.2 package boundary. | Draft; pending review. |
 | M8.4 | [Permanent discoveries, armor and recovery rewards](m8-04-discoveries-and-rewards.md) | Generalize reward boundaries; register three discovery rewards; connect live Floor-IV armor/recovery sources. | M8.3 route and source nodes. | Draft; pending review. |
 | M8.5 | [Expedition expansion](m8-05-expedition-expansion.md) | Completed-floor eligibility and frozen Material/Equipment/Recovery/Scouting/Story/Elite reports where sourced. | M8.1, M8.3, M8.4; D5. | Draft; pending review. |
 | M8.6 | [Character stories and pair interactions](m8-06-character-stories.md) | Six pair scenes, optional Azhvielle archive, optional expedition-story consumer. | M8.1 knowledge; M8.5 Story report; D2. | Draft; pending review. |
 | M8.7 | [Ashen Vault, Floor V approach](m8-07-floor-five-approach.md) | Seven-node paired approach, Spirit Relic placement, durable arena reveal. | M8.1, M8.4, M8.5; Floor-IV clear. | Draft; pending review. |
-| M8.8 | [Ashen Regent and full-party reunion](m8-08-reunion-boss.md) | Separate four-member Hub boss, settlement, Floor-V clear and return to pair play. | M8.1, M8.5, M8.7; D5. | Draft; pending review. |
-| M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Two region illustrations and six static enemy/boss portraits; no new combat renderer. | Stable IDs; D1 and D6. Can run alongside M8.2-M8.8. | Draft; pending review. |
+| M8.8 | [Ashen Regent and full-party reunion](m8-08-reunion-boss.md) | Separate four-member Hub boss, atomic Floor-V clear plus Region 2 unlock, and return to pair play. | M8.1, M8.5, M8.7; D5. | Draft; pending review. |
+| M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Two Region 1 destination illustrations and six static enemy/boss portraits; no new combat renderer or Region 2 art. | Stable IDs; finite-manifest D1 and D6. Can run alongside M8.2-M8.8. | Draft; pending review. |
 | M8.10 | [Integrated campaign qualification](m8-10-integrated-qualification.md) | Cumulative progression journeys, cross-client/persistence checks and M8 closure evidence. | M8.1-M8.9 accepted; D1-D6 resolved. | Draft; pending review. |
 
 The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. Review D1, D3 and D5 first for persistence, then resolve the remaining decisions. Gameplay implementation requires explicit resolution of all six.
@@ -328,15 +346,17 @@ The implementing package owns component qualification. The package that first ma
 
 Each child package must complete its own planning approval, implementation, focused/regression tests, independent review, exact-SHA hosted CI, and closure record. Applicable cumulative suites and pinned MicroPython evidence are required when shared Python runtime/save state is changed. A failing package reopens only its owning scope unless the review demonstrates a cross-package contract defect. No package can close by inheriting another package's green run.
 
-Gate 0 remains open until the user reviews the decomposition and explicitly resolves M8-D1 through D6. The prior source audit and finite manifest above remain the planning authority; the child documents do not independently redefine them.
+Gate 0 remains open. M8-D1's regional architecture is approved; the finite content manifest and M8-D2 through D6 still require explicit review. The prior source audit and manifest above remain the planning authority; child documents do not independently redefine them.
 
 ## M8-D1 Through M8-D6: Approval Required
 
-All six rows below are **proposals for review**, not approved decisions. Recommendations use the audited repository and the future designs without silently promoting every example into scope.
+M8-D1 is partially resolved: the regional architecture below is approved, while the exact finite M8 content manifest remains for review. M8-D2 through D6 are proposals, not approved decisions.
 
-### M8-D1: Finite Content Scope
+### M8-D1: Regional Architecture And Finite Content Scope
 
-**Recommend:** approve only proposed Floors IV-V, 3 routes, 17 encounter definitions (including 2 bosses), the 4 proposed ordinary archetypes, 2 bosses, the 48 Grade II-IV component recipes, three permanent discoveries, the first-clear/recovery/armor/material rewards, and the listed report consumers. Do not add Floor VI, formations, phases, additional recruitment, or unlimited pair synergies in M8. All IDs/compositions/source rows are in the manifest above. This is a substantial but finite content package; declining either proposed floor requires removing its dependent IDs and route rows before Gate 0 closes.
+**Approved:** the Hub Region Portal model, explicit authored region membership, flexible five-floor design target, initial Region 1 placement of Floors I-V including Drowned Reliquary/Floor IV and Ashen Vault/Floor V, backward travel to permanently unlocked regions, and durable Region 2 unlock after the genuine Ashen Regent/Floor V clear. Region 2 is visible as unlocked but unavailable for entry until playable content exists. It has no routes/content in M8.
+
+**Still proposed:** the finite playable M8 manifest: Floors IV-V, 3 routes, 17 encounter definitions (including 2 bosses), 4 ordinary archetypes, 48 Grade II-IV component recipes, three permanent discoveries, the listed rewards and report consumers. Do not add Floor VI, formations, phases, additional recruitment, or unlimited pair synergies in M8. All IDs/compositions/source rows remain subject to review. Any accepted reduction must remove dependent rows and graph edges before Gate 0 closes.
 
 ### M8-D2: Pair Story And Mechanics
 
@@ -362,6 +382,7 @@ All six rows below are **proposals for review**, not approved decisions. Recomme
 
 | Decision | Status at audit | Blocks |
 | --- | --- | --- |
+| M8-D1 regional architecture | Approved | M8.1, M8.8 and M8.10 must implement/test the approved contract |
 | M8-D1 finite scope/manifest | Proposed; approval required | All implementation packages |
 | M8-D2 pair story/synergy | Proposed; approval required | M8.6 |
 | M8-D3 knowledge/discoveries | Proposed; approval required | M8.1, M8.4, M8.5 and M8.7 |

@@ -12,14 +12,16 @@ Prove the complete approved Floors IV–V expansion as one persistent, terminal/
 
 **Already-approved inputs:** all previously sealed M1-M7/M6.5 contracts remain regression-protected; only approved M8 manifest rows may be qualified as delivered.
 
-**Still pending:** all M8-D1–D6 must be explicitly resolved before this package starts. This package cannot convert a proposed or omitted row into an approval.
+**Still pending:** the finite-manifest portion of M8-D1 and M8-D2–D6 must be explicitly resolved before this package starts. This package cannot convert a proposed or omitted row into an approval. Region 2's eventual name, routes, and playable release are future work and are not prerequisites for this M8 qualification.
 
 ## Qualification Journeys
 
+- Use the normal Hub Region Portal in new and eligible migrated saves. Verify explicit Region 1 membership for Surface/Floors I-V, matching region/destination availability in terminal/browser, and Region 1 remains reachable after later unlocks.
 - New and migrated profile reaches Floor IV through the existing Floor I–III/recruitment sequence; verify no early unlock or changed prior behavior.
 - Complete Floor IV, use its discoveries/rewards and eligible expedition reports, then enter Floor V with a legal pair.
 - Complete the Floor-V approach, persist the arena reveal, settle any assignment under its approved rules, and launch the all-four reunion.
-- Clear the Ashen Regent, verify XP/Intuition/rewards and Floor-V completion once, return to Hub, and select an ordinary active pair again.
+- Clear the Ashen Regent, verify XP/Intuition/rewards and Floor-V completion once, and separately verify durable Region 2 unlock. Return to Hub; the portal must show Region 2 unlocked but unavailable while it has no route, and must continue to offer eligible Region 1 content.
+- Reload and repeat portal navigation. Verify no Floor VI/empty route is enterable, returning to Region 1 does not clear newer progress or duplicate rewards, and Region 2 remains unlocked.
 - Exercise failed writes, reload/retry, stale/duplicate actions, legacy migration, and uncaught qualification findings across the integrated journey.
 
 ## Scope And Dependencies
@@ -32,6 +34,7 @@ This is qualification and closure, not a container for unfinished features or si
 - Authored-content validation, Python compile/build checks, browser build and real Playwright smoke.
 - Pinned MicroPython qualification for the accepted final SHA; distinguish local from hosted evidence and report memory ceilings/results exactly.
 - Terminal and browser semantic journeys, save/reload and no-duplicate reward/report/discovery proofs.
+- Migration matrix proving older saves retain existing floor clears and initial-region access, gain no unearned Region 2 unlock, and show the eligible Hub briefing normally; exact-SHA portal travel/revisit and unlocked-but-unplayable Region 2 evidence.
 - Independent full-diff review, all findings dispositioned, exact commit SHA, hosted CI URLs/results, and updated parent/child status ledger.
 
 ## Closure

@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Proposed work package. M8-D1, M8-D3, and M8-D5 are pending; no implementation is authorized.
+**Status:** Proposed work package. M8-D1's finite Floor-V content, M8-D3, and M8-D5 are pending; regional architecture is approved, but no implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -17,6 +17,7 @@ Deliver the paired seven-node approach that reveals the reunion arena through a 
 ## Scope
 
 - Add the six parent-manifest Floor-V ordinary encounters and `floor_five_approach`: six battles plus `floor_five_rest_midpoint`.
+- Author the Ashen Vault/Floor-V destination as a member of Region 1 through M8.1's explicit membership contract; do not infer region from `floor_five` numbering.
 - Keep ordinary encounters two-Drifter and allow any legal active pair.
 - Place `spirit_relic_floor5_01` at the midpoint Rest using the reward/search contract delivered by M8.4; do not duplicate its effect or claim logic.
 - Record `m8_ashen_arena_revealed` only after the route's genuine final victory is durably committed. Failed/abandoned battle or failed save cannot reveal it.

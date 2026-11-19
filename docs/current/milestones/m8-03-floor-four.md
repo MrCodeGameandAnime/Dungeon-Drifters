@@ -1,6 +1,6 @@
 # M8.3: Drowned Reliquary, Floor IV
 
-**Status:** Proposed work package. M8-D1 and M8-D6 are pending; no implementation is authorized.
+**Status:** Proposed work package. M8-D1's finite Floor-IV content and M8-D6 are pending; regional architecture is approved, but no implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate current route/content owners at package entry.
 
@@ -17,6 +17,7 @@ Deliver the first playable M8 route using the approved two-Drifter ordinary and 
 ## Scope
 
 - Add the parent manifest's 12-node `floor_four` route: nine ordinary battles, midpoint Rest, pre-boss Rest, and paired Tidebound Curator boss.
+- Author this destination as a member of Region 1 through M8.1's explicit membership contract; do not infer region from `floor_four` numbering.
 - Add encounter IDs `m8_floor_four_encounter_01` through `_09` and `m8_tidebound_curator_boss` with the parent compositions.
 - Add `reliquary_sentinel`, `brine_oracle`, `drowned_stalker`, `ashbound_hound`, and the Curator content definitions; author tier-3 profiles only after D1/D6 approval. Reuse supported combat mechanics; no phases or renderer.
 - Author the four named Grade-IV material source IDs in the parent manifest and the Floor-IV first-clear Grade-IV Crystal reward. Actual probabilities, quantities and recipe values require the approved balance pass; source provenance must remain floor-eligible.
