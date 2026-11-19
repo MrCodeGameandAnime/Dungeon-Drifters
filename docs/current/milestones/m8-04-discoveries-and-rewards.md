@@ -30,6 +30,8 @@ No discovery probability retuning, new permanent reward type, party-wide effect,
 
 Revalidate `root/src/app/game/run_events.py`, `permanent_discovery.py`, `equipment.py`, `overworld_session.py`, and `root/src/app/persistence/save_document.py`. Use M3's durable claim owner and M5's `EquipmentInstance`/reward evidence. Any schema extension starts from the actual accepted schema at implementation entry, preserves older save and immutable remote-history semantics, and cannot rewrite generation evidence when armor becomes secured.
 
+M8.4 qualifies the proposed Spirit Relic claim independently: exactly +3 GP to one eligible active Drifter, once across retry and reload. Record the live Floor V search as deferred to M8.7.
+
 ## Tests, Package Gates, And Qualification History
 
 Prove actual battle-path armor acquisition, Rest securing, save/reload/next victory; exact item identity and quantity; recovery through death, extraction and safe return; discovery search persistence and no reroll; first/second active target; inactive target rejection; cap cancel/consume; duplicate claim; failed persistence with no reward/claim divergence; legacy migration; and both clients.

@@ -31,6 +31,8 @@ Revalidate M4B participant/reward settlement in `root/src/app/game/overworld_ses
 
 **Persistence impact:** M8.1 owns Floor-V clear migration/state. This package must use that boundary for boss settlement and add no competing clear marker.
 
+M8.8 owns the live Floor V Material report test. Verify ineligibility before the reunion clear, win through normal play, then use M8.5 to launch the eligible assignment, settle and claim the proposed Grade-IV Core once. Verify provenance and no duplicate after reload or retry.
+
 ## Tests, Package Gates, And Qualification History
 
 Cover all-four required, any active pair restored afterward, assignment rejection/settlement boundary, unclaimed settled report allowed, victory/defeat, XP split and personal Intuition rounding, pre-boss pair history unchanged, one-time Floor-V clear/rewards, failed writes/retry/reload, no duplicate combatants, and terminal/browser journeys.

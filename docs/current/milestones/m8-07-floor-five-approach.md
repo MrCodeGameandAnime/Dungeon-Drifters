@@ -32,6 +32,8 @@ Use existing route/content/session/run-event/save owners, revalidated at package
 
 **Persistence impact:** M8.1 owns durable arena-reveal state. This package records it through that owner after genuine victory; no separate route-completion schema is proposed.
 
+M8.7 owns the live Spirit Relic test. Reach the Floor V midpoint with optional M8.6 scenes skipped. Control the roll through the normal search path using the proposed 1,000 bps base chance. Claim exactly +3 GP for one eligible active Drifter and reload without a second award. Separately exercise a failed search, no reward, and the existing retry and reload rules.
+
 ## Tests, Package Gates, And Qualification History
 
 Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity.

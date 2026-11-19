@@ -38,6 +38,8 @@ This is qualification and closure, not a container for unfinished features or si
 
 M8 closes only when every approved manifest row is implemented or explicitly approved-deferred/excluded, all required exact-SHA qualification is green, no M8 child remains open, and prior sealed M1–M7/M6.5 behavior remains protected. A green subset or a reduced manifest without explicit approval is not closure.
 
+Collect the originating packages' gameplay integration evidence at entry. M8.10 owns cumulative campaign, client and persistence journeys. Return missing live proofs to their named owners before closure.
+
 ## Package Gates And Qualification History
 
 - **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures and M8-D1–D6 decisions are reviewed.

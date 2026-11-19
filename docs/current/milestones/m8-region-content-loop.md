@@ -2,7 +2,7 @@
 
 > Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. Approve a finite release manifest before authoring content; the source examples do not define a whole campaign automatically.
 
-**Status:** Gate 0 audit and ten-package decomposition proposal; M8-D1 through M8-D6 remain pending review. No M8 gameplay work is authorized by this document or its child plans.
+**Status:** Gate 0 open and ten-package planning structure accepted; M8-D1 through M8-D6 remain pending review. No M8 gameplay work is authorized by this document or its child plans.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -320,7 +320,11 @@ The following ten documents define independently reviewable work packages. They 
 | M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Two region illustrations and six static enemy/boss portraits; no new combat renderer. | Stable IDs; D1 and D6. Can run alongside M8.2-M8.8. | Draft; pending review. |
 | M8.10 | [Integrated campaign qualification](m8-10-integrated-qualification.md) | Cumulative progression journeys, cross-client/persistence checks and M8 closure evidence. | M8.1-M8.9 accepted; D1-D6 resolved. | Draft; pending review. |
 
-**Dependency graph:** `M8.1 -> M8.2 -> M8.3 -> M8.4 -> M8.5 -> M8.6 -> M8.7 -> M8.8 -> M8.10`; M8.9 may proceed in parallel after the manifest IDs and visual scope are approved and must integrate before M8.10. M8.7 specifically consumes M8.4's Spirit Relic definition/claim behavior and M8.5's approved expedition coexistence contract; it owns only the Floor-V route placement. M8.3 does not expose armor/recovery/discovery rewards before M8.4. M8.5 may define later-floor report support before Floor V completes, but the Floor-V Material report remains unavailable until M8.8 records the genuine clear.
+The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. Review D1, D3 and D5 first for persistence, then resolve the remaining decisions. Gameplay implementation requires explicit resolution of all six.
+
+The implementing package owns component qualification. The package that first makes a feature reachable through normal gameplay owns its end-to-end integration test. Record deferred journeys and their downstream owners in the originating qualification record. M8.10 owns cumulative qualification across clients, saves and progression.
+
+**Preferred execution order:** `M8.1 -> M8.2 -> M8.3 -> M8.4 -> M8.5 -> M8.6 -> M8.7 -> M8.8 -> M8.10`; M8.9 may proceed in parallel after the manifest IDs and visual scope are approved and must integrate before M8.10. M8.7 specifically consumes M8.4's Spirit Relic definition/claim behavior and M8.5's approved expedition coexistence contract; it owns only the Floor-V route placement. M8.3 does not expose armor/recovery/discovery rewards before M8.4. M8.5 may define later-floor report support before Floor V completes, but the Floor-V Material report remains unavailable until M8.8 records the genuine clear.
 
 Each child package must complete its own planning approval, implementation, focused/regression tests, independent review, exact-SHA hosted CI, and closure record. Applicable cumulative suites and pinned MicroPython evidence are required when shared Python runtime/save state is changed. A failing package reopens only its owning scope unless the review demonstrates a cross-package contract defect. No package can close by inheriting another package's green run.
 

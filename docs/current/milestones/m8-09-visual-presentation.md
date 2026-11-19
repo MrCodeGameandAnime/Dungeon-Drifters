@@ -23,9 +23,11 @@ Create and integrate the finite static art set for the proposed regions and enem
 
 ## Exclusions And Dependencies
 
-No new combat renderer, animation engine, 3D scene, gameplay logic, external payment or unsupported asset pipeline. Begin only after M8-D1/D6 and the stable IDs are approved. This can run in parallel with M8.2–M8.8 after IDs stabilize; final integration is included in M8.10.
+No new combat renderer, animation engine, 3D scene, gameplay logic, external payment or unsupported asset pipeline. Begin only after M8-D1/D6 and the stable IDs are approved. This can run in parallel with M8.2–M8.8 after IDs stabilize; M8.9 qualifies final integration before M8.10.
 
 **Persistence impact:** none for an asset-only implementation. If asset references alter serialized content identities, stop and review that scope separately.
+
+M8.9 can record production evidence once manifest IDs and visual scope are approved. Close only after checking each asset or approved fallback through its actual region or encounter, including the reunion boss.
 
 ## Package Gates And Qualification History
 

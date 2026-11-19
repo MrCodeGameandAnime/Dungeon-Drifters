@@ -45,6 +45,8 @@ Plan the schema migration from the actual entry schema. New saves and migrated s
 
 M8.1 owns the migration for clear/knowledge state. M8.3 and M8.8 write through its canonical clear boundary and must not introduce duplicate completion fields.
 
+M8.1 owns the trigger, authored Hub scene, and durable reveal for `m8_drowned_reliquary_briefing`. Exercise the normal Hub path on both a newly eligible campaign and a migrated save already holding the Floor III clear and four recruits. Verify the briefing reveals the destination as Rumored once, reload preserves the fact, and unlearned enemy details stay hidden. Also cover a save missing each prerequisite.
+
 ## Package Gates And Qualification History
 
 - **Gate A, plan approval:** Open; resolve M8-D1/D3/D5 and review this scope before implementation.

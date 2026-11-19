@@ -32,6 +32,8 @@ Current owners to revalidate: `root/src/app/game/expeditions.py`, `expedition_st
 
 M8.5 owns any report-state schema migration and legacy defaulting for report payloads. M8.1 remains the sole owner of floor-clear and knowledge evidence.
 
+M8.5 qualifies the Floor V Material report with controlled clear and source evidence. Record the live reunion-to-report journey as deferred to M8.8.
+
 ## Tests, Package Gates, And Qualification History
 
 Cover each category's availability by destination/source, frozen result, timer completion and incompletion, outing termination, launch/save failure, stale/duplicate launch, one-time claim, reload/retry, unique equipment identity, floor-grade provenance, scouting/story fact adoption, and no energy effect on ordinary play.
