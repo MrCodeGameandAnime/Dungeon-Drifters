@@ -12,7 +12,7 @@ Prove the complete approved Floors IV–V expansion as one persistent, terminal/
 
 **Already-approved inputs:** all previously sealed M1-M7/M6.5 contracts remain regression-protected; only approved M8 manifest rows may be qualified as delivered.
 
-**Still pending before implementation/closure:** remaining M8-D1 manifest details, the M8-D3 fact IDs/reveal mapping, and a bounded M8-D6 visual specification with explicit approval. D2, D4, and D5 are approved as recorded in the parent and must be verified, not reopened here. This package cannot convert a proposed or omitted row into an approval. Region 2's eventual name, routes, and playable release are future work and are not prerequisites for this M8 qualification.
+**Still pending before implementation/closure:** remaining M8-D1 manifest details and the M8-D3 fact IDs/reveal mapping. M8-D6's limited static-asset scope is approved; its asset associations must match the final D1 identities. D2, D4, and D5 are approved as recorded in the parent and must be verified, not reopened here. This package cannot convert a proposed or omitted row into an approval. Region 2's eventual name, routes, and playable release are future work and are not prerequisites for this M8 qualification.
 
 ## Qualification Journeys
 
@@ -32,6 +32,7 @@ This is qualification and closure, not a container for unfinished features or si
 
 - Root pytest, web-contract pytest, Profile Service/PostgreSQL integration, migration-from-zero and Alembic parity.
 - Authored-content validation, Python compile/build checks, browser build and real Playwright smoke.
+- Verify all eight D6-approved static asset IDs resolve through the finalized content associations, with responsive presentation, accessibility text, and readable fallback behavior. Confirm terminal functionality and browser parity; no graphical combat renderer, animation, or combat-presentation engine is part of M8 qualification.
 - Pinned MicroPython qualification for the accepted final SHA; distinguish local from hosted evidence and report memory ceilings/results exactly.
 - Terminal and browser semantic journeys, save/reload and no-duplicate reward/report/discovery proofs.
 - Migration matrix proving older saves retain existing floor clears and initial-region access, gain no unearned Region 2 unlock, and follow the approved destination visibility/briefing path; exact-SHA portal travel/revisit and unlocked-but-unplayable Region 2 evidence.
@@ -45,7 +46,7 @@ Collect the originating packages' gameplay integration evidence at entry. M8.10 
 
 ## Package Gates And Qualification History
 
-- **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures and M8-D1–D6 decisions are reviewed.
+- **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures and the remaining D1/D3 decisions are reviewed; verify the approved D6 scope and its final content associations without reopening the decision.
 - **Gate B, cumulative execution:** Not started; run every required journey and platform/service qualification against one exact candidate SHA.
 - **Gate C, independent audit and closure:** Not run; resolve findings, publish the final evidence record, then close M8 only by explicit acceptance.
 

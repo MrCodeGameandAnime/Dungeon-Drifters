@@ -14,6 +14,8 @@ Deliver the paired seven-node approach that reveals the reunion arena through a 
 
 **Still pending:** the exact M8-D1 Floor-V encounter/reward/source entries and M8-D3 fact IDs/reveal sources. D5 is approved; route/node IDs remain proposals unless explicitly covered by the approved count/prerequisite decisions.
 
+M8-D6 approves `m8_art_ashen_vault` as a static Region 1 destination illustration. M8.9 owns its live integration after D1 confirms the stable destination association; this does not change the route or gameplay contract.
+
 ## Scope
 
 - Add the six parent-manifest Floor-V ordinary encounters and `floor_five_approach`: six battles plus `floor_five_rest_midpoint`.

@@ -1,44 +1,59 @@
 # M8.9: Region And Enemy Visual Presentation
 
-**Status:** BLOCKED on a separate M8-D6 visual specification and explicit approval. The owner requested expanded presentation; the earlier eight-static-assets-only scope is not approved. No implementation is authorized.
+**Status:** D6's limited static-asset scope is approved. Package planning and implementation remain open; no implementation is authorized by this document update.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
-**Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate asset pipeline and client sizes at package entry.
+**Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate asset pipeline, client surfaces and content IDs at package entry.
 
 ## Goal
 
-Plan the expanded visual presentation only after its bounded scope is supplied and explicitly approved. Do not infer the visuals, rendering architecture, runtime surfaces, or deliverables from the earlier static-only proposal.
+Integrate the eight approved static visuals into existing destination, battle-semantic and inspection presentation. Asset production/delivery is separate from this package's live integration. Preserve the terminal experience and Python-authoritative combat behavior. This package does not create a combat renderer.
 
-## Approval Boundary
+## Approved Scope
 
-**Already-approved inputs:** Python remains authoritative for gameplay and clients remain projections/adapters; M7's shared combat model is unchanged. The owner requested expanded visual presentation instead of accepting the earlier eight-static-assets-only proposal.
+M8-D6 approves exactly these asset IDs and categories:
 
-**Still pending:** a separate bounded M8-D6 specification and explicit approval. The prior eight static asset IDs are historical planning suggestions only, not the approved scope, a minimum deliverable, or a commission.
+| Asset ID | Category | Intended content association |
+| --- | --- | --- |
+| `m8_art_drowned_reliquary` | Region 1 destination illustration | Drowned Reliquary; confirm its stable content ID in the detailed D1 manifest. |
+| `m8_art_ashen_vault` | Region 1 destination illustration | Ashen Vault; confirm its stable content ID in the detailed D1 manifest. |
+| `m8_portrait_reliquary_sentinel` | Ordinary-enemy portrait | Proposed `reliquary_sentinel`; confirm identity and ID under D1. |
+| `m8_portrait_brine_oracle` | Ordinary-enemy portrait | Proposed `brine_oracle`; confirm identity and ID under D1. |
+| `m8_portrait_drowned_stalker` | Ordinary-enemy portrait | Proposed `drowned_stalker`; confirm identity and ID under D1. |
+| `m8_portrait_ashbound_hound` | Ordinary-enemy portrait | Proposed `ashbound_hound`; confirm identity and ID under D1. |
+| `m8_portrait_tidebound_curator` | Boss portrait | Proposed `tidebound_curator`; confirm identity and ID under D1. |
+| `m8_portrait_ashen_regent` | Boss portrait | Proposed `ashen_regent`; confirm identity and ID under D1. |
 
-## Scope
+The eight asset IDs/categories are approved. The specific enemy/boss associations remain conditional on D1 finalizing the finite content manifest. Do not treat this asset approval as approval of proposed enemy identities, compositions, or combat values.
 
-- Revisit the old static-only asset suggestions after approval of the separate visual specification; do not assume those eight items meet the requested expansion.
-- Region 2 has no playable routes in M8; no Region 2 visual identity or presentation treatment has been specified or approved.
-- Once scope is approved, record its deliverables, asset/source provenance, accessibility and readable fallbacks, platform/runtime targets, and verification matrix in this package.
+## Ownership And Integration
 
-## Exclusions And Dependencies
+Keep asset production and delivery distinct from M8.9's live integration and qualification. Delivered assets require stable approved IDs, source/provenance, dimensions, accessible descriptions, responsive use, and an approved fallback. M8.9 associates the delivered assets with the finalized content catalog and integrates them into existing client surfaces; it does not silently create a new asset pipeline.
 
-No graphical renderer, animation engine, new combat mechanics, boss phases, formations, or hazards are authorized by the current direction. The separate M8-D6 specification must define bounded presentation work without silently expanding gameplay scope. Begin only after the specification and its approval; then revalidate any stable IDs and dependencies. M8.9 qualifies approved visual integration before M8.10.
+- Region illustrations appear in existing destination/region presentation.
+- Enemy and boss portraits may appear in existing semantic battle and inspection views.
+- Existing terminal presentation remains usable without image rendering.
+- Existing Drifter sprites remain unchanged. No redesign, replacement, migration, or sprite-in-combat work is included.
 
-**Persistence impact:** none for an asset-only implementation. If asset references alter serialized content identities, stop and review that scope separately.
+## Exclusions
 
-M8.9 can record production evidence once manifest IDs and visual scope are approved. Close only after checking each asset or approved fallback through its actual region or encounter, including the reunion boss.
+No new 2D combat renderer, animation engine, battlefield/staging system, formations, hazard mechanics, boss phases, damage/status/targeting/turn-resolution changes, M7 changes, or new sprite-in-combat/animation asset pipeline. Existing supported enemy capabilities may be used only when separately specified in approved content. Full future 2D RPG presentation remains deferred to an unnumbered future milestone and is not M8 work.
+
+## Dependencies And Qualification
+
+M8-D6 scope is approved. M8.9 still depends on asset production/delivery and final D1 content IDs/associations. It may proceed alongside other M8 implementation after those associations are confirmed, and must integrate before M8.10.
+
+Qualification must verify all eight assets or approved readable fallbacks through their actual user-visible destination, battle-semantic, or inspection surfaces. Check catalog references, dimensions, crop/responsive behavior, accessible descriptions, and browser rendering; verify terminal functionality and client semantic parity. No graphical combat or animation qualification is required.
+
+**Persistence impact:** none for static assets. If asset references alter serialized content identities, stop and review that scope separately.
 
 ## Package Gates And Qualification History
 
-Define qualification from the approved D6 specification. It must cover every approved presentation deliverable, client/runtime parity, accessibility/fallbacks, and the actual user-visible integration; do not use the former eight-ID checklist as an assumed scope.
-
-- **Gate A, plan approval:** Blocked; confirm relevant M8-D1 content IDs/associations, receive the bounded expanded-visual specification, and obtain explicit M8-D6 approval before finalizing this package.
-- **Gate B, asset integration and focused checks:** Not started; content-reference, fallback and responsive rendering checks.
-- **Gate C, exact-SHA qualification and closure:** Not run; relevant root/web/build/content checks and hosted workflow. No MicroPython rerun for asset-only changes unless shared runtime code is touched.
+- **Gate A, plan approval:** Open; confirm final D1 content associations, production/delivery ownership, asset specifications, and the focused integration matrix. D6 itself is approved and must not be reopened.
+- **Gate B, asset integration and focused checks:** Not started; verify catalog references, fallbacks, responsive/accessibility behavior, and actual client presentation.
+- **Gate C, exact-SHA qualification and closure:** Not run; run relevant content/build/browser checks and hosted workflow. No MicroPython rerun for asset-only changes unless shared runtime code is touched.
 
 | Implementation SHA | Hosted CI URL/results | Asset/build evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
 | Not implemented | Not run | Not run | Pending | Open |
 
-Record reviewer disposition, final asset manifest, CI URL and closure here and in the parent.
-
+Record the delivered asset manifest, final D1 associations, reviewer disposition, CI URL and closure here and in the parent.

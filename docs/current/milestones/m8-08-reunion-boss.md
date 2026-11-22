@@ -16,6 +16,8 @@ Deliver the separate four-permanent-Drifter reunion battle, its exactly-once Flo
 
 **Still pending:** M8-D1's detailed boss identity/composition and reward/source mapping. M8-D5's assignment, entry, settlement, and XP rules are approved.
 
+M8-D6 approves `m8_portrait_ashen_regent` as a static boss portrait. Its association remains contingent on D1 confirming the boss identity and stable content ID; M8.9 owns live integration.
+
 ## Scope
 
 - Launch the approved Floor V reunion boss from Hub only after M8.7's durable arena-reveal evidence. `m8_ashen_regent_boss` and `m8_ashen_arena_revealed` are the current proposed IDs, not approved IDs.

@@ -12,7 +12,7 @@ Provide the authoritative, persistent regional progression, Hub Region Portal, a
 
 **Already-approved inputs:** M8-D1's Hub Region Portal, explicit authored membership, Region 1 containing Floors I-V, permanent backward travel, and durable Region 2 unlock after the genuine Floor V boss; M8-D3's Unknown/Rumored/Confirmed model and completed-floor Scouting eligibility; and M8-D5's separate four-Drifter reunion/assignment boundary. Preserve M1's permanent roster/active-pair separation, M6's energy independence from dungeon play, M7's combat state, and the existing save/history trust boundary.
 
-**Still pending:** detailed M8-D1 IDs, compositions, and unlock/source mappings; the four exact M8-D3 fact IDs and authored reveal sources; and M8-D6's separate visual specification/approval. No implementation begins until Gate 0 resolves its remaining blockers.
+**Still pending:** detailed M8-D1 IDs, compositions, and unlock/source mappings; and the four exact M8-D3 fact IDs and authored reveal sources. M8-D6's limited static-asset scope is approved and is not a prerequisite for this progression package. No implementation begins until Gate 0 resolves its remaining blockers.
 
 ## Scope
 
