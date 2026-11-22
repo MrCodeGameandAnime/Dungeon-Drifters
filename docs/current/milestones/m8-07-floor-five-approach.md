@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Proposed work package. M8-D1's finite Floor-V content, M8-D3, and M8-D5 are pending; regional architecture is approved, but no implementation is authorized.
+**Status:** Proposed work package. Regional architecture, the D1 floor/route/count direction, and M8-D5 are approved. Detailed M8-D1 content/source mapping and M8-D3 fact/reveal mapping remain open; no implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -10,9 +10,9 @@ Deliver the paired seven-node approach that reveals the reunion arena through a 
 
 ## Approval Boundary
 
-**Already-approved inputs:** preserve the two-plus-two roster loop, M1 pair selection, M2 outing settlement, M6 passive expedition behavior, and M7 Momentum.
+**Already-approved inputs:** preserve the two-plus-two roster loop, M1 pair selection, M2 outing settlement, M6 passive expedition behavior, M7 Momentum, and M8-D5's expedition coexistence/settlement boundary. The separate four-member boss has no active assignment; a completed, settled but unclaimed report does not block it; no assignment is canceled or refunded automatically.
 
-**Still pending:** M8-D1 Floor-V content, M8-D3 discovery/knowledge rules, and M8-D5 expedition coexistence. The route and arena reveal remain proposals until those decisions are resolved.
+**Still pending:** the exact M8-D1 Floor-V encounter/reward/source entries and M8-D3 fact IDs/reveal sources. D5 is approved; route/node IDs remain proposals unless explicitly covered by the approved count/prerequisite decisions.
 
 ## Scope
 
@@ -25,7 +25,7 @@ Deliver the paired seven-node approach that reveals the reunion arena through a 
 
 ## Exclusions And Handoff
 
-No reunion boss, Floor-V clear, first-clear boss reward, new discovery service, or item key. M8.1 owns the arena eligibility evidence; M8.4 owns the Spirit Relic reward; M8.5 must establish the approved assignment coexistence behavior before this package qualifies those journeys. M8.8 consumes the arena reveal.
+No reunion boss, Floor-V clear, first-clear boss reward, new discovery service, or item key. M8.1 owns the arena eligibility evidence; M8.4 owns the Spirit Relic reward; M8.5 owns the approved assignment coexistence/report lifecycle behavior used here. M8.8 consumes the arena reveal.
 
 ## Ownership And Persistence
 
@@ -33,13 +33,13 @@ Use existing route/content/session/run-event/save owners, revalidated at package
 
 **Persistence impact:** M8.1 owns durable arena-reveal state. This package records it through that owner after genuine victory; no separate route-completion schema is proposed.
 
-M8.7 owns the live Spirit Relic test. Reach the Floor V midpoint with optional M8.6 scenes skipped. Control the roll through the normal search path using the proposed 1,000 bps base chance. Claim exactly +3 GP for one eligible active Drifter and reload without a second award. Separately exercise a failed search, no reward, and the existing retry and reload rules.
+M8.7 owns the live Spirit Relic test if its proposed source ID and placement are approved. Use the approved 1,000-bps base chance with existing Intuition adjustment through the normal search path. Claim exactly +3 GP for one eligible active Drifter and reload without a second award. Preserve existing per-run retry semantics; separately exercise a failed search and no reward.
 
 ## Tests, Package Gates, And Qualification History
 
 Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity.
 
-- **Gate A, plan approval:** Open; resolve M8-D1/D3/D5 and upstream M8.4/M8.5 contracts.
+- **Gate A, plan approval:** Open; resolve detailed M8-D1 content/source entries, M8-D3 fact/reveal mapping, and upstream M8.4/M8.5 contracts. M8-D5 is approved.
 - **Gate B, implementation and focused tests:** Not started; route, reveal, discovery-placement and settlement red/green tests.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, real browser smoke, PostgreSQL/migration/Alembic and pinned MicroPython.
 

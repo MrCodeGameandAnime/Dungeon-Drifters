@@ -1,6 +1,6 @@
 # M8.2: Signature Weapon Grade Expansion
 
-**Status:** Proposed work package. M8-D1 and the parent manifest's authored balance/content values remain pending; no implementation is authorized.
+**Status:** Proposed work package. The D1 floor/route/count direction is approved; the component-recipe manifest and all authored balance/content values remain open. No implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate sources and current HEAD at package entry.
 
@@ -12,7 +12,7 @@ Add the finite Grade-II, Grade-III, and Grade-IV recipes for the existing signat
 
 **Already-approved inputs:** preserve M3's current weapon Crafting eligibility/progression and M6.5's shared component stacks, quantity commerce, and displaced-component recovery.
 
-**Still pending:** M8-D1 and the exact authored grade progression, effects, and material costs. The recipe ID pattern and manifest examples do not approve numeric values.
+**Still pending:** whether the proposed 48 recipes and their detailed IDs are accepted, plus the exact authored grade progression, effects, and material costs. The recipe ID pattern and manifest examples do not approve numeric values.
 
 ## Scope
 
@@ -40,7 +40,7 @@ No signature identity changes, new crafting progression, new component family, r
 
 Parameterize definition coverage across all 48 IDs. Test each grade locked before its clear and available after, migrated old saves, exact Drifter and slot validation, already-installed component handling, insufficient materials, stack consumption/recovery, failed-save rollback, buy/sell quantities, and representative combat-stat projection in terminal/browser clients.
 
-- **Gate A, plan approval:** Open; M8-D1 and all authored effects/costs must be reviewed.
+- **Gate A, plan approval:** Open; review the component-recipe entries under the remaining D1 manifest and all authored effects/costs.
 - **Gate B, implementation and focused tests:** Not started; red/green recipe, ownership, transaction and projection tests.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migration parity, and pinned MicroPython because shared catalog/runtime compatibility is in scope.
 

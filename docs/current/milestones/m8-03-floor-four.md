@@ -1,6 +1,6 @@
 # M8.3: Drowned Reliquary, Floor IV
 
-**Status:** Proposed work package. M8-D1's finite Floor-IV content and M8-D6 are pending; regional architecture is approved, but no implementation is authorized.
+**Status:** Proposed work package. M8-D1's detailed Floor-IV manifest and M8-D6's expanded visual specification remain open; the floor/route/count direction and regional architecture are approved. No implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate current route/content owners at package entry.
 
@@ -12,14 +12,14 @@ Deliver the first playable M8 route using the approved two-Drifter ordinary and 
 
 **Already-approved inputs:** preserve M1's two-person ordinary outings and legal pair selection, M4's recruitment/XP ownership rules, M7's shared Momentum contract, and M6's completed-floor eligibility.
 
-**Still pending:** M8-D1 finite content and M8-D6 enemy/hazard/presentation scope. Enemy identities, tier profiles, material drop rates, and first-clear values remain proposals until approved.
+**Still pending:** detailed M8-D1 IDs/compositions and reward/source mapping, plus a separately specified and approved M8-D6 visual scope. Enemy profiles, drop rates, and first-clear values remain proposals until their package review.
 
 ## Scope
 
-- Add the parent manifest's 12-node `floor_four` route: nine ordinary battles, midpoint Rest, pre-boss Rest, and paired Tidebound Curator boss.
+- Add the parent manifest's proposed 12-node `floor_four` route: nine ordinary battles, midpoint Rest, pre-boss Rest, and paired Floor-IV boss. `Tidebound Curator` is the current proposed boss identity, not an approved identity.
 - Author this destination as a member of Region 1 through M8.1's explicit membership contract; do not infer region from `floor_four` numbering.
-- Add encounter IDs `m8_floor_four_encounter_01` through `_09` and `m8_tidebound_curator_boss` with the parent compositions.
-- Add `reliquary_sentinel`, `brine_oracle`, `drowned_stalker`, `ashbound_hound`, and the Curator content definitions; author tier-3 profiles only after D1/D6 approval. Reuse supported combat mechanics; no phases or renderer.
+- Use the proposed encounter IDs `m8_floor_four_encounter_01` through `_09` and `m8_tidebound_curator_boss` only if accepted with the detailed D1 manifest and compositions.
+- Add the proposed ordinary-enemy and Curator definitions only after detailed D1 content approval. Reuse supported combat mechanics; no new phases, formations, hazards, or renderer are authorized by the current plan. Presentation scope remains with M8.9 pending D6.
 - Author the four named Grade-IV material source IDs in the parent manifest and the Floor-IV first-clear Grade-IV Crystal reward. Actual probabilities, quantities and recipe values require the approved balance pass; source provenance must remain floor-eligible.
 - Record Floor-IV clear only through M8.1's canonical clear boundary; preserve pair XP splitting and ordinary two-member deployment.
 
@@ -37,7 +37,7 @@ Route and encounter catalog owners are `root/src/app/content/route_spec.py`, `ro
 
 Test route reachability/node order, every encounter definition, tier-3 validation, Floor-IV unlock from M8.1, two-member deployment, pair XP and Intuition, M7 symmetry, material grade provenance, first-clear idempotency, Rest checkpoint reload, boss settlement retry, failed writes and unchanged I-III behavior.
 
-- **Gate A, plan approval:** Open; resolve M8-D1/D6 and content/balance review.
+- **Gate A, plan approval:** Open; resolve the detailed M8-D1 content, content/balance review, and M8-D6 visual specification/approval.
 - **Gate B, implementation and focused tests:** Not started; route, enemy, reward and progression red/green coverage.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, terminal/browser journeys, PostgreSQL/migrations and pinned MicroPython.
 

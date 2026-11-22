@@ -1,29 +1,28 @@
 # M8.9: Region And Enemy Visual Presentation
 
-**Status:** Proposed work package. M8-D1's finite content identity and M8-D6 are pending; regional architecture is approved, but no implementation is authorized.
+**Status:** BLOCKED on a separate M8-D6 visual specification and explicit approval. The owner requested expanded presentation; the earlier eight-static-assets-only scope is not approved. No implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate asset pipeline and client sizes at package entry.
 
 ## Goal
 
-Create and integrate the finite static art set for the proposed Region 1 destinations and enemies if approved, while retaining the existing semantic/text battle presentation.
+Plan the expanded visual presentation only after its bounded scope is supplied and explicitly approved. Do not infer the visuals, rendering architecture, runtime surfaces, or deliverables from the earlier static-only proposal.
 
 ## Approval Boundary
 
-**Already-approved inputs:** Python remains authoritative for gameplay and clients remain projections/adapters; M7's shared combat model is unchanged.
+**Already-approved inputs:** Python remains authoritative for gameplay and clients remain projections/adapters; M7's shared combat model is unchanged. The owner requested expanded visual presentation instead of accepting the earlier eight-static-assets-only proposal.
 
-**Still pending:** M8-D1's finite destination/enemy content identity and M8-D6 visual scope/fallback requirements. The eight listed assets are proposed IDs, not a commission or an approved asset style.
+**Still pending:** a separate bounded M8-D6 specification and explicit approval. The prior eight static asset IDs are historical planning suggestions only, not the approved scope, a minimum deliverable, or a commission.
 
 ## Scope
 
-- Region art for the two M8 destinations in Region 1: `m8_art_drowned_reliquary`, `m8_art_ashen_vault`. Region 2 receives no art/content package in M8; its future visual identity remains open.
-- Portraits: `m8_portrait_reliquary_sentinel`, `m8_portrait_brine_oracle`, `m8_portrait_drowned_stalker`, `m8_portrait_ashbound_hound`, `m8_portrait_tidebound_curator`, `m8_portrait_ashen_regent`.
-- Record asset path, dimensions, alt text, source/license provenance, crop behavior, and readable fallback. Associate each asset with its stable content ID.
-- Verify desktop and narrow/mobile layouts, contrast/readability, and missing-asset behavior in browser and terminal-compatible presentation.
+- Revisit the old static-only asset suggestions after approval of the separate visual specification; do not assume those eight items meet the requested expansion.
+- Region 2 has no playable routes in M8; no Region 2 visual identity or presentation treatment has been specified or approved.
+- Once scope is approved, record its deliverables, asset/source provenance, accessibility and readable fallbacks, platform/runtime targets, and verification matrix in this package.
 
 ## Exclusions And Dependencies
 
-No new combat renderer, animation engine, 3D scene, gameplay logic, external payment or unsupported asset pipeline. Begin only after M8-D1/D6 and the stable IDs are approved. This can run in parallel with M8.2–M8.8 after IDs stabilize; M8.9 qualifies final integration before M8.10.
+No graphical renderer, animation engine, new combat mechanics, boss phases, formations, or hazards are authorized by the current direction. The separate M8-D6 specification must define bounded presentation work without silently expanding gameplay scope. Begin only after the specification and its approval; then revalidate any stable IDs and dependencies. M8.9 qualifies approved visual integration before M8.10.
 
 **Persistence impact:** none for an asset-only implementation. If asset references alter serialized content identities, stop and review that scope separately.
 
@@ -31,9 +30,9 @@ M8.9 can record production evidence once manifest IDs and visual scope are appro
 
 ## Package Gates And Qualification History
 
-Use existing asset/content checks and browser build. Test all eight ID references resolve, no blank primary media, alt text/fallbacks are present, intended crops render at desktop/mobile sizes, and non-visual clients remain functional.
+Define qualification from the approved D6 specification. It must cover every approved presentation deliverable, client/runtime parity, accessibility/fallbacks, and the actual user-visible integration; do not use the former eight-ID checklist as an assumed scope.
 
-- **Gate A, plan approval:** Open; resolve M8-D1/D6 and approve stable asset IDs/style/source requirements.
+- **Gate A, plan approval:** Blocked; confirm relevant M8-D1 content IDs/associations, receive the bounded expanded-visual specification, and obtain explicit M8-D6 approval before finalizing this package.
 - **Gate B, asset integration and focused checks:** Not started; content-reference, fallback and responsive rendering checks.
 - **Gate C, exact-SHA qualification and closure:** Not run; relevant root/web/build/content checks and hosted workflow. No MicroPython rerun for asset-only changes unless shared runtime code is touched.
 

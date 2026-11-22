@@ -1,6 +1,6 @@
 # M8.1: Region Progression, Dungeon Selection, And Knowledge
 
-**Status:** Proposed work package. M8-D1 regional architecture is approved; finite manifest, M8-D3, and M8-D5 remain pending. No implementation is authorized.
+**Status:** Proposed work package. Regional architecture and the D1 floor/route/count direction are approved. Detailed D1 manifest entries and M8-D3 fact IDs/reveal sources remain open. No implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate source paths and current HEAD when this package is approved for implementation.
 
@@ -10,9 +10,9 @@ Provide the authoritative, persistent regional progression, Hub Region Portal, a
 
 ## Approval Boundary
 
-**Already-approved inputs:** M8-D1's Hub Region Portal, explicit authored membership, Region 1 containing Floors I-V, permanent backward travel, and durable Region 2 unlock after the genuine Floor V boss; preserve M1's permanent roster/active-pair separation, M6's completed-floor expedition rule and energy independence from dungeon play, M7's combat state, and the existing save/history trust boundary.
+**Already-approved inputs:** M8-D1's Hub Region Portal, explicit authored membership, Region 1 containing Floors I-V, permanent backward travel, and durable Region 2 unlock after the genuine Floor V boss; M8-D3's Unknown/Rumored/Confirmed model and completed-floor Scouting eligibility; and M8-D5's separate four-Drifter reunion/assignment boundary. Preserve M1's permanent roster/active-pair separation, M6's energy independence from dungeon play, M7's combat state, and the existing save/history trust boundary.
 
-**Still pending:** the exact finite manifest under M8-D1, M8-D3 (knowledge/reveal contract), and M8-D5 (reunion/assignment boundary). No implementation begins until Gate 0 resolves the remaining decisions.
+**Still pending:** detailed M8-D1 IDs, compositions, and unlock/source mappings; the four exact M8-D3 fact IDs and authored reveal sources; and M8-D6's separate visual specification/approval. No implementation begins until Gate 0 resolves its remaining blockers.
 
 ## Scope
 
@@ -21,7 +21,7 @@ Provide the authoritative, persistent regional progression, Hub Region Portal, a
 - Implement the Region Portal in the existing Hub. Region 1 remains available through existing campaign progression; a known, unlocked region with playable content can be selected and entered from the Hub. Region 2 stays hidden until legitimately unlocked, then appears as unlocked but unavailable with a clear no-playable-content explanation until routes exist.
 - Preserve permanent backward travel to eligible content. Revisit cannot erase later clears, claims, roster, equipment, or expedition progression and cannot repeat one-time rewards.
 - Define destination visibility and entry rules: Floor IV after Floor III clear and all four permanent recruits; Floor-V approach after Floor-IV clear; reunion only after the arena reveal, with all four permanent Drifters and no active expedition assignment.
-- Define Unknown/Rumored/Confirmed knowledge for the parent manifest's four stable fact IDs and the exact reveal sources listed there.
+- Apply the approved Unknown/Rumored/Confirmed knowledge model. The four fact IDs and reveal sources shown in the parent manifest remain proposals until explicitly confirmed; viewing or loading never promotes a fact.
 - Keep the six legal active pairs legal in ordinary content. Floor IV and the Floor-V approach accept any legal active pair; the reunion is a separate four-person Hub event.
 - Make the same authoritative eligibility/fact result available to terminal and browser presenters.
 
@@ -51,11 +51,11 @@ M8.1 owns migration for region membership/unlock, floor-clear, and knowledge sta
 
 M8.1 owns the first end-to-end Region Portal journey because it first makes the portal/navigation reachable in normal Hub play. Cover a new campaign and an eligible migrated save, enter a legitimately available Region 1 destination, return through the Hub, revisit earlier eligible content, and verify newer clears/rewards remain intact. M8.10 repeats the cross-package journey after Region 2 unlock.
 
-M8.1 owns the trigger, authored Hub scene, and durable reveal for `m8_drowned_reliquary_briefing`. Exercise the normal Hub path on both a newly eligible campaign and a migrated save already holding the Floor III clear and four recruits. Verify the briefing reveals the destination as Rumored once, reload preserves the fact, and unlearned enemy details stay hidden. Also cover a save missing each prerequisite.
+If retained from the parent proposal, M8.1 owns the trigger and durable reveal for `m8_drowned_reliquary_briefing`; its event ID, scene text, and fact mapping are not yet approved. Exercise the normal Hub path on a newly eligible campaign and a migrated save already holding the Floor III clear and four recruits. Verify the approved Rumored state once, reload preserves it, and unlearned enemy details stay hidden. Also cover a save missing each prerequisite.
 
 ## Package Gates And Qualification History
 
-- **Gate A, plan approval:** Open; regional architecture is approved, but resolve the finite M8-D1 manifest, M8-D3, M8-D5 and review this scope before implementation.
+- **Gate A, plan approval:** Open; resolve detailed M8-D1 entries and the M8-D3 fact/reveal mapping, then review this scope before implementation.
 - **Gate B, implementation and focused tests:** Not started; use red/green tests and independent diff review.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migrations and pinned MicroPython are required because shared state/save code is touched.
 
