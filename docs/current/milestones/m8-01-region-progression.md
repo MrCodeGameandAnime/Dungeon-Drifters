@@ -1,6 +1,6 @@
 # M8.1: Region Progression, Dungeon Selection, And Knowledge
 
-**Status:** M8.1 implementation and exact-SHA qualification complete. Awaiting independent review before formal package closure.
+**Status:** CLOSED AND SEALED. The owner accepted the clean independent review of implementation SHA `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` and formally sealed M8.1.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`, runtime/disk schema 25. The implementation at `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` adds schema 26 and the approved progression/knowledge foundation.
 
@@ -83,7 +83,9 @@ M8.1 owns the trigger and durable reveal for the approved `m8_drowned_reliquary_
 
 | Implementation SHA | Hosted CI URL/results | Migration/runtime evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` | [Actions run 45195824408](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45195824408): Tests and Profile Service (PostgreSQL) passed | Schema 25-to-26 migration tests pass; migration-from-zero and Alembic parity pass hosted; pinned MicroPython v1.29.0 matrix passes locally | Implementer source review complete; independent review pending | Implementation and qualification complete; formal closure pending independent review |
+| `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` | [Actions run 45195824408](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45195824408): Tests and Profile Service (PostgreSQL) passed | Schema 25-to-26 migration tests pass; migration-from-zero and Alembic parity pass hosted; pinned MicroPython v1.29.0 matrix passes locally | Clean independent review accepted by owner; no blocking findings | CLOSED AND SEALED |
 
-Do not mark this package sealed until independent review is recorded. Record any disposition and final closure status here and in the parent.
+Qualification-record commit `141513ff8946e4992e2f99472e27f79151150362` passed exact-SHA CI [run 45197625564](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45197625564). This records the reviewed evidence; it does not replace the implementation SHA as the gameplay baseline.
+
+The independent review covered the schema-25-to-26 migration, authoritative region availability, monotonic knowledge persistence and failed-write behavior, and sync/regression fixtures. The owner accepted its clean disposition. Preserve the sealed migration, progression, knowledge and terminal/browser contracts as the baseline for later packages.
 
