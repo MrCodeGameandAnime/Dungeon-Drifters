@@ -308,7 +308,7 @@ These are planning drafts for review, not authorization to implement milestones 
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
 | M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; Gate 0 product contracts complete; review the consolidated readiness package and settle crafted-consumable resale before runtime work; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
-| M8 | [Region and content loop](m8-region-content-loop.md) | Gate 0 closed; M8.1 Gate A approved and under exact-SHA qualification, then proceed through the approved finite packages |
+| M8 | [Region and content loop](m8-region-content-loop.md) | Gate 0 closed; M8.1 implementation and exact-SHA qualification passed, pending independent review; then proceed through the approved finite packages |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
 **Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 uses already-authored, completed floors for expedition destinations; M8 authors the remaining region/floor content and missing reward sources.

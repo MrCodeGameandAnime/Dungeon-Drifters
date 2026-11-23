@@ -1,8 +1,8 @@
 # M8.1: Region Progression, Dungeon Selection, And Knowledge
 
-**Status:** M8.1 Gate A approved; implementation and local qualification complete. Exact-SHA hosted qualification is pending.
+**Status:** M8.1 implementation and exact-SHA qualification complete. Awaiting independent review before formal package closure.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
-**Audit source baseline:** `615083ce56ab725b8e3bd98d7237e351c13d3060`. Runtime files are unchanged from the previous source audit at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`; revalidate at implementation entry.
+**Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`, runtime/disk schema 25. The implementation at `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` adds schema 26 and the approved progression/knowledge foundation.
 
 ## Goal
 
@@ -79,11 +79,11 @@ M8.1 owns the trigger and durable reveal for the approved `m8_drowned_reliquary_
 
 - **Gate A, plan approval:** Approved at `0cc3cb878203a9ca817d5af0d84baaf960e2d09a`; exact-SHA CI run `45108637173` passed.
 - **Gate B, implementation and focused tests:** Implemented. Focused state, migration, portal, briefing, presenter, terminal, browser-bridge, and browser-smoke coverage is included; root and web suites pass locally.
-- **Gate C, exact-SHA qualification and closure:** Local qualification is complete. Exact-SHA hosted CI is pending; PostgreSQL, migration-from-zero, and Alembic parity require the hosted service job because the local Docker engine is unavailable.
+- **Gate C, exact-SHA qualification:** Passed on implementation SHA `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a`; exact-SHA hosted run `45195824408` passed both jobs. Local root/web, content, compile/build, browser, pinned MicroPython, and service-unit checks also passed. Local Docker was unavailable; hosted PostgreSQL, migration-from-zero, and Alembic parity passed.
 
 | Implementation SHA | Hosted CI URL/results | Migration/runtime evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Pending commit | Pending exact-SHA run | Schema 25-to-26 tests pass; pinned MicroPython v1.29.0 matrix passes locally; hosted PostgreSQL/migration parity pending | Source diff reviewed; independent review pending | Gate B complete; Gate C pending |
+| `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a` | [Actions run 45195824408](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45195824408): Tests and Profile Service (PostgreSQL) passed | Schema 25-to-26 migration tests pass; migration-from-zero and Alembic parity pass hosted; pinned MicroPython v1.29.0 matrix passes locally | Implementer source review complete; independent review pending | Implementation and qualification complete; formal closure pending independent review |
 
-Do not close on local tests alone. Record exact SHA, exact run URL/results, migration evidence, reviewer disposition and closure status here and in the parent.
+Do not mark this package sealed until independent review is recorded. Record any disposition and final closure status here and in the parent.
 

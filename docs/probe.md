@@ -666,3 +666,34 @@ was hosted-qualified on exact implementation SHA
 43737762509](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/43737762509).
 Both hosted jobs passed, including the cumulative Tests job and the PostgreSQL,
 migration-from-zero, and Alembic parity job.
+
+## M8.1 Region Progression Qualification (2026-11-23)
+
+The M8.1 implementation is committed on `dungeon` as
+`9ef0e6fd05da8a57602372d8b431c1a27b3bb36a`. The pinned matrix was rerun at
+that committed source tree with the recorded MicroPython v1.29.0 Windows
+executable: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+
+```text
+CPython 3.14.6 native              PASS
+CPython 3.14.6 forced overlay      PASS
+MicroPython 1.29.0 default         PASS
+MicroPython semantic parity        PASS
+1280K heap stability               PASS, 3/3
+1152K expected memory limit        PASS, 3/3
+Final marker                       MYP20|RESULT|CLOSURE_COMPLETE
+```
+
+The exact-SHA hosted workflow passed both jobs in [Actions run
+45195824408](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45195824408):
+the complete Tests job and Profile Service (PostgreSQL), including authored
+content validation, root/web tests, compile, browser build and Chromium smoke,
+PostgreSQL integration, migration-from-zero, and Alembic model parity. Local
+verification also passed 2,521 root tests, 93 web tests, 35 service tests
+(16 database-only tests skipped because the local Docker engine was
+unavailable), content validation, compileall, dataclass-manifest check, browser
+build, full browser smoke, and the pinned matrix above. The browser smoke
+includes `M8.1_BROWSER|REGION_PORTAL_FLOOR_I_RETURN_AND_BACKWARD_ACCESS|PASS`.
+This records implementation and qualification evidence; independent review
+remains pending before formal M8.1 package closure.
