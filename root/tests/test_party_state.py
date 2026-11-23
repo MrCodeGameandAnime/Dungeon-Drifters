@@ -36,6 +36,46 @@ def test_hub_entry_transfers_route_gold_once():
     assert lead.gold == 0
 
 
+def test_later_floor_progression_requires_predecessor_and_full_roster_then_stays_monotonic():
+    game = completed_hub_game()
+    party = game.party_state
+    for drifter_id in ("zhaivra", "joruun"):
+        assert party.recruit_companion(
+            game.player_state,
+            _player(drifter_id),
+            cost=0,
+        )
+
+    assert party.record_floor_four_clear() is False
+    assert party.floor_four_cleared is False
+    assert party.record_floor_five_clear() is False
+    assert party.unlock_region_two() is False
+
+    party._floor_two_cleared = True
+    party._floor_three_cleared = True
+    assert party.record_floor_four_clear() is True
+    assert party.floor_four_cleared is True
+    assert party.floor_five_cleared is False
+    assert party.region_two_unlocked is False
+    assert party.record_floor_four_clear() is False
+
+    assert party.record_floor_five_clear() is True
+    assert party.floor_five_cleared is True
+    assert party.region_two_unlocked is False
+    assert party.unlock_region_two() is True
+    assert party.region_two_unlocked is True
+    assert party.unlock_region_two() is False
+
+    restored = PartyState.from_snapshot(
+        party.snapshot(),
+        companions=party.companions,
+        active_drifter_ids=party.active_drifter_ids,
+    )
+    assert restored.floor_four_cleared is True
+    assert restored.floor_five_cleared is True
+    assert restored.region_two_unlocked is True
+
+
 def test_crafting_progress_is_shared_and_levels_up_from_authored_points():
     party = PartyState()
 

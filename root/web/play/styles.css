@@ -288,6 +288,13 @@ button:disabled {
 #route-actions button, #overworld-options button { min-height: 2.6rem; text-align: left; }
 .companion-selection, .party-selection, .discovery-selection, .extraction-rewards { max-width: 42rem; margin-top: .6rem; }
 .expedition-panel { max-width: 42rem; margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.region-panel { max-width: 42rem; margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.region-panel-summary { margin: .25rem 0 .65rem; color: var(--muted); }
+.region-choices { display: grid; gap: .45rem; }
+.region-choice { display: grid; justify-items: start; gap: .2rem; min-height: 3rem; padding: .55rem .65rem; text-align: left; }
+.region-detail, .region-fact { color: var(--muted); font-size: .9rem; }
+.region-facts { margin-top: .7rem; border-top: 1px solid var(--line); padding-top: .45rem; }
+.region-fact { margin: .25rem 0; }
 .expedition-energy, .expedition-panel-summary { margin: .25rem 0 .65rem; color: var(--muted); }
 .expedition-choices, .expedition-reports { display: grid; gap: .5rem; }
 .expedition-report { display: grid; gap: .25rem; padding: .55rem 0; border-bottom: 1px solid var(--line); }

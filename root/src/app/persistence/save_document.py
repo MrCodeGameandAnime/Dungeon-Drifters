@@ -1,4 +1,4 @@
-"""Schema-25 save documents and canonical in-memory reconstruction."""
+"""Schema-26 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -16,6 +16,7 @@ from app.content.equipment_spec import get_equipment_template
 from app.content.permanent_discovery_spec import (
     is_valid_permanent_discovery_source_id,
 )
+from app.content.region_progression_spec import M8_KNOWLEDGE_FACT_IDS
 from app.content.route_spec import RouteNodeKind
 from app.content.weapon_progression_spec import (
     MAX_CRAFTING_EXPERIENCE,
@@ -113,7 +114,8 @@ _PRE_BOSS_HELPER_DISK_SCHEMA_VERSION = 21
 _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION = 22
 _PRE_M6_DISK_SCHEMA_VERSION = 23
 _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION = 24
-DISK_SCHEMA_VERSION = 25
+_PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION = 25
+DISK_SCHEMA_VERSION = 26
 
 
 class SaveStateValidationError(ValueError):
@@ -126,6 +128,7 @@ def _validate_migrated_current_document(document):
     party = document.get("party")
     if isinstance(party, dict) and "hub_economy" not in party:
         _add_hub_economy_defaults(document)
+    _add_region_progression_defaults(document)
     _validate_document(document, schema_version=DISK_SCHEMA_VERSION)
     return document
 
@@ -396,6 +399,15 @@ def migrate_schema24(document):
     return _validate_migrated_current_document(migrated)
 
 
+def migrate_schema25(document):
+    """Add region progression and knowledge defaults to schema-25 saves."""
+    validate_legacy_schema25_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _add_region_progression_defaults(migrated)
+    return _validate_migrated_current_document(migrated)
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
@@ -570,6 +582,17 @@ def validate_legacy_schema24_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema25_document(document):
+    """Validate immutable schema-25 profile history without upgrading it."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -667,6 +690,12 @@ def validate_profile_payload(document):
         == _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema24_document(document)
+    if (
+        isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema25_document(document)
     if (
         isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
@@ -768,6 +797,8 @@ def validate_save_document(document):
         return migrate_schema23(document)
     if schema_version == _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
         return migrate_schema24(document)
+    if schema_version == _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION:
+        return migrate_schema25(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -965,7 +996,10 @@ def _validate_document(
             else equipment_bonuses_by_member[0]
         ),
     )
-    _validate_story(document["story"])
+    _validate_story(
+        document["story"],
+        require_knowledge_facts=(schema_version >= DISK_SCHEMA_VERSION),
+    )
     _validate_world(
         document["world"],
         require_permanent_discovery_claims=(
@@ -1031,7 +1065,10 @@ def _validate_document(
         require_floor_three_state=(
             schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
         ),
-        require_hub_economy=(schema_version >= DISK_SCHEMA_VERSION),
+        require_hub_economy=(
+            schema_version >= _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION
+        ),
+        require_region_progression=(schema_version >= DISK_SCHEMA_VERSION),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -1045,7 +1082,7 @@ def _validate_document(
         and document["expedition"]["active_assignment"] is not None
     )
     allow_floor_one_progress_checkpoint = False
-    if schema_version >= DISK_SCHEMA_VERSION:
+    if schema_version >= _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION:
         active_outing = document["party"]["hub_economy"]["active_outing"]
         allow_floor_one_expedition_launch = allow_floor_one_expedition_launch or (
             active_outing is not None
@@ -1066,7 +1103,7 @@ def _validate_document(
         allow_floor_one_expedition_launch=allow_floor_one_expedition_launch,
         allow_floor_one_progress_checkpoint=allow_floor_one_progress_checkpoint,
     )
-    if schema_version >= DISK_SCHEMA_VERSION:
+    if schema_version >= _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION:
         _validate_route_hub_economy_relationship(
             document["overworld"],
             document["party"],
@@ -1656,6 +1693,7 @@ def _validate_party(
     require_floor_two_state=False,
     require_floor_three_state=False,
     require_hub_economy=False,
+    require_region_progression=False,
     require_active_run_scope=False,
     require_equipment_instances=False,
     require_generated_equipment_state=False,
@@ -1697,6 +1735,14 @@ def _validate_party(
                 "floor_three_runs_started_after_clear",
                 "floor_three_run_id",
                 "floor_three_outing_xp_multiplier_percent",
+            }
+        )
+    if require_region_progression:
+        expected_keys.update(
+            {
+                "floor_four_cleared",
+                "floor_five_cleared",
+                "region_two_unlocked",
             }
         )
     if require_equipment_instances:
@@ -2093,6 +2139,34 @@ def _validate_party(
         elif floor_three_multiplier != 100:
             raise SaveStateValidationError(
                 "inactive Floor 3 runs must use the default XP rate"
+            )
+
+    if require_region_progression:
+        floor_four_cleared = party["floor_four_cleared"]
+        floor_five_cleared = party["floor_five_cleared"]
+        region_two_unlocked = party["region_two_unlocked"]
+        for name, value in (
+            ("floor_four_cleared", floor_four_cleared),
+            ("floor_five_cleared", floor_five_cleared),
+            ("region_two_unlocked", region_two_unlocked),
+        ):
+            if not isinstance(value, bool):
+                raise SaveStateValidationError(
+                    f"party.{name} must be a boolean"
+                )
+        if floor_four_cleared and (
+            not party["floor_three_cleared"]
+            or not party["tutorial_complete"]
+            or len(party["companions"]) != 3
+        ):
+            raise SaveStateValidationError(
+                "Floor 4 clear requires Floor 3 and four permanent Drifters"
+            )
+        if floor_five_cleared and not floor_four_cleared:
+            raise SaveStateValidationError("Floor 5 cannot be cleared before Floor 4")
+        if region_two_unlocked and not floor_five_cleared:
+            raise SaveStateValidationError(
+                "Region 2 unlock requires the Floor 5 clear"
             )
 
     return equipment_by_id
@@ -2530,6 +2604,22 @@ def _add_hub_economy_defaults(document):
             )
 
 
+def _add_region_progression_defaults(document):
+    party = document.get("party")
+    story = document.get("story")
+    if not isinstance(party, dict) or not isinstance(story, dict):
+        raise SaveStateValidationError(
+            "legacy save is missing region or story state owners"
+        )
+    for key in (
+        "floor_four_cleared",
+        "floor_five_cleared",
+        "region_two_unlocked",
+    ):
+        party.setdefault(key, False)
+    story.setdefault("knowledge_facts", {})
+
+
 def _add_armor_generation_defaults(document):
     party = document.get("party")
     instances = party.get("equipment_instances") if isinstance(party, dict) else None
@@ -2902,9 +2992,19 @@ def _validate_run_state(run_state):
                 raise SaveStateValidationError("unknown infusion kind") from error
 
 
-def _validate_story(story):
+def _validate_story(story, *, require_knowledge_facts=False):
     _require_mapping(story, "story")
-    _require_exact_keys(story, {"current_chapter", "current_scene", "current_location", "story_flags", "completed_events", "player_decisions"}, "story")
+    expected_keys = {
+        "current_chapter",
+        "current_scene",
+        "current_location",
+        "story_flags",
+        "completed_events",
+        "player_decisions",
+    }
+    if require_knowledge_facts:
+        expected_keys.add("knowledge_facts")
+    _require_exact_keys(story, expected_keys, "story")
     for name in ("current_chapter", "current_scene", "current_location"):
         if story[name] is not None and not isinstance(story[name], str):
             raise SaveStateValidationError(f"story.{name} must be a string or null")
@@ -2912,6 +3012,24 @@ def _validate_story(story):
     _validate_unique_string_list(story["completed_events"], "story.completed_events")
     _require_mapping(story["player_decisions"], "story.player_decisions")
     validate_plain_value(story["player_decisions"], "story.player_decisions")
+    if require_knowledge_facts:
+        facts = story["knowledge_facts"]
+        _require_mapping(facts, "story.knowledge_facts")
+        if any(
+            not isinstance(fact_id, str) or fact_id not in M8_KNOWLEDGE_FACT_IDS
+            for fact_id in facts
+        ):
+            raise SaveStateValidationError(
+                "story.knowledge_facts contains an unknown fact ID"
+            )
+        if any(
+            not isinstance(status, str)
+            or status not in {"rumored", "confirmed"}
+            for status in facts.values()
+        ):
+            raise SaveStateValidationError(
+                "story.knowledge_facts contains an invalid status"
+            )
 
 
 def _validate_world(

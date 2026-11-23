@@ -23,6 +23,7 @@ from app.persistence.local_store import LocalProfileStore
 from app.persistence.ports import ProfileStoreError, SaveLoadStatus
 from app.persistence.save_document import DISK_SCHEMA_VERSION, build_save_document
 from app.player.player_state import PlayerState
+from tests.persistence_test_support import remove_region_progression_state
 
 
 PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -48,6 +49,7 @@ def _coordinator(root):
 def _old_schema8_payload(gold=12):
     document = build_save_document(_game_state(gold=gold))
     document["schema_version"] = 8
+    remove_region_progression_state(document)
     document.pop("expedition")
     document.pop("party")
     document["player"].pop("equipment_refs")
@@ -63,6 +65,7 @@ def _old_schema8_payload(gold=12):
 def _old_schema9_payload(gold=12):
     document = build_save_document(_game_state(gold=gold))
     document["schema_version"] = 9
+    remove_region_progression_state(document)
     document.pop("expedition")
     document["party"].pop("hub_economy")
     document["player"].pop("equipment_refs")
@@ -389,7 +392,7 @@ def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp
     assert upgraded.client_save_id == NEW_SAVE_ID
 
 
-def test_loading_schema9_local_envelope_verifies_then_persists_schema25(tmp_path):
+def test_loading_schema9_local_envelope_verifies_then_persists_schema26(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     legacy_payload = _old_schema9_payload(gold=21)
     legacy_envelope = build_profile_envelope(

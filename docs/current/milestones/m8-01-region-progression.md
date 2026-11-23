@@ -1,6 +1,6 @@
 # M8.1: Region Progression, Dungeon Selection, And Knowledge
 
-**Status:** Proposed work package. M8 Gate 0 is closed. The M8.1 Gate A plan below is submitted for owner approval; implementation is not authorized until Gate A is approved.
+**Status:** M8.1 Gate A approved; implementation and local qualification complete. Exact-SHA hosted qualification is pending.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `615083ce56ab725b8e3bd98d7237e351c13d3060`. Runtime files are unchanged from the previous source audit at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`; revalidate at implementation entry.
 
@@ -12,7 +12,7 @@ Provide the authoritative, persistent regional progression, Hub Region Portal, a
 
 **Already-approved inputs:** M8-D1's Hub Region Portal, explicit authored membership, Region 1 containing Floors I-V, permanent backward travel, and durable Region 2 unlock after the genuine Floor V boss; M8-D3's Unknown/Rumored/Confirmed model and completed-floor Scouting eligibility; and M8-D5's separate four-Drifter reunion/assignment boundary. Preserve M1's permanent roster/active-pair separation, M6's energy independence from dungeon play, M7's combat state, and the existing save/history trust boundary.
 
-**Decision status:** no owner-level M8 product decisions remain open. M8-D6's limited static-asset scope is approved and is not a prerequisite for this progression package. Only this package's Gate A approval remains a prerequisite to implementation.
+**Decision status:** no owner-level M8 product decisions remain open. M8-D6's limited static-asset scope is approved and is not a prerequisite for this progression package. Gate A was approved at plan commit `0cc3cb878203a9ca817d5af0d84baaf960e2d09a`; exact-SHA CI run `45108637173` passed.
 
 ## Scope
 
@@ -39,13 +39,13 @@ No routes, combat content, recruitment changes, item keys, expedition report imp
 | Persistence | `root/src/app/persistence/save_document.py` and current migration chain | Schema-25 legacy defaults do not imply new clears or discoveries; remote historical revisions stay immutable. |
 | Client projection | Existing terminal presenter/input and browser Python bridge | Clients display authoritative options and reasons; no JavaScript unlock calculation. |
 
-## M8.1 Gate A Plan (Submitted For Approval)
+## M8.1 Gate A Plan And Approval
 
 ### State Ownership And Migration
 
 - Keep floor-clear and region-unlock authority in the existing `PartyState`; Region 1 remains available through the existing campaign path. Add distinct durable Floor-IV clear, Floor-V clear, and Region-2-unlocked state, with monotonic transitions. A floor clear must not imply a region unlock, and a region unlock must not imply a floor clear.
 - Keep briefing/arena event evidence and the approved four-fact knowledge map in the existing `StoryState`. Unrecorded facts read as Unknown; updates are monotonic (`Unknown -> Rumored -> Confirmed`). Reuse the existing event/decision snapshot owner rather than introducing a parallel campaign state object.
-- Runtime and disk schema are currently 25. Because `PartyState` and `StoryState` snapshots and current-schema validation are strict, adding typed snapshot fields requires an additive migration through the existing migration chain. Legacy defaults are Floor IV/V uncleared, Region 2 locked, and all four facts Unknown. Assign the next schema number during implementation from the actual branch head; do not rewrite historical remote payloads or digests.
+- At the approved entry baseline, runtime and disk schema were 25. The implementation adds the typed snapshot fields through an additive migration to schema 26. Legacy defaults are Floor IV/V uncleared, Region 2 locked, and all four facts Unknown. Historical remote payloads and digests remain immutable.
 
 ### Authored Content And Client Flow
 
@@ -59,7 +59,7 @@ No routes, combat content, recruitment changes, item keys, expedition report imp
 - Presenter/session and terminal/browser contract tests cover equivalent enabled/disabled destination offers, clear explanations, stale/forged submissions, and no fact promotion from viewing or loading. The briefing journey verifies its Rumored transition once; each approved confirmation path verifies save/reload and no duplicate effect.
 - Gate C runs root and web pytest, authored-content validation, compile/build, real browser smoke, PostgreSQL service tests, migration-from-zero/Alembic parity, and the pinned MicroPython qualification on the exact candidate SHA.
 
-**Approval requested:** approve this state ownership, additive migration, unavailable-until-route behavior, and focused/cumulative test plan as M8.1 Gate A. No product decisions are reopened by this request.
+**Approved:** preserve `PartyState`/`StoryState` ownership, use an additive migration, expose later destinations only as knowledge and implemented-route prerequisites allow, keep all unlock calculations in Python, and qualify the live Hub journey plus independently testable downstream clear/reveal contracts. The full Floor IV/V gameplay journeys remain with M8.3, M8.5, M8.7, and M8.8 when those routes and consumers become reachable; no unfinished routes are manufactured for M8.1.
 
 ## Dependencies
 
@@ -77,13 +77,13 @@ M8.1 owns the trigger and durable reveal for the approved `m8_drowned_reliquary_
 
 ## Package Gates And Qualification History
 
-- **Gate A, plan approval:** Submitted for owner approval; see the bounded plan above. No implementation until accepted.
-- **Gate B, implementation and focused tests:** Not started; use red/green tests and independent diff review.
-- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migrations and pinned MicroPython are required because shared state/save code is touched.
+- **Gate A, plan approval:** Approved at `0cc3cb878203a9ca817d5af0d84baaf960e2d09a`; exact-SHA CI run `45108637173` passed.
+- **Gate B, implementation and focused tests:** Implemented. Focused state, migration, portal, briefing, presenter, terminal, browser-bridge, and browser-smoke coverage is included; root and web suites pass locally.
+- **Gate C, exact-SHA qualification and closure:** Local qualification is complete. Exact-SHA hosted CI is pending; PostgreSQL, migration-from-zero, and Alembic parity require the hosted service job because the local Docker engine is unavailable.
 
 | Implementation SHA | Hosted CI URL/results | Migration/runtime evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Not implemented | Not run | Not run | Pending | Open |
+| Pending commit | Pending exact-SHA run | Schema 25-to-26 tests pass; pinned MicroPython v1.29.0 matrix passes locally; hosted PostgreSQL/migration parity pending | Source diff reviewed; independent review pending | Gate B complete; Gate C pending |
 
 Do not close on local tests alone. Record exact SHA, exact run URL/results, migration evidence, reviewer disposition and closure status here and in the parent.
 

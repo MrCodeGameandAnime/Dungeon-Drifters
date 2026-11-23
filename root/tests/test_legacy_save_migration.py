@@ -19,6 +19,7 @@ from app.persistence.save_document import (
     reconstruct_game_state,
 )
 from app.player.player_state import PlayerState
+from tests.persistence_test_support import remove_region_progression_state
 
 
 PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -68,6 +69,7 @@ def _orphaned_floor_two_discovery_event():
 def _schema22_save_with_orphaned_run_event():
     document = build_save_document(_game_state())
     document["schema_version"] = 22
+    remove_region_progression_state(document)
     document.pop("expedition")
     document["party"].pop("hub_economy")
     for key in (
@@ -88,6 +90,7 @@ def test_schema8_legacy_save_is_wrapped_without_modifying_original(tmp_path):
     legacy_path.parent.mkdir()
     original_payload = build_save_document(_game_state())
     original_payload["schema_version"] = 8
+    remove_region_progression_state(original_payload)
     original_payload.pop("expedition")
     original_payload.pop("party")
     original_payload["player"].pop("equipment_refs")

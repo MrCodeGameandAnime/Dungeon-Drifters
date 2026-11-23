@@ -36,6 +36,8 @@ class OverworldScreen(StrEnum):
     EXPEDITIONS = "expeditions"
     EXPEDITION_SETUP = "expedition_setup"
     EXPEDITION_CONFIRMATION = "expedition_confirmation"
+    REGION_PORTAL = "region_portal"
+    REGION_DESTINATIONS = "region_destinations"
     MAP = "map"
     MAP_INSPECT = "map_inspect"
     OPTIONS = "options"
@@ -92,6 +94,8 @@ class OverworldAction(StrEnum):
     START_EXPEDITION = "start_expedition"
     PREPARE_EXPEDITION_FLOOR_ONE = "prepare_expedition_floor_one"
     PREPARE_EXPEDITION_FLOOR_TWO = "prepare_expedition_floor_two"
+    REGION_PORTAL = "region_portal"
+    DROWNED_RELIQUARY_BRIEFING = "drowned_reliquary_briefing"
 
 
 class OverworldAvailabilityReason(StrEnum):
@@ -271,6 +275,60 @@ class TemporaryBossHelperChoiceView:
         _validate_nonnegative("level", self.level)
         if self.level < 1:
             raise ValueError("helper level must be at least 1")
+
+
+@dataclass(frozen=True)
+class RegionChoiceView:
+    region_id: str
+    display_name: str
+    unlocked: bool
+    selectable: bool
+    message: str | None = None
+
+    def __post_init__(self):
+        _validate_text("region_id", self.region_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("unlocked", self.unlocked)
+        _validate_bool("selectable", self.selectable)
+        if self.selectable and not self.unlocked:
+            raise ValueError("a locked region cannot be selected")
+        if self.message is not None:
+            _validate_text("message", self.message)
+
+
+@dataclass(frozen=True)
+class DestinationChoiceView:
+    destination_id: str
+    display_name: str
+    enabled: bool
+    disabled_reason: str | None = None
+    knowledge_status: str | None = None
+
+    def __post_init__(self):
+        _validate_text("destination_id", self.destination_id)
+        _validate_text("display_name", self.display_name)
+        _validate_bool("enabled", self.enabled)
+        if self.disabled_reason is not None:
+            _validate_text("disabled_reason", self.disabled_reason)
+        if self.enabled == (self.disabled_reason is not None):
+            raise ValueError("destination availability and reason disagree")
+        if self.knowledge_status is not None:
+            _validate_text("knowledge_status", self.knowledge_status)
+            if self.knowledge_status not in {"rumored", "confirmed"}:
+                raise ValueError("destination knowledge status is invalid")
+
+
+@dataclass(frozen=True)
+class KnowledgeFactView:
+    fact_id: str
+    label: str
+    status: str
+
+    def __post_init__(self):
+        for name in ("fact_id", "label", "status"):
+            _validate_text(name, getattr(self, name))
+        if self.status not in {"rumored", "confirmed"}:
+            raise ValueError("visible knowledge facts must be revealed")
 
 
 class MapNodeState(StrEnum):
@@ -1173,6 +1231,10 @@ class OverworldView:
     expedition_choices: tuple[ExpeditionChoiceView, ...] = ()
     expedition_reports: tuple[ExpeditionReportView, ...] = ()
     expedition_confirmation: ExpeditionConfirmationView | None = None
+    region_choices: tuple[RegionChoiceView, ...] = ()
+    selected_region_id: str | None = None
+    destination_choices: tuple[DestinationChoiceView, ...] = ()
+    knowledge_facts: tuple[KnowledgeFactView, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "screen", OverworldScreen(self.screen))
@@ -1215,6 +1277,13 @@ class OverworldView:
             self.expedition_reports,
             ExpeditionReportView,
         )
+        _validate_instance_tuple("region_choices", self.region_choices, RegionChoiceView)
+        _validate_instance_tuple(
+            "destination_choices",
+            self.destination_choices,
+            DestinationChoiceView,
+        )
+        _validate_instance_tuple("knowledge_facts", self.knowledge_facts, KnowledgeFactView)
         if self.expedition_energy is not None:
             _validate_nonnegative("expedition_energy", self.expedition_energy)
         if self.expedition_status is not None and not isinstance(
@@ -1272,6 +1341,24 @@ class OverworldView:
                 raise ValueError("expedition confirmation details are required")
         elif self.expedition_confirmation is not None:
             raise ValueError("expedition confirmation data belongs only to confirmation")
+        if self.screen is OverworldScreen.REGION_PORTAL:
+            if not self.region_choices or self.selected_region_id is not None:
+                raise ValueError("the Region Portal requires region choices")
+            if self.destination_choices:
+                raise ValueError("destination choices belong on their own screen")
+        elif self.region_choices:
+            raise ValueError("region choices belong only on the Region Portal")
+        if self.screen is OverworldScreen.REGION_DESTINATIONS:
+            _validate_text("selected_region_id", self.selected_region_id)
+            if not self.destination_choices:
+                raise ValueError("region destinations require visible choices")
+        elif self.destination_choices or self.selected_region_id is not None:
+            raise ValueError("destination data belongs only on the region destination screen")
+        if self.knowledge_facts and self.screen not in {
+            OverworldScreen.REGION_PORTAL,
+            OverworldScreen.REGION_DESTINATIONS,
+        }:
+            raise ValueError("knowledge facts belong to regional screens")
         if self.shared_gold is not None:
             _validate_nonnegative("shared_gold", self.shared_gold)
         if self.recruitment_cost is not None:

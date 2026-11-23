@@ -127,6 +127,21 @@ def remove_m65_party_state(payload):
     return payload
 
 
+def remove_m8_region_progression_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_four_cleared",
+            "floor_five_cleared",
+            "region_two_unlocked",
+        ):
+            party.pop(field, None)
+    story = payload.get("story")
+    if isinstance(story, dict):
+        story.pop("knowledge_facts", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

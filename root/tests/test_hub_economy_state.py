@@ -35,6 +35,9 @@ def _schema24(document):
     legacy = json.loads(json.dumps(document))
     legacy["schema_version"] = 24
     legacy["party"].pop("hub_economy")
+    for key in ("floor_four_cleared", "floor_five_cleared", "region_two_unlocked"):
+        legacy["party"].pop(key)
+    legacy["story"].pop("knowledge_facts")
     return legacy
 
 
@@ -50,7 +53,7 @@ def test_hub_economy_state_round_trips_with_current_save():
 
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 25
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 26
     assert set(restored.party_state.hub_economy["vendor_stock"]) == {
         "merchant",
         "blacksmith",
@@ -72,7 +75,7 @@ def test_schema24_migration_backfills_clears_and_converts_smoke_powder_once():
     normalized_again = validate_save_document(migrated)
 
     assert legacy == original
-    assert migrated["schema_version"] == 25
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 26
     assert migrated["party"]["shared_items"] == {
         "charcoal_dust": 5,
         "grade_i_magic_crystal": 1,

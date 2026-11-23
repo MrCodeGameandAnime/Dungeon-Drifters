@@ -17,6 +17,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDestination,
+    ChooseRegion,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseExpeditionPlan,
@@ -94,6 +96,8 @@ class TerminalOverworldUI:
         OverworldAction.EXPEDITIONS: "X",
         OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE: "1",
         OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO: "2",
+        OverworldAction.REGION_PORTAL: "G",
+        OverworldAction.DROWNED_RELIQUARY_BRIEFING: "B",
     }
 
     def __init__(
@@ -150,6 +154,28 @@ class TerminalOverworldUI:
             self._output("That option is not available.")
 
     def _translate_choice(self, view, choice):
+        if view.screen is OverworldScreen.REGION_PORTAL:
+            for number, region in enumerate(view.region_choices, start=1):
+                if choice != str(number):
+                    continue
+                if not region.selectable:
+                    self._output(region.message or "That region is unavailable.")
+                    return self._REJECTED
+                return ChooseRegion(region.region_id)
+        if view.screen is OverworldScreen.REGION_DESTINATIONS:
+            for number, destination in enumerate(
+                view.destination_choices,
+                start=1,
+            ):
+                if choice != str(number):
+                    continue
+                if not destination.enabled:
+                    self._output(
+                        destination.disabled_reason
+                        or "That destination is unavailable."
+                    )
+                    return self._REJECTED
+                return ChooseDestination(destination.destination_id)
         if view.screen is OverworldScreen.EXPEDITION_SETUP:
             for number, candidate in enumerate(view.expedition_choices, start=1):
                 if choice != str(number):
@@ -550,6 +576,44 @@ class TerminalOverworldUI:
             lines.extend(("", f"Shared gold: {view.shared_gold}"))
         elif view.screen is OverworldScreen.VENDORS:
             lines = ["HUB SERVICES", "", "Choose a specialist for the service you need."]
+        elif view.screen is OverworldScreen.REGION_PORTAL:
+            lines = ["REGIONS", ""]
+            for number, region in enumerate(view.region_choices, start=1):
+                status = "" if region.selectable else " [Unavailable]"
+                lines.append(f"{number}. {region.display_name}{status}")
+                if region.message:
+                    lines.extend(self._wrapped(region.message, width))
+            if view.knowledge_facts:
+                lines.extend(("", "KNOWN INTELLIGENCE"))
+                lines.extend(
+                    f"{fact.label}: {fact.status.title()}"
+                    for fact in view.knowledge_facts
+                )
+        elif view.screen is OverworldScreen.REGION_DESTINATIONS:
+            lines = ["DESTINATIONS", ""]
+            for number, destination in enumerate(
+                view.destination_choices,
+                start=1,
+            ):
+                status = (
+                    f" | {destination.knowledge_status.title()}"
+                    if destination.knowledge_status is not None
+                    else ""
+                )
+                availability = (
+                    ""
+                    if destination.enabled
+                    else f" [Unavailable: {destination.disabled_reason}]"
+                )
+                lines.append(
+                    f"{number}. {destination.display_name}{status}{availability}"
+                )
+            if view.knowledge_facts:
+                lines.extend(("", "KNOWN INTELLIGENCE"))
+                lines.extend(
+                    f"{fact.label}: {fact.status.title()}"
+                    for fact in view.knowledge_facts
+                )
         elif view.screen in {
             OverworldScreen.MERCHANT,
             OverworldScreen.HUB_INVENTORY,
@@ -1386,6 +1450,8 @@ class TerminalOverworldUI:
             OverworldScreen.EXPEDITIONS: "EXPEDITIONS",
             OverworldScreen.EXPEDITION_SETUP: "EXPEDITION SETUP",
             OverworldScreen.EXPEDITION_CONFIRMATION: "CONFIRM EXPEDITION",
+            OverworldScreen.REGION_PORTAL: "REGION PORTAL",
+            OverworldScreen.REGION_DESTINATIONS: "DESTINATIONS",
             OverworldScreen.MAP: "MAP",
             OverworldScreen.MAP_INSPECT: "ENCOUNTER INSPECTION",
             OverworldScreen.OPTIONS: "OPTIONS",

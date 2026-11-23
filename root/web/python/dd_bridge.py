@@ -37,6 +37,7 @@ from app.ui.battle_ui import (
 )
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseDestination,
     ChooseBlacksmithInstallComponent,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
@@ -46,6 +47,7 @@ from app.ui.overworld_ui import (
     ChooseAdvancementPurchase,
     ChooseCompanion,
     ChooseFloorTwoBossHelper,
+    ChooseRegion,
     ChooseCharacterTarget,
     ChooseMerchantCraftComponent,
     ChooseMerchantDismantle,
@@ -246,6 +248,10 @@ def _command_to_input(command):
         return ChooseFloorTwoBossHelper(_required(command, "drifter_id"))
     if kind == "active_pair":
         return ChooseActivePair(tuple(_required(command, "drifter_ids")))
+    if kind == "region":
+        return ChooseRegion(_required(command, "region_id"))
+    if kind == "destination":
+        return ChooseDestination(_required(command, "destination_id"))
     if kind == "discovery_searcher":
         return ChooseDiscoverySearcher(_required(command, "drifter_id"))
     if kind == "discovery_target":

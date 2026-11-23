@@ -20,6 +20,7 @@ from app.persistence.save_document import (
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_port_contract import SaveLoadStatus
 from tests.game_test_support import completed_hub_game, three_member_hub_game
+from tests.persistence_test_support import remove_region_progression_state
 
 
 def load_event_module():
@@ -768,6 +769,7 @@ def test_legacy_settled_search_history_is_ignored_after_pair_change():
 
     legacy_save = build_save_document(game)
     legacy_save["schema_version"] = 22
+    remove_region_progression_state(legacy_save)
     legacy_save.pop("expedition")
     legacy_save["party"].pop("hub_economy")
     for field in (

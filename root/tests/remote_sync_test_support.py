@@ -17,6 +17,7 @@ from app.persistence.remote_client import (
 )
 from app.persistence.save_document import build_save_document
 from app.player.player_state import PlayerState
+from tests.persistence_test_support import remove_region_progression_state
 
 
 PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -36,6 +37,7 @@ def make_payload(gold=0):
 def make_legacy_schema8_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 8
+    remove_region_progression_state(payload)
     payload.pop("expedition")
     payload.pop("party")
     payload["player"].pop("equipment_refs")

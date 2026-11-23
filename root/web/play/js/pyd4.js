@@ -1637,6 +1637,58 @@
     }
   }
 
+  function renderRegions(view) {
+    const section = $("region-panel");
+    const visible = ["region_portal", "region_destinations"].includes(view.screen);
+    section.hidden = !visible;
+    if (!visible) return;
+
+    setText("region-panel-summary", view.adventure_text);
+    const choices = $("region-choices");
+    const facts = $("region-facts");
+    clear(choices);
+    clear(facts);
+
+    if (view.screen === "region_portal") {
+      for (const region of view.region_choices || []) {
+        const button = makeButton(
+          region.display_name,
+          { kind: "region", region_id: region.region_id },
+          region.selectable,
+          region.message,
+          "region-choice",
+        );
+        if (region.message) appendChoiceDetail(button, "region-detail", region.message);
+        choices.append(button);
+      }
+    } else {
+      for (const destination of view.destination_choices || []) {
+        const button = makeButton(
+          destination.display_name,
+          { kind: "destination", destination_id: destination.destination_id },
+          destination.enabled,
+          destination.disabled_reason,
+          "region-choice",
+        );
+        if (destination.knowledge_status) {
+          appendChoiceDetail(
+            button,
+            "region-detail",
+            destination.knowledge_status[0].toUpperCase() + destination.knowledge_status.slice(1),
+          );
+        }
+        choices.append(button);
+      }
+    }
+
+    for (const fact of view.knowledge_facts || []) {
+      const line = document.createElement("p");
+      line.className = "region-fact";
+      line.textContent = `${fact.label}: ${fact.status[0].toUpperCase()}${fact.status.slice(1)}`;
+      facts.append(line);
+    }
+  }
+
   function renderOutingRewards(view) {
     const section = $("extraction-rewards");
     const rewards = view.screen === "extraction" ? view.outing_rewards : null;
@@ -1744,6 +1796,8 @@
       discovery_confirmation: "CONFIRM DISCOVERY",
       party_ready: "PARTY READY",
       extraction: "EXTRACTION",
+      region_portal: "REGION PORTAL",
+      region_destinations: "DESTINATIONS",
     };
     setText("screen-badge", characterMenuActive || mainScreen
       ? "OVERWORLD"
@@ -1773,6 +1827,7 @@
     renderTemporaryBossHelperChoices(view);
     renderDiscoveryChoices(view);
     renderExpeditions(view);
+    renderRegions(view);
     renderOutingRewards(view);
     renderOptions(
       $("overworld-options"),

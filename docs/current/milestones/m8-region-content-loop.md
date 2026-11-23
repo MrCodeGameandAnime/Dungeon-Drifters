@@ -2,7 +2,7 @@
 
 > Execution: follow the M8.1-M8.10 package plans and exact-SHA qualification. Gate A/B/C are review checkpoints, not separate-commit requirements. The approved parent manifest is fixed; no package may expand it.
 
-**Status:** M8 Gate 0 is formally CLOSED by owner acceptance of reconciliation `615083ce56ab725b8e3bd98d7237e351c13d3060`; its exact-SHA CI run `45101402276` passed. D1-D6 and the finite manifest remain authoritative. M8.1 Gate A is prepared for owner approval; no M8.1 implementation is authorized before that approval.
+**Status:** M8 Gate 0 is formally CLOSED by owner acceptance of reconciliation `615083ce56ab725b8e3bd98d7237e351c13d3060`; its exact-SHA CI run `45101402276` passed. D1-D6 and the finite manifest remain authoritative. M8.1 Gate A is approved; its implementation is locally qualified and awaiting exact-SHA hosted qualification.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -333,7 +333,7 @@ The following ten documents define independently reviewable work packages, not i
 
 | Package | Plan | Scope boundary | Proposed dependencies | Status |
 | --- | --- | --- | --- | --- |
-| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Gate 0 closed; M8.1 Gate A approval. | Gate A prepared; awaiting owner review. |
+| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Gate 0 closed; M8.1 Gate A approval. | Gate A approved; implementation complete; exact-SHA hosted qualification pending. |
 | M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 clear-state contract. | Draft; pending review. |
 | M8.3 | [Drowned Reliquary, Floor IV](m8-03-floor-four.md) | Approved Floor-IV route, encounters/compositions, reward sources and first clear; numerical tuning remains at package review. | M8.1; M8.2 package boundary; M8.9 visual integration. | Draft; pending review. |
 | M8.4 | [Permanent discoveries, armor and recovery rewards](m8-04-discoveries-and-rewards.md) | Generalize reward boundaries; register three discovery rewards; connect live Floor-IV armor/recovery sources. | M8.3 route and source nodes. | Draft; pending review. |
@@ -344,7 +344,7 @@ The following ten documents define independently reviewable work packages, not i
 | M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Integrate the eight D6-approved static assets into existing presentation surfaces; no combat renderer or animation. | Asset production/delivery and its own Gate A. D1 content associations are approved. Can proceed in parallel. | Draft; package plan pending review. |
 | M8.10 | [Integrated campaign qualification](m8-10-integrated-qualification.md) | Cumulative progression journeys, cross-client/persistence checks and M8 closure evidence. | M8.1-M8.9 accepted; approved assets integrated. | Draft; pending review. |
 
-The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. Gate 0 is closed; each child still requires its own Gate A approval before implementation.
+The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. Gate 0 is closed; M8.1 has its own Gate A approval. Every other child still requires its own Gate A approval before implementation.
 
 The implementing package owns component qualification. The package that first makes a feature reachable through normal gameplay owns its end-to-end integration test. Record deferred journeys and their downstream owners in the originating qualification record. M8.10 owns cumulative qualification across clients, saves and progression.
 
@@ -352,7 +352,7 @@ The implementing package owns component qualification. The package that first ma
 
 Each child package must complete its own planning approval, implementation, focused/regression tests, independent review, exact-SHA hosted CI, and closure record. Applicable cumulative suites and pinned MicroPython evidence are required when shared Python runtime/save state is changed. A failing package reopens only its owning scope unless the review demonstrates a cross-package contract defect. No package can close by inheriting another package's green run.
 
-M8 Gate 0 is formally CLOSED by owner acceptance recorded below. The parent remains the manifest authority; package-specific Gate A approvals remain required.
+M8 Gate 0 is formally CLOSED by owner acceptance recorded below. The parent remains the manifest authority; package-specific Gate A approvals remain required. M8.1's approval and implementation status are recorded in its child plan and do not authorize other packages.
 
 ## M8-D1 Through M8-D6: Decision Status
 

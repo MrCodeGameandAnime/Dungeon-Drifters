@@ -7,6 +7,22 @@ from app.persistence.bootstrap import build_default_save_port
 
 
 TEST_PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
+REGION_PROGRESS_PARTY_FIELDS = (
+    "floor_four_cleared",
+    "floor_five_cleared",
+    "region_two_unlocked",
+)
+
+
+def remove_region_progression_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in REGION_PROGRESS_PARTY_FIELDS:
+            party.pop(field, None)
+    story = payload.get("story")
+    if isinstance(story, dict):
+        story.pop("knowledge_facts", None)
+    return payload
 
 
 def make_test_save_port(legacy_path):

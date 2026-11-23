@@ -126,6 +126,8 @@ def test_all_approved_screen_values_are_typed():
         "expeditions",
         "expedition_setup",
         "expedition_confirmation",
+        "region_portal",
+        "region_destinations",
         "map",
         "map_inspect",
         "options",

@@ -13,6 +13,9 @@ from app.content.catalog import (
     get_route_successor_id,
     get_permanent_discovery_source,
 )
+from app.content.region_progression_spec import (
+    M8_DROWNED_BRIEFING_EVENT_ID,
+)
 from app.content.hub_economy import get_supply_item
 from app.content.route_spec import RouteNodeKind
 from app.content.armor_spec import get_armor_modifier
@@ -39,6 +42,8 @@ from app.game.floor_two_boss_helper import (
     create_floor_two_boss_helper,
     floor_two_replay_requires_available_helper,
 )
+from app.game.region_progression import is_drowned_reliquary_briefing_available
+from app.game.story_state import KnowledgeStatus
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -60,6 +65,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDestination,
+    ChooseRegion,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseExpeditionPlan,
@@ -223,6 +230,7 @@ class OverworldSession:
         self._discovery_target_id = None
         self._expedition_outing_floor_id = None
         self._expedition_pending = None
+        self._selected_region_id = None
         self._active_battle = None
         self._active_battle_context = None
         self._last_presented_view = None
@@ -341,6 +349,12 @@ class OverworldSession:
             return self._build_view()
         if isinstance(session_input, ChooseActivePair):
             self._select_active_pair(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseRegion):
+            self._select_region(view, session_input)
+            return self._build_view()
+        if isinstance(session_input, ChooseDestination):
+            self._select_destination(view, session_input)
             return self._build_view()
         if isinstance(session_input, ChooseDiscoverySearcher):
             self._select_discovery_searcher(view, session_input)
@@ -592,6 +606,7 @@ class OverworldSession:
             discovery_target_id=self._discovery_target_id,
             expedition_outing_floor_id=self._expedition_outing_floor_id,
             expedition_pending=self._expedition_pending,
+            selected_region_id=self._selected_region_id,
             now=(self._now_factory() if self._now_factory is not None else None),
         )
 
@@ -1104,6 +1119,93 @@ class OverworldSession:
         )
         self._screen = OverworldScreen.HUB
         self._adventure_text = None
+        self._notice = None
+
+    def _select_region(self, view, session_input):
+        if view.screen is not OverworldScreen.REGION_PORTAL:
+            self._notice = "That region is not available."
+            return
+        choice = first_or_none(
+            region
+            for region in view.region_choices
+            if region.region_id == session_input.region_id
+        )
+        if choice is None:
+            self._notice = "That region is not available."
+            return
+        if not choice.selectable:
+            self._notice = choice.message or "That region is not available yet."
+            return
+        if self.game_state.party_state.phase not in {
+            DungeonPhase.HUB,
+            DungeonPhase.PARTY_READY,
+        }:
+            self._notice = "Choose a region from the Hub."
+            return
+        self._selected_region_id = choice.region_id
+        self._screen = OverworldScreen.REGION_DESTINATIONS
+        self._adventure_text = None
+        self._notice = None
+
+    def _select_destination(self, view, session_input):
+        if (
+            view.screen is not OverworldScreen.REGION_DESTINATIONS
+            or self.game_state.party_state.phase
+            not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}
+        ):
+            self._notice = "That destination is not available."
+            return
+        choice = first_or_none(
+            destination
+            for destination in view.destination_choices
+            if destination.destination_id == session_input.destination_id
+        )
+        if choice is None:
+            self._notice = "That destination is not available."
+            return
+        if not choice.enabled:
+            self._notice = choice.disabled_reason or "That destination is not available yet."
+            return
+        if choice.destination_id == "floor_one":
+            self._selected_region_id = None
+            self._screen = OverworldScreen.FLOOR_ONE_WARNING
+            self._adventure_text = self.FLOOR_ONE_WARNING
+            self._notice = None
+            return
+        start_destination = {
+            "floor_two": self._start_floor_two,
+            "floor_three": self._start_floor_three,
+        }.get(choice.destination_id)
+        if start_destination is None:
+            self._notice = "This destination is not available yet."
+            return
+        self._selected_region_id = None
+        start_destination()
+
+    def _resolve_drowned_reliquary_briefing(self):
+        if not is_drowned_reliquary_briefing_available(self.game_state):
+            self._notice = "The Drowned Reliquary briefing is not available."
+            return
+        candidate = self.game_state.clone()
+        candidate.story_state.complete_event(M8_DROWNED_BRIEFING_EVENT_ID)
+        candidate.story_state.reveal_knowledge_fact(
+            "m8_fact_drowned_reliquary",
+            KnowledgeStatus.RUMORED,
+        )
+        try:
+            result = self._save_port_instance().save(candidate)
+        except (OSError, SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is not SaveLoadStatus.SAVED:
+            self._notice = "The briefing could not be saved. Nothing changed."
+            return
+        self._publish_saved_candidate(self.game_state, candidate)
+        self._selected_region_id = None
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = (
+            "D3 and D4 share a warning about the Drowned Reliquary. "
+            "Its location is now rumored."
+        )
         self._notice = None
 
     def _select_party_target(self, member):
@@ -1962,6 +2064,19 @@ class OverworldSession:
         if action is OverworldAction.BACK:
             self._navigate_back()
             return None
+        if action is OverworldAction.REGION_PORTAL:
+            if (
+                self._screen is not OverworldScreen.HUB
+                or self.game_state.party_state.phase
+                not in {DungeonPhase.HUB, DungeonPhase.PARTY_READY}
+            ):
+                self._notice = "The Region Portal is only available at the Hub."
+                return None
+            self._selected_region_id = None
+            self._screen = OverworldScreen.REGION_PORTAL
+            self._adventure_text = None
+            self._notice = None
+            return None
         navigation = {
             OverworldAction.CHARACTER: OverworldScreen.CHARACTER,
             OverworldAction.ITEMS: OverworldScreen.ITEMS,
@@ -2007,6 +2122,9 @@ class OverworldSession:
         return _UNHANDLED_ACTION
 
     def _dispatch_party_action(self, action):
+        if action is OverworldAction.DROWNED_RELIQUARY_BRIEFING:
+            self._resolve_drowned_reliquary_briefing()
+            return None
         if action is OverworldAction.EXPEDITIONS:
             from app.game.expeditions import ExpeditionService
 
@@ -2940,6 +3058,18 @@ class OverworldSession:
         self._adventure_text = None
 
     def _navigate_back(self):
+        if self._screen is OverworldScreen.REGION_DESTINATIONS:
+            self._screen = OverworldScreen.REGION_PORTAL
+            self._selected_region_id = None
+            self._adventure_text = None
+            self._notice = None
+            return
+        if self._screen is OverworldScreen.REGION_PORTAL:
+            self._screen = OverworldScreen.HUB
+            self._selected_region_id = None
+            self._adventure_text = None
+            self._notice = None
+            return
         if self._screen is OverworldScreen.EXPEDITION_SETUP:
             self._screen = OverworldScreen.EXPEDITIONS
             self._expedition_outing_floor_id = None

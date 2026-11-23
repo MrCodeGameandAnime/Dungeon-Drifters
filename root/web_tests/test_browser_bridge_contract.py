@@ -26,11 +26,13 @@ from app.persistence.save_port_contract import SaveLoadStatus
 from app.ui.battle_ui import ChooseAction, ChooseHealingTarget, ChooseMove, ChooseTarget
 from app.ui.overworld_ui import (
     ChooseActivePair,
+    ChooseDestination,
     ChooseBlacksmithInstallComponent,
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseCompanion,
     ChooseFloorTwoBossHelper,
+    ChooseRegion,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseMerchantCraftComponent,
@@ -759,6 +761,20 @@ def test_equipment_commands_map_to_exact_semantic_inputs(command, expected):
     ),
 )
 def test_expedition_commands_map_to_exact_semantic_inputs(command, expected):
+    assert bridge._command_to_input(command) == expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    (
+        ({"kind": "region", "region_id": "region_1"}, ChooseRegion("region_1")),
+        (
+            {"kind": "destination", "destination_id": "floor_one"},
+            ChooseDestination("floor_one"),
+        ),
+    ),
+)
+def test_region_commands_map_to_exact_semantic_inputs(command, expected):
     assert bridge._command_to_input(command) == expected
 
 

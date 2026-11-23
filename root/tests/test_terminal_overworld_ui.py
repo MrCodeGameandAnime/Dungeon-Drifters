@@ -23,6 +23,8 @@ from app.ui.overworld_ui import (
     ChooseAdvancementEquip,
     ChooseAdvancementPurchase,
     ChooseActivePair,
+    ChooseDestination,
+    ChooseRegion,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseAlchemyRecipe,
@@ -1022,3 +1024,29 @@ def test_terminal_ui_rejects_non_overworld_views():
         ui.render(object())
     with pytest.raises(TypeError, match="OverworldView"):
         ui.read_input(object())
+
+
+def test_region_portal_and_destination_choices_render_and_translate():
+    game = completed_hub_game()
+    presenter = OverworldPresenter()
+    story_before = game.story_state.snapshot()
+    portal = presenter.build(game, screen=OverworldScreen.REGION_PORTAL)
+    portal_text = "\n".join(rendered(portal))
+
+    assert "REGION PORTAL" in portal_text
+    assert "1. Region 1" in portal_text
+    region_input, _ = read(portal, ["1"])
+    assert region_input == ChooseRegion("region_1")
+
+    destinations = presenter.build(
+        game,
+        screen=OverworldScreen.REGION_DESTINATIONS,
+        selected_region_id="region_1",
+    )
+    destination_text = "\n".join(rendered(destinations))
+    assert "1. Floor I" in destination_text
+    assert "Floor II" in destination_text
+    assert "Clear Floor I first." in destination_text
+    destination_input, _ = read(destinations, ["1"])
+    assert destination_input == ChooseDestination("floor_one")
+    assert game.story_state.snapshot() == story_before

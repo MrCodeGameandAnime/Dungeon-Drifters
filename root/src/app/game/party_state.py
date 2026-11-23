@@ -97,6 +97,9 @@ class PartyState:
         self._floor_three_runs_started_after_clear = 0
         self._floor_three_run_id = None
         self._floor_three_outing_xp_multiplier_percent = 100
+        self._floor_four_cleared = False
+        self._floor_five_cleared = False
+        self._region_two_unlocked = False
         self._resolved_run_events = []
         self._hub_economy = HubEconomyState()
 
@@ -279,6 +282,41 @@ class PartyState:
     @property
     def floor_three_outing_xp_multiplier_percent(self):
         return self._floor_three_outing_xp_multiplier_percent
+
+    @property
+    def floor_four_cleared(self):
+        return self._floor_four_cleared
+
+    @property
+    def floor_five_cleared(self):
+        return self._floor_five_cleared
+
+    @property
+    def region_two_unlocked(self):
+        return self._region_two_unlocked
+
+    def record_floor_four_clear(self):
+        if (
+            self._floor_four_cleared
+            or not self._floor_three_cleared
+            or not self._tutorial_complete
+            or len(self._companions) != 3
+        ):
+            return False
+        self._floor_four_cleared = True
+        return True
+
+    def record_floor_five_clear(self):
+        if self._floor_five_cleared or not self._floor_four_cleared:
+            return False
+        self._floor_five_cleared = True
+        return True
+
+    def unlock_region_two(self):
+        if self._region_two_unlocked or not self._floor_five_cleared:
+            return False
+        self._region_two_unlocked = True
+        return True
 
     @property
     def active_run_id(self):
@@ -1381,6 +1419,27 @@ class PartyState:
             raise ValueError("floor_three_cleared must be a boolean")
         if state._floor_three_cleared and not state._floor_two_cleared:
             raise ValueError("Floor 3 cannot be cleared before Floor 2")
+        state._floor_four_cleared = snapshot.get("floor_four_cleared", False)
+        if not isinstance(state._floor_four_cleared, bool):
+            raise ValueError("floor_four_cleared must be a boolean")
+        if state._floor_four_cleared and (
+            not state._floor_three_cleared
+            or not state._tutorial_complete
+            or len(state._companions) != 3
+        ):
+            raise ValueError(
+                "Floor 4 clear requires Floor 3 and four permanent Drifters"
+            )
+        state._floor_five_cleared = snapshot.get("floor_five_cleared", False)
+        if not isinstance(state._floor_five_cleared, bool):
+            raise ValueError("floor_five_cleared must be a boolean")
+        if state._floor_five_cleared and not state._floor_four_cleared:
+            raise ValueError("Floor 5 cannot be cleared before Floor 4")
+        state._region_two_unlocked = snapshot.get("region_two_unlocked", False)
+        if not isinstance(state._region_two_unlocked, bool):
+            raise ValueError("region_two_unlocked must be a boolean")
+        if state._region_two_unlocked and not state._floor_five_cleared:
+            raise ValueError("Region 2 unlock requires the Floor 5 clear")
         state._floor_three_runs_started_after_clear = _nonnegative(
             "floor_three_runs_started_after_clear",
             snapshot.get("floor_three_runs_started_after_clear", 0),
@@ -1539,6 +1598,9 @@ class PartyState:
             "floor_three_outing_xp_multiplier_percent": (
                 self.floor_three_outing_xp_multiplier_percent
             ),
+            "floor_four_cleared": self.floor_four_cleared,
+            "floor_five_cleared": self.floor_five_cleared,
+            "region_two_unlocked": self.region_two_unlocked,
             "resolved_run_events": list(self.resolved_run_events),
             "hub_economy": self.hub_economy,
         }

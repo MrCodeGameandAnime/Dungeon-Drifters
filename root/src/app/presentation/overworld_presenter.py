@@ -15,6 +15,7 @@ from app.content.catalog import (
 from app.content.hub_economy import ALCHEMY_RECIPES, SUPPLY_ITEMS, get_supply_item
 from app.content.vendor_catalog import VENDOR_MERCHANDISE
 from app.content.advancement_combat_spec import get_advancement_move
+from app.content.region_progression_spec import M8_KNOWLEDGE_FACT_LABELS
 from app.content.advancement_spec import (
     AdvancementSkillKind,
     get_drifter_advancement_skills,
@@ -45,6 +46,11 @@ from app.game.expedition_state import (
     is_expeditions_unlocked,
 )
 from app.game.recruitment import available_recruitment_event
+from app.game.region_progression import (
+    is_drowned_reliquary_briefing_available,
+    portal_regions,
+    visible_destinations,
+)
 from app.game.floor_two_boss_helper import (
     floor_two_replay_requires_available_helper,
 )
@@ -66,6 +72,8 @@ from app.presentation.overworld_models import (
     ExpeditionConfirmationView,
     ExpeditionReportView,
     ExpeditionStatusView,
+    DestinationChoiceView,
+    KnowledgeFactView,
     EquipmentActionView,
     EquipmentInstanceView,
     EquipmentModifierView,
@@ -97,6 +105,7 @@ from app.presentation.overworld_models import (
     OverworldScreen,
     OverworldView,
     PartyPairChoiceView,
+    RegionChoiceView,
     SkillMoveView,
     SkillLoadoutSlotView,
     SkillsView,
@@ -281,6 +290,7 @@ class OverworldPresenter:
         equipment_confirmation=None,
         expedition_outing_floor_id=None,
         expedition_pending=None,
+        selected_region_id=None,
         now=None,
     ):
         if not isinstance(game_state, GameState):
@@ -309,6 +319,8 @@ class OverworldPresenter:
                     OverworldScreen.EXPEDITIONS,
                     OverworldScreen.EXPEDITION_SETUP,
                     OverworldScreen.EXPEDITION_CONFIRMATION,
+                    OverworldScreen.REGION_PORTAL,
+                    OverworldScreen.REGION_DESTINATIONS,
                 }
                 else self._default_adventure_text(game_state)
             )
@@ -372,6 +384,54 @@ class OverworldPresenter:
                 )
                 if screen is OverworldScreen.EXPEDITION_CONFIRMATION
                 else None
+            ),
+            region_choices=(
+                tuple(
+                    RegionChoiceView(
+                        region_id=choice.region_id,
+                        display_name=choice.display_name,
+                        unlocked=choice.unlocked,
+                        selectable=choice.selectable,
+                        message=choice.message,
+                    )
+                    for choice in portal_regions(game_state)
+                )
+                if screen is OverworldScreen.REGION_PORTAL
+                else ()
+            ),
+            selected_region_id=(
+                selected_region_id
+                if screen is OverworldScreen.REGION_DESTINATIONS
+                else None
+            ),
+            destination_choices=(
+                tuple(
+                    DestinationChoiceView(
+                        destination_id=choice.destination_id,
+                        display_name=choice.display_name,
+                        enabled=choice.enabled,
+                        disabled_reason=choice.reason,
+                        knowledge_status=(
+                            None
+                            if choice.knowledge_status is None
+                            else choice.knowledge_status.value
+                        ),
+                    )
+                    for choice in visible_destinations(
+                        game_state,
+                        selected_region_id,
+                    )
+                )
+                if screen is OverworldScreen.REGION_DESTINATIONS
+                else ()
+            ),
+            knowledge_facts=(
+                self._knowledge_fact_views(game_state)
+                if screen in {
+                    OverworldScreen.REGION_PORTAL,
+                    OverworldScreen.REGION_DESTINATIONS,
+                }
+                else ()
             ),
             contextual_route_option=contextual_route_option,
             character=(
@@ -690,6 +750,10 @@ class OverworldPresenter:
 
     @staticmethod
     def _hub_adventure_text(game_state, screen):
+        if screen is OverworldScreen.REGION_PORTAL:
+            return "Choose a region to view its currently known destinations."
+        if screen is OverworldScreen.REGION_DESTINATIONS:
+            return "Choose a destination. Locked or unfinished content cannot be entered."
         if screen is OverworldScreen.EXPEDITIONS:
             return (
                 "Passive assignments run alongside a Floor I or Floor II outing. "
@@ -731,6 +795,21 @@ class OverworldPresenter:
         if game_state.party_state.tutorial_complete:
             return "Your party has returned to the Floor 1 Hub. Prepare for the next outing."
         return "You have reached the Floor 1 Hub. Recruit one companion to continue."
+
+    @staticmethod
+    def _knowledge_fact_views(game_state):
+        values = []
+        for fact_id, label in M8_KNOWLEDGE_FACT_LABELS:
+            status = game_state.story_state.knowledge_status(fact_id)
+            if status.value != "unknown":
+                values.append(
+                    KnowledgeFactView(
+                        fact_id=fact_id,
+                        label=label,
+                        status=status.value,
+                    )
+                )
+        return tuple(values)
 
     @staticmethod
     def _companion_choices(game_state):
@@ -2069,6 +2148,24 @@ class OverworldPresenter:
             )
         if screen is OverworldScreen.HUB:
             party_state = game_state.party_state
+            portal_action = (
+                (enabled(OverworldAction.REGION_PORTAL, "Region Portal"),)
+                if party_state.phase in {
+                    DungeonPhase.HUB,
+                    DungeonPhase.PARTY_READY,
+                }
+                else ()
+            )
+            briefing_action = (
+                (
+                    enabled(
+                        OverworldAction.DROWNED_RELIQUARY_BRIEFING,
+                        "Drowned Reliquary Briefing",
+                    ),
+                )
+                if is_drowned_reliquary_briefing_available(game_state)
+                else ()
+            )
             vendor_actions = ()
             inventory_action = ()
             if party_state.phase is DungeonPhase.HUB:
@@ -2149,11 +2246,18 @@ class OverworldPresenter:
                 )
             else:
                 party_actions = ()
-            return vendor_actions + inventory_action + party_actions + (
-                enabled(OverworldAction.CHARACTER, "Character"),
-                enabled(OverworldAction.ITEMS, "Items"),
-                enabled(OverworldAction.MAP, "Map"),
-                enabled(OverworldAction.OPTIONS, "Options"),
+            return (
+                portal_action
+                + briefing_action
+                + vendor_actions
+                + inventory_action
+                + party_actions
+                + (
+                    enabled(OverworldAction.CHARACTER, "Character"),
+                    enabled(OverworldAction.ITEMS, "Items"),
+                    enabled(OverworldAction.MAP, "Map"),
+                    enabled(OverworldAction.OPTIONS, "Options"),
+                )
             )
         if screen is OverworldScreen.VENDORS:
             if game_state.party_state.phase in {
@@ -2200,6 +2304,11 @@ class OverworldPresenter:
                         )
             return actions + (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.EXPEDITION_SETUP:
+            return (enabled(OverworldAction.BACK, "Back"),)
+        if screen in {
+            OverworldScreen.REGION_PORTAL,
+            OverworldScreen.REGION_DESTINATIONS,
+        }:
             return (enabled(OverworldAction.BACK, "Back"),)
         if screen is OverworldScreen.EXPEDITION_CONFIRMATION:
             current_energy = game_state.expedition_state.preview_energy(

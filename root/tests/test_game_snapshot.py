@@ -20,7 +20,7 @@ def test_all_surface_completion_ids_round_trip_in_world_snapshot():
     snapshot = game.snapshot()
 
     assert game.world_state.defeated_encounters == expected
-    assert snapshot["schema_version"] == 25
+    assert snapshot["schema_version"] == 26
     assert snapshot["world"]["defeated_encounters"] == list(expected)
     assert "defeated_encounters" not in snapshot["overworld"]
 
@@ -57,7 +57,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
 
     assert game_state.player_state is player_state
     assert snapshot["schema_version"] == STATE_SCHEMA_VERSION
-    assert snapshot["schema_version"] == 25
+    assert snapshot["schema_version"] == 26
     assert set(snapshot.keys()) == {
         "schema_version",
         "player",
@@ -98,6 +98,9 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "floor_three_runs_started_after_clear": 0,
         "floor_three_run_id": None,
         "floor_three_outing_xp_multiplier_percent": 100,
+        "floor_four_cleared": False,
+        "floor_five_cleared": False,
+        "region_two_unlocked": False,
         "hub_economy": game_state.party_state.hub_economy,
     }
     assert snapshot["player"]["gold"] == 12
@@ -130,6 +133,7 @@ def test_story_and_world_snapshot_content_is_owned_by_their_state_classes():
         "story_flags": ["heard_goblin"],
         "completed_events": ["opening_ambush"],
         "player_decisions": {"first_choice": "attack"},
+        "knowledge_facts": {},
     }
     assert snapshot["world"] == {
         "discovered_locations": ["ketlyv_woods"],

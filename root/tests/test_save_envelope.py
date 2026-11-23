@@ -19,6 +19,7 @@ from app.persistence.envelope import (
     validate_profile_envelope,
 )
 from app.player.player_state import PlayerState
+from tests.persistence_test_support import remove_region_progression_state
 
 
 PROFILE_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -33,6 +34,7 @@ def _payload():
 
 
 def _remove_m4_state(payload):
+    remove_region_progression_state(payload)
     payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
@@ -62,6 +64,7 @@ def _remove_m4_state(payload):
 
 
 def _remove_m4b_state(payload):
+    remove_region_progression_state(payload)
     payload.pop("expedition", None)
     party = payload.get("party")
     if isinstance(party, dict):
@@ -131,7 +134,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "02a274234a19fda78e5c080765dd4d57ed70d3f59a7f7b089e4bcd711bafbf27"
+        "13d9911215dd8ad3bd00a47f47019e8722770de53b27f4305a717d57bd38938d"
     )
 
 
@@ -178,6 +181,7 @@ def test_schema20_equipment_history_remains_envelope_immutable():
 def test_schema24_remote_history_remains_envelope_immutable():
     payload = copy.deepcopy(_payload())
     payload["schema_version"] = 24
+    remove_region_progression_state(payload)
     payload["party"].pop("hub_economy")
     original = copy.deepcopy(payload)
     document = profile_envelope_to_document(_envelope())
@@ -351,6 +355,7 @@ def test_schema17_profile_history_keeps_original_payload_and_digest():
 def test_schema22_profile_history_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 22
+    remove_region_progression_state(legacy_payload)
     legacy_payload.pop("expedition")
     _remove_m65_state(legacy_payload)
     for field in (

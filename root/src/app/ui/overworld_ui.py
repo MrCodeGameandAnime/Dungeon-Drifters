@@ -106,6 +106,27 @@ class ChooseActivePair:
 
 
 @dataclass(frozen=True)
+class ChooseRegion:
+    region_id: str
+
+    def __post_init__(self):
+        if not isinstance(self.region_id, str) or not self.region_id.strip():
+            raise ValueError("region_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
+class ChooseDestination:
+    destination_id: str
+
+    def __post_init__(self):
+        if (
+            not isinstance(self.destination_id, str)
+            or not self.destination_id.strip()
+        ):
+            raise ValueError("destination_id must be a nonempty string")
+
+
+@dataclass(frozen=True)
 class ChooseDiscoverySearcher:
     drifter_id: str
 
@@ -377,6 +398,8 @@ OverworldInput: TypeAlias = Union[
     ChooseCompanion,
     ChooseFloorTwoBossHelper,
     ChooseActivePair,
+    ChooseRegion,
+    ChooseDestination,
     ChooseDiscoverySearcher,
     ChooseDiscoveryTarget,
     ChooseExpeditionPlan,

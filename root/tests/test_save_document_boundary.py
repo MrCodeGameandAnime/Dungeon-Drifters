@@ -24,6 +24,16 @@ from app.player.player_state import PlayerState
 from game_test_support import completed_hub_game, hub_game
 
 
+def test_current_schema_rejects_non_string_knowledge_status():
+    document = build_save_document(completed_hub_game())
+    document["story"]["knowledge_facts"] = {
+        "m8_fact_drowned_reliquary": [],
+    }
+
+    with pytest.raises(SaveStateValidationError, match="invalid status"):
+        validate_save_document(document)
+
+
 def test_encounter_momentum_is_excluded_from_save_payload_and_round_trip():
     game_state = hub_game()
     battle = Battle(
@@ -85,7 +95,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 25
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 26
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -96,12 +106,19 @@ def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
     schema23["schema_version"] = 23
     schema23.pop("expedition")
     schema23["party"].pop("hub_economy")
+    for field in (
+        "floor_four_cleared",
+        "floor_five_cleared",
+        "region_two_unlocked",
+    ):
+        schema23["party"].pop(field)
+    schema23["story"].pop("knowledge_facts")
     original = json.loads(json.dumps(schema23))
 
     migrated = validate_save_document(schema23)
     restored = reconstruct_game_state(schema23)
 
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 25
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 26
     assert migrated["expedition"] == {
         "energy": 100,
         "energy_anchor_utc": None,
@@ -143,6 +160,13 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     schema13["schema_version"] = 13
     schema13.pop("expedition")
     schema13["party"].pop("hub_economy")
+    for field in (
+        "floor_four_cleared",
+        "floor_five_cleared",
+        "region_two_unlocked",
+    ):
+        schema13["party"].pop(field)
+    schema13["story"].pop("knowledge_facts")
     for field in (
         "floor_three_cleared",
         "floor_three_runs_started_after_clear",

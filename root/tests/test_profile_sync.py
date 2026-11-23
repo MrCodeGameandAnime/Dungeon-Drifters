@@ -25,6 +25,7 @@ from tests.remote_sync_test_support import (
     make_legacy_schema8_payload,
     make_payload,
 )
+from tests.persistence_test_support import remove_region_progression_state
 
 
 SAVED_AT = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
@@ -51,6 +52,7 @@ def _save_local(store, gold=0):
 def _legacy_schema9_payload(gold=0):
     payload = make_payload(gold)
     payload["schema_version"] = 9
+    remove_region_progression_state(payload)
     payload.pop("expedition")
     payload["party"].pop("hub_economy")
     payload["player"].pop("equipment_refs")

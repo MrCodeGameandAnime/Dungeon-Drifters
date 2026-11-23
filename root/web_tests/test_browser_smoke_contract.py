@@ -92,6 +92,7 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         '"Recruitment cost: 65"',
         '"120 EXP | 9 gold"',
         "PYD7|BROWSER|HUB_OUTING|PASS",
+        "M8.1_BROWSER|REGION_PORTAL_FLOOR_I_RETURN_AND_BACKWARD_ACCESS|PASS",
         "PYD7|BROWSER|DEFEAT_RESELECT|PASS",
         "PYD7|BROWSER|SAVE_RELOAD|PASS",
         "F1_BROWSER|CONTINUE_REPLACE_CANCEL|PASS",
@@ -279,3 +280,16 @@ def test_browser_momentum_neutral_is_checked_without_racing_opening_attacks():
     assert 'assertMomentumNeutral(page, `${floorLabel} Battle ${battleNumber}`)' not in smoke
     assert '"deterministic neutral projection"' in smoke
     assert "await observeMomentum(page);" in smoke
+
+
+def test_region_portal_uses_python_projected_choices_in_both_browser_screens():
+    shell = SHELL_PATH.read_text()
+    script = SCRIPT_PATH.read_text()
+
+    assert 'id="region-panel"' in shell
+    assert 'id="region-choices"' in shell
+    assert 'id="region-facts"' in shell
+    assert 'kind: "region"' in script
+    assert 'kind: "destination"' in script
+    assert 'view.region_choices || []' in script
+    assert 'view.destination_choices || []' in script

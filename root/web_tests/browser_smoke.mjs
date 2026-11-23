@@ -509,6 +509,7 @@ const hubProjection = {
   options: [
     { action: "vendors", label: "Vendors", enabled: true, disabled_reason: null },
     { action: "hub_inventory", label: "Hub Inventory", enabled: true, disabled_reason: null },
+    { action: "region_portal", label: "Region Portal", enabled: true, disabled_reason: null },
     { action: "recruit_companion", label: "Recruit Companion", enabled: true, disabled_reason: null },
     { action: "character", label: "Character", enabled: true, disabled_reason: null },
     { action: "items", label: "Items", enabled: true, disabled_reason: null },
@@ -541,6 +542,7 @@ const partyReadyProjection = {
   shared_gold: 10,
   options: [
     { action: "ready", label: "Ready / Set Out", enabled: true, disabled_reason: null },
+    { action: "region_portal", label: "Region Portal", enabled: true, disabled_reason: null },
     { action: "back", label: "Back", enabled: true, disabled_reason: null },
   ],
 };
@@ -588,9 +590,41 @@ const securedHubProjection = {
   options: [
     { action: "vendors", label: "Vendors", enabled: true, disabled_reason: null },
     { action: "hub_inventory", label: "Hub Inventory", enabled: true, disabled_reason: null },
-    ...hubProjection.options.slice(3),
+    { action: "region_portal", label: "Region Portal", enabled: true, disabled_reason: null },
+    ...hubProjection.options.slice(4),
     { action: "select_party", label: "Choose Party", enabled: true, disabled_reason: null },
     { action: "start_floor_one", label: "Start Floor 1", enabled: true, disabled_reason: null },
+  ],
+};
+
+const regionPortalProjection = {
+  ...securedHubProjection,
+  screen: "region_portal",
+  adventure_text: "Choose a region to review its available destinations.",
+  options: [{ action: "back", label: "Back", enabled: true, disabled_reason: null }],
+  region_choices: [
+    { region_id: "region_1", display_name: "Region 1", unlocked: true, selectable: true, message: null },
+  ],
+};
+
+const regionDestinationsProjection = {
+  ...regionPortalProjection,
+  screen: "region_destinations",
+  adventure_text: "The Drowned Reliquary remains unknown.",
+  region_choices: [],
+  destination_choices: [
+    { destination_id: "floor_one", display_name: "Floor I", enabled: true, disabled_reason: null, knowledge_status: null },
+    { destination_id: "floor_two", display_name: "Floor II", enabled: false, disabled_reason: "Requires Floor I clear.", knowledge_status: null },
+  ],
+  knowledge_facts: [],
+};
+
+const regionDestinationsClearedProjection = {
+  ...regionDestinationsProjection,
+  adventure_text: "Floor II is available. The Drowned Reliquary remains unknown.",
+  destination_choices: [
+    { destination_id: "floor_one", display_name: "Floor I", enabled: true, disabled_reason: null, knowledge_status: null },
+    { destination_id: "floor_two", display_name: "Floor II", enabled: true, disabled_reason: null, knowledge_status: null },
   ],
 };
 
@@ -1786,6 +1820,31 @@ try {
             const command = JSON.parse(window.__fixtureGlobals._browser_command_json);
             window.__fixtureCommands.push(command);
             if (window.__fixtureHubMode) {
+              if (["securedHub", "floorOneClearedHub"].includes(window.__fixtureHubPhase) && command.action === "region_portal") {
+                window.__fixtureRegionPortalReturnPhase = window.__fixtureHubPhase;
+                window.__fixtureHubPhase = "regionPortal";
+                return JSON.stringify(views.regionPortal);
+              }
+              if (window.__fixtureHubPhase === "regionPortal" && command.kind === "region" && command.region_id === "region_1") {
+                window.__fixtureHubPhase = "regionDestinations";
+                return JSON.stringify(
+                  window.__fixtureRegionPortalReturnPhase === "floorOneClearedHub"
+                    ? views.regionDestinationsCleared
+                    : views.regionDestinations,
+                );
+              }
+              if (window.__fixtureHubPhase === "regionDestinations" && command.kind === "destination" && command.destination_id === "floor_one" && window.__fixtureRegionPortalReturnPhase === "securedHub") {
+                window.__fixtureHubPhase = "floorOneWarning";
+                return JSON.stringify(views.floorOneWarning);
+              }
+              if (window.__fixtureHubPhase === "regionDestinations" && command.action === "back") {
+                window.__fixtureHubPhase = "regionPortal";
+                return JSON.stringify(views.regionPortal);
+              }
+              if (window.__fixtureHubPhase === "regionPortal" && command.action === "back") {
+                window.__fixtureHubPhase = window.__fixtureRegionPortalReturnPhase;
+                return JSON.stringify(views[window.__fixtureHubPhase]);
+              }
               if (window.__fixtureHubPhase === "securedHub" && command.action === "items") {
                 window.__fixtureHubPhase = "items";
                 return JSON.stringify(views.items);
@@ -1963,6 +2022,9 @@ try {
     partyBattle: partyBattleProjection,
     extraction: extractionProjection,
     securedHub: securedHubProjection,
+    regionPortal: regionPortalProjection,
+    regionDestinations: regionDestinationsProjection,
+    regionDestinationsCleared: regionDestinationsClearedProjection,
     vendors: vendorsProjection,
     partySelection: partySelectionProjection,
     partyChosen: partyChosenProjection,
@@ -2187,7 +2249,7 @@ try {
   await clickVisibleOption(targetPage, "#overworld-options", "Return to Hub");
   requireCondition(
     (await targetPage.locator("#hub-shared-gold").innerText()) === "Shared gold: 19" &&
-      await targetPage.locator("#overworld-options button").count() === 8 &&
+      await targetPage.locator("#overworld-options button").count() === 9 &&
       !(await targetPage.getByRole("button", { name: "Recruit Companion" }).count()) &&
       !(await targetPage.getByRole("button", { name: "Ready / Set Out" }).count()),
     "returned Hub did not show secured currency or offer Floor 1",
@@ -2355,7 +2417,18 @@ try {
   await targetPage.locator("#items-panel").waitFor({ state: "hidden" });
   console.log("PYD9|BROWSER|SHARED_ITEMS_INSPECT|PASS");
 
-  await clickVisibleOption(targetPage, "#overworld-options", "Start Floor 1");
+  await clickVisibleOption(targetPage, "#overworld-options", "Region Portal");
+  await targetPage.locator("#screen-badge").filter({ hasText: "REGION PORTAL" }).waitFor({ state: "visible" });
+  await targetPage.locator("#region-panel").waitFor({ state: "visible" });
+  await clickVisibleOption(targetPage, "#region-choices", "Region 1");
+  await targetPage.locator("#screen-badge").filter({ hasText: "DESTINATIONS" }).waitFor({ state: "visible" });
+  const floorOneDestination = targetPage.getByRole("button", { name: "Floor I", exact: true });
+  requireCondition(
+    await floorOneDestination.isEnabled() &&
+      await targetPage.locator("#region-choices button").filter({ hasText: "Floor II" }).isDisabled(),
+    "Region Portal did not render authoritative Floor I availability and Floor II prerequisites",
+  );
+  await floorOneDestination.click();
   await targetPage.locator("#screen-badge").filter({ hasText: "FLOOR_ONE_WARNING" }).waitFor({ state: "visible" });
   requireCondition(
     (await targetPage.locator("#adventure-text").innerText()).includes("Death means returning to the Hub") &&
@@ -2403,6 +2476,18 @@ try {
     "Goblin Lord victory did not return the cleared party and secured rewards to the Hub",
   );
   await captureScreenshot(targetPage, "desktop-floor-one-cleared-hub");
+  await clickVisibleOption(targetPage, "#overworld-options", "Region Portal");
+  await clickVisibleOption(targetPage, "#region-choices", "Region 1");
+  const floorTwoAfterFloorOne = targetPage.locator("#region-choices button").filter({ hasText: "Floor II" });
+  requireCondition(
+    await floorTwoAfterFloorOne.isEnabled() &&
+      await targetPage.getByRole("button", { name: "Floor I", exact: true }).isEnabled(),
+    "cleared Floor I did not unlock Floor II while preserving backward access",
+  );
+  await clickVisibleOption(targetPage, "#overworld-options", "Back");
+  await clickVisibleOption(targetPage, "#overworld-options", "Back");
+  await targetPage.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  console.log("M8.1_BROWSER|REGION_PORTAL_FLOOR_I_RETURN_AND_BACKWARD_ACCESS|PASS");
   const firstClearCommands = await targetPage.evaluate(() => window.__fixtureCommands);
   requireCondition(
     firstClearCommands.filter((command) => command.action === "enter_encounter").length === 9 &&
@@ -2438,7 +2523,8 @@ try {
   );
   const fullFloorOneCommands = await targetPage.evaluate(() => window.__fixtureCommands);
   requireCondition(
-    fullFloorOneCommands.filter((command) => command.action === "start_floor_one").length === 2 &&
+    fullFloorOneCommands.filter((command) => command.action === "start_floor_one").length === 1 &&
+      fullFloorOneCommands.filter((command) => command.kind === "destination" && command.destination_id === "floor_one").length === 1 &&
       fullFloorOneCommands.filter((command) => command.action === "extract").length === 1 &&
       fullFloorOneCommands.filter((command) => command.action === "return_to_hub").length === 2,
     `Floor 1 browser replay did not use the expected semantic actions: ${JSON.stringify(fullFloorOneCommands)}`,

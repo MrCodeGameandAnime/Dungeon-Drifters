@@ -1,4 +1,6 @@
-from app.game.story_state import StoryState
+import pytest
+
+from app.game.story_state import KnowledgeStatus, StoryState
 
 
 def test_story_state_initial_values_are_empty():
@@ -10,6 +12,56 @@ def test_story_state_initial_values_are_empty():
     assert story_state.story_flags == ()
     assert story_state.completed_events == ()
     assert story_state.player_decisions == {}
+    assert story_state.knowledge_facts == {}
+    assert (
+        story_state.knowledge_status("m8_fact_drowned_reliquary")
+        is KnowledgeStatus.UNKNOWN
+    )
+
+
+def test_knowledge_facts_advance_monotonically_and_survive_snapshot_round_trip():
+    story_state = StoryState()
+
+    assert story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        KnowledgeStatus.RUMORED,
+    ) is True
+    assert story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        KnowledgeStatus.RUMORED,
+    ) is False
+    assert story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        KnowledgeStatus.CONFIRMED,
+    ) is True
+    assert story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        KnowledgeStatus.RUMORED,
+    ) is False
+
+    restored = StoryState.from_snapshot(story_state.snapshot())
+    assert restored.knowledge_status(
+        "m8_fact_drowned_reliquary"
+    ) is KnowledgeStatus.CONFIRMED
+    assert restored.snapshot()["knowledge_facts"] == {
+        "m8_fact_drowned_reliquary": "confirmed",
+    }
+
+
+def test_knowledge_state_rejects_unknown_fact_ids_and_unknown_status():
+    story_state = StoryState()
+
+    with pytest.raises(ValueError, match="unknown knowledge fact"):
+        story_state.knowledge_status("unapproved_fact")
+    with pytest.raises(ValueError, match="unknown knowledge fact"):
+        story_state.reveal_knowledge_fact("unapproved_fact", "rumored")
+    with pytest.raises(ValueError, match="unknown knowledge fact"):
+        story_state.knowledge_status(["unapproved_fact"])
+    with pytest.raises(ValueError, match="knowledge status"):
+        story_state.reveal_knowledge_fact(
+            "m8_fact_drowned_reliquary",
+            "discovered",
+        )
 
 
 def test_story_state_accepts_initial_location_values():
@@ -57,3 +109,5 @@ def test_story_state_instances_do_not_share_collections():
     assert second.story_flags == ()
     assert second.completed_events == ()
     assert second.player_decisions == {}
+    assert first.knowledge_facts == {}
+    assert second.knowledge_facts == {}
