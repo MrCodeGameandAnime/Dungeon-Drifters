@@ -1,6 +1,6 @@
 # M8.10: Integrated Campaign Qualification
 
-**Status:** Proposed work package. M8-D1 through M8-D6 product decisions are complete and reconciled; formal Gate 0 remains open pending owner acceptance. This package begins only after M8.1–M8.9 are accepted; no implementation is authorized here.
+**Status:** Proposed work package. M8 Gate 0 is closed with D1-D6 preserved. This package begins only after M8.1–M8.9 are accepted; no implementation is authorized here.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Record the actual final implementation baseline at package start.
 
@@ -46,7 +46,7 @@ Collect the originating packages' gameplay integration evidence at entry. M8.10 
 
 ## Package Gates And Qualification History
 
-- **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures are accepted and this cumulative plan is reviewed. M8 product decisions are complete; formal Gate 0 owner acceptance must precede implementation, and no D1/D3/D6 decisions are to be reopened here.
+- **Gate A, qualification-plan approval:** Open until M8.1–M8.9 closures are accepted and this cumulative plan is reviewed. Gate 0 is closed; no D1-D6 decisions are to be reopened here.
 - **Gate B, cumulative execution:** Not started; run every required journey and platform/service qualification against one exact candidate SHA.
 - **Gate C, independent audit and closure:** Not run; resolve findings, publish the final evidence record, then close M8 only by explicit acceptance.
 

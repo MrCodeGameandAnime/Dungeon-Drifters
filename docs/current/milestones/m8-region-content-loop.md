@@ -1,8 +1,8 @@
 # M8 Region, Story, And Content Loop Implementation Plan
 
-> Implementation method: use `superpowers:executing-plans` for native gate-by-gate execution. Approve a finite release manifest before authoring content; the source examples do not define a whole campaign automatically.
+> Execution: follow the M8.1-M8.10 package plans and exact-SHA qualification. Gate A/B/C are review checkpoints, not separate-commit requirements. The approved parent manifest is fixed; no package may expand it.
 
-**Status:** M8 Gate 0 product decisions are COMPLETE. The approved D1 finite manifest and D3 fact/reveal mapping are recorded below, together with D2/D4/D5 and the bounded D6 asset scope. Gate 0 remains formally OPEN pending owner review and acceptance of this reconciliation. No gameplay implementation is authorized before that acceptance and each child package's own Gate A approval.
+**Status:** M8 Gate 0 is formally CLOSED by owner acceptance of reconciliation `615083ce56ab725b8e3bd98d7237e351c13d3060`; its exact-SHA CI run `45101402276` passed. D1-D6 and the finite manifest remain authoritative. M8.1 Gate A is prepared for owner approval; no M8.1 implementation is authorized before that approval.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -333,7 +333,7 @@ The following ten documents define independently reviewable work packages, not i
 
 | Package | Plan | Scope boundary | Proposed dependencies | Status |
 | --- | --- | --- | --- | --- |
-| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Formal Gate 0 acceptance; package Gate A. | Draft; pending review. |
+| M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Gate 0 closed; M8.1 Gate A approval. | Gate A prepared; awaiting owner review. |
 | M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 clear-state contract. | Draft; pending review. |
 | M8.3 | [Drowned Reliquary, Floor IV](m8-03-floor-four.md) | Approved Floor-IV route, encounters/compositions, reward sources and first clear; numerical tuning remains at package review. | M8.1; M8.2 package boundary; M8.9 visual integration. | Draft; pending review. |
 | M8.4 | [Permanent discoveries, armor and recovery rewards](m8-04-discoveries-and-rewards.md) | Generalize reward boundaries; register three discovery rewards; connect live Floor-IV armor/recovery sources. | M8.3 route and source nodes. | Draft; pending review. |
@@ -341,18 +341,18 @@ The following ten documents define independently reviewable work packages, not i
 | M8.6 | [Character stories and pair interactions](m8-06-character-stories.md) | Six pair scenes, optional Azhvielle archive, optional expedition-story consumer. | M8.1 knowledge; M8.5 Story report; D2. | Draft; pending review. |
 | M8.7 | [Ashen Vault, Floor V approach](m8-07-floor-five-approach.md) | Seven-node paired approach, Spirit Relic placement, durable arena reveal. | M8.1, M8.4, M8.5; Floor-IV clear. | Draft; pending review. |
 | M8.8 | [Floor V reunion boss and full-party settlement](m8-08-reunion-boss.md) | Approved Ashen Regent four-member Hub boss; atomic Floor-V clear plus Region 2 unlock and return to pair play. | M8.1, M8.5, M8.7; approved D5. | Draft; pending review. |
-| M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Integrate the eight D6-approved static assets into existing presentation surfaces; no combat renderer or animation. | Asset production/delivery; D1 content associations are approved. Can proceed in parallel. | Draft; package plan pending review. |
+| M8.9 | [Region and enemy visual presentation](m8-09-visual-presentation.md) | Integrate the eight D6-approved static assets into existing presentation surfaces; no combat renderer or animation. | Asset production/delivery and its own Gate A. D1 content associations are approved. Can proceed in parallel. | Draft; package plan pending review. |
 | M8.10 | [Integrated campaign qualification](m8-10-integrated-qualification.md) | Cumulative progression journeys, cross-client/persistence checks and M8 closure evidence. | M8.1-M8.9 accepted; approved assets integrated. | Draft; pending review. |
 
-The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. M8 Gate 0 product decisions are complete; formal Gate 0 acceptance remains pending. No child may begin implementation until that acceptance and its own Gate A approval.
+The dependency table defines prerequisites. Optional M8.6 scenes are independent of M8.7 entry. Gate 0 is closed; each child still requires its own Gate A approval before implementation.
 
 The implementing package owns component qualification. The package that first makes a feature reachable through normal gameplay owns its end-to-end integration test. Record deferred journeys and their downstream owners in the originating qualification record. M8.10 owns cumulative qualification across clients, saves and progression.
 
-**Preferred execution order:** `M8.1 -> M8.2 -> M8.3 -> M8.4 -> M8.5 -> M8.6 -> M8.7 -> M8.8 -> M8.10`; M8.9 may proceed in parallel after formal Gate 0 acceptance and its own Gate A review, and must integrate before M8.10. M8.7 specifically consumes M8.4's Spirit Relic definition/claim behavior and M8.5's approved expedition coexistence contract; it owns only the Floor-V route placement. M8.3 does not expose armor/recovery/discovery rewards before M8.4. M8.5 may define later-floor report support before Floor V completes, but the Floor-V Material report remains unavailable until M8.8 records the genuine clear.
+**Preferred execution order:** `M8.1 -> M8.2 -> M8.3 -> M8.4 -> M8.5 -> M8.6 -> M8.7 -> M8.8 -> M8.10`; M8.9 may proceed in parallel after its own Gate A review and must integrate before M8.10. M8.7 specifically consumes M8.4's Spirit Relic definition/claim behavior and M8.5's approved expedition coexistence contract; it owns only the Floor-V route placement. M8.3 does not expose armor/recovery/discovery rewards before M8.4. M8.5 may define later-floor report support before Floor V completes, but the Floor-V Material report remains unavailable until M8.8 records the genuine clear.
 
 Each child package must complete its own planning approval, implementation, focused/regression tests, independent review, exact-SHA hosted CI, and closure record. Applicable cumulative suites and pinned MicroPython evidence are required when shared Python runtime/save state is changed. A failing package reopens only its owning scope unless the review demonstrates a cross-package contract defect. No package can close by inheriting another package's green run.
 
-M8 Gate 0 product decisions are COMPLETE. Gate 0 remains formally OPEN pending owner acceptance of this reconciliation; no gameplay implementation is authorized. The parent remains the manifest authority.
+M8 Gate 0 is formally CLOSED by owner acceptance recorded below. The parent remains the manifest authority; package-specific Gate A approvals remain required.
 
 ## M8-D1 Through M8-D6: Decision Status
 
@@ -403,10 +403,10 @@ M8.9's implementation, asset, and qualification gates remain open. M8.10 must qu
 | M8-D5 reunion/expedition/XP contract | Approved | M8.5, M8.7 and M8.8 |
 | M8-D6 limited static visual presentation | Approved: eight static assets and existing-surface integration boundary; associations approved by D1 | M8.9 integrates/qualifies; M8.10 cumulative proof |
 
-## Gate 0 Closure Recommendation
+## Gate 0 Closure Record
 
 **M8 Gate 0 product decisions: COMPLETE.** The finite D1 manifest and D3 fact/reveal mapping are approved, and D2/D4/D5/D6 plus regional architecture remain unchanged. The Floor IV Scouting report now confirms all three approved facts (`m8_fact_reliquary_threats`, `m8_fact_ashen_vault`, and `m8_fact_ashen_regent`) through one exactly-once report claim.
 
-No genuine owner-level Gate 0 product decision remains unresolved in this reconciliation. Keep Gate 0 formally OPEN until the owner reviews and accepts this record. That acceptance is not implementation authorization: M8.1 must still pass its own Gate A before work begins.
+The owner accepted this complete D1-D6 reconciliation at commit `615083ce56ab725b8e3bd98d7237e351c13d3060`; exact-SHA CI run [45101402276](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45101402276) passed. **Gate 0 is CLOSED.** This closes product-decision review only. It is not implementation authorization: M8.1 must pass its own Gate A before work begins.
 
 Exact future signatures are deliberately left for repository revalidation, not replaced with fabricated APIs in this plan.

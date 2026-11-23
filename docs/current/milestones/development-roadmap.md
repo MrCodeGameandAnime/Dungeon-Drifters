@@ -238,17 +238,17 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 **Depends on:** M1-M7 and sealed M6.5. M7 and M6.5 are present in the current `dungeon` tree and are regression-protected inputs to M8; M8 does not make their inclusion optional.
 
-1. Agree a finite content manifest: floors/regions, enemies, encounters, bosses, recruitment beats, required pairings, expeditions, equipment, techniques, discoveries, and narrative events. The future docs do not specify enough content to claim an entire campaign is finished.
-2. Add dungeon selection, known/rumored information, free-choice/required-character/locked-pair restrictions, and discoveries from scouting, NPCs, documents, and prior attempts.
-3. Author pair dialogue/relationship outcomes and selected synergy/combination mechanics. Do not require every listed possible mechanic on every pair or boss.
+1. Implement the approved finite Floors IV-V/Region 2 manifest in [the M8 master plan](m8-region-content-loop.md); do not add destinations, encounters, reward sources, or mechanics beyond that manifest.
+2. Add the approved destination selection and Unknown/Rumored/Confirmed knowledge flow. Preserve all six ordinary active pairs; only the approved reunion requires all four Drifters. Use only the manifest's authored discovery/reveal sources.
+3. Author the approved optional pair dialogue and Azhvielle archive scene. No relationship meter, pair lock, combo attack, or combat synergy is approved.
 4. Reuse the four-Drifter combat capability first proven by the Floor 3 boss for later major dungeon/region reunion bosses, with explicit targets/resources/initiative, party-wide effects where authored, and no simultaneous expedition assignment. Preserve the existing two-person Floor I boss unless changed by design.
-5. Connect later boss conditions, story progress, new destinations, trader stock, expedition/story unlocks, and return to normal two-plus-two play after reunion encounters.
-6. Complete later floors incrementally: author their material sources and weapon components when the floor is playable; prove earlier floors cannot bypass progression gates. Add selected hazards, treasure/search locations, permanent discoveries, and quest-item protections.
+5. Connect the approved boss conditions, story progress, destinations and expedition/story report consumers, then return to normal two-plus-two play after the reunion encounter.
+6. Deliver only the approved routes, materials, weapon components, discoveries, and reward sources as their owning M8 packages make them playable; prove earlier floors cannot bypass progression gates. Do not add hazards or portable story-critical items.
 7. Supply enemy visual assets and clear client presentation for the chosen release content. Full graphical combat is a separate scope decision, not an accidental dependency of an enemy portrait.
 
-**Proof:** A complete approved region loop from preparation through dungeon/expedition play, knowledge acquisition, a later four-Drifter reunion boss where authored, next-region unlock, and persisted return to the normal two-plus-two loop. M6 owns the first cumulative all-six-pair expedition qualification after all four recruits exist; M8 adds later required story combinations and resolves outstanding-assignment full-party events.
+**Proof:** The approved region loop from preparation through dungeon/expedition play, knowledge acquisition, the four-Drifter reunion boss, the durable Region 2 unlock, and return to the normal two-plus-two loop. M6 owns the first cumulative all-six-pair expedition qualification; M8 adds optional story scenes and applies the approved assignment restrictions to the reunion encounter.
 
-**Decide at entry:** Release content count, floor versus region boss rules, recruitment/story scripts, hazard selections, relationship mechanics, and quest-item exemptions. Named example dungeons in the design are examples until selected for the manifest.
+**Gate status:** M8 Gate 0 is closed. Its finite manifest and D1-D6 decisions are recorded in the linked master plan. Package-specific implementation plans still require their own Gate A approval; that review cannot reopen settled product decisions.
 
 ## M9 - Integrated Economy, Optional Services, And Release Closure
 
@@ -308,7 +308,7 @@ These are planning drafts for review, not authorization to implement milestones 
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
 | M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; Gate 0 product contracts complete; review the consolidated readiness package and settle crafted-consumable resale before runtime work; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
-| M8 | [Region and content loop](m8-region-content-loop.md) | M1-M7 and M6.5; finite manifest and M8-D1 through D6 approval required before implementation |
+| M8 | [Region and content loop](m8-region-content-loop.md) | Gate 0 closed; begin with M8.1 Gate A, then proceed through the approved finite packages |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
 **Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 uses already-authored, completed floors for expedition destinations; M8 authors the remaining region/floor content and missing reward sources.
