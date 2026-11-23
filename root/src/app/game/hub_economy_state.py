@@ -10,6 +10,7 @@ _FLOOR_FLAGS = {
     "floor_one": "floor_one_cleared",
     "floor_two": "floor_two_cleared",
     "floor_three": "floor_three_cleared",
+    "floor_four": "floor_four_cleared",
 }
 _AUTHORED_AFFIX_IDS = frozenset(
     modifier.modifier_id for modifier in MODIFIER_DEFINITIONS
@@ -22,6 +23,7 @@ def new_hub_economy_snapshot(
     floor_one_cleared=False,
     floor_two_cleared=False,
     floor_three_cleared=False,
+    floor_four_cleared=False,
 ):
     state = {
         "alchemy_xp": 0,
@@ -43,19 +45,24 @@ def new_hub_economy_snapshot(
         "floor_one_cleared": floor_one_cleared,
         "floor_two_cleared": floor_two_cleared,
         "floor_three_cleared": floor_three_cleared,
+        "floor_four_cleared": floor_four_cleared,
     }
     _add_unlocked_vendor_stock(state, recruited_drifter_ids, clear_flags)
     return state
 
 
-def _offer_is_unlocked(offer, recruited_drifter_ids, clear_flags):
+def vendor_offer_is_unlocked(offer, recruited_drifter_ids, clear_flags):
     if offer.future_content:
         return False
-    if offer.unlock_drifter_id is not None:
-        return offer.unlock_drifter_id in recruited_drifter_ids
+    if (
+        offer.unlock_drifter_id is not None
+        and offer.unlock_drifter_id not in recruited_drifter_ids
+    ):
+        return False
     if offer.unlock_after_floor is not None:
         flag = _FLOOR_FLAGS.get(offer.unlock_after_floor)
-        return flag is not None and clear_flags[flag]
+        if flag is None or not clear_flags.get(flag, False):
+            return False
     return True
 
 
@@ -63,10 +70,16 @@ def _add_unlocked_vendor_stock(state, recruited_drifter_ids, clear_flags):
     recruited = set(recruited_drifter_ids)
     for merchandise in VENDOR_MERCHANDISE:
         for offer in merchandise.offers:
-            if not _offer_is_unlocked(offer, recruited, clear_flags):
+            if not vendor_offer_is_unlocked(offer, recruited, clear_flags):
                 continue
             stock = state["vendor_stock"][offer.vendor_id]
             if merchandise.item_id not in stock:
+                if (
+                    merchandise.category == "component"
+                    and offer.sale_fed_only
+                    and offer.initial_stock == 0
+                ):
+                    continue
                 stock[merchandise.item_id] = offer.initial_stock
 
 
@@ -232,11 +245,13 @@ class HubEconomyState:
         floor_one_cleared=False,
         floor_two_cleared=False,
         floor_three_cleared=False,
+        floor_four_cleared=False,
     ):
         clear_flags = {
             "floor_one_cleared": floor_one_cleared,
             "floor_two_cleared": floor_two_cleared,
             "floor_three_cleared": floor_three_cleared,
+            "floor_four_cleared": floor_four_cleared,
         }
         _add_unlocked_vendor_stock(self._state, recruited_drifter_ids, clear_flags)
 
@@ -304,6 +319,7 @@ class HubEconomyState:
         floor_one_cleared,
         floor_two_cleared,
         floor_three_cleared,
+        floor_four_cleared=False,
     ):
         if (
             not isinstance(settled_outing, dict)
@@ -320,6 +336,7 @@ class HubEconomyState:
             "floor_one_cleared": floor_one_cleared,
             "floor_two_cleared": floor_two_cleared,
             "floor_three_cleared": floor_three_cleared,
+            "floor_four_cleared": floor_four_cleared,
         }
         self.initialize_unlocked_stock(
             recruited_drifter_ids=recruited_drifter_ids,
@@ -348,7 +365,7 @@ class HubEconomyState:
                         if offer.vendor_id == vendor_id
                     )
                 )
-                if offer is None or not _offer_is_unlocked(
+                if offer is None or not vendor_offer_is_unlocked(
                     offer, recruited, clear_flags
                 ):
                     continue
@@ -370,7 +387,7 @@ class HubEconomyState:
 
         for merchandise in VENDOR_MERCHANDISE:
             for offer in merchandise.offers:
-                if offer.sale_fed_only or not _offer_is_unlocked(
+                if offer.sale_fed_only or not vendor_offer_is_unlocked(
                     offer, recruited, clear_flags
                 ):
                     continue
@@ -402,4 +419,8 @@ def _nonnegative_quantity(quantity):
     return quantity
 
 
-__all__ = ("HubEconomyState", "new_hub_economy_snapshot")
+__all__ = (
+    "HubEconomyState",
+    "new_hub_economy_snapshot",
+    "vendor_offer_is_unlocked",
+)

@@ -1,6 +1,6 @@
 import pytest
 
-from app.content.catalog import get_drifter_spec, get_weapon_spec
+from app.content.catalog import WEAPON_SPECS, get_drifter_spec, get_weapon_spec
 from app.content.weapon_progression_spec import (
     IMPROVEMENT_ROLL_WEIGHT_BANDS,
     WeaponComponentSpec,
@@ -536,6 +536,120 @@ def test_weapon_power_modifier_is_preserved_across_split_move_components():
     assert tuple(component.power for component in move.damage_components) == (13, 13)
 
 
+@pytest.mark.parametrize(
+    "grade,component_id,expected_power",
+    (
+        (2, "m8_sunder_spire_grip_braided_grade_ii", 0),
+        (3, "m8_sunder_spire_grip_braided_grade_iii", 1),
+        (4, "m8_sunder_spire_grip_braided_grade_iv", 2),
+    ),
+)
+def test_cinderlung_grade_modifiers_keep_minimum_mana_cost_one(
+    grade,
+    component_id,
+    expected_power,
+):
+    game, _service = _game()
+    game.player_state.signature_weapon_state.install_component(
+        "grip_binding",
+        component_id,
+    )
+
+    move = next(
+        move
+        for move in game.player_state.combat_moves
+        if move.name == "Cinderlung Vesper"
+    )
+
+    assert move.resource_cost == 1
+    assert move.power == 8 + expected_power
+
+
+def test_all_m8_power_variants_project_through_the_existing_move_pipeline():
+    projected_variant_count = 0
+    for weapon in WEAPON_SPECS:
+        drifter = get_drifter_spec(weapon.intended_wielder.lower())
+        grade_one = tuple(
+            component
+            for component in weapon.progression.components
+            if not component.is_starting
+            and component.recipe_material_id.startswith("grade_i_")
+            and component.move_modifiers[0].power_delta
+        )
+        for base in grade_one:
+            base_modifier = base.move_modifiers[0]
+            for grade, suffix in ((2, "ii"), (3, "iii"), (4, "iv")):
+                player = PlayerState(drifter.create_character())
+                component_id = f"m8_{base.component_id}_grade_{suffix}"
+                baseline_move = next(
+                    move for move in player.combat_moves
+                    if move.name == base_modifier.move_name
+                )
+                player.signature_weapon_state.install_component(
+                    base.slot_id,
+                    component_id,
+                )
+                projected = next(
+                    move for move in player.combat_moves
+                    if move.name == base_modifier.move_name
+                )
+
+                assert projected.power == baseline_move.power + grade + 1
+                assert projected.accuracy == (
+                    baseline_move.accuracy + base_modifier.accuracy_delta
+                )
+                if projected.damage_components:
+                    assert sum(
+                        component.power
+                        for component in projected.damage_components
+                    ) == projected.power
+                projected_variant_count += 1
+    assert projected_variant_count == 39
+
+
+def test_all_m8_resource_cost_variants_project_without_global_cost_changes():
+    projected_variant_count = 0
+    for weapon in WEAPON_SPECS:
+        drifter = get_drifter_spec(weapon.intended_wielder.lower())
+        grade_one = tuple(
+            component
+            for component in weapon.progression.components
+            if not component.is_starting
+            and component.recipe_material_id.startswith("grade_i_")
+            and component.move_modifiers[0].resource_cost_delta
+        )
+        for base in grade_one:
+            base_modifier = base.move_modifiers[0]
+            for grade, suffix in ((2, "ii"), (3, "iii"), (4, "iv")):
+                player = PlayerState(drifter.create_character())
+                component_id = f"m8_{base.component_id}_grade_{suffix}"
+                variant = next(
+                    component
+                    for component in weapon.progression.components
+                    if component.component_id == component_id
+                )
+                baseline_move = next(
+                    move for move in player.combat_moves
+                    if move.name == base_modifier.move_name
+                )
+                player.signature_weapon_state.install_component(
+                    base.slot_id,
+                    component_id,
+                )
+                projected = next(
+                    move for move in player.combat_moves
+                    if move.name == base_modifier.move_name
+                )
+
+                assert projected.resource_cost == max(
+                    0,
+                    baseline_move.resource_cost
+                    + variant.move_modifiers[0].resource_cost_delta,
+                )
+                projected_variant_count += 1
+    assert projected_variant_count == 9
+
+
 def test_crafting_an_already_installed_component_is_rejected_without_mutation():
     game, service = _game(items={"grade_i_metal": 1})
     state = game.player_state.signature_weapon_state
@@ -550,6 +664,53 @@ def test_crafting_an_already_installed_component_is_rejected_without_mutation():
     assert result.success is False
     assert result.reason == "already_installed"
     assert game.snapshot() == before_snapshot
+
+
+@pytest.mark.parametrize(
+    "grade,material_id,component_id,clear_field",
+    (
+        (2, "grade_ii_metal", "m8_sunder_spire_blade_reinforced_grade_ii", "_floor_two_cleared"),
+        (3, "grade_iii_metal", "m8_sunder_spire_blade_reinforced_grade_iii", "_floor_three_cleared"),
+        (4, "grade_iv_metal", "m8_sunder_spire_blade_reinforced_grade_iv", "_floor_four_cleared"),
+    ),
+)
+def test_higher_grade_component_crafting_requires_its_matching_floor_clear(
+    grade,
+    material_id,
+    component_id,
+    clear_field,
+):
+    game, service = _game(items={material_id: grade})
+    party = game.party_state
+    for earlier in ("_floor_one_cleared", "_floor_two_cleared", "_floor_three_cleared"):
+        if earlier == clear_field:
+            break
+        setattr(party, earlier, True)
+    if clear_field != "_floor_two_cleared":
+        setattr(party, "_floor_two_cleared", True)
+    if clear_field == "_floor_four_cleared":
+        party._floor_three_cleared = True
+    before = game.snapshot()
+
+    locked = service.craft_component(
+        target_drifter_id="branoc",
+        component_id=component_id,
+    )
+
+    assert locked.success is False
+    assert locked.reason == "tier_locked"
+    assert game.snapshot() == before
+
+    setattr(party, clear_field, True)
+    unlocked = service.craft_component(
+        target_drifter_id="branoc",
+        component_id=component_id,
+    )
+
+    assert unlocked.success is True
+    assert unlocked.material_id == material_id
+    assert party.shared_items == {}
+    assert party.crafting_experience == 10
 
 
 def test_crafting_a_wrong_weapon_component_is_rejected_without_mutation():

@@ -23,6 +23,7 @@ from app.content.weapon_progression_spec import (
     WeaponImprovementRecipeSpec,
     WeaponProgressionSpec,
     WeaponSlotSpec,
+    get_material_spec,
 )
 from app.items.weapon import Weapon
 from tools.generate_content_catalog import discover_weapon_ids
@@ -368,10 +369,10 @@ def test_material_display_names_match_the_final_component_reference():
     )
 
 
-def test_every_floor_one_weapon_slot_has_a_starter_and_matching_craftable_part():
+def test_every_weapon_slot_has_starter_and_all_four_grade_components():
     for weapon in WEAPON_SPECS:
         progression = weapon.progression
-        assert len(progression.components) == 8
+        assert len(progression.components) == 20
         for slot in progression.slots:
             matching = tuple(
                 component
@@ -384,11 +385,64 @@ def test_every_floor_one_weapon_slot_has_a_starter_and_matching_craftable_part()
             assert len(starters) == 1
             assert starters[0].component_id == slot.starting_component_id
             assert starters[0].recipe_material_id is None
-            assert len(craftable) == 1
-            assert craftable[0].recipe_material_id == f"grade_i_{slot.material_family}"
-            assert craftable[0].recipe_cost == 1
-            assert craftable[0].crafting_award == 10
-            assert craftable[0].move_modifiers
+            assert len(craftable) == 4
+            assert {
+                get_material_spec(component.recipe_material_id).grade
+                for component in craftable
+            } == {1, 2, 3, 4}
+            for component in craftable:
+                grade = get_material_spec(component.recipe_material_id).grade
+                assert component.recipe_material_id == (
+                    f"grade_{('i', 'ii', 'iii', 'iv')[grade - 1]}_"
+                    f"{slot.material_family}"
+                )
+                assert component.recipe_cost == grade
+                assert component.crafting_award == 10
+                assert component.move_modifiers
+
+
+def test_m8_component_variants_have_exact_ids_effects_and_preserved_identity():
+    grade_names = {2: "ii", 3: "iii", 4: "iv"}
+    variant_ids = set()
+    for weapon in WEAPON_SPECS:
+        progression = weapon.progression
+        grade_one = tuple(
+            component
+            for component in progression.components
+            if not component.is_starting
+            and get_material_spec(component.recipe_material_id).grade == 1
+        )
+        for base in grade_one:
+            base_modifier = base.move_modifiers[0]
+            for grade in (2, 3, 4):
+                expected_id = f"m8_{base.component_id}_grade_{grade_names[grade]}"
+                variant_ids.add(expected_id)
+                variant = next(
+                    component
+                    for component in progression.components
+                    if component.component_id == expected_id
+                )
+                assert variant.slot_id == base.slot_id
+                assert variant.physical_identity == base.physical_identity
+                assert variant.physical_points == base.physical_points
+                assert variant.mystical_identity == base.mystical_identity
+                assert variant.mystical_points == base.mystical_points
+                assert variant.recipe_cost == grade
+                assert variant.crafting_award == 10
+                modifier = variant.move_modifiers[0]
+                assert modifier.move_name == base_modifier.move_name
+                assert modifier.accuracy_delta == base_modifier.accuracy_delta
+                assert modifier.damage_type == base_modifier.damage_type
+                if base.component_id == "sunder_spire_grip_braided":
+                    assert modifier.resource_cost_delta == -2
+                    assert modifier.power_delta == grade - 2
+                elif base_modifier.power_delta:
+                    assert modifier.power_delta == grade + 1
+                    assert modifier.resource_cost_delta == 0
+                else:
+                    assert modifier.resource_cost_delta == -grade
+                    assert modifier.power_delta == 0
+    assert len(variant_ids) == 48
 
 
 def test_component_move_modifiers_target_moves_of_their_weapon_wielder():
@@ -491,13 +545,43 @@ def test_progression_spec_rejects_wrong_grade_or_family_recipe_materials():
             ),
         )
 
-    with pytest.raises(ValueError, match="matching Grade-I materials"):
+    with pytest.raises(ValueError, match="matching grade and family materials"):
         WeaponProgressionSpec(
             slots=progression.slots,
             components=(
                 *progression.components[:4],
                 replace(craftable, recipe_material_id="grade_i_fiber"),
                 *progression.components[5:],
+            ),
+        )
+
+    with pytest.raises(ValueError, match="non-M8 component recipes must use Grade-I materials"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=(
+                *progression.components[:4],
+                replace(
+                    craftable,
+                    recipe_material_id="grade_ii_metal",
+                    recipe_cost=2,
+                ),
+                *progression.components[5:],
+            ),
+        )
+
+    grade_two = next(
+        component
+        for component in progression.components
+        if component.component_id == "m8_sunder_spire_blade_reinforced_grade_ii"
+    )
+    with pytest.raises(ValueError, match="M8 component ID, material grade, cost, and award"):
+        WeaponProgressionSpec(
+            slots=progression.slots,
+            components=tuple(
+                replace(component, recipe_material_id="grade_iii_metal")
+                if component.component_id == grade_two.component_id
+                else component
+                for component in progression.components
             ),
         )
 

@@ -1,5 +1,6 @@
 from app.content.weapon_spec import WeaponSpec
 from app.content.weapon_progression_spec import (
+    add_m8_grade_variants,
     ComponentMoveModifierSpec,
     WeaponProgressionSpec,
     WeaponComponentSpec,
@@ -19,7 +20,7 @@ WEAPON = WeaponSpec(
         "A long, unadorned iron needle used as both a weapon and a precise "
         "ritual focus."
     ),
-    progression=WeaponProgressionSpec(
+    progression=add_m8_grade_variants(WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
                 "focus_fittings", "Focus head / fittings", "metal", "needle_focus",
@@ -68,7 +69,7 @@ WEAPON = WeaponSpec(
                 move_modifiers=(ComponentMoveModifierSpec("Gravemantle Rupture", 2, 0, -2),),
             ),
         ),
-    ),
+    )),
 )
 
 

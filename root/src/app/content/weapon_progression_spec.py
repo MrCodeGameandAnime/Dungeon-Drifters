@@ -304,6 +304,106 @@ def get_material_spec(item_id):
         raise ValueError(f"unknown progression material: {item_id}") from error
 
 
+def component_required_clear_flag(component):
+    if not isinstance(component, WeaponComponentSpec):
+        raise TypeError("component must be a WeaponComponentSpec")
+    if component.recipe_material_id is None:
+        return None
+    grade = get_material_spec(component.recipe_material_id).grade
+    return {
+        1: None,
+        2: "floor_two_cleared",
+        3: "floor_three_cleared",
+        4: "floor_four_cleared",
+    }[grade]
+
+
+def m8_component_grade_variants(base_component):
+    if not isinstance(base_component, WeaponComponentSpec):
+        raise TypeError("base_component must be a WeaponComponentSpec")
+    if base_component.is_starting:
+        raise ValueError("starting components cannot have grade variants")
+    base_material = get_material_spec(base_component.recipe_material_id)
+    if base_material.grade != 1:
+        raise ValueError("grade variants require a Grade-I base component")
+
+    variants = []
+    grade_names = {2: "II", 3: "III", 4: "IV"}
+    suffixes = {2: "ii", 3: "iii", 4: "iv"}
+    for grade in (2, 3, 4):
+        modifiers = []
+        for modifier in base_component.move_modifiers:
+            if base_component.component_id == "sunder_spire_grip_braided":
+                power_delta = grade - 2
+                resource_cost_delta = -2
+            elif modifier.power_delta:
+                power_delta = grade + 1
+                resource_cost_delta = modifier.resource_cost_delta
+            elif modifier.resource_cost_delta:
+                power_delta = modifier.power_delta
+                resource_cost_delta = -grade
+            else:
+                raise ValueError(
+                    "M8 grade variants require an authored power or resource modifier"
+                )
+            modifiers.append(
+                ComponentMoveModifierSpec(
+                    modifier.move_name,
+                    power_delta=power_delta,
+                    resource_cost_delta=resource_cost_delta,
+                    accuracy_delta=modifier.accuracy_delta,
+                    damage_type=modifier.damage_type,
+                )
+            )
+        variants.append(
+            WeaponComponentSpec(
+                component_id=(
+                    f"m8_{base_component.component_id}_grade_{suffixes[grade]}"
+                ),
+                display_name=(
+                    f"Grade {grade_names[grade]} {base_component.display_name}"
+                ),
+                slot_id=base_component.slot_id,
+                recipe_material_id=(
+                    f"grade_{suffixes[grade]}_{base_material.family}"
+                ),
+                recipe_cost=grade,
+                crafting_award=10,
+                physical_identity=base_component.physical_identity,
+                physical_points=base_component.physical_points,
+                mystical_identity=base_component.mystical_identity,
+                mystical_points=base_component.mystical_points,
+                move_modifiers=tuple(modifiers),
+            )
+        )
+    return tuple(variants)
+
+
+def add_m8_grade_variants(progression):
+    if not isinstance(progression, WeaponProgressionSpec):
+        raise TypeError("progression must be a WeaponProgressionSpec")
+    if any(
+        component.component_id.startswith("m8_")
+        for component in progression.components
+    ):
+        raise ValueError("M8 grade variants are already present")
+    grade_one = tuple(
+        component
+        for component in progression.components
+        if not component.is_starting
+        and get_material_spec(component.recipe_material_id).grade == 1
+    )
+    variants = tuple(
+        variant
+        for component in grade_one
+        for variant in m8_component_grade_variants(component)
+    )
+    return WeaponProgressionSpec(
+        slots=progression.slots,
+        components=progression.components + variants,
+    )
+
+
 def get_improvement_recipe(material_id):
     try:
         return _IMPROVEMENT_RECIPES_BY_MATERIAL[material_id]
@@ -453,8 +553,34 @@ class WeaponProgressionSpec:
                 continue
             material = get_material_spec(component.recipe_material_id)
             slot = next(slot for slot in self.slots if slot.slot_id == component.slot_id)
-            if material.grade != 1 or material.family != slot.material_family:
-                raise ValueError("Floor I component recipes must use matching Grade-I materials")
+            if material.family != slot.material_family:
+                raise ValueError(
+                    "weapon component recipes must use matching grade and family materials"
+                )
+            if not component.component_id.startswith("m8_"):
+                if material.grade != 1:
+                    raise ValueError(
+                        "non-M8 component recipes must use Grade-I materials"
+                    )
+            else:
+                expected_grade = None
+                for suffix, grade in (
+                    ("_grade_ii", 2),
+                    ("_grade_iii", 3),
+                    ("_grade_iv", 4),
+                ):
+                    if component.component_id.endswith(suffix):
+                        expected_grade = grade
+                        break
+                if (
+                    expected_grade is None
+                    or material.grade != expected_grade
+                    or component.recipe_cost != expected_grade
+                    or component.crafting_award != 10
+                ):
+                    raise ValueError(
+                        "M8 component ID, material grade, cost, and award must agree"
+                    )
 
 
 def get_weapon_component_spec(progression, component_id):

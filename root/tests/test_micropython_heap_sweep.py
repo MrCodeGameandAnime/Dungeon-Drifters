@@ -130,21 +130,21 @@ def test_summary_reports_teardown_allocation_not_free_memory():
 
     result = heap_sweep.parse_probe_output(
         _successful_output(),
-        requested_heap_kib=1152,
+        requested_heap_kib=1216,
         returncode=0,
     )
 
     assert "TEARDOWN_FREE|710000|TEARDOWN_ALLOC|200000" in (
-        heap_sweep.format_summary("1152K", result)
+        heap_sweep.format_summary("1216K", result)
     )
 
 
 def test_frontier_sweep_includes_stable_and_lower_boundary_heaps():
     _load_tool()
 
-    assert heap_sweep.STABLE_HEAP_KIB == 1280
-    assert heap_sweep.MEMORY_LIMIT_HEAP_KIB == 1152
-    assert heap_sweep.FRONTIER_HEAP_KIBS[-1] == 1152
+    assert heap_sweep.STABLE_HEAP_KIB == 1408
+    assert heap_sweep.MEMORY_LIMIT_HEAP_KIB == 1216
+    assert heap_sweep.FRONTIER_HEAP_KIBS[-1] == 1216
 
 
 def test_output_without_floor_one_final_state_is_not_a_complete_probe():

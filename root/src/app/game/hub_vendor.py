@@ -6,9 +6,13 @@ from enum import StrEnum
 from app.content.catalog import get_weapon_spec
 from app.content.equipment_spec import get_equipment_template
 from app.content.vendor_catalog import VENDOR_IDS, VENDOR_MERCHANDISE
-from app.content.weapon_progression_spec import get_weapon_component_spec
+from app.content.weapon_progression_spec import (
+    component_required_clear_flag,
+    get_weapon_component_spec,
+)
 from app.game.game_state import GameState
 from app.game.party_state import DungeonPhase
+from app.game.hub_economy_state import vendor_offer_is_unlocked
 from app.iteration import first_or_none
 from app.items.equipment import EquipmentInstance
 from app.persistence.save_port_contract import (
@@ -84,6 +88,21 @@ class HubVendorService:
         merchandise = _merchandise(item_id)
         offer = _offer(merchandise, vendor_id)
         if offer is None:
+            return _result(HubVendorStatus.UNAVAILABLE_OFFER, game_state, item_id, quantity)
+        party = game_state.party_state
+        if (
+            offer.future_content
+            or offer.unlock_after_floor is not None
+        ) and not vendor_offer_is_unlocked(
+            offer,
+            tuple(member.drifter_id for member in game_state.recruited_members),
+            {
+                "floor_one_cleared": party.floor_one_cleared,
+                "floor_two_cleared": party.floor_two_cleared,
+                "floor_three_cleared": party.floor_three_cleared,
+                "floor_four_cleared": party.floor_four_cleared,
+            },
+        ):
             return _result(HubVendorStatus.UNAVAILABLE_OFFER, game_state, item_id, quantity)
         state = game_state.party_state.hub_economy_state
         available = state.vendor_stock_quantity(vendor_id, item_id)
@@ -274,6 +293,12 @@ class HubVendorService:
                 component_id,
             )
         except (TypeError, ValueError):
+            return _result(HubVendorStatus.UNAVAILABLE, game_state, component_id, 1)
+        required_clear_flag = component_required_clear_flag(component)
+        if (
+            required_clear_flag is not None
+            and not getattr(game_state.party_state, required_clear_flag)
+        ):
             return _result(HubVendorStatus.UNAVAILABLE, game_state, component_id, 1)
         economy = game_state.party_state.hub_economy_state
         if economy.component_quantity(component_id) < 1:

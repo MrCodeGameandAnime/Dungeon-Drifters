@@ -699,6 +699,43 @@ def test_bridge_crafts_and_installs_component_for_the_selected_drifter():
     assert runtime._session.game_state.player_state.combat_moves[0].accuracy == 90
 
 
+def test_bridge_disables_locked_grade_recipe_and_rejects_direct_submission():
+    runtime = bridge.BrowserRuntime()
+    runtime.start_game("branoc")
+    game = runtime._game
+    assert game.party_state.arrive_at_hub(game.player_state)
+    game.party_state.add_shared_items({"grade_ii_metal": 2})
+    runtime._session = OverworldSession(
+        game,
+        battle_factory=Battle,
+        enemy_factory=create_enemy_state,
+        save_port=QualificationSavePort(),
+    )
+    view = runtime.submit({"kind": "overworld_action", "action": "vendors"})
+    view = runtime.submit({"kind": "overworld_action", "action": "blacksmith"})
+    component_id = "m8_sunder_spire_blade_reinforced_grade_ii"
+    recipe = next(
+        recipe
+        for recipe in view["merchant"]["component_recipes"]
+        if recipe["component_id"] == component_id
+    )
+    before = runtime._session.game_state.snapshot()
+
+    assert recipe["can_craft"] is False
+    assert recipe["blocked_reason"] == "requires_floor_two_cleared"
+    rejected = runtime.submit(
+        {
+            "kind": "merchant_craft_component",
+            "target_drifter_id": "branoc",
+            "component_id": component_id,
+        }
+    )
+
+    assert "not available" in rejected["notice"].lower()
+    assert runtime._session.game_state.snapshot() == before
+    assert runtime._session.game_state.party_state.crafting_experience == 0
+
+
 def test_bridge_rejects_the_removed_inventory_component_install_command():
     with pytest.raises(ValueError, match="unknown browser command"):
         bridge._command_to_input(

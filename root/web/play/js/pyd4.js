@@ -262,6 +262,10 @@
       const reasonText = {
         floor_two_replay_requires_available_helper:
           "Choose an active pair that leaves D3 or D4 available for the Floor II boss.",
+        requires_floor_two_cleared: "Complete Floor II to unlock this component.",
+        requires_floor_three_cleared: "Complete Floor III to unlock this component.",
+        requires_floor_four_cleared: "Complete Floor IV to unlock this component.",
+        insufficient_materials: "Not enough materials.",
       };
       detail.textContent = `Unavailable: ${reasonText[reason] || String(reason).replace(/_/g, " ")}`;
       button.title = detail.textContent;
@@ -1184,7 +1188,7 @@
           expected_transaction_sequence: view.hub_transaction_sequence,
         },
         recipe.can_craft,
-        "insufficient_materials",
+        recipe.blocked_reason,
         "merchant-action",
       ));
       componentRecipes.append(row);

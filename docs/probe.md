@@ -697,3 +697,18 @@ build, full browser smoke, and the pinned matrix above. The browser smoke
 includes `M8.1_BROWSER|REGION_PORTAL_FLOOR_I_RETURN_AND_BACKWARD_ACCESS|PASS`.
 This records implementation and qualification evidence; independent review
 remains pending before formal M8.1 package closure.
+
+## M8.2 Gate B Pinned Probe Profile Calibration (2026-11-23)
+
+The M8.2 Grade-II-IV catalog adds 48 authored component variants. On the
+existing Windows MicroPython v1.29.0 executable (488,960 bytes; SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`), the
+M8.1 profile's 1280K point was not stable on the M8.2 worktree: 2/3 full probe
+runs passed and 1/3 reached `MemoryError` during the Floor III probe. The
+recalibrated 1408K point passed 3/3; 1216K produced the expected memory-limit
+classification 3/3. The active probe profile is now 1408K stable / 1216K
+expected memory limit. CPython 3.14.6 native and forced-overlay modes, pinned
+MicroPython v1.29.0, semantic parity, and both heap confirmations passed the
+complete local matrix on this worktree. This profile qualifies this exact
+Windows probe only; it is not a hardware-wide MicroPython compatibility claim
+or a product memory budget. Exact-SHA hosted qualification remains pending.

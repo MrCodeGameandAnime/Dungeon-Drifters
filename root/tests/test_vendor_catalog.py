@@ -87,11 +87,15 @@ def test_authored_stock_capacities_and_initial_quantities_match_schedule():
                 if material.grade == 1:
                     expected_cap = 2
             assert offer.stock_cap == expected_cap
+            higher_grade_component = (
+                spec.category == "component" and spec.item_id.startswith("m8_")
+            )
+            sale_fed = offer.sale_fed_only or higher_grade_component
             assert offer.initial_stock == (
-                0 if offer.future_content or offer.sale_fed_only else expected_cap
+                0 if offer.future_content or sale_fed else expected_cap
             )
             assert offer.refill_per_qualifying_return == (
-                0 if offer.sale_fed_only else expected_cap
+                0 if sale_fed else expected_cap
             )
 
     for material in MATERIAL_SPECS:
@@ -117,6 +121,45 @@ def test_finished_alchemy_consumables_are_not_sellable_or_stocked_in_legacy_shop
         assert item.sellable is False
         if item_id != "healing_potion":
             assert item.shop_stocked is False
+
+
+def test_m8_component_offers_are_recruitment_and_clear_gated_sale_fed_stock():
+    components_by_id = {
+        component.component_id: weapon.intended_wielder.lower()
+        for weapon in WEAPON_SPECS
+        for component in weapon.progression.components
+        if component.component_id.startswith("m8_")
+    }
+    assert len(components_by_id) == 48
+    for item_id, wielder_id in components_by_id.items():
+        grade = next(
+            grade
+            for suffix, grade in (
+                ("_grade_ii", 2),
+                ("_grade_iii", 3),
+                ("_grade_iv", 4),
+            )
+            if item_id.endswith(suffix)
+        )
+        expected_floor = {
+            2: "floor_two",
+            3: "floor_three",
+            4: "floor_four",
+        }[grade]
+        merchandise = _merchandise(item_id)
+        assert merchandise.base_price == 20
+        assert merchandise.resale_price == 10
+        assert merchandise.sale_vendor_id == "blacksmith"
+        assert merchandise.future_stock_eligible is True
+        for vendor_id in ("blacksmith", "merchant"):
+            offer = _offer(item_id, vendor_id)
+            assert offer.unit_price == 20
+            assert offer.stock_cap == 1
+            assert offer.initial_stock == 0
+            assert offer.refill_per_qualifying_return == 0
+            assert offer.sale_fed_only is True
+            assert offer.unlock_drifter_id == wielder_id
+            assert offer.unlock_after_floor == expected_floor
 
 
 def test_mana_potion_and_new_ingredients_are_catalog_only_until_later_slices():
@@ -216,10 +259,30 @@ def test_component_offers_cover_each_authored_part_for_its_wielder():
             if component.component_id == component_id
         )
         price = 8 if component.is_starting else 20
+        higher_grade = component.component_id.startswith("m8_")
+        expected_floor = None
+        if higher_grade:
+            suffix_floor = {
+                "grade_ii": "floor_two",
+                "grade_iii": "floor_three",
+                "grade_iv": "floor_four",
+            }
+            expected_floor = next(
+                floor_id
+                for suffix, floor_id in suffix_floor.items()
+                if component.component_id.endswith(suffix)
+            )
         for vendor_id in ("blacksmith", "merchant"):
             assert _offer(component_id, vendor_id).unit_price == price
             assert _offer(component_id, vendor_id).stock_cap == 1
-            assert _offer(component_id, vendor_id).initial_stock == 1
+            assert _offer(component_id, vendor_id).initial_stock == (
+                0 if higher_grade else 1
+            )
+            assert _offer(component_id, vendor_id).refill_per_qualifying_return == (
+                0 if higher_grade else 1
+            )
+            assert _offer(component_id, vendor_id).sale_fed_only is higher_grade
+            assert _offer(component_id, vendor_id).unlock_after_floor == expected_floor
 
 
 def test_equipment_offers_resolve_to_all_fixed_templates_with_authored_roll_policy():

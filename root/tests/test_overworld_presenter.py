@@ -418,6 +418,27 @@ def test_weapon_view_shows_installed_parts_and_blacksmith_offers_recipes():
     )
 
 
+def test_blacksmith_grade_recipe_is_locked_until_its_floor_clear():
+    player = PlayerState(get_drifter_spec("branoc").create_character())
+    game = GameState(player)
+    assert game.party_state.arrive_at_hub(player)
+    game.party_state.add_shared_items({"grade_ii_metal": 2})
+
+    merchant = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.BLACKSMITH,
+    ).merchant
+    recipe = next(
+        recipe
+        for recipe in merchant.component_recipes
+        if recipe.component_id == "m8_sunder_spire_blade_reinforced_grade_ii"
+    )
+
+    assert recipe.material_quantity == recipe.material_cost == 2
+    assert recipe.can_craft is False
+    assert recipe.blocked_reason == "requires_floor_two_cleared"
+
+
 def test_blacksmith_tier_v_offer_reports_cost_chance_and_requirements():
     player = PlayerState(get_drifter_spec("branoc").create_character())
     game = GameState(player)

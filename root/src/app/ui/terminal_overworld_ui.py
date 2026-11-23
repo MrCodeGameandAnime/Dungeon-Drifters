@@ -1060,7 +1060,7 @@ class TerminalOverworldUI:
                 f"C{index}. Craft & install {recipe.display_name} ({recipe.slot_label}) | "
                 f"{recipe.material_name} x{recipe.material_cost} | "
                 f"Crafting +{recipe.crafting_award}"
-                f"{' [Unavailable]' if not recipe.can_craft else ''}"
+                f"{' [Unavailable: ' + recipe.blocked_reason.replace('_', ' ') + ']' if recipe.blocked_reason else ''}"
                 + (f" | {'; '.join(recipe.effect_summary)}" if recipe.effect_summary else "")
                 for index, recipe in enumerate(merchant.component_recipes, start=1)
             )

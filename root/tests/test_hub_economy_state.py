@@ -7,6 +7,7 @@ from app.game.game_state import GameState
 from app.game.overworld_state import ContextualRoutePhase
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import DungeonPhase
+from app.game.hub_economy_state import HubEconomyState, new_hub_economy_snapshot
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
@@ -60,6 +61,92 @@ def test_hub_economy_state_round_trips_with_current_save():
         "alchemist",
     }
     assert restored.party_state.hub_economy == game.party_state.hub_economy
+
+
+def test_sale_fed_mythril_keeps_its_existing_zero_stock_snapshot_entry():
+    snapshot = new_hub_economy_snapshot()
+
+    assert snapshot["vendor_stock"]["blacksmith"]["mythril_plate"] == 0
+
+
+def test_m8_component_stacks_round_trip_without_a_save_schema_change():
+    game = hub_game()
+    component_id = "m8_sunder_spire_blade_reinforced_grade_iv"
+    game.party_state.hub_economy_state.add_component(component_id, 2)
+
+    document = build_save_document(game)
+    restored = reconstruct_game_state(document)
+
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 26
+    assert restored.party_state.hub_economy_state.component_quantity(component_id) == 2
+
+
+@pytest.mark.parametrize(
+    "component_id,clear_name,clear_value",
+    (
+        ("m8_sunder_spire_blade_reinforced_grade_ii", "floor_two_cleared", True),
+        ("m8_sunder_spire_blade_reinforced_grade_iii", "floor_three_cleared", True),
+        ("m8_sunder_spire_blade_reinforced_grade_iv", "floor_four_cleared", True),
+    ),
+)
+def test_m8_component_stock_initializes_only_after_wielder_and_floor_unlock(
+    component_id,
+    clear_name,
+    clear_value,
+):
+    clear_inputs = {
+        "floor_one_cleared": False,
+        "floor_two_cleared": False,
+        "floor_three_cleared": False,
+        "floor_four_cleared": False,
+    }
+    locked_by_floor = new_hub_economy_snapshot(
+        recruited_drifter_ids=("branoc",),
+        **clear_inputs,
+    )
+    assert component_id not in locked_by_floor["vendor_stock"]["blacksmith"]
+
+    clear_inputs[clear_name] = clear_value
+    locked_by_roster = new_hub_economy_snapshot(
+        recruited_drifter_ids=("azhvielle",),
+        **clear_inputs,
+    )
+    assert component_id not in locked_by_roster["vendor_stock"]["blacksmith"]
+
+    unlocked = new_hub_economy_snapshot(
+        recruited_drifter_ids=("branoc",),
+        **clear_inputs,
+    )
+    assert component_id not in unlocked["vendor_stock"]["blacksmith"]
+    assert component_id not in unlocked["vendor_stock"]["merchant"]
+    economy = HubEconomyState(unlocked)
+    assert economy.vendor_stock_quantity("blacksmith", component_id) == 0
+    assert economy.vendor_stock_quantity("merchant", component_id) == 0
+
+
+def test_qualifying_return_does_not_replenish_unsold_higher_grade_components():
+    component_id = "m8_sunder_spire_blade_reinforced_grade_ii"
+    economy = HubEconomyState(
+        new_hub_economy_snapshot(
+            recruited_drifter_ids=("branoc",),
+            floor_one_cleared=True,
+            floor_two_cleared=True,
+        )
+    )
+    economy.begin_hub_visit()
+    economy.begin_outing("floor_one")
+    economy.mark_encounter_progress()
+    settled = economy.settle_outing()
+
+    assert economy.replenish_for_qualifying_return(
+        settled,
+        recruited_drifter_ids=("branoc",),
+        floor_one_cleared=True,
+        floor_two_cleared=True,
+        floor_three_cleared=False,
+    )
+    assert economy.vendor_stock_quantity("blacksmith", component_id) == 0
+    assert economy.vendor_stock_quantity("merchant", component_id) == 0
 
 
 def test_schema24_migration_backfills_clears_and_converts_smoke_powder_once():

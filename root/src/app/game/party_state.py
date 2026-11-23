@@ -370,6 +370,7 @@ class PartyState:
             floor_one_cleared=self.floor_one_cleared,
             floor_two_cleared=self.floor_two_cleared,
             floor_three_cleared=self.floor_three_cleared,
+            floor_four_cleared=self.floor_four_cleared,
         )
 
     def settle_active_outing(self):
@@ -399,6 +400,7 @@ class PartyState:
                 floor_one_cleared=self.floor_one_cleared,
                 floor_two_cleared=self.floor_two_cleared,
                 floor_three_cleared=self.floor_three_cleared,
+                floor_four_cleared=self.floor_four_cleared,
             )
 
     def _settle_outing_for_hub_return(self):

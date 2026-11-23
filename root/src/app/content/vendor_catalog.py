@@ -7,7 +7,11 @@ from app.content.catalog import DRIFTER_SPECS, ROUTE_SPECS, WEAPON_SPECS
 from app.content.equipment_spec import EQUIPMENT_TEMPLATES
 from app.content.hub_economy import SUPPLY_ITEMS
 from app.content.route_spec import validate_content_id
-from app.content.weapon_progression_spec import MATERIAL_SPECS
+from app.content.weapon_progression_spec import (
+    MATERIAL_SPECS,
+    component_required_clear_flag,
+    get_material_spec,
+)
 
 
 VENDOR_IDS = ("merchant", "blacksmith", "alchemist")
@@ -56,8 +60,6 @@ class VendorOfferSpec:
             value = getattr(self, field)
             if value is not None and (not isinstance(value, str) or not value):
                 raise ValueError(f"{field} must be nonempty or None")
-        if self.unlock_after_floor is not None and self.unlock_drifter_id is not None:
-            raise ValueError("an offer cannot have both floor and Drifter unlocks")
         for field in ("sale_fed_only", "future_content"):
             if not isinstance(getattr(self, field), bool):
                 raise TypeError(f"{field} must be a boolean")
@@ -261,6 +263,16 @@ def _build_component_merchandise():
         drifter_id = weapon.intended_wielder.lower()
         for component in weapon.progression.components:
             price = 8 if component.is_starting else 20
+            required_clear_flag = component_required_clear_flag(component)
+            unlock_after_floor = (
+                None
+                if required_clear_flag is None
+                else required_clear_flag.rsplit("_", 1)[0]
+            )
+            sale_fed_only = (
+                required_clear_flag is not None
+                and get_material_spec(component.recipe_material_id).grade > 1
+            )
             result.append(
                 VendorMerchandiseSpec(
                     component.component_id,
@@ -271,13 +283,21 @@ def _build_component_merchandise():
                             "blacksmith",
                             price,
                             1,
+                            initial_stock=0 if sale_fed_only else None,
+                            refill=0 if sale_fed_only else None,
+                            unlock_after_floor=unlock_after_floor,
                             unlock_drifter_id=drifter_id,
+                            sale_fed_only=sale_fed_only,
                         ),
                         _offer(
                             "merchant",
                             price,
                             1,
+                            initial_stock=0 if sale_fed_only else None,
+                            refill=0 if sale_fed_only else None,
+                            unlock_after_floor=unlock_after_floor,
                             unlock_drifter_id=drifter_id,
+                            sale_fed_only=sale_fed_only,
                         ),
                     ),
                     resale_price=price // 2,
@@ -488,7 +508,10 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
                 if offer.future_content:
                     if offer.unlock_after_floor != "floor_four":
                         raise ValueError("only the Grade-IV Crystal offer is future floor content")
-                elif offer.unlock_after_floor not in routes:
+                elif (
+                    offer.unlock_after_floor not in routes
+                    and offer.unlock_after_floor != "floor_four"
+                ):
                     raise ValueError(f"unknown vendor unlock floor: {offer.unlock_after_floor}")
             if offer.unlock_drifter_id is not None:
                 if offer.unlock_drifter_id not in drifters:
@@ -518,9 +541,35 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
                 raise ValueError(f"weapon component has the wrong merchandise category: {spec.item_id}")
             if spec.resale_price != spec.base_price // 2 or spec.sale_vendor_id != "blacksmith":
                 raise ValueError(f"weapon component sale contract is invalid: {spec.item_id}")
+            component = next(
+                component
+                for weapon in WEAPON_SPECS
+                for component in weapon.progression.components
+                if component.component_id == spec.item_id
+            )
+            required_clear_flag = component_required_clear_flag(component)
+            required_floor = (
+                None
+                if required_clear_flag is None
+                else required_clear_flag.rsplit("_", 1)[0]
+            )
+            higher_grade = (
+                component.recipe_material_id is not None
+                and get_material_spec(component.recipe_material_id).grade > 1
+            )
             for offer in offers:
                 if offer.unlock_drifter_id != components[spec.item_id]:
                     raise ValueError(f"component offer unlock does not match its wielder: {spec.item_id}")
+                if offer.unlock_after_floor != required_floor:
+                    raise ValueError(f"component offer floor unlock is invalid: {spec.item_id}")
+                if higher_grade and (
+                    not offer.sale_fed_only
+                    or offer.initial_stock != 0
+                    or offer.refill_per_qualifying_return != 0
+                ):
+                    raise ValueError(f"higher-grade component stock must be sale-fed: {spec.item_id}")
+                if not higher_grade and offer.sale_fed_only:
+                    raise ValueError(f"Grade-I component commerce must remain unchanged: {spec.item_id}")
         elif spec.item_id in equipment:
             template = equipment[spec.item_id]
             expected_category = template.category

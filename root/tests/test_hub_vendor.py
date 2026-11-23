@@ -240,6 +240,104 @@ def test_component_sale_buyback_and_expiry_conserve_inventory_and_future_stock()
     )
 
 
+def test_higher_grade_component_stock_is_sale_fed_without_initial_or_refill_stock():
+    game = hub_game(gold=100)
+    party = game.party_state
+    party._floor_one_cleared = True
+    party._floor_two_cleared = True
+    party.initialize_vendor_stock(("branoc",))
+    component_id = "m8_sunder_spire_blade_reinforced_grade_ii"
+    economy = party.hub_economy_state
+    assert economy.vendor_stock_quantity("blacksmith", component_id) == 0
+    assert economy.vendor_stock_quantity("merchant", component_id) == 0
+
+    service = HubVendorService(save_port=MemorySavePort())
+    economy.add_component(component_id, 1)
+    sold = service.sell(
+        game,
+        vendor_id="blacksmith",
+        item_id=component_id,
+        quantity=1,
+        expected_transaction_sequence=0,
+    )
+    assert sold.status is HubVendorStatus.SOLD
+    returned = sold.game_state.party_state
+    returned.hub_economy_state.begin_outing("floor_one")
+    returned.hub_economy_state.mark_encounter_progress()
+    assert returned.settle_active_outing() is True
+    assert returned.hub_economy_state.vendor_stock_quantity(
+        "blacksmith", component_id
+    ) == 1
+    assert returned.hub_economy_state.vendor_stock_quantity(
+        "merchant", component_id
+    ) == 0
+
+    repurchased = service.purchase(
+        sold.game_state,
+        vendor_id="blacksmith",
+        item_id=component_id,
+        quantity=1,
+        expected_transaction_sequence=1,
+    )
+    assert repurchased.status is HubVendorStatus.PURCHASED
+    assert repurchased.game_state.party_state.hub_economy_state.component_quantity(
+        component_id
+    ) == 1
+
+
+def test_locked_higher_grade_component_cannot_be_purchased_or_installed_from_stale_state():
+    game = hub_game(gold=100)
+    component_id = "m8_sunder_spire_blade_reinforced_grade_ii"
+    economy = game.party_state.hub_economy_state
+    economy._state["vendor_stock"]["blacksmith"][component_id] = 1
+    economy.add_component(component_id, 1)
+    before = game.party_state.snapshot()
+    save_port = MemorySavePort()
+    service = HubVendorService(save_port=save_port)
+
+    purchased = service.purchase(
+        game,
+        vendor_id="blacksmith",
+        item_id=component_id,
+        quantity=1,
+        expected_transaction_sequence=0,
+    )
+    installed = service.install_component(
+        game,
+        target_drifter_id="branoc",
+        component_id=component_id,
+        expected_transaction_sequence=0,
+    )
+
+    assert purchased.status is HubVendorStatus.UNAVAILABLE_OFFER
+    assert installed.status is HubVendorStatus.UNAVAILABLE
+    assert game.party_state.snapshot() == before
+    assert save_port.saved_states == []
+
+
+def test_higher_grade_component_purchase_requires_its_wielder_even_after_floor_clear():
+    game = hub_game(gold=100)
+    party = game.party_state
+    party._floor_one_cleared = True
+    party._floor_two_cleared = True
+    component_id = "m8_needle_focus_fitted_grade_ii"
+    party.hub_economy_state._state["vendor_stock"]["blacksmith"][component_id] = 1
+    before = party.snapshot()
+    save_port = MemorySavePort()
+
+    result = HubVendorService(save_port=save_port).purchase(
+        game,
+        vendor_id="blacksmith",
+        item_id=component_id,
+        quantity=1,
+        expected_transaction_sequence=0,
+    )
+
+    assert result.status is HubVendorStatus.UNAVAILABLE_OFFER
+    assert party.snapshot() == before
+    assert save_port.saved_states == []
+
+
 def test_save_rejects_unknown_component_stack_and_malformed_buyback_quantity():
     unknown_component = build_save_document(hub_game())
     unknown_component["party"]["hub_economy"]["component_stacks"] = {

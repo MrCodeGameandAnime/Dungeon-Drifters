@@ -2,7 +2,7 @@
 
 > Execution: follow the M8.1-M8.10 package plans and exact-SHA qualification. Gate A/B/C are review checkpoints, not separate-commit requirements. The approved parent manifest is fixed; no package may expand it.
 
-**Status:** M8 Gate 0 is formally CLOSED by owner acceptance of reconciliation `615083ce56ab725b8e3bd98d7237e351c13d3060`; its exact-SHA CI run `45101402276` passed. D1-D6 and the finite manifest remain authoritative. M8.1 is CLOSED AND SEALED on implementation SHA `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a`; qualification and the qualification-record commit passed exact-SHA CI, and the owner accepted the clean independent review. M8.2 Gate A proposal is prepared for review; implementation is not authorized until its approval.
+**Status:** M8 Gate 0 is formally CLOSED by owner acceptance of reconciliation `615083ce56ab725b8e3bd98d7237e351c13d3060`; its exact-SHA CI run `45101402276` passed. D1-D6 and the finite manifest remain authoritative. M8.1 is CLOSED AND SEALED on implementation SHA `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a`; qualification and the qualification-record commit passed exact-SHA CI, and the owner accepted the clean independent review. M8.2 Gate A is approved with adjustments; Gate B implementation and focused local tests are complete, with exact-SHA hosted qualification pending.
 
 **Audit baseline:** `dungeon` at `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc` (2026-11-18). The worktree was clean at audit start. Runtime and disk save schema are both 25. This entry audit supersedes the October 2026 baseline text retained in older sections of this plan.
 
@@ -334,7 +334,7 @@ The following ten documents define independently reviewable work packages, not i
 | Package | Plan | Scope boundary | Proposed dependencies | Status |
 | --- | --- | --- | --- | --- |
 | M8.1 | [Region progression, selection and knowledge](m8-01-region-progression.md) | Region Portal, explicit membership, clear state, destination eligibility, knowledge facts, migrations and first normal Hub integration journey. | Gate 0 closed; M8.1 Gate A approval. | CLOSED AND SEALED; exact-SHA qualification and independent review accepted. |
-| M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 sealed clear-state contract. | Gate A proposal ready for owner review; no implementation authorized. |
+| M8.2 | [Signature weapon grade expansion](m8-02-weapon-grade-expansion.md) | 48 Grade II-IV recipes and Blacksmith integration; preserve M3/M6.5 crafting. | M8.1 sealed clear-state contract. | Gate A approved with adjustments; Gate B implemented and focused tests pass locally; exact-SHA hosted qualification pending. |
 | M8.3 | [Drowned Reliquary, Floor IV](m8-03-floor-four.md) | Approved Floor-IV route, encounters/compositions, reward sources and first clear; numerical tuning remains at package review. | M8.1; M8.2 package boundary; M8.9 visual integration. | Draft; pending review. |
 | M8.4 | [Permanent discoveries, armor and recovery rewards](m8-04-discoveries-and-rewards.md) | Generalize reward boundaries; register three discovery rewards; connect live Floor-IV armor/recovery sources. | M8.3 route and source nodes. | Draft; pending review. |
 | M8.5 | [Expedition expansion](m8-05-expedition-expansion.md) | Completed-floor eligibility and frozen Material/Equipment/Recovery/Scouting/Story/Elite reports where sourced. | M8.1, M8.3, M8.4; apply approved D5 constraints. | Draft; pending review. |

@@ -1,5 +1,6 @@
 from app.content.weapon_spec import WeaponSpec
 from app.content.weapon_progression_spec import (
+    add_m8_grade_variants,
     ComponentMoveModifierSpec,
     WeaponProgressionSpec,
     WeaponComponentSpec,
@@ -19,7 +20,7 @@ WEAPON = WeaponSpec(
         "An ash-wood shakuj\u014d fitted with copper collars and loose "
         "conductive rings."
     ),
-    progression=WeaponProgressionSpec(
+    progression=add_m8_grade_variants(WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
                 "striking_head", "Head / Striking Cap", "metal", "sky_needle_head",
@@ -68,7 +69,7 @@ WEAPON = WeaponSpec(
                 move_modifiers=(ComponentMoveModifierSpec("Coagulated Torrent", 2, 0, -2),),
             ),
         ),
-    ),
+    )),
 )
 
 

@@ -2760,15 +2760,24 @@ try {
     "Blacksmith metal purchases did not provide enough material to craft and improve Branoc's weapon",
   );
 
+  const bladeRecipeTitle = page.getByText(
+    "Reinforced Blade and Guard | Blade / Guard assembly",
+    { exact: true },
+  );
   const bladeRecipe = page.locator("#merchant-component-recipes .merchant-row")
-    .filter({ hasText: "Reinforced Blade and Guard" });
+    .filter({ has: bladeRecipeTitle });
+  requireCondition(
+    await bladeRecipe.count() === 1,
+    "Grade-I Reinforced Blade and Guard recipe was not uniquely available",
+  );
   const craftingBeforeRecipe = await page.locator("#merchant-crafting").innerText();
   const materialsBeforeRecipe = await page.locator("#merchant-materials").innerText();
   await bladeRecipe.getByRole("button", { name: "Craft & Install" }).click();
   await page.waitForFunction(({ crafting, materials }) =>
     document.getElementById("merchant-crafting").innerText !== crafting &&
       document.getElementById("merchant-materials").innerText !== materials &&
-      !document.getElementById("merchant-component-recipes").innerText.includes("Reinforced Blade and Guard"),
+      [...document.querySelectorAll("#merchant-component-recipes strong")]
+        .every((title) => title.textContent.trim() !== "Reinforced Blade and Guard | Blade / Guard assembly"),
   { crafting: craftingBeforeRecipe, materials: materialsBeforeRecipe });
   requireCondition(
     (await page.locator("#merchant-crafting").innerText()) !== craftingBeforeRecipe,
@@ -4193,8 +4202,10 @@ try {
   });
   await continueSavedGameAfterReload(m5Page);
   await clickVisibleOption(m5Page, "#overworld-options", "Character");
-  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  const m5CharacterEquipmentOption = () =>
+    m5Page.locator("#character-options button").filter({ hasText: "Equipment" });
+  await m5CharacterEquipmentOption().waitFor({ state: "visible" });
+  await m5CharacterEquipmentOption().click();
   await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
   await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
   const m5EquipmentButton = (name) =>
@@ -4245,8 +4256,8 @@ try {
   });
   await continueSavedGameAfterReload(m5Page);
   await clickVisibleOption(m5Page, "#overworld-options", "Character");
-  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5CharacterEquipmentOption().waitFor({ state: "visible" });
+  await m5CharacterEquipmentOption().click();
   await clickVisibleOption(m5Page, "#equipment-targets", "Ser Branoc, the Unbroken Crest");
   await selectM5Equipment("Field Helm");
   requireCondition(
@@ -4391,8 +4402,8 @@ try {
   await clickVisibleOption(m5Page, "#overworld-options", "Return to Hub");
   await m5Page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
   await clickVisibleOption(m5Page, "#overworld-options", "Character");
-  await m5Page.locator("#character-options button").filter({ hasText: "Equipment" }).waitFor({ state: "visible" });
-  await clickVisibleOption(m5Page, "#character-options", "Equipment");
+  await m5CharacterEquipmentOption().waitFor({ state: "visible" });
+  await m5CharacterEquipmentOption().click();
   await m5Page.locator("#equipment-panel").waitFor({ state: "visible" });
   requireCondition(
     (await m5Page.locator("#equipment-inventory").innerText()).includes("Secured") &&

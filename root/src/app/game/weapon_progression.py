@@ -13,6 +13,7 @@ from app.content.weapon_progression_spec import (
     improvement_roll,
     salvage_double_yield_chance,
     get_weapon_component_spec,
+    component_required_clear_flag,
 )
 from app.game.party_state import DungeonPhase
 from app.game.game_state import GameState
@@ -137,6 +138,12 @@ class WeaponProgressionService:
             return self._failure("unknown_component")
         if component.is_starting or component.recipe_material_id is None:
             return self._failure("not_craftable")
+        required_clear_flag = component_required_clear_flag(component)
+        if (
+            required_clear_flag is not None
+            and not getattr(self._game_state.party_state, required_clear_flag)
+        ):
+            return self._failure("tier_locked")
         if component.slot_id not in state.components:
             return self._failure("wrong_slot")
         if state.components[component.slot_id] == component_id:

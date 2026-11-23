@@ -33,6 +33,7 @@ from app.content.weapon_progression_spec import (
     DISMANTLE_SPECS,
     MATERIAL_SPECS,
     TIER_V_ATTEMPT_SPEC,
+    component_required_clear_flag,
     derive_weapon_identities,
     get_improvement_recipe,
     get_material_spec,
@@ -1342,15 +1343,20 @@ class OverworldPresenter:
                 material_cost=component.recipe_cost,
                 material_quantity=stock_by_id.get(component.recipe_material_id, 0),
                 crafting_award=component.crafting_award,
-                can_craft=(
-                    stock_by_id.get(component.recipe_material_id, 0)
-                    >= component.recipe_cost
-                ),
+                can_craft=blocked_reason is None,
                 effect_summary=OverworldPresenter._component_effect_summary(component),
+                blocked_reason=blocked_reason,
             )
             for component in weapon_spec.progression.components
             if not component.is_starting
             and weapon_state.components[component.slot_id] != component.component_id
+            for blocked_reason in (
+                OverworldPresenter._component_recipe_blocked_reason(
+                    component,
+                    party,
+                    stock_by_id.get(component.recipe_material_id, 0),
+                ),
+            )
         )
         tier_v_materials = tuple(
             MerchantTierVMaterialView(
@@ -1652,6 +1658,18 @@ class OverworldPresenter:
                 f"{component.mystical_identity} identity +{component.mystical_points}"
             )
         return tuple(effects)
+
+    @staticmethod
+    def _component_recipe_blocked_reason(component, party, material_quantity):
+        required_clear_flag = component_required_clear_flag(component)
+        if (
+            required_clear_flag is not None
+            and not getattr(party, required_clear_flag)
+        ):
+            return f"requires_{required_clear_flag}"
+        if material_quantity < component.recipe_cost:
+            return "insufficient_materials"
+        return None
 
     @staticmethod
     def _equipment_view(

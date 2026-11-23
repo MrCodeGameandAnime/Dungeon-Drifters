@@ -722,6 +722,7 @@ class MerchantComponentRecipeView:
     crafting_award: int
     can_craft: bool
     effect_summary: tuple[str, ...] = ()
+    blocked_reason: str | None = None
 
     def __post_init__(self):
         for name in (
@@ -737,9 +738,14 @@ class MerchantComponentRecipeView:
         if not self.material_cost or not self.crafting_award:
             raise ValueError("component recipes require positive costs and awards")
         _validate_bool("can_craft", self.can_craft)
+        if self.blocked_reason is not None:
+            _validate_text("blocked_reason", self.blocked_reason)
         _validate_text_tuple("effect_summary", self.effect_summary)
-        if self.can_craft != (self.material_quantity >= self.material_cost):
-            raise ValueError("component recipe availability disagrees with stock")
+        if self.can_craft != (
+            self.material_quantity >= self.material_cost
+            and self.blocked_reason is None
+        ):
+            raise ValueError("component recipe availability disagrees with its requirements")
 
 
 @dataclass(frozen=True)

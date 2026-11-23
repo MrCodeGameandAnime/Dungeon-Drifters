@@ -1,5 +1,6 @@
 from app.content.weapon_spec import WeaponSpec
 from app.content.weapon_progression_spec import (
+    add_m8_grade_variants,
     ComponentMoveModifierSpec,
     WeaponProgressionSpec,
     WeaponComponentSpec,
@@ -16,7 +17,7 @@ WEAPON = WeaponSpec(
     stat_bonuses={"strength": 3, "constitution": 1},
     value=2,
     description="A massive Deep-Iron flamberge forged from the broken weapons of Rhom-Ghal.",
-    progression=WeaponProgressionSpec(
+    progression=add_m8_grade_variants(WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
                 "blade_guard", "Blade / Guard assembly", "metal", "sunder_spire_blade",
@@ -65,7 +66,7 @@ WEAPON = WeaponSpec(
                 move_modifiers=(ComponentMoveModifierSpec("Third Gate Obsequy", 2, 0, -2),),
             ),
         ),
-    ),
+    )),
 )
 
 

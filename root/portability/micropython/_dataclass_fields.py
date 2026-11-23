@@ -135,7 +135,7 @@ FIELD_MANIFEST = {
     ('app.presentation.overworld_models', 'MapEncounterInspectionView'): ('encounter_label', 'composition', 'boss'),
     ('app.presentation.overworld_models', 'MapNodeView'): ('display_label', 'kind_label', 'state'),
     ('app.presentation.overworld_models', 'MapView'): ('nodes',),
-    ('app.presentation.overworld_models', 'MerchantComponentRecipeView'): ('component_id', 'display_name', 'slot_id', 'slot_label', 'material_name', 'material_cost', 'material_quantity', 'crafting_award', 'can_craft', 'effect_summary'),
+    ('app.presentation.overworld_models', 'MerchantComponentRecipeView'): ('component_id', 'display_name', 'slot_id', 'slot_label', 'material_name', 'material_cost', 'material_quantity', 'crafting_award', 'can_craft', 'effect_summary', 'blocked_reason'),
     ('app.presentation.overworld_models', 'MerchantDismantleView'): ('item_id', 'display_name', 'quantity', 'output_material_names', 'maximum_yield'),
     ('app.presentation.overworld_models', 'MerchantMaterialView'): ('item_id', 'display_name', 'quantity'),
     ('app.presentation.overworld_models', 'MerchantSlotView'): ('slot_id', 'label', 'material_family', 'progress', 'material_id', 'material_name', 'material_cost', 'material_quantity', 'can_improve', 'blocked_reason'),

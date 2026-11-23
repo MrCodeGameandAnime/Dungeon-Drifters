@@ -1,5 +1,6 @@
 from app.content.weapon_spec import WeaponSpec
 from app.content.weapon_progression_spec import (
+    add_m8_grade_variants,
     ComponentMoveModifierSpec,
     WeaponProgressionSpec,
     WeaponComponentSpec,
@@ -19,7 +20,7 @@ WEAPON = WeaponSpec(
         "A recurved bow grown from the bone-fiber of the Hollow Colossus "
         "and fitted with six alchemical reservoirs."
     ),
-    progression=WeaponProgressionSpec(
+    progression=add_m8_grade_variants(WeaponProgressionSpec(
         slots=(
             WeaponSlotSpec(
                 "grip_mechanism", "Grip / fittings / mechanism", "metal", "sathren_grip",
@@ -68,7 +69,7 @@ WEAPON = WeaponSpec(
                 move_modifiers=(ComponentMoveModifierSpec("Infused Barb", 2, 0, -2),),
             ),
         ),
-    ),
+    )),
 )
 
 
