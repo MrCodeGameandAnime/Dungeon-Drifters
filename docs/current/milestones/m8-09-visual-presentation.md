@@ -1,6 +1,6 @@
 # M8.9: Region And Enemy Visual Presentation
 
-**Status:** D6's limited static-asset scope is approved. Package planning and implementation remain open; no implementation is authorized by this document update.
+**Status:** D6's eight static assets and D1 content associations are approved. Asset production/delivery, package planning, implementation, and qualification remain open; no implementation is authorized by this document update.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate asset pipeline, client surfaces and content IDs at package entry.
 
@@ -14,16 +14,16 @@ M8-D6 approves exactly these asset IDs and categories:
 
 | Asset ID | Category | Intended content association |
 | --- | --- | --- |
-| `m8_art_drowned_reliquary` | Region 1 destination illustration | Drowned Reliquary; confirm its stable content ID in the detailed D1 manifest. |
-| `m8_art_ashen_vault` | Region 1 destination illustration | Ashen Vault; confirm its stable content ID in the detailed D1 manifest. |
-| `m8_portrait_reliquary_sentinel` | Ordinary-enemy portrait | Proposed `reliquary_sentinel`; confirm identity and ID under D1. |
-| `m8_portrait_brine_oracle` | Ordinary-enemy portrait | Proposed `brine_oracle`; confirm identity and ID under D1. |
-| `m8_portrait_drowned_stalker` | Ordinary-enemy portrait | Proposed `drowned_stalker`; confirm identity and ID under D1. |
-| `m8_portrait_ashbound_hound` | Ordinary-enemy portrait | Proposed `ashbound_hound`; confirm identity and ID under D1. |
-| `m8_portrait_tidebound_curator` | Boss portrait | Proposed `tidebound_curator`; confirm identity and ID under D1. |
-| `m8_portrait_ashen_regent` | Boss portrait | Proposed `ashen_regent`; confirm identity and ID under D1. |
+| `m8_art_drowned_reliquary` | Region 1 destination illustration | Approved Drowned Reliquary destination identity. |
+| `m8_art_ashen_vault` | Region 1 destination illustration | Approved Ashen Vault destination identity. |
+| `m8_portrait_reliquary_sentinel` | Ordinary-enemy portrait | Approved `reliquary_sentinel` identity. |
+| `m8_portrait_brine_oracle` | Ordinary-enemy portrait | Approved `brine_oracle` identity. |
+| `m8_portrait_drowned_stalker` | Ordinary-enemy portrait | Approved `drowned_stalker` identity. |
+| `m8_portrait_ashbound_hound` | Ordinary-enemy portrait | Approved `ashbound_hound` identity. |
+| `m8_portrait_tidebound_curator` | Boss portrait | Approved `tidebound_curator` identity. |
+| `m8_portrait_ashen_regent` | Boss portrait | Approved `ashen_regent` identity. |
 
-The eight asset IDs/categories are approved. The specific enemy/boss associations remain conditional on D1 finalizing the finite content manifest. Do not treat this asset approval as approval of proposed enemy identities, compositions, or combat values.
+The eight asset IDs/categories and their D1 content associations are approved. Asset approval does not settle numerical combat values or asset-production specifications.
 
 ## Ownership And Integration
 
@@ -40,7 +40,7 @@ No new 2D combat renderer, animation engine, battlefield/staging system, formati
 
 ## Dependencies And Qualification
 
-M8-D6 scope is approved. M8.9 still depends on asset production/delivery and final D1 content IDs/associations. It may proceed alongside other M8 implementation after those associations are confirmed, and must integrate before M8.10.
+M8-D6 scope and D1 content associations are approved. M8.9 depends on asset production/delivery and its own Gate A package review. It may proceed alongside other M8 implementation and must integrate before M8.10.
 
 Qualification must verify all eight assets or approved readable fallbacks through their actual user-visible destination, battle-semantic, or inspection surfaces. Check catalog references, dimensions, crop/responsive behavior, accessible descriptions, and browser rendering; verify terminal functionality and client semantic parity. No graphical combat or animation qualification is required.
 
@@ -48,7 +48,7 @@ Qualification must verify all eight assets or approved readable fallbacks throug
 
 ## Package Gates And Qualification History
 
-- **Gate A, plan approval:** Open; confirm final D1 content associations, production/delivery ownership, asset specifications, and the focused integration matrix. D6 itself is approved and must not be reopened.
+- **Gate A, plan approval:** Open; review production/delivery ownership, asset specifications, and the focused integration matrix. D1 associations and D6 scope are approved and must not be reopened.
 - **Gate B, asset integration and focused checks:** Not started; verify catalog references, fallbacks, responsive/accessibility behavior, and actual client presentation.
 - **Gate C, exact-SHA qualification and closure:** Not run; run relevant content/build/browser checks and hosted workflow. No MicroPython rerun for asset-only changes unless shared runtime code is touched.
 

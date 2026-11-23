@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Proposed work package. Regional architecture, the D1 floor/route/count direction, and M8-D5 are approved. Detailed M8-D1 content/source mapping and M8-D3 fact/reveal mapping remain open; no implementation is authorized.
+**Status:** Proposed work package. Regional architecture, the complete M8-D1 Floor-V manifest, M8-D3 fact/reveal mapping, and M8-D5 are approved. Package implementation planning remains open; no implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -12,9 +12,9 @@ Deliver the paired seven-node approach that reveals the reunion arena through a 
 
 **Already-approved inputs:** preserve the two-plus-two roster loop, M1 pair selection, M2 outing settlement, M6 passive expedition behavior, M7 Momentum, and M8-D5's expedition coexistence/settlement boundary. The separate four-member boss has no active assignment; a completed, settled but unclaimed report does not block it; no assignment is canceled or refunded automatically.
 
-**Still pending:** the exact M8-D1 Floor-V encounter/reward/source entries and M8-D3 fact IDs/reveal sources. D5 is approved; route/node IDs remain proposals unless explicitly covered by the approved count/prerequisite decisions.
+**Already approved:** Floor-V encounter, route/node, reward/source IDs and placements; D3 fact/reveal mappings; and D5 assignment boundaries. **Package review remains:** implementation, persistence, integration and test details within those contracts.
 
-M8-D6 approves `m8_art_ashen_vault` as a static Region 1 destination illustration. M8.9 owns its live integration after D1 confirms the stable destination association; this does not change the route or gameplay contract.
+M8-D6 approves `m8_art_ashen_vault` as a static Region 1 destination illustration, associated with the now-approved Ashen Vault destination identity. M8.9 owns live integration; this does not change the route or gameplay contract.
 
 ## Scope
 
@@ -35,13 +35,13 @@ Use existing route/content/session/run-event/save owners, revalidated at package
 
 **Persistence impact:** M8.1 owns durable arena-reveal state. This package records it through that owner after genuine victory; no separate route-completion schema is proposed.
 
-M8.7 owns the live Spirit Relic test if its proposed source ID and placement are approved. Use the approved 1,000-bps base chance with existing Intuition adjustment through the normal search path. Claim exactly +3 GP for one eligible active Drifter and reload without a second award. Preserve existing per-run retry semantics; separately exercise a failed search and no reward.
+M8.7 owns the live Spirit Relic test for the approved source ID and placement. Use the approved 1,000-bps base chance with existing Intuition adjustment through the normal search path. Claim exactly +3 GP for one eligible active Drifter and reload without a second award. Preserve existing per-run retry semantics; separately exercise a failed search and no reward.
 
 ## Tests, Package Gates, And Qualification History
 
 Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity.
 
-- **Gate A, plan approval:** Open; resolve detailed M8-D1 content/source entries, M8-D3 fact/reveal mapping, and upstream M8.4/M8.5 contracts. M8-D5 is approved.
+- **Gate A, plan approval:** Open; review the route implementation/persistence plan and upstream M8.4/M8.5 integration contracts. D1 content/source entries and D3 mappings are approved; M8-D5 remains a fixed boundary.
 - **Gate B, implementation and focused tests:** Not started; route, reveal, discovery-placement and settlement red/green tests.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, real browser smoke, PostgreSQL/migration/Alembic and pinned MicroPython.
 

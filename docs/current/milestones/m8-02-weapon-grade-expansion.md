@@ -1,6 +1,6 @@
 # M8.2: Signature Weapon Grade Expansion
 
-**Status:** Proposed work package. The D1 floor/route/count direction is approved; the component-recipe manifest and all authored balance/content values remain open. No implementation is authorized.
+**Status:** Proposed work package. The 48 component recipe identities and grade/unlock relationships are approved under D1. Recipe effects, material costs and other package-level balance values remain open. No implementation is authorized.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate sources and current HEAD at package entry.
 
@@ -12,18 +12,18 @@ Add the finite Grade-II, Grade-III, and Grade-IV recipes for the existing signat
 
 **Already-approved inputs:** preserve M3's current weapon Crafting eligibility/progression and M6.5's shared component stacks, quantity commerce, and displaced-component recovery.
 
-**Still pending:** whether the proposed 48 recipes and their detailed IDs are accepted, plus the exact authored grade progression, effects, and material costs. The recipe ID pattern and manifest examples do not approve numeric values.
+**Already approved:** all 48 recipe identities and their Grade II/III/IV unlock relationships in the parent manifest. **Package review remains:** authored effects and material costs; approval of IDs does not preapprove those numerical values.
 
 ## Scope
 
-- 48 recipes: 16 existing Grade-I component identities x three new grades. Stable IDs follow `m8_<existing_component_id>_grade_ii`, `_grade_iii`, and `_grade_iv`, as enumerated by the parent manifest.
+- 48 approved recipe identities: 16 existing Grade-I component identities x three new grades. Stable IDs follow `m8_<existing_component_id>_grade_ii`, `_grade_iii`, and `_grade_iv`, as enumerated by the parent manifest.
 - Unlock each grade only after its matching floor clear: II after Floor II, III after Floor III, IV after Floor IV.
 - Use existing component effects, exact Drifter targeting, slot compatibility, craft-and-install behavior, crafting materials, party Crafting XP, and M6.5 shared component stacks/replacement recovery.
 - Keep components buyable/sellable through the Blacksmith under the M6.5 contract; do not add lifetime craft limits or independently owned installed parts.
 
 ## Exclusions And Open Content Values
 
-No signature identity changes, new crafting progression, new component family, recipe prices/material costs/effect coefficients, or Floor-IV clear implementation. Those exact authored values must be settled in the child planning review after M8-D1. Grade-IV recipes may be implemented behind the M8.1 clear signal and tested with controlled states, but cannot be treated as available to players before M8.3 produces a genuine Floor-IV clear.
+No signature identity changes, new crafting progression, new component family, or Floor-IV clear implementation. Recipe material costs/effects remain package-level values for M8.2 Gate A approval. Grade-IV recipes may be implemented behind the M8.1 clear signal and tested with controlled states, but cannot be treated as available to players before M8.3 produces a genuine Floor-IV clear.
 
 ## Ownership And Handoff
 
@@ -40,7 +40,7 @@ No signature identity changes, new crafting progression, new component family, r
 
 Parameterize definition coverage across all 48 IDs. Test each grade locked before its clear and available after, migrated old saves, exact Drifter and slot validation, already-installed component handling, insufficient materials, stack consumption/recovery, failed-save rollback, buy/sell quantities, and representative combat-stat projection in terminal/browser clients.
 
-- **Gate A, plan approval:** Open; review the component-recipe entries under the remaining D1 manifest and all authored effects/costs.
+- **Gate A, plan approval:** Open; approve the package implementation plan and authored recipe effects/material costs within the fixed 48 identities and unlock relationships. Do not reopen D1.
 - **Gate B, implementation and focused tests:** Not started; red/green recipe, ownership, transaction and projection tests.
 - **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migration parity, and pinned MicroPython because shared catalog/runtime compatibility is in scope.
 
