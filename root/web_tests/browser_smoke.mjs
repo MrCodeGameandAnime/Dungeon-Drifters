@@ -1029,6 +1029,15 @@ try {
   await page.route("**/favicon.ico", (route) =>
     route.fulfill({ status: 204, body: "" }),
   );
+  // Keep the real combat runtime while making this campaign journey reproducible.
+  await page.route("**/python/boot.py", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    await route.fulfill({
+      response,
+      body: `${source}\nimport random\nrandom.seed(42)\n`,
+    });
+  });
   await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" }).catch(async (error) => {
     const navigationState = await page.evaluate(() => ({
       readyState: document.readyState,
@@ -2946,8 +2955,31 @@ try {
     const button = action === "Sell"
       ? row.getByRole("button", { name: /^Sell \d+g$/ }).first()
       : row.getByRole("button", { name: action, exact: true });
-    await page.mouse.move(0, 0);
-    await button.click();
+    const supplyChanged = () => page.evaluate(({ itemName, oldText }) => {
+      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      return current && current.innerText !== oldText;
+    }, { itemName: name, oldText: previous });
+    const clickDeadline = Date.now() + 3000;
+    let clicked = false;
+    // A timed-out click may already have committed before its row is rebuilt.
+    while (Date.now() < clickDeadline) {
+      await page.mouse.move(0, 0);
+      try {
+        await button.click({ timeout: 500 });
+        clicked = true;
+        break;
+      } catch (error) {
+        if (error.name !== "TimeoutError") throw error;
+        if (await supplyChanged()) {
+          clicked = true;
+          break;
+        }
+        if (Date.now() >= clickDeadline) throw error;
+      }
+      await page.waitForTimeout(50);
+    }
+    if (!clicked) throw new Error(`Could not click ${action} for ${name}`);
     await page.waitForFunction(({ itemName, oldText }) => {
       const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
         .find((candidate) => candidate.innerText.includes(itemName));
@@ -3653,8 +3685,9 @@ try {
         const potionOffered = await potion.count() > 0;
         const floorFourFirstHalf = floorLabel === "Floor IV" && battleNumber <= 5;
         const healingAllowed = !floorFourFirstHalf || floorFourHealingPotionUsesBeforeRest < 3;
+        // The midpoint Rest restores HP, so reserve carried healing for later encounters.
         const healingThreshold = floorLabel === "Floor IV"
-          ? (floorFourFirstHalf ? 0.4 : 0.5)
+          ? (floorFourFirstHalf ? 0.35 : 0.5)
           : 0.5;
         if (
           lowestPartyHealth <= healingThreshold && healingAllowed &&
