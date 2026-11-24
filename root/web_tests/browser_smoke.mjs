@@ -4397,6 +4397,14 @@ try {
   await clickVisibleOption(page, "#hub-economy-options", "Back");
   await clickVisibleOption(page, "#vendors-options", "Back");
   await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  await page.waitForFunction(() => {
+    const panel = document.getElementById("hub-economy-panel");
+    const title = document.getElementById("hub-economy-title")?.textContent.trim();
+    const itemNames = [...document.querySelectorAll("#merchant-supplies .hub-supply-row strong")]
+      .map((item) => item.textContent.trim());
+    return panel && !panel.hidden && title === "Hub Inventory" &&
+      itemNames.includes("Healing Potion") && itemNames.includes("Mana Potion");
+  });
   await page.evaluate(() => {
     const container = document.getElementById("merchant-supplies");
     const trace = {

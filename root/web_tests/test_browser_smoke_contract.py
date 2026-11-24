@@ -228,6 +228,23 @@ def test_browser_smoke_covers_m65_professions_and_mana_potion():
     assert 'craftAlchemy("Smoke Powder")' not in source
 
 
+def test_floor_four_pack_waits_for_hub_inventory_render():
+    source = SMOKE_PATH.read_text()
+    floor_three_clear = source.index("M4_BROWSER|FLOOR_THREE_CLEAR_SAVE_RELOAD|PASS")
+    inventory_click = source.index(
+        'await clickVisibleOption(page, "#overworld-options", "Hub Inventory");',
+        floor_three_clear,
+    )
+    first_inventory_read = source.index("const carriedBeforeFloorFour", inventory_click)
+    inventory_transition = source[inventory_click:first_inventory_read]
+
+    assert "await page.waitForFunction" in inventory_transition
+    assert 'const title = document.getElementById("hub-economy-title")?.textContent.trim()' in inventory_transition
+    assert 'title === "Hub Inventory"' in inventory_transition
+    assert 'document.getElementById("hub-economy-panel")' in inventory_transition
+    assert "!panel.hidden" in inventory_transition
+
+
 def test_browser_skills_panel_exposes_purchase_loadout_and_respec_contracts():
     shell = SHELL_PATH.read_text()
     script = SCRIPT_PATH.read_text()
