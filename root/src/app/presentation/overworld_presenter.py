@@ -350,7 +350,7 @@ class OverworldPresenter:
             location_label=(
                 node.display_label
                 if game_state.overworld_state.active_route_id
-                in {"floor_one", "floor_two", "floor_three"}
+                in {"floor_one", "floor_two", "floor_three", "floor_four"}
                 and game_state.party_state.phase
                 in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
                 else (
@@ -623,6 +623,7 @@ class OverworldPresenter:
             "floor_one": "Floor I",
             "floor_two": "Floor II",
             "floor_three": "Floor III",
+            "floor_four": "Floor IV",
         }.get(floor_id, floor_id.replace("_", " ").title())
 
     @staticmethod
@@ -920,6 +921,11 @@ class OverworldPresenter:
             return (
                 "The Floor III boss victory is saved. Finalize the Floor 3 clear "
                 "to return to the Hub."
+            )
+        if game_state.floor_four_boss_settlement_pending:
+            return (
+                "The Tidebound Curator's victory is saved. Finalize the Floor IV "
+                "clear to return to the Hub."
             )
         if (
             game_state.overworld_state.active_route_id == "floor_two"
@@ -2053,6 +2059,7 @@ class OverworldPresenter:
                 "floor_one",
                 "floor_two",
                 "floor_three",
+                "floor_four",
             }
             else None
         )
@@ -2138,25 +2145,29 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
-            settlement_action = (
-                (
+            if game_state.floor_four_boss_settlement_pending:
+                settlement_action = (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR,
+                        "Finalize Floor IV Clear",
+                    ),
+                )
+            elif game_state.floor_three_boss_settlement_pending:
+                settlement_action = (
                     enabled(
                         OverworldAction.FINALIZE_FLOOR_THREE_CLEAR,
                         "Finalize Floor III Clear",
                     ),
                 )
-                if game_state.floor_three_boss_settlement_pending
-                else (
-                    (
-                        enabled(
-                            OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
-                            "Finalize Floor II Clear",
-                        ),
-                    )
-                    if game_state.floor_two_boss_settlement_pending
-                    else ()
+            elif game_state.floor_two_boss_settlement_pending:
+                settlement_action = (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_TWO_CLEAR,
+                        "Finalize Floor II Clear",
+                    ),
                 )
-            )
+            else:
+                settlement_action = ()
             talisman_option = self._return_talisman_option(game_state)
             return settlement_action + talisman_option + (
                 enabled(OverworldAction.CHARACTER, "Character"),
@@ -2493,6 +2504,7 @@ class OverworldPresenter:
                 "floor_one",
                 "floor_two",
                 "floor_three",
+                "floor_four",
             }:
                 discovery_actions = ()
                 helper_action = ()
@@ -2569,11 +2581,12 @@ class OverworldPresenter:
         party_state = game_state.party_state
         if (
             game_state.overworld_state.active_route_id
-            in {"floor_one", "floor_two", "floor_three"}
+            in {"floor_one", "floor_two", "floor_three", "floor_four"}
             and party_state.phase is DungeonPhase.OUTING
             and party_state.carried_items.get("return_talisman", 0) > 0
             and not game_state.floor_two_boss_settlement_pending
             and not game_state.floor_three_boss_settlement_pending
+            and not game_state.floor_four_boss_settlement_pending
         ):
             return (
                 self._enabled_option(
@@ -2611,6 +2624,7 @@ class OverworldPresenter:
         if (
             game_state.floor_two_boss_settlement_pending
             or game_state.floor_three_boss_settlement_pending
+            or game_state.floor_four_boss_settlement_pending
         ):
             return None
         phase = game_state.overworld_state.current_contextual_route_phase

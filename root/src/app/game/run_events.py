@@ -97,7 +97,12 @@ class RunEventService:
                     raise ValueError("encounter event is missing drop evidence")
                 recorded_entries = drop_event["result"]["entries"]
                 expected_entries = tuple(
-                    (drop.item_id, drop.quantity, drop.chance_bps)
+                    (
+                        drop.item_id,
+                        drop.quantity,
+                        drop.chance_bps,
+                        drop.source_id,
+                    )
                     for drop in table
                 )
                 actual_entries = tuple(
@@ -105,6 +110,7 @@ class RunEventService:
                         entry["item_id"],
                         entry["quantity"],
                         entry["chance_bps"],
+                        entry.get("source_id"),
                     )
                     for entry in recorded_entries
                 )
@@ -128,15 +134,16 @@ class RunEventService:
             for drop in table:
                 roll = self._rng.randint(1, 10000)
                 awarded = roll <= drop.chance_bps
-                entries.append(
-                    {
-                        "item_id": drop.item_id,
-                        "quantity": drop.quantity,
-                        "chance_bps": drop.chance_bps,
-                        "roll": roll,
-                        "awarded": awarded,
-                    }
-                )
+                entry = {
+                    "item_id": drop.item_id,
+                    "quantity": drop.quantity,
+                    "chance_bps": drop.chance_bps,
+                    "roll": roll,
+                    "awarded": awarded,
+                }
+                if drop.source_id is not None:
+                    entry["source_id"] = drop.source_id
+                entries.append(entry)
                 if awarded:
                     enemy_items[drop.item_id] = (
                         enemy_items.get(drop.item_id, 0) + drop.quantity

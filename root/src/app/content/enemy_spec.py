@@ -41,6 +41,7 @@ class ItemDropSpec:
     item_id: str
     quantity: int
     chance_bps: int
+    source_id: str | None = None
 
     def __post_init__(self):
         item_id = _validate_nonempty_string("item_id", self.item_id)
@@ -57,6 +58,11 @@ class ItemDropSpec:
             "chance_bps",
             _validate_integer("drop chance", self.chance_bps, minimum=0, maximum=10000),
         )
+        if self.source_id is not None:
+            source_id = _validate_nonempty_string("source_id", self.source_id)
+            if _ARCHETYPE_ID_PATTERN.fullmatch(source_id) is None:
+                raise ValueError("source_id must be lowercase snake case")
+            object.__setattr__(self, "source_id", source_id)
 
 
 @dataclass(frozen=True)

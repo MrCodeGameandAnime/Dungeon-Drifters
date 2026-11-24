@@ -1,8 +1,8 @@
 # M8.2: Signature Weapon Grade Expansion
 
-**Status:** Gate A approved with adjustments. Gate B implementation is in progress; focused tests are being qualified locally. Exact-SHA hosted qualification and Gate C remain pending.
+**Status:** CLOSED AND SEALED. The owner accepted implementation `21565f3d37a6d845cdb70a0598d11b7e432b3269`, exact-SHA hosted qualification, and the independent review. M8.2 remains an additive content package over the schema-26 implementation baseline; the current M8.3 work advances the branch save schema to 27.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
-**Planning baseline:** `dungeon` HEAD `141513ff8946e4992e2f99472e27f79151150362`, runtime/disk schema 26.
+**Planning baseline:** `dungeon` HEAD `141513ff8946e4992e2f99472e27f79151150362`, runtime/disk schema 26 at M8.2 entry.
 **Sealed dependency:** M8.1 implementation `9ef0e6fd05da8a57602372d8b431c1a27b3bb36a`; exact-SHA CI run [45195824408](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45195824408) passed. Qualification record `141513ff8946e4992e2f99472e27f79151150362` passed CI [45197625564](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45197625564).
 
 ## Goal
@@ -94,18 +94,30 @@ If source revalidation shows the conjunctive offer extension cannot be made with
 - **Persistence/client parity:** save/reload installed and uninstalled grade components through schema 26; preserve old current-schema saves without schema changes; terminal and browser views show the same IDs, effects, costs, target and unlock reason. Full live Floor-IV route reachability remains M8.3's journey, not an M8.2 fixture requirement.
 - **Cumulative qualification:** focused weapon/catalog/vendor/persistence tests, root and web suites, content validation, compilation, browser build and smoke, PostgreSQL/migration parity, and pinned MicroPython on the exact implementation SHA. Grade IV may use controlled `floor_four_cleared=True` test state only; do not fabricate an unfinished route.
 
-The M8.2 catalog adds 48 authored component variants and increases the pinned probe's resident-content footprint. The previous 1280K stable point was intermittent on this worktree (2/3 complete passes, 1/3 `MemoryError`); 1408K passed 3/3 and 1216K produced the expected memory-limit classification 3/3. The probe qualification profile is therefore recalibrated to 1408K stable / 1216K expected memory limit. These values qualify the exact Windows MicroPython probe only; they are not a hardware-wide compatibility claim or product memory budget. The complete local matrix passed on the current implementation worktree; exact-SHA and hosted qualification remain pending.
+The M8.2 catalog adds 48 authored component variants and increases the pinned probe's resident-content footprint. The historical 1280K result remains **intermittent (2/3 passes)**; 1408K passed 3/3 and 1216K produced the expected memory-limit classification 3/3. The accepted profile is 1408K stable / 1216K expected memory limit. These values qualify the exact Windows MicroPython probe only; they are not a hardware-wide compatibility claim or product memory budget.
 
 Grade-IV material costs depend on legitimate Grade-IV content availability. M8.3 owns the authored Floor-IV drop quantities/chances; it must not alter approved M8.2 recipe quantities. Its Gate A content plan must show how the proposed four-unit Grade-IV recipe costs remain reachable through legitimate repeatable sources and existing finite Blacksmith stock/replenishment. If not, report the conflict rather than silently changing either package's approved values.
 
 ## Package Gates And Status
 
 - **Gate A, plan approval:** Approved with adjustments. Cinderlung keeps a -2 resource-cost modifier at all grades and adds +1/+2 power at Grades III/IV. The other 15 component families retain their authored proposal values. New Grade II-IV vendor offers are sale-fed-only; Grade I commerce remains unchanged. Recruitment and matching-floor unlocks are conjunctive.
-- **Gate B, implementation and focused tests:** Implemented in the current working tree. Local cumulative checks pass: 2,541 root tests, 94 web tests, authored-content validation, compileall, 183-file browser build, full Playwright smoke, and the pinned runtime matrix. Local PostgreSQL qualification was unavailable because the Docker engine was unreachable; hosted service qualification is pending.
-- **Gate C, exact-SHA qualification and closure:** Not run.
+- **Gate B, implementation and focused tests:** Complete at `21565f3d37a6d845cdb70a0598d11b7e432b3269`.
+- **Gate C, exact-SHA qualification and closure:** CLOSED AND SEALED. GitHub Actions [45252053112](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45252053112) tested the exact implementation SHA. Hosted results: 2,541 root tests and 94 web tests passed; authored-content validation, compilation, browser build and Playwright smoke passed; Tests and PostgreSQL jobs passed. The owner accepted the successful qualification and independent review with no blocking defects.
 
-| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
-| --- | --- | --- | --- | --- |
-| Pending commit | Pending exact-SHA CI | 2,541 root / 94 web tests, content, compile, browser smoke, and full local pinned matrix pass; Docker unavailable locally; schema remains 26 | Pending | Gate B implementation complete; exact-SHA qualification pending |
+### Pinned Runtime Evidence And Follow-Up Telemetry
 
-Record implementation SHA, exact hosted CI, migration/runtime evidence, independent disposition, and owner closure in this package and the parent. Do not claim M8.2 complete by inheriting another package's qualification.
+The accepted pinned MicroPython v1.29.0 matrix passed at 1408 KiB stable (3/3) and classified 1216 KiB as the expected memory limit (3/3). The original result at 1280 KiB remains intermittent (2/3). The original M8.2 qualification did not record per-run heap telemetry; no such values are attributed to that run.
+
+A later comparable measurement used the same pinned Windows executable (SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Values are bytes, with `lowest free heap / peak allocated` per run:
+
+| Probe state | Run 1 | Run 2 | Run 3 | Classification |
+| --- | ---: | ---: | ---: | --- |
+| M8.2 baseline, 1408 KiB | 306592 / 1102176 | 310256 / 1098512 | 310288 / 1098480 | Stable pass, 3/3 |
+| M8.2 baseline, 1216 KiB | 117968 / 1098672 | 118128 / 1098512 | 118240 / 1098400 | Expected memory limit, 3/3 |
+
+These are follow-up measurements, not retroactive telemetry from CI run `45252053112`.
+
+### Nonblocking Follow-Ups
+
+- When the pinned executable is next available, collect comparable per-run allocation/free-heap measurements for later M8 packages. No profile increase is currently required by the M8.3 matrix.
+- A possible starting-component gold cycle remains an unconfirmed, nonblocking economy follow-up. Do not change M6.5 commerce under M8.2 closure or M8.3.

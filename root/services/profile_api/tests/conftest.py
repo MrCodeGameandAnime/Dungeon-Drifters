@@ -142,6 +142,18 @@ def remove_m8_region_progression_state(payload):
     return payload
 
 
+def remove_m8_floor_four_run_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in (
+            "floor_four_runs_started_after_clear",
+            "floor_four_run_id",
+            "floor_four_outing_xp_multiplier_percent",
+        ):
+            party.pop(field, None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

@@ -134,7 +134,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "13d9911215dd8ad3bd00a47f47019e8722770de53b27f4305a717d57bd38938d"
+        "cc115ca5f94b3d917d1c2dddce4927b7ea129096de4cdc01b96b1d1cb0223eae"
     )
 
 

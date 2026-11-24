@@ -37,7 +37,7 @@ FIELD_MANIFEST = {
     ('app.content.encounter_spec', 'EncounterSpec'): ('encounter_id', 'enemy_archetype_ids', 'cave_in_power'),
     ('app.content.enemy_spec', 'EnemySpec'): ('archetype_id', 'name', 'stats', 'hp', 'mana', 'exp_reward', 'gold_reward', 'rank', 'role', 'behavior', 'capabilities', 'moves', 'supported_tiers', 'item_drops', 'tier_profiles', 'damage_resistances', 'damage_weaknesses'),
     ('app.content.enemy_spec', 'EnemyTierSpec'): ('tier', 'stats', 'hp', 'mana', 'item_drops'),
-    ('app.content.enemy_spec', 'ItemDropSpec'): ('item_id', 'quantity', 'chance_bps'),
+    ('app.content.enemy_spec', 'ItemDropSpec'): ('item_id', 'quantity', 'chance_bps', 'source_id'),
     ('app.content.enemy_spec', 'StatBlockSpec'): ('constitution', 'spirit', 'intelligence', 'strength', 'dexterity', 'intuition'),
     ('app.content.equipment_spec', 'EquipmentTemplateSpec'): ('definition_id', 'name', 'category', 'slot_id', 'stat_ranges', 'family', 'material_id', 'upgrade_stat_bonuses', 'sale_value_gold', 'dismantle_yields'),
     ('app.content.hub_economy', 'AlchemyRecipeSpec'): ('recipe_id', 'display_name', 'ingredient_costs', 'outputs', 'experience_award', 'mastery_output', 'requires_confirmation'),

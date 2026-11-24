@@ -68,6 +68,7 @@ class Battle:
         party_state=None,
         smoke_escape_allowed=False,
         cave_in_power=None,
+        defer_start=False,
     ):
         if not isinstance(player_state, PlayerState):
             raise TypeError("player_state must be a PlayerState")
@@ -93,6 +94,8 @@ class Battle:
             raise TypeError("party_state must provide carried-supply operations")
         if not isinstance(smoke_escape_allowed, bool):
             raise TypeError("smoke_escape_allowed must be a boolean")
+        if not isinstance(defer_start, bool):
+            raise TypeError("defer_start must be a boolean")
         if cave_in_power is not None and (
             isinstance(cave_in_power, bool)
             or not isinstance(cave_in_power, int)
@@ -139,7 +142,7 @@ class Battle:
         self._player_side_turn = None
         self._winner_result = None
         self._final_view = None
-        if self._step_driven:
+        if self._step_driven and not defer_start:
             self._ensure_started()
 
     @staticmethod

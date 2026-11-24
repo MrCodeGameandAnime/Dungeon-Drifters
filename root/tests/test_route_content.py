@@ -74,6 +74,25 @@ EXPECTED_ENCOUNTERS = (
     ("dungeon_goblin_quad", ("goblin", "goblin", "goblin", "goblin")),
     ("dungeon_goblin_trio", ("goblin", "goblin", "goblin")),
     ("floor_two_cave_in", ("goblin", "goblin_warrior")),
+    ("m8_floor_four_encounter_01", ("reliquary_sentinel", "drowned_stalker")),
+    ("m8_floor_four_encounter_02", ("brine_oracle", "drowned_stalker")),
+    ("m8_floor_four_encounter_03", ("reliquary_sentinel", "reliquary_sentinel")),
+    ("m8_floor_four_encounter_04", ("brine_oracle", "reliquary_sentinel")),
+    ("m8_floor_four_encounter_05", ("ashbound_hound", "drowned_stalker")),
+    ("m8_floor_four_encounter_06", ("reliquary_sentinel", "brine_oracle")),
+    (
+        "m8_floor_four_encounter_07",
+        ("drowned_stalker", "drowned_stalker", "brine_oracle"),
+    ),
+    (
+        "m8_floor_four_encounter_08",
+        ("reliquary_sentinel", "ashbound_hound", "brine_oracle"),
+    ),
+    (
+        "m8_floor_four_encounter_09",
+        ("brine_oracle", "brine_oracle", "drowned_stalker"),
+    ),
+    ("m8_tidebound_curator_boss", ("tidebound_curator", "reliquary_sentinel")),
     ("surface_goblin_solo", ("goblin",)),
     ("surface_goblin_pair", ("goblin", "goblin")),
     ("surface_warrior_solo", ("goblin_warrior",)),
@@ -120,12 +139,14 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     assert sum(node.encounter_id is not None for node in route.nodes) == 8
     assert sum(node.kind is RouteNodeKind.REST for node in route.nodes) == 3
     assert tuple(spec.route_id for spec in ROUTE_SPECS) == (
+        "floor_four",
         "floor_one",
         "floor_three",
         "floor_two",
         "surface",
     )
     assert discover_route_ids() == (
+        "floor_four",
         "floor_one",
         "floor_three",
         "floor_two",
@@ -417,7 +438,7 @@ def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 26
+    assert rebuilt["schema_version"] == 27
     assert rebuilt["overworld"] == {
         "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",

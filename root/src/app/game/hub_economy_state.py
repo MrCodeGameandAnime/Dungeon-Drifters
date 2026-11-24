@@ -270,7 +270,7 @@ class HubEconomyState:
         self._state["current_hub_visit_id"] = None
 
     def begin_outing(self, floor_id):
-        if floor_id not in {"floor_one", "floor_two", "floor_three"}:
+        if floor_id not in {"floor_one", "floor_two", "floor_three", "floor_four"}:
             raise ValueError("outing floor ID is not authored")
         if self._state["active_outing"] is not None:
             raise ValueError("an M6.5 outing is already active")

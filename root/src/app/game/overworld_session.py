@@ -42,7 +42,11 @@ from app.game.floor_two_boss_helper import (
     create_floor_two_boss_helper,
     floor_two_replay_requires_available_helper,
 )
-from app.game.region_progression import is_drowned_reliquary_briefing_available
+from app.game.region_progression import (
+    confirm_destination_entry,
+    destination_availability,
+    is_drowned_reliquary_briefing_available,
+)
 from app.game.story_state import KnowledgeStatus
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
@@ -355,7 +359,7 @@ class OverworldSession:
             return self._build_view()
         if isinstance(session_input, ChooseDestination):
             self._select_destination(view, session_input)
-            return self._build_view()
+            return self.current_view()
         if isinstance(session_input, ChooseDiscoverySearcher):
             self._select_discovery_searcher(view, session_input)
             return self._build_view()
@@ -1175,6 +1179,7 @@ class OverworldSession:
         start_destination = {
             "floor_two": self._start_floor_two,
             "floor_three": self._start_floor_three,
+            "drowned_reliquary": self._start_floor_four,
         }.get(choice.destination_id)
         if start_destination is None:
             self._notice = "This destination is not available yet."
@@ -2110,7 +2115,7 @@ class OverworldSession:
             if (
                 self._screen is OverworldScreen.REST
                 and self.game_state.overworld_state.active_route_id
-                in {"floor_one", "floor_two", "floor_three"}
+                in {"floor_one", "floor_two", "floor_three", "floor_four"}
                 and navigation[action]
                 in {OverworldScreen.CHARACTER, OverworldScreen.ITEMS}
             ):
@@ -2235,6 +2240,12 @@ class OverworldSession:
                 return None
             self._finalize_floor_three_boss_clear()
             return None
+        if action is OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR:
+            if not self.game_state.floor_four_boss_settlement_pending:
+                self._notice = "That option is not available."
+                return None
+            self._finalize_floor_four_boss_clear()
+            return None
         if action is OverworldAction.SET_OUT:
             return self._start_floor_one()
         if action is OverworldAction.RETURN_WITH_TALISMAN:
@@ -2245,7 +2256,7 @@ class OverworldSession:
         party_state = self.game_state.party_state
         route_id = self.game_state.overworld_state.active_route_id
         if (
-            route_id not in {"floor_one", "floor_two", "floor_three"}
+            route_id not in {"floor_one", "floor_two", "floor_three", "floor_four"}
             or self._screen is not OverworldScreen.REST
             or party_state.phase is not DungeonPhase.OUTING
         ):
@@ -2258,13 +2269,19 @@ class OverworldSession:
                 "floor_one": party_state.begin_floor_one_extraction,
                 "floor_two": party_state.begin_floor_two_extraction,
                 "floor_three": party_state.begin_floor_three_extraction,
+                "floor_four": party_state.begin_floor_four_extraction,
             }[route_id]
         )
         if not begin_extraction(partial=True):
             self._notice = "Extraction is not available here."
             return None
         self._screen = OverworldScreen.EXTRACTION
-        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[route_id]
+        floor_number = {
+            "floor_one": 1,
+            "floor_two": 2,
+            "floor_three": 3,
+            "floor_four": 4,
+        }[route_id]
         self._adventure_text = (
             f"You extract from Floor {floor_number} early. Half of adjusted XP and gold "
             "are secured, and all run items are kept."
@@ -2488,9 +2505,24 @@ class OverworldSession:
 
         return self._start_route("floor_three")
 
+    def _start_floor_four(self):
+        availability = destination_availability(
+            self.game_state,
+            "drowned_reliquary",
+        )
+        if not availability.enabled:
+            self._notice = availability.reason or "The Drowned Reliquary is not available."
+            return None
+        return self._start_route(
+            "floor_four",
+            destination_id="drowned_reliquary",
+        )
+
     def _return_to_hub(self):
         route_id = self.game_state.overworld_state.active_route_id
-        dungeon_extraction = route_id in {"floor_one", "floor_two", "floor_three"}
+        dungeon_extraction = route_id in {
+            "floor_one", "floor_two", "floor_three", "floor_four"
+        }
         if not dungeon_extraction:
             candidate = self.game_state.clone()
             party_state = candidate.party_state
@@ -2523,6 +2555,7 @@ class OverworldSession:
             "floor_one": party_state.complete_extraction,
             "floor_two": party_state.complete_floor_two_extraction,
             "floor_three": party_state.complete_floor_three_extraction,
+            "floor_four": party_state.complete_floor_four_extraction,
         }.get(route_id, party_state.complete_extraction)
         if not complete_extraction(
             candidate.active_party_members,
@@ -2540,7 +2573,12 @@ class OverworldSession:
             return
         self._publish_saved_candidate(self.game_state, settled)
         self._screen = OverworldScreen.HUB
-        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[route_id]
+        floor_number = {
+            "floor_one": 1,
+            "floor_two": 2,
+            "floor_three": 3,
+            "floor_four": 4,
+        }[route_id]
         self._adventure_text = (
             f"You extract from Floor {floor_number} to the Hub. "
             "Your run rewards are secured and your "
@@ -2555,9 +2593,10 @@ class OverworldSession:
             candidate.floor_two_boss_settlement_pending
             or (
                 candidate.overworld_state.active_route_id
-                not in {"floor_one", "floor_two", "floor_three"}
+                not in {"floor_one", "floor_two", "floor_three", "floor_four"}
             )
             or candidate.floor_three_boss_settlement_pending
+            or candidate.floor_four_boss_settlement_pending
             or party_state.phase is not DungeonPhase.OUTING
         ):
             self._notice = "The Return Talisman cannot be used here."
@@ -2567,6 +2606,7 @@ class OverworldSession:
             "floor_one": party_state._floor_one_payout(partial=False).experience,
             "floor_two": party_state._floor_two_payout(partial=False).experience,
             "floor_three": party_state._floor_three_payout(partial=False).experience,
+            "floor_four": party_state._floor_four_payout(partial=False).experience,
         }[route_id]
         if not party_state.return_with_talisman(
             candidate.active_party_members,
@@ -2806,14 +2846,14 @@ class OverworldSession:
     def _start_floor_one(self):
         return self._start_route("floor_one")
 
-    def _start_route(self, floor_id):
+    def _start_route(self, floor_id, *, destination_id=None):
         original_game = self.game_state
         candidate = original_game.clone()
         party_state = candidate.party_state
         party_members = original_game.active_party_members
         checkpoints = tuple(member.create_battle_checkpoint() for member in party_members)
         previous_target = self._selected_character_target_id
-        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3}[
+        floor_number = {"floor_one": 1, "floor_two": 2, "floor_three": 3, "floor_four": 4}[
             floor_id
         ]
         self._game_state = candidate
@@ -2822,7 +2862,20 @@ class OverworldSession:
                 "floor_one": party_state.start_floor_one_run,
                 "floor_two": party_state.start_floor_two_run,
                 "floor_three": party_state.start_floor_three_run,
+                "floor_four": party_state.start_floor_four_run,
             }[floor_id]
+            if floor_id == "floor_four":
+                if (
+                    destination_id != "drowned_reliquary"
+                    or not destination_availability(
+                        candidate,
+                        destination_id,
+                    ).enabled
+                ):
+                    raise RuntimeError(
+                        "the Drowned Reliquary entry is no longer eligible"
+                    )
+                confirm_destination_entry(candidate, destination_id)
             start_run()
             candidate._player_state = original_game.player_state
             candidate._party_state = PartyState.from_snapshot(
@@ -2836,7 +2889,10 @@ class OverworldSession:
             candidate.overworld_state.begin_route(floor_id)
             self._screen = OverworldScreen.MAIN
             self._adventure_text = f"Your party sets out into Floor {floor_number}."
-            battle = self._create_active_battle(ui=None)
+            battle = self._create_active_battle(
+                ui=None,
+                defer_start=floor_id == "floor_four",
+            )
             if battle is None:
                 raise RuntimeError("the first floor encounter is unavailable")
             saved = self._save_port_instance().save(candidate)
@@ -2958,6 +3014,7 @@ class OverworldSession:
                 "floor_one": party_state.complete_extraction,
                 "floor_two": party_state.complete_floor_two_extraction,
                 "floor_three": party_state.complete_floor_three_extraction,
+                "floor_four": party_state.complete_floor_four_extraction,
             }[route_id]
             if not begin_extraction(partial=True):
                 self._notice = "The next step could not be saved. You remain at this Rest."
@@ -2973,6 +3030,7 @@ class OverworldSession:
                 "floor_one": party_state.fail_floor_one_run,
                 "floor_two": party_state.fail_floor_two_run,
                 "floor_three": party_state.fail_floor_three_run,
+                "floor_four": party_state.fail_floor_four_run,
             }[route_id]
             if not fail_run(
                 party_members,
@@ -3187,6 +3245,7 @@ class OverworldSession:
         if (
             game_state.floor_two_boss_settlement_pending
             or game_state.floor_three_boss_settlement_pending
+            or game_state.floor_four_boss_settlement_pending
         ):
             return OverworldScreen.MAIN
         if game_state.party_state.phase in {
@@ -3202,6 +3261,7 @@ class OverworldSession:
                 "floor_one",
                 "floor_two",
                 "floor_three",
+                "floor_four",
             }:
                 current_node = get_route_node_spec(
                     overworld.current_route_node_id
@@ -3233,7 +3293,7 @@ class OverworldSession:
                 return
             view = battle.submit(battle_ui.read_input(view))
 
-    def _create_active_battle(self, *, ui, tutorial=False):
+    def _create_active_battle(self, *, ui, tutorial=False, defer_start=False):
         if self._active_battle is not None:
             raise RuntimeError("an encounter is already active")
         if tutorial:
@@ -3292,7 +3352,8 @@ class OverworldSession:
         is_floor_one = overworld.active_route_id == "floor_one"
         is_floor_two = overworld.active_route_id == "floor_two"
         is_floor_three = overworld.active_route_id == "floor_three"
-        is_party_run = is_floor_one or is_floor_two or is_floor_three
+        is_floor_four = overworld.active_route_id == "floor_four"
+        is_party_run = is_floor_one or is_floor_two or is_floor_three or is_floor_four
         party_members = (
             self.game_state.active_party_members
             if is_party_run
@@ -3322,7 +3383,11 @@ class OverworldSession:
         )
         if not is_party_run:
             overworld.begin_surface_route()
-        tier = 2 if is_floor_three else (1 if is_floor_two else 0)
+        tier = (
+            3 if is_floor_four else
+            2 if is_floor_three else
+            1 if is_floor_two else 0
+        )
         enemies = tuple(
             self._enemy_factory(archetype_id, tier=tier)
             for archetype_id in encounter.enemy_archetype_ids
@@ -3340,6 +3405,8 @@ class OverworldSession:
                 battle_kwargs["smoke_escape_allowed"] = (
                     current_node.kind is not RouteNodeKind.BOSS
                 )
+            if defer_start:
+                battle_kwargs["defer_start"] = True
             self._active_battle = self._battle_factory(
                 party_members[0],
                 enemies,
@@ -3385,7 +3452,7 @@ class OverworldSession:
         if winner == "escaped":
             if (
                 overworld.active_route_id
-                not in {"floor_one", "floor_two", "floor_three"}
+                not in {"floor_one", "floor_two", "floor_three", "floor_four"}
                 or current_node_id is None
                 or not self.game_state.party_state.tutorial_complete
             ):
@@ -3461,6 +3528,20 @@ class OverworldSession:
 
         if overworld.active_route_id == "floor_three":
             self._finalize_floor_three_battle(
+                battle,
+                winner=winner,
+                current_node_id=current_node_id,
+                encounter_id=encounter_id,
+                exp_reward=exp_reward,
+                gold_reward=gold_reward,
+                party_members=party_members,
+                checkpoints=checkpoints,
+                carried_supplies_checkpoint=carried_supplies_checkpoint,
+            )
+            return None
+
+        if overworld.active_route_id == "floor_four":
+            self._finalize_floor_four_battle(
                 battle,
                 winner=winner,
                 current_node_id=current_node_id,
@@ -3834,6 +3915,185 @@ class OverworldSession:
         self._active_battle = None
         self._active_battle_context = None
 
+    def _finalize_floor_four_battle(
+        self,
+        battle,
+        *,
+        winner,
+        current_node_id,
+        encounter_id,
+        exp_reward,
+        gold_reward,
+        party_members,
+        checkpoints,
+        carried_supplies_checkpoint,
+    ):
+        current_node = get_route_node_spec(current_node_id)
+        if winner != "player":
+            candidate = self.game_state.clone()
+            if not candidate.party_state.fail_floor_four_run(
+                candidate.active_party_members,
+                recruited_members=candidate.recruited_members,
+            ):
+                raise RuntimeError("the Floor 4 defeat could not be cleared")
+            candidate._bind_equipment_state()
+            candidate.overworld_state.return_to_surface_entrance()
+            self._restore_members(candidate.recruited_members)
+            settled = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=0,
+            )
+            if settled is None:
+                return
+            self._publish_saved_candidate(self.game_state, settled)
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = (
+                "The party was defeated. All unsecured XP, gold, items, and "
+                "carried supplies were lost. Your recruited party returns "
+                "fully restored to the Hub."
+            )
+        else:
+            if not self._battle_enemies_are_defeated(battle):
+                raise RuntimeError(
+                    "Battle reported victory before every enemy was defeated"
+                )
+            next_node_id = get_route_successor_id(current_node_id)
+            candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
+            if current_node.kind is not RouteNodeKind.BOSS:
+                if next_node_id is None:
+                    raise RuntimeError(
+                        "a Floor 4 encounter must have an authored successor"
+                    )
+                next_node = get_route_node_spec(next_node_id)
+                candidate.overworld_state.advance_to(
+                    next_node_id,
+                    contextual_phase=self._contextual_phase_for_node(
+                        next_node.kind
+                    ),
+                )
+
+            rng = self._run_event_rng
+            if rng is None:
+                from app import randomness
+
+                rng = randomness
+            result = RunEventService(
+                save_port=self._save_port_instance(),
+                rng=rng,
+            ).resolve_encounter_rewards(
+                candidate,
+                node_id=current_node_id,
+                experience=exp_reward,
+                gold=gold_reward,
+                enemy_drop_tables=get_encounter_item_drop_tables(
+                    encounter_id,
+                    tier=3,
+                ),
+            )
+            if result.status not in {
+                RunEventStatus.RESOLVED,
+                RunEventStatus.ALREADY_RESOLVED,
+            }:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                self.game_state.party_state.restore_carried_supplies_checkpoint(
+                    carried_supplies_checkpoint
+                )
+                self.game_state.overworld_state.set_contextual_route_phase(
+                    ContextualRoutePhase.RETRY
+                )
+                self._screen = OverworldScreen.MAIN
+                self._adventure_text = (
+                    f"{current_node.display_label} is defeated, but its "
+                    "rewards could not be saved. Retry the encounter."
+                )
+                self._notice = "The Floor 4 encounter outcome could not be saved."
+                self._active_battle = None
+                self._active_battle_context = None
+                return
+
+            committed = result.game_state
+            if current_node.kind is RouteNodeKind.BOSS:
+                self._game_state = committed
+                self._finalize_floor_four_boss_clear()
+            else:
+                self._game_state = committed
+                next_node = get_route_node_spec(next_node_id)
+                self._screen = (
+                    OverworldScreen.REST
+                    if next_node.kind is RouteNodeKind.REST
+                    else OverworldScreen.MAIN
+                )
+                drop_text = _item_reward_text(
+                    dict(result.items),
+                    prefix="Items found:",
+                )
+                self._adventure_text = (
+                    f"{current_node.display_label} is defeated. Unsecured "
+                    f"rewards: {exp_reward} EXP and {gold_reward} gold. "
+                    f"{drop_text} The route continues toward "
+                    f"{next_node.display_label}."
+                )
+                self._notice = None
+
+        self._selected_item_key = None
+        self._active_battle = None
+        self._active_battle_context = None
+
+    def _finalize_floor_four_boss_clear(self):
+        committed = self.game_state
+        if not committed.floor_four_boss_settlement_pending:
+            self._notice = "That option is not available."
+            return False
+        settled = committed.clone()
+        event = settled.party_state.run_event(
+            "floor_four:"
+            f"{settled.party_state.floor_four_run_id}:"
+            "floor_four_battle_10:encounter_rewards"
+        )
+        if event is None:
+            raise RuntimeError("the Floor 4 boss reward evidence is missing")
+        boss_experience = event["result"]["experience"]
+        replay_rate = settled.party_state.floor_four_outing_xp_multiplier_percent
+        secured_base_xp = (
+            settled.party_state.outing_rewards.experience * replay_rate // 100
+        )
+        if not settled.party_state.complete_floor_four_boss(
+            settled.active_party_members,
+            boss_experience=boss_experience,
+        ):
+            raise RuntimeError("Floor 4 boss rewards could not be secured")
+        settled.story_state.reveal_knowledge_fact(
+            "m8_fact_ashen_vault",
+            KnowledgeStatus.RUMORED,
+        )
+        self._restore_members(settled.recruited_members)
+        settled._bind_equipment_state()
+        settled.overworld_state.return_to_surface_entrance()
+        saved_state = self._persist_outing_terminal_state(
+            settled,
+            secured_base_xp=secured_base_xp,
+        )
+        if saved_state is None:
+            self._screen = OverworldScreen.MAIN
+            self._adventure_text = (
+                "The Tidebound Curator's victory is saved, but the Hub return "
+                "could not be saved. Finalize the Floor IV clear to retry."
+            )
+            self._notice = "The Floor IV clear could not be saved."
+            return False
+
+        self._publish_saved_candidate(self.game_state, saved_state)
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = (
+            "The Tidebound Curator is defeated. Floor IV is cleared; run rewards "
+            "are secured and all four recruited Drifters return fully restored. "
+            "The Ashen Vault is now rumored."
+        )
+        self._notice = None
+        return True
+
     def _finalize_floor_three_boss_clear(self):
         committed = self.game_state
         if not committed.floor_three_boss_settlement_pending:
@@ -4074,6 +4334,7 @@ class OverworldSession:
                 "floor_one",
                 "floor_two",
                 "floor_three",
+                "floor_four",
             }:
                 members = self.game_state.active_party_members
             for member in members:
@@ -4096,7 +4357,7 @@ class OverworldSession:
 
         if (
             overworld.active_route_id
-            in {"floor_one", "floor_two", "floor_three"}
+            in {"floor_one", "floor_two", "floor_three", "floor_four"}
             and not self._persist_floor_one_rest_fallback()
         ):
             return

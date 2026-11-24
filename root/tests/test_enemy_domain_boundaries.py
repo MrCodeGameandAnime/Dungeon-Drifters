@@ -35,7 +35,7 @@ def imported_modules(path):
 def test_enemy_domain_public_imports_are_available():
     assert EnemySpec
     assert StatBlockSpec
-    assert len(ENEMY_SPECS) == 5
+    assert len(ENEMY_SPECS) == 10
     assert Enemy
     assert EnemyRank.COMMON
     assert EnemyRole.MELEE_SKIRMISHER

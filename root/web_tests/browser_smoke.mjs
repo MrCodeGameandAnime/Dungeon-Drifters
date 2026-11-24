@@ -2987,6 +2987,7 @@ try {
   await clickVisibleOption(page, "#overworld-options", "Vendors");
   await clickVisibleOption(page, "#vendors-options", "Alchemist");
   await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  await page.locator("#alchemy-progress").waitFor({ state: "visible" });
   requireCondition(
     (await supplyRow("Charcoal Powder").innerText()).includes("Stock 2 | 3 gold"),
     "Alchemist did not offer the approved two Charcoal Powder units at 3 gold each",
@@ -3482,6 +3483,8 @@ try {
   console.log("M4_BROWSER|LOAD_QUALIFYING_SAVE|PASS");
 
   const floorTwoPotionUses = [];
+  let floorFourHealingPotionUsesBeforeRest = 0;
+  let floorFourManaPotionUsesBeforeRest = 0;
   const floorTwoBattleLogs = new Map();
   const readFloorTwoActivePartyResources = async () => {
     await clickVisibleOption(page, "#overworld-options", "Character");
@@ -3562,6 +3565,13 @@ try {
       const targets = page.locator("#targets .target-choice:not([disabled])");
       const labels = await targets.allInnerTexts();
       const priority = (label) => {
+        if (floorLabel === "Floor IV") {
+          if (/Brine Oracle/i.test(label)) return 0;
+          if (/Drowned Stalker/i.test(label)) return 1;
+          if (/Ashbound Hound/i.test(label)) return 2;
+          if (/Reliquary Sentinel/i.test(label)) return 3;
+          if (/Tidebound Curator/i.test(label)) return 4;
+        }
         if (/\bGoblin\b/i.test(label) && !/\b(Lord|Warrior|Shaman)\b/i.test(label)) return 0;
         if (/\bGoblin Warrior\b/i.test(label)) return 1;
         if (/\bGoblin Shaman\b/i.test(label)) return 2;
@@ -3640,7 +3650,15 @@ try {
         });
         const potion = page.locator("#actions button").filter({ hasText: "Healing Potion" });
         const potionOffered = await potion.count() > 0;
-        if (lowestPartyHealth <= 0.5 && potionOffered && await potion.isEnabled()) {
+        const floorFourFirstHalf = floorLabel === "Floor IV" && battleNumber <= 5;
+        const healingAllowed = !floorFourFirstHalf || floorFourHealingPotionUsesBeforeRest < 3;
+        const healingThreshold = floorLabel === "Floor IV"
+          ? (floorFourFirstHalf ? 0.4 : 0.5)
+          : 0.5;
+        if (
+          lowestPartyHealth <= healingThreshold && healingAllowed &&
+          potionOffered && await potion.isEnabled()
+        ) {
           const healthBeforePotion = await page.locator(
             "#party-members .party-member-status",
           ).allInnerTexts();
@@ -3662,21 +3680,64 @@ try {
           );
           await captureBattleLog();
           floorTwoPotionUses.push({
+            floorLabel,
             battleNumber,
             before: healthBeforePotion,
             after: await page.locator("#party-members .party-member-status").allInnerTexts(),
           });
-        } else if (activePartyHealth <= 0.65) {
-          await defendAndWait();
+          if (floorFourFirstHalf) floorFourHealingPotionUsesBeforeRest += 1;
         } else {
-          const superAction = page.locator("#actions button").filter({ hasText: /^Super$/ });
-          if (await superAction.count() && await superAction.isEnabled()) {
-            await clickVisibleOption(page, "#actions", "Super");
-            await resolveFloorTwoAttackChoice();
+          const lowestPartyMana = await page.locator(
+            "#party-members .party-member-status",
+          ).evaluateAll((statuses) => Math.min(...statuses.map((status) => {
+            const match = status.textContent.match(/Mana\s+(\d+)\/(\d+)/);
+            return match ? Number(match[1]) / Number(match[2]) : 1;
+          })));
+          const manaPotion = page.locator("#actions button").filter({ hasText: "Mana Potion" });
+          const manaThreshold = floorLabel === "Floor IV" ? 0.35 : 0.2;
+          const manaAllowed =
+            floorLabel !== "Floor IV" || battleNumber > 5 ||
+            floorFourManaPotionUsesBeforeRest < 1;
+          if (
+            lowestPartyMana <= manaThreshold && manaAllowed &&
+            await manaPotion.count() > 0 &&
+            await manaPotion.isEnabled()
+          ) {
+            await clickVisibleOption(page, "#actions", "Mana Potion");
+            await page.waitForFunction(
+              () => document.getElementById("app").dataset.interactionPhase === "healing_targets",
+            );
+            const targetIndex = await page.locator("#targets .target-choice:not([disabled])")
+              .evaluateAll((targets) => targets
+                .map((target, index) => {
+                  const match = target.textContent.match(/Mana\s+(\d+)\/(\d+)/);
+                  return {
+                    index,
+                    ratio: match ? Number(match[1]) / Number(match[2]) : 1,
+                  };
+                })
+                .sort((first, second) => first.ratio - second.ratio)[0]?.index ?? -1);
+            requireCondition(targetIndex >= 0, `${floorLabel} Mana Potion had no eligible target`);
+            await page.locator("#targets .target-choice:not([disabled])").nth(targetIndex).click();
+            await page.waitForFunction(
+              () => document.getElementById("app").dataset.interactionPhase === "actions",
+            );
+            await captureBattleLog();
+            if (floorLabel === "Floor IV" && battleNumber <= 5) {
+              floorFourManaPotionUsesBeforeRest += 1;
+            }
           } else {
-            await attackWithFloorTwoTargeting();
+            const superAction = page.locator("#actions button").filter({ hasText: /^Super$/ });
+            if (await superAction.count() && await superAction.isEnabled()) {
+              await clickVisibleOption(page, "#actions", "Super");
+              await resolveFloorTwoAttackChoice();
+            } else if (activePartyHealth <= (floorLabel === "Floor IV" ? 0.5 : 0.35)) {
+              await defendAndWait();
+            } else {
+              await attackWithFloorTwoTargeting();
+            }
+            await captureBattleLog();
           }
-          await captureBattleLog();
         }
       } else if (phase === "regular_moves") {
         await resolveFloorTwoAttackChoice();
@@ -3737,9 +3798,15 @@ try {
       potionUses: floorTwoPotionUses,
       battleLog: [...observedBattleLog].join("\n"),
     });
+    const clearMessage = {
+      "Floor II": "Floor 2 is cleared",
+      "Floor III": "Floor 3 is cleared",
+      "Floor IV": "Floor IV is cleared",
+    }[floorLabel];
     const bossVictory = battleNumber === 10
       && outcome.badge === "HUB"
-      && outcome.adventure.includes(floorLabel === "Floor II" ? "Floor 2 is cleared" : "Floor 3 is cleared");
+      && clearMessage !== undefined
+      && outcome.adventure.includes(clearMessage);
     requireCondition(
       outcome.badge !== "DRIFTER SELECTION"
         && (outcome.badge !== "HUB" || bossVictory),
@@ -4186,6 +4253,199 @@ try {
     "Floor III clear or Hub return did not survive save/reload",
   );
   console.log("M4_BROWSER|FLOOR_THREE_CLEAR_SAVE_RELOAD|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Vendors");
+  await clickVisibleOption(page, "#vendors-options", "Alchemist");
+  await page.locator("#hub-economy-panel").waitFor({ state: "visible" });
+  for (const itemName of [
+    "Healing Potion",
+    "Mana Potion",
+    "Medicinal Herb",
+    "Medicinal Herb",
+    "Clean Water",
+    "Clean Water",
+  ]) {
+    await updateSupply(itemName, "Buy");
+  }
+  const craftFloorFourPotion = async (name) => {
+    const row = page.locator("#merchant-alchemy-recipes .merchant-row")
+      .filter({ hasText: name });
+    requireCondition(await row.count() === 1, `Alchemist did not offer the authored ${name} recipe`);
+    const storedBefore = await quantityInSupplyRow(name, "Stored");
+    await row.getByRole("button", { name: "Craft", exact: true }).click();
+    await page.waitForFunction(({ itemName, previousQuantity }) => {
+      const supply = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .find((candidate) => candidate.innerText.includes(itemName));
+      const current = Number(supply?.innerText.match(/Stored\s+(\d+)/)?.[1] || 0);
+      return current === previousQuantity + 1;
+    }, { itemName: name, previousQuantity: storedBefore });
+  };
+  await craftFloorFourPotion("Healing Potion");
+  await craftFloorFourPotion("Healing Potion");
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await clickVisibleOption(page, "#vendors-options", "Merchant");
+  await updateSupply("Healing Potion", "Buy");
+  await updateSupply("Medicinal Herb", "Buy");
+  await updateSupply("Clean Water", "Buy");
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await clickVisibleOption(page, "#vendors-options", "Alchemist");
+  await page.locator("#alchemy-progress").waitFor({ state: "visible" });
+  await craftFloorFourPotion("Healing Potion");
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+  await clickVisibleOption(page, "#vendors-options", "Back");
+  await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  const carriedBeforeFloorFour = await page.locator("#merchant-supplies .hub-supply-row")
+    .evaluateAll((rows) => rows.map((row) => ({
+      name: row.querySelector("strong")?.textContent.trim(),
+      quantity: Number(row.innerText.match(/Carried\s+(\d+)/)?.[1] || 0),
+    })).filter((item) => item.name && item.quantity > 0));
+  for (const item of carriedBeforeFloorFour) {
+    while (await quantityInSupplyRow(item.name, "Carried") > 0) {
+      await updateSupply(item.name, "Unload");
+    }
+  }
+  for (const { itemName, target } of [
+    { itemName: "Healing Potion", target: 5 },
+    { itemName: "Mana Potion", target: 1 },
+  ]) {
+    let stored = await quantityInSupplyRow(itemName, "Stored");
+    while (
+      stored > 0 &&
+      await quantityInSupplyRow(itemName, "Carried") < target
+    ) {
+      await updateSupply(itemName, "Load");
+      stored = await quantityInSupplyRow(itemName, "Stored");
+    }
+  }
+  requireCondition(
+    await quantityInSupplyRow("Healing Potion", "Carried") === 5 &&
+      await quantityInSupplyRow("Mana Potion", "Carried") === 1,
+    "the Floor IV browser journey could not prepare its six-unit potion pack from finite Alchemist stock",
+  );
+  await clickVisibleOption(page, "#hub-economy-options", "Back");
+
+  await clickVisibleOption(page, "#overworld-options", "Drowned Reliquary Briefing");
+  await page.waitForFunction(() =>
+    document.getElementById("adventure-text").textContent.includes(
+      "Its location is now rumored.",
+    ),
+  );
+  const drownedBriefingStatus = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return envelope?.payload?.story?.knowledge_facts?.m8_fact_drowned_reliquary;
+  }, floorTwoProfileKey);
+  requireCondition(
+    drownedBriefingStatus === "rumored",
+    `The Drowned Reliquary briefing did not persist Rumored knowledge: ${drownedBriefingStatus}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Region Portal");
+  await clickVisibleOption(page, "#region-choices", "Region 1");
+  await page.locator("#screen-badge").filter({ hasText: "DESTINATIONS" }).waitFor({ state: "visible" });
+  const drownedReliquaryChoice = page.locator("#region-choices button")
+    .filter({ hasText: "Drowned Reliquary" });
+  requireCondition(
+    await drownedReliquaryChoice.isEnabled(),
+    "Floor III completion and the four-member roster did not unlock the Drowned Reliquary",
+  );
+  await drownedReliquaryChoice.click();
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#party-members .party-member").count() === 2 &&
+      await page.locator("#enemy-panel .enemy").count() === 2,
+    "Floor IV entry did not deploy the active pair against its authored first encounter",
+  );
+  const floorFourEntryEvidence = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return {
+      floorRun: envelope?.payload?.party?.floor_four_run_id,
+      activeRoute: envelope?.payload?.overworld?.active_route_id,
+      knowledge: envelope?.payload?.story?.knowledge_facts?.m8_fact_drowned_reliquary,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    Boolean(floorFourEntryEvidence.floorRun) &&
+      floorFourEntryEvidence.activeRoute === "floor_four" &&
+      floorFourEntryEvidence.knowledge === "confirmed",
+    `Floor IV entry did not persist its run and confirmed knowledge: ${JSON.stringify(floorFourEntryEvidence)}`,
+  );
+  console.log("M8.3_BROWSER|FLOOR_FOUR_ENTRY_AND_PAIR|PASS");
+
+  for (let battleNumber = 1; battleNumber <= 5; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor IV" });
+  }
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const floorFourRestAfterReload = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return {
+      route: envelope?.payload?.overworld?.active_route_id,
+      node: envelope?.payload?.overworld?.current_route_node_id,
+      runId: envelope?.payload?.party?.floor_four_run_id,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      floorFourRestAfterReload.route === "floor_four" &&
+      floorFourRestAfterReload.node === "floor_four_rest_midpoint" &&
+      Boolean(floorFourRestAfterReload.runId),
+    `Floor IV midpoint checkpoint did not survive reload: ${JSON.stringify(floorFourRestAfterReload)}`,
+  );
+  console.log("M8.3_BROWSER|FLOOR_FOUR_MIDPOINT_SAVE_RELOAD|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.locator("#route-actions").filter({ hasText: "Enter Encounter" }).waitFor({ state: "visible" });
+  for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+    await page.locator("#party-panel").waitFor({ state: "visible" });
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor IV" });
+  }
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      await page.locator("#location-label").innerText() === "Pre-Boss Rest",
+    "Floor IV pre-boss Rest did not survive save/reload",
+  );
+
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await page.locator("#route-actions").filter({ hasText: "Enter Encounter" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  await clearFloorBattle(10, {
+    floorLabel: "Floor IV",
+    bossParty: ["drifter_branoc", "drifter_azhvielle"],
+  });
+  const floorFourClearEvidence = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    return {
+      cleared: envelope?.payload?.party?.floor_four_cleared,
+      crystal: envelope?.payload?.party?.shared_items?.grade_iv_magic_crystal,
+      ashenVault: envelope?.payload?.story?.knowledge_facts?.m8_fact_ashen_vault,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFourClearEvidence.cleared === true &&
+      floorFourClearEvidence.crystal === 1 &&
+      floorFourClearEvidence.ashenVault === "rumored",
+    `Floor IV boss settlement did not persist clear, one Crystal, and Ashen Vault rumor: ${JSON.stringify(floorFourClearEvidence)}`,
+  );
+  console.log("M8.3_BROWSER|FLOOR_FOUR_BOSS_CLEAR_AND_REWARDS|PASS");
 
   const m5Page = await browser.newPage();
   m5Page.setDefaultNavigationTimeout(120000);

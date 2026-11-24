@@ -1,4 +1,4 @@
-"""Schema-26 save documents and canonical in-memory reconstruction."""
+"""Schema-27 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -115,7 +115,13 @@ _PRE_FLOOR_THREE_DISK_SCHEMA_VERSION = 22
 _PRE_M6_DISK_SCHEMA_VERSION = 23
 _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION = 24
 _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION = 25
-DISK_SCHEMA_VERSION = 26
+_PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION = 26
+DISK_SCHEMA_VERSION = 27
+
+_FLOOR_FOUR_ROUTE = get_route_spec("floor_four")
+_FLOOR_FOUR_ROUTE_NODE_IDS = tuple(
+    node.node_id for node in _FLOOR_FOUR_ROUTE.nodes
+)
 
 
 class SaveStateValidationError(ValueError):
@@ -128,6 +134,7 @@ def _validate_migrated_current_document(document):
     party = document.get("party")
     if isinstance(party, dict) and "hub_economy" not in party:
         _add_hub_economy_defaults(document)
+    _add_floor_four_run_defaults(document)
     _add_region_progression_defaults(document)
     _validate_document(document, schema_version=DISK_SCHEMA_VERSION)
     return document
@@ -408,6 +415,14 @@ def migrate_schema25(document):
     return _validate_migrated_current_document(migrated)
 
 
+def migrate_schema26(document):
+    """Add active Floor IV run state to an immutable schema-26 save."""
+    validate_legacy_schema26_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    return _validate_migrated_current_document(migrated)
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
@@ -593,6 +608,17 @@ def validate_legacy_schema25_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema26_document(document):
+    """Validate an immutable schema-26 profile without Floor IV run state."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -698,6 +724,12 @@ def validate_profile_payload(document):
         return validate_legacy_schema25_document(document)
     if (
         isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema26_document(document)
+    if (
+        isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema10_document(document)
@@ -799,6 +831,8 @@ def validate_save_document(document):
         return migrate_schema24(document)
     if schema_version == _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION:
         return migrate_schema25(document)
+    if schema_version == _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION:
+        return migrate_schema26(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -998,7 +1032,9 @@ def _validate_document(
     )
     _validate_story(
         document["story"],
-        require_knowledge_facts=(schema_version >= DISK_SCHEMA_VERSION),
+        require_knowledge_facts=(
+            schema_version >= _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION
+        ),
     )
     _validate_world(
         document["world"],
@@ -1016,6 +1052,7 @@ def _validate_document(
         document["overworld"],
         document["world"],
         allow_floor_three=schema_version >= _PRE_M6_DISK_SCHEMA_VERSION,
+        allow_floor_four=schema_version >= DISK_SCHEMA_VERSION,
     )
     if schema_version < _PRE_ALCHEMIST_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict) and event.get("kind") == "armor_reward"
@@ -1030,6 +1067,20 @@ def _validate_document(
     ):
         raise SaveStateValidationError(
             "legacy run history cannot contain boss-helper selection events"
+        )
+    if schema_version < DISK_SCHEMA_VERSION and any(
+        isinstance(event, dict)
+        and (
+            event.get("floor_id") == "floor_four"
+            or any(
+                isinstance(entry, dict) and "source_id" in entry
+                for entry in event.get("result", {}).get("entries", [])
+            )
+        )
+        for event in document["party"].get("resolved_run_events", [])
+    ):
+        raise SaveStateValidationError(
+            "legacy run history cannot contain Floor IV event evidence"
         )
     equipment_by_id = _validate_party(
         document["party"],
@@ -1068,7 +1119,10 @@ def _validate_document(
         require_hub_economy=(
             schema_version >= _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION
         ),
-        require_region_progression=(schema_version >= DISK_SCHEMA_VERSION),
+        require_region_progression=(
+            schema_version >= _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION
+        ),
+        require_floor_four_run_state=(schema_version >= DISK_SCHEMA_VERSION),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -1100,6 +1154,7 @@ def _validate_document(
         require_floor_three_state=(
             schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
         ),
+        require_floor_four_run_state=(schema_version >= DISK_SCHEMA_VERSION),
         allow_floor_one_expedition_launch=allow_floor_one_expedition_launch,
         allow_floor_one_progress_checkpoint=allow_floor_one_progress_checkpoint,
     )
@@ -1208,7 +1263,7 @@ def _validate_hub_economy(state, *, party, player):
         "floor_one": party.get("floor_one_cleared", False),
         "floor_two": party.get("floor_two_cleared", False),
         "floor_three": party.get("floor_three_cleared", False),
-        "floor_four": False,
+        "floor_four": party.get("floor_four_cleared", False),
     }
     for vendor_id in VENDOR_IDS:
         vendor_stock = stock[vendor_id]
@@ -1396,6 +1451,7 @@ def _validate_hub_economy(state, *, party, player):
             "floor_one",
             "floor_two",
             "floor_three",
+            "floor_four",
         } or not isinstance(active_outing["has_encounter_progress"], bool):
             raise SaveStateValidationError(
                 "party.hub_economy.active_outing is invalid"
@@ -1436,6 +1492,7 @@ def _validate_route_hub_economy_relationship(overworld, party):
         "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
         "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
         "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+        "floor_four": _FLOOR_FOUR_ROUTE_NODE_IDS,
     }[route_id]
     current_node_id = overworld["current_route_node_id"]
     if current_node_id not in route_nodes:
@@ -1692,6 +1749,7 @@ def _validate_party(
     require_carried_supplies=False,
     require_floor_two_state=False,
     require_floor_three_state=False,
+    require_floor_four_run_state=False,
     require_hub_economy=False,
     require_region_progression=False,
     require_active_run_scope=False,
@@ -1735,6 +1793,14 @@ def _validate_party(
                 "floor_three_runs_started_after_clear",
                 "floor_three_run_id",
                 "floor_three_outing_xp_multiplier_percent",
+            }
+        )
+    if require_floor_four_run_state:
+        expected_keys.update(
+            {
+                "floor_four_runs_started_after_clear",
+                "floor_four_run_id",
+                "floor_four_outing_xp_multiplier_percent",
             }
         )
     if require_region_progression:
@@ -1954,6 +2020,10 @@ def _validate_party(
             not require_floor_three_state
             or party["floor_three_run_id"] is None
         )
+        and (
+            not require_floor_four_run_state
+            or party["floor_four_run_id"] is None
+        )
     )
     if active_floor_one:
         expected_rate = 100
@@ -2016,16 +2086,26 @@ def _validate_party(
             )
         try:
             active_run_id = (
-                party["floor_three_run_id"]
+                party["floor_four_run_id"]
+                if require_floor_four_run_state
+                and party["floor_four_run_id"] is not None
+                else (
+                    party["floor_three_run_id"]
                 if require_floor_three_state
                 and party["floor_three_run_id"] is not None
                 else run_id
+                )
             )
             active_floor_id = (
-                "floor_three"
+                "floor_four"
+                if require_floor_four_run_state
+                and party["floor_four_run_id"] is not None
+                else (
+                    "floor_three"
                 if require_floor_three_state
                 and party["floor_three_run_id"] is not None
                 else "floor_two"
+                )
             )
             validate_run_event_history(
                 events,
@@ -2139,6 +2219,70 @@ def _validate_party(
         elif floor_three_multiplier != 100:
             raise SaveStateValidationError(
                 "inactive Floor 3 runs must use the default XP rate"
+            )
+
+    if require_floor_four_run_state:
+        floor_four_runs = party["floor_four_runs_started_after_clear"]
+        _require_int_min(
+            floor_four_runs,
+            0,
+            "party.floor_four_runs_started_after_clear",
+        )
+        floor_four_run_id = party["floor_four_run_id"]
+        if floor_four_run_id is not None and not _valid_persisted_run_id(
+            floor_four_run_id
+        ):
+            raise SaveStateValidationError("party.floor_four_run_id is invalid")
+        if floor_four_run_id is not None and (
+            party["floor_two_run_id"] is not None
+            or party["floor_three_run_id"] is not None
+        ):
+            raise SaveStateValidationError("only one dungeon floor may be active")
+        floor_four_multiplier = party[
+            "floor_four_outing_xp_multiplier_percent"
+        ]
+        _require_int_min(
+            floor_four_multiplier,
+            0,
+            "party.floor_four_outing_xp_multiplier_percent",
+        )
+        if floor_four_multiplier not in {20, 30, 40, 50, 100}:
+            raise SaveStateValidationError(
+                "Floor 4 outing XP multiplier is not an authored rate"
+            )
+        if floor_four_run_id is not None:
+            if (
+                not party["floor_three_cleared"]
+                or not party["tutorial_complete"]
+                or len(companions) != 3
+            ):
+                raise SaveStateValidationError(
+                    "Floor 4 run requires a cleared Floor 3 and four recruited Drifters"
+                )
+            if phase not in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}:
+                raise SaveStateValidationError(
+                    "active Floor 4 run must be an outing or extraction"
+                )
+            expected_floor_four_rate = 100
+            if party["floor_four_cleared"]:
+                if floor_four_runs < 1:
+                    raise SaveStateValidationError(
+                        "Floor 4 replay requires a started replay count"
+                    )
+                expected_floor_four_rate = (50, 40, 30, 20)[
+                    min(floor_four_runs - 1, 3)
+                ]
+            if floor_four_multiplier != expected_floor_four_rate:
+                raise SaveStateValidationError(
+                    "active Floor 4 run has an inconsistent XP rate"
+                )
+        elif floor_four_multiplier != 100:
+            raise SaveStateValidationError(
+                "inactive Floor 4 runs must use the default XP rate"
+            )
+        if floor_four_runs and not party["floor_four_cleared"]:
+            raise SaveStateValidationError(
+                "Floor 4 replay runs require a cleared floor"
             )
 
     if require_region_progression:
@@ -2495,6 +2639,21 @@ def _add_floor_three_defaults(document):
         party[key] = value
 
 
+def _add_floor_four_run_defaults(document):
+    party = document.get("party")
+    if not isinstance(party, dict):
+        raise SaveStateValidationError("game.party must be an object")
+    defaults = {
+        "floor_four_runs_started_after_clear": 0,
+        "floor_four_run_id": None,
+        "floor_four_outing_xp_multiplier_percent": 100,
+    }
+    for key, value in defaults.items():
+        if key in party:
+            raise SaveStateValidationError(f"legacy party already contains {key}")
+        party[key] = value
+
+
 def _add_equipment_defaults(document):
     player = document.get("player")
     party = document.get("party")
@@ -2558,12 +2717,14 @@ def _add_hub_economy_defaults(document):
         "floor_one": party.get("floor_one_cleared", False),
         "floor_two": party.get("floor_two_cleared", False),
         "floor_three": party.get("floor_three_cleared", False),
+        "floor_four": party.get("floor_four_cleared", False),
     }
     party["hub_economy"] = new_hub_economy_snapshot(
         recruited_drifter_ids=recruited_ids,
         floor_one_cleared=clear_flags["floor_one"],
         floor_two_cleared=clear_flags["floor_two"],
         floor_three_cleared=clear_flags["floor_three"],
+        floor_four_cleared=clear_flags["floor_four"],
     )
     overworld = document.get("overworld")
     route_id = (
@@ -2571,13 +2732,14 @@ def _add_hub_economy_defaults(document):
         if isinstance(overworld, dict)
         else "surface"
     )
-    if route_id in {"floor_one", "floor_two", "floor_three"} and (
+    if route_id in {"floor_one", "floor_two", "floor_three", "floor_four"} and (
         party.get("phase") == DungeonPhase.OUTING.value
     ):
         route_nodes = {
             "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
             "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
             "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+            "floor_four": _FLOOR_FOUR_ROUTE_NODE_IDS,
         }[route_id]
         current_node_id = overworld.get("current_route_node_id")
         progress = current_node_id in route_nodes[1:] or any(
@@ -3185,7 +3347,13 @@ def _validate_legacy_overworld(overworld, world):
                 raise SaveStateValidationError("a future route encounter is already defeated")
 
 
-def _validate_overworld(overworld, world, *, allow_floor_three=False):
+def _validate_overworld(
+    overworld,
+    world,
+    *,
+    allow_floor_three=False,
+    allow_floor_four=False,
+):
     _require_mapping(overworld, "overworld")
     _require_exact_keys(
         overworld,
@@ -3215,22 +3383,29 @@ def _validate_overworld(overworld, world, *, allow_floor_three=False):
         raise SaveStateValidationError(
             "legacy save cannot contain an active Floor 3 route"
         )
-    if route_id not in {"floor_one", "floor_two", "floor_three"}:
+    if route_id == "floor_four" and not allow_floor_four:
+        raise SaveStateValidationError(
+            "legacy save cannot contain an active Floor 4 route"
+        )
+    if route_id not in {"floor_one", "floor_two", "floor_three", "floor_four"}:
         raise SaveStateValidationError("overworld has an unknown active route")
     route = {
         "floor_one": _FLOOR_ONE_ROUTE,
         "floor_two": _FLOOR_TWO_ROUTE,
         "floor_three": _FLOOR_THREE_ROUTE,
+        "floor_four": _FLOOR_FOUR_ROUTE,
     }[route_id]
     route_node_ids = {
         "floor_one": _FLOOR_ONE_ROUTE_NODE_IDS,
         "floor_two": _FLOOR_TWO_ROUTE_NODE_IDS,
         "floor_three": _FLOOR_THREE_ROUTE_NODE_IDS,
+        "floor_four": _FLOOR_FOUR_ROUTE_NODE_IDS,
     }[route_id]
     floor_label = {
         "floor_one": "Floor 1",
         "floor_two": "Floor 2",
         "floor_three": "Floor 3",
+        "floor_four": "Floor 4",
     }[route_id]
     node_id = overworld["current_route_node_id"]
     if node_id not in route_node_ids:
@@ -3300,6 +3475,7 @@ def _validate_route_party_relationship(
     party,
     *,
     require_floor_three_state=False,
+    require_floor_four_run_state=False,
     allow_floor_one_expedition_launch=False,
     allow_floor_one_progress_checkpoint=False,
 ):
@@ -3346,6 +3522,23 @@ def _validate_route_party_relationship(
         ):
             raise SaveStateValidationError(
                 "Floor 3 requires an unlocked active outing with four recruited Drifters"
+            )
+        return
+
+    if route_id == "floor_four":
+        if not require_floor_four_run_state:
+            raise SaveStateValidationError(
+                "legacy save cannot contain an active Floor 4 route"
+            )
+        if (
+            phase is not DungeonPhase.OUTING
+            or not party["tutorial_complete"]
+            or len(party["companions"]) != 3
+            or not party["floor_three_cleared"]
+            or party["floor_four_run_id"] is None
+        ):
+            raise SaveStateValidationError(
+                "Floor 4 requires an unlocked active outing with four recruited Drifters"
             )
         return
 

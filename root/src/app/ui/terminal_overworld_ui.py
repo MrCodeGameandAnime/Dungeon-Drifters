@@ -80,6 +80,7 @@ class TerminalOverworldUI:
         OverworldAction.FINALIZE_FLOOR_TWO_CLEAR: "F",
         OverworldAction.START_FLOOR_THREE: "3",
         OverworldAction.FINALIZE_FLOOR_THREE_CLEAR: "F",
+        OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR: "F",
         OverworldAction.SET_OUT: "Y",
         OverworldAction.RETRY: "R",
         OverworldAction.REST: "R",

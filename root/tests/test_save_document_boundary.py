@@ -18,10 +18,12 @@ from app.persistence.save_document import (
     SaveStateValidationError,
     build_save_document,
     reconstruct_game_state,
+    validate_profile_payload,
     validate_save_document,
 )
 from app.player.player_state import PlayerState
 from game_test_support import completed_hub_game, hub_game
+from tests.persistence_test_support import remove_floor_four_run_state
 
 
 def test_current_schema_rejects_non_string_knowledge_status():
@@ -95,7 +97,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 26
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 27
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -113,12 +115,13 @@ def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
     ):
         schema23["party"].pop(field)
     schema23["story"].pop("knowledge_facts")
+    remove_floor_four_run_state(schema23)
     original = json.loads(json.dumps(schema23))
 
     migrated = validate_save_document(schema23)
     restored = reconstruct_game_state(schema23)
 
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 26
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 27
     assert migrated["expedition"] == {
         "energy": 100,
         "energy_anchor_utc": None,
@@ -127,6 +130,35 @@ def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
     }
     assert restored.expedition_state.energy == 100
     assert schema23 == original
+
+
+def test_schema26_migrates_floor_four_run_defaults_without_mutating_history():
+    historical = build_save_document(completed_hub_game())
+    historical["schema_version"] = 26
+    remove_floor_four_run_state(historical)
+    original = json.loads(json.dumps(historical))
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 27
+    assert migrated["party"]["floor_four_runs_started_after_clear"] == 0
+    assert migrated["party"]["floor_four_run_id"] is None
+    assert migrated["party"]["floor_four_outing_xp_multiplier_percent"] == 100
+    assert migrated["party"]["floor_four_cleared"] is False
+    assert migrated["party"]["floor_five_cleared"] is False
+    assert migrated["party"]["region_two_unlocked"] is False
+    assert build_save_document(restored) == migrated
+
+
+def test_current_schema_requires_floor_four_run_fields():
+    document = build_save_document(completed_hub_game())
+    document["party"].pop("floor_four_run_id")
+
+    with pytest.raises(SaveStateValidationError, match="party has an invalid shape"):
+        validate_save_document(document)
 
 
 def test_current_save_requires_expedition_state():
@@ -182,6 +214,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     schema13["player"].pop("permanent_discovery_bonuses")
     schema13["world"].pop("permanent_discovery_claims")
     schema13["world"].pop("discovered_permanent_discovery_sources")
+    remove_floor_four_run_state(schema13)
     for field in (
         "floor_two_cleared",
         "floor_two_runs_started_after_clear",

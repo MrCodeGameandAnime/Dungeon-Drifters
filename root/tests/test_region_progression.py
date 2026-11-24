@@ -72,15 +72,11 @@ def test_unknown_destinations_are_not_named_until_their_rumor_is_revealed():
     )
     drowned = destination_availability(game, "drowned_reliquary")
     assert drowned.knowledge_status is KnowledgeStatus.RUMORED
-    assert not drowned.enabled
-    assert "route" in drowned.reason.lower()
+    assert drowned.enabled
 
 
-def test_confirmed_destination_fact_advances_only_when_route_is_enterable(monkeypatch):
-    from app.game import region_progression
-
+def test_confirmed_destination_fact_advances_only_when_route_is_enterable():
     game = _four_member_game()
-    game.party_state._floor_three_cleared = True
     game.story_state.reveal_knowledge_fact(
         "m8_fact_drowned_reliquary",
         KnowledgeStatus.RUMORED,
@@ -91,7 +87,7 @@ def test_confirmed_destination_fact_advances_only_when_route_is_enterable(monkey
         "m8_fact_drowned_reliquary"
     ) is KnowledgeStatus.RUMORED
 
-    monkeypatch.setattr(region_progression, "get_route_spec", lambda _route_id: object())
+    game.party_state._floor_three_cleared = True
     assert confirm_destination_entry(game, "drowned_reliquary")
     assert game.story_state.knowledge_status(
         "m8_fact_drowned_reliquary"
@@ -117,7 +113,7 @@ def test_existing_floor_prerequisites_and_route_availability_are_authoritative()
     assert destination_availability(four_member, "floor_three").enabled
 
 
-def test_floor_four_and_five_route_offers_remain_unavailable_until_routes_exist():
+def test_floor_four_requires_its_prerequisites_and_floor_five_remains_unavailable():
     game = _four_member_game()
     party = game.party_state
     party._floor_three_cleared = True
@@ -131,8 +127,7 @@ def test_floor_four_and_five_route_offers_remain_unavailable_until_routes_exist(
     for pair in combinations(recruited_ids, 2):
         party.select_active_pair(pair, recruited_ids=recruited_ids)
         destination = destination_availability(game, "drowned_reliquary")
-        assert not destination.enabled
-        assert "route" in destination.reason.lower()
+        assert destination.enabled
 
     party._floor_four_cleared = True
     game.story_state.reveal_knowledge_fact(

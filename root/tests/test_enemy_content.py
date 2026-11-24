@@ -37,6 +37,18 @@ from tools.generate_content_catalog import (
 
 
 EXPECTED_IDS = (
+    "ashbound_hound",
+    "brine_oracle",
+    "drowned_stalker",
+    "goblin",
+    "goblin_elite",
+    "goblin_lord",
+    "goblin_shaman",
+    "goblin_warrior",
+    "reliquary_sentinel",
+    "tidebound_curator",
+)
+FLOOR_THREE_ENEMY_IDS = (
     "goblin",
     "goblin_elite",
     "goblin_lord",
@@ -54,6 +66,16 @@ EXPECTED_ENCOUNTER_IDS = (
     "dungeon_goblin_quad",
     "dungeon_goblin_trio",
     "floor_two_cave_in",
+    "m8_floor_four_encounter_01",
+    "m8_floor_four_encounter_02",
+    "m8_floor_four_encounter_03",
+    "m8_floor_four_encounter_04",
+    "m8_floor_four_encounter_05",
+    "m8_floor_four_encounter_06",
+    "m8_floor_four_encounter_07",
+    "m8_floor_four_encounter_08",
+    "m8_floor_four_encounter_09",
+    "m8_tidebound_curator_boss",
     "surface_elite_patrol",
     "surface_goblin_lord",
     "surface_goblin_pair",
@@ -63,7 +85,13 @@ EXPECTED_ENCOUNTER_IDS = (
     "surface_warrior_pair",
     "surface_warrior_solo",
 )
-EXPECTED_ROUTE_IDS = ("floor_one", "floor_three", "floor_two", "surface")
+EXPECTED_ROUTE_IDS = (
+    "floor_four",
+    "floor_one",
+    "floor_three",
+    "floor_two",
+    "surface",
+)
 
 
 def sample_move(name="Test Strike"):
@@ -183,7 +211,7 @@ def test_tier_two_content_authors_all_grade_three_material_families():
     }.items() <= material_drops.items()
 
 
-@pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
+@pytest.mark.parametrize("archetype_id", FLOOR_THREE_ENEMY_IDS)
 def test_floor_three_enemy_archetypes_support_tier_two(archetype_id):
     spec = get_enemy_spec(archetype_id)
 
@@ -245,7 +273,7 @@ def test_enemy_specs_and_stat_blocks_are_immutable():
         spec.stats.strength = 99
 
 
-@pytest.mark.parametrize("archetype_id", EXPECTED_IDS)
+@pytest.mark.parametrize("archetype_id", FLOOR_THREE_ENEMY_IDS)
 @pytest.mark.parametrize("tier", (0, 1, 2))
 def test_specs_create_fresh_definitions_and_runtime_state(archetype_id, tier):
     spec = get_enemy_spec(archetype_id)

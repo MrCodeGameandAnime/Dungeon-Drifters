@@ -173,6 +173,9 @@ def test_migrated_floor_three_save_can_complete_briefing_through_hub(tmp_path):
         "floor_four_cleared",
         "floor_five_cleared",
         "region_two_unlocked",
+        "floor_four_runs_started_after_clear",
+        "floor_four_run_id",
+        "floor_four_outing_xp_multiplier_percent",
     ):
         historical["party"].pop(field)
     historical["story"].pop("knowledge_facts")

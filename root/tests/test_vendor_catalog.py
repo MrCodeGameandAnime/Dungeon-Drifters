@@ -217,6 +217,12 @@ def test_first_clear_rewards_are_one_time_and_floor_scoped():
         ("m65_floor_two_crystal", "floor_two", "grade_ii_magic_crystal", 1),
         ("m65_floor_two_mythril", "floor_two", "mythril_plate", 1),
         ("m65_floor_three_crystal", "floor_three", "grade_iii_magic_crystal", 1),
+        (
+            "m8_floor_four_first_clear_crystal",
+            "floor_four",
+            "grade_iv_magic_crystal",
+            1,
+        ),
     }
 
 

@@ -437,6 +437,12 @@ FIRST_CLEAR_REWARDS = (
         "grade_iii_magic_crystal",
         1,
     ),
+    FirstClearRewardSpec(
+        "m8_floor_four_first_clear_crystal",
+        "floor_four",
+        "grade_iv_magic_crystal",
+        1,
+    ),
 )
 
 
@@ -670,12 +676,18 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
         ("m65_floor_two_crystal", "floor_two", "grade_ii_magic_crystal", 1),
         ("m65_floor_two_mythril", "floor_two", "mythril_plate", 1),
         ("m65_floor_three_crystal", "floor_three", "grade_iii_magic_crystal", 1),
+        (
+            "m8_floor_four_first_clear_crystal",
+            "floor_four",
+            "grade_iv_magic_crystal",
+            1,
+        ),
     }
     if {
         (reward.source_id, reward.floor_id, reward.item_id, reward.quantity)
         for reward in first_clear_rewards
     } != expected_rewards:
-        raise ValueError("first-clear reward sources do not match the approved Floor I-III schedule")
+        raise ValueError("first-clear reward sources do not match the approved Floor I-IV schedule")
     if "grade_v_magic_crystal" in supplies or any(
         spec.item_id == "grade_v_magic_crystal" for spec in merchandise
     ):
