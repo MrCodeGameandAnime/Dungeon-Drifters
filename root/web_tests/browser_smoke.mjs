@@ -2946,6 +2946,7 @@ try {
     const button = action === "Sell"
       ? row.getByRole("button", { name: /^Sell \d+g$/ }).first()
       : row.getByRole("button", { name: action, exact: true });
+    await page.mouse.move(0, 0);
     await button.click();
     await page.waitForFunction(({ itemName, oldText }) => {
       const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
