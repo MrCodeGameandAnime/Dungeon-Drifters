@@ -3031,40 +3031,25 @@ try {
     const button = action === "Sell"
       ? row.getByRole("button", { name: /^Sell \d+g$/ }).first()
       : row.getByRole("button", { name: action, exact: true });
-    const supplyChanged = () => page.evaluate(({ itemName, oldText }) => {
-      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
-        .find((candidate) => candidate.innerText.includes(itemName));
-      return current && current.innerText !== oldText;
-    }, { itemName: name, oldText: previous });
-    const clickDeadline = Date.now() + 3000;
-    let clicked = false;
-    // A timed-out click may already have committed before its row is rebuilt.
-    while (Date.now() < clickDeadline) {
-      await page.mouse.move(0, 0);
-      try {
-        await button.click({ timeout: 500 });
-        clicked = true;
-        break;
-      } catch (error) {
-        if (error.name !== "TimeoutError") throw error;
-        if (await supplyChanged()) {
-          clicked = true;
-          break;
-        }
-        if (Date.now() >= clickDeadline) {
-          const diagnostic = await supplyDiagnostic(name);
-          console.log(`M8.3_BROWSER|SUPPLY_ACTION_TIMEOUT|${JSON.stringify({ name, action, diagnostic })}`);
-          throw error;
-        }
-      }
-      await page.waitForTimeout(50);
+    transaction.clickAttempts = 1;
+    try {
+      await button.click({ timeout: 500 });
+      transaction.clickStatus = "completed";
+    } catch (error) {
+      if (error.name !== "TimeoutError") throw error;
+      transaction.clickStatus = "timed_out_waiting_for_click";
     }
-    if (!clicked) throw new Error(`Could not click ${action} for ${name}`);
-    await page.waitForFunction(({ itemName, oldText }) => {
-      const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
-        .find((candidate) => candidate.innerText.includes(itemName));
-      return current && current.innerText !== oldText;
-    }, { itemName: name, oldText: previous });
+    try {
+      await page.waitForFunction(({ itemName, oldText }) => {
+        const current = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+          .find((candidate) => candidate.innerText.includes(itemName));
+        return current && current.innerText !== oldText;
+      }, { itemName: name, oldText: previous });
+    } catch (error) {
+      const diagnostic = await supplyDiagnostic(name);
+      console.log(`M8.3_BROWSER|SUPPLY_ACTION_TIMEOUT|${JSON.stringify({ name, action, diagnostic })}`);
+      throw new Error(`Supply ${action} for ${name} did not reach a changed authoritative row: ${JSON.stringify(diagnostic)}`, { cause: error });
+    }
     transaction.updated = await supplyRow(name).innerText();
     transaction.resultingSequence = await page.evaluate((key) => {
       const envelope = JSON.parse(localStorage.getItem(key) || "null");
