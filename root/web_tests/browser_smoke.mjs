@@ -968,6 +968,8 @@ function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+const floorTwoProfileKey =
+  "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
 const browserOptions = { headless: true };
 if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
   browserOptions.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
@@ -2949,9 +2951,83 @@ try {
 
   const supplyRow = (name) => page.locator("#merchant-supplies .hub-supply-row")
     .filter({ hasText: name }).first();
+  const supplyActionTrace = [];
+  const supplyDiagnostic = async (name) => {
+    const state = await page.evaluate(({ profileKey, itemName }) => {
+      const rows = [...document.querySelectorAll("#merchant-supplies .hub-supply-row")]
+        .filter((candidate) => candidate.querySelector("strong")?.textContent.trim() === itemName);
+      const row = rows[0];
+      const summary = document.getElementById("merchant-storage-summary")?.innerText || "";
+      const quantities = row?.innerText.match(/Stored\s+(\d+)\s+\|\s+Carried\s+(\d+)/);
+      const capacity = summary.match(/Carried supplies:\s*(\d+)\/(\d+)/);
+      const envelope = JSON.parse(localStorage.getItem(profileKey) || "null");
+      const visible = (element) => Boolean(
+        element && !element.hidden && element.getClientRects().length > 0 &&
+          getComputedStyle(element).display !== "none",
+      );
+      const mutationTrace = window.__DD_SUPPLY_MUTATION_TRACE__;
+      return {
+        screen: document.getElementById("screen-badge")?.innerText.trim(),
+        location: document.getElementById("location-label")?.innerText.trim(),
+        hubEconomyTitle: document.getElementById("hub-economy-title")?.innerText.trim(),
+        interactionPhase: document.getElementById("app")?.dataset.interactionPhase || null,
+        panels: Object.fromEntries([
+          "overworld-screen",
+          "vendors-panel",
+          "hub-economy-panel",
+          "merchant-panel",
+          "party-panel",
+          "route-actions",
+        ].map((id) => [id, visible(document.getElementById(id))])),
+        supplyContainerVisible: visible(document.getElementById("merchant-supplies")),
+        supplyRowCount: rows.length,
+        supplyRowText: row?.innerText || null,
+        storedQuantity: quantities ? Number(quantities[1]) : null,
+        carriedQuantity: quantities ? Number(quantities[2]) : null,
+        actions: row ? [...row.querySelectorAll("button")].map((button) => ({
+          label: button.innerText.trim(),
+          disabled: button.disabled,
+          ariaDisabled: button.getAttribute("aria-disabled"),
+          title: button.title,
+          visible: visible(button),
+        })) : [],
+        storageSummary: summary,
+        carriedUnits: capacity ? Number(capacity[1]) : null,
+        carriedCapacity: capacity ? Number(capacity[2]) : null,
+        persistedTransactionSequence:
+          envelope?.payload?.party?.hub_economy?.transaction_sequence ?? null,
+        notice: document.getElementById("notice")?.innerText.trim(),
+        mutationTrace: mutationTrace ? {
+          mutationCount: mutationTrace.mutationCount,
+          ageSinceLastMutationMs: mutationTrace.lastMutationAtMs === null
+            ? null
+            : performance.now() - mutationTrace.lastMutationAtMs,
+          lastSupplyClick: mutationTrace.lastSupplyClick,
+          recentMutations: mutationTrace.recentMutations,
+        } : null,
+      };
+    }, { profileKey: floorTwoProfileKey, itemName: name });
+    return {
+      ...state,
+      recentSupplyActions: supplyActionTrace.slice(-12),
+      pendingNetworkRequests: [...pendingRequests.values()],
+      pageErrors: errors.slice(),
+    };
+  };
   const updateSupply = async (name, action) => {
     const row = supplyRow(name);
     const previous = await row.innerText();
+    const transaction = {
+      name,
+      action,
+      previous,
+      startingSequence: await page.evaluate((key) => {
+        const envelope = JSON.parse(localStorage.getItem(key) || "null");
+        return envelope?.payload?.party?.hub_economy?.transaction_sequence ?? null;
+      }, floorTwoProfileKey),
+      status: "pending",
+    };
+    supplyActionTrace.push(transaction);
     const button = action === "Sell"
       ? row.getByRole("button", { name: /^Sell \d+g$/ }).first()
       : row.getByRole("button", { name: action, exact: true });
@@ -2975,7 +3051,11 @@ try {
           clicked = true;
           break;
         }
-        if (Date.now() >= clickDeadline) throw error;
+        if (Date.now() >= clickDeadline) {
+          const diagnostic = await supplyDiagnostic(name);
+          console.log(`M8.3_BROWSER|SUPPLY_ACTION_TIMEOUT|${JSON.stringify({ name, action, diagnostic })}`);
+          throw error;
+        }
       }
       await page.waitForTimeout(50);
     }
@@ -2985,6 +3065,12 @@ try {
         .find((candidate) => candidate.innerText.includes(itemName));
       return current && current.innerText !== oldText;
     }, { itemName: name, oldText: previous });
+    transaction.updated = await supplyRow(name).innerText();
+    transaction.resultingSequence = await page.evaluate((key) => {
+      const envelope = JSON.parse(localStorage.getItem(key) || "null");
+      return envelope?.payload?.party?.hub_economy?.transaction_sequence ?? null;
+    }, floorTwoProfileKey);
+    transaction.status = "observed";
   };
   const quantityInSupplyRow = async (name, kind) => {
     const text = await supplyRow(name).innerText();
@@ -3465,8 +3551,6 @@ try {
   );
   console.log("M3_BROWSER|RESPEC_SAVE_RELOAD|PASS");
 
-  const floorTwoProfileKey =
-    "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
   const readFloorTwoDiscoveryBonuses = async () => page.evaluate((key) => {
     const payload = JSON.parse(localStorage.getItem(key)).payload;
     const members = [payload.player, ...payload.party.companions];
@@ -4328,6 +4412,48 @@ try {
   await clickVisibleOption(page, "#hub-economy-options", "Back");
   await clickVisibleOption(page, "#vendors-options", "Back");
   await clickVisibleOption(page, "#overworld-options", "Hub Inventory");
+  await page.evaluate(() => {
+    const container = document.getElementById("merchant-supplies");
+    const trace = {
+      mutationCount: 0,
+      lastMutationAtMs: null,
+      lastSupplyClick: null,
+      recentMutations: [],
+    };
+    new MutationObserver((records) => {
+      trace.mutationCount += records.length;
+      trace.lastMutationAtMs = performance.now();
+      for (const record of records) {
+        trace.recentMutations.push({
+          type: record.type,
+          targetId: record.target.parentElement?.closest("[id]")?.id || record.target.id || null,
+          targetClass: typeof record.target.className === "string" ? record.target.className : null,
+          attributeName: record.attributeName,
+          atMs: performance.now(),
+        });
+      }
+      trace.recentMutations = trace.recentMutations.slice(-20);
+    }).observe(container, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      const row = button?.closest(".hub-supply-row");
+      if (!button || !row || !container.contains(row)) return;
+      trace.lastSupplyClick = {
+        label: button.innerText.trim(),
+        disabled: button.disabled,
+        row: row.innerText,
+        quantity: row.querySelector("input")?.value ?? null,
+        maximum: row.querySelector("input")?.max ?? null,
+        atMs: performance.now(),
+      };
+    }, true);
+    window.__DD_SUPPLY_MUTATION_TRACE__ = trace;
+  });
   const carriedBeforeFloorFour = await page.locator("#merchant-supplies .hub-supply-row")
     .evaluateAll((rows) => rows.map((row) => ({
       name: row.querySelector("strong")?.textContent.trim(),
@@ -4347,6 +4473,9 @@ try {
       stored > 0 &&
       await quantityInSupplyRow(itemName, "Carried") < target
     ) {
+      if (itemName === "Mana Potion") {
+        console.log(`M8.3_BROWSER|MANA_LOAD_BEFORE|${JSON.stringify(await supplyDiagnostic(itemName))}`);
+      }
       await updateSupply(itemName, "Load");
       stored = await quantityInSupplyRow(itemName, "Stored");
     }
