@@ -132,9 +132,11 @@ class SaveStateValidationError(ValueError):
     """Raised when a disk save cannot be trusted or reconstructed."""
 
 
-def _validate_migrated_current_document(document):
+def _validate_migrated_current_document(document, *, migrate_legacy_expedition=False):
     if "expedition" not in document:
         _add_expedition_defaults(document)
+    if migrate_legacy_expedition:
+        _upgrade_legacy_expedition_records(document)
     party = document.get("party")
     if isinstance(party, dict) and "hub_economy" not in party:
         _add_hub_economy_defaults(document)
@@ -393,7 +395,9 @@ def migrate_schema23(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_expedition_defaults(migrated)
-    return _validate_migrated_current_document(migrated)
+    return _validate_migrated_current_document(
+        migrated, migrate_legacy_expedition=True
+    )
 
 
 def migrate_schema24(document):
@@ -407,7 +411,9 @@ def migrate_schema24(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_hub_economy_defaults(migrated)
-    return _validate_migrated_current_document(migrated)
+    return _validate_migrated_current_document(
+        migrated, migrate_legacy_expedition=True
+    )
 
 
 def migrate_schema25(document):
@@ -416,7 +422,9 @@ def migrate_schema25(document):
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _add_region_progression_defaults(migrated)
-    return _validate_migrated_current_document(migrated)
+    return _validate_migrated_current_document(
+        migrated, migrate_legacy_expedition=True
+    )
 
 
 def migrate_schema26(document):
@@ -424,7 +432,9 @@ def migrate_schema26(document):
     validate_legacy_schema26_document(document)
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
-    return _validate_migrated_current_document(migrated)
+    return _validate_migrated_current_document(
+        migrated, migrate_legacy_expedition=True
+    )
 
 
 def migrate_schema27(document):
@@ -432,6 +442,7 @@ def migrate_schema27(document):
     validate_legacy_schema27_document(document)
     migrated = deepcopy(document)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _upgrade_legacy_expedition_records(migrated)
     _validate_document(
         migrated,
         schema_version=DISK_SCHEMA_VERSION,
@@ -444,14 +455,7 @@ def migrate_schema28(document):
     """Add launch-frozen expedition outcomes to immutable schema-28 saves."""
     validate_legacy_schema28_document(document)
     migrated = deepcopy(document)
-    expedition = migrated["expedition"]
-    assignment = expedition["active_assignment"]
-    if assignment is not None:
-        assignment["frozen_outcome"] = _legacy_expedition_outcome(assignment)
-        assignment["report_content_id"] = None
-    for report in expedition["reports"]:
-        report["frozen_outcome"] = _legacy_expedition_outcome(report)
-        report["report_content_id"] = None
+    _upgrade_legacy_expedition_records(migrated)
     migrated["schema_version"] = DISK_SCHEMA_VERSION
     _validate_document(
         migrated,
@@ -1283,6 +1287,10 @@ def _validate_document(
             document["party"],
             document["overworld"],
         )
+        if schema_version >= _M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION:
+            _validate_m8_5_expedition_destination_clears(
+                document["expedition"], document["party"]
+            )
     if schema_version >= _PRE_ALCHEMIST_DISK_SCHEMA_VERSION:
         _validate_armor_reward_event_relationship(
             document["party"], equipment_by_id
@@ -2849,6 +2857,56 @@ def _validate_legacy_expedition_outcomes(expedition):
             raise SaveStateValidationError(
                 "pre-M8.5 report contains post-M8.5 expedition content"
             )
+        if report["category"] == "material":
+            expected_item = {
+                "floor_one": "grade_i_metal",
+                "floor_two": "grade_ii_metal",
+                "floor_three": "grade_iii_metal",
+            }[report["destination_floor_id"]]
+            if (
+                report.get("reward_item_id") != expected_item
+                or report.get("reward_quantity") != 1
+            ):
+                raise SaveStateValidationError(
+                    "pre-M8.5 Material report reward must be exactly one "
+                    "floor-eligible Metal"
+                )
+
+
+def _upgrade_legacy_expedition_records(document):
+    expedition = document["expedition"]
+    assignment = expedition["active_assignment"]
+    if assignment is not None:
+        assignment["frozen_outcome"] = _legacy_expedition_outcome(assignment)
+        assignment["report_content_id"] = None
+    for report in expedition["reports"]:
+        report["frozen_outcome"] = _legacy_expedition_outcome(report)
+        report["report_content_id"] = None
+
+
+def _validate_m8_5_expedition_destination_clears(expedition, party):
+    cleared = {
+        "floor_one": party["floor_one_cleared"],
+        "floor_two": party["floor_two_cleared"],
+        "floor_three": party["floor_three_cleared"],
+        "floor_four": party["floor_four_cleared"],
+        "floor_five": party["floor_five_cleared"],
+    }
+    records = []
+    assignment = expedition["active_assignment"]
+    if assignment is not None:
+        records.append(assignment)
+    records.extend(expedition["reports"])
+    for record in records:
+        destination = record["destination_floor_id"]
+        is_m8_5_evidence = (
+            destination in {"floor_four", "floor_five"}
+            or record["report_content_id"] is not None
+        )
+        if is_m8_5_evidence and not cleared[destination]:
+            raise SaveStateValidationError(
+                "expedition evidence references an uncleared expedition destination"
+            )
 
 
 def _validate_expedition_equipment_identity(expedition, owned_instance_ids):
@@ -2887,12 +2945,10 @@ def _legacy_expedition_outcome(record):
         raise SaveStateValidationError(
             "legacy Material report has no historical destination source"
         )
-    reward_item_id = record.get("reward_item_id", f"grade_{grade}_metal")
-    reward_quantity = record.get("reward_quantity", 1)
     return {
         "source_id": None,
-        "reward_item_id": reward_item_id,
-        "reward_quantity": reward_quantity,
+        "reward_item_id": f"grade_{grade}_metal",
+        "reward_quantity": 1,
     }
 
 

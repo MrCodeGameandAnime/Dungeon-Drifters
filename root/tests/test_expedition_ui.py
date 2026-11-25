@@ -4,6 +4,7 @@ from app.content.catalog import get_drifter_spec
 from app.game.expeditions import ExpeditionService
 from app.game.overworld_session import OverworldSession
 from app.game.party_state import DungeonPhase
+from app.game.story_state import KnowledgeStatus
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import (
     OverworldAction,
@@ -127,13 +128,14 @@ def test_floor_four_setup_exposes_all_authored_m8_reports_and_launches(tmp_path)
     game.party_state._floor_four_cleared = True
     game.story_state.reveal_knowledge_fact(
         "m8_fact_drowned_reliquary",
-        "confirmed",
+        KnowledgeStatus.RUMORED,
     )
+    port = make_test_save_port(tmp_path / "floor-four.json")
     session = OverworldSession(
         game,
         battle_factory=lambda *_args, **_kwargs: None,
         enemy_factory=lambda *_args, **_kwargs: None,
-        save_port=make_test_save_port(tmp_path / "floor-four.json"),
+        save_port=port,
         now_factory=lambda: datetime(2026, 11, 10, tzinfo=timezone.utc),
     )
 
@@ -168,6 +170,12 @@ def test_floor_four_setup_exposes_all_authored_m8_reports_and_launches(tmp_path)
     assert launched.expedition_status.category_label == "Scouting"
     assert session.game_state.party_state.phase is DungeonPhase.OUTING
     assert session.game_state.overworld_state.active_route_id == "floor_four"
+    assert session.game_state.story_state.knowledge_status(
+        "m8_fact_drowned_reliquary"
+    ) is KnowledgeStatus.CONFIRMED
+    assert port.load().game_state.story_state.knowledge_status(
+        "m8_fact_drowned_reliquary"
+    ) is KnowledgeStatus.CONFIRMED
 
 
 def test_floor_five_approach_setup_is_rejected_until_its_route_exists(tmp_path):

@@ -223,6 +223,24 @@ class ExpeditionService:
                     )
             now = _utc_second(self._now_factory())
             candidate = game_state.clone()
+            if outing_floor_id == "floor_four":
+                from app.game.region_progression import (
+                    confirm_destination_entry,
+                    destination_availability,
+                )
+
+                destination_id = "drowned_reliquary"
+                availability = destination_availability(
+                    candidate, destination_id
+                )
+                if not availability.enabled:
+                    return ExpeditionLaunchResult(
+                        ExpeditionLaunchStatus.INVALID_OUTING,
+                        game_state,
+                        availability.reason
+                        or "The Drowned Reliquary entry is no longer eligible.",
+                    )
+                confirm_destination_entry(candidate, destination_id)
             candidate.expedition_state.update_energy(now)
             if candidate.expedition_state.energy < EXPEDITION_LAUNCH_COST:
                 return ExpeditionLaunchResult(
