@@ -242,11 +242,15 @@ def test_floor_four_discovery_journey_claims_only_the_selected_active_drifter(
     game = floor_four_game_at(node_id)
     port = RecordingSavePort()
     active_ids = game.party_state.active_drifter_ids
+    recruited_ids = tuple(
+        member.character.profile.drifter_id
+        for member in game.recruited_members
+    )
     searcher_id = active_ids[1 - target_index]
     target_id = active_ids[target_index]
     before = {
         drifter_id: getattr(game.member_for_drifter_id(drifter_id), resource_name).maximum
-        for drifter_id in active_ids
+        for drifter_id in recruited_ids
     }
     session = session_for(game, port, rng=RewardRng(drop_roll=1))
 
@@ -256,7 +260,7 @@ def test_floor_four_discovery_journey_claims_only_the_selected_active_drifter(
     session.submit(ChooseDiscoveryTarget(target_id))
     session.submit(ChooseOverworldAction(OverworldAction.CONFIRM))
 
-    for drifter_id in active_ids:
+    for drifter_id in recruited_ids:
         expected_gain = 5 if drifter_id == target_id else 0
         resource = getattr(session.game_state.member_for_drifter_id(drifter_id), resource_name)
         assert resource.maximum == before[drifter_id] + expected_gain
@@ -264,6 +268,26 @@ def test_floor_four_discovery_journey_claims_only_the_selected_active_drifter(
     restored = reconstruct_game_state(build_save_document(port.saved_states[-1]))
     assert source_id in restored.world_state.permanent_discovery_claims
     assert len(port.saved_states) == 2
+
+    source = get_permanent_discovery_source(source_id)
+    duplicate_port = RecordingSavePort()
+    duplicate = PermanentDiscoveryService(
+        (source,),
+        save_port=duplicate_port,
+    ).consume(
+        restored,
+        source_id,
+        searcher_id,
+        confirmed=True,
+    )
+    assert duplicate.status is DiscoveryClaimStatus.ALREADY_CLAIMED
+    assert duplicate.game_state.world_state.permanent_discovery_claims.count(source_id) == 1
+    for drifter_id in recruited_ids:
+        resource = getattr(duplicate.game_state.member_for_drifter_id(drifter_id), resource_name)
+        assert resource.maximum == before[drifter_id] + (
+            5 if drifter_id == target_id else 0
+        )
+    assert duplicate_port.saved_states == []
 
 
 def test_discovery_claim_save_failure_leaves_claim_and_reward_retryable():
@@ -388,6 +412,37 @@ def test_schema27_rejects_m8_4_encounter_reward_evidence():
 
     with pytest.raises(SaveStateValidationError, match="M8.4 reward evidence"):
         validate_profile_payload(historical)
+
+
+@pytest.mark.parametrize("evidence_kind", ("claim", "discovered", "search"))
+def test_schema27_rejects_m8_4_discovery_evidence(evidence_kind):
+    source_id = "ancient_well_floor4_01"
+    game = floor_four_game_at("floor_four_rest_midpoint")
+    if evidence_kind == "claim":
+        game.world_state.claim_permanent_discovery(source_id)
+    elif evidence_kind == "discovered":
+        game.world_state.discover_permanent_discovery_source(source_id)
+    else:
+        result = RunEventService(
+            save_port=RecordingSavePort(),
+            rng=RewardRng(drop_roll=10000),
+        ).search_discovery(
+            game,
+            node_id="floor_four_rest_midpoint",
+            searcher_drifter_id=game.party_state.active_drifter_ids[0],
+            source=get_permanent_discovery_source(source_id),
+        )
+        assert result.status is RunEventStatus.RESOLVED
+        assert result.found is False
+        game = result.game_state
+
+    historical = build_save_document(game)
+    historical["schema_version"] = 27
+
+    with pytest.raises(SaveStateValidationError, match="M8.4 discovery evidence"):
+        validate_profile_payload(historical)
+    with pytest.raises(SaveStateValidationError, match="M8.4 discovery evidence"):
+        validate_save_document(historical)
 
 
 def test_encounter_eight_armor_uses_the_run_event_randint_contract():

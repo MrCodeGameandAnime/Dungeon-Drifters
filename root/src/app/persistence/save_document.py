@@ -7,6 +7,7 @@ from app.content.catalog import (
     create_weapon_from_persistence_key,
     get_drifter_spec_by_choice,
     get_known_permanent_discovery_source,
+    get_permanent_discovery_search_floor_id,
     get_route_node_spec,
     get_route_spec,
     get_weapon_spec,
@@ -1080,6 +1081,7 @@ def _validate_document(
         require_authored_discovery_sources=(
             schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
         ),
+        allow_m8_4_discovery_sources=(schema_version >= DISK_SCHEMA_VERSION),
     )
     _validate_overworld(
         document["overworld"],
@@ -1174,6 +1176,7 @@ def _validate_document(
         require_floor_four_run_state=(
             schema_version >= _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
         ),
+        allow_m8_4_discovery_sources=(schema_version >= DISK_SCHEMA_VERSION),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -1803,6 +1806,7 @@ def _validate_party(
     require_floor_two_state=False,
     require_floor_three_state=False,
     require_floor_four_run_state=False,
+    allow_m8_4_discovery_sources=False,
     require_hub_economy=False,
     require_region_progression=False,
     require_active_run_scope=False,
@@ -2166,6 +2170,7 @@ def _validate_party(
                 active_run_id=active_run_id,
                 active_floor_id=active_floor_id,
                 require_active_run_scope=require_active_run_scope,
+                allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
             )
         except (TypeError, ValueError) as error:
             raise SaveStateValidationError(
@@ -3253,6 +3258,7 @@ def _validate_world(
     require_permanent_discovery_claims=False,
     require_discovered_permanent_discovery_sources=False,
     require_authored_discovery_sources=False,
+    allow_m8_4_discovery_sources=False,
 ):
     _require_mapping(world, "world")
     expected_keys = {
@@ -3283,7 +3289,8 @@ def _validate_world(
             )
         if require_authored_discovery_sources:
             _validate_authored_discovery_source_ids(
-                world["permanent_discovery_claims"]
+                world["permanent_discovery_claims"],
+                allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
             )
     if require_discovered_permanent_discovery_sources:
         _validate_unique_string_list(
@@ -3299,7 +3306,10 @@ def _validate_world(
                 "world contains a malformed discovered discovery source ID"
             )
         if require_authored_discovery_sources:
-            _validate_authored_discovery_source_ids(discovered_sources)
+            _validate_authored_discovery_source_ids(
+                discovered_sources,
+                allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
+            )
         if not set(world["permanent_discovery_claims"]).issubset(
             discovered_sources
         ):
@@ -3310,7 +3320,11 @@ def _validate_world(
     validate_plain_value(world["dungeon_changes"], "world.dungeon_changes")
 
 
-def _validate_authored_discovery_source_ids(source_ids):
+def _validate_authored_discovery_source_ids(
+    source_ids,
+    *,
+    allow_m8_4_discovery_sources=False,
+):
     for source_id in source_ids:
         try:
             get_known_permanent_discovery_source(source_id)
@@ -3318,6 +3332,14 @@ def _validate_authored_discovery_source_ids(source_ids):
             raise SaveStateValidationError(
                 f"world contains an unknown permanent discovery source: {source_id}"
             ) from error
+        if (
+            not allow_m8_4_discovery_sources
+            and get_permanent_discovery_search_floor_id(source_id)
+            in {"floor_four", "floor_five"}
+        ):
+            raise SaveStateValidationError(
+                "world contains M8.4 discovery evidence"
+            )
 
 
 def _validate_discovery_event_world_relationship(world, party):

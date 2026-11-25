@@ -2350,6 +2350,7 @@ def validate_run_event_history(
     active_floor_id=None,
     require_active_run_scope=False,
     require_complete=True,
+    allow_m8_4_discovery_sources=True,
 ):
     if not isinstance(events, (tuple, list)):
         raise TypeError("resolved run events must be a sequence")
@@ -2433,10 +2434,19 @@ def validate_run_event_history(
                 source = get_known_permanent_discovery_source(result["source_id"])
             except ValueError as error:
                 raise ValueError("discovery event references an unknown source") from error
+            source_floor_id = get_permanent_discovery_search_floor_id(
+                result["source_id"]
+            )
+            if (
+                not allow_m8_4_discovery_sources
+                and source_floor_id in {"floor_four", "floor_five"}
+            ):
+                raise ValueError(
+                    "legacy run history cannot contain M8.4 discovery evidence"
+                )
             if (
                 get_permanent_discovery_search_node_id(result["source_id"]) != node_id
-                or get_permanent_discovery_search_floor_id(result["source_id"])
-                != event["floor_id"]
+                or source_floor_id != event["floor_id"]
             ):
                 raise ValueError("discovery source does not belong to this route node")
             if (

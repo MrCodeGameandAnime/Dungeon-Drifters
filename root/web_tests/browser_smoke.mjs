@@ -17,6 +17,7 @@ let floorTwoProfileEnvelope;
 let m5EquipmentFixtures;
 let m6ExpeditionFixtures;
 let m65ProfessionFixtures;
+let m8DiscoveryFixtures;
 for (const pythonExecutable of pythonCandidates) {
   try {
     floorTwoProfileEnvelope = execFileSync(
@@ -39,6 +40,11 @@ for (const pythonExecutable of pythonCandidates) {
       [path.join(repositoryRoot, "web_tests", "m65_profession_browser_fixture.py")],
       { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
     ));
+    m8DiscoveryFixtures = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m8_discovery_browser_fixtures.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
     break;
   } catch (error) {
     if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
@@ -55,6 +61,9 @@ if (!m6ExpeditionFixtures?.hub) {
 }
 if (!m65ProfessionFixtures?.hub) {
   throw new Error("could not generate the M6.5 profession browser save fixture");
+}
+if (!m8DiscoveryFixtures?.ancient_well || !m8DiscoveryFixtures?.forgotten_altar) {
+  throw new Error("could not generate the M8 discovery browser save fixtures");
 }
 const errors = [];
 const observedMomentumLabels = new Set();
@@ -4723,10 +4732,140 @@ try {
 
   await clickVisibleOption(page, "#overworld-options", "Recover");
   await page.locator("#route-actions").filter({ hasText: "Enter Encounter" }).waitFor({ state: "visible" });
+  let floorFourBattle08Before = null;
+  let floorFourBattle08Evidence = null;
   for (let battleNumber = 6; battleNumber <= 9; battleNumber += 1) {
+    if (battleNumber === 8) {
+      floorFourBattle08Before = await page.evaluate((key) => {
+        const payload = JSON.parse(localStorage.getItem(key)).payload;
+        return {
+          runId: payload.party.floor_four_run_id,
+          armorCount: payload.party.equipment_instances.filter(
+            (item) => item.source_id === "m8_floor_four_armor_source",
+          ).length,
+          healingPotionCount: payload.party.outing_rewards.items.healing_potion || 0,
+          sharedPotionCount: payload.party.shared_items.healing_potion || 0,
+          carriedPotionCount: payload.party.carried_items.healing_potion || 0,
+        };
+      }, floorTwoProfileKey);
+    }
     await clickVisibleOption(page, "#route-actions", "Enter Encounter");
     await page.locator("#party-panel").waitFor({ state: "visible" });
     await clearFloorBattle(battleNumber, { floorLabel: "Floor IV" });
+    if (battleNumber === 8) {
+      floorFourBattle08Evidence = await page.evaluate(({ key, runId }) => {
+        const payload = JSON.parse(localStorage.getItem(key)).payload;
+        const events = payload.party.resolved_run_events.filter(
+          (event) => event.run_id === runId &&
+            event.floor_id === "floor_four" &&
+            event.node_id === "floor_four_battle_08",
+        );
+        const encounter = events.find((event) => event.kind === "encounter_rewards");
+        const armorEvents = events.filter(
+          (event) => event.kind === "armor_reward" &&
+            event.result.source_id === "m8_floor_four_armor_source",
+        );
+        const recoveryEvents = events.filter(
+          (event) => event.kind === "fixed_item_reward" &&
+            event.result.source_id === "m8_floor_four_recovery_source",
+        );
+        const armorInstances = payload.party.equipment_instances.filter(
+          (item) => item.source_id === "m8_floor_four_armor_source",
+        );
+        return {
+          events,
+          encounterSourceIds: encounter?.result?.reward_source_ids || [],
+          armorEvents,
+          recoveryEvents,
+          armorInstances,
+          healingPotionCount: payload.party.outing_rewards.items.healing_potion || 0,
+          sharedPotionCount: payload.party.shared_items.healing_potion || 0,
+          carriedPotionCount: payload.party.carried_items.healing_potion || 0,
+        };
+      }, { key: floorTwoProfileKey, runId: floorFourBattle08Before.runId });
+      requireCondition(
+        floorFourBattle08Before.armorCount === 0 &&
+          floorFourBattle08Evidence.armorEvents.length === 1 &&
+          floorFourBattle08Evidence.recoveryEvents.length === 1 &&
+          floorFourBattle08Evidence.armorInstances.length === 1 &&
+          floorFourBattle08Evidence.armorInstances[0].instance_id ===
+            floorFourBattle08Evidence.armorEvents[0].result.instance.instance_id &&
+          floorFourBattle08Evidence.armorInstances[0].secured === false &&
+          floorFourBattle08Evidence.armorEvents[0].result.template_id === "field_chest" &&
+          floorFourBattle08Evidence.armorInstances[0].definition_id === "field_chest" &&
+          floorFourBattle08Evidence.armorEvents[0].result.floor === 4 &&
+          floorFourBattle08Evidence.recoveryEvents[0].result.item_id === "healing_potion" &&
+          floorFourBattle08Evidence.recoveryEvents[0].result.quantity === 1 &&
+          floorFourBattle08Evidence.encounterSourceIds.includes("m8_floor_four_armor_source") &&
+          floorFourBattle08Evidence.encounterSourceIds.includes("m8_floor_four_recovery_source") &&
+          floorFourBattle08Evidence.healingPotionCount ===
+            floorFourBattle08Before.healingPotionCount + 1 &&
+          floorFourBattle08Evidence.sharedPotionCount ===
+            floorFourBattle08Before.sharedPotionCount,
+        `Encounter 08 did not commit exactly one unsecured authored armor and Healing Potion: ${JSON.stringify({ floorFourBattle08Before, floorFourBattle08Evidence })}`,
+      );
+      const committedArmorId = floorFourBattle08Evidence.armorInstances[0].instance_id;
+      await clickVisibleOption(page, "#overworld-options", "Options");
+      await page.locator("#screen-badge").filter({ hasText: "OPTIONS" }).waitFor({ state: "visible" });
+      await clickVisibleOption(page, "#overworld-options", "Save");
+      await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+        timeout: 120000,
+      });
+      await continueSavedGameAfterReload(page);
+      const floorFourRewardsAfterReload = await page.evaluate(({ key, runId }) => {
+        const payload = JSON.parse(localStorage.getItem(key)).payload;
+        const events = payload.party.resolved_run_events.filter(
+          (event) => event.run_id === runId &&
+            event.floor_id === "floor_four" &&
+            event.node_id === "floor_four_battle_08",
+        );
+        const armorEvent = events.find(
+          (event) => event.kind === "armor_reward" &&
+            event.result.source_id === "m8_floor_four_armor_source",
+        );
+        const recoveryEvent = events.find(
+          (event) => event.kind === "fixed_item_reward" &&
+            event.result.source_id === "m8_floor_four_recovery_source",
+        );
+        return {
+          badge: document.getElementById("screen-badge")?.textContent.trim(),
+          armor: payload.party.equipment_instances.filter(
+            (item) => item.source_id === "m8_floor_four_armor_source",
+          ),
+          armorEventCount: events.filter((event) => event.kind === "armor_reward").length,
+          recoveryEventCount: events.filter((event) => event.kind === "fixed_item_reward").length,
+          armorEvent,
+          recoveryEvent,
+          potionCount: payload.party.outing_rewards.items.healing_potion || 0,
+          sharedPotionCount: payload.party.shared_items.healing_potion || 0,
+          carriedPotionCount: payload.party.carried_items.healing_potion || 0,
+        };
+      }, { key: floorTwoProfileKey, runId: floorFourBattle08Before.runId });
+      requireCondition(
+        floorFourRewardsAfterReload.badge === "OVERWORLD" &&
+          floorFourRewardsAfterReload.armor.length === 1 &&
+          floorFourRewardsAfterReload.armor[0].instance_id === committedArmorId &&
+          floorFourRewardsAfterReload.armor[0].secured === false &&
+          floorFourRewardsAfterReload.armorEventCount === 1 &&
+          floorFourRewardsAfterReload.armorEvent.result.source_id === "m8_floor_four_armor_source" &&
+          floorFourRewardsAfterReload.armorEvent.result.template_id === "field_chest" &&
+          floorFourRewardsAfterReload.armorEvent.result.instance.instance_id === committedArmorId &&
+          floorFourRewardsAfterReload.recoveryEventCount === 1 &&
+          floorFourRewardsAfterReload.recoveryEvent.result.source_id === "m8_floor_four_recovery_source" &&
+          floorFourRewardsAfterReload.recoveryEvent.result.item_id === "healing_potion" &&
+          floorFourRewardsAfterReload.recoveryEvent.result.quantity === 1 &&
+          floorFourRewardsAfterReload.potionCount ===
+            floorFourBattle08Before.healingPotionCount + 1 &&
+          floorFourRewardsAfterReload.sharedPotionCount ===
+            floorFourBattle08Before.sharedPotionCount &&
+          floorFourRewardsAfterReload.carriedPotionCount ===
+            floorFourBattle08Evidence.carriedPotionCount,
+        `Encounter 08 rewards changed or duplicated after reload: ${JSON.stringify(floorFourRewardsAfterReload)}`,
+      );
+      console.log("M8.4_BROWSER|FLOOR_FOUR_ENCOUNTER_08_REWARDS|UNSECURED_SAVE_RELOAD|PASS");
+    }
   }
   await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Save");
@@ -4742,8 +4881,55 @@ try {
     "Floor IV pre-boss Rest did not survive save/reload",
   );
 
+  const floorFourBeforeBossRest = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      armor: payload.party.equipment_instances.filter(
+        (item) => item.source_id === "m8_floor_four_armor_source",
+      ),
+      runPotionCount: payload.party.outing_rewards.items.healing_potion || 0,
+      sharedPotionCount: payload.party.shared_items.healing_potion || 0,
+      carriedPotionCount: payload.party.carried_items.healing_potion || 0,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFourBeforeBossRest.armor.length === 1 &&
+      floorFourBeforeBossRest.armor[0].secured === false &&
+      floorFourBeforeBossRest.runPotionCount ===
+        floorFourBattle08Before.healingPotionCount + 1 &&
+      floorFourBeforeBossRest.sharedPotionCount ===
+        floorFourBattle08Before.sharedPotionCount,
+    `Floor IV rewards were not still unsecured before the pre-boss Rest: ${JSON.stringify(floorFourBeforeBossRest)}`,
+  );
   await clickVisibleOption(page, "#overworld-options", "Recover");
   await page.locator("#route-actions").filter({ hasText: "Enter Encounter" }).waitFor({ state: "visible" });
+  const floorFourAfterBossRest = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      armor: payload.party.equipment_instances.filter(
+        (item) => item.source_id === "m8_floor_four_armor_source",
+      ),
+      runPotionCount: payload.party.outing_rewards.items.healing_potion || 0,
+      sharedPotionCount: payload.party.shared_items.healing_potion || 0,
+      carriedPotionCount: payload.party.carried_items.healing_potion || 0,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFourAfterBossRest.armor.length === 1 &&
+      floorFourAfterBossRest.armor[0].instance_id ===
+        floorFourBattle08Evidence.armorInstances[0].instance_id &&
+      floorFourAfterBossRest.armor[0].secured === true &&
+      floorFourAfterBossRest.runPotionCount === floorFourBeforeBossRest.runPotionCount &&
+      floorFourAfterBossRest.sharedPotionCount === floorFourBeforeBossRest.sharedPotionCount &&
+      floorFourAfterBossRest.carriedPotionCount === floorFourBeforeBossRest.carriedPotionCount,
+    `Pre-boss Rest did not secure only the armor while preserving unsecured Recovery: ${JSON.stringify(floorFourAfterBossRest)}`,
+  );
+  const floorFourExpectedPotionSettlement = await page.evaluate((key) => {
+    const party = JSON.parse(localStorage.getItem(key)).payload.party;
+    return (party.shared_items.healing_potion || 0) +
+      (party.carried_items.healing_potion || 0) +
+      (party.outing_rewards.items.healing_potion || 0);
+  }, floorTwoProfileKey);
   await clickVisibleOption(page, "#route-actions", "Enter Encounter");
   await page.locator("#party-panel").waitFor({ state: "visible" });
   await clearFloorBattle(10, {
@@ -4752,19 +4938,212 @@ try {
   });
   const floorFourClearEvidence = await page.evaluate((key) => {
     const envelope = JSON.parse(localStorage.getItem(key));
+    const armorInstances = envelope?.payload?.party?.equipment_instances?.filter(
+      (item) => item.source_id === "m8_floor_four_armor_source",
+    ) || [];
     return {
       cleared: envelope?.payload?.party?.floor_four_cleared,
       crystal: envelope?.payload?.party?.shared_items?.grade_iv_magic_crystal,
       ashenVault: envelope?.payload?.story?.knowledge_facts?.m8_fact_ashen_vault,
+      sharedPotionCount: envelope?.payload?.party?.shared_items?.healing_potion || 0,
+      carriedPotionCount: envelope?.payload?.party?.carried_items?.healing_potion || 0,
+      outingPotionCount: envelope?.payload?.party?.outing_rewards?.items?.healing_potion || 0,
+      armorInstances,
     };
   }, floorTwoProfileKey);
   requireCondition(
     floorFourClearEvidence.cleared === true &&
       floorFourClearEvidence.crystal === 1 &&
-      floorFourClearEvidence.ashenVault === "rumored",
+      floorFourClearEvidence.ashenVault === "rumored" &&
+      floorFourClearEvidence.armorInstances.length === 1 &&
+      floorFourClearEvidence.armorInstances[0].instance_id ===
+        floorFourBattle08Evidence.armorInstances[0].instance_id &&
+      floorFourClearEvidence.armorInstances[0].secured === true &&
+      floorFourClearEvidence.sharedPotionCount === floorFourExpectedPotionSettlement &&
+      floorFourClearEvidence.carriedPotionCount === 0 &&
+      floorFourClearEvidence.outingPotionCount === 0,
     `Floor IV boss settlement did not persist clear, one Crystal, and Ashen Vault rumor: ${JSON.stringify(floorFourClearEvidence)}`,
   );
   console.log("M8.3_BROWSER|FLOOR_FOUR_BOSS_CLEAR_AND_REWARDS|PASS");
+
+  const runM8DiscoveryBrowserJourney = async ({
+    fixtureName,
+    sourceId,
+    resourceName,
+    rewardLabel,
+    marker,
+  }) => {
+    const fixture = m8DiscoveryFixtures[fixtureName];
+    const discoveryPage = await browser.newPage();
+    discoveryPage.setDefaultNavigationTimeout(120000);
+    discoveryPage.on("pageerror", (error) => errors.push(error.message));
+    discoveryPage.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    await discoveryPage.route("**/favicon.ico", (route) =>
+      route.fulfill({ status: 204, body: "" }),
+    );
+    await discoveryPage.route("**/python/boot.py", async (route) => {
+      const response = await route.fetch();
+      const source = await response.text();
+      await route.fulfill({
+        response,
+        body: `${source}\nimport random\nrandom.seed(2)\n`,
+      });
+    });
+    await discoveryPage.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await discoveryPage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+      timeout: 120000,
+    });
+    await discoveryPage.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+      key: fixture.profile_key,
+      envelope: fixture.envelope,
+    });
+    await discoveryPage.reload({ waitUntil: "domcontentloaded" });
+    await discoveryPage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+      timeout: 120000,
+    });
+    await continueSavedGameAfterReload(discoveryPage);
+    await discoveryPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+
+    const readDiscoveryState = () => discoveryPage.evaluate(({ key, sourceId }) => {
+      const envelope = JSON.parse(localStorage.getItem(key));
+      const payload = envelope.payload;
+      const members = [payload.player, ...payload.party.companions];
+      const drifterIdByChoice = {
+        "1": "branoc",
+        "2": "azhvielle",
+        "3": "zhaivra",
+        "4": "joruun",
+      };
+      const resources = Object.fromEntries(members.map((member) => [
+        drifterIdByChoice[member.identity.profile.choice],
+        {
+          hp: member.resources.health.maximum,
+          mana: member.resources.mana.maximum,
+        },
+      ]));
+      const searches = payload.party.resolved_run_events.filter(
+        (event) => event.kind === "discovery_search" &&
+          event.result.source_id === sourceId,
+      );
+      return {
+        activeIds: payload.party.active_drifter_ids,
+        resources,
+        claims: payload.world.permanent_discovery_claims,
+        searches,
+      };
+    }, { key: fixture.profile_key, sourceId });
+
+    const before = await readDiscoveryState();
+    requireCondition(
+      before.activeIds.length === 2 &&
+        before.resources.branoc && before.resources.azhvielle &&
+        before.resources.zhaivra && before.resources.joruun,
+      `${sourceId} fixture did not contain the active pair and full recruited roster: ${JSON.stringify(before)}`,
+    );
+    await clickVisibleOption(discoveryPage, "#overworld-options", "Search Site");
+    await discoveryPage.locator("#discovery-selection").waitFor({ state: "visible" });
+    const searcherButtons = discoveryPage.locator("#discovery-choices button");
+    const searcherLabels = await searcherButtons.allInnerTexts();
+    requireCondition(
+      searcherLabels.length === 2 && searcherLabels.some((label) => label.includes("Azhvielle")) &&
+        searcherLabels.some((label) => label.includes("Ser Branoc")),
+      `${sourceId} search did not offer exactly the active Drifters: ${JSON.stringify(searcherLabels)}`,
+    );
+    await searcherButtons.filter({ hasText: "Azhvielle" }).click();
+    await discoveryPage.locator("#screen-badge").filter({ hasText: "CLAIM DISCOVERY" }).waitFor({ state: "visible" });
+
+    const searchState = await readDiscoveryState();
+    const searchEvent = searchState.searches[0];
+    requireCondition(
+      searchState.searches.length === 1 &&
+        searchEvent.result.source_id === sourceId &&
+        searchEvent.result.searcher_drifter_id === "azhvielle" &&
+        searchEvent.result.found === true &&
+        searchEvent.result.roll <= searchEvent.result.effective_chance_bps,
+      `${sourceId} seeded browser search did not resolve successfully through Python: ${JSON.stringify(searchState.searches)}`,
+    );
+
+    const targetButtons = discoveryPage.locator("#discovery-choices button");
+    const targetLabels = await targetButtons.allInnerTexts();
+    requireCondition(
+      targetLabels.length === 2 && targetLabels.some((label) => label.includes("Azhvielle")) &&
+        targetLabels.some((label) => label.includes("Ser Branoc")),
+      `${sourceId} reward targeting did not restrict choices to the active pair: ${JSON.stringify(targetLabels)}`,
+    );
+    await targetButtons.filter({ hasText: "Ser Branoc" }).click();
+    await discoveryPage.locator("#screen-badge").filter({ hasText: "CONFIRM DISCOVERY" }).waitFor({ state: "visible" });
+    requireCondition(
+      (await discoveryPage.locator("#adventure-text").innerText()).includes(rewardLabel),
+      `${sourceId} confirmation did not show its exact authored reward`,
+    );
+    await clickVisibleOption(discoveryPage, "#overworld-options", "Confirm");
+    await discoveryPage.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    requireCondition(
+      (await discoveryPage.locator("#notice").innerText()).includes(`claimed by Ser Branoc`) &&
+        (await discoveryPage.locator("#notice").innerText()).includes(rewardLabel),
+      `${sourceId} did not report its exact reward and selected active Drifter`,
+    );
+
+    const afterClaim = await readDiscoveryState();
+    requireCondition(
+      afterClaim.claims.filter((claimedId) => claimedId === sourceId).length === 1 &&
+        afterClaim.searches.length === 1,
+      `${sourceId} did not commit exactly one search and claim: ${JSON.stringify(afterClaim)}`,
+    );
+    for (const drifterId of Object.keys(before.resources)) {
+      for (const statName of ["hp", "mana"]) {
+        const expected = before.resources[drifterId][statName] + (
+          drifterId === "branoc" && statName === resourceName ? 5 : 0
+        );
+        requireCondition(
+          afterClaim.resources[drifterId][statName] === expected,
+          `${sourceId} changed ${drifterId}'s ${statName} incorrectly: ${JSON.stringify({ before, afterClaim })}`,
+        );
+      }
+    }
+    const actionsAfterClaim = await discoveryPage.locator("#overworld-options button").allInnerTexts();
+    requireCondition(
+      !actionsAfterClaim.includes("Search Site") && !actionsAfterClaim.includes("Claim Discovery"),
+      `${sourceId} was offered again after its claim: ${JSON.stringify(actionsAfterClaim)}`,
+    );
+
+    await clickVisibleOption(discoveryPage, "#overworld-options", "Save");
+    await discoveryPage.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+    await discoveryPage.reload({ waitUntil: "domcontentloaded" });
+    await discoveryPage.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+      timeout: 120000,
+    });
+    await continueSavedGameAfterReload(discoveryPage);
+    const afterReload = await readDiscoveryState();
+    requireCondition(
+      afterReload.claims.filter((claimedId) => claimedId === sourceId).length === 1 &&
+        afterReload.searches.length === 1 &&
+        JSON.stringify(afterReload.resources) === JSON.stringify(afterClaim.resources) &&
+        await discoveryPage.locator("#screen-badge").innerText() === "REST" &&
+        !(await discoveryPage.locator("#overworld-options button").allInnerTexts()).includes("Search Site") &&
+        !(await discoveryPage.locator("#overworld-options button").allInnerTexts()).includes("Claim Discovery"),
+      `${sourceId} claim, exact reward, or duplicate guard changed after reload: ${JSON.stringify(afterReload)}`,
+    );
+    console.log(marker);
+    await discoveryPage.close();
+  };
+
+  await runM8DiscoveryBrowserJourney({
+    fixtureName: "ancient_well",
+    sourceId: "ancient_well_floor4_01",
+    resourceName: "hp",
+    rewardLabel: "+5 Max HP",
+    marker: "M8.4_BROWSER|ANCIENT_WELL_ACTIVE_TARGETED_CLAIM|PASS",
+  });
+  await runM8DiscoveryBrowserJourney({
+    fixtureName: "forgotten_altar",
+    sourceId: "forgotten_altar_floor4_01",
+    resourceName: "mana",
+    rewardLabel: "+5 Max Mana",
+    marker: "M8.4_BROWSER|FORGOTTEN_ALTAR_ACTIVE_TARGETED_CLAIM|PASS",
+  });
 
   const m5Page = await browser.newPage();
   m5Page.setDefaultNavigationTimeout(120000);
