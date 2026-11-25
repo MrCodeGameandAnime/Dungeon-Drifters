@@ -119,7 +119,8 @@ _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION = 25
 _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION = 26
 _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION = 27
 _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION = 28
-DISK_SCHEMA_VERSION = 28
+_M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION = 29
+DISK_SCHEMA_VERSION = _M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION
 
 _FLOOR_FOUR_ROUTE = get_route_spec("floor_four")
 _FLOOR_FOUR_ROUTE_NODE_IDS = tuple(
@@ -439,6 +440,27 @@ def migrate_schema27(document):
     return migrated
 
 
+def migrate_schema28(document):
+    """Add launch-frozen expedition outcomes to immutable schema-28 saves."""
+    validate_legacy_schema28_document(document)
+    migrated = deepcopy(document)
+    expedition = migrated["expedition"]
+    assignment = expedition["active_assignment"]
+    if assignment is not None:
+        assignment["frozen_outcome"] = _legacy_expedition_outcome(assignment)
+        assignment["report_content_id"] = None
+    for report in expedition["reports"]:
+        report["frozen_outcome"] = _legacy_expedition_outcome(report)
+        report["report_content_id"] = None
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _validate_document(
+        migrated,
+        schema_version=DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return migrated
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
@@ -646,6 +668,17 @@ def validate_legacy_schema27_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema28_document(document):
+    """Validate immutable schema-28 M8.4 payloads before M8.5 outcomes."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -763,6 +796,12 @@ def validate_profile_payload(document):
         return validate_legacy_schema27_document(document)
     if (
         isinstance(document, dict)
+        and document.get("schema_version")
+        == _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema28_document(document)
+    if (
+        isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema10_document(document)
@@ -868,6 +907,8 @@ def validate_save_document(document):
         return migrate_schema26(document)
     if schema_version == _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION:
         return migrate_schema27(document)
+    if schema_version == _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION:
+        return migrate_schema28(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -1022,11 +1063,18 @@ def _validate_document(
         raise SaveStateValidationError("save schema version mismatch")
     if schema_version >= _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION:
         try:
-            ExpeditionState.from_snapshot(document["expedition"])
+            ExpeditionState.from_snapshot(
+                document["expedition"],
+                allow_legacy_shape=(
+                    schema_version < _M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION
+                ),
+            )
         except (KeyError, TypeError, ValueError) as error:
             raise SaveStateValidationError(
                 f"game.expedition is invalid: {error}"
             ) from error
+        if schema_version < _M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION:
+            _validate_legacy_expedition_outcomes(document["expedition"])
     if require_signature_weapon is None:
         require_signature_weapon = schema_version >= _PREVIOUS_DISK_SCHEMA_VERSION_CURRENT
     equipment_by_id = {}
@@ -1043,6 +1091,10 @@ def _validate_document(
         )
         equipment_bonuses_by_member = _validate_equipment_relationships(
             document["player"], raw_party, equipment_by_id
+        )
+    if schema_version >= _M8_5_EXPEDITION_REPORT_DISK_SCHEMA_VERSION:
+        _validate_expedition_equipment_identity(
+            document["expedition"], set(equipment_by_id)
         )
     _validate_player(
         document["player"],
@@ -2747,6 +2799,101 @@ def _add_equipment_defaults(document):
             "legacy party already contains M5 modifier instances"
         )
     party["modifier_instances"] = []
+
+
+def _validate_legacy_expedition_outcomes(expedition):
+    if not isinstance(expedition, dict) or set(expedition) != {
+        "energy", "energy_anchor_utc", "active_assignment", "reports"
+    }:
+        raise SaveStateValidationError("pre-M8.5 expedition state has an invalid shape")
+    assignment = expedition["active_assignment"]
+    legacy_assignment_keys = {
+        "assignment_id", "outing_floor_id", "destination_floor_id", "category",
+        "expedition_drifter_ids", "started_at_utc", "last_observed_at_utc",
+        "completed_at_utc",
+    }
+    if assignment is not None:
+        if not isinstance(assignment, dict) or set(assignment) != legacy_assignment_keys:
+            raise SaveStateValidationError(
+                "pre-M8.5 assignment contains post-M8.5 outcome data"
+            )
+        if (
+            assignment.get("category") not in {"training", "material"}
+            or assignment.get("outing_floor_id") not in {"floor_one", "floor_two"}
+            or assignment.get("destination_floor_id")
+            not in {"floor_one", "floor_two", "floor_three"}
+        ):
+            raise SaveStateValidationError(
+                "pre-M8.5 assignment contains post-M8.5 expedition content"
+            )
+    reports = expedition["reports"]
+    if not isinstance(reports, list):
+        raise SaveStateValidationError("pre-M8.5 reports must be a list")
+    legacy_report_keys = {
+        "report_id", "outing_floor_id", "destination_floor_id", "category",
+        "expedition_drifter_ids", "started_at_utc", "completed_at_utc",
+        "secured_base_xp", "experience_awards", "reward_item_id",
+        "reward_quantity", "claimed",
+    }
+    for report in reports:
+        if not isinstance(report, dict) or set(report) != legacy_report_keys:
+            raise SaveStateValidationError(
+                "pre-M8.5 report contains post-M8.5 outcome data"
+            )
+        if (
+            report.get("category") not in {"training", "material"}
+            or report.get("outing_floor_id") not in {"floor_one", "floor_two"}
+            or report.get("destination_floor_id")
+            not in {"floor_one", "floor_two", "floor_three"}
+        ):
+            raise SaveStateValidationError(
+                "pre-M8.5 report contains post-M8.5 expedition content"
+            )
+
+
+def _validate_expedition_equipment_identity(expedition, owned_instance_ids):
+    records = []
+    assignment = expedition["active_assignment"]
+    if assignment is not None and assignment["category"] == "equipment":
+        records.append((assignment["frozen_outcome"], False))
+    records.extend(
+        (report["frozen_outcome"], report["claimed"])
+        for report in expedition["reports"]
+        if report["category"] == "equipment"
+    )
+
+    seen_ids = set()
+    for outcome, claimed in records:
+        instance_id = outcome["equipment_instance"]["instance_id"]
+        if instance_id in seen_ids:
+            raise SaveStateValidationError(
+                "expedition equipment instance IDs must be unique"
+            )
+        seen_ids.add(instance_id)
+        if not claimed and instance_id in owned_instance_ids:
+            raise SaveStateValidationError(
+                "unclaimed expedition equipment is already owned"
+            )
+
+
+def _legacy_expedition_outcome(record):
+    if record["category"] == "training":
+        return None
+    destination = record["destination_floor_id"]
+    grade = {"floor_one": "i", "floor_two": "ii", "floor_three": "iii"}.get(
+        destination
+    )
+    if grade is None:
+        raise SaveStateValidationError(
+            "legacy Material report has no historical destination source"
+        )
+    reward_item_id = record.get("reward_item_id", f"grade_{grade}_metal")
+    reward_quantity = record.get("reward_quantity", 1)
+    return {
+        "source_id": None,
+        "reward_item_id": reward_item_id,
+        "reward_quantity": reward_quantity,
+    }
 
 
 def _add_expedition_defaults(document):

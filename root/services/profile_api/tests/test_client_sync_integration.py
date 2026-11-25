@@ -195,74 +195,74 @@ def _run_schema_history_advancement(api, session_factory, historical_schema):
     assert head.json()["head"]["payload_sha256"] == historical_digest
     assert advanced.status_code == 200, advanced.text
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 28
+    assert advanced.json()["head"]["payload"]["schema_version"] == 29
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == historical_payload
         assert historical.payload_sha256 == historical_digest
 
 
-def test_schema11_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema11_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 11)
 
 
-def test_schema12_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema12_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 12)
 
 
-def test_schema15_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema15_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 15)
 
 
-def test_schema16_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema16_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 16)
 
 
-def test_schema17_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema17_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 17)
 
 
-def test_schema18_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema18_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 18)
 
 
-def test_schema19_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema19_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 19)
 
 
-def test_schema20_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema20_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 20)
 
 
-def test_schema21_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema21_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 21)
 
 
-def test_schema22_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema22_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 22)
 
 
-def test_schema24_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema24_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 24)
 
 
-def test_schema26_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema26_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 26)
 
 
-def test_schema27_remote_history_advances_to_schema28_without_mutation(service):
+def test_schema27_remote_history_advances_to_schema29_without_mutation(service):
     api, session_factory = service
     _run_schema_history_advancement(api, session_factory, 27)
 
@@ -272,7 +272,7 @@ def test_schema27_remote_history_advances_to_schema28_without_mutation(service):
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema11_remote_history_advances_to_schema28_on_postgresql():
+def test_schema11_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -289,7 +289,7 @@ def test_schema11_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema12_remote_history_advances_to_schema28_on_postgresql():
+def test_schema12_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -306,7 +306,7 @@ def test_schema12_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema15_remote_history_advances_to_schema28_on_postgresql():
+def test_schema15_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -323,7 +323,7 @@ def test_schema15_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema16_remote_history_advances_to_schema28_on_postgresql():
+def test_schema16_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -340,7 +340,7 @@ def test_schema16_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema17_remote_history_advances_to_schema28_on_postgresql():
+def test_schema17_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -358,7 +358,7 @@ def test_schema17_remote_history_advances_to_schema28_on_postgresql():
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
 @pytest.mark.parametrize("historical_schema", (18, 19, 20, 21))
-def test_schema18_through_21_history_advances_to_schema28_on_postgresql(
+def test_schema18_through_21_history_advances_to_schema29_on_postgresql(
     historical_schema,
 ):
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
@@ -377,7 +377,7 @@ def test_schema18_through_21_history_advances_to_schema28_on_postgresql(
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema22_remote_history_advances_to_schema28_on_postgresql():
+def test_schema22_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -394,7 +394,7 @@ def test_schema22_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema24_remote_history_advances_to_schema28_on_postgresql():
+def test_schema24_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -411,7 +411,7 @@ def test_schema24_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema26_remote_history_advances_to_schema28_on_postgresql():
+def test_schema26_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)
@@ -428,7 +428,7 @@ def test_schema26_remote_history_advances_to_schema28_on_postgresql():
     or not POSTGRES_URL.startswith(("postgresql://", "postgresql+psycopg://")),
     reason="requires a dedicated PostgreSQL PROFILE_API_TEST_DATABASE_URL",
 )
-def test_schema27_remote_history_advances_to_schema28_on_postgresql():
+def test_schema27_remote_history_advances_to_schema29_on_postgresql():
     engine = create_engine(POSTGRES_URL, pool_size=8, max_overflow=2)
     try:
         Base.metadata.create_all(engine)

@@ -30,6 +30,7 @@ from app.persistence.save_document import (
     validate_legacy_schema25_document,
     validate_legacy_schema26_document,
     validate_legacy_schema27_document,
+    validate_legacy_schema28_document,
     validate_save_document,
 )
 from app.snapshot import validate_plain_value
@@ -412,6 +413,8 @@ def _validated_profile_payload(payload):
             return validate_legacy_schema26_document(payload)
         if payload["schema_version"] == 27:
             return validate_legacy_schema27_document(payload)
+        if payload["schema_version"] == 28:
+            return validate_legacy_schema28_document(payload)
         normalized = validate_save_document(payload)
     except (TypeError, ValueError) as error:
         raise ProfileEnvelopeValidationError("payload is not a valid game-state document") from error

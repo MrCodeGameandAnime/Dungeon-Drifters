@@ -95,6 +95,8 @@ class OverworldAction(StrEnum):
     START_EXPEDITION = "start_expedition"
     PREPARE_EXPEDITION_FLOOR_ONE = "prepare_expedition_floor_one"
     PREPARE_EXPEDITION_FLOOR_TWO = "prepare_expedition_floor_two"
+    PREPARE_EXPEDITION_FLOOR_FOUR = "prepare_expedition_floor_four"
+    PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH = "prepare_expedition_floor_five_approach"
     REGION_PORTAL = "region_portal"
     DROWNED_RELIQUARY_BRIEFING = "drowned_reliquary_briefing"
 

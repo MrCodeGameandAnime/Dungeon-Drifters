@@ -402,6 +402,8 @@ def test_browser_expedition_clock_query_is_read_only_at_completion_boundary():
         "outing_floor_id": "floor_one",
         "destination_floor_id": "floor_three",
         "category": "training",
+        "report_content_id": None,
+        "frozen_outcome": None,
         "expedition_drifter_ids": ["branoc", "azhvielle"],
         "started_at_utc": started_at_text,
         "last_observed_at_utc": started_at_text,

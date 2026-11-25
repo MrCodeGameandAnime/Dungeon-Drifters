@@ -62,6 +62,8 @@ def test_expedition_assigned_drifter_can_be_a_separate_floor_two_helper():
             "outing_floor_id": "floor_two",
             "destination_floor_id": "floor_one",
             "category": "training",
+            "report_content_id": None,
+            "frozen_outcome": None,
             "expedition_drifter_ids": ["joruun", "zhaivra"],
             "started_at_utc": "2026-11-10T12:00:00Z",
             "last_observed_at_utc": "2026-11-10T12:00:00Z",

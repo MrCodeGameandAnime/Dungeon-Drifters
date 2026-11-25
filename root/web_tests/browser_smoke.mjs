@@ -18,6 +18,7 @@ let m5EquipmentFixtures;
 let m6ExpeditionFixtures;
 let m65ProfessionFixtures;
 let m8DiscoveryFixtures;
+let m85ExpeditionFixture;
 for (const pythonExecutable of pythonCandidates) {
   try {
     floorTwoProfileEnvelope = execFileSync(
@@ -45,6 +46,11 @@ for (const pythonExecutable of pythonCandidates) {
       [path.join(repositoryRoot, "web_tests", "m8_discovery_browser_fixtures.py")],
       { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
     ));
+    m85ExpeditionFixture = JSON.parse(execFileSync(
+      pythonExecutable,
+      [path.join(repositoryRoot, "web_tests", "m85_expedition_browser_fixture.py")],
+      { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+    ));
     break;
   } catch (error) {
     if (!new Set(["ENOENT", "EACCES"]).has(error.code)) throw error;
@@ -64,6 +70,9 @@ if (!m65ProfessionFixtures?.hub) {
 }
 if (!m8DiscoveryFixtures?.ancient_well || !m8DiscoveryFixtures?.forgotten_altar) {
   throw new Error("could not generate the M8 discovery browser save fixtures");
+}
+if (!m85ExpeditionFixture?.envelope || !m85ExpeditionFixture?.profile_key) {
+  throw new Error("could not generate the M8.5 expedition browser save fixture");
 }
 const errors = [];
 const observedMomentumLabels = new Set();
@@ -5504,6 +5513,116 @@ try {
     `M6 active assignment did not survive save/reload: ${liveStatusAfterReload}`,
   );
   console.log("M6_BROWSER|PASSIVE_ASSIGNMENT_LAUNCH_RELOAD_STATUS|PASS");
+
+  const m85Page = await browser.newPage();
+  m85Page.setDefaultNavigationTimeout(120000);
+  m85Page.on("pageerror", (error) => errors.push(error.message));
+  await m85Page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await m85Page.evaluate(({ key, envelope }) => localStorage.setItem(key, envelope), {
+    key: m85ExpeditionFixture.profile_key,
+    envelope: m85ExpeditionFixture.envelope,
+  });
+  await m85Page.reload({ waitUntil: "domcontentloaded" });
+  await m85Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(m85Page);
+  await clickVisibleOption(m85Page, "#overworld-options", "Expeditions");
+  await m85Page.locator("#expedition-panel").waitFor({ state: "visible" });
+  const m85CategoryLabels = [
+    "Material", "Equipment", "Recovery", "Scouting", "Story", "Elite",
+  ];
+  for (const category of m85CategoryLabels) {
+    const row = m85Page.locator("#expedition-reports .expedition-report")
+      .filter({ hasText: `Floor IV | ${category}` });
+    await row.waitFor({ state: "visible" });
+    await row.getByRole("button", { name: "Claim report" }).click();
+    await row.getByText("Claimed", { exact: true }).waitFor({ state: "visible" });
+    await m85Page.locator("#notice")
+      .filter({ hasText: "Expedition report claimed." })
+      .waitFor({ state: "visible" });
+  }
+  await m85Page.reload({ waitUntil: "domcontentloaded" });
+  await m85Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(m85Page);
+  await clickVisibleOption(m85Page, "#overworld-options", "Expeditions");
+  const m85ClaimState = await m85Page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key))?.payload;
+    const reports = payload?.expedition?.reports || [];
+    const equipmentReport = reports.find((report) => report.category === "equipment");
+    const frozenEquipment = equipmentReport?.frozen_outcome?.equipment_instance;
+    const matchingEquipment = (payload?.party?.equipment_instances || []).filter(
+      (instance) => instance.instance_id === frozenEquipment?.instance_id,
+    );
+    const items = payload?.party?.shared_items || {};
+    const facts = payload?.story?.knowledge_facts || {};
+    const eventIds = payload?.story?.completed_events || [];
+    return {
+      allClaimed: reports.length === 6 && reports.every((report) => report.claimed),
+      material: items.grade_iv_metal || 0,
+      recovery: items.healing_potion || 0,
+      elite: items.grade_iv_cores || 0,
+      equipmentMatches: matchingEquipment.length === 1 &&
+        JSON.stringify(matchingEquipment[0]) === JSON.stringify(frozenEquipment),
+      scoutingFacts: [
+        "m8_fact_reliquary_threats",
+        "m8_fact_ashen_vault",
+        "m8_fact_ashen_regent",
+      ].map((factId) => facts[factId]),
+      storyRecorded: eventIds.includes("m8_story_reliquary_echo"),
+      claimButtons: document.querySelectorAll("#expedition-reports button").length,
+      energy: payload?.expedition?.energy,
+    };
+  }, m85ExpeditionFixture.profile_key);
+  requireCondition(
+    m85ClaimState.allClaimed && m85ClaimState.material === 1 &&
+      m85ClaimState.recovery === 1 && m85ClaimState.elite === 1 &&
+      m85ClaimState.equipmentMatches &&
+      m85ClaimState.scoutingFacts.every((status) => status === "confirmed") &&
+      m85ClaimState.storyRecorded && m85ClaimState.claimButtons === 0 &&
+      m85ClaimState.energy === 100,
+    `M8.5 report claims did not persist exactly once: ${JSON.stringify(m85ClaimState)}`,
+  );
+  console.log("M85_BROWSER|FLOOR_FOUR_REPORTS_CLAIM_RELOAD_ONCE|PASS");
+
+  await clickVisibleOption(m85Page, "#overworld-options", "Back");
+  await clickVisibleOption(m85Page, "#overworld-options", "Expeditions");
+  await clickVisibleOption(m85Page, "#overworld-options", "Prepare for Floor IV");
+  await m85Page.locator("#expedition-choices").waitFor({ state: "visible" });
+  for (const category of m85CategoryLabels) {
+    const choice = m85Page.locator("#expedition-choices button")
+      .filter({ hasText: `Floor IV | ${category}` });
+    requireCondition(
+      await choice.count() === 1 && await choice.isEnabled(),
+      `Floor IV ${category} was not available in the browser assignment screen`,
+    );
+  }
+  requireCondition(
+    await m85Page.locator("#expedition-choices button")
+      .filter({ hasText: "Floor V | Material" }).count() === 0,
+    "Floor V Material appeared before a genuine Floor V clear and eligible source",
+  );
+  console.log("M85_BROWSER|FLOOR_FOUR_CATEGORY_AVAILABILITY|PASS");
+  await clickVisibleOption(
+    m85Page,
+    "#expedition-choices",
+    "Floor IV | Scouting",
+  );
+  await m85Page.locator("#expedition-confirmation-content")
+    .filter({ hasText: "The 20-minute timer starts when confirmed." })
+    .waitFor({ state: "visible" });
+  await clickVisibleOption(m85Page, "#overworld-options", "Confirm Launch");
+  await m85Page.waitForFunction((key) => {
+    const payload = JSON.parse(localStorage.getItem(key))?.payload;
+    return payload?.expedition?.energy === 90 &&
+      payload?.expedition?.active_assignment?.category === "scouting" &&
+      payload?.expedition?.active_assignment?.outing_floor_id === "floor_four" &&
+      payload?.overworld?.active_route_id === "floor_four";
+  }, m85ExpeditionFixture.profile_key);
+  console.log("M85_BROWSER|FLOOR_FOUR_LAUNCH_AND_ENERGY|PASS");
+  await m85Page.close();
 
   const m65Page = await browser.newPage();
   m65Page.setDefaultNavigationTimeout(120000);

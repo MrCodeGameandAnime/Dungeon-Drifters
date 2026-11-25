@@ -2147,6 +2147,8 @@ class OverworldSession:
         if action in {
             OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE,
             OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
+            OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR,
+            OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH,
         }:
             if (
                 self._screen is not OverworldScreen.EXPEDITIONS
@@ -2154,11 +2156,13 @@ class OverworldSession:
             ):
                 self._notice = "Choose an outing from the Hub first."
                 return None
-            outing_floor_id = (
-                "floor_one"
-                if action is OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE
-                else "floor_two"
-            )
+            outing_floor_id = {
+                OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE: "floor_one",
+                OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO: "floor_two",
+                OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR: "floor_four",
+                OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH:
+                    "floor_five_approach",
+            }[action]
             if outing_floor_id == "floor_two" and (
                 not self.game_state.party_state.floor_one_cleared
                 or (
@@ -2176,6 +2180,14 @@ class OverworldSession:
             if outing_floor_id == "floor_one" and not self.game_state.party_state.tutorial_complete:
                 self._notice = "Your party is not ready to set out."
                 return None
+            if outing_floor_id == "floor_four":
+                availability = destination_availability(
+                    self.game_state,
+                    "drowned_reliquary",
+                )
+                if not availability.enabled:
+                    self._notice = availability.reason or "The Drowned Reliquary is not available."
+                    return None
             self._expedition_outing_floor_id = outing_floor_id
             self._screen = OverworldScreen.EXPEDITION_SETUP
             self._notice = None

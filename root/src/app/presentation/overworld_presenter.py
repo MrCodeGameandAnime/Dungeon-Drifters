@@ -42,6 +42,8 @@ from app.content.weapon_progression_spec import (
 )
 from app.game.party_state import DungeonPhase
 from app.game.expedition_state import (
+    ASSIGNMENT_CATEGORIES,
+    FLOOR_FIVE_APPROACH_OUTING_ID,
     category_unavailable_reason,
     EXPEDITION_LAUNCH_COST,
     _now_utc,
@@ -49,6 +51,7 @@ from app.game.expedition_state import (
 )
 from app.game.recruitment import available_recruitment_event
 from app.game.region_progression import (
+    destination_availability,
     is_drowned_reliquary_briefing_available,
     portal_regions,
     visible_destinations,
@@ -625,6 +628,8 @@ class OverworldPresenter:
             "floor_two": "Floor II",
             "floor_three": "Floor III",
             "floor_four": "Floor IV",
+            "floor_five": "Floor V",
+            FLOOR_FIVE_APPROACH_OUTING_ID: "Floor V Approach",
         }.get(floor_id, floor_id.replace("_", " ").title())
 
     @staticmethod
@@ -634,6 +639,9 @@ class OverworldPresenter:
             "material": "Material",
             "equipment": "Equipment",
             "recovery": "Recovery",
+            "scouting": "Scouting",
+            "story": "Story",
+            "elite": "Elite",
         }.get(category, category.replace("_", " ").title())
 
     def _expedition_status(self, game_state, now):
@@ -664,16 +672,19 @@ class OverworldPresenter:
                 ("floor_one", game_state.party_state.floor_one_cleared),
                 ("floor_two", game_state.party_state.floor_two_cleared),
                 ("floor_three", game_state.party_state.floor_three_cleared),
+                ("floor_four", game_state.party_state.floor_four_cleared),
+                ("floor_five", game_state.party_state.floor_five_cleared),
             )
             if completed
         )
         energy = game_state.expedition_state.preview_energy(now)
         choices = []
         for floor_id in eligible:
-            for category in ("training", "material", "equipment", "recovery"):
+            for category in ASSIGNMENT_CATEGORIES:
                 reason = category_unavailable_reason(
                     floor_id,
                     category,
+                    game_state=game_state,
                 )
                 if reason is None and energy < EXPEDITION_LAUNCH_COST:
                     reason = f"Requires {EXPEDITION_LAUNCH_COST} energy to launch."
@@ -701,11 +712,32 @@ class OverworldPresenter:
                     f"{members[drifter_id].character.profile.short_name} +{amount}"
                     for drifter_id, amount in report["experience_awards"].items()
                 )
-            else:
+            elif report["reward_item_id"] is not None:
+                if report["category"] == "recovery":
+                    from app.content.hub_economy import get_supply_item
+
+                    display_name = get_supply_item(
+                        report["reward_item_id"]
+                    ).display_name
+                else:
+                    display_name = get_material_spec(
+                        report["reward_item_id"]
+                    ).display_name
                 summary = (
                     f"{report['reward_quantity']} "
-                    f"{get_material_spec(report['reward_item_id']).display_name}"
+                    f"{display_name}"
                 )
+            elif report["category"] == "equipment":
+                from app.content.equipment_spec import get_equipment_template
+
+                instance = report["frozen_outcome"]["equipment_instance"]
+                summary = "Unique " + get_equipment_template(
+                    instance["definition_id"]
+                ).name
+            elif report["category"] == "scouting":
+                summary = "Confirms the three Drowned Reliquary and Ashen Vault facts"
+            else:
+                summary = "Records the optional Reliquary Echo event"
             reports.append(
                 ExpeditionReportView(
                     report_id=report["report_id"],
@@ -759,8 +791,8 @@ class OverworldPresenter:
             return "Choose a destination. Locked or unfinished content cannot be entered."
         if screen is OverworldScreen.EXPEDITIONS:
             return (
-                "Passive assignments run alongside a Floor I or Floor II outing. "
-                "Floor III outings use all four Drifters and cannot run with an assignment."
+                "Passive assignments run alongside compatible two-Drifter outings. "
+                "Floor III and the four-Drifter reunion cannot run with an assignment."
             )
         if screen is OverworldScreen.EXPEDITION_SETUP:
             return "Choose an available assignment and completed-floor destination."
@@ -2325,11 +2357,44 @@ class OverworldPresenter:
                                 OverworldAvailabilityReason.FLOOR_TWO_REPLAY_REQUIRES_AVAILABLE_HELPER,
                             ),
                         )
-                    elif game_state.party_state.floor_one_cleared:
+                    else:
                         actions += (
                             enabled(
                                 OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO,
                                 "Prepare for Floor II",
+                            ),
+                        )
+                if game_state.party_state.floor_three_cleared:
+                    availability = destination_availability(
+                        game_state,
+                        "drowned_reliquary",
+                    )
+                    if availability.enabled:
+                        actions += (
+                            enabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR,
+                                "Prepare for Floor IV",
+                            ),
+                        )
+                if game_state.party_state.floor_four_cleared:
+                    from app.content.catalog import get_route_spec
+
+                    try:
+                        get_route_spec(FLOOR_FIVE_APPROACH_OUTING_ID)
+                        has_approach_starter = callable(
+                            getattr(
+                                game_state.party_state,
+                                "start_floor_five_approach_run",
+                                None,
+                            )
+                        )
+                    except ValueError:
+                        has_approach_starter = False
+                    if has_approach_starter:
+                        actions += (
+                            enabled(
+                                OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH,
+                                "Prepare for Floor V Approach",
                             ),
                         )
             return actions + (enabled(OverworldAction.BACK, "Back"),)

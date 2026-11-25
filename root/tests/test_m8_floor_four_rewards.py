@@ -127,7 +127,7 @@ def floor_four_game_at(node_id):
     return game
 
 
-def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema28():
+def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema29():
     historical = build_save_document(
         floor_four_game_at("floor_four_rest_midpoint")
     )
@@ -139,9 +139,90 @@ def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema28():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 28
+    assert migrated["schema_version"] == 29
     assert migrated["overworld"]["active_route_id"] == "floor_four"
     assert migrated["party"]["floor_four_run_id"] == "m8-floor-four-reward-run"
+    assert build_save_document(restored) == migrated
+
+
+def test_schema28_with_real_m8_4_evidence_migrates_immutably_to_schema29():
+    game = floor_four_game_at("floor_four_rest_midpoint")
+    well = get_permanent_discovery_source("ancient_well_floor4_01")
+    port = RecordingSavePort()
+    searched = RunEventService(
+        save_port=port,
+        rng=RewardRng(drop_roll=1),
+    ).search_discovery(
+        game,
+        node_id="floor_four_rest_midpoint",
+        searcher_drifter_id=game.party_state.active_drifter_ids[0],
+        source=well,
+    )
+    assert searched.status is RunEventStatus.RESOLVED
+    claimed = PermanentDiscoveryService((well,), save_port=port).consume(
+        searched.game_state,
+        well.source_id,
+        searched.game_state.party_state.active_drifter_ids[0],
+        confirmed=True,
+    )
+    assert claimed.status is DiscoveryClaimStatus.CLAIMED
+    game = claimed.game_state
+
+    route = get_route_spec("floor_four")
+    current_index = next(
+        index
+        for index, node in enumerate(route.nodes)
+        if node.node_id == game.overworld_state.current_route_node_id
+    )
+    target_index = next(
+        index
+        for index, node in enumerate(route.nodes)
+        if node.node_id == "floor_four_battle_08"
+    )
+    for node in route.nodes[current_index + 1 : target_index + 1]:
+        previous_id = game.overworld_state.current_route_node_id
+        previous = next(item for item in route.nodes if item.node_id == previous_id)
+        if previous.kind is RouteNodeKind.REST:
+            game.overworld_state.record_resolved_rest_node(previous_id)
+        game.overworld_state.advance_to(
+            node.node_id,
+            contextual_phase=(
+                ContextualRoutePhase.ENTER_ENCOUNTER
+                if node.encounter_id is not None
+                else ContextualRoutePhase.NONE
+            ),
+        )
+
+    reward = RunEventService(
+        save_port=port,
+        rng=RewardRng(),
+    ).resolve_encounter_rewards(
+        game,
+        node_id="floor_four_battle_08",
+        experience=75,
+        gold=12,
+        enemy_drop_tables=get_encounter_item_drop_tables(
+            "m8_floor_four_encounter_08", tier=3
+        ),
+    )
+    assert reward.status is RunEventStatus.RESOLVED
+    historical = build_save_document(reward.game_state)
+    historical["schema_version"] = 28
+    original = deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert migrated["schema_version"] == 29
+    assert well.source_id in migrated["world"]["permanent_discovery_claims"]
+    assert well.source_id in migrated["world"]["discovered_permanent_discovery_sources"]
+    assert any(
+        item["source_id"] == "m8_floor_four_armor_source"
+        for item in migrated["party"]["equipment_instances"]
+    )
+    assert migrated["party"]["outing_rewards"]["items"] == {"healing_potion": 1}
     assert build_save_document(restored) == migrated
 
 

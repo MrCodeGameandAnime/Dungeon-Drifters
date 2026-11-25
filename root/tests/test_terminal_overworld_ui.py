@@ -1050,3 +1050,39 @@ def test_region_portal_and_destination_choices_render_and_translate():
     destination_input, _ = read(destinations, ["1"])
     assert destination_input == ChooseDestination("floor_one")
     assert game.story_state.snapshot() == story_before
+
+
+def test_terminal_expedition_setup_renders_floor_four_report_categories():
+    game = completed_hub_game()
+    for drifter_id in ("joruun", "zhaivra"):
+        assert game.party_state.recruit_companion(
+            game.player_state,
+            PlayerState(get_drifter_spec(drifter_id).create_character()),
+            cost=0,
+        )
+    roster = tuple(
+        member.character.profile.drifter_id for member in game.recruited_members
+    )
+    game.party_state.select_active_pair(
+        ("branoc", "azhvielle"),
+        recruited_ids=roster,
+    )
+    game.party_state._floor_one_cleared = True
+    game.party_state._floor_two_cleared = True
+    game.party_state._floor_three_cleared = True
+    game.party_state._floor_four_cleared = True
+    game.story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        "confirmed",
+    )
+
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.EXPEDITION_SETUP,
+    )
+    text = "\n".join(rendered(view))
+
+    for category in (
+        "Material", "Equipment", "Recovery", "Scouting", "Story", "Elite"
+    ):
+        assert f"Floor IV | {category}" in text

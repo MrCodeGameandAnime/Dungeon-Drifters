@@ -97,6 +97,8 @@ class TerminalOverworldUI:
         OverworldAction.EXPEDITIONS: "X",
         OverworldAction.PREPARE_EXPEDITION_FLOOR_ONE: "1",
         OverworldAction.PREPARE_EXPEDITION_FLOOR_TWO: "2",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR: "4",
+        OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH: "5",
         OverworldAction.REGION_PORTAL: "G",
         OverworldAction.DROWNED_RELIQUARY_BRIEFING: "B",
     }
@@ -626,7 +628,7 @@ class TerminalOverworldUI:
                 "EXPEDITION ENERGY",
                 f"{view.expedition_energy}/100 | Launch cost: 10",
                 "",
-                "Prepare an assignment for your next Floor I or II outing.",
+                "Prepare an assignment for a compatible two-Drifter outing.",
             ]
             reports = view.expedition_reports
             if reports:

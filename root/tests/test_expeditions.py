@@ -92,6 +92,8 @@ def test_expedition_state_clone_copies_energy_and_assignment_independently():
             "outing_floor_id": "floor_one",
             "destination_floor_id": "floor_two",
             "category": "training",
+            "report_content_id": None,
+            "frozen_outcome": None,
             "expedition_drifter_ids": ["joruun", "zhaivra"],
             "started_at_utc": _stamp(started),
             "last_observed_at_utc": _stamp(started),
@@ -117,6 +119,8 @@ def test_expedition_state_defensively_copies_plain_assignment_and_report_values(
         "outing_floor_id": "floor_one",
         "destination_floor_id": "floor_two",
         "category": "training",
+        "report_content_id": None,
+        "frozen_outcome": None,
         "expedition_drifter_ids": ["joruun", "zhaivra"],
         "started_at_utc": "2026-11-10T12:00:00Z",
         "last_observed_at_utc": "2026-11-10T12:00:00Z",
@@ -127,6 +131,8 @@ def test_expedition_state_defensively_copies_plain_assignment_and_report_values(
         "outing_floor_id": assignment["outing_floor_id"],
         "destination_floor_id": assignment["destination_floor_id"],
         "category": "training",
+        "report_content_id": None,
+        "frozen_outcome": None,
         "expedition_drifter_ids": ["joruun", "zhaivra"],
         "started_at_utc": assignment["started_at_utc"],
         "completed_at_utc": "2026-11-10T12:20:00Z",
@@ -205,7 +211,7 @@ def test_only_completed_floors_are_eligible_and_training_material_are_initial_ca
     assert service.category_unavailable_reason("floor_two", "material") is None
     assert "no eligible" in service.category_unavailable_reason("floor_three", "equipment").casefold()
     assert "no eligible" in service.category_unavailable_reason("floor_one", "recovery").casefold()
-    assert service.category_unavailable_reason("floor_four", "training") is not None
+    assert service.category_unavailable_reason("floor_four", "training") is None
 
 
 def test_confirmed_launch_spends_once_and_persists_route_assignment_atomically(tmp_path):
@@ -329,12 +335,22 @@ def test_active_expedition_cannot_be_bypassed_by_starting_floor_three(tmp_path):
 
 def _install_assignment(game, *, category="training", destination="floor_two"):
     assignment_id = "00000000-0000-4000-8000-000000000222"
+    frozen_outcome = None
+    if category == "material":
+        grade = {"floor_one": "i", "floor_two": "ii", "floor_three": "iii"}[destination]
+        frozen_outcome = {
+            "source_id": None,
+            "reward_item_id": f"grade_{grade}_metal",
+            "reward_quantity": 1,
+        }
     game.expedition_state.install_assignment(
         {
             "assignment_id": assignment_id,
             "outing_floor_id": "floor_one",
             "destination_floor_id": destination,
             "category": category,
+            "report_content_id": None,
+            "frozen_outcome": frozen_outcome,
             "expedition_drifter_ids": ["joruun", "zhaivra"],
             "started_at_utc": "2026-11-10T12:00:00Z",
             "last_observed_at_utc": "2026-11-10T12:00:00Z",

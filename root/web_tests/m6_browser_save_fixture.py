@@ -44,6 +44,12 @@ def _game():
         "outing_floor_id": "floor_one",
         "destination_floor_id": "floor_two",
         "category": "material",
+        "report_content_id": None,
+        "frozen_outcome": {
+            "source_id": None,
+            "reward_item_id": "grade_ii_metal",
+            "reward_quantity": 1,
+        },
         "expedition_drifter_ids": ["joruun", "zhaivra"],
         "started_at_utc": start,
         "last_observed_at_utc": complete,
@@ -61,6 +67,12 @@ def _game():
         "experience_awards": {},
         "reward_item_id": "grade_ii_metal",
         "reward_quantity": 1,
+        "report_content_id": None,
+        "frozen_outcome": {
+            "source_id": None,
+            "reward_item_id": "grade_ii_metal",
+            "reward_quantity": 1,
+        },
         "claimed": False,
     })
     game._expedition_state = expedition

@@ -1,6 +1,6 @@
 # M8.4: Permanent Discoveries, Armor, And Recovery Rewards
 
-**Status:** Implementation and local qualification complete. Exact-SHA hosted qualification is tracked against the implementation commit. M8.4 proceeds under the approved M8 manifest.
+**Status:** CLOSED AND SEALED at `0a73019f9acdfcdbad4c3f2d910c212e38ddc154`. Exact-SHA hosted CI [45625705219](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45625705219) passed Tests and Profile Service (PostgreSQL); the complete correction diff passed adversarial review with no outstanding findings.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Implementation baseline:** M8.3 sealed at `af156e8e1d3d9c331a5f4ce6a449530e18ebf099`, runtime/disk schema 27. M8.4 adds schema 28 for fixed-item reward evidence while preserving schema-27 payloads as immutable history.
 

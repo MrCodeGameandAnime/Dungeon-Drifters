@@ -97,7 +97,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 28
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 29
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -121,7 +121,7 @@ def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
     migrated = validate_save_document(schema23)
     restored = reconstruct_game_state(schema23)
 
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 28
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
     assert migrated["expedition"] == {
         "energy": 100,
         "energy_anchor_utc": None,
@@ -143,7 +143,7 @@ def test_schema26_migrates_floor_four_run_defaults_without_mutating_history():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 28
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
     assert migrated["party"]["floor_four_runs_started_after_clear"] == 0
     assert migrated["party"]["floor_four_run_id"] is None
     assert migrated["party"]["floor_four_outing_xp_multiplier_percent"] == 100

@@ -122,6 +122,78 @@ def test_setup_selection_requires_confirmation_and_cancel_spends_nothing(tmp_pat
     assert session.game_state.party_state.phase is DungeonPhase.HUB
 
 
+def test_floor_four_setup_exposes_all_authored_m8_reports_and_launches(tmp_path):
+    game = m6_ready_game()
+    game.party_state._floor_four_cleared = True
+    game.story_state.reveal_knowledge_fact(
+        "m8_fact_drowned_reliquary",
+        "confirmed",
+    )
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *_args, **_kwargs: None,
+        enemy_factory=lambda *_args, **_kwargs: None,
+        save_port=make_test_save_port(tmp_path / "floor-four.json"),
+        now_factory=lambda: datetime(2026, 11, 10, tzinfo=timezone.utc),
+    )
+
+    expeditions = session.submit(ChooseOverworldAction(OverworldAction.EXPEDITIONS))
+    assert any(
+        option.action is OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR
+        and option.enabled
+        for option in expeditions.options
+    )
+    setup = session.submit(
+        ChooseOverworldAction(OverworldAction.PREPARE_EXPEDITION_FLOOR_FOUR)
+    )
+    floor_four_choices = {
+        choice.category: choice
+        for choice in setup.expedition_choices
+        if choice.destination_floor_id == "floor_four"
+    }
+
+    assert set(floor_four_choices) == {
+        "training", "material", "equipment", "recovery", "scouting", "story", "elite"
+    }
+    assert all(choice.enabled for choice in floor_four_choices.values())
+    assert not any(
+        choice.destination_floor_id == "floor_five"
+        for choice in setup.expedition_choices
+    )
+
+    confirmation = session.submit(ChooseExpeditionPlan("floor_four", "scouting"))
+    assert confirmation.expedition_confirmation.category_label == "Scouting"
+    launched = session.submit(ChooseOverworldAction(OverworldAction.CONFIRM))
+
+    assert launched.expedition_status.category_label == "Scouting"
+    assert session.game_state.party_state.phase is DungeonPhase.OUTING
+    assert session.game_state.overworld_state.active_route_id == "floor_four"
+
+
+def test_floor_five_approach_setup_is_rejected_until_its_route_exists(tmp_path):
+    game = m6_ready_game()
+    game.party_state._floor_four_cleared = True
+    session = OverworldSession(
+        game,
+        battle_factory=lambda *_args, **_kwargs: None,
+        enemy_factory=lambda *_args, **_kwargs: None,
+        save_port=make_test_save_port(tmp_path / "floor-five.json"),
+        now_factory=lambda: datetime(2026, 11, 10, tzinfo=timezone.utc),
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.EXPEDITIONS))
+    before = session.game_state.snapshot()
+
+    rejected = session.submit(
+        ChooseOverworldAction(
+            OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH
+        )
+    )
+
+    assert rejected.screen is OverworldScreen.EXPEDITIONS
+    assert "not available" in rejected.notice.casefold()
+    assert session.game_state.snapshot() == before
+
+
 def test_report_claim_input_is_only_available_for_unclaimed_report(tmp_path):
     game = m6_ready_game()
     port = make_test_save_port(tmp_path / "profile.json")
@@ -134,6 +206,12 @@ def test_report_claim_input_is_only_available_for_unclaimed_report(tmp_path):
         "outing_floor_id": "floor_one",
         "destination_floor_id": "floor_two",
         "category": "material",
+        "report_content_id": None,
+        "frozen_outcome": {
+            "source_id": None,
+            "reward_item_id": "grade_ii_metal",
+            "reward_quantity": 1,
+        },
         "expedition_drifter_ids": ["joruun", "zhaivra"],
         "started_at_utc": start,
         "last_observed_at_utc": complete,
@@ -151,6 +229,12 @@ def test_report_claim_input_is_only_available_for_unclaimed_report(tmp_path):
         "experience_awards": {},
         "reward_item_id": "grade_ii_metal",
         "reward_quantity": 1,
+        "report_content_id": None,
+        "frozen_outcome": {
+            "source_id": None,
+            "reward_item_id": "grade_ii_metal",
+            "reward_quantity": 1,
+        },
         "claimed": False,
     })
     session = OverworldSession(
