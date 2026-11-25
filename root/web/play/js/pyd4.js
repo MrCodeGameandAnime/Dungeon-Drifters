@@ -1802,6 +1802,7 @@
       extraction: "EXTRACTION",
       region_portal: "REGION PORTAL",
       region_destinations: "DESTINATIONS",
+      story_scene: "STORY",
     };
     setText("screen-badge", characterMenuActive || mainScreen
       ? "OVERWORLD"

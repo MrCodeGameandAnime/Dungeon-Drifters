@@ -1,6 +1,7 @@
 import pytest
 
 from app.content.catalog import create_drifter, get_drifter_spec
+from app.content.m8_story_scenes import format_story_scene, get_story_scene
 from app.game.game_state import GameState
 from app.items.armor_modifier import ArmorModifierInstance
 from app.items.equipment import EquipmentInstance
@@ -806,6 +807,26 @@ def test_main_accepts_only_each_displayed_mnemonic(key, action):
     result, output = read(create_view(), [key])
 
     assert result == ChooseOverworldAction(action)
+    assert output == []
+
+
+def test_story_scene_renders_authored_dialogue_and_terminal_choice_is_shared_action():
+    game = GameState(PlayerState(create_drifter("branoc")))
+    scene = get_story_scene("m8_pair_scene_branoc_azhvielle")
+    view = OverworldPresenter().build(
+        game,
+        screen=OverworldScreen.STORY_SCENE,
+        story_scene_id=scene.scene_id,
+        adventure_text=format_story_scene(scene),
+    )
+
+    text = "\n".join(rendered(view))
+    action, output = read(view, ["1"])
+
+    assert "The Cost Of A Warning" in text
+    assert "A warning can save a company" in text
+    assert "Share the warning, with its limits" in text
+    assert action == ChooseOverworldAction(OverworldAction.STORY_CHOICE_ONE)
     assert output == []
 
 

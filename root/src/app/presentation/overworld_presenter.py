@@ -61,6 +61,8 @@ from app.game.floor_two_boss_helper import (
 )
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
+from app.game.character_stories import available_m8_story_scene_ids
+from app.content.m8_story_scenes import get_story_scene
 from app.game.overworld_state import ContextualRoutePhase
 from app.iteration import first_or_none
 from app.items.weapon import Weapon
@@ -296,6 +298,7 @@ class OverworldPresenter:
         expedition_outing_floor_id=None,
         expedition_pending=None,
         selected_region_id=None,
+        story_scene_id=None,
         now=None,
     ):
         if not isinstance(game_state, GameState):
@@ -342,6 +345,7 @@ class OverworldPresenter:
             save_available=save_available,
             load_available=load_available,
             respec_available=respec_available,
+            story_scene_id=story_scene_id,
             now=now,
         )
         contextual_route_option = self._contextual_route_option(
@@ -2174,6 +2178,7 @@ class OverworldPresenter:
         load_available=False,
         respec_available=False,
         now=None,
+        story_scene_id=None,
     ):
         enabled = self._enabled_option
         disabled = self._disabled_option
@@ -2228,6 +2233,7 @@ class OverworldPresenter:
                 if is_drowned_reliquary_briefing_available(game_state)
                 else ()
             )
+            story_actions = self._story_entry_options(game_state, screen)
             vendor_actions = ()
             inventory_action = ()
             if party_state.phase is DungeonPhase.HUB:
@@ -2311,6 +2317,7 @@ class OverworldPresenter:
             return (
                 portal_action
                 + briefing_action
+                + story_actions
                 + vendor_actions
                 + inventory_action
                 + party_actions
@@ -2565,6 +2572,27 @@ class OverworldPresenter:
                 enabled(OverworldAction.CONFIRM, "Confirm"),
                 enabled(OverworldAction.CANCEL, "Cancel"),
             )
+        if screen is OverworldScreen.STORY_SCENE:
+            if story_scene_id is None:
+                return (enabled(OverworldAction.BACK, "Back"),)
+            scene = get_story_scene(story_scene_id)
+            if story_scene_id in game_state.story_state.completed_events:
+                return (enabled(OverworldAction.BACK, "Back"),)
+            if scene.choices:
+                choice_actions = tuple(
+                    enabled(
+                        OverworldAction.STORY_CHOICE_ONE
+                        if index == 0
+                        else OverworldAction.STORY_CHOICE_TWO,
+                        choice.label,
+                    )
+                    for index, choice in enumerate(scene.choices)
+                )
+            else:
+                choice_actions = (
+                    enabled(OverworldAction.STORY_CONTINUE, "Finish Scene"),
+                )
+            return choice_actions + (enabled(OverworldAction.CANCEL, "Leave Scene"),)
         if screen is OverworldScreen.REST:
             if game_state.overworld_state.active_route_id in {
                 "floor_one",
@@ -2574,6 +2602,7 @@ class OverworldPresenter:
             }:
                 discovery_actions = ()
                 helper_action = ()
+                story_actions = self._story_entry_options(game_state, screen)
                 if (
                     game_state.overworld_state.active_route_id == "floor_two"
                     and game_state.overworld_state.current_route_node_id
@@ -2622,7 +2651,7 @@ class OverworldPresenter:
                             )
                 return self._return_talisman_option(game_state) + (
                     enabled(OverworldAction.REST, "Recover"),
-                ) + helper_action + discovery_actions + (
+                ) + helper_action + story_actions + discovery_actions + (
                     (
                         enabled(OverworldAction.SAVE, "Save")
                         if save_available
@@ -2651,6 +2680,22 @@ class OverworldPresenter:
                 enabled(OverworldAction.MENU, "Menu"),
             )
         raise ValueError(f"unsupported overworld screen: {screen!r}")
+
+    @staticmethod
+    def _story_entry_options(game_state, screen):
+        actions = []
+        for scene_id in available_m8_story_scene_ids(game_state, screen):
+            if scene_id.startswith("m8_pair_scene_"):
+                action = OverworldAction.OPEN_PAIR_STORY
+                label = "Talk Together"
+            elif scene_id == "m8_azh_archive_memory":
+                action = OverworldAction.OPEN_ARCHIVE_MEMORY
+                label = "Azhvielle's Archive Memory"
+            else:
+                action = OverworldAction.OPEN_RELIQUARY_ECHO
+                label = "Discuss the Reliquary Report"
+            actions.append(OverworldPresenter._enabled_option(action, label))
+        return tuple(actions)
 
     def _return_talisman_option(self, game_state):
         party_state = game_state.party_state

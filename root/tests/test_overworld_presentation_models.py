@@ -134,6 +134,7 @@ def test_all_approved_screen_values_are_typed():
         "quit_confirmation",
         "load_confirmation",
         "rest",
+        "story_scene",
     )
 
 

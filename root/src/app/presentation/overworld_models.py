@@ -44,6 +44,7 @@ class OverworldScreen(StrEnum):
     QUIT_CONFIRMATION = "quit_confirmation"
     LOAD_CONFIRMATION = "load_confirmation"
     REST = "rest"
+    STORY_SCENE = "story_scene"
 
 
 class OverworldAction(StrEnum):
@@ -99,6 +100,12 @@ class OverworldAction(StrEnum):
     PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH = "prepare_expedition_floor_five_approach"
     REGION_PORTAL = "region_portal"
     DROWNED_RELIQUARY_BRIEFING = "drowned_reliquary_briefing"
+    OPEN_PAIR_STORY = "open_pair_story"
+    OPEN_ARCHIVE_MEMORY = "open_archive_memory"
+    OPEN_RELIQUARY_ECHO = "open_reliquary_echo"
+    STORY_CHOICE_ONE = "story_choice_one"
+    STORY_CHOICE_TWO = "story_choice_two"
+    STORY_CONTINUE = "story_continue"
 
 
 class OverworldAvailabilityReason(StrEnum):

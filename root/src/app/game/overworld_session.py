@@ -17,6 +17,7 @@ from app.content.catalog import (
 from app.content.region_progression_spec import (
     M8_DROWNED_BRIEFING_EVENT_ID,
 )
+from app.content.m8_story_scenes import format_story_scene, get_story_scene
 from app.content.hub_economy import get_supply_item
 from app.content.route_spec import RouteNodeKind
 from app.content.armor_spec import get_armor_modifier
@@ -49,6 +50,11 @@ from app.game.region_progression import (
     is_drowned_reliquary_briefing_available,
 )
 from app.game.story_state import KnowledgeStatus
+from app.game.character_stories import (
+    M8_AZH_ARCHIVE_MEMORY_ID,
+    M8_RELIQUARY_ECHO_SCENE_ID,
+    available_m8_story_scene_ids,
+)
 from app.persistence.save_port_contract import (
     SaveLoadStatus,
     SavePortError,
@@ -236,6 +242,9 @@ class OverworldSession:
         self._expedition_outing_floor_id = None
         self._expedition_pending = None
         self._selected_region_id = None
+        self._active_story_scene_id = None
+        self._story_return_screen = None
+        self._story_scene_completed = False
         self._active_battle = None
         self._active_battle_context = None
         self._last_presented_view = None
@@ -612,6 +621,7 @@ class OverworldSession:
             expedition_outing_floor_id=self._expedition_outing_floor_id,
             expedition_pending=self._expedition_pending,
             selected_region_id=self._selected_region_id,
+            story_scene_id=self._active_story_scene_id,
             now=(self._now_factory() if self._now_factory is not None else None),
         )
 
@@ -2051,6 +2061,9 @@ class OverworldSession:
         result = self._dispatch_discovery_action(action)
         if result is not _UNHANDLED_ACTION:
             return result
+        result = self._dispatch_story_action(action)
+        if result is not _UNHANDLED_ACTION:
+            return result
         if action is OverworldAction.RETURN_TO_HUB:
             self._return_to_hub()
             return None
@@ -2356,6 +2369,116 @@ class OverworldSession:
         )
         self._notice = None
         return None
+
+    def _dispatch_story_action(self, action):
+        requested_scene = {
+            OverworldAction.OPEN_ARCHIVE_MEMORY: M8_AZH_ARCHIVE_MEMORY_ID,
+            OverworldAction.OPEN_RELIQUARY_ECHO: M8_RELIQUARY_ECHO_SCENE_ID,
+        }.get(action)
+        if action is OverworldAction.OPEN_PAIR_STORY:
+            requested_scene = first_or_none(
+                scene_id
+                for scene_id in available_m8_story_scene_ids(
+                    self.game_state,
+                    self._screen,
+                )
+                if scene_id.startswith("m8_pair_scene_")
+            )
+        if action in {
+            OverworldAction.OPEN_PAIR_STORY,
+            OverworldAction.OPEN_ARCHIVE_MEMORY,
+            OverworldAction.OPEN_RELIQUARY_ECHO,
+        }:
+            if requested_scene not in available_m8_story_scene_ids(
+                self.game_state,
+                self._screen,
+            ):
+                self._notice = "That story is not available here."
+                return None
+            scene = get_story_scene(requested_scene)
+            self._active_story_scene_id = requested_scene
+            self._story_return_screen = self._screen
+            self._story_scene_completed = False
+            self._screen = OverworldScreen.STORY_SCENE
+            self._adventure_text = format_story_scene(scene)
+            self._notice = None
+            return None
+        if action in {
+            OverworldAction.STORY_CHOICE_ONE,
+            OverworldAction.STORY_CHOICE_TWO,
+            OverworldAction.STORY_CONTINUE,
+        }:
+            self._complete_story_scene(action)
+            return None
+        return _UNHANDLED_ACTION
+
+    def _complete_story_scene(self, action):
+        scene_id = self._active_story_scene_id
+        if self._screen is not OverworldScreen.STORY_SCENE or scene_id is None:
+            self._notice = "That story choice is not available."
+            return
+        scene = get_story_scene(scene_id)
+        if (
+            self._story_scene_completed
+            or scene_id in self.game_state.story_state.completed_events
+            or scene_id
+            not in available_m8_story_scene_ids(
+                self.game_state,
+                self._story_return_screen,
+            )
+        ):
+            self._notice = "That story has already ended."
+            return
+
+        choice_index = {
+            OverworldAction.STORY_CHOICE_ONE: 0,
+            OverworldAction.STORY_CHOICE_TWO: 1,
+        }.get(action)
+        if choice_index is None:
+            if action is not OverworldAction.STORY_CONTINUE or scene.choices:
+                self._notice = "That story choice is not available."
+                return
+            choice = None
+            response = scene.completion_response
+        else:
+            if choice_index >= len(scene.choices):
+                self._notice = "That story choice is not available."
+                return
+            choice = scene.choices[choice_index]
+            response = choice.response
+
+        candidate = self.game_state.clone()
+        candidate.story_state.complete_event(scene_id)
+        if choice is not None:
+            candidate.story_state.record_decision(
+                f"m8_story_choice_{scene_id}",
+                choice.choice_id,
+            )
+        if scene_id == M8_AZH_ARCHIVE_MEMORY_ID:
+            candidate.story_state.reveal_knowledge_fact(
+                "m8_fact_ashen_regent",
+                KnowledgeStatus.CONFIRMED,
+            )
+        try:
+            result = self._save_port_instance().save(candidate)
+        except (OSError, SavePortError, TypeError, ValueError):
+            result = None
+        if result is None or result.status is not SaveLoadStatus.SAVED:
+            self._notice = "The story could not be saved. Nothing changed."
+            return
+
+        self._publish_saved_candidate(self.game_state, candidate)
+        self._story_scene_completed = True
+        self._adventure_text = format_story_scene(scene, response=response)
+        self._notice = None
+
+    def _close_story_scene(self):
+        self._screen = self._story_return_screen or OverworldScreen.HUB
+        self._active_story_scene_id = None
+        self._story_return_screen = None
+        self._story_scene_completed = False
+        self._adventure_text = None
+        self._notice = None
 
     def _select_discovery_searcher(self, view, session_input):
         if (
@@ -2811,6 +2934,9 @@ class OverworldSession:
             )
             return None
         if action is OverworldAction.CANCEL:
+            if self._screen is OverworldScreen.STORY_SCENE:
+                self._close_story_scene()
+                return None
             if self._screen is OverworldScreen.ALCHEMY_CONFIRMATION:
                 self._screen = self._alchemy_return_screen
                 self._alchemy_preview = None
@@ -3161,6 +3287,9 @@ class OverworldSession:
         self._adventure_text = None
 
     def _navigate_back(self):
+        if self._screen is OverworldScreen.STORY_SCENE:
+            self._close_story_scene()
+            return
         if self._screen is OverworldScreen.REGION_DESTINATIONS:
             self._screen = OverworldScreen.REGION_PORTAL
             self._selected_region_id = None

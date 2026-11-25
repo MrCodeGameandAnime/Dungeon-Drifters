@@ -1,6 +1,6 @@
 # M8.5: Expedition Expansion
 
-**Status:** Implementation in progress under the approved M8 manifest. Focused service, persistence, UI and browser coverage is being completed; M8.5 remains open pending cumulative and exact-SHA hosted qualification.
+**Status:** CLOSED AND SEALED at `5941b8f46de3f748cc3aed09b20bc6cda340e822`, qualified by exact-SHA hosted CI [45674204031](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45674204031) and accepted after adversarial review. All correction findings are resolved.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **M8.4 baseline:** M8.4 is CLOSED AND SEALED at `0a73019f9acdfcdbad4c3f2d910c212e38ddc154`, qualified by [exact-SHA hosted CI 45625705219](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45625705219). M8.5 increments disk schema 28 to 29.
 
@@ -40,12 +40,12 @@ The Floor-V Material contract is guarded by both the authoritative Floor-V compl
 Cover all seven report categories and source gates, frozen results, timer completion/incompletion, outing termination, launch and claim save failures, stale/duplicate launch, one-time claim, reload/retry, unique equipment identity, floor-grade provenance, all three Floor-IV Scouting facts, Story effect adoption, deployment restrictions, and no energy effect on ordinary play. Verify the Scouting report confirms all three facts exactly once and that all remain Confirmed after save/reload. Terminal/browser journeys use the real Python runtime and preserve exact report/item/equipment identities.
 
 - **Gate A:** Not a separate approval checkpoint; the owner authorized implementation against the approved parent manifest.
-- **Gate B:** In progress; report, migration, failure-atomicity, browser and terminal tests are implemented and focused suites are green.
-- **Gate C:** Pending cumulative root/web, content/build, browser journeys, PostgreSQL/migration/Alembic, pinned MicroPython, and exact-SHA hosted qualification.
+- **Gate B:** Complete; all seven report contracts and their persistence, failure-atomicity, browser, and terminal journeys are implemented.
+- **Gate C:** Complete; exact-SHA hosted qualification passed and the complete correction diff was accepted after adversarial review.
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| In progress | Pending | Schema 29; schema-28 M8.4 evidence migration tested locally | Pending | Open |
+| `5941b8f46de3f748cc3aed09b20bc6cda340e822` | [CI 45674204031](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45674204031): passed | Schema 29; schema-28 M8.4 evidence migration qualified | Accepted | CLOSED AND SEALED |
 
 Record the final implementation SHA, exact-SHA CI URL/results, runtime evidence and owner closure here after qualification.
 

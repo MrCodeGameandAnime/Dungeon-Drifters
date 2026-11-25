@@ -174,6 +174,17 @@ def test_floor_four_report_outcome_is_frozen_and_claimed_once(
         assert "m8_story_reliquary_echo" in (
             claimed.game_state.story_state.completed_events
         )
+        from app.game.overworld_session import OverworldSession
+        from app.presentation.overworld_models import OverworldAction
+
+        session = OverworldSession(
+            claimed.game_state,
+            battle_factory=lambda *args, **kwargs: None,
+            enemy_factory=lambda *args, **kwargs: None,
+        )
+        assert OverworldAction.OPEN_RELIQUARY_ECHO in {
+            option.action for option in session.current_view().options
+        }
     elif category == "equipment":
         owned = claimed.game_state.party_state.equipment_instance(instance_id)
         assert owned.snapshot() == frozen["equipment_instance"]

@@ -101,6 +101,12 @@ class TerminalOverworldUI:
         OverworldAction.PREPARE_EXPEDITION_FLOOR_FIVE_APPROACH: "5",
         OverworldAction.REGION_PORTAL: "G",
         OverworldAction.DROWNED_RELIQUARY_BRIEFING: "B",
+        OverworldAction.OPEN_PAIR_STORY: "T",
+        OverworldAction.OPEN_ARCHIVE_MEMORY: "A",
+        OverworldAction.OPEN_RELIQUARY_ECHO: "E",
+        OverworldAction.STORY_CHOICE_ONE: "1",
+        OverworldAction.STORY_CHOICE_TWO: "2",
+        OverworldAction.STORY_CONTINUE: "C",
     }
 
     def __init__(
@@ -820,6 +826,13 @@ class TerminalOverworldUI:
                         ),
                     )
                 )
+        elif view.screen is OverworldScreen.STORY_SCENE:
+            lines = ["STORY", ""]
+            for line in view.adventure_text.splitlines():
+                if line:
+                    lines.extend(self._wrapped(line, width))
+                else:
+                    lines.append("")
         else:
             raise ValueError(f"unsupported overworld screen: {view.screen!r}")
         if view.notice:
@@ -1462,6 +1475,7 @@ class TerminalOverworldUI:
             OverworldScreen.LOAD_CONFIRMATION: "LOAD",
             OverworldScreen.RESPEC_CONFIRMATION: "RESPEC",
             OverworldScreen.REST: "REST",
+            OverworldScreen.STORY_SCENE: "STORY",
         }[screen]
 
     @staticmethod

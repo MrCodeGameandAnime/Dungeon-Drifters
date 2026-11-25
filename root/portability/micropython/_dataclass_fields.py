@@ -42,6 +42,8 @@ FIELD_MANIFEST = {
     ('app.content.equipment_spec', 'EquipmentTemplateSpec'): ('definition_id', 'name', 'category', 'slot_id', 'stat_ranges', 'family', 'material_id', 'upgrade_stat_bonuses', 'sale_value_gold', 'dismantle_yields'),
     ('app.content.hub_economy', 'AlchemyRecipeSpec'): ('recipe_id', 'display_name', 'ingredient_costs', 'outputs', 'experience_award', 'mastery_output', 'requires_confirmation'),
     ('app.content.hub_economy', 'SupplyItemSpec'): ('item_id', 'display_name', 'description', 'base_price', 'sellable', 'shop_stocked', 'carryable', 'healing_percent', 'mana_restore_percent'),
+    ('app.content.m8_story_scenes', 'StoryChoiceSpec'): ('choice_id', 'label', 'response'),
+    ('app.content.m8_story_scenes', 'StorySceneSpec'): ('scene_id', 'title', 'dialogue', 'choices', 'completion_response'),
     ('app.content.permanent_discovery_spec', 'PermanentDiscoverySource'): ('source_id', 'discovery_type', 'amount', 'search_chance_bps'),
     ('app.content.recruitment_event_spec', 'RecruitmentEventSpec'): ('event_id', 'route_id', 'route_node_id', 'candidate_drifter_ids', 'cost'),
     ('app.content.region_progression_spec', 'DestinationSpec'): ('destination_id', 'display_name', 'region_id', 'route_id', 'required_floor_clear', 'knowledge_fact_id', 'requires_tutorial', 'requires_full_roster', 'portal_visible'),

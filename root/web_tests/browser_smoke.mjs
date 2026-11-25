@@ -4631,6 +4631,62 @@ try {
   );
   console.log("M8.3_BROWSER|FLOOR_FOUR_MIDPOINT_SAVE_RELOAD|PASS");
 
+  await clickVisibleOption(page, "#overworld-options", "Talk Together");
+  await page.locator("#screen-badge").filter({ hasText: "STORY" }).waitFor({ state: "visible" });
+  const pairSceneText = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    pairSceneText.includes("The Cost Of A Warning") &&
+      pairSceneText.includes("A warning can save a company"),
+    `Floor IV pair story did not render its authored dialogue: ${pairSceneText}`,
+  );
+  await clickVisibleOption(
+    page,
+    "#overworld-options",
+    "Share the warning, with its limits",
+  );
+  await page.waitForFunction((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key) || "null");
+    const story = envelope?.payload?.story;
+    return story?.completed_events?.includes("m8_pair_scene_branoc_azhvielle") &&
+      story?.player_decisions?.m8_story_choice_m8_pair_scene_branoc_azhvielle ===
+        "share_warning";
+  }, floorTwoProfileKey);
+  const pairStoryEvidence = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      completed: payload?.story?.completed_events || [],
+      decision: payload?.story?.player_decisions?.m8_story_choice_m8_pair_scene_branoc_azhvielle,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    pairStoryEvidence.completed.includes("m8_pair_scene_branoc_azhvielle") &&
+      pairStoryEvidence.decision === "share_warning",
+    `Floor IV pair story choice was not durably recorded: ${JSON.stringify(pairStoryEvidence)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const pairStoryAfterReload = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      completed: payload?.story?.completed_events || [],
+      decision: payload?.story?.player_decisions?.m8_story_choice_m8_pair_scene_branoc_azhvielle,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    pairStoryAfterReload.completed.filter(
+      (eventId) => eventId === "m8_pair_scene_branoc_azhvielle",
+    ).length === 1 &&
+      pairStoryAfterReload.decision === "share_warning" &&
+      await page.locator("#screen-badge").innerText() === "REST",
+    `Floor IV pair story did not survive reload exactly once: ${JSON.stringify(pairStoryAfterReload)}`,
+  );
+  console.log("M8.6_BROWSER|PAIR_STORY_CHOICE_RELOAD|PASS");
+
   await clickVisibleOption(page, "#overworld-options", "Search Site");
   await page.locator("#discovery-selection").waitFor({ state: "visible" });
   const floorFourDiscoveryChoices = page.locator("#discovery-choices button");
