@@ -12,6 +12,7 @@ from app.content.catalog import (
     get_route_node_spec,
     get_route_successor_id,
     get_permanent_discovery_source,
+    get_permanent_discovery_search_source_at,
 )
 from app.content.region_progression_spec import (
     M8_DROWNED_BRIEFING_EVENT_ID,
@@ -2296,23 +2297,25 @@ class OverworldSession:
             return _UNHANDLED_ACTION
         overworld = self.game_state.overworld_state
         party = self.game_state.party_state
-        source_id = "ancient_well_floor2_01"
+        source = get_permanent_discovery_search_source_at(
+            overworld.active_route_id,
+            overworld.current_route_node_id,
+        )
         if (
             self._screen is not OverworldScreen.REST
-            or overworld.active_route_id != "floor_two"
-            or overworld.current_route_node_id != "floor_two_pre_boss_rest"
             or party.phase is not DungeonPhase.OUTING
+            or source is None
         ):
             self._notice = "That discovery is not available here."
             return None
-        source = get_permanent_discovery_source(source_id)
+        source_id = source.source_id
         discovered = (
             source_id in self.game_state.world_state.discovered_permanent_discovery_sources
         )
         claimed = source_id in self.game_state.world_state.permanent_discovery_claims
         if action is OverworldAction.SEARCH_SITE:
             already_searched = any(
-                event["run_id"] == party.floor_two_run_id
+                event["run_id"] == party.active_run_id
                 and event["node_id"] == overworld.current_route_node_id
                 and event["kind"] == "discovery_search"
                 for event in party.resolved_run_events
@@ -2324,7 +2327,7 @@ class OverworldSession:
             self._discovery_target_id = None
             self._screen = OverworldScreen.DISCOVERY_SEARCHERS
             self._adventure_text = (
-                "Choose an active Drifter to search the Ancient Well. "
+                f"Choose an active Drifter to search the {self._discovery_name(source)}. "
                 "Their Intuition affects the search."
             )
             self._notice = None
@@ -2336,8 +2339,8 @@ class OverworldSession:
         self._discovery_target_id = None
         self._screen = OverworldScreen.DISCOVERY_TARGETS
         self._adventure_text = (
-            "The Ancient Well is revealed. Choose one active Drifter to "
-            "receive its permanent +5 Max HP."
+            f"The {self._discovery_name(source)} is revealed. Choose one active "
+            f"Drifter to receive its permanent {self._discovery_reward(source)}."
         )
         self._notice = None
         return None
@@ -2354,6 +2357,7 @@ class OverworldSession:
             self._notice = "That searcher is not available."
             return
         source = get_permanent_discovery_source(self._discovery_source_id)
+        source_floor_id = self.game_state.party_state.active_run_floor_id
         rng = self._run_event_rng
         if rng is None:
             from app import randomness
@@ -2386,8 +2390,9 @@ class OverworldSession:
             self._game_state = result.game_state
             self._screen = OverworldScreen.DISCOVERY_TARGETS
             self._adventure_text = (
-                "The Ancient Well is already revealed. Choose one active "
-                "Drifter to receive its permanent +5 Max HP."
+                f"The {self._discovery_name(source)} is already revealed. Choose "
+                f"one active Drifter to receive its permanent "
+                f"{self._discovery_reward(source)}."
             )
             return
         if result.status not in {
@@ -2401,8 +2406,8 @@ class OverworldSession:
         if result.found:
             self._screen = OverworldScreen.DISCOVERY_TARGETS
             self._adventure_text = (
-                "You found the Ancient Well. Choose one active Drifter to "
-                "receive its permanent +5 Max HP."
+                f"You found the {self._discovery_name(source)}. Choose one active "
+                f"Drifter to receive its permanent {self._discovery_reward(source)}."
             )
             self._notice = None
         else:
@@ -2410,7 +2415,7 @@ class OverworldSession:
             self._discovery_source_id = None
             self._notice = (
                 "The search found nothing. This site cannot be searched "
-                "again until a later Floor II run."
+                f"again until a later {self._floor_display(source_floor_id)} run."
             )
 
     def _select_discovery_target(self, view, session_input):
@@ -2426,10 +2431,12 @@ class OverworldSession:
             return
         target = self.game_state.member_for_drifter_id(session_input.drifter_id)
         self._discovery_target_id = session_input.drifter_id
+        source = get_permanent_discovery_source(self._discovery_source_id)
         self._screen = OverworldScreen.DISCOVERY_CONFIRMATION
         self._adventure_text = (
-            f"Consume the Ancient Well for {target.character.full_display_name}? "
-            "This permanently grants +5 Max HP to that Drifter only."
+            f"Consume the {self._discovery_name(source)} for "
+            f"{target.character.full_display_name}? This permanently grants "
+            f"{self._discovery_reward(source)} to that Drifter only."
         )
         self._notice = None
 
@@ -2455,14 +2462,15 @@ class OverworldSession:
         except (OSError, SavePortError, TypeError, ValueError):
             result = None
         if result is not None and result.status is DiscoveryClaimStatus.CLAIMED:
+            reward = self._discovery_reward(source)
             target = result.game_state.member_for_drifter_id(
                 self._discovery_target_id
             )
             self._game_state = result.game_state
             self._screen = OverworldScreen.REST
             self._notice = (
-                f"Ancient Well claimed by {target.character.full_display_name}: "
-                "+5 Max HP."
+                f"{self._discovery_name(source)} claimed by "
+                f"{target.character.full_display_name}: {reward}."
             )
             self._discovery_source_id = None
             self._discovery_target_id = None
@@ -2474,6 +2482,30 @@ class OverworldSession:
         self._discovery_source_id = None
         self._discovery_target_id = None
         self._notice = "That discovery is no longer available."
+
+    @staticmethod
+    def _discovery_name(source):
+        return {
+            "ancient_well": "Ancient Well",
+            "forgotten_altar": "Forgotten Altar",
+            "spirit_relic": "Spirit Relic",
+        }[source.discovery_type.value]
+
+    @staticmethod
+    def _discovery_reward(source):
+        return {
+            "ancient_well": f"+{source.amount} Max HP",
+            "forgotten_altar": f"+{source.amount} Max Mana",
+            "spirit_relic": f"+{source.amount} Growth Points",
+        }[source.discovery_type.value]
+
+    @staticmethod
+    def _floor_display(floor_id):
+        return {
+            "floor_two": "Floor II",
+            "floor_four": "Floor IV",
+            "floor_five": "Floor V",
+        }.get(floor_id, "dungeon")
 
     def _start_floor_two(self):
         party_state = self.game_state.party_state
@@ -3009,6 +3041,7 @@ class OverworldSession:
                 "floor_one": party_state.begin_floor_one_extraction,
                 "floor_two": party_state.begin_floor_two_extraction,
                 "floor_three": party_state.begin_floor_three_extraction,
+                "floor_four": party_state.begin_floor_four_extraction,
             }[route_id]
             complete_extraction = {
                 "floor_one": party_state.complete_extraction,
@@ -4327,6 +4360,41 @@ class OverworldSession:
             return
         next_node = get_route_node_spec(next_node_id)
         next_phase = self._contextual_phase_for_node(next_node.kind)
+
+        if overworld.active_route_id == "floor_four":
+            candidate = self.game_state.clone()
+            if recover:
+                for member in candidate.active_party_members:
+                    member.health.heal(member.health.maximum)
+                    member.mana_resource.restore(member.mana_resource.maximum)
+                candidate.party_state.secure_outing_equipment()
+            candidate.overworld_state.record_resolved_rest_node(current_node_id)
+            candidate.overworld_state.advance_to(
+                next_node_id,
+                contextual_phase=next_phase,
+            )
+            try:
+                saved = self._save_port_instance().save(candidate)
+            except (OSError, SavePortError, TypeError, ValueError):
+                saved = None
+            if saved is None or saved.status is not SaveLoadStatus.SAVED:
+                self._notice = "The Rest transition could not be saved. Nothing changed."
+                return
+            self._publish_saved_candidate(self.game_state, candidate)
+            self._screen = OverworldScreen.MAIN
+            self._notice = None
+            if recover:
+                self._adventure_text = (
+                    f"You recover at {current_node.display_label}. HP and Mana "
+                    f"are fully restored. The route continues toward "
+                    f"{next_node.display_label}."
+                )
+            else:
+                self._adventure_text = (
+                    f"You continue from {current_node.display_label} without "
+                    f"resting. The route continues toward {next_node.display_label}."
+                )
+            return
 
         if recover:
             members = (self.game_state.player_state,)

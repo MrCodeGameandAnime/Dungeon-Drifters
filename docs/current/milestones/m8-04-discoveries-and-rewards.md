@@ -1,8 +1,8 @@
 # M8.4: Permanent Discoveries, Armor, And Recovery Rewards
 
-**Status:** Proposed work package. M8-D1 reward/source identities and placements, M8-D3 fact/reveal mappings and discovery contracts, and M8-D4's no-portable-story-item direction are approved. Package-level integration, permitted drop tuning, and qualification remain open; no implementation is authorized.
+**Status:** Implementation and local qualification complete. Exact-SHA hosted qualification is tracked against the implementation commit. M8.4 proceeds under the approved M8 manifest.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
-**Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate M3/M4/M5 source owners at package entry.
+**Implementation baseline:** M8.3 sealed at `af156e8e1d3d9c331a5f4ce6a449530e18ebf099`, runtime/disk schema 27. M8.4 adds schema 28 for fixed-item reward evidence while preserving schema-27 payloads as immutable history.
 
 ## Goal
 
@@ -10,9 +10,7 @@ Connect real Floor-IV reward sources to existing permanent-discovery claims, M5 
 
 ## Approval Boundary
 
-**Already-approved inputs:** use M3's one-time source-ID and active-party-only target contract; the three discovery reward types/values (+5 max HP, +5 max Mana, +3 GP), 10% base search chance with existing Intuition adjustment, and existing per-run search/retry semantics; M2's secured/carried/death-loss semantics; M5's armor identity/security/atomic transaction contracts; and M8-D4's exclusion of portable story-critical quest items.
-
-**Already approved:** discovery IDs/placements, all other M8 reward/source identities and their effects/relationships, the four M8-D3 fact IDs/reveal mappings, discovery reward values, 10% base chance, and Intuition/retry contracts. **Package review remains:** live service integration and only the tunable ordinary-drop probabilities/quantities identified in the parent. Fixed discovery rewards and explicit first-clear effects are not balance variables.
+**Approved inputs:** use M3's one-time source-ID and active-party-only target contract; the three discovery reward types/values (+5 max HP, +5 max Mana, +3 GP), 10% base search chance with existing Intuition adjustment, and existing per-run search/retry semantics; M2's secured/carried/death-loss semantics; M5's armor identity/security/atomic transaction contracts; and M8-D4's exclusion of portable story-critical quest items. Discovery IDs/placements, M8 reward/source identities and effects, M8-D3 fact mappings, fixed discovery rewards, and first-clear effects are approved and are not reopened here.
 
 ## Scope
 
@@ -29,21 +27,13 @@ No retuning of existing discovery sources, new permanent reward type, party-wide
 
 ## Ownership And Migration
 
-Revalidate `root/src/app/game/run_events.py`, `permanent_discovery.py`, `equipment.py`, `overworld_session.py`, and `root/src/app/persistence/save_document.py`. Use M3's durable claim owner and M5's `EquipmentInstance`/reward evidence. Any schema extension starts from the actual accepted schema at implementation entry, preserves older save and immutable remote-history semantics, and cannot rewrite generation evidence when armor becomes secured.
+Use M3's durable claim owner and M5's `EquipmentInstance`/reward evidence. Schema 28 adds the fixed-item reward event and encounter source evidence; schema-27 saves remain strictly validated and immutable in remote history, and migration preserves their existing Floor-IV state. Do not rewrite armor generation evidence when security ownership changes.
 
 M8.4 qualifies the approved Spirit Relic claim independently: exactly +3 GP to one eligible active Drifter, once across retry and reload. Record the live Floor V search as deferred to M8.7.
 
-## Tests, Package Gates, And Qualification History
+## Tests And Qualification
 
-Prove actual battle-path armor acquisition, Rest securing, save/reload/next victory; exact item identity and quantity; recovery through death, extraction and safe return; discovery search persistence and no reroll; first/second active target; inactive target rejection; cap cancel/consume; duplicate claim; failed persistence with no reward/claim divergence; legacy migration; and both clients.
+Qualification covers actual battle-path armor acquisition, Rest securing, save/reload/next victory; exact item identity and quantity; recovery through death, extraction and safe return; discovery search persistence and no reroll; first/second active target; inactive target rejection; cap cancel/consume; duplicate claim; failed persistence with no reward/claim divergence; legacy migration; and both clients.
 
-- **Gate A, plan approval:** Open; review the service integration, candidate-state/persistence boundaries, allowed ordinary-drop tuning, and focused test plan. M8-D1/D3 product mappings and fixed rewards are approved and must not be reopened.
-- **Gate B, implementation and focused tests:** Not started; source/effect/transaction red/green coverage.
-- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, browser, PostgreSQL/migration/Alembic and pinned MicroPython.
-
-| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
-| --- | --- | --- | --- | --- |
-| Not implemented | Not run | Not run | Pending | Open |
-
-Independent review and hosted results are required for closure.
+Local evidence on the implementation tree: root suite 2,583 passed; web suite 95 passed; profile-service suite 37 passed and 18 PostgreSQL-dependent cases skipped because the local Docker engine was unavailable. Authored-content validation, compilation, browser build (200 runtime files), full Playwright Floor-IV journey, and pinned MicroPython 1.29.0 matrix passed. MicroPython was stable at 1408 KiB (3/3) and confirmed memory-limited at 1216 KiB (3/3), with CPython native/forced-overlay and semantic parity passing. Hosted Tests and PostgreSQL results are reported against the exact implementation SHA.
 

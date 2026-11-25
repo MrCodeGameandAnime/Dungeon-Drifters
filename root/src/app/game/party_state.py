@@ -2097,6 +2097,7 @@ def _run_event(value):
         "encounter_rewards",
         "discovery_search",
         "armor_reward",
+        "fixed_item_reward",
         "boss_helper_selection",
     }:
         raise ValueError("run event kind is invalid")
@@ -2166,11 +2167,10 @@ def _validate_run_event_result(kind, result, event):
             raise ValueError("armor reward result has an invalid shape")
         if not _valid_event_part(result["template_id"]):
             raise ValueError("armor reward template ID is invalid")
-        if (
-            event["floor_id"] != "floor_two"
-            or type(result["floor"]) is not int
-            or result["floor"] != 2
-        ):
+        expected_floor = {"floor_two": 2, "floor_four": 4}.get(
+            event["floor_id"]
+        )
+        if type(result["floor"]) is not int or result["floor"] != expected_floor:
             raise ValueError("armor reward floor is invalid")
         if not _valid_event_part(result["source_id"]):
             raise ValueError("armor reward source ID is invalid")
@@ -2185,6 +2185,41 @@ def _validate_run_event_result(kind, result, event):
             or instance.category != "armor"
         ):
             raise ValueError("armor reward instance disagrees with its authored outcome")
+        if event["floor_id"] == "floor_four":
+            from app.content.catalog import get_armor_reward_source
+
+            try:
+                source = get_armor_reward_source(result["source_id"])
+            except ValueError as error:
+                raise ValueError("Floor 4 armor source is unknown") from error
+            if (
+                source.floor_id != event["floor_id"]
+                or source.node_id != event["node_id"]
+                or source.floor != result["floor"]
+                or source.template_id != result["template_id"]
+            ):
+                raise ValueError("Floor 4 armor reward disagrees with its authored source")
+        return
+
+    if kind == "fixed_item_reward":
+        if set(result) != {"source_id", "item_id", "quantity"}:
+            raise ValueError("fixed item reward result has an invalid shape")
+        from app.content.catalog import get_fixed_item_reward_source
+
+        try:
+            source = get_fixed_item_reward_source(result["source_id"])
+        except ValueError as error:
+            raise ValueError("fixed item reward source is unknown") from error
+        if (
+            source.floor_id != event["floor_id"]
+            or source.node_id != event["node_id"]
+            or source.item_id != result["item_id"]
+            or source.quantity != result["quantity"]
+        ):
+            raise ValueError("fixed item reward disagrees with its authored source")
+        if not _valid_event_part(result["item_id"]):
+            raise ValueError("fixed item reward item ID is invalid")
+        _positive("fixed item reward quantity", result["quantity"])
         return
 
     if kind == "boss_helper_selection":
@@ -2195,9 +2230,10 @@ def _validate_run_event_result(kind, result, event):
         return
 
     if kind == "encounter_rewards":
-        if set(result) != {
+        expected_result_keys = {
             "experience", "gold", "items", "enemy_count", "drop_event_keys"
-        }:
+        }
+        if set(result) not in (expected_result_keys, expected_result_keys | {"reward_source_ids"}):
             raise ValueError("encounter reward result has an invalid shape")
         _nonnegative("encounter experience", result["experience"])
         _nonnegative("encounter gold", result["gold"])
@@ -2220,6 +2256,30 @@ def _validate_run_event_result(kind, result, event):
             raise ValueError("encounter reward event keys are invalid")
         if any(not _valid_event_part(item_id) for item_id in items):
             raise ValueError("encounter reward item ID is invalid")
+        if "reward_source_ids" in result:
+            reward_source_ids = result["reward_source_ids"]
+            if (
+                not isinstance(reward_source_ids, list)
+                or any(not _valid_event_part(source_id) for source_id in reward_source_ids)
+                or len(reward_source_ids) != len(set(reward_source_ids))
+            ):
+                raise ValueError("encounter reward source IDs are invalid")
+            from app.content.catalog import (
+                get_armor_reward_sources_for_event,
+                get_fixed_item_reward_sources_for_event,
+            )
+
+            expected_source_ids = tuple(
+                source.source_id
+                for source in get_armor_reward_sources_for_event(
+                    event["floor_id"], event["node_id"]
+                )
+                + get_fixed_item_reward_sources_for_event(
+                    event["floor_id"], event["node_id"]
+                )
+            )
+            if tuple(reward_source_ids) != expected_source_ids:
+                raise ValueError("encounter rewards disagree with authored reward sources")
         return
 
     if set(result) != {
@@ -2307,9 +2367,12 @@ def validate_run_event_history(
                 raise ValueError("run event does not belong to the active floor")
 
     from app.content.catalog import (
+        get_armor_reward_sources_for_event,
         get_enemy_spec,
         get_encounter_spec,
+        get_fixed_item_reward_sources_for_event,
         get_known_permanent_discovery_source,
+        get_permanent_discovery_search_floor_id,
         get_permanent_discovery_search_node_id,
         get_route_node_spec,
         is_known_route_node_id,
@@ -2353,21 +2416,28 @@ def validate_run_event_history(
             "source_id" in entry for entry in event["result"]["entries"]
         ):
             raise ValueError("authored Grade-IV drop evidence is restricted to Floor 4")
-        if event["kind"] in {"enemy_drop", "encounter_rewards", "armor_reward"}:
+        if event["kind"] in {
+            "enemy_drop",
+            "encounter_rewards",
+            "armor_reward",
+            "fixed_item_reward",
+        }:
             if (
                 node.kind not in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}
                 or node.encounter_id is None
             ):
                 raise ValueError("combat event references a non-encounter route node")
         elif event["kind"] == "discovery_search":
-            if event["floor_id"] != "floor_two":
-                raise ValueError("discovery search is not authored on this floor")
             result = event["result"]
             try:
                 source = get_known_permanent_discovery_source(result["source_id"])
             except ValueError as error:
                 raise ValueError("discovery event references an unknown source") from error
-            if get_permanent_discovery_search_node_id(result["source_id"]) != node_id:
+            if (
+                get_permanent_discovery_search_node_id(result["source_id"]) != node_id
+                or get_permanent_discovery_search_floor_id(result["source_id"])
+                != event["floor_id"]
+            ):
                 raise ValueError("discovery source does not belong to this route node")
             if (
                 event["run_id"] == active_run_id
@@ -2393,9 +2463,63 @@ def validate_run_event_history(
 
     referenced_drop_keys = set()
     for event in normalized:
+        if event["kind"] == "fixed_item_reward":
+            encounter_event = by_key.get(
+                _run_event_key(
+                    event["run_id"],
+                    event["node_id"],
+                    "encounter_rewards",
+                    floor_id=event["floor_id"],
+                )
+            )
+            if encounter_event is None:
+                raise ValueError("fixed item reward is not tied to encounter victory")
+            source_ids = encounter_event["result"].get("reward_source_ids", ())
+            if event["result"]["source_id"] not in source_ids:
+                raise ValueError("fixed item reward is absent from encounter evidence")
+            continue
+        if event["kind"] == "armor_reward" and event["floor_id"] == "floor_four":
+            encounter_event = by_key.get(
+                _run_event_key(
+                    event["run_id"],
+                    event["node_id"],
+                    "encounter_rewards",
+                    floor_id=event["floor_id"],
+                )
+            )
+            if encounter_event is None or event["result"]["source_id"] not in (
+                encounter_event["result"].get("reward_source_ids", ())
+            ):
+                raise ValueError("Floor 4 armor is not tied to encounter victory")
         if event["kind"] != "encounter_rewards":
             continue
         result = event["result"]
+        if "reward_source_ids" in result and require_complete:
+            for source_id in result["reward_source_ids"]:
+                armor_source_ids = tuple(
+                    source.source_id
+                    for source in get_armor_reward_sources_for_event(
+                        event["floor_id"], event["node_id"]
+                    )
+                )
+                source_kind = (
+                    "armor_reward"
+                    if source_id in armor_source_ids
+                    else "fixed_item_reward"
+                )
+                reward_event = by_key.get(
+                    _run_event_key(
+                        event["run_id"],
+                        event["node_id"],
+                        source_kind,
+                        floor_id=event["floor_id"],
+                    )
+                )
+                if (
+                    reward_event is None
+                    or reward_event["result"]["source_id"] != source_id
+                ):
+                    raise ValueError("encounter reward source evidence is missing")
         drop_events = [by_key.get(key) for key in result["drop_event_keys"]]
         if any(drop is None for drop in drop_events):
             raise ValueError("encounter reward evidence is missing an enemy drop")

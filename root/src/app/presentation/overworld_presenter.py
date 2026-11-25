@@ -8,6 +8,7 @@ from app.content.catalog import (
     get_enemy_spec,
     get_inspectable_route_node_spec,
     get_permanent_discovery_source,
+    get_permanent_discovery_search_source_at,
     get_route_node_spec,
     get_route_spec,
     get_weapon_spec,
@@ -2524,7 +2525,15 @@ class OverworldPresenter:
                                 "Choose Boss Helper",
                             ),
                         )
-                    source_id = "ancient_well_floor2_01"
+                source = get_permanent_discovery_search_source_at(
+                    game_state.overworld_state.active_route_id,
+                    game_state.overworld_state.current_route_node_id,
+                )
+                if (
+                    source is not None
+                    and game_state.party_state.phase is DungeonPhase.OUTING
+                ):
+                    source_id = source.source_id
                     world = game_state.world_state
                     if (
                         source_id in world.discovered_permanent_discovery_sources
@@ -2534,10 +2543,11 @@ class OverworldPresenter:
                             enabled(OverworldAction.CLAIM_DISCOVERY, "Claim Discovery"),
                         )
                     elif source_id not in world.discovered_permanent_discovery_sources:
-                        run_id = game_state.party_state.floor_two_run_id
+                        run_id = game_state.party_state.active_run_id
                         already_searched = any(
                             event["run_id"] == run_id
-                            and event["node_id"] == "floor_two_pre_boss_rest"
+                            and event["node_id"]
+                            == game_state.overworld_state.current_route_node_id
                             and event["kind"] == "discovery_search"
                             for event in game_state.party_state.resolved_run_events
                         )

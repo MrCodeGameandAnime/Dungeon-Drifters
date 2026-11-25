@@ -3693,10 +3693,38 @@ try {
       await observeMomentum(page);
     };
     const resolveFloorTwoAttackChoice = async () => {
-      await page.waitForFunction(() =>
-        document.querySelector("#moves .move-choice:not([disabled])") !== null ||
-          document.querySelector("#targets .target-choice:not([disabled])") !== null,
-      );
+      try {
+        await page.waitForFunction(() =>
+          document.querySelector("#moves .move-choice:not([disabled])") !== null ||
+            document.querySelector("#targets .target-choice:not([disabled])") !== null,
+        );
+      } catch (error) {
+        const state = await page.evaluate(() => ({
+          badge: document.getElementById("screen-badge")?.textContent.trim(),
+          phase: document.getElementById("app")?.dataset.interactionPhase,
+          party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+            name: member.querySelector("h3")?.textContent.trim(),
+            status: member.querySelector(".party-member-status")?.textContent.trim(),
+          })),
+          enemies: [...document.querySelectorAll("#enemy-panel .enemy")].map((enemy) => enemy.innerText.trim()),
+          actions: [...document.querySelectorAll("#actions button")].map((button) => ({
+            label: button.textContent.trim(),
+            disabled: button.disabled,
+          })),
+          moves: [...document.querySelectorAll("#moves .move-choice")].map((button) => ({
+            label: button.textContent.trim(),
+            disabled: button.disabled,
+          })),
+          targets: [...document.querySelectorAll("#targets .target-choice")].map((button) => ({
+            label: button.textContent.trim(),
+            disabled: button.disabled,
+          })),
+          battleLog: document.getElementById("battle-log")?.innerText,
+        }));
+        throw new Error(
+          `No enabled attack choice for ${floorLabel} Battle ${battleNumber}: ${JSON.stringify(state)}; ${error.message}`,
+        );
+      }
       if (await page.locator("#targets .target-choice:not([disabled])").count()) {
         await chooseFloorTwoEnemy();
         return;
@@ -3716,7 +3744,34 @@ try {
         const button = enabledMoves.filter({ hasText: preferredMove }).first();
         await button.evaluate((node) => { window.__DD_LAST_BATTLE_CHOICE__ = node; });
         await button.click();
-        await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+        try {
+          await page.waitForFunction(() => !window.__DD_LAST_BATTLE_CHOICE__?.isConnected);
+        } catch (error) {
+          const state = await page.evaluate(() => ({
+            badge: document.getElementById("screen-badge")?.textContent.trim(),
+            phase: document.getElementById("app")?.dataset.interactionPhase,
+            errorVisible: !document.getElementById("error")?.hidden,
+            errorMessage: document.getElementById("error-message")?.textContent.trim(),
+            notice: document.getElementById("notice")?.textContent.trim(),
+            actor: document.querySelector("#party-members .party-member.is-active h3")?.textContent.trim(),
+            actions: [...document.querySelectorAll("#actions button")].map((item) => ({
+              label: item.textContent.trim(),
+              disabled: item.disabled,
+            })),
+            moves: [...document.querySelectorAll("#moves .move-choice")].map((item) => ({
+              label: item.textContent.trim(),
+              disabled: item.disabled,
+            })),
+            targets: [...document.querySelectorAll("#targets .target-choice")].map((item) => ({
+              label: item.textContent.trim(),
+              disabled: item.disabled,
+            })),
+            battleLog: document.getElementById("battle-log")?.innerText,
+          }));
+          throw new Error(
+            `Selected ${preferredMove} did not advance ${floorLabel} Battle ${battleNumber}: ${JSON.stringify(state)}; ${error.message}`,
+          );
+        }
       } else {
         await clickFirstBattleChoice("#moves .move-choice");
       }
@@ -4557,6 +4612,114 @@ try {
     `Floor IV midpoint checkpoint did not survive reload: ${JSON.stringify(floorFourRestAfterReload)}`,
   );
   console.log("M8.3_BROWSER|FLOOR_FOUR_MIDPOINT_SAVE_RELOAD|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Search Site");
+  await page.locator("#discovery-selection").waitFor({ state: "visible" });
+  const floorFourDiscoveryChoices = page.locator("#discovery-choices button");
+  requireCondition(
+    await floorFourDiscoveryChoices.count() === 2,
+    "Floor IV Ancient Well did not offer exactly the active Drifters as searchers",
+  );
+  const floorFourDiscoveryBefore = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return { activeIds: payload.party.active_drifter_ids };
+  }, floorTwoProfileKey);
+  const floorFourWellBonusesBefore = await readFloorTwoDiscoveryBonuses();
+  await floorFourDiscoveryChoices.first().click();
+  await page.waitForFunction(() => ["CLAIM DISCOVERY", "REST"].includes(
+    document.getElementById("screen-badge").textContent.trim(),
+  ));
+  const floorFourSearchResult = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    const event = envelope?.payload?.party?.resolved_run_events?.find(
+      (entry) => entry.kind === "discovery_search" &&
+        entry.floor_id === "floor_four" &&
+        entry.node_id === "floor_four_rest_midpoint",
+    );
+    return event ? {
+      sourceId: event.result.source_id,
+      searcherId: event.result.searcher_drifter_id,
+      found: event.result.found,
+      roll: event.result.roll,
+      chance: event.result.effective_chance_bps,
+      activeIds: envelope?.payload?.party?.active_drifter_ids || [],
+    } : null;
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFourSearchResult?.sourceId === "ancient_well_floor4_01" &&
+      floorFourSearchResult.chance >= 1000 &&
+      floorFourSearchResult.chance <= 10000 &&
+      floorFourSearchResult.roll >= 1 &&
+      floorFourSearchResult.roll <= 10000 &&
+      floorFourSearchResult.activeIds.includes(floorFourSearchResult.searcherId) &&
+      typeof floorFourSearchResult.found === "boolean",
+    `Floor IV search did not persist its authoritative source outcome: ${JSON.stringify(floorFourSearchResult)}`,
+  );
+  let floorFourWellClaimed = false;
+  let floorFourWellTargetId = null;
+  if (floorFourSearchResult.found) {
+    await page.locator("#screen-badge").filter({ hasText: "CLAIM DISCOVERY" }).waitFor({ state: "visible" });
+    const targetChoices = page.locator("#discovery-choices button");
+    requireCondition(
+      await targetChoices.count() === 2,
+      "Floor IV Ancient Well did not restrict claim targets to the active Drifters",
+    );
+    floorFourWellTargetId = floorFourDiscoveryBefore.activeIds[1];
+    await targetChoices.nth(1).click();
+    await page.locator("#screen-badge").filter({ hasText: "CONFIRM DISCOVERY" }).waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#overworld-options", "Confirm");
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    const floorFourClaim = await page.evaluate((key) => {
+      const envelope = JSON.parse(localStorage.getItem(key));
+      return envelope?.payload?.world?.permanent_discovery_claims || [];
+    }, floorTwoProfileKey);
+    requireCondition(
+      floorFourClaim.includes("ancient_well_floor4_01"),
+      `Floor IV Ancient Well claim was not persisted: ${JSON.stringify(floorFourClaim)}`,
+    );
+    floorFourWellClaimed = true;
+  }
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const floorFourDiscoveryAfterReload = await page.evaluate((key) => {
+    const envelope = JSON.parse(localStorage.getItem(key));
+    const event = envelope?.payload?.party?.resolved_run_events?.find(
+      (entry) => entry.kind === "discovery_search" &&
+        entry.floor_id === "floor_four" &&
+        entry.node_id === "floor_four_rest_midpoint",
+    );
+    return {
+      screen: document.getElementById("screen-badge")?.textContent.trim(),
+      sourceId: event?.result?.source_id,
+      found: event?.result?.found,
+      claimed: envelope?.payload?.world?.permanent_discovery_claims?.includes(
+        "ancient_well_floor4_01",
+      ) || false,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      floorFourDiscoveryAfterReload.screen === "REST" &&
+      floorFourDiscoveryAfterReload.sourceId === "ancient_well_floor4_01" &&
+      floorFourDiscoveryAfterReload.claimed === floorFourWellClaimed,
+    `Floor IV discovery outcome did not survive reload: ${JSON.stringify(floorFourDiscoveryAfterReload)}`,
+  );
+  const floorFourWellBonusesAfter = await readFloorTwoDiscoveryBonuses();
+  for (const drifterId of floorFourDiscoveryBefore.activeIds) {
+    const expected = floorFourWellBonusesBefore[drifterId].max_hp + (
+      floorFourWellClaimed && drifterId === floorFourWellTargetId ? 5 : 0
+    );
+    requireCondition(
+      floorFourWellBonusesAfter[drifterId].max_hp === expected,
+      `Floor IV Well did not preserve its one-time target effect for ${drifterId}`,
+    );
+  }
+  console.log(`M8.4_BROWSER|FLOOR_FOUR_DISCOVERY|${floorFourWellClaimed ? "CLAIMED" : "OUTCOME_PERSISTED"}|PASS`);
 
   await clickVisibleOption(page, "#overworld-options", "Recover");
   await page.locator("#route-actions").filter({ hasText: "Enter Encounter" }).waitFor({ state: "visible" });

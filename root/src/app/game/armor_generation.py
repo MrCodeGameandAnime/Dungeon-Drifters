@@ -11,12 +11,16 @@ from app.items.equipment import EquipmentInstance
 
 class ArmorGenerationService:
     def __init__(self, *, rng):
-        if not callable(getattr(rng, "randrange", None)):
-            raise TypeError("rng must provide randrange(stop)")
-        self._rng = rng
+        self._randrange_fn = getattr(rng, "randrange", None)
+        self._randint_fn = getattr(rng, "randint", None)
+        if not callable(self._randrange_fn) and not callable(self._randint_fn):
+            raise TypeError("rng must provide randrange(stop) or randint(start, end)")
 
     def _randrange(self, stop):
-        value = self._rng.randrange(stop)
+        if callable(self._randrange_fn):
+            value = self._randrange_fn(stop)
+        else:
+            value = self._randint_fn(0, stop - 1)
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError("rng returned a non-integer armor result")
         if not 0 <= value < stop:

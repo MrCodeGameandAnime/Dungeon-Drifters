@@ -1,4 +1,4 @@
-"""Schema-27 save documents and canonical in-memory reconstruction."""
+"""Schema-28 save documents and canonical in-memory reconstruction."""
 
 from copy import deepcopy
 from uuid import UUID
@@ -116,7 +116,8 @@ _PRE_M6_DISK_SCHEMA_VERSION = 23
 _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION = 24
 _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION = 25
 _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION = 26
-DISK_SCHEMA_VERSION = 27
+_PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION = 27
+DISK_SCHEMA_VERSION = 28
 
 _FLOOR_FOUR_ROUTE = get_route_spec("floor_four")
 _FLOOR_FOUR_ROUTE_NODE_IDS = tuple(
@@ -423,6 +424,19 @@ def migrate_schema26(document):
     return _validate_migrated_current_document(migrated)
 
 
+def migrate_schema27(document):
+    """Upgrade schema-27 saves without changing their historical event evidence."""
+    validate_legacy_schema27_document(document)
+    migrated = deepcopy(document)
+    migrated["schema_version"] = DISK_SCHEMA_VERSION
+    _validate_document(
+        migrated,
+        schema_version=DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return migrated
+
+
 def validate_legacy_schema9_document(document):
     """Validate and copy an immutable schema-9 profile payload."""
     _validate_legacy_current_document(document)
@@ -619,6 +633,17 @@ def validate_legacy_schema26_document(document):
     return deepcopy(document)
 
 
+def validate_legacy_schema27_document(document):
+    """Validate immutable schema-27 saves before M8.4 reward evidence."""
+    _validate_plain_document(document)
+    _validate_document(
+        document,
+        schema_version=_PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION,
+        require_active_run_scope=True,
+    )
+    return deepcopy(document)
+
+
 def validate_legacy_schema8_document(document):
     """Validate and copy an original schema-8 disk payload without migrating it."""
     _validate_plain_document(document)
@@ -730,6 +755,12 @@ def validate_profile_payload(document):
         return validate_legacy_schema26_document(document)
     if (
         isinstance(document, dict)
+        and document.get("schema_version")
+        == _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
+    ):
+        return validate_legacy_schema27_document(document)
+    if (
+        isinstance(document, dict)
         and document.get("schema_version") == _PREVIOUS_CURRENT_DISK_SCHEMA_VERSION
     ):
         return validate_legacy_schema10_document(document)
@@ -833,6 +864,8 @@ def validate_save_document(document):
         return migrate_schema25(document)
     if schema_version == _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION:
         return migrate_schema26(document)
+    if schema_version == _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION:
+        return migrate_schema27(document)
     if schema_version == DISK_SCHEMA_VERSION:
         normalized = deepcopy(document)
         if isinstance(normalized.get("player"), dict):
@@ -1052,7 +1085,9 @@ def _validate_document(
         document["overworld"],
         document["world"],
         allow_floor_three=schema_version >= _PRE_M6_DISK_SCHEMA_VERSION,
-        allow_floor_four=schema_version >= DISK_SCHEMA_VERSION,
+        allow_floor_four=(
+            schema_version >= _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
+        ),
     )
     if schema_version < _PRE_ALCHEMIST_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict) and event.get("kind") == "armor_reward"
@@ -1068,7 +1103,7 @@ def _validate_document(
         raise SaveStateValidationError(
             "legacy run history cannot contain boss-helper selection events"
         )
-    if schema_version < DISK_SCHEMA_VERSION and any(
+    if schema_version < _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict)
         and (
             event.get("floor_id") == "floor_four"
@@ -1081,6 +1116,20 @@ def _validate_document(
     ):
         raise SaveStateValidationError(
             "legacy run history cannot contain Floor IV event evidence"
+        )
+    if schema_version < DISK_SCHEMA_VERSION and any(
+        isinstance(event, dict)
+        and (
+            event.get("kind") == "fixed_item_reward"
+            or (
+                isinstance(event.get("result"), dict)
+                and "reward_source_ids" in event["result"]
+            )
+        )
+        for event in document["party"].get("resolved_run_events", [])
+    ):
+        raise SaveStateValidationError(
+            "legacy run history cannot contain M8.4 reward evidence"
         )
     equipment_by_id = _validate_party(
         document["party"],
@@ -1122,7 +1171,9 @@ def _validate_document(
         require_region_progression=(
             schema_version >= _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION
         ),
-        require_floor_four_run_state=(schema_version >= DISK_SCHEMA_VERSION),
+        require_floor_four_run_state=(
+            schema_version >= _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
+        ),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -1154,7 +1205,9 @@ def _validate_document(
         require_floor_three_state=(
             schema_version >= _PRE_M6_DISK_SCHEMA_VERSION
         ),
-        require_floor_four_run_state=(schema_version >= DISK_SCHEMA_VERSION),
+        require_floor_four_run_state=(
+            schema_version >= _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
+        ),
         allow_floor_one_expedition_launch=allow_floor_one_expedition_launch,
         allow_floor_one_progress_checkpoint=allow_floor_one_progress_checkpoint,
     )
@@ -3710,6 +3763,7 @@ __all__ = [
     "migrate_schema_13",
     "migrate_schema15",
     "migrate_schema16",
+    "migrate_schema27",
     "reconstruct_game_state",
     "validate_legacy_schema8_document",
     "validate_legacy_schema9_document",
@@ -3717,6 +3771,7 @@ __all__ = [
     "validate_legacy_schema13_document",
     "validate_legacy_schema15_document",
     "validate_legacy_schema16_document",
+    "validate_legacy_schema27_document",
     "validate_profile_payload",
     "validate_save_document",
 ]

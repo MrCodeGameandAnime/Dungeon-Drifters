@@ -48,6 +48,8 @@ FIELD_MANIFEST = {
     ('app.content.region_progression_spec', 'RegionSpec'): ('region_id', 'display_name', 'destination_ids'),
     ('app.content.route_spec', 'RouteNodeSpec'): ('node_id', 'display_label', 'kind', 'encounter_id'),
     ('app.content.route_spec', 'RouteSpec'): ('route_id', 'nodes'),
+    ('app.content.run_event_reward_spec', 'ArmorRewardSourceSpec'): ('source_id', 'floor_id', 'node_id', 'floor', 'template_id'),
+    ('app.content.run_event_reward_spec', 'FixedItemRewardSourceSpec'): ('source_id', 'floor_id', 'node_id', 'item_id', 'quantity'),
     ('app.content.vendor_catalog', 'FirstClearRewardSpec'): ('source_id', 'floor_id', 'item_id', 'quantity'),
     ('app.content.vendor_catalog', 'VendorMerchandiseSpec'): ('item_id', 'category', 'base_price', 'offers', 'resale_price', 'sale_vendor_id', 'future_stock_eligible', 'equipment_rarity_id', 'equipment_stat_policy', 'equipment_modifier_ids'),
     ('app.content.vendor_catalog', 'VendorOfferSpec'): ('vendor_id', 'unit_price', 'stock_cap', 'initial_stock', 'refill_per_qualifying_return', 'unlock_after_floor', 'unlock_drifter_id', 'sale_fed_only', 'future_content'),

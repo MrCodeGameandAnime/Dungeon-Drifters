@@ -18,6 +18,10 @@ from app.content.permanent_discovery_spec import (
 )
 from app.content.route_spec import RouteSpec
 from app.content.recruitment_event_spec import RecruitmentEventSpec
+from app.content.run_event_reward_spec import (
+    M8_FLOOR_FOUR_ARMOR_REWARD,
+    M8_FLOOR_FOUR_RECOVERY_REWARD,
+)
 from app.content.weapon_spec import WeaponSpec
 from app.enemies.state import EnemyState
 from app.enemies.validation import validate_enemy_tier
@@ -54,13 +58,53 @@ PERMANENT_DISCOVERY_SOURCES = validate_permanent_discovery_sources(
             5,
             search_chance_bps=1000,
         ),
+        PermanentDiscoverySource(
+            "ancient_well_floor4_01",
+            PermanentDiscoveryType.ANCIENT_WELL,
+            5,
+            search_chance_bps=1000,
+        ),
+        PermanentDiscoverySource(
+            "forgotten_altar_floor4_01",
+            PermanentDiscoveryType.FORGOTTEN_ALTAR,
+            5,
+            search_chance_bps=1000,
+        ),
+        PermanentDiscoverySource(
+            "spirit_relic_floor5_01",
+            PermanentDiscoveryType.SPIRIT_RELIC,
+            3,
+            search_chance_bps=1000,
+        ),
     )
 )
 _PERMANENT_DISCOVERY_CATALOG = readonly_mapping(
     {source.source_id: source for source in PERMANENT_DISCOVERY_SOURCES}
 )
 _PERMANENT_DISCOVERY_SEARCH_NODE_IDS = readonly_mapping(
-    {"ancient_well_floor2_01": "floor_two_pre_boss_rest"}
+    {
+        "ancient_well_floor2_01": "floor_two_pre_boss_rest",
+        "ancient_well_floor4_01": "floor_four_rest_midpoint",
+        "forgotten_altar_floor4_01": "floor_four_rest_pre_boss",
+        "spirit_relic_floor5_01": "floor_five_rest_midpoint",
+    }
+)
+_PERMANENT_DISCOVERY_SEARCH_FLOOR_IDS = readonly_mapping(
+    {
+        "ancient_well_floor2_01": "floor_two",
+        "ancient_well_floor4_01": "floor_four",
+        "forgotten_altar_floor4_01": "floor_four",
+        "spirit_relic_floor5_01": "floor_five",
+    }
+)
+
+ARMOR_REWARD_SOURCES = (M8_FLOOR_FOUR_ARMOR_REWARD,)
+_ARMOR_REWARD_SOURCE_CATALOG = readonly_mapping(
+    {source.source_id: source for source in ARMOR_REWARD_SOURCES}
+)
+FIXED_ITEM_REWARD_SOURCES = (M8_FLOOR_FOUR_RECOVERY_REWARD,)
+_FIXED_ITEM_REWARD_SOURCE_CATALOG = readonly_mapping(
+    {source.source_id: source for source in FIXED_ITEM_REWARD_SOURCES}
 )
 
 # Retired authored IDs stay recognizable so immutable saved event evidence remains valid.
@@ -362,6 +406,52 @@ def get_permanent_discovery_search_node_id(source_id):
     return _PERMANENT_DISCOVERY_SEARCH_NODE_IDS[source_id]
 
 
+def get_permanent_discovery_search_floor_id(source_id):
+    if source_id not in _PERMANENT_DISCOVERY_SEARCH_FLOOR_IDS:
+        return None
+    return _PERMANENT_DISCOVERY_SEARCH_FLOOR_IDS[source_id]
+
+
+def get_permanent_discovery_search_source_at(floor_id, node_id):
+    for source_id, authored_node_id in _PERMANENT_DISCOVERY_SEARCH_NODE_IDS.items():
+        if (
+            authored_node_id == node_id
+            and _PERMANENT_DISCOVERY_SEARCH_FLOOR_IDS[source_id] == floor_id
+        ):
+            return _PERMANENT_DISCOVERY_CATALOG[source_id]
+    return None
+
+
+def get_armor_reward_source(source_id):
+    try:
+        return _ARMOR_REWARD_SOURCE_CATALOG[source_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown armor reward source: {source_id}") from error
+
+
+def get_armor_reward_sources_for_event(floor_id, node_id):
+    return tuple(
+        source
+        for source in ARMOR_REWARD_SOURCES
+        if source.floor_id == floor_id and source.node_id == node_id
+    )
+
+
+def get_fixed_item_reward_source(source_id):
+    try:
+        return _FIXED_ITEM_REWARD_SOURCE_CATALOG[source_id]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"unknown fixed item reward source: {source_id}") from error
+
+
+def get_fixed_item_reward_sources_for_event(floor_id, node_id):
+    return tuple(
+        source
+        for source in FIXED_ITEM_REWARD_SOURCES
+        if source.floor_id == floor_id and source.node_id == node_id
+    )
+
+
 def is_known_floor_two_route_node_id(node_id):
     return node_id in _FLOOR_TWO_ROUTE_NODE_IDS or node_id in _RETIRED_FLOOR_TWO_ROUTE_NODE_IDS
 
@@ -463,8 +553,10 @@ def get_inspectable_encounter_spec(node_id):
 
 
 __all__ = [
+    "ARMOR_REWARD_SOURCES",
     "ENEMY_SPECS",
     "ENCOUNTER_SPECS",
+    "FIXED_ITEM_REWARD_SOURCES",
     "DRIFTER_SPECS",
     "RECRUITMENT_EVENT_SPECS",
     "PERMANENT_DISCOVERY_SOURCES",
@@ -487,6 +579,12 @@ __all__ = [
     "get_permanent_discovery_source",
     "get_known_permanent_discovery_source",
     "get_permanent_discovery_search_node_id",
+    "get_permanent_discovery_search_floor_id",
+    "get_permanent_discovery_search_source_at",
+    "get_armor_reward_source",
+    "get_armor_reward_sources_for_event",
+    "get_fixed_item_reward_source",
+    "get_fixed_item_reward_sources_for_event",
     "is_known_floor_two_route_node_id",
     "get_drifter_spec_by_choice",
     "get_route_spec",

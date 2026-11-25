@@ -1,6 +1,6 @@
 # M8.3: Drowned Reliquary, Floor IV
 
-**Status:** Gate A approved; Gate B implementation is complete in the current worktree. Local root, web, content, compile, browser and pinned-runtime checks are recorded below. Exact-SHA hosted CI and independent Gate C review remain pending; M8.3 is not yet closed or sealed.
+**Status:** CLOSED AND SEALED. The owner accepted the implementation and exact-SHA hosted qualification on `af156e8e1d3d9c331a5f4ce6a449530e18ebf099`.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Implementation base:** M8.2 `21565f3d37a6d845cdb70a0598d11b7e432b3269`, accepted and sealed with exact-SHA CI [45252053112](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45252053112).
 
@@ -91,11 +91,11 @@ Test route reachability/node order, every encounter definition, tier-3 validatio
 
 - **Gate A, plan approval:** Approved by the owner in the M8.3 authorization. D1 identities, compositions, source mappings, and D6 associations remain unchanged.
 - **Gate B, implementation and focused tests:** Implemented. Focused Floor-IV session tests: 11 passed; route/content and persistence boundary tests passed in the root suite.
-- **Gate C, exact-SHA qualification:** Local results recorded; hosted exact-SHA CI is pending push. Independent review and owner closure remain open.
+- **Gate C, exact-SHA qualification:** Passed on `af156e8e1d3d9c331a5f4ce6a449530e18ebf099`; the owner accepted and sealed M8.3.
 
-| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
+| Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Owner disposition | Status |
 | --- | --- | --- | --- | --- |
-| Pending commit | Pending exact-SHA CI | Local: 2,547 root passed / 12 local Python 3.12 `annotationlib` environment failures; 94 web passed; 36 service passed / 17 skipped without local Docker; content validation, compile, 199-file browser build, full Playwright smoke, and pinned MicroPython matrix passed | Pending independent Gate C review | Gate B implemented; not sealed |
+| `af156e8e1d3d9c331a5f4ce6a449530e18ebf099` | [Actions run 45495388009](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45495388009): Tests and Profile Service (PostgreSQL) passed | Hosted exact-SHA qualification passed; local pinned MicroPython qualification recorded | Owner accepted and sealed | CLOSED AND SEALED |
 
-The hosted workflow uses Python 3.14 and PostgreSQL 17; it must pass on the exact implementation SHA before Gate C review. The 12 local root failures are compatibility-overlay subprocess tests that require Python 3.14's `annotationlib`; their failures do not overlap Floor-IV tests. Local PostgreSQL, migration-from-zero, and Alembic parity could not run because the Docker engine is unavailable. Record exact implementation SHA and hosted run after push. Close only after hosted qualification, independent review, and owner acceptance.
+The hosted workflow uses Python 3.14 and PostgreSQL 17. Exact-SHA hosted Tests and Profile Service (PostgreSQL) jobs passed. Earlier local Python 3.12 `annotationlib` compatibility failures and unavailable local Docker were superseded by successful hosted qualification; they are not open M8.3 blockers.
 

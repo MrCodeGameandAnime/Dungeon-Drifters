@@ -134,7 +134,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "cc115ca5f94b3d917d1c2dddce4927b7ea129096de4cdc01b96b1d1cb0223eae"
+        "ea393aa32163e4ce0679bb510b569d48466aa8e9fbbcbaeb26b57f69a265c2ae"
     )
 
 
@@ -365,6 +365,20 @@ def test_schema22_profile_history_keeps_original_payload_and_digest():
         "floor_three_outing_xp_multiplier_percent",
     ):
         legacy_payload["party"].pop(field)
+    envelope_document = profile_envelope_to_document(_envelope())
+    legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
+    envelope_document["payload"] = legacy_payload
+    envelope_document["payload_sha256"] = legacy_digest
+
+    restored = validate_profile_envelope(envelope_document)
+
+    assert restored.payload == legacy_payload
+    assert restored.payload_sha256 == legacy_digest
+
+
+def test_schema27_profile_history_keeps_original_payload_and_digest():
+    legacy_payload = copy.deepcopy(_payload())
+    legacy_payload["schema_version"] = 27
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload

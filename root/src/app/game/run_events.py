@@ -7,7 +7,10 @@ from uuid import UUID, uuid4
 
 from app.content.enemy_spec import ItemDropSpec
 from app.content.catalog import (
+    get_armor_reward_sources_for_event,
+    get_fixed_item_reward_sources_for_event,
     get_permanent_discovery_search_node_id,
+    get_permanent_discovery_search_floor_id,
     get_permanent_discovery_source,
 )
 from app.content.permanent_discovery_spec import PermanentDiscoverySource
@@ -75,6 +78,13 @@ class RunEventService:
             raise ValueError("encounter rewards require an active dungeon run")
         floor_id = party.active_run_floor_id
         run_id = party.active_run_id
+        armor_sources = get_armor_reward_sources_for_event(floor_id, node_id)
+        fixed_item_sources = get_fixed_item_reward_sources_for_event(
+            floor_id, node_id
+        )
+        authored_source_ids = tuple(
+            source.source_id for source in armor_sources + fixed_item_sources
+        )
 
         event_key = _event_key(
             run_id,
@@ -91,6 +101,57 @@ class RunEventService:
                 or result["enemy_count"] != len(tables)
             ):
                 raise ValueError("encounter event key was reused with different inputs")
+            has_source_evidence = "reward_source_ids" in result
+            recorded_source_ids = tuple(result.get("reward_source_ids", ()))
+            if has_source_evidence and recorded_source_ids != authored_source_ids:
+                raise ValueError("encounter event key was reused with different rewards")
+            if has_source_evidence:
+                for source in fixed_item_sources:
+                    reward_event = party.run_event(
+                        _event_key(
+                            run_id,
+                            node_id,
+                            "fixed_item_reward",
+                            floor_id=floor_id,
+                        )
+                    )
+                    if reward_event is None or reward_event["result"] != {
+                        "source_id": source.source_id,
+                        "item_id": source.item_id,
+                        "quantity": source.quantity,
+                    }:
+                        raise ValueError("encounter event is missing fixed reward evidence")
+                equipment_instance_id = None
+                for source in armor_sources:
+                    armor_event = party.run_event(
+                        _event_key(
+                            run_id,
+                            node_id,
+                            "armor_reward",
+                            floor_id=floor_id,
+                        )
+                    )
+                    if (
+                        armor_event is None
+                        or armor_event["result"]["source_id"] != source.source_id
+                        or armor_event["result"]["template_id"] != source.template_id
+                        or armor_event["result"]["floor"] != source.floor
+                    ):
+                        raise ValueError("encounter event is missing armor reward evidence")
+                    equipment_instance_id = armor_event["result"]["instance"][
+                        "instance_id"
+                    ]
+            else:
+                # A legacy event from before M8.4 is immutable and is not retroactively
+                # granted newly-authored source rewards.
+                equipment_instance_id = None
+                fixed_item_sources = ()
+                armor_sources = ()
+            replay_items = dict(result["items"])
+            for source in fixed_item_sources:
+                replay_items[source.item_id] = (
+                    replay_items.get(source.item_id, 0) + source.quantity
+                )
             for position, table in enumerate(tables):
                 drop_event = party.run_event(result["drop_event_keys"][position])
                 if drop_event is None:
@@ -121,7 +182,8 @@ class RunEventService:
             return RunEventResult(
                 RunEventStatus.ALREADY_RESOLVED,
                 game_state,
-                tuple(sorted(result["items"].items())),
+                tuple(sorted(replay_items.items())),
+                equipment_instance_id=equipment_instance_id,
             )
 
         candidate = game_state.clone()
@@ -170,12 +232,59 @@ class RunEventService:
             candidate_party.record_run_event(drop_event)
             all_drop_events.append(drop_key)
 
-        total_items = _positive_item_stacks(item_totals)
+        drop_items = _positive_item_stacks(item_totals)
+        total_items = dict(drop_items)
+        fixed_item_events = []
+        for source in fixed_item_sources:
+            total_items[source.item_id] = (
+                total_items.get(source.item_id, 0) + source.quantity
+            )
+            fixed_item_events.append(
+                _event_record(
+                    event_key=_event_key(
+                        run_id,
+                        node_id,
+                        "fixed_item_reward",
+                        floor_id=floor_id,
+                    ),
+                    run_id=run_id,
+                    node_id=node_id,
+                    kind="fixed_item_reward",
+                    position=None,
+                    result={
+                        "source_id": source.source_id,
+                        "item_id": source.item_id,
+                        "quantity": source.quantity,
+                    },
+                    floor_id=floor_id,
+                )
+            )
+        armor_items = []
+        for source in armor_sources:
+            instance_id = str(uuid4())
+            item = ArmorGenerationService(rng=self._rng).generate(
+                template_id=source.template_id,
+                floor=source.floor,
+                source_id=source.source_id,
+                instance_id=instance_id,
+                secured=False,
+            )
+            armor_items.append((source, item))
+        reward_source_ids = list(authored_source_ids)
         candidate_party.add_active_run_rewards(
             experience=experience,
             gold=gold,
             items=total_items,
         )
+        encounter_result = {
+            "experience": experience,
+            "gold": gold,
+            "items": drop_items,
+            "enemy_count": len(tables),
+            "drop_event_keys": all_drop_events,
+        }
+        if reward_source_ids:
+            encounter_result["reward_source_ids"] = reward_source_ids
         candidate_party.record_run_event(
             _event_record(
                 event_key=event_key,
@@ -183,16 +292,37 @@ class RunEventService:
                 node_id=node_id,
                 kind="encounter_rewards",
                 position=None,
-                result={
-                    "experience": experience,
-                    "gold": gold,
-                    "items": total_items,
-                    "enemy_count": len(tables),
-                    "drop_event_keys": all_drop_events,
-                },
+                result=encounter_result,
                 floor_id=floor_id,
             )
         )
+        for event in fixed_item_events:
+            candidate_party.record_run_event(event)
+        equipment_instance_id = None
+        for source, item in armor_items:
+            candidate_party.add_equipment_instance(item)
+            candidate_party.record_run_event(
+                _event_record(
+                    event_key=_event_key(
+                        run_id,
+                        node_id,
+                        "armor_reward",
+                        floor_id=floor_id,
+                    ),
+                    run_id=run_id,
+                    node_id=node_id,
+                    kind="armor_reward",
+                    position=None,
+                    result={
+                        "template_id": source.template_id,
+                        "floor": source.floor,
+                        "source_id": source.source_id,
+                        "instance": item.snapshot(),
+                    },
+                    floor_id=floor_id,
+                )
+            )
+            equipment_instance_id = item.instance_id
         status, committed = self._commit(candidate)
         if status is not RunEventStatus.RESOLVED:
             return RunEventResult(status, game_state)
@@ -200,6 +330,7 @@ class RunEventService:
             RunEventStatus.RESOLVED,
             committed,
             tuple(sorted(total_items.items())),
+            equipment_instance_id=equipment_instance_id,
         )
 
     def search_discovery(
@@ -225,12 +356,24 @@ class RunEventService:
         ):
             return RunEventResult(RunEventStatus.INVALID_SOURCE, game_state)
         party = game_state.party_state
-        if party.phase is not DungeonPhase.OUTING or party.floor_two_run_id is None:
-            raise ValueError("discovery search requires an active Floor II run")
+        source_floor_id = get_permanent_discovery_search_floor_id(source.source_id)
+        if (
+            source_floor_id is None
+            or party.phase is not DungeonPhase.OUTING
+            or party.active_run_id is None
+            or party.active_run_floor_id != source_floor_id
+        ):
+            raise ValueError("discovery search requires its active authored floor run")
         if searcher_drifter_id not in party.active_drifter_ids:
             return RunEventResult(RunEventStatus.INVALID_TARGET, game_state)
 
-        event_key = _event_key(party.floor_two_run_id, node_id, "discovery_search")
+        run_id = party.active_run_id
+        event_key = _event_key(
+            run_id,
+            node_id,
+            "discovery_search",
+            floor_id=source_floor_id,
+        )
         existing = party.run_event(event_key)
         if existing is not None:
             result = existing["result"]
@@ -276,7 +419,7 @@ class RunEventService:
         candidate_party.record_run_event(
             _event_record(
                 event_key=event_key,
-                run_id=party.floor_two_run_id,
+                run_id=run_id,
                 node_id=node_id,
                 kind="discovery_search",
                 position=None,
@@ -287,6 +430,7 @@ class RunEventService:
                     "roll": roll,
                     "found": found,
                 },
+                floor_id=source_floor_id,
             )
         )
         status, committed = self._commit(candidate)
@@ -314,13 +458,16 @@ class RunEventService:
         if not callable(instance_id_factory):
             raise TypeError("instance_id_factory must be callable")
         party = game_state.party_state
-        if party.phase is not DungeonPhase.OUTING or party.floor_two_run_id is None:
-            raise ValueError("armor rewards require an active Floor II run")
+        floor_id = party.active_run_floor_id
+        run_id = party.active_run_id
+        floor_number = 2 if floor_id == "floor_two" else None
+        if party.phase is not DungeonPhase.OUTING or run_id is None or floor_number is None:
+            return RunEventResult(RunEventStatus.INVALID_TARGET, game_state)
         node = get_route_node_spec(node_id)
         if node.kind not in {RouteNodeKind.COMBAT, RouteNodeKind.BOSS}:
             return RunEventResult(RunEventStatus.INVALID_TARGET, game_state)
 
-        event_key = _event_key(party.floor_two_run_id, node_id, "armor_reward")
+        event_key = _event_key(run_id, node_id, "armor_reward", floor_id=floor_id)
         existing = party.run_event(event_key)
         if existing is not None:
             result = existing["result"]
@@ -349,7 +496,7 @@ class RunEventService:
             instance_id = str(instance_id)
         item = ArmorGenerationService(rng=self._rng).generate(
             template_id=template_id,
-            floor=2,
+            floor=floor_number,
             source_id=source_id,
             instance_id=instance_id,
             secured=False,
@@ -360,16 +507,17 @@ class RunEventService:
         candidate_party.record_run_event(
             _event_record(
                 event_key=event_key,
-                run_id=party.floor_two_run_id,
+                run_id=run_id,
                 node_id=node_id,
                 kind="armor_reward",
                 position=None,
                 result={
                     "template_id": template_id,
-                    "floor": 2,
+                    "floor": floor_number,
                     "source_id": source_id,
                     "instance": item.snapshot(),
                 },
+                floor_id=floor_id,
             )
         )
         status, committed = self._commit(candidate)
