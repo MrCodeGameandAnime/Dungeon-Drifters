@@ -116,6 +116,29 @@ def _remove_equipment_state(document):
     return document
 
 
+def _schema16_or_17_claim_document(schema_version, source_id):
+    historical = copy.deepcopy(completed_hub_game().snapshot())
+    historical["schema_version"] = schema_version
+    _remove_floor_three_state(historical)
+    historical["player"].pop("combat")
+    _remove_equipment_state(historical)
+    for key in (
+        "floor_two_cleared",
+        "floor_two_runs_started_after_clear",
+        "floor_two_run_id",
+        "floor_two_outing_xp_multiplier_percent",
+        "resolved_run_events",
+    ):
+        historical["party"].pop(key)
+    historical["world"].pop("discovered_permanent_discovery_sources")
+    historical["world"]["permanent_discovery_claims"] = [source_id]
+    if schema_version == 16:
+        for player in [historical["player"], *historical["party"]["companions"]]:
+            player["advancement"].pop("purchased_stat_points", None)
+            player["advancement"].pop("respec_count", None)
+    return historical
+
+
 def _create_populated_game(choice):
     profile = next(
         profile
@@ -625,6 +648,40 @@ def test_schema17_migration_adds_floor_two_defaults_and_preserves_claim_evidence
     assert migrated["world"]["discovered_permanent_discovery_sources"] == [
         "ancient_well_floor1_01"
     ]
+    assert restored.world_state.permanent_discovery_claims == (
+        "ancient_well_floor1_01",
+    )
+
+
+@pytest.mark.parametrize("schema_version", (16, 17))
+def test_pre_m8_4_schema_rejects_floor_four_discovery_claims(schema_version):
+    historical = _schema16_or_17_claim_document(
+        schema_version,
+        "ancient_well_floor4_01",
+    )
+    original = copy.deepcopy(historical)
+
+    with pytest.raises(SaveStateValidationError, match="M8.4 discovery evidence"):
+        validate_profile_payload(historical)
+    with pytest.raises(SaveStateValidationError, match="M8.4 discovery evidence"):
+        validate_save_document(historical)
+
+    assert historical == original
+
+
+def test_schema16_migration_preserves_legitimate_historical_discovery_claim():
+    historical = _schema16_or_17_claim_document(
+        16,
+        "ancient_well_floor1_01",
+    )
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+
+    assert historical == original
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION
     assert restored.world_state.permanent_discovery_claims == (
         "ancient_well_floor1_01",
     )

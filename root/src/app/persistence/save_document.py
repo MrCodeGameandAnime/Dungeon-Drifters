@@ -118,6 +118,7 @@ _PRE_HUB_ECONOMY_DISK_SCHEMA_VERSION = 24
 _PRE_REGION_PROGRESSION_DISK_SCHEMA_VERSION = 25
 _PRE_FLOOR_FOUR_RUN_DISK_SCHEMA_VERSION = 26
 _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION = 27
+_M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION = 28
 DISK_SCHEMA_VERSION = 28
 
 _FLOOR_FOUR_ROUTE = get_route_spec("floor_four")
@@ -1081,7 +1082,9 @@ def _validate_document(
         require_authored_discovery_sources=(
             schema_version >= _PRE_EQUIPMENT_DISK_SCHEMA_VERSION
         ),
-        allow_m8_4_discovery_sources=(schema_version >= DISK_SCHEMA_VERSION),
+        allow_m8_4_discovery_sources=(
+            schema_version >= _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION
+        ),
     )
     _validate_overworld(
         document["overworld"],
@@ -1119,7 +1122,7 @@ def _validate_document(
         raise SaveStateValidationError(
             "legacy run history cannot contain Floor IV event evidence"
         )
-    if schema_version < DISK_SCHEMA_VERSION and any(
+    if schema_version < _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION and any(
         isinstance(event, dict)
         and (
             event.get("kind") == "fixed_item_reward"
@@ -1176,7 +1179,9 @@ def _validate_document(
         require_floor_four_run_state=(
             schema_version >= _PRE_M8_4_REWARD_EVIDENCE_DISK_SCHEMA_VERSION
         ),
-        allow_m8_4_discovery_sources=(schema_version >= DISK_SCHEMA_VERSION),
+        allow_m8_4_discovery_sources=(
+            schema_version >= _M8_4_DISCOVERY_EVIDENCE_DISK_SCHEMA_VERSION
+        ),
         require_active_run_scope=require_active_run_scope,
         equipment_by_id=equipment_by_id,
         equipment_bonuses_by_member=(
@@ -3287,10 +3292,13 @@ def _validate_world(
             raise SaveStateValidationError(
                 "world contains a malformed permanent discovery source ID"
             )
+        if not allow_m8_4_discovery_sources:
+            _validate_m8_4_discovery_source_ids(
+                world["permanent_discovery_claims"]
+            )
         if require_authored_discovery_sources:
             _validate_authored_discovery_source_ids(
-                world["permanent_discovery_claims"],
-                allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
+                world["permanent_discovery_claims"]
             )
     if require_discovered_permanent_discovery_sources:
         _validate_unique_string_list(
@@ -3305,11 +3313,10 @@ def _validate_world(
             raise SaveStateValidationError(
                 "world contains a malformed discovered discovery source ID"
             )
+        if not allow_m8_4_discovery_sources:
+            _validate_m8_4_discovery_source_ids(discovered_sources)
         if require_authored_discovery_sources:
-            _validate_authored_discovery_source_ids(
-                discovered_sources,
-                allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
-            )
+            _validate_authored_discovery_source_ids(discovered_sources)
         if not set(world["permanent_discovery_claims"]).issubset(
             discovered_sources
         ):
@@ -3320,11 +3327,7 @@ def _validate_world(
     validate_plain_value(world["dungeon_changes"], "world.dungeon_changes")
 
 
-def _validate_authored_discovery_source_ids(
-    source_ids,
-    *,
-    allow_m8_4_discovery_sources=False,
-):
+def _validate_authored_discovery_source_ids(source_ids):
     for source_id in source_ids:
         try:
             get_known_permanent_discovery_source(source_id)
@@ -3332,11 +3335,18 @@ def _validate_authored_discovery_source_ids(
             raise SaveStateValidationError(
                 f"world contains an unknown permanent discovery source: {source_id}"
             ) from error
-        if (
-            not allow_m8_4_discovery_sources
-            and get_permanent_discovery_search_floor_id(source_id)
-            in {"floor_four", "floor_five"}
-        ):
+
+
+def _validate_m8_4_discovery_source_ids(source_ids):
+    for source_id in source_ids:
+        try:
+            get_known_permanent_discovery_source(source_id)
+        except ValueError:
+            continue
+        if get_permanent_discovery_search_floor_id(source_id) in {
+            "floor_four",
+            "floor_five",
+        }:
             raise SaveStateValidationError(
                 "world contains M8.4 discovery evidence"
             )
