@@ -84,10 +84,18 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
     )
     icon_paths = tuple(asset_root / "icons" / name for name in icon_names)
     drifter_sprites = {
-        "branoc.png": asset_root / "Ser Branoc Sprite.png",
-        "azhvielle.png": asset_root / "Azhvielle Sprite.png",
-        "zhaivra.png": asset_root / "Zhaivra Kelyth Sprite.png",
-        "joruun.png": asset_root / "Joruun Veyr Sprite.png",
+        "branoc.png": (
+            asset_root / "sprites" / "Ser Branoc" / "Ser Branoc Sprite.png"
+        ),
+        "azhvielle.png": (
+            asset_root / "sprites" / "Azhvielle" / "Azhvielle Sprite.png"
+        ),
+        "zhaivra.png": (
+            asset_root / "sprites" / "Zhaivra Kelyth" / "Zhaivra Kelyth Sprite.png"
+        ),
+        "joruun.png": (
+            asset_root / "sprites" / "Joruun Veyr" / "Joruun Veyr Sprite.png"
+        ),
     }
 
     required = (

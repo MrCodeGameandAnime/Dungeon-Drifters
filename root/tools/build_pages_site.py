@@ -9,10 +9,10 @@ from pathlib import Path
 
 PUBLIC_ASSETS = (
     "Dungeon Drifters Heros.png",
-    "Ser Branoc Sprite.png",
-    "Azhvielle Sprite.png",
-    "Zhaivra Kelyth Sprite.png",
-    "Joruun Veyr Sprite.png",
+    "sprites/Ser Branoc/Ser Branoc Sprite.png",
+    "sprites/Azhvielle/Azhvielle Sprite.png",
+    "sprites/Zhaivra Kelyth/Zhaivra Kelyth Sprite.png",
+    "sprites/Joruun Veyr/Joruun Veyr Sprite.png",
     "screenshots/DD_001.jpeg",
     "screenshots/DD_002.jpeg",
     "screenshots/DD_003.jpeg",

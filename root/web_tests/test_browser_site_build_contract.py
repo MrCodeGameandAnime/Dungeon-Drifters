@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 
@@ -139,13 +140,13 @@ def test_site_builder_stages_drifter_sprites_without_modifying_source_images(tmp
     site_builder.build_site(ROOT / "src", output)
 
     sprites = {
-        "branoc.png": "Ser Branoc Sprite.png",
-        "azhvielle.png": "Azhvielle Sprite.png",
-        "zhaivra.png": "Zhaivra Kelyth Sprite.png",
-        "joruun.png": "Joruun Veyr Sprite.png",
+        "branoc.png": Path("Ser Branoc") / "Ser Branoc Sprite.png",
+        "azhvielle.png": Path("Azhvielle") / "Azhvielle Sprite.png",
+        "zhaivra.png": Path("Zhaivra Kelyth") / "Zhaivra Kelyth Sprite.png",
+        "joruun.png": Path("Joruun Veyr") / "Joruun Veyr Sprite.png",
     }
-    for output_name, source_name in sprites.items():
-        source = ROOT / "res" / source_name
+    for output_name, source_relative_path in sprites.items():
+        source = ROOT / "res" / "sprites" / source_relative_path
         staged = output / "assets" / "drifters" / output_name
         assert source.is_file()
         assert staged.read_bytes() == source.read_bytes()
@@ -245,9 +246,57 @@ def test_pages_builder_preserves_public_site_layout(tmp_path):
     assert (output / "play" / "game" / "dd_runtime.zip").is_file()
     assert (output / "play" / "qualification" / "game" / "dd_runtime.zip").is_file()
     assert (output / "res" / "Dungeon Drifters Heros.png").is_file()
+    for relative_path in pages_builder.PUBLIC_ASSETS:
+        source = ROOT / "res" / relative_path
+        staged = output / "res" / relative_path
+        assert source.is_file()
+        assert staged.read_bytes() == source.read_bytes()
     assert not (output / "root").exists()
     assert not (output / "docs").exists()
     assert not (output / "web_tests").exists()
+
+
+def test_character_sprite_links_resolve_in_pages_and_readme(tmp_path):
+    output = tmp_path / "pages"
+    pages_builder.build_pages_site(output)
+    sprites = {
+        "branoc": (
+            "res/sprites/Ser%20Branoc/Ser%20Branoc%20Sprite.png",
+            "../../res/sprites/Ser%20Branoc/Ser%20Branoc%20Sprite.png",
+            "../root/res/sprites/Ser%20Branoc/Ser%20Branoc%20Sprite.png",
+        ),
+        "azhvielle": (
+            "res/sprites/Azhvielle/Azhvielle%20Sprite.png",
+            "../../res/sprites/Azhvielle/Azhvielle%20Sprite.png",
+            "../root/res/sprites/Azhvielle/Azhvielle%20Sprite.png",
+        ),
+        "zhaivra": (
+            "res/sprites/Zhaivra%20Kelyth/Zhaivra%20Kelyth%20Sprite.png",
+            "../../res/sprites/Zhaivra%20Kelyth/Zhaivra%20Kelyth%20Sprite.png",
+            "../root/res/sprites/Zhaivra%20Kelyth/Zhaivra%20Kelyth%20Sprite.png",
+        ),
+        "joruun": (
+            "res/sprites/Joruun%20Veyr/Joruun%20Veyr%20Sprite.png",
+            "../../res/sprites/Joruun%20Veyr/Joruun%20Veyr%20Sprite.png",
+            "../root/res/sprites/Joruun%20Veyr/Joruun%20Veyr%20Sprite.png",
+        ),
+    }
+    readme = (REPOSITORY_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    for character, (home_href, profile_href, readme_href) in sprites.items():
+        homepage = (output / "index.html").read_text(encoding="utf-8")
+        profile = (output / "site" / "characters" / f"{character}.html").read_text(
+            encoding="utf-8"
+        )
+        assert home_href in homepage
+        assert profile_href in profile
+        assert readme_href in readme
+        assert (output / unquote(home_href)).is_file()
+        assert (
+            output / "site" / "characters" / unquote(profile_href)
+        ).resolve().is_file()
+        assert (
+            REPOSITORY_ROOT / "docs" / unquote(readme_href)
+        ).resolve().is_file()
 
 
 def test_pages_artifact_does_not_include_tests_or_docs(tmp_path):
