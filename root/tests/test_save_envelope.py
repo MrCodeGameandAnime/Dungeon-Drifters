@@ -20,7 +20,7 @@ from app.persistence.envelope import (
 )
 from app.player.player_state import PlayerState
 from tests.persistence_test_support import (
-    remove_floor_five_approach_run_state,
+    remove_floor_five_run_state,
     remove_region_progression_state,
 )
 
@@ -137,7 +137,7 @@ def test_profile_envelope_round_trip_is_canonical_and_keeps_payload_digest():
     assert not encoded.startswith(b"\xef\xbb\xbf")
     assert not encoded.endswith(b"\n")
     assert envelope.payload_sha256 == (
-        "786203cebaae5f0fdf2da6e0a90c6b4fe5129f77a9e9335c0b7b8bb6a9907f40"
+        "ee7aafed60eece422fe7b51038b1ca6d8da8f3c62255c58a3dbf4d122e236d4e"
     )
 
 
@@ -382,7 +382,7 @@ def test_schema22_profile_history_keeps_original_payload_and_digest():
 def test_schema27_profile_history_keeps_original_payload_and_digest():
     legacy_payload = copy.deepcopy(_payload())
     legacy_payload["schema_version"] = 27
-    remove_floor_five_approach_run_state(legacy_payload)
+    remove_floor_five_run_state(legacy_payload)
     envelope_document = profile_envelope_to_document(_envelope())
     legacy_digest = hashlib.sha256(canonical_json_bytes(legacy_payload)).hexdigest()
     envelope_document["payload"] = legacy_payload

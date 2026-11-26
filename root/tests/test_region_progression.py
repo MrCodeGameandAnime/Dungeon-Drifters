@@ -183,8 +183,7 @@ def test_reunion_requires_arena_reveal_four_recruits_and_no_assignment():
     game.party_state._floor_three_cleared = True
     game.party_state._floor_four_cleared = True
     game.story_state.complete_event(M8_ASHEN_ARENA_REVEALED_EVENT_ID)
-    assert not is_reunion_boss_eligible(game)
-    assert "route" in reunion_boss_unavailable_reason(game).lower()
+    assert is_reunion_boss_eligible(game)
 
     game.expedition_state._active_assignment = {
         "category": "training",

@@ -109,6 +109,7 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         "m85_expedition_browser_fixture.py",
         "M85_BROWSER|FLOOR_FOUR_REPORTS_CLAIM_RELOAD_ONCE|PASS",
         "M8.6_BROWSER|STORY_REPORT_ECHO_COMPLETION_RELOAD_ONCE|PASS",
+        "M8.8_BROWSER|REGENT_CLEAR_REGION2_AND_FLOOR5_MATERIAL_LAUNCH|PASS",
         "M85_BROWSER|FLOOR_FOUR_CATEGORY_AVAILABILITY|PASS",
         "M85_BROWSER|FLOOR_FOUR_LAUNCH_AND_ENERGY|PASS",
         "m8_story_reliquary_echo",

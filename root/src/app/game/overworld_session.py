@@ -49,6 +49,8 @@ from app.game.region_progression import (
     confirm_destination_entry,
     destination_availability,
     is_drowned_reliquary_briefing_available,
+    is_reunion_boss_eligible,
+    reunion_boss_unavailable_reason,
 )
 from app.game.story_state import KnowledgeStatus
 from app.game.character_stories import (
@@ -333,6 +335,13 @@ class OverworldSession:
             return self._with_expedition_status(view)
 
         view = self._build_view()
+        if self.game_state.floor_five_reunion_settlement_pending and not (
+            isinstance(session_input, ChooseOverworldAction)
+            and session_input.action
+            is OverworldAction.FINALIZE_FLOOR_FIVE_REUNION
+        ):
+            self._notice = "Finalize the Ashen Regent victory before continuing."
+            return self._build_view()
         if self.game_state.floor_five_approach_settlement_pending and not (
             isinstance(session_input, ChooseOverworldAction)
             and session_input.action
@@ -2279,6 +2288,8 @@ class OverworldSession:
             return self._start_floor_two()
         if action is OverworldAction.START_FLOOR_THREE:
             return self._start_floor_three()
+        if action is OverworldAction.CHALLENGE_ASHEN_REGENT:
+            return self._start_floor_five_reunion()
         if action is OverworldAction.FINALIZE_FLOOR_TWO_CLEAR:
             if not self.game_state.floor_two_boss_settlement_pending:
                 self._notice = "That option is not available."
@@ -2303,6 +2314,12 @@ class OverworldSession:
                 return None
             self._finalize_floor_five_approach()
             return None
+        if action is OverworldAction.FINALIZE_FLOOR_FIVE_REUNION:
+            if not self.game_state.floor_five_reunion_settlement_pending:
+                self._notice = "That option is not available."
+                return None
+            self._finalize_floor_five_reunion()
+            return None
         if action is OverworldAction.SET_OUT:
             return self._start_floor_one()
         if action is OverworldAction.RETURN_WITH_TALISMAN:
@@ -2319,6 +2336,7 @@ class OverworldSession:
                 "floor_three",
                 "floor_four",
                 "floor_five_approach",
+                "floor_five_reunion",
             }
             or self._screen is not OverworldScreen.REST
             or party_state.phase is not DungeonPhase.OUTING
@@ -2737,8 +2755,18 @@ class OverworldSession:
             destination_id="ashen_vault",
         )
 
+    def _start_floor_five_reunion(self):
+        reason = reunion_boss_unavailable_reason(self.game_state)
+        if reason is not None:
+            self._notice = reason
+            return None
+        return self._start_route("floor_five_reunion")
+
     def _return_to_hub(self):
         route_id = self.game_state.overworld_state.active_route_id
+        if route_id == "floor_five_reunion":
+            self._notice = "The Ashen Regent must be resolved before returning to the Hub."
+            return
         dungeon_extraction = route_id in {
             "floor_one",
             "floor_two",
@@ -3086,7 +3114,11 @@ class OverworldSession:
         original_game = self.game_state
         candidate = original_game.clone()
         party_state = candidate.party_state
-        party_members = original_game.active_party_members
+        party_members = (
+            original_game.recruited_members
+            if floor_id == "floor_five_reunion"
+            else original_game.active_party_members
+        )
         checkpoints = tuple(member.create_battle_checkpoint() for member in party_members)
         previous_target = self._selected_character_target_id
         floor_number = {
@@ -3095,6 +3127,7 @@ class OverworldSession:
             "floor_three": 3,
             "floor_four": 4,
             "floor_five_approach": "V",
+            "floor_five_reunion": "V reunion",
         }[floor_id]
         self._game_state = candidate
         try:
@@ -3104,6 +3137,7 @@ class OverworldSession:
                 "floor_three": party_state.start_floor_three_run,
                 "floor_four": party_state.start_floor_four_run,
                 "floor_five_approach": party_state.start_floor_five_approach_run,
+                "floor_five_reunion": party_state.start_floor_five_reunion_run,
             }[floor_id]
             if floor_id in {"floor_four", "floor_five_approach"}:
                 expected_destination_id = (
@@ -3122,6 +3156,10 @@ class OverworldSession:
                         "the Drowned Reliquary entry is no longer eligible"
                     )
                 confirm_destination_entry(candidate, destination_id)
+            if floor_id == "floor_five_reunion" and not is_reunion_boss_eligible(
+                candidate
+            ):
+                raise RuntimeError("the Ashen Regent entry is no longer eligible")
             start_run()
             candidate._player_state = original_game.player_state
             candidate._party_state = PartyState.from_snapshot(
@@ -3130,14 +3168,17 @@ class OverworldSession:
                 active_drifter_ids=candidate.party_state.active_drifter_ids,
             )
             candidate._bind_equipment_state()
-            party_members = candidate.active_party_members
-            self._select_party_target(party_members[0])
+            self._select_party_target(candidate.active_party_members[0])
             candidate.overworld_state.begin_route(floor_id)
             self._screen = OverworldScreen.MAIN
             self._adventure_text = f"Your party sets out into Floor {floor_number}."
             battle = self._create_active_battle(
                 ui=None,
-                defer_start=floor_id in {"floor_four", "floor_five_approach"},
+                defer_start=floor_id in {
+                    "floor_four",
+                    "floor_five_approach",
+                    "floor_five_reunion",
+                },
             )
             if battle is None:
                 raise RuntimeError("the first floor encounter is unavailable")
@@ -3500,6 +3541,7 @@ class OverworldSession:
             or game_state.floor_three_boss_settlement_pending
             or game_state.floor_four_boss_settlement_pending
             or game_state.floor_five_approach_settlement_pending
+            or game_state.floor_five_reunion_settlement_pending
         ):
             return OverworldScreen.MAIN
         if game_state.party_state.phase in {
@@ -3517,6 +3559,7 @@ class OverworldSession:
                 "floor_three",
                 "floor_four",
                 "floor_five_approach",
+                "floor_five_reunion",
             }:
                 current_node = get_route_node_spec(
                     overworld.current_route_node_id
@@ -3609,15 +3652,19 @@ class OverworldSession:
         is_floor_three = overworld.active_route_id == "floor_three"
         is_floor_four = overworld.active_route_id == "floor_four"
         is_floor_five_approach = overworld.active_route_id == "floor_five_approach"
+        is_floor_five_reunion = overworld.active_route_id == "floor_five_reunion"
         is_party_run = (
             is_floor_one
             or is_floor_two
             or is_floor_three
             or is_floor_four
             or is_floor_five_approach
+            or is_floor_five_reunion
         )
         party_members = (
-            self.game_state.active_party_members
+            self.game_state.recruited_members
+            if is_floor_five_reunion
+            else self.game_state.active_party_members
             if is_party_run
             else (self.game_state.player_state,)
         )
@@ -3646,7 +3693,7 @@ class OverworldSession:
         if not is_party_run:
             overworld.begin_surface_route()
         tier = (
-            3 if is_floor_four or is_floor_five_approach else
+            3 if is_floor_four or is_floor_five_approach or is_floor_five_reunion else
             2 if is_floor_three else
             1 if is_floor_two else 0
         )
@@ -3824,6 +3871,20 @@ class OverworldSession:
 
         if overworld.active_route_id == "floor_five_approach":
             self._finalize_floor_five_approach_battle(
+                battle,
+                winner=winner,
+                current_node_id=current_node_id,
+                encounter_id=encounter_id,
+                exp_reward=exp_reward,
+                gold_reward=gold_reward,
+                party_members=party_members,
+                checkpoints=checkpoints,
+                carried_supplies_checkpoint=carried_supplies_checkpoint,
+            )
+            return None
+
+        if overworld.active_route_id == "floor_five_reunion":
+            self._finalize_floor_five_reunion_battle(
                 battle,
                 winner=winner,
                 current_node_id=current_node_id,
@@ -4445,6 +4506,107 @@ class OverworldSession:
         self._active_battle = None
         self._active_battle_context = None
 
+    def _finalize_floor_five_reunion_battle(
+        self,
+        battle,
+        *,
+        winner,
+        current_node_id,
+        encounter_id,
+        exp_reward,
+        gold_reward,
+        party_members,
+        checkpoints,
+        carried_supplies_checkpoint,
+    ):
+        if winner != "player":
+            candidate = self.game_state.clone()
+            if not candidate.party_state.fail_floor_five_reunion_run(
+                candidate.recruited_members,
+                recruited_members=candidate.recruited_members,
+            ):
+                raise RuntimeError("the Floor V reunion defeat could not be cleared")
+            candidate._bind_equipment_state()
+            candidate.overworld_state.return_to_surface_entrance()
+            self._restore_members(candidate.recruited_members)
+            settled = self._persist_outing_terminal_state(
+                candidate,
+                secured_base_xp=0,
+            )
+            if settled is None:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                self.game_state.overworld_state.set_contextual_route_phase(
+                    ContextualRoutePhase.RETRY
+                )
+                self._screen = OverworldScreen.MAIN
+                self._adventure_text = (
+                    "The defeat could not be saved. The arena remains open; "
+                    "regroup and try again."
+                )
+                self._active_battle = None
+                self._active_battle_context = None
+                return
+            self._publish_saved_candidate(self.game_state, settled)
+            self._screen = OverworldScreen.HUB
+            self._adventure_text = (
+                "The Ashen Regent defeats the party. Unsecured rewards are lost; "
+                "all four Drifters return restored to the Hub."
+            )
+            self._notice = None
+        else:
+            if not self._battle_enemies_are_defeated(battle):
+                raise RuntimeError(
+                    "Battle reported victory before every enemy was defeated"
+                )
+            candidate = self.game_state.clone()
+            candidate.party_state._mark_encounter_progress()
+            rng = self._run_event_rng
+            if rng is None:
+                from app import randomness
+
+                rng = randomness
+            result = RunEventService(
+                save_port=self._save_port_instance(),
+                rng=rng,
+            ).resolve_encounter_rewards(
+                candidate,
+                node_id=current_node_id,
+                experience=exp_reward,
+                gold=gold_reward,
+                enemy_drop_tables=get_encounter_item_drop_tables(
+                    encounter_id,
+                    tier=3,
+                ),
+            )
+            if result.status not in {
+                RunEventStatus.RESOLVED,
+                RunEventStatus.ALREADY_RESOLVED,
+            }:
+                for member, checkpoint in zip(party_members, checkpoints):
+                    member.restore_battle_checkpoint(checkpoint)
+                self.game_state.party_state.restore_carried_supplies_checkpoint(
+                    carried_supplies_checkpoint
+                )
+                self.game_state.overworld_state.set_contextual_route_phase(
+                    ContextualRoutePhase.RETRY
+                )
+                self._screen = OverworldScreen.MAIN
+                self._adventure_text = (
+                    "The Ashen Regent is defeated, but the victory could not be "
+                    "saved. Retry the encounter."
+                )
+                self._notice = "The Ashen Regent victory could not be saved."
+                self._active_battle = None
+                self._active_battle_context = None
+                return
+            self._game_state = result.game_state
+            self._finalize_floor_five_reunion()
+
+        self._selected_item_key = None
+        self._active_battle = None
+        self._active_battle_context = None
+
     def _finalize_floor_five_approach(self):
         committed = self.game_state
         if not committed.floor_five_approach_settlement_pending:
@@ -4477,6 +4639,50 @@ class OverworldSession:
         self._adventure_text = (
             "The Ashen Vault approach is complete. The arena beyond the route "
             "has been revealed; your party returns to the Hub."
+        )
+        self._notice = None
+        return True
+
+    def _finalize_floor_five_reunion(self):
+        committed = self.game_state
+        if not committed.floor_five_reunion_settlement_pending:
+            self._notice = "That option is not available."
+            return False
+        settled = committed.clone()
+        boss_event = settled.party_state.run_event(
+            "floor_five:"
+            f"{settled.party_state.floor_five_reunion_run_id}:"
+            "floor_five_reunion_battle_01:encounter_rewards"
+        )
+        if boss_event is None:
+            raise RuntimeError("the Ashen Regent reward evidence is missing")
+        boss_experience = boss_event["result"]["experience"]
+        if not settled.party_state.complete_floor_five_reunion_boss(
+            settled.recruited_members,
+            boss_experience=boss_experience,
+        ):
+            raise RuntimeError("the Floor V reunion rewards could not be secured")
+        settled.story_state.complete_event("m8_ashen_regent_defeated")
+        self._restore_members(settled.recruited_members)
+        settled._bind_equipment_state()
+        settled.overworld_state.return_to_surface_entrance()
+        saved_state = self._persist_outing_terminal_state(
+            settled,
+            secured_base_xp=settled.party_state.outing_rewards.experience,
+        )
+        if saved_state is None:
+            self._screen = OverworldScreen.MAIN
+            self._adventure_text = (
+                "The Ashen Regent's victory is saved, but its settlement could "
+                "not be saved. Finalize the victory to retry."
+            )
+            self._notice = "The Ashen Regent victory could not be finalized."
+            return False
+        self._publish_saved_candidate(committed, saved_state)
+        self._screen = OverworldScreen.HUB
+        self._adventure_text = (
+            "The Ashen Regent is defeated. The Floor V clear and Region 2 "
+            "unlock are secured; all four Drifters return restored to the Hub."
         )
         self._notice = None
         return True

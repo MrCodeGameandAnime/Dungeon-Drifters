@@ -443,6 +443,31 @@ async function clickVisibleOption(page, containerSelector, label) {
       location: document.getElementById("location-label")?.textContent?.trim() || "",
       notice: document.getElementById("notice")?.textContent?.trim() || "",
       buttons,
+      interactionPhase: document.getElementById("app")?.dataset.interactionPhase || null,
+      screens: Object.fromEntries(["selection-screen", "overworld-screen", "battle-screen"]
+        .map((id) => [id, document.getElementById(id)?.hidden ?? null])),
+      adventure: document.getElementById("adventure-text")?.textContent?.trim() || "",
+      battle: {
+        party: [...document.querySelectorAll("#party-members .party-member")].map((member) => ({
+          id: member.dataset.targetId || null,
+          text: member.innerText.trim(),
+        })),
+        enemies: [...document.querySelectorAll("#enemy-panel .enemy")].map((enemy) => enemy.innerText.trim()),
+        actions: [...document.querySelectorAll("#actions button")].map((button) => button.textContent.trim()),
+      },
+      routeActions: [...document.querySelectorAll("#route-actions button")]
+        .map((button) => button.textContent.trim()),
+      controlsMarkup: [...document.querySelectorAll(`${selector} button`)].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        return {
+          html: button.outerHTML,
+          bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+          hitTarget: document.elementFromPoint(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+          )?.outerHTML || null,
+        };
+      }),
       save,
     };
   }, { selector: containerSelector });
@@ -1812,6 +1837,8 @@ try {
   await portraitBack.click();
   await page.locator("#actions").waitFor({ state: "visible" });
   console.log("PD|UI3|VIEWPORT|PORTRAIT_GUIDANCE|PASS");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await waitForViewportSync(page, 1440, 900);
 
   const targetPage = await browser.newPage();
   await targetPage.setViewportSize({ width: 844, height: 390 });
@@ -3833,7 +3860,19 @@ try {
       }
     };
     const attackWithFloorTwoTargeting = async () => {
-      await clickVisibleOption(page, "#actions", "Attack");
+      const phase = await page.locator("#app").getAttribute("data-interaction-phase");
+      if (phase === "actions") {
+        try {
+          await clickVisibleOption(page, "#actions", "Attack");
+        } catch (error) {
+          const resolvedPhase = await page.locator("#app").getAttribute("data-interaction-phase");
+          if (resolvedPhase !== "regular_moves" && resolvedPhase !== "targets") {
+            throw error;
+          }
+        }
+      } else if (phase !== "regular_moves" && phase !== "targets") {
+        throw new Error(`Cannot begin Attack from ${floorLabel} Battle ${battleNumber} phase ${phase}`);
+      }
       await resolveFloorTwoAttackChoice();
     };
 
@@ -4022,9 +4061,13 @@ try {
       battleNumber === 6 &&
       outcome.badge === "HUB" &&
       outcome.adventure.includes("The Ashen Vault approach is complete.");
+    const floorFiveReunionVictory = floorLabel === "Floor V" &&
+      battleNumber === 10 &&
+      outcome.badge === "HUB" &&
+      outcome.adventure.includes("Floor V clear and Region 2 unlock are secured");
     requireCondition(
       outcome.badge !== "DRIFTER SELECTION"
-        && (outcome.badge !== "HUB" || bossVictory || floorFiveApproachVictory),
+        && (outcome.badge !== "HUB" || bossVictory || floorFiveApproachVictory || floorFiveReunionVictory),
       `${floorLabel} Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
     );
     floorTwoBattleLogs.set(battleNumber, outcome.battleLog);
@@ -5305,6 +5348,158 @@ try {
   );
   console.log("M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS");
 
+  const reunionBefore = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      route: payload.overworld.active_route_id,
+      floorFiveCleared: payload.party.floor_five_cleared,
+      regionTwoUnlocked: payload.party.region_two_unlocked,
+      activeIds: payload.party.active_drifter_ids,
+      crystalCount: payload.party.shared_items.grade_iv_magic_crystal || 0,
+      coreCount: payload.party.shared_items.grade_iv_cores || 0,
+      activeAssignment: payload.expedition.active_assignment,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    reunionBefore.route === "surface" &&
+      reunionBefore.floorFiveCleared === false &&
+      reunionBefore.regionTwoUnlocked === false &&
+      reunionBefore.activeAssignment === null,
+    `Floor V reunion did not begin from its eligible Hub boundary: ${JSON.stringify(reunionBefore)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Challenge Ashen Regent");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  await clearFloorBattle(10, {
+    floorLabel: "Floor V",
+    bossParty: [
+      "drifter_branoc",
+      "drifter_azhvielle",
+      "drifter_zhaivra",
+      "drifter_joruun",
+    ],
+  });
+  const reunionSettlement = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      route: payload.overworld.active_route_id,
+      phase: payload.party.phase,
+      floorFiveCleared: payload.party.floor_five_cleared,
+      regionTwoUnlocked: payload.party.region_two_unlocked,
+      activeIds: payload.party.active_drifter_ids,
+      completedEvents: payload.story.completed_events,
+      crystalCount: payload.party.shared_items.grade_iv_magic_crystal || 0,
+      coreCount: payload.party.shared_items.grade_iv_cores || 0,
+      activeAssignment: payload.expedition.active_assignment,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    reunionSettlement.route === "surface" && reunionSettlement.phase === "hub" &&
+      reunionSettlement.floorFiveCleared === true &&
+      reunionSettlement.regionTwoUnlocked === true &&
+      JSON.stringify(reunionSettlement.activeIds) === JSON.stringify(reunionBefore.activeIds) &&
+      reunionSettlement.completedEvents.filter((event) =>
+        event === "m8_ashen_regent_defeated").length === 1 &&
+      reunionSettlement.crystalCount === reunionBefore.crystalCount + 1 &&
+      reunionSettlement.coreCount === reunionBefore.coreCount + 1 &&
+      reunionSettlement.activeAssignment === null,
+    `Four-Drifter victory did not settle the distinct Floor V clear, Region 2 unlock, and authored rewards: ${JSON.stringify(reunionSettlement)}`,
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const reunionAfterReload = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      floorFiveCleared: payload.party.floor_five_cleared,
+      regionTwoUnlocked: payload.party.region_two_unlocked,
+      crystalCount: payload.party.shared_items.grade_iv_magic_crystal || 0,
+      defeatedCount: payload.story.completed_events.filter(
+        (event) => event === "m8_ashen_regent_defeated",
+      ).length,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    reunionAfterReload.floorFiveCleared && reunionAfterReload.regionTwoUnlocked &&
+      reunionAfterReload.crystalCount === reunionBefore.crystalCount + 1 &&
+      reunionAfterReload.defeatedCount === 1,
+    `Floor V clear or first-clear reward changed after browser reload: ${JSON.stringify(reunionAfterReload)}`,
+  );
+
+  await clickVisibleOption(page, "#overworld-options", "Region Portal");
+  await page.locator("#region-choices").waitFor({ state: "visible" });
+  const regionTwoButton = page.locator("#region-choices button")
+    .filter({ hasText: "Region 2" });
+  const regionTwoPortalState = await page.evaluate((key) => ({
+    badge: document.getElementById("screen-badge")?.textContent.trim(),
+    panelText: document.getElementById("region-choices")?.innerText.trim(),
+    buttons: [...document.querySelectorAll("#region-choices button")].map((button) => ({
+      text: button.innerText.trim(),
+      disabled: button.disabled,
+      html: button.outerHTML,
+    })),
+    savedRegionTwoUnlocked: JSON.parse(localStorage.getItem(key)).payload.party.region_two_unlocked,
+  }), floorTwoProfileKey);
+  requireCondition(
+    await regionTwoButton.count() === 1 && !(await regionTwoButton.isEnabled()) &&
+      (await regionTwoButton.innerText()).includes("No playable destinations"),
+    `Unlocked Region 2 was not clearly shown as unavailable without playable content: ${JSON.stringify(regionTwoPortalState)}`,
+  );
+  await clickVisibleOption(page, "#region-choices", "Region 1");
+  await page.locator("#screen-badge").filter({ hasText: "DESTINATIONS" })
+    .waitFor({ state: "visible" });
+  const revisitableAshenVault = page.locator("#region-choices button")
+    .filter({ hasText: "Ashen Vault" });
+  requireCondition(
+    await revisitableAshenVault.count() === 1 &&
+      await revisitableAshenVault.isEnabled(),
+    "Region 1 and its completed Ashen Vault destination were not revisitable",
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await clickVisibleOption(page, "#overworld-options", "Back");
+
+  await clickVisibleOption(page, "#overworld-options", "Expeditions");
+  await clickVisibleOption(
+    page,
+    "#overworld-options",
+    "Prepare for Floor V Approach",
+  );
+  await page.locator("#expedition-choices").waitFor({ state: "visible" });
+  const floorFiveMaterialChoice = page.locator("#expedition-choices button")
+    .filter({ hasText: "Floor V | Material" });
+  requireCondition(
+    await floorFiveMaterialChoice.count() === 1 &&
+      await floorFiveMaterialChoice.isEnabled(),
+    "The genuine Floor V clear did not enable its authored Material report",
+  );
+  for (const unavailableCategory of ["Equipment", "Recovery", "Scouting", "Story", "Elite"]) {
+    const choice = page.locator("#expedition-choices button")
+      .filter({ hasText: `Floor V | ${unavailableCategory}` });
+    requireCondition(
+      await choice.count() === 0 || !(await choice.isEnabled()),
+      `Floor V ${unavailableCategory} became available outside its approved M8 scope`,
+    );
+  }
+  await floorFiveMaterialChoice.click();
+  await page.locator("#expedition-confirmation-content")
+    .filter({ hasText: "The 20-minute timer starts when confirmed." })
+    .waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Confirm Launch");
+  await page.waitForFunction((key) => {
+    const payload = JSON.parse(localStorage.getItem(key))?.payload;
+    const outcome = payload?.expedition?.active_assignment?.frozen_outcome;
+    return payload?.expedition?.energy === 90 &&
+      payload?.expedition?.active_assignment?.category === "material" &&
+      payload?.expedition?.active_assignment?.destination_floor_id === "floor_five" &&
+      payload?.expedition?.active_assignment?.outing_floor_id === "floor_five_approach" &&
+      outcome?.source_id === "m8_ashen_regent_grade_iv_core_01" &&
+      outcome?.reward_item_id === "grade_iv_cores" &&
+      outcome?.reward_quantity === 1 &&
+      payload?.overworld?.active_route_id === "floor_five_approach";
+  }, floorTwoProfileKey);
+  console.log("M8.8_BROWSER|REGENT_CLEAR_REGION2_AND_FLOOR5_MATERIAL_LAUNCH|PASS");
+
   const runM8DiscoveryBrowserJourney = async ({
     fixtureName,
     sourceId,
@@ -5604,7 +5799,12 @@ try {
     "cancelling modifier replacement changed installed or loose modifiers",
   );
   await m5ActionButton("Affix Vanguard").click();
-  await clickVisibleOption(m5Page, "#equipment-confirmation-options", "Confirm");
+  await m5Page.locator("#equipment-confirmation-content").waitFor({ state: "visible" });
+  await m5Page
+    .locator("#equipment-confirmation-options")
+    .getByText("Confirm", { exact: true })
+    .locator("xpath=ancestor::button[1]")
+    .click({ timeout: 10000 });
   await m5Page.locator("#notice").filter({ hasText: "Bastion was permanently destroyed." }).waitFor({ state: "visible" });
   requireCondition(
     (await m5Page.locator("#equipment-inspection-modifiers").innerText()).includes("Vanguard") &&
@@ -5708,6 +5908,7 @@ try {
     "safe extraction did not secure and retain the generated armor instance",
   );
   console.log("M5_BROWSER|GENERATED_ARMOR_SAFE_RETURN|PASS");
+  await m5Page.close();
 
   const m6Page = await browser.newPage();
   m6Page.setDefaultNavigationTimeout(120000);

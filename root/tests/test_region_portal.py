@@ -16,7 +16,7 @@ from app.ui.overworld_ui import (
 from tests.game_test_support import completed_hub_game
 from tests.persistence_test_support import (
     make_test_save_port,
-    remove_floor_five_approach_run_state,
+    remove_floor_five_run_state,
 )
 from app.player.player_state import PlayerState
 
@@ -172,7 +172,7 @@ def test_migrated_floor_three_save_can_complete_briefing_through_hub(tmp_path):
     game = _four_member_floor_three_clear()
     historical = build_save_document(game)
     historical["schema_version"] = 25
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
     for field in (
         "floor_four_cleared",
         "floor_five_cleared",

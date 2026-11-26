@@ -161,6 +161,13 @@ def remove_m8_floor_five_approach_run_state(payload):
     return payload
 
 
+def remove_m8_floor_five_reunion_run_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        party.pop("floor_five_reunion_run_id", None)
+    return payload
+
+
 def create_account(client):
     response = client.post(
         "/v1/accounts/anonymous",

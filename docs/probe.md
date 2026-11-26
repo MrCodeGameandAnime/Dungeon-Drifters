@@ -706,9 +706,31 @@ existing Windows MicroPython v1.29.0 executable (488,960 bytes; SHA-256
 M8.1 profile's 1280K point was not stable on the M8.2 worktree: 2/3 full probe
 runs passed and 1/3 reached `MemoryError` during the Floor III probe. The
 recalibrated 1408K point passed 3/3; 1216K produced the expected memory-limit
-classification 3/3. The active probe profile is now 1408K stable / 1216K
-expected memory limit. CPython 3.14.6 native and forced-overlay modes, pinned
+classification 3/3. The M8.2 active probe profile at closure was 1408K stable /
+1216K expected memory limit. CPython 3.14.6 native and forced-overlay modes, pinned
 MicroPython v1.29.0, semantic parity, and both heap confirmations passed the
 complete local matrix on this worktree. This profile qualifies this exact
 Windows probe only; it is not a hardware-wide MicroPython compatibility claim
 or a product memory budget. Exact-SHA hosted qualification remains pending.
+
+## M8.8 Pinned Runtime Profile Recalibration (2026-11-26)
+
+The M8.8 candidate was tested with the same pinned MicroPython v1.29.0
+Windows executable recorded above (488,960 bytes; SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`). Native
+CPython, forced-overlay CPython, default MicroPython, and semantic parity
+passed. The prior 1408K stable point passed only 2/3 repeated runs; the third
+run raised `MemoryError` while allocating 584 bytes during
+`M4_FLOOR_THREE_PROBE`. At 1472K, all three runs passed. Their lowest-free /
+peak-allocated byte pairs were `273264 / 1199504`, `273488 / 1199280`, and
+`273520 / 1199248`. At 1216K, all three runs produced the expected
+`MemoryError` while allocating 136 bytes during `SESSION_CONSTRUCTION`; the
+lowest-free / peak-allocated pairs were `155232 / 1061408`, `155296 / 1061344`,
+and `155296 / 1061344`.
+
+The proposed M8.8 profile is therefore **1472K stable / 1216K expected memory
+limit**. This is an explicit 64K stable-point increase for the M8.8 worktree;
+the previously qualified M8.2/M8.7 1408K / 1216K results above remain
+historical evidence and are not rewritten. These measurements qualify only
+this exact Windows probe, not hardware-wide MicroPython compatibility or a
+product memory budget.

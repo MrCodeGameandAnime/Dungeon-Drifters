@@ -276,6 +276,7 @@ class HubEconomyState:
             "floor_three",
             "floor_four",
             "floor_five_approach",
+            "floor_five_reunion",
         }:
             raise ValueError("outing floor ID is not authored")
         if self._state["active_outing"] is not None:

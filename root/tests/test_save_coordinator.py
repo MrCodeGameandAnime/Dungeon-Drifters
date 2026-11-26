@@ -392,7 +392,7 @@ def test_loading_schema8_local_only_profile_persists_schema9_without_linking(tmp
     assert upgraded.client_save_id == NEW_SAVE_ID
 
 
-def test_loading_schema9_local_envelope_verifies_then_persists_schema30(tmp_path):
+def test_loading_schema9_local_envelope_verifies_then_persists_schema31(tmp_path):
     store = LocalProfileStore(tmp_path / "profiles-home")
     legacy_payload = _old_schema9_payload(gold=21)
     legacy_envelope = build_profile_envelope(

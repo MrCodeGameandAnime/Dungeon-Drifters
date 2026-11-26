@@ -223,6 +223,12 @@ def test_first_clear_rewards_are_one_time_and_floor_scoped():
             "grade_iv_magic_crystal",
             1,
         ),
+        (
+            "m8_floor_five_first_clear_reward",
+            "floor_five",
+            "grade_iv_magic_crystal",
+            1,
+        ),
     }
 
 

@@ -53,6 +53,7 @@ from app.game.recruitment import available_recruitment_event
 from app.game.region_progression import (
     destination_availability,
     is_drowned_reliquary_briefing_available,
+    is_reunion_boss_eligible,
     portal_regions,
     visible_destinations,
 )
@@ -974,6 +975,11 @@ class OverworldPresenter:
             return (
                 "The Ashen Vault approach victory is saved. Finalize the "
                 "approach to reveal the arena and return to the Hub."
+            )
+        if game_state.floor_five_reunion_settlement_pending:
+            return (
+                "The Ashen Regent's victory is saved. Finalize the Floor V "
+                "clear and Region 2 unlock to return to the Hub."
             )
         if (
             game_state.overworld_state.active_route_id == "floor_two"
@@ -2194,6 +2200,13 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
+            if game_state.floor_five_reunion_settlement_pending:
+                return (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_FIVE_REUNION,
+                        "Finalize Ashen Regent Victory",
+                    ),
+                )
             if game_state.floor_five_approach_settlement_pending:
                 return (
                     enabled(
@@ -2310,6 +2323,13 @@ class OverworldPresenter:
                     if is_expeditions_unlocked(game_state):
                         party_actions += (
                             enabled(OverworldAction.EXPEDITIONS, "Expeditions"),
+                        )
+                    if is_reunion_boss_eligible(game_state):
+                        party_actions += (
+                            enabled(
+                                OverworldAction.CHALLENGE_ASHEN_REGENT,
+                                "Challenge Ashen Regent",
+                            ),
                         )
                 elif (
                     available_recruitment_event(game_state) is not None

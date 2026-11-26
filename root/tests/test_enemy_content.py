@@ -38,6 +38,7 @@ from tools.generate_content_catalog import (
 
 EXPECTED_IDS = (
     "ashbound_hound",
+    "ashen_regent",
     "brine_oracle",
     "drowned_stalker",
     "goblin",
@@ -66,6 +67,7 @@ EXPECTED_ENCOUNTER_IDS = (
     "dungeon_goblin_quad",
     "dungeon_goblin_trio",
     "floor_two_cave_in",
+    "m8_ashen_regent_boss",
     "m8_floor_five_encounter_01",
     "m8_floor_five_encounter_02",
     "m8_floor_five_encounter_03",
@@ -93,6 +95,7 @@ EXPECTED_ENCOUNTER_IDS = (
 )
 EXPECTED_ROUTE_IDS = (
     "floor_five_approach",
+    "floor_five_reunion",
     "floor_four",
     "floor_one",
     "floor_three",

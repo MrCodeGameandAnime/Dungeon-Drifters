@@ -460,7 +460,11 @@ def is_known_floor_two_route_node_id(node_id):
 
 def is_known_route_node_id(route_id, node_id):
     if route_id == "floor_five":
-        route_id = "floor_five_approach"
+        return any(
+            route_id in _ROUTE_CATALOG
+            and any(node.node_id == node_id for node in _ROUTE_CATALOG[route_id].nodes)
+            for route_id in ("floor_five_approach", "floor_five_reunion")
+        )
     if route_id not in _ROUTE_CATALOG:
         return False
     route = _ROUTE_CATALOG[route_id]

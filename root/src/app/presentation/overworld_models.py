@@ -88,6 +88,8 @@ class OverworldAction(StrEnum):
     FINALIZE_FLOOR_THREE_CLEAR = "finalize_floor_three_clear"
     FINALIZE_FLOOR_FOUR_CLEAR = "finalize_floor_four_clear"
     FINALIZE_FLOOR_FIVE_APPROACH = "finalize_floor_five_approach"
+    CHALLENGE_ASHEN_REGENT = "challenge_ashen_regent"
+    FINALIZE_FLOOR_FIVE_REUNION = "finalize_floor_five_reunion"
     SET_OUT = "set_out"
     EXTRACT = "extract"
     RETURN_WITH_TALISMAN = "return_with_talisman"

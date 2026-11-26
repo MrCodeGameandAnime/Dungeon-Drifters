@@ -791,6 +791,7 @@ def test_floor_five_expedition_launch_write_failure_changes_nothing():
 def test_schema29_migrates_additive_floor_five_run_state_without_mutating_history():
     historical = copy.deepcopy(build_save_document(floor_five_ready_game()))
     historical["party"].pop("floor_five_approach_run_id")
+    historical["party"].pop("floor_five_reunion_run_id")
     historical["schema_version"] = 29
     original = copy.deepcopy(historical)
 
@@ -799,7 +800,7 @@ def test_schema29_migrates_additive_floor_five_run_state_without_mutating_histor
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 31
     assert migrated["party"]["floor_five_approach_run_id"] is None
     assert not restored.party_state.floor_five_cleared
     assert not restored.party_state.region_two_unlocked
@@ -817,6 +818,7 @@ def test_schema29_rejects_floor_five_approach_evidence():
     historical = build_save_document(session.game_state)
     historical["schema_version"] = 29
     historical["party"].pop("floor_five_approach_run_id")
+    historical["party"].pop("floor_five_reunion_run_id")
 
     try:
         validate_profile_payload(historical)

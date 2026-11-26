@@ -1,6 +1,7 @@
 """Generated content imports. Do not edit by hand."""
 
 from app.content.enemies.ashbound_hound.enemy import ENEMY as ashbound_hound_enemy
+from app.content.enemies.ashen_regent.enemy import ENEMY as ashen_regent_enemy
 from app.content.enemies.brine_oracle.enemy import ENEMY as brine_oracle_enemy
 from app.content.enemies.drowned_stalker.enemy import ENEMY as drowned_stalker_enemy
 from app.content.enemies.goblin.enemy import ENEMY as goblin_enemy
@@ -21,6 +22,7 @@ from app.content.drifters.zhaivra.drifter import DRIFTER as zhaivra_drifter
 from app.content.encounters.dungeon_goblin_quad.encounter import ENCOUNTER as dungeon_goblin_quad_encounter
 from app.content.encounters.dungeon_goblin_trio.encounter import ENCOUNTER as dungeon_goblin_trio_encounter
 from app.content.encounters.floor_two_cave_in.encounter import ENCOUNTER as floor_two_cave_in_encounter
+from app.content.encounters.m8_ashen_regent_boss.encounter import ENCOUNTER as m8_ashen_regent_boss_encounter
 from app.content.encounters.m8_floor_five_encounter_01.encounter import ENCOUNTER as m8_floor_five_encounter_01_encounter
 from app.content.encounters.m8_floor_five_encounter_02.encounter import ENCOUNTER as m8_floor_five_encounter_02_encounter
 from app.content.encounters.m8_floor_five_encounter_03.encounter import ENCOUNTER as m8_floor_five_encounter_03_encounter
@@ -46,6 +48,7 @@ from app.content.encounters.surface_shaman_solo.encounter import ENCOUNTER as su
 from app.content.encounters.surface_warrior_pair.encounter import ENCOUNTER as surface_warrior_pair_encounter
 from app.content.encounters.surface_warrior_solo.encounter import ENCOUNTER as surface_warrior_solo_encounter
 from app.content.routes.floor_five_approach.route import ROUTE as floor_five_approach_route
+from app.content.routes.floor_five_reunion.route import ROUTE as floor_five_reunion_route
 from app.content.routes.floor_four.route import ROUTE as floor_four_route
 from app.content.routes.floor_one.route import ROUTE as floor_one_route
 from app.content.routes.floor_three.route import ROUTE as floor_three_route
@@ -58,6 +61,7 @@ from app.content.recruitment_events.floor_two_hub_recruitment.recruitment_event 
 
 GENERATED_ENEMY_SPECS = (
     ("ashbound_hound", ashbound_hound_enemy),
+    ("ashen_regent", ashen_regent_enemy),
     ("brine_oracle", brine_oracle_enemy),
     ("drowned_stalker", drowned_stalker_enemy),
     ("goblin", goblin_enemy),
@@ -90,6 +94,7 @@ GENERATED_ENCOUNTER_SPECS = (
     ("dungeon_goblin_quad", dungeon_goblin_quad_encounter),
     ("dungeon_goblin_trio", dungeon_goblin_trio_encounter),
     ("floor_two_cave_in", floor_two_cave_in_encounter),
+    ("m8_ashen_regent_boss", m8_ashen_regent_boss_encounter),
     ("m8_floor_five_encounter_01", m8_floor_five_encounter_01_encounter),
     ("m8_floor_five_encounter_02", m8_floor_five_encounter_02_encounter),
     ("m8_floor_five_encounter_03", m8_floor_five_encounter_03_encounter),
@@ -119,6 +124,7 @@ GENERATED_ENCOUNTER_SPECS = (
 
 GENERATED_ROUTE_SPECS = (
     ("floor_five_approach", floor_five_approach_route),
+    ("floor_five_reunion", floor_five_reunion_route),
     ("floor_four", floor_four_route),
     ("floor_one", floor_one_route),
     ("floor_three", floor_three_route),

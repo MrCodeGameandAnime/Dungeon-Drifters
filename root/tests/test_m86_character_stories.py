@@ -18,7 +18,7 @@ from app.persistence.save_document import (
     validate_save_document,
 )
 from app.persistence.save_port_contract import SaveLoadStatus
-from tests.persistence_test_support import remove_floor_five_approach_run_state
+from tests.persistence_test_support import remove_floor_five_run_state
 from app.player.player_state import PlayerState
 from app.presentation.overworld_models import OverworldAction, OverworldScreen
 from app.ui.overworld_ui import ChooseOverworldAction
@@ -205,7 +205,7 @@ def test_existing_story_state_round_trips_through_schema_28_without_new_migratio
     game.story_state.record_decision("legacy_story_choice", "share_warning")
     historical = build_save_document(game)
     historical["schema_version"] = 28
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
     original = deepcopy(historical)
 
     assert validate_profile_payload(historical) == original
@@ -213,7 +213,7 @@ def test_existing_story_state_round_trips_through_schema_28_without_new_migratio
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 30
+    assert migrated["schema_version"] == 31
     assert migrated["story"]["completed_events"] == [
         "m8_drowned_reliquary_briefing"
     ]

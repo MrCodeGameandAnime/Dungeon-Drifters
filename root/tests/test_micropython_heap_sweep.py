@@ -142,9 +142,11 @@ def test_summary_reports_teardown_allocation_not_free_memory():
 def test_frontier_sweep_includes_stable_and_lower_boundary_heaps():
     _load_tool()
 
-    assert heap_sweep.STABLE_HEAP_KIB == 1408
+    assert heap_sweep.STABLE_HEAP_KIB == 1472
     assert heap_sweep.MEMORY_LIMIT_HEAP_KIB == 1216
-    assert heap_sweep.FRONTIER_HEAP_KIBS[-1] == 1216
+    assert heap_sweep.FRONTIER_HEAP_KIBS == (
+        1440, 1408, 1376, 1344, 1312, 1280, 1248, 1216
+    )
 
 
 def test_output_without_floor_one_final_state_is_not_a_complete_probe():

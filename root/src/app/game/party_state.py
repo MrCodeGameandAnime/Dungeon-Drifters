@@ -104,6 +104,7 @@ class PartyState:
         self._floor_five_cleared = False
         self._region_two_unlocked = False
         self._floor_five_approach_run_id = None
+        self._floor_five_reunion_run_id = None
         self._resolved_run_events = []
         self._hub_economy = HubEconomyState()
 
@@ -334,6 +335,20 @@ class PartyState:
     def floor_five_approach_run_id(self):
         return self._floor_five_approach_run_id
 
+    @property
+    def floor_five_reunion_run_id(self):
+        return self._floor_five_reunion_run_id
+
+    @property
+    def floor_five_reunion_boss_reward_committed(self):
+        return self._floor_five_reunion_run_id is not None and any(
+            event["run_id"] == self._floor_five_reunion_run_id
+            and event["floor_id"] == "floor_five"
+            and event["node_id"] == "floor_five_reunion_battle_01"
+            and event["kind"] == "encounter_rewards"
+            for event in self._resolved_run_events
+        )
+
     def record_floor_four_clear(self):
         if (
             self._floor_four_cleared
@@ -360,7 +375,8 @@ class PartyState:
     @property
     def active_run_id(self):
         return (
-            self._floor_five_approach_run_id
+            self._floor_five_reunion_run_id
+            or self._floor_five_approach_run_id
             or self._floor_four_run_id
             or self._floor_three_run_id
             or self._floor_two_run_id
@@ -368,7 +384,10 @@ class PartyState:
 
     @property
     def active_run_floor_id(self):
-        if self._floor_five_approach_run_id is not None:
+        if (
+            self._floor_five_reunion_run_id is not None
+            or self._floor_five_approach_run_id is not None
+        ):
             return "floor_five"
         if self._floor_four_run_id is not None:
             return "floor_four"
@@ -666,6 +685,7 @@ class PartyState:
         if not (
             self._is_floor_two_helper_party(deployed_members)
             or self._is_floor_three_boss_party(deployed_members)
+            or self._is_floor_five_reunion_boss_party(deployed_members)
         ):
             self._validate_party_members(deployed_members)
         if not isinstance(target, PlayerState) or not any(
@@ -699,6 +719,7 @@ class PartyState:
         if not (
             self._is_floor_two_helper_party(deployed_members)
             or self._is_floor_three_boss_party(deployed_members)
+            or self._is_floor_five_reunion_boss_party(deployed_members)
         ):
             self._validate_party_members(deployed_members)
         if not isinstance(target, PlayerState) or not any(
@@ -742,6 +763,24 @@ class PartyState:
             not isinstance(party_members, tuple)
             or len(party_members) != 4
             or self._floor_three_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+            or len(self._companions) != 3
+            or not all(isinstance(member, PlayerState) for member in party_members)
+        ):
+            return False
+        drifter_ids = tuple(_drifter_id(member) for member in party_members)
+        expected_ids = {profile.drifter_id for profile in DRIFTER_SPECS}
+        return (
+            len(set(drifter_ids)) == 4
+            and set(drifter_ids) == expected_ids
+            and set(self._active_drifter_ids).issubset(drifter_ids)
+        )
+
+    def _is_floor_five_reunion_boss_party(self, party_members):
+        if (
+            not isinstance(party_members, tuple)
+            or len(party_members) != 4
+            or self._floor_five_reunion_run_id is None
             or self._phase is not DungeonPhase.OUTING
             or len(self._companions) != 3
             or not all(isinstance(member, PlayerState) for member in party_members)
@@ -944,6 +983,29 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return 100
 
+    def start_floor_five_reunion_run(self, *, run_id_factory=uuid4):
+        if not callable(run_id_factory):
+            raise TypeError("run_id_factory must be callable")
+        if not self.tutorial_complete or not self.floor_four_cleared:
+            raise ValueError("Floor 4 must be cleared before the reunion")
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("the reunion can only start from the Hub")
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("the reunion requires the two-Drifter active pair")
+        if len(self._companions) != 3:
+            raise ValueError("the reunion requires four permanent Drifters")
+        run_id = run_id_factory()
+        if isinstance(run_id, UUID):
+            run_id = str(run_id)
+        if not _valid_run_id(run_id):
+            raise ValueError("run ID must be a non-empty lowercase token")
+        self._begin_m65_outing("floor_five_reunion")
+        self._floor_five_reunion_run_id = run_id
+        self._outing_rewards = OutingRewards()
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.OUTING
+        return run_id
+
     def add_floor_two_rewards(self, *, experience, gold, items=None):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             raise ValueError("Floor 2 rewards require an active Floor 2 run")
@@ -967,7 +1029,21 @@ class PartyState:
             raise ValueError("Floor 5 rewards require an active approach run")
         self._add_outing_rewards(experience=experience, gold=gold, items=items)
 
+    def add_floor_five_reunion_rewards(self, *, experience, gold, items=None):
+        if (
+            self._floor_five_reunion_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            raise ValueError("Floor 5 rewards require an active reunion run")
+        self._add_outing_rewards(experience=experience, gold=gold, items=items)
+
     def add_active_run_rewards(self, *, experience, gold, items=None):
+        if self._floor_five_reunion_run_id is not None:
+            return self.add_floor_five_reunion_rewards(
+                experience=experience,
+                gold=gold,
+                items=items,
+            )
         if self._floor_five_approach_run_id is not None:
             return self.add_floor_five_approach_rewards(
                 experience=experience,
@@ -1124,6 +1200,28 @@ class PartyState:
         self.discard_carried_supplies()
         self._restore_party(party_members)
         self._floor_five_approach_run_id = None
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
+        return True
+
+    def fail_floor_five_reunion_run(self, party_members, *, recruited_members=None):
+        if (
+            self._floor_five_reunion_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            return False
+        if not self._is_floor_five_reunion_boss_party(party_members):
+            raise ValueError("reunion defeat must use all four permanent Drifters")
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
+        self._discard_unsecured_equipment(equipment_members)
+        self._outing_rewards = OutingRewards()
+        self.discard_carried_supplies()
+        self._restore_party(party_members)
+        self._floor_five_reunion_run_id = None
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         self._settle_outing_for_hub_return()
@@ -1296,6 +1394,55 @@ class PartyState:
         self.return_carried_supplies()
         self._outing_rewards = OutingRewards()
         self._floor_five_approach_run_id = None
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
+        return True
+
+    def complete_floor_five_reunion_boss(self, party_members, *, boss_experience):
+        if (
+            self._floor_five_reunion_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            return False
+        if not self._is_floor_five_reunion_boss_party(party_members):
+            raise ValueError("the reunion boss requires four permanent Drifters")
+        boss_experience = _nonnegative("boss_experience", boss_experience)
+        boss_event = self.run_event(
+            _run_event_key(
+                self._floor_five_reunion_run_id,
+                "floor_five_reunion_battle_01",
+                "encounter_rewards",
+                floor_id="floor_five",
+            )
+        )
+        if (
+            boss_event is None
+            or boss_event["result"]["experience"] != boss_experience
+            or self._outing_rewards.experience != boss_experience
+        ):
+            raise ValueError("reunion XP must match the committed boss evidence")
+
+        experience_awards = self.secured_xp_awards(
+            party_members,
+            boss_experience,
+        )
+        self._bank_rewards(
+            party_members,
+            OutingRewards(
+                gold=self._outing_rewards.gold,
+                items=self._outing_rewards.items,
+            ),
+            experience_awards=experience_awards,
+        )
+        self._secure_unsecured_equipment()
+        self.return_carried_supplies()
+        if not self._floor_five_cleared:
+            if not self.record_floor_five_clear() or not self.unlock_region_two():
+                raise ValueError("Floor V clear could not unlock Region 2")
+            self._grant_first_clear_rewards("floor_five")
+        self._outing_rewards = OutingRewards()
+        self._floor_five_reunion_run_id = None
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         self._settle_outing_for_hub_return()
@@ -1768,6 +1915,14 @@ class PartyState:
             and not _valid_run_id(state._floor_five_approach_run_id)
         ):
             raise ValueError("floor_five_approach_run_id is invalid")
+        state._floor_five_reunion_run_id = snapshot.get(
+            "floor_five_reunion_run_id"
+        )
+        if (
+            state._floor_five_reunion_run_id is not None
+            and not _valid_run_id(state._floor_five_reunion_run_id)
+        ):
+            raise ValueError("floor_five_reunion_run_id is invalid")
         state._floor_three_runs_started_after_clear = _nonnegative(
             "floor_three_runs_started_after_clear",
             snapshot.get("floor_three_runs_started_after_clear", 0),
@@ -1808,6 +1963,7 @@ class PartyState:
                 state._floor_three_run_id,
                 state._floor_four_run_id,
                 state._floor_five_approach_run_id,
+                state._floor_five_reunion_run_id,
             )
             if run_id is not None
         )
@@ -1923,6 +2079,16 @@ class PartyState:
                 raise ValueError(
                     "active Floor 5 approach must be an outing or extraction"
                 )
+        active_floor_five_reunion_run = (
+            state._floor_five_reunion_run_id is not None
+        )
+        if active_floor_five_reunion_run:
+            if not state._floor_four_cleared or len(state._companions) != 3:
+                raise ValueError(
+                    "Floor 5 reunion requires its unlock and four permanent Drifters"
+                )
+            if state._phase is not DungeonPhase.OUTING or not state.tutorial_complete:
+                raise ValueError("active Floor 5 reunion must be an outing")
         active_floor_one_run = (
             state._tutorial_complete
             and state._phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
@@ -1930,6 +2096,7 @@ class PartyState:
             and state._floor_three_run_id is None
             and state._floor_four_run_id is None
             and state._floor_five_approach_run_id is None
+            and state._floor_five_reunion_run_id is None
         )
         if active_floor_one_run:
             expected_rate = 100
@@ -2006,6 +2173,7 @@ class PartyState:
             "floor_five_cleared": self.floor_five_cleared,
             "region_two_unlocked": self.region_two_unlocked,
             "floor_five_approach_run_id": self.floor_five_approach_run_id,
+            "floor_five_reunion_run_id": self.floor_five_reunion_run_id,
             "resolved_run_events": list(self.resolved_run_events),
             "hub_economy": self.hub_economy,
         }
@@ -2537,6 +2705,7 @@ def validate_run_event_history(
     require_active_run_scope=False,
     require_complete=True,
     allow_m8_4_discovery_sources=True,
+    allow_m8_8_reunion=True,
 ):
     if not isinstance(events, (tuple, list)):
         raise TypeError("resolved run events must be a sequence")
@@ -2570,6 +2739,12 @@ def validate_run_event_history(
         node_id = event["node_id"]
         if not is_known_route_node_id(event["floor_id"], node_id):
             raise ValueError("run event references an unknown floor route node")
+        if (
+            event["floor_id"] == "floor_five"
+            and node_id == "floor_five_reunion_battle_01"
+            and not allow_m8_8_reunion
+        ):
+            raise ValueError("legacy run history cannot contain M8.8 reunion evidence")
         node = get_route_node_spec(node_id)
         if event["kind"] == "enemy_drop" and event["floor_id"] == "floor_four":
             if node.encounter_id is None:
@@ -2605,7 +2780,31 @@ def validate_run_event_history(
             encounter = get_encounter_spec(node.encounter_id)
             if event["position"] >= len(encounter.enemy_archetype_ids):
                 raise ValueError("enemy-drop position exceeds encounter composition")
-            if event["result"]["entries"] or event["result"]["items"]:
+            if node_id == "floor_five_reunion_battle_01":
+                archetype_id = encounter.enemy_archetype_ids[event["position"]]
+                expected_drops = tuple(
+                    (
+                        drop.item_id,
+                        drop.quantity,
+                        drop.chance_bps,
+                        drop.source_id,
+                    )
+                    for drop in get_enemy_spec(archetype_id).item_drop_table_for_tier(3)
+                )
+                actual_drops = tuple(
+                    (
+                        entry["item_id"],
+                        entry["quantity"],
+                        entry["chance_bps"],
+                        entry.get("source_id"),
+                    )
+                    for entry in event["result"]["entries"]
+                )
+                if actual_drops != expected_drops:
+                    raise ValueError(
+                        "Floor 5 reunion drop evidence disagrees with authored content"
+                    )
+            elif event["result"]["entries"] or event["result"]["items"]:
                 raise ValueError("Floor 5 approach has no authored item drops")
         elif event["kind"] == "enemy_drop" and any(
             "source_id" in entry for entry in event["result"]["entries"]
@@ -2626,7 +2825,10 @@ def validate_run_event_history(
                 encounter = get_encounter_spec(node.encounter_id)
                 if (
                     event["result"]["enemy_count"] != len(encounter.enemy_archetype_ids)
-                    or event["result"]["items"]
+                        or (
+                            node_id != "floor_five_reunion_battle_01"
+                            and event["result"]["items"]
+                        )
                 ):
                     raise ValueError("Floor 5 reward evidence disagrees with authored encounter")
         elif event["kind"] == "discovery_search":

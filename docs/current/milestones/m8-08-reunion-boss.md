@@ -1,8 +1,8 @@
 # M8.8: Floor V Reunion Boss And Full-Party Settlement
 
-**Status:** Proposed work package. Regional architecture, the M8-D1 reunion boss identity/ID/composition/reward sources, and M8-D5 are approved. Numerical tuning and implementation details remain package-level review; no implementation is authorized.
+**Status:** Implementation delivered; exact-SHA cumulative qualification is in progress. M8.8 remains open for owner review and is not sealed.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
-**Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate M4B and expedition settlement owners at package entry.
+**Sealed prerequisite:** M8.7 is CLOSED AND SEALED at `0fcd64347e7b2af5673e5ba9785b5bba5676edf8`, qualified by exact-SHA hosted CI [45832492446](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45832492446).
 
 ## Goal
 
@@ -38,17 +38,35 @@ Revalidate M4B participant/reward settlement in `root/src/app/game/overworld_ses
 
 M8.8 owns the live Floor V Material report test. Verify ineligibility before the reunion clear, win through normal play, then use M8.5 to launch the eligible assignment, settle and claim its approved Grade-IV Core result once. Verify provenance and no duplicate after reload or retry.
 
+## Authored Boss Profile
+
+`ashen_regent` is a Tier-3 boss with 520 HP, 160 Mana, and base awards of 720 XP and 45 gold. Its Tier-3 attributes are Constitution 23, Spirit 19, Intelligence 20, Strength 19, Dexterity 14, and Intuition 17. The encounter `m8_ashen_regent_boss` pairs it with `brine_oracle`.
+
+The authored single-target moves are:
+
+| Move | Damage class | Power/scaling | Accuracy | Cost |
+| --- | --- | --- | ---: | ---: |
+| Cindersteel Sweep | Physical | 18, Strength | 88% | None |
+| Ashfall Verdict | Magical | 21, Intelligence/Spirit | 84% | 14 Mana |
+| Regent's Last Decree | Magical | 27, Intelligence | 76% | 22 Mana |
+
+The Regent's Tier-3 profile can drop one Grade-IV Core at 10,000 bps from source `m8_ashen_regent_grade_iv_core_01`. The one-time Floor V first-clear reward `m8_floor_five_first_clear_reward` grants exactly one Grade-IV Magic Crystal.
+
+## Pinned Runtime Profile
+
+M8.8's pinned MicroPython v1.29.0 candidate was intermittent at 1408 KiB: 2/3 runs passed, while one failed allocating 584 bytes during `M4_FLOOR_THREE_PROBE`. At 1472 KiB, 3/3 runs passed; 1216 KiB produced the expected `MemoryError` at `SESSION_CONSTRUCTION` in 3/3 runs. The proposed M8.8 qualification profile is 1472 KiB stable / 1216 KiB expected memory limit. Per-run free/allocated heap measurements and the pinned executable identity are recorded in [probe notes](../../probe.md). Earlier M8.2/M8.7 1408/1216 results remain unchanged as historical evidence.
+
 ## Tests, Package Gates, And Qualification History
 
 Cover all-four required, any active pair restored afterward, assignment rejection/settlement boundary, unclaimed settled report allowed, victory/defeat, XP split and personal Intuition rounding, pre-boss pair history unchanged, one-time Floor-V clear/rewards, and Region 2 unlock exactly once. Inject failed writes to prove clear, unlock and rewards remain atomic. After reload, exercise the normal Hub portal: Region 2 is visible/unlocked but unavailable, Region 1 is revisit-able, and revisiting cannot erase Floor V or repeat one-time rewards. Verify terminal/browser parity and no duplicate combatants.
 
-- **Gate A, plan approval:** Open; review the atomic entry/settlement implementation plan, numerical tuning within the approved profile, and upstream M8.1/M8.5/M8.7 integration contracts. D1 boss/reward entries and D5 are approved and must not be reopened.
-- **Gate B, implementation and focused tests:** Not started; entry, combat, XP, settlement and retry red/green tests.
-- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content/build, PostgreSQL/migration/Alembic, browser smoke and pinned MicroPython.
+- **Gate A:** Implementation authorization received; the approved D1/D3/D5 contracts remain unchanged.
+- **Gate B:** Implemented. Focused reunion/route/persistence regressions pass, including all six pair selections, four-member restoration, transactional retries, portal state, and the live Floor V Material report.
+- **Gate C:** Exact-SHA cumulative qualification is in progress. The package remains open until evidence is reported and owner review is complete.
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Not implemented | Not run | Not run | Pending | Open |
+| Implementation commit pending | Local: 2,716 root tests, 96 web tests, and 38 profile-service tests passed (19 PostgreSQL-only skips); full browser smoke, authored-content validation, compile, and 212-file browser build passed. Hosted exact-SHA run pending. | Schema 31 adds the distinct reunion run ID; schema-30 immutable-history migration covered. Pinned native/overlay/runtime and semantic parity passed; proposed M8.8 profile 1472 KiB stable 3/3 / 1216 KiB expected limit 3/3. | Pending owner review | Open |
 
 Close with independent review and linked hosted evidence.
 

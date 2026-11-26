@@ -37,7 +37,7 @@ from app.ui.overworld_ui import (
 )
 from app.player.scaling import discovery_bonus_bps_from_intuition
 from tests.game_test_support import completed_hub_game
-from tests.persistence_test_support import remove_floor_five_approach_run_state
+from tests.persistence_test_support import remove_floor_five_run_state
 
 
 class RecordingSavePort:
@@ -128,12 +128,12 @@ def floor_four_game_at(node_id):
     return game
 
 
-def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema30():
+def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema31():
     historical = build_save_document(
         floor_four_game_at("floor_four_rest_midpoint")
     )
     historical["schema_version"] = 27
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
     original = deepcopy(historical)
 
     assert validate_profile_payload(historical) == original
@@ -141,13 +141,13 @@ def test_schema27_floor_four_save_is_immutable_and_migrates_to_schema30():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 30
+    assert migrated["schema_version"] == 31
     assert migrated["overworld"]["active_route_id"] == "floor_four"
     assert migrated["party"]["floor_four_run_id"] == "m8-floor-four-reward-run"
     assert build_save_document(restored) == migrated
 
 
-def test_schema28_with_real_m8_4_evidence_migrates_immutably_to_schema30():
+def test_schema28_with_real_m8_4_evidence_migrates_immutably_to_schema31():
     game = floor_four_game_at("floor_four_rest_midpoint")
     well = get_permanent_discovery_source("ancient_well_floor4_01")
     port = RecordingSavePort()
@@ -210,7 +210,7 @@ def test_schema28_with_real_m8_4_evidence_migrates_immutably_to_schema30():
     assert reward.status is RunEventStatus.RESOLVED
     historical = build_save_document(reward.game_state)
     historical["schema_version"] = 28
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
     original = deepcopy(historical)
 
     assert validate_profile_payload(historical) == original
@@ -218,7 +218,7 @@ def test_schema28_with_real_m8_4_evidence_migrates_immutably_to_schema30():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 30
+    assert migrated["schema_version"] == 31
     assert well.source_id in migrated["world"]["permanent_discovery_claims"]
     assert well.source_id in migrated["world"]["discovered_permanent_discovery_sources"]
     assert any(
@@ -493,7 +493,7 @@ def test_schema27_rejects_m8_4_encounter_reward_evidence():
     )
     historical = build_save_document(result.game_state)
     historical["schema_version"] = 27
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
 
     with pytest.raises(SaveStateValidationError, match="M8.4 reward evidence"):
         validate_profile_payload(historical)
@@ -523,7 +523,7 @@ def test_schema27_rejects_m8_4_discovery_evidence(evidence_kind):
 
     historical = build_save_document(game)
     historical["schema_version"] = 27
-    remove_floor_five_approach_run_state(historical)
+    remove_floor_five_run_state(historical)
 
     with pytest.raises(SaveStateValidationError, match="M8.4 discovery evidence"):
         validate_profile_payload(historical)

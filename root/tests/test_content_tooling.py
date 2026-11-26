@@ -209,11 +209,11 @@ def test_builtin_validation_is_read_only_and_has_no_todo_markers():
     assert errors == ()
     assert before == after
     assert {name: len(values) for name, values in records.items()} == {
-        "enemy": 10,
+        "enemy": 11,
         "weapon": 4,
         "drifter": 4,
-        "encounter": 27,
-        "route": 6,
+        "encounter": 28,
+        "route": 7,
         "recruitment_event": 3,
     }
 
@@ -290,7 +290,7 @@ def test_todo_marker_is_actionable_and_removed_content_is_clear(tmp_path):
     primary.write_text(completed, encoding="utf-8")
     finished = _run_fixture_validator(root)
     assert finished.returncode == 0, finished.stderr
-    assert "content valid: 11 enemies" in finished.stdout
+    assert "content valid: 12 enemies" in finished.stdout
 
 
 def test_invalid_cross_reference_reports_without_traceback(tmp_path):

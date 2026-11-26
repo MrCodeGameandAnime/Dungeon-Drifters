@@ -89,6 +89,7 @@ EXPECTED_ENCOUNTERS = (
         "m8_floor_five_encounter_06",
         ("brine_oracle", "brine_oracle", "ashbound_hound"),
     ),
+    ("m8_ashen_regent_boss", ("ashen_regent", "brine_oracle")),
     ("m8_floor_four_encounter_01", ("reliquary_sentinel", "drowned_stalker")),
     ("m8_floor_four_encounter_02", ("brine_oracle", "drowned_stalker")),
     ("m8_floor_four_encounter_03", ("reliquary_sentinel", "reliquary_sentinel")),
@@ -155,6 +156,7 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     assert sum(node.kind is RouteNodeKind.REST for node in route.nodes) == 3
     assert tuple(spec.route_id for spec in ROUTE_SPECS) == (
         "floor_five_approach",
+        "floor_five_reunion",
         "floor_four",
         "floor_one",
         "floor_three",
@@ -163,6 +165,7 @@ def test_surface_route_spec_matches_the_independent_authored_contract():
     )
     assert discover_route_ids() == (
         "floor_five_approach",
+        "floor_five_reunion",
         "floor_four",
         "floor_one",
         "floor_three",
@@ -455,7 +458,7 @@ def test_schema9_payload_is_byte_equivalent_after_canonical_reconstruction():
 
     assert rebuilt == document
     assert json.dumps(rebuilt, sort_keys=True, separators=(",", ":")) == encoded
-    assert rebuilt["schema_version"] == 30
+    assert rebuilt["schema_version"] == 31
     assert rebuilt["overworld"] == {
         "active_route_id": "surface",
         "current_route_node_id": "surface_goblin_solo",

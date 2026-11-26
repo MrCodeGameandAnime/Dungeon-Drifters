@@ -82,6 +82,8 @@ class TerminalOverworldUI:
         OverworldAction.FINALIZE_FLOOR_THREE_CLEAR: "F",
         OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR: "F",
         OverworldAction.FINALIZE_FLOOR_FIVE_APPROACH: "F",
+        OverworldAction.CHALLENGE_ASHEN_REGENT: "5",
+        OverworldAction.FINALIZE_FLOOR_FIVE_REUNION: "F",
         OverworldAction.SET_OUT: "Y",
         OverworldAction.RETRY: "R",
         OverworldAction.REST: "R",

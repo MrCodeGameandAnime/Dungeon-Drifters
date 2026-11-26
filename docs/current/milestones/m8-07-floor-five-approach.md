@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Adversarial review corrections are implemented and locally qualified. Exact-SHA hosted qualification and owner review remain open; do not start M8.8 until M8.7 is accepted.
+**Status:** CLOSED AND SEALED at implementation SHA `0fcd64347e7b2af5673e5ba9785b5bba5676edf8`; owner acceptance and exact-SHA hosted qualification are complete. M8.8 may proceed.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -43,15 +43,15 @@ Test all six encounters and route order, all legal pairs, midway Rest/search/sav
 
 - **Gate A, plan approval:** Authorized by the M8.7 implementation authorization; D1 content/source entries, D3 mappings, and M8-D5 remain fixed.
 - **Gate B, implementation and focused tests:** Implemented; route, reveal, discovery placement, failure/retry, expedition coexistence, migration, and browser journeys have focused coverage.
-- **Gate C, exact-SHA qualification and closure:** Open; local cumulative checks are recorded below. Hosted CI and independent adversarial review are pending.
+- **Gate C, exact-SHA qualification and closure:** CLOSED; hosted CI run `45832492446` passed and the owner accepted M8.7 as sealed.
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Review-correction candidate (commit pending) | Exact-SHA hosted CI pending | Exact pinned Windows MicroPython v1.29.0, 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`: CPython 3.12.14 native and forced overlay, MicroPython default, and semantic parity passed; 1408 KiB stable 3/3; 1216 KiB expected memory limit 3/3; `MYP20|RESULT|CLOSURE_COMPLETE`. | Pending | Open |
+| `0fcd64347e7b2af5673e5ba9785b5bba5676edf8` | [Exact-SHA hosted CI 45832492446](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45832492446): 2,693 root, 96 web, and 56 profile-service tests passed; browser smoke, PostgreSQL integration, migration-from-zero, and Alembic parity passed. | Pinned MicroPython v1.29.0; native/overlay/runtime parity passed; 1408 KiB stable 3/3; 1216 KiB expected memory limit 3/3. | Accepted by owner after adversarial corrections | CLOSED AND SEALED |
 
 Review corrections: pre-schema-30 remote fixtures omit `floor_five_approach_run_id`, a schema-29 remote revision with a settled M8.5 report migrates to schema 30 without changing historical payload/digest, midpoint extraction now exercises direct Extract with save-failure rollback/retry and compatible expedition settlement, and terminal recovery exposes only the retry action.
 
-Local cumulative checks on the correction candidate: **2,681 root tests passed; 12 compatibility tests failed** because local CPython 3.12.14 lacks `annotationlib` (the hosted workflow uses Python 3.14); **96 web tests passed; 38 profile-service tests passed and 18 PostgreSQL-specific tests were skipped** because Docker was unavailable. Authored-content validation passed (10 enemies, 4 weapons, 4 Drifters, 27 encounters, 6 routes, 3 recruitment events), Python compilation passed, the browser build packaged 209 runtime files, and the full Playwright smoke exited 0 with `M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS`. `git diff --check` passed. Local PostgreSQL, migration-from-zero, and Alembic checks could not run because the Docker engine was unavailable; exact-SHA hosted qualification is pending. The pinned MicroPython matrix is recorded above.
+The local correction-candidate report above predates the final hosted seal and is retained as historical context; the exact-SHA hosted run and accepted pinned MicroPython results in the qualification table are authoritative for closure.
 
-Require independent review and record CI/closure evidence.
+M8.7 is closed. M8.8 consumes its durable `m8_ashen_arena_revealed` evidence and remains responsible for the separate reunion encounter and settlement.
 

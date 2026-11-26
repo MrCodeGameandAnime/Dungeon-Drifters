@@ -443,6 +443,12 @@ FIRST_CLEAR_REWARDS = (
         "grade_iv_magic_crystal",
         1,
     ),
+    FirstClearRewardSpec(
+        "m8_floor_five_first_clear_reward",
+        "floor_five",
+        "grade_iv_magic_crystal",
+        1,
+    ),
 )
 
 
@@ -466,6 +472,9 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
     }
     equipment = {template.definition_id: template for template in EQUIPMENT_TEMPLATES}
     routes = {route.route_id for route in ROUTE_SPECS}
+    reward_floors = routes | (
+        {"floor_five"} if "floor_five_reunion" in routes else set()
+    )
     drifters = {drifter.drifter_id for drifter in DRIFTER_SPECS}
     rarities = {rarity.rarity_id for rarity in ARMOR_RARITIES}
     modifiers = {modifier.modifier_id for modifier in MODIFIER_DEFINITIONS}
@@ -667,7 +676,7 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
             raise ValueError("first-clear reward source IDs must be unique")
         source_items.add(key)
         source_ids.add(reward.source_id)
-        if reward.floor_id not in routes:
+        if reward.floor_id not in reward_floors:
             raise ValueError(f"first-clear reward references unknown floor: {reward.floor_id}")
         if reward.item_id not in supplies:
             raise ValueError(f"first-clear reward references unknown item: {reward.item_id}")
@@ -682,12 +691,18 @@ def validate_vendor_catalog(merchandise=None, first_clear_rewards=None):
             "grade_iv_magic_crystal",
             1,
         ),
+        (
+            "m8_floor_five_first_clear_reward",
+            "floor_five",
+            "grade_iv_magic_crystal",
+            1,
+        ),
     }
     if {
         (reward.source_id, reward.floor_id, reward.item_id, reward.quantity)
         for reward in first_clear_rewards
     } != expected_rewards:
-        raise ValueError("first-clear reward sources do not match the approved Floor I-IV schedule")
+        raise ValueError("first-clear reward sources do not match the approved Floor I-V schedule")
     if "grade_v_magic_crystal" in supplies or any(
         spec.item_id == "grade_v_magic_crystal" for spec in merchandise
     ):

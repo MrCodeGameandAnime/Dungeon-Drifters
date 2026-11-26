@@ -546,64 +546,36 @@ def test_floor_four_expedition_elapsed_settlement_claim_and_reload_through_sessi
     assert reloaded.expedition_state.reports[0]["claimed"] is True
 
 
-def test_floor_five_material_controlled_source_settles_and_claims_once(
-    tmp_path, monkeypatch
-):
-    import app.game.expedition_state as expedition_state
+def test_floor_five_material_source_is_authored_by_the_regent():
+    from app.game.expedition_state import _floor_five_material_source_ids
 
-    source_id = "m8_floor_five_controlled_core_source"
-    monkeypatch.setattr(
-        expedition_state, "_floor_five_material_source_ids", lambda: (source_id,)
+    assert _floor_five_material_source_ids() == (
+        "m8_ashen_regent_grade_iv_core_01",
     )
+
+
+def test_floor_five_material_requires_clear_and_uses_authored_regent_source():
+    from app.game.expedition_state import ExpeditionState
+
     game = _floor_four_game()
-    game.party_state._floor_five_cleared = True
-    game.party_state._region_two_unlocked = True
-    port = make_test_save_port(tmp_path / "floor-five-controlled-material.json")
-    service = _service(port, 512)
-    launched = service.launch(
-        game,
-        outing_floor_id="floor_four",
-        destination_floor_id="floor_five",
-        category="material",
-        confirmed=True,
-    )
+    service = ExpeditionService(make_test_save_port("unused-floor-five"))
+    assert "floor_five" not in service.eligible_destinations(game)
+    assert "complete floor v" in service.category_unavailable_reason(
+        "floor_five", "material", game_state=game
+    ).casefold()
 
-    assert launched.status is ExpeditionLaunchStatus.LAUNCHED
-    frozen = launched.game_state.expedition_state.active_assignment[
-        "frozen_outcome"
-    ]
-    assert frozen == {
-        "source_id": source_id,
-        "reward_item_id": "grade_iv_cores",
-        "reward_quantity": 1,
-    }
-    outing = launched.game_state
-    assert outing.party_state.begin_floor_four_extraction(partial=False)
-    assert outing.party_state.complete_floor_four_extraction(
-        outing.active_party_members
-    )
-    outing.overworld_state.return_to_surface_entrance()
-    settled = service.settle_outing(
-        outing,
-        secured_base_xp=0,
-        now=START + timedelta(minutes=20),
-    )
-    report, = settled.game_state.expedition_state.reports
-    assert report["frozen_outcome"] == frozen
-    assert report["reward_item_id"] == "grade_iv_cores"
-    assert report["reward_quantity"] == 1
-
-    claimed = service.claim_report(
-        settled.game_state, report["report_id"], confirmed=True
-    )
-    assert claimed.status is ExpeditionClaimStatus.CLAIMED
-    assert claimed.game_state.party_state.shared_items["grade_iv_cores"] == 1
-    reloaded = port.load().game_state
-    assert reloaded.party_state.shared_items["grade_iv_cores"] == 1
-    assert reloaded.expedition_state.reports[0]["frozen_outcome"] == frozen
-    assert service.claim_report(
-        reloaded, report["report_id"], confirmed=True
-    ).status is ExpeditionClaimStatus.ALREADY_CLAIMED
+    assert game.party_state.record_floor_five_clear()
+    assert game.party_state.unlock_region_two()
+    assert "floor_five" in service.eligible_destinations(game)
+    assert service.category_unavailable_reason(
+        "floor_five", "material", game_state=game
+    ) is None
+    assert ExpeditionState.from_snapshot({
+        "energy": 100,
+        "energy_anchor_utc": None,
+        "active_assignment": None,
+        "reports": [],
+    }).reports == ()
 
 
 @pytest.mark.parametrize("record_kind", ("assignment", "report"))
@@ -751,40 +723,6 @@ def test_current_save_rejects_duplicate_frozen_equipment_report_identity(tmp_pat
 
     with pytest.raises(SaveStateValidationError, match="instance IDs must be unique"):
         validate_save_document(document)
-
-
-def test_floor_five_material_requires_clear_and_authored_source_evidence(tmp_path):
-    from app.game.expedition_state import ExpeditionState
-
-    game = _floor_four_game()
-    game.party_state._floor_five_cleared = True
-    port = make_test_save_port(tmp_path / "floor-five.json")
-    service = ExpeditionService(port)
-
-    assert "floor_five" in service.eligible_destinations(game)
-    reason = service.category_unavailable_reason(
-        "floor_five",
-        "material",
-        game_state=game,
-    )
-    assert reason is not None
-    assert "source" in reason.casefold()
-    assert service.launch(
-        game,
-        outing_floor_id="floor_one",
-        destination_floor_id="floor_five",
-        category="material",
-        confirmed=True,
-    ).status is ExpeditionLaunchStatus.UNAVAILABLE_CATEGORY
-
-    game.party_state._floor_five_cleared = False
-    assert "floor_five" not in service.eligible_destinations(game)
-    assert ExpeditionState.from_snapshot({
-        "energy": 100,
-        "energy_anchor_utc": None,
-        "active_assignment": None,
-        "reports": [],
-    }).reports == ()
 
 
 def test_floor_v_approach_can_coexist_with_a_compatible_expedition():
@@ -943,6 +881,7 @@ def test_schema28_rejects_m8_5_report_evidence_before_migration(tmp_path):
     historical = build_save_document(launched.game_state)
     historical["schema_version"] = 28
     historical["party"].pop("floor_five_approach_run_id")
+    historical["party"].pop("floor_five_reunion_run_id")
 
     with pytest.raises(SaveStateValidationError, match="post-M8.5"):
         validate_profile_payload(historical)
@@ -1001,6 +940,7 @@ def test_schema28_m6_report_migrates_with_immutable_legacy_shape():
     historical = build_save_document(game)
     historical["schema_version"] = 28
     historical["party"].pop("floor_five_approach_run_id")
+    historical["party"].pop("floor_five_reunion_run_id")
     for record in historical["expedition"]["reports"]:
         record.pop("frozen_outcome")
         record.pop("report_content_id")
@@ -1035,6 +975,8 @@ def _historical_expedition_document(tmp_path, schema_version):
     document["schema_version"] = schema_version
     if schema_version < 30:
         document["party"].pop("floor_five_approach_run_id")
+    if schema_version < 31:
+        document["party"].pop("floor_five_reunion_run_id")
     if schema_version < 25:
         document["party"].pop("hub_economy", None)
     if schema_version < 26:
@@ -1116,7 +1058,7 @@ def test_historical_expedition_records_migrate_immutably_from_schemas_24_to_28(
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 31
     assert migrated["party"]["floor_five_approach_run_id"] is None
     assert migrated["expedition"]["energy"] == original_expedition["energy"]
     assert migrated["expedition"]["energy_anchor_utc"] == original_expedition[

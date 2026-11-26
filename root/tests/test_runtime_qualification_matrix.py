@@ -71,11 +71,11 @@ def test_build_command_uses_exact_runtime_argv_shapes_and_preserves_spaces():
         "CPYTHON_FORCED_OVERLAY", python, micropython, probe, bootstrap, source
     ) == [str(python), str(bootstrap), str(source)]
     assert matrix.build_command(
-        "MICROPYTHON_1408K", python, micropython, probe, bootstrap, source
+        "MICROPYTHON_1472K", python, micropython, probe, bootstrap, source
     ) == [
         str(micropython),
         "-X",
-        "heapsize=1408K",
+        "heapsize=1472K",
         str(bootstrap),
         str(source),
     ]
@@ -204,17 +204,17 @@ def test_first_signature_difference_reports_stage_or_route_position():
     assert difference == "route node 7: expected surface_shaman_pair, got surface_wrong"
 
 
-def test_1408k_confirmation_requires_three_passes():
+def test_1472k_confirmation_requires_three_passes():
     _load_tool()
     results = [matrix.PressureObservation("PASS") for _ in range(3)]
 
-    assert matrix.classify_pressure_confirmation(1408, results) == (
+    assert matrix.classify_pressure_confirmation(1472, results) == (
         "STABLE_PASS",
         "3/3",
     )
 
 
-def test_1408k_instability_is_pressure_regression():
+def test_1472k_instability_is_pressure_regression():
     _load_tool()
     results = [
         matrix.PressureObservation("PASS"),
@@ -222,7 +222,7 @@ def test_1408k_instability_is_pressure_regression():
         matrix.PressureObservation("PASS"),
     ]
 
-    assert matrix.classify_pressure_confirmation(1408, results) == (
+    assert matrix.classify_pressure_confirmation(1472, results) == (
         "PRESSURE_REGRESSION",
         "2/3",
     )
