@@ -824,8 +824,8 @@ def test_story_scene_renders_authored_dialogue_and_terminal_choice_is_shared_act
     action, output = read(view, ["1"])
 
     assert "The Cost Of A Warning" in text
-    assert "A warning can save a company" in text
-    assert "Share the warning, with its limits" in text
+    assert "This inscription is a warning about the record below it" in text
+    assert "Read only the warning" in text
     assert action == ChooseOverworldAction(OverworldAction.STORY_CHOICE_ONE)
     assert output == []
 

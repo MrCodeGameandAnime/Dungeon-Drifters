@@ -4,7 +4,7 @@ import pytest
 
 from app.combat.battle import Battle
 from app.content.catalog import create_enemy_state, get_drifter_spec, get_route_spec
-from app.content.m8_story_scenes import M8_STORY_SCENES
+from app.content.m8_story_scenes import M8_STORY_SCENES, get_story_scene
 from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
@@ -128,31 +128,74 @@ def test_authored_story_content_preserves_approved_ids_and_lore_corrections():
     scenes = {scene.scene_id: scene for scene in M8_STORY_SCENES}
     assert set(scenes) == APPROVED_SCENE_IDS
 
+    branoc_azhvielle = scenes["m8_pair_scene_branoc_azhvielle"]
+    assert "I make it mine" in " ".join(branoc_azhvielle.dialogue)
+    assert [choice.label for choice in branoc_azhvielle.choices] == [
+        "Read only the warning",
+        "Leave the record closed",
+    ]
+
+    branoc_joruun = scenes["m8_pair_scene_branoc_joruun"]
+    assert "I surrendered my rank" in " ".join(branoc_joruun.dialogue)
+    assert "an irritating question" in " ".join(branoc_joruun.dialogue)
+    assert [choice.label for choice in branoc_joruun.choices] == [
+        "Hear Joruun speak about returning",
+        "Hear Branoc speak about his choice",
+    ]
+
+    branoc_zhaivra = scenes["m8_pair_scene_branoc_zhaivra"]
+    assert "I’m trying to learn the difference" in " ".join(
+        branoc_zhaivra.dialogue
+    )
+    assert not branoc_zhaivra.choices
+
     archive_text = " ".join(scenes["m8_azh_archive_memory"].dialogue).lower()
     assert "ashen regent" in archive_text
-    assert "my name" in archive_text
-    assert "removed a name" not in archive_text
-    assert "crossed out" not in archive_text
+    assert "archivist" in archive_text
+    assert "name appeared in a record" in archive_text
+    assert "whether i made that choice" in archive_text
+    assert "removed the name" not in archive_text
+    assert [choice.label for choice in scenes["m8_azh_archive_memory"].choices] == [
+        "Ask what she remembers about the name",
+        "Ask what the party should do now",
+    ]
 
+    azh_zhaivra = scenes["m8_pair_scene_azhvielle_zhaivra"]
     azh_zhaivra_text = " ".join(
-        scenes["m8_pair_scene_azhvielle_zhaivra"].dialogue
+        list(azh_zhaivra.dialogue)
+        + [choice.response for choice in azh_zhaivra.choices]
     ).lower()
-    assert "nhal voryss still lives" in azh_zhaivra_text
+    assert "nhal voryss" in azh_zhaivra_text
     assert "first turning" in azh_zhaivra_text
     assert "lost" not in azh_zhaivra_text
 
     faith_text = " ".join(
         scenes["m8_pair_scene_azhvielle_joruun"].dialogue
     ).lower()
-    assert "i can pray" in faith_text
-    assert "invoking holy magic" in faith_text
+    assert "i cannot invoke holy magic" in faith_text
+    assert "i still pray" in faith_text
+    assert len(scenes["m8_pair_scene_azhvielle_joruun"].choices) == 2
+
+    assert len(azh_zhaivra.choices) == 2
+
+    joruun_zhaivra = scenes["m8_pair_scene_joruun_zhaivra"]
+    assert "I’m already proud of us" in (
+        " ".join(joruun_zhaivra.dialogue)
+        + joruun_zhaivra.completion_response
+    )
+    assert not joruun_zhaivra.choices
 
     echo_text = " ".join(
         scenes["m8_reliquary_echo_scene"].dialogue
     ).lower()
     assert "two expedition members" in echo_text
-    assert "i heard" not in echo_text
-    assert "i saw" not in echo_text
+    assert "does not identify which pair" in echo_text
+    assert "my answer to the report" in echo_text
+    assert "if i had been there" not in echo_text
+    assert "i turned toward" not in echo_text
+    assert "i wanted to go back" not in echo_text
+    assert "none of them was one" not in echo_text
+    assert not scenes["m8_reliquary_echo_scene"].choices
 
 
 def test_existing_story_state_round_trips_through_schema_28_without_new_migration():
@@ -211,37 +254,97 @@ def test_pair_scene_uses_active_pair_identity_independent_of_selection_order(
     assert story_view.options
 
 
-def test_pair_scene_choice_is_saved_once_and_survives_reload():
-    game = _floor_four_midpoint_game(("branoc", "azhvielle"))
+PAIR_STORY_COMPLETIONS = tuple(
+    (pair, scene_id, index, choice.choice_id)
+    for pair, scene_id in PAIR_SCENES
+    for index, choice in enumerate(get_story_scene(scene_id).choices)
+) + tuple(
+    (pair, scene_id, None, None)
+    for pair, scene_id in PAIR_SCENES
+    if not get_story_scene(scene_id).choices
+)
+
+
+@pytest.mark.parametrize(
+    ("pair", "scene_id", "choice_index", "choice_id"),
+    PAIR_STORY_COMPLETIONS,
+)
+def test_every_pair_scene_choice_completes_and_persists_exactly_once(
+    pair,
+    scene_id,
+    choice_index,
+    choice_id,
+):
     port = RecordingSavePort()
-    session = _session(game, port)
+    session = _session(_floor_four_midpoint_game(pair), port)
     session.submit(ChooseOverworldAction(OverworldAction.OPEN_PAIR_STORY))
 
-    response = session.submit(
-        ChooseOverworldAction(OverworldAction.STORY_CHOICE_ONE)
+    action = (
+        OverworldAction.STORY_CONTINUE
+        if choice_index is None
+        else (
+            OverworldAction.STORY_CHOICE_ONE
+            if choice_index == 0
+            else OverworldAction.STORY_CHOICE_TWO
+        )
     )
+    response = session.submit(ChooseOverworldAction(action))
 
-    event_id = "m8_pair_scene_branoc_azhvielle"
+    decision_key = f"m8_story_choice_{scene_id}"
     assert response.screen is OverworldScreen.STORY_SCENE
-    assert "warning" in response.adventure_text.lower()
-    assert event_id in session.game_state.story_state.completed_events
-    assert session.game_state.story_state.player_decisions[
-        f"m8_story_choice_{event_id}"
-    ] == "share_warning"
+    assert scene_id in session.game_state.story_state.completed_events
+    assert session.game_state.story_state.completed_events.count(scene_id) == 1
+    if choice_id is None:
+        assert decision_key not in session.game_state.story_state.player_decisions
+    else:
+        assert session.game_state.story_state.player_decisions[decision_key] == choice_id
     assert port.save_calls == 1
 
-    completed = session.submit(ChooseOverworldAction(OverworldAction.BACK))
-    assert completed.screen is OverworldScreen.REST
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+    restored = reconstruct_game_state(build_save_document(session.game_state))
+    assert restored.story_state.completed_events.count(scene_id) == 1
+    if choice_id is not None:
+        assert restored.story_state.player_decisions[decision_key] == choice_id
 
-    reloaded = reconstruct_game_state(build_save_document(session.game_state))
-    restored_session = _session(reloaded, RecordingSavePort())
-    assert OverworldAction.OPEN_PAIR_STORY not in {
-        option.action for option in restored_session.current_view().options
-    }
-    assert reloaded.story_state.completed_events.count(event_id) == 1
-    assert reloaded.story_state.player_decisions[
-        f"m8_story_choice_{event_id}"
-    ] == "share_warning"
+
+@pytest.mark.parametrize(
+    ("pair", "scene_id", "choice_id"),
+    tuple(
+        (pair, scene_id, choice.choice_id)
+        for pair, scene_id in PAIR_SCENES
+        for choice in get_story_scene(scene_id).choices
+    ),
+)
+def test_pair_scene_failed_save_rolls_back_completion_and_choice_evidence(
+    pair,
+    scene_id,
+    choice_id,
+):
+    port = RecordingSavePort(fail=True)
+    session = _session(_floor_four_midpoint_game(pair), port)
+    before = session.game_state.snapshot()
+    session.submit(ChooseOverworldAction(OverworldAction.OPEN_PAIR_STORY))
+    action = (
+        OverworldAction.STORY_CHOICE_ONE
+        if get_story_scene(scene_id).choices[0].choice_id == choice_id
+        else OverworldAction.STORY_CHOICE_TWO
+    )
+
+    failed = session.submit(ChooseOverworldAction(action))
+
+    assert failed.screen is OverworldScreen.STORY_SCENE
+    assert session.game_state.snapshot() == before
+    assert scene_id not in session.game_state.story_state.completed_events
+    assert f"m8_story_choice_{scene_id}" not in (
+        session.game_state.story_state.player_decisions
+    )
+
+    port.fail = False
+    session.submit(ChooseOverworldAction(action))
+    assert scene_id in session.game_state.story_state.completed_events
+    assert session.game_state.story_state.player_decisions[
+        f"m8_story_choice_{scene_id}"
+    ] == choice_id
 
 
 def test_cancelling_pair_scene_records_nothing_and_returns_to_rest():
@@ -271,9 +374,8 @@ def test_failed_archive_memory_save_keeps_fact_and_event_uncommitted_then_retrie
     }
 
     session.submit(ChooseOverworldAction(OverworldAction.OPEN_ARCHIVE_MEMORY))
-    failed = session.submit(
-        ChooseOverworldAction(OverworldAction.STORY_CONTINUE)
-    )
+    choice_action = OverworldAction.STORY_CHOICE_ONE
+    failed = session.submit(ChooseOverworldAction(choice_action))
 
     assert failed.screen is OverworldScreen.STORY_SCENE
     assert session.game_state.snapshot() == before
@@ -281,15 +383,79 @@ def test_failed_archive_memory_save_keeps_fact_and_event_uncommitted_then_retrie
     assert session.game_state.story_state.knowledge_status(
         "m8_fact_ashen_regent"
     ) is KnowledgeStatus.UNKNOWN
+    assert "m8_story_choice_m8_azh_archive_memory" not in (
+        session.game_state.story_state.player_decisions
+    )
 
     port.fail = False
-    session.submit(ChooseOverworldAction(OverworldAction.STORY_CONTINUE))
+    session.submit(ChooseOverworldAction(choice_action))
     assert session.game_state.story_state.completed_events.count(
         "m8_azh_archive_memory"
     ) == 1
     assert session.game_state.story_state.knowledge_status(
         "m8_fact_ashen_regent"
     ) is KnowledgeStatus.CONFIRMED
+
+
+def test_archive_memory_cancel_does_not_promote_knowledge_or_record_a_choice():
+    game = _floor_four_midpoint_game(("azhvielle", "joruun"))
+    session = _session(game)
+    before = game.snapshot()
+    session.submit(ChooseOverworldAction(OverworldAction.OPEN_ARCHIVE_MEMORY))
+
+    cancelled = session.submit(ChooseOverworldAction(OverworldAction.CANCEL))
+
+    assert cancelled.screen is OverworldScreen.REST
+    assert session.game_state.snapshot() == before
+    assert "m8_azh_archive_memory" not in game.story_state.completed_events
+    assert "m8_story_choice_m8_azh_archive_memory" not in (
+        game.story_state.player_decisions
+    )
+    assert game.story_state.knowledge_status(
+        "m8_fact_ashen_regent"
+    ) is KnowledgeStatus.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("choice_action", "choice_id"),
+    (
+        (OverworldAction.STORY_CHOICE_ONE, "ask_about_missing_name"),
+        (OverworldAction.STORY_CHOICE_TWO, "ask_party_plan"),
+    ),
+)
+def test_archive_memory_choice_and_fact_survive_reload_without_duplicate(
+    choice_action,
+    choice_id,
+):
+    port = RecordingSavePort()
+    session = _session(
+        _floor_four_midpoint_game(("azhvielle", "joruun")),
+        port,
+    )
+    session.submit(ChooseOverworldAction(OverworldAction.OPEN_ARCHIVE_MEMORY))
+    session.submit(ChooseOverworldAction(choice_action))
+    session.submit(ChooseOverworldAction(OverworldAction.BACK))
+
+    restored = reconstruct_game_state(build_save_document(session.game_state))
+    assert restored.story_state.completed_events.count(
+        "m8_azh_archive_memory"
+    ) == 1
+    assert restored.story_state.player_decisions[
+        "m8_story_choice_m8_azh_archive_memory"
+    ] == choice_id
+    assert restored.story_state.knowledge_status(
+        "m8_fact_ashen_regent"
+    ) is KnowledgeStatus.CONFIRMED
+
+    reloaded_session = _session(restored, RecordingSavePort())
+    assert OverworldAction.OPEN_ARCHIVE_MEMORY not in {
+        option.action for option in reloaded_session.current_view().options
+    }
+    before_duplicate = restored.snapshot()
+    reloaded_session.submit(
+        ChooseOverworldAction(OverworldAction.OPEN_ARCHIVE_MEMORY)
+    )
+    assert restored.snapshot() == before_duplicate
 
 
 def test_archive_memory_is_unavailable_when_azhviell_is_not_active():

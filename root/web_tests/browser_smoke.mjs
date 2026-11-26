@@ -4636,13 +4636,13 @@ try {
   const pairSceneText = await page.locator("#adventure-text").innerText();
   requireCondition(
     pairSceneText.includes("The Cost Of A Warning") &&
-      pairSceneText.includes("A warning can save a company"),
+      pairSceneText.includes("This inscription is a warning about the record below it"),
     `Floor IV pair story did not render its authored dialogue: ${pairSceneText}`,
   );
   await clickVisibleOption(
     page,
     "#overworld-options",
-    "Share the warning, with its limits",
+    "Read only the warning",
   );
   await page.waitForFunction((key) => {
     const envelope = JSON.parse(localStorage.getItem(key) || "null");
@@ -4686,6 +4686,77 @@ try {
     `Floor IV pair story did not survive reload exactly once: ${JSON.stringify(pairStoryAfterReload)}`,
   );
   console.log("M8.6_BROWSER|PAIR_STORY_CHOICE_RELOAD|PASS");
+
+  await clickVisibleOption(
+    page,
+    "#overworld-options",
+    "Azhvielle's Archive Memory",
+  );
+  await page.locator("#screen-badge").filter({ hasText: "STORY" }).waitFor({ state: "visible" });
+  const archiveMemoryText = await page.locator("#adventure-text").innerText();
+  requireCondition(
+    archiveMemoryText.includes("Azhvielle recognizes a catalog mark") &&
+      archiveMemoryText.includes("Ashen Regent") &&
+      archiveMemoryText.includes("whether I made that choice"),
+    `Archive Memory did not render its authored personal history and reveal: ${archiveMemoryText}`,
+  );
+  await clickVisibleOption(
+    page,
+    "#overworld-options",
+    "Ask what the party should do now",
+  );
+  await page.waitForFunction((key) => {
+    const story = JSON.parse(localStorage.getItem(key) || "null")?.payload?.story;
+    return story?.completed_events?.includes("m8_azh_archive_memory") &&
+      story?.player_decisions?.m8_story_choice_m8_azh_archive_memory ===
+        "ask_party_plan" &&
+      story?.knowledge_facts?.m8_fact_ashen_regent === "confirmed";
+  }, floorTwoProfileKey);
+  const archiveMemoryEvidence = await page.evaluate((key) => {
+    const story = JSON.parse(localStorage.getItem(key)).payload.story;
+    return {
+      completions: story.completed_events.filter(
+        (eventId) => eventId === "m8_azh_archive_memory",
+      ).length,
+      decision: story.player_decisions.m8_story_choice_m8_azh_archive_memory,
+      fact: story.knowledge_facts.m8_fact_ashen_regent,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    archiveMemoryEvidence.completions === 1 &&
+      archiveMemoryEvidence.decision === "ask_party_plan" &&
+      archiveMemoryEvidence.fact === "confirmed",
+    `Archive Memory did not persist its choice and knowledge exactly once: ${JSON.stringify(archiveMemoryEvidence)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Back");
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const archiveAfterReload = await page.evaluate((key) => {
+    const story = JSON.parse(localStorage.getItem(key)).payload.story;
+    return {
+      completions: story.completed_events.filter(
+        (eventId) => eventId === "m8_azh_archive_memory",
+      ).length,
+      decision: story.player_decisions.m8_story_choice_m8_azh_archive_memory,
+      fact: story.knowledge_facts.m8_fact_ashen_regent,
+      actionCount: [...document.querySelectorAll("#overworld-options button")]
+        .filter((button) => button.innerText.includes("Azhvielle's Archive Memory"))
+        .length,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      archiveAfterReload.completions === 1 &&
+      archiveAfterReload.decision === "ask_party_plan" &&
+      archiveAfterReload.fact === "confirmed" &&
+      archiveAfterReload.actionCount === 0,
+    `Archive Memory duplicated or lost its knowledge after reload: ${JSON.stringify(archiveAfterReload)}`,
+  );
+  console.log("M8.6_BROWSER|ARCHIVE_MEMORY_CHOICE_KNOWLEDGE_RELOAD_ONCE|PASS");
 
   await clickVisibleOption(page, "#overworld-options", "Search Site");
   await page.locator("#discovery-selection").waitFor({ state: "visible" });
@@ -5644,6 +5715,54 @@ try {
   console.log("M85_BROWSER|FLOOR_FOUR_REPORTS_CLAIM_RELOAD_ONCE|PASS");
 
   await clickVisibleOption(m85Page, "#overworld-options", "Back");
+  await m85Page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  const echoOption = m85Page.locator("#overworld-options button")
+    .filter({ hasText: "Discuss the Reliquary Report" });
+  requireCondition(
+    await echoOption.count() === 1 && await echoOption.isEnabled(),
+    "Claiming the Story report did not unlock the Hub Reliquary Echo scene",
+  );
+  await echoOption.click();
+  await m85Page.locator("#screen-badge").filter({ hasText: "STORY" }).waitFor({ state: "visible" });
+  const echoText = await m85Page.locator("#adventure-text").innerText();
+  requireCondition(
+    echoText.includes("two expedition members") &&
+      echoText.includes("My answer to the report") &&
+      echoText.includes("The report says they were frightened") &&
+      !echoText.includes("I turned toward the passage"),
+    `Reliquary Echo did not discuss the reported account without fixed eyewitnesses: ${echoText}`,
+  );
+  await clickVisibleOption(m85Page, "#overworld-options", "Finish Scene");
+  await m85Page.waitForFunction((key) => {
+    const events = JSON.parse(localStorage.getItem(key) || "null")
+      ?.payload?.story?.completed_events || [];
+    return events.includes("m8_reliquary_echo_scene");
+  }, m85ExpeditionFixture.profile_key);
+  await clickVisibleOption(m85Page, "#overworld-options", "Back");
+  await m85Page.locator("#screen-badge").filter({ hasText: "HUB" }).waitFor({ state: "visible" });
+  await m85Page.reload({ waitUntil: "domcontentloaded" });
+  await m85Page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(m85Page);
+  const echoAfterReload = await m85Page.evaluate((key) => {
+    const events = JSON.parse(localStorage.getItem(key)).payload.story.completed_events;
+    return {
+      completions: events.filter(
+        (eventId) => eventId === "m8_reliquary_echo_scene",
+      ).length,
+      actionCount: [...document.querySelectorAll("#overworld-options button")]
+        .filter((button) => button.innerText.includes("Discuss the Reliquary Report"))
+        .length,
+    };
+  }, m85ExpeditionFixture.profile_key);
+  requireCondition(
+    await m85Page.locator("#screen-badge").innerText() === "HUB" &&
+      echoAfterReload.completions === 1 && echoAfterReload.actionCount === 0,
+    `Reliquary Echo completion duplicated or returned after reload: ${JSON.stringify(echoAfterReload)}`,
+  );
+  console.log("M8.6_BROWSER|STORY_REPORT_ECHO_COMPLETION_RELOAD_ONCE|PASS");
+
   await clickVisibleOption(m85Page, "#overworld-options", "Expeditions");
   await clickVisibleOption(m85Page, "#overworld-options", "Prepare for Floor IV");
   await m85Page.locator("#expedition-choices").waitFor({ state: "visible" });
