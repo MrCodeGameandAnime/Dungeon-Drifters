@@ -15,11 +15,13 @@ from app.content.route_spec import RouteNodeKind
 from app.game.game_state import GameState
 from app.game.overworld_session import OverworldSession
 from app.game.overworld_state import ContextualRoutePhase
+from app.game.party_state import PartyState
 from app.game.region_progression import is_reunion_boss_eligible
 from app.game.story_state import KnowledgeStatus
 from app.persistence.ports import SaveLoadResult
 from app.persistence.save_document import (
     DISK_SCHEMA_VERSION,
+    SaveStateValidationError,
     build_save_document,
     reconstruct_game_state,
     validate_profile_payload,
@@ -27,12 +29,17 @@ from app.persistence.save_document import (
 )
 from app.persistence.save_port_contract import SaveLoadStatus
 from app.player.player_state import PlayerState
-from app.presentation.battle_models import BattleView
+from app.presentation.battle_models import ActionIntent, BattleView
 from app.presentation.overworld_models import (
     OverworldAction,
     OverworldScreen,
 )
-from app.ui.overworld_ui import ChooseOverworldAction
+from app.ui.overworld_ui import (
+    ChooseDestination,
+    ChooseOverworldAction,
+    ChooseRegion,
+)
+from app.ui.battle_ui import ChooseAction, ChooseHealingTarget
 from tests.game_test_support import completed_hub_game
 from tests.test_floor_five_approach import floor_five_ready_game
 
@@ -99,6 +106,50 @@ def defeat_current_encounter(session):
     for enemy in battle.enemies:
         enemy.health.take_damage(enemy.health.current)
     session._finalize_active_battle(winner="player")
+
+
+def floor_five_approach_with_run_events():
+    game = floor_five_ready_game()
+    port = ReloadableSavePort()
+    session = make_session(game, port)
+    session.submit(ChooseOverworldAction(OverworldAction.REGION_PORTAL))
+    session.submit(ChooseRegion("region_1"))
+    session.submit(ChooseDestination("ashen_vault"))
+    for _ in range(3):
+        defeat_current_encounter(session)
+    assert session.game_state.party_state.floor_five_approach_run_id is not None
+    assert session.game_state.party_state.resolved_run_events
+    return session.game_state
+
+
+def floor_five_reunion_with_run_events():
+    game = floor_five_ready_game()
+    game.story_state.complete_event("m8_ashen_arena_revealed")
+    port = ReloadableSavePort(fail_on_save_calls={3})
+    session = make_session(game, port)
+    session.submit(ChooseOverworldAction(OverworldAction.CHALLENGE_ASHEN_REGENT))
+    defeat_current_encounter(session)
+    pending = port.load().game_state
+    assert pending.floor_five_reunion_settlement_pending
+    assert pending.party_state.floor_five_reunion_run_id is not None
+    assert pending.party_state.resolved_run_events
+    return pending
+
+
+def rekey_run_events(events, *, source_run_id, target_run_id):
+    rekeyed = copy.deepcopy(events)
+    for event in rekeyed:
+        event["run_id"] = target_run_id
+        event["event_key"] = event["event_key"].replace(
+            source_run_id,
+            target_run_id,
+        )
+        if "drop_event_keys" in event["result"]:
+            event["result"]["drop_event_keys"] = [
+                key.replace(source_run_id, target_run_id)
+                for key in event["result"]["drop_event_keys"]
+            ]
+    return rekeyed
 
 
 def test_floor_five_reunion_authors_the_approved_one_boss_encounter():
@@ -302,6 +353,77 @@ def test_schema30_history_is_immutable_and_migrates_with_empty_reunion_state():
     assert not restored.party_state.region_two_unlocked
 
 
+@pytest.mark.parametrize(
+    ("active_route", "foreign_route"),
+    (("floor_five_reunion", "floor_five_approach"),
+     ("floor_five_approach", "floor_five_reunion")),
+)
+def test_active_floor_five_run_rejects_cross_route_event_evidence(
+    active_route,
+    foreign_route,
+):
+    states = {
+        "floor_five_approach": floor_five_approach_with_run_events,
+        "floor_five_reunion": floor_five_reunion_with_run_events,
+    }
+    active_state = states[active_route]()
+    foreign_state = states[foreign_route]()
+    active_document = build_save_document(active_state)
+    foreign_document = build_save_document(foreign_state)
+    active_run_id = active_document["party"][f"{active_route}_run_id"]
+    foreign_run_id = foreign_document["party"][f"{foreign_route}_run_id"]
+    active_document["party"]["resolved_run_events"] = rekey_run_events(
+        foreign_document["party"]["resolved_run_events"],
+        source_run_id=foreign_run_id,
+        target_run_id=active_run_id,
+    )
+
+    with pytest.raises(SaveStateValidationError):
+        validate_save_document(active_document)
+    with pytest.raises(SaveStateValidationError):
+        reconstruct_game_state(active_document)
+    with pytest.raises(ValueError):
+        PartyState.from_snapshot(
+            active_document["party"],
+            companions=active_state.recruited_members,
+            require_active_run_scope=True,
+        )
+
+
+def test_schema30_approach_event_history_migrates_immutably_and_rejects_reunion_evidence():
+    approach_state = floor_five_approach_with_run_events()
+    historical = build_save_document(approach_state)
+    historical["schema_version"] = 30
+    historical["party"].pop("floor_five_reunion_run_id")
+    original = copy.deepcopy(historical)
+
+    assert validate_profile_payload(historical) == original
+    migrated = validate_save_document(historical)
+    restored = reconstruct_game_state(historical)
+    assert historical == original
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 31
+    assert migrated["party"]["floor_five_approach_run_id"] == (
+        approach_state.party_state.floor_five_approach_run_id
+    )
+    assert migrated["party"]["resolved_run_events"] == (
+        historical["party"]["resolved_run_events"]
+    )
+    assert restored.party_state.resolved_run_events
+    assert build_save_document(restored) == migrated
+
+    reunion_state = floor_five_reunion_with_run_events()
+    reunion_document = build_save_document(reunion_state)
+    reunion_run_id = reunion_document["party"]["floor_five_reunion_run_id"]
+    approach_run_id = historical["party"]["floor_five_approach_run_id"]
+    historical["party"]["resolved_run_events"] = rekey_run_events(
+        reunion_document["party"]["resolved_run_events"],
+        source_run_id=reunion_run_id,
+        target_run_id=approach_run_id,
+    )
+    with pytest.raises(SaveStateValidationError):
+        validate_profile_payload(historical)
+
+
 def test_committed_reunion_victory_survives_failed_final_settlement_and_retries_once():
     game = floor_five_ready_game()
     game.story_state.complete_event("m8_ashen_arena_revealed")
@@ -443,6 +565,77 @@ def test_reunion_defeat_returns_all_four_without_rewards_or_progression():
         and member.mana_resource.current == member.mana_resource.maximum
         for member in settled.recruited_members
     )
+
+
+def test_failed_reunion_defeat_save_restores_all_members_and_carried_supplies():
+    game = floor_five_ready_game()
+    game.story_state.complete_event("m8_ashen_arena_revealed")
+    game.party_state.add_shared_items({"healing_potion": 1})
+    assert game.party_state.load_carried_supplies({"healing_potion": 1})
+    port = ReloadableSavePort(fail_on_save_calls={2})
+    session = make_session(game, port)
+    session.submit(ChooseOverworldAction(OverworldAction.CHALLENGE_ASHEN_REGENT))
+    saved_before_defeat = build_save_document(port.load().game_state)
+
+    members = session.game_state.recruited_members
+    checkpoints = tuple(member.create_battle_checkpoint() for member in members)
+
+    def lose_battle_after_using_potion():
+        target = members[0]
+        target.health.take_damage(target.health.current - 1)
+        view = session.submit(ChooseAction(ActionIntent.HEALING_POTION))
+        assert view.interaction_phase.value == "healing_targets"
+        session.submit(
+            ChooseHealingTarget(
+                f"drifter_{target.character.profile.drifter_id}"
+            )
+        )
+        assert session.game_state.party_state.carried_items == {}
+
+        battle = session.active_battle
+        assert battle is not None
+        for member in battle.party_states:
+            member.health.current = 1
+        for _ in range(40):
+            if battle.is_complete:
+                break
+            session.submit(ChooseAction(ActionIntent.DEFEND))
+        assert battle.winner == "enemy"
+        assert session.active_battle is None
+
+    lose_battle_after_using_potion()
+
+    assert session.game_state.party_state.carried_items == {"healing_potion": 1}
+    assert tuple(
+        member.create_battle_checkpoint() for member in session.game_state.recruited_members
+    ) == checkpoints
+    failed_state = session.game_state
+    assert failed_state.party_state.floor_five_reunion_run_id is not None
+    assert not failed_state.party_state.floor_five_cleared
+    assert not failed_state.party_state.region_two_unlocked
+    assert failed_state.party_state.outing_rewards.snapshot() == {
+        "experience": 0,
+        "gold": 0,
+        "items": {},
+    }
+    assert failed_state.party_state.resolved_run_events == ()
+    assert port.load().game_state.party_state.carried_items == {"healing_potion": 1}
+    assert build_save_document(port.load().game_state) == saved_before_defeat
+
+    session.submit(ChooseOverworldAction(OverworldAction.RETRY))
+    assert session.active_battle is not None
+    lose_battle_after_using_potion()
+
+    settled = session.game_state
+    assert settled.party_state.phase.value == "hub"
+    assert settled.party_state.floor_five_reunion_run_id is None
+    assert not settled.party_state.floor_five_cleared
+    assert not settled.party_state.region_two_unlocked
+    assert settled.party_state.carried_items == {}
+    assert settled.party_state.shared_items.get("healing_potion", 0) == 0
+    assert port.save_calls == 3
+    reloaded = reconstruct_game_state(build_save_document(port.load().game_state))
+    assert build_save_document(reloaded) == build_save_document(settled)
 
 
 def test_failed_boss_victory_write_can_retry_without_partial_rewards():

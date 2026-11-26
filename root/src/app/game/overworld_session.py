@@ -4536,6 +4536,9 @@ class OverworldSession:
             if settled is None:
                 for member, checkpoint in zip(party_members, checkpoints):
                     member.restore_battle_checkpoint(checkpoint)
+                self.game_state.party_state.restore_carried_supplies_checkpoint(
+                    carried_supplies_checkpoint
+                )
                 self.game_state.overworld_state.set_contextual_route_phase(
                     ContextualRoutePhase.RETRY
                 )

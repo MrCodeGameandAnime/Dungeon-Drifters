@@ -398,6 +398,20 @@ class PartyState:
         return None
 
     @property
+    def active_run_route_id(self):
+        if self._floor_five_reunion_run_id is not None:
+            return "floor_five_reunion"
+        if self._floor_five_approach_run_id is not None:
+            return "floor_five_approach"
+        if self._floor_four_run_id is not None:
+            return "floor_four"
+        if self._floor_three_run_id is not None:
+            return "floor_three"
+        if self._floor_two_run_id is not None:
+            return "floor_two"
+        return None
+
+    @property
     def floor_three_boss_reward_committed(self):
         return self._floor_three_run_id is not None and any(
             event["run_id"] == self._floor_three_run_id
@@ -1090,6 +1104,7 @@ class PartyState:
             active_drifter_ids=self._active_drifter_ids,
             active_run_id=self.active_run_id,
             active_floor_id=self.active_run_floor_id,
+            active_route_id=self.active_run_route_id,
             require_complete=False,
         )
         self._resolved_run_events.append(normalized)
@@ -1984,6 +1999,7 @@ class PartyState:
             active_drifter_ids=state._active_drifter_ids,
             active_run_id=state.active_run_id,
             active_floor_id=state.active_run_floor_id,
+            active_route_id=state.active_run_route_id,
             require_active_run_scope=require_active_run_scope,
         )
         if not require_active_run_scope:
@@ -2702,6 +2718,7 @@ def validate_run_event_history(
     active_drifter_ids=None,
     active_run_id=None,
     active_floor_id=None,
+    active_route_id=None,
     require_active_run_scope=False,
     require_complete=True,
     allow_m8_4_discovery_sources=True,
@@ -2731,6 +2748,7 @@ def validate_run_event_history(
         get_permanent_discovery_search_floor_id,
         get_permanent_discovery_search_node_id,
         get_route_node_spec,
+        get_route_spec,
         is_known_route_node_id,
     )
     from app.content.route_spec import RouteNodeKind
@@ -2745,6 +2763,18 @@ def validate_run_event_history(
             and not allow_m8_8_reunion
         ):
             raise ValueError("legacy run history cannot contain M8.8 reunion evidence")
+        if event["floor_id"] == "floor_five" and event["run_id"] == active_run_id:
+            if active_route_id not in {
+                "floor_five_approach",
+                "floor_five_reunion",
+            }:
+                raise ValueError("active Floor V run has no authored route identity")
+            route_node_ids = tuple(
+                route_node.node_id
+                for route_node in get_route_spec(active_route_id).nodes
+            )
+            if node_id not in route_node_ids:
+                raise ValueError("Floor V run event belongs to the other route")
         node = get_route_node_spec(node_id)
         if event["kind"] == "enemy_drop" and event["floor_id"] == "floor_four":
             if node.encounter_id is None:

@@ -2354,41 +2354,26 @@ def _validate_party(
             )
         try:
             active_run_id = None
-            for field in (
-                "floor_five_reunion_run_id",
-                "floor_five_approach_run_id",
-                "floor_four_run_id",
-                "floor_three_run_id",
-                "floor_two_run_id",
+            active_floor_id = None
+            active_route_id = None
+            for field, floor_id, route_id in (
+                ("floor_five_reunion_run_id", "floor_five", "floor_five_reunion"),
+                ("floor_five_approach_run_id", "floor_five", "floor_five_approach"),
+                ("floor_four_run_id", "floor_four", "floor_four"),
+                ("floor_three_run_id", "floor_three", "floor_three"),
+                ("floor_two_run_id", "floor_two", "floor_two"),
             ):
                 if field in party and party[field] is not None:
                     active_run_id = party[field]
+                    active_floor_id = floor_id
+                    active_route_id = route_id
                     break
-            active_floor_id = (
-                "floor_five"
-                if active_run_id is not None
-                and active_run_id
-                in {
-                    party.get("floor_five_reunion_run_id"),
-                    party.get("floor_five_approach_run_id"),
-                }
-                else (
-                    "floor_four"
-                    if active_run_id is not None
-                    and active_run_id == party.get("floor_four_run_id")
-                    else (
-                        "floor_three"
-                        if active_run_id is not None
-                        and active_run_id == party.get("floor_three_run_id")
-                        else "floor_two"
-                    )
-                )
-            )
             validate_run_event_history(
                 events,
                 active_drifter_ids=active_ids,
                 active_run_id=active_run_id,
                 active_floor_id=active_floor_id,
+                active_route_id=active_route_id,
                 require_active_run_scope=require_active_run_scope,
                 allow_m8_4_discovery_sources=allow_m8_4_discovery_sources,
                 allow_m8_8_reunion=require_floor_five_reunion_run_state,
