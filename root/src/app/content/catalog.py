@@ -413,6 +413,8 @@ def get_permanent_discovery_search_floor_id(source_id):
 
 
 def get_permanent_discovery_search_source_at(floor_id, node_id):
+    if floor_id == "floor_five_approach":
+        floor_id = "floor_five"
     for source_id, authored_node_id in _PERMANENT_DISCOVERY_SEARCH_NODE_IDS.items():
         if (
             authored_node_id == node_id
@@ -457,6 +459,8 @@ def is_known_floor_two_route_node_id(node_id):
 
 
 def is_known_route_node_id(route_id, node_id):
+    if route_id == "floor_five":
+        route_id = "floor_five_approach"
     if route_id not in _ROUTE_CATALOG:
         return False
     route = _ROUTE_CATALOG[route_id]

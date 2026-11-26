@@ -787,8 +787,11 @@ def test_floor_five_material_requires_clear_and_authored_source_evidence(tmp_pat
     }).reports == ()
 
 
-def test_floor_v_approach_contract_waits_for_its_authored_route():
+def test_floor_v_approach_can_coexist_with_a_compatible_expedition():
     game = _floor_four_game()
+    game.story_state.reveal_knowledge_fact(
+        "m8_fact_ashen_vault", KnowledgeStatus.RUMORED
+    )
     port = make_test_save_port("unused")
 
     result = ExpeditionService(port).launch(
@@ -799,8 +802,15 @@ def test_floor_v_approach_contract_waits_for_its_authored_route():
         confirmed=True,
     )
 
-    assert result.status is ExpeditionLaunchStatus.INVALID_OUTING
-    assert result.game_state is game
+    assert result.status is ExpeditionLaunchStatus.LAUNCHED
+    assert result.game_state.overworld_state.active_route_id == "floor_five_approach"
+    assert result.game_state.party_state.active_run_floor_id == "floor_five"
+    assert result.game_state.expedition_state.active_assignment[
+        "outing_floor_id"
+    ] == "floor_five_approach"
+    assert result.game_state.story_state.knowledge_status(
+        "m8_fact_ashen_vault"
+    ) is KnowledgeStatus.CONFIRMED
 
 
 def test_floor_five_reunion_is_never_an_expedition_compatible_outing():
@@ -932,6 +942,7 @@ def test_schema28_rejects_m8_5_report_evidence_before_migration(tmp_path):
     )
     historical = build_save_document(launched.game_state)
     historical["schema_version"] = 28
+    historical["party"].pop("floor_five_approach_run_id")
 
     with pytest.raises(SaveStateValidationError, match="post-M8.5"):
         validate_profile_payload(historical)
@@ -941,6 +952,7 @@ def test_schema28_m6_report_migrates_with_immutable_legacy_shape():
     from copy import deepcopy
 
     from app.persistence.save_document import (
+        DISK_SCHEMA_VERSION,
         build_save_document,
         validate_profile_payload,
         validate_save_document,
@@ -988,6 +1000,7 @@ def test_schema28_m6_report_migrates_with_immutable_legacy_shape():
     game._expedition_state = expedition
     historical = build_save_document(game)
     historical["schema_version"] = 28
+    historical["party"].pop("floor_five_approach_run_id")
     for record in historical["expedition"]["reports"]:
         record.pop("frozen_outcome")
         record.pop("report_content_id")
@@ -997,7 +1010,8 @@ def test_schema28_m6_report_migrates_with_immutable_legacy_shape():
     migrated = validate_save_document(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == 29
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION
+    assert migrated["party"]["floor_five_approach_run_id"] is None
     assert migrated["expedition"]["reports"][0]["report_content_id"] is None
     assert migrated["expedition"]["reports"][0]["frozen_outcome"] == outcome
 
@@ -1019,6 +1033,8 @@ def _historical_expedition_document(tmp_path, schema_version):
     assert launched.status is ExpeditionLaunchStatus.LAUNCHED
     document = build_save_document(launched.game_state)
     document["schema_version"] = schema_version
+    if schema_version < 30:
+        document["party"].pop("floor_five_approach_run_id")
     if schema_version < 25:
         document["party"].pop("hub_economy", None)
     if schema_version < 26:
@@ -1100,7 +1116,8 @@ def test_historical_expedition_records_migrate_immutably_from_schemas_24_to_28(
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
+    assert migrated["party"]["floor_five_approach_run_id"] is None
     assert migrated["expedition"]["energy"] == original_expedition["energy"]
     assert migrated["expedition"]["energy_anchor_utc"] == original_expedition[
         "energy_anchor_utc"

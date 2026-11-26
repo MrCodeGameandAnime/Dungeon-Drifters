@@ -103,6 +103,7 @@ class PartyState:
         self._floor_four_cleared = False
         self._floor_five_cleared = False
         self._region_two_unlocked = False
+        self._floor_five_approach_run_id = None
         self._resolved_run_events = []
         self._hub_economy = HubEconomyState()
 
@@ -308,6 +309,16 @@ class PartyState:
         )
 
     @property
+    def floor_five_approach_final_reward_committed(self):
+        return self._floor_five_approach_run_id is not None and any(
+            event["run_id"] == self._floor_five_approach_run_id
+            and event["floor_id"] == "floor_five"
+            and event["node_id"] == "floor_five_battle_06"
+            and event["kind"] == "encounter_rewards"
+            for event in self._resolved_run_events
+        )
+
+    @property
     def floor_four_cleared(self):
         return self._floor_four_cleared
 
@@ -318,6 +329,10 @@ class PartyState:
     @property
     def region_two_unlocked(self):
         return self._region_two_unlocked
+
+    @property
+    def floor_five_approach_run_id(self):
+        return self._floor_five_approach_run_id
 
     def record_floor_four_clear(self):
         if (
@@ -345,13 +360,16 @@ class PartyState:
     @property
     def active_run_id(self):
         return (
-            self._floor_four_run_id
+            self._floor_five_approach_run_id
+            or self._floor_four_run_id
             or self._floor_three_run_id
             or self._floor_two_run_id
         )
 
     @property
     def active_run_floor_id(self):
+        if self._floor_five_approach_run_id is not None:
+            return "floor_five"
         if self._floor_four_run_id is not None:
             return "floor_four"
         if self._floor_three_run_id is not None:
@@ -903,6 +921,29 @@ class PartyState:
         self._phase = DungeonPhase.OUTING
         return rate
 
+    def start_floor_five_approach_run(self, *, run_id_factory=uuid4):
+        if not callable(run_id_factory):
+            raise TypeError("run_id_factory must be callable")
+        if not self.tutorial_complete or not self.floor_four_cleared:
+            raise ValueError("Floor 4 must be cleared before the Floor 5 approach")
+        if self._phase is not DungeonPhase.HUB:
+            raise ValueError("the Floor 5 approach can only start from the Hub")
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("the Floor 5 approach requires the two-Drifter active pair")
+        if len(self._companions) != 3:
+            raise ValueError("the Floor 5 approach requires four permanent Drifters")
+        run_id = run_id_factory()
+        if isinstance(run_id, UUID):
+            run_id = str(run_id)
+        if not _valid_run_id(run_id):
+            raise ValueError("run ID must be a non-empty lowercase token")
+        self._begin_m65_outing("floor_five_approach")
+        self._floor_five_approach_run_id = run_id
+        self._outing_rewards = OutingRewards()
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.OUTING
+        return 100
+
     def add_floor_two_rewards(self, *, experience, gold, items=None):
         if self._floor_two_run_id is None or self._phase is not DungeonPhase.OUTING:
             raise ValueError("Floor 2 rewards require an active Floor 2 run")
@@ -918,7 +959,21 @@ class PartyState:
             raise ValueError("Floor 4 rewards require an active Floor 4 run")
         self._add_outing_rewards(experience=experience, gold=gold, items=items)
 
+    def add_floor_five_approach_rewards(self, *, experience, gold, items=None):
+        if (
+            self._floor_five_approach_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            raise ValueError("Floor 5 rewards require an active approach run")
+        self._add_outing_rewards(experience=experience, gold=gold, items=items)
+
     def add_active_run_rewards(self, *, experience, gold, items=None):
+        if self._floor_five_approach_run_id is not None:
+            return self.add_floor_five_approach_rewards(
+                experience=experience,
+                gold=gold,
+                items=items,
+            )
         if self._floor_four_run_id is not None:
             return self.add_floor_four_rewards(
                 experience=experience,
@@ -1045,6 +1100,30 @@ class PartyState:
         self._restore_party(party_members)
         self._floor_four_run_id = None
         self._floor_four_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
+        return True
+
+    def fail_floor_five_approach_run(self, party_members, *, recruited_members=None):
+        if (
+            self._floor_five_approach_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            return False
+        if len(party_members) != 2 or tuple(
+            _drifter_id(member) for member in party_members
+        ) != self._active_drifter_ids:
+            raise ValueError("Floor 5 defeat must use the active pair")
+        equipment_members = self._equipment_members(
+            party_members,
+            recruited_members,
+        )
+        self._discard_unsecured_equipment(equipment_members)
+        self._outing_rewards = OutingRewards()
+        self.discard_carried_supplies()
+        self._restore_party(party_members)
+        self._floor_five_approach_run_id = None
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         self._settle_outing_for_hub_return()
@@ -1198,6 +1277,30 @@ class PartyState:
         self._settle_outing_for_hub_return()
         return True
 
+    def complete_floor_five_approach(self, party_members):
+        if (
+            self._floor_five_approach_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            return False
+        self._validate_party_members(party_members)
+        party_size = len(self._active_drifter_ids)
+        experience_each = self._outing_rewards.experience // party_size
+        payout = OutingRewards(
+            experience=experience_each * party_size,
+            gold=self._outing_rewards.gold,
+            items=self._outing_rewards.items,
+        )
+        self._bank_rewards(party_members, payout)
+        self._secure_unsecured_equipment()
+        self.return_carried_supplies()
+        self._outing_rewards = OutingRewards()
+        self._floor_five_approach_run_id = None
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
+        return True
+
     def begin_floor_two_extraction(self, *, partial):
         if not isinstance(partial, bool):
             raise TypeError("partial must be a boolean")
@@ -1228,6 +1331,20 @@ class PartyState:
         if len(self._active_drifter_ids) != 2:
             raise ValueError("Floor 4 extraction requires the two-Drifter pair")
         self._outing_rewards = self._floor_four_payout(partial=partial)
+        self._phase = DungeonPhase.EXTRACTION
+        return True
+
+    def begin_floor_five_approach_extraction(self, *, partial):
+        if not isinstance(partial, bool):
+            raise TypeError("partial must be a boolean")
+        if (
+            self._floor_five_approach_run_id is None
+            or self._phase is not DungeonPhase.OUTING
+        ):
+            return False
+        if len(self._active_drifter_ids) != 2:
+            raise ValueError("Floor 5 extraction requires the two-Drifter pair")
+        self._outing_rewards = self._floor_five_approach_payout(partial=partial)
         self._phase = DungeonPhase.EXTRACTION
         return True
 
@@ -1283,6 +1400,23 @@ class PartyState:
         self._outing_rewards = OutingRewards()
         self._floor_four_run_id = None
         self._floor_four_outing_xp_multiplier_percent = 100
+        self._resolved_run_events = []
+        self._phase = DungeonPhase.HUB
+        self._settle_outing_for_hub_return()
+        return True
+
+    def complete_floor_five_approach_extraction(self, party_members):
+        if (
+            self._floor_five_approach_run_id is None
+            or self._phase is not DungeonPhase.EXTRACTION
+        ):
+            return False
+        self._validate_party_members(party_members)
+        self._bank_rewards(party_members, self._outing_rewards)
+        self._secure_unsecured_equipment()
+        self.return_carried_supplies()
+        self._outing_rewards = OutingRewards()
+        self._floor_five_approach_run_id = None
         self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         self._settle_outing_for_hub_return()
@@ -1434,17 +1568,22 @@ class PartyState:
         floor_two_run = self._floor_two_run_id is not None
         floor_three_run = self._floor_three_run_id is not None
         floor_four_run = self._floor_four_run_id is not None
+        floor_five_approach_run = self._floor_five_approach_run_id is not None
         rewards = (
-            self._floor_four_payout(partial=False)
-            if floor_four_run
+            self._floor_five_approach_payout(partial=False)
+            if floor_five_approach_run
             else (
-                self._floor_three_payout(partial=False)
-                if floor_three_run
-            else (
-                self._floor_two_payout(partial=False)
-                if floor_two_run
-                else self._floor_one_payout(partial=False)
-            )
+                self._floor_four_payout(partial=False)
+                if floor_four_run
+                else (
+                    self._floor_three_payout(partial=False)
+                    if floor_three_run
+                    else (
+                        self._floor_two_payout(partial=False)
+                        if floor_two_run
+                        else self._floor_one_payout(partial=False)
+                    )
+                )
             )
         )
         experience_awards = self.secured_xp_awards(
@@ -1478,6 +1617,9 @@ class PartyState:
         if floor_four_run:
             self._floor_four_run_id = None
             self._floor_four_outing_xp_multiplier_percent = 100
+            self._resolved_run_events = []
+        if floor_five_approach_run:
+            self._floor_five_approach_run_id = None
             self._resolved_run_events = []
         self._phase = DungeonPhase.HUB
         self._settle_outing_for_hub_return()
@@ -1618,6 +1760,14 @@ class PartyState:
             raise ValueError("region_two_unlocked must be a boolean")
         if state._region_two_unlocked and not state._floor_five_cleared:
             raise ValueError("Region 2 unlock requires the Floor 5 clear")
+        state._floor_five_approach_run_id = snapshot.get(
+            "floor_five_approach_run_id"
+        )
+        if (
+            state._floor_five_approach_run_id is not None
+            and not _valid_run_id(state._floor_five_approach_run_id)
+        ):
+            raise ValueError("floor_five_approach_run_id is invalid")
         state._floor_three_runs_started_after_clear = _nonnegative(
             "floor_three_runs_started_after_clear",
             snapshot.get("floor_three_runs_started_after_clear", 0),
@@ -1657,6 +1807,7 @@ class PartyState:
                 state._floor_two_run_id,
                 state._floor_three_run_id,
                 state._floor_four_run_id,
+                state._floor_five_approach_run_id,
             )
             if run_id is not None
         )
@@ -1757,12 +1908,28 @@ class PartyState:
                 raise ValueError("active Floor 4 run has an inconsistent XP rate")
         elif state._floor_four_outing_xp_multiplier_percent != 100:
             raise ValueError("inactive Floor 4 runs must use the default XP rate")
+        active_floor_five_approach_run = (
+            state._floor_five_approach_run_id is not None
+        )
+        if active_floor_five_approach_run:
+            if not state._floor_four_cleared or len(state._companions) != 3:
+                raise ValueError(
+                    "Floor 5 approach requires its unlock and four permanent Drifters"
+                )
+            if state._phase not in {
+                DungeonPhase.OUTING,
+                DungeonPhase.EXTRACTION,
+            } or not state.tutorial_complete:
+                raise ValueError(
+                    "active Floor 5 approach must be an outing or extraction"
+                )
         active_floor_one_run = (
             state._tutorial_complete
             and state._phase in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
             and state._floor_two_run_id is None
             and state._floor_three_run_id is None
             and state._floor_four_run_id is None
+            and state._floor_five_approach_run_id is None
         )
         if active_floor_one_run:
             expected_rate = 100
@@ -1838,6 +2005,7 @@ class PartyState:
             "floor_four_cleared": self.floor_four_cleared,
             "floor_five_cleared": self.floor_five_cleared,
             "region_two_unlocked": self.region_two_unlocked,
+            "floor_five_approach_run_id": self.floor_five_approach_run_id,
             "resolved_run_events": list(self.resolved_run_events),
             "hub_economy": self.hub_economy,
         }
@@ -1910,6 +2078,19 @@ class PartyState:
             * self._floor_four_outing_xp_multiplier_percent
             // denominator
         )
+        gold = self._outing_rewards.gold
+        if partial:
+            gold = (gold + 1) // 2
+        return OutingRewards(
+            experience=experience_each * party_size,
+            gold=gold,
+            items=self._outing_rewards.items,
+        )
+
+    def _floor_five_approach_payout(self, *, partial):
+        party_size = len(self._active_drifter_ids)
+        denominator = party_size * (2 if partial else 1)
+        experience_each = self._outing_rewards.experience // denominator
         gold = self._outing_rewards.gold
         if partial:
             gold = (gold + 1) // 2
@@ -2088,7 +2269,12 @@ def _run_event(value):
         raise ValueError("run event has an invalid shape")
     if not _valid_run_id(value["run_id"]):
         raise ValueError("run event ID is invalid")
-    if value["floor_id"] not in {"floor_two", "floor_three", "floor_four"}:
+    if value["floor_id"] not in {
+        "floor_two",
+        "floor_three",
+        "floor_four",
+        "floor_five",
+    }:
         raise ValueError("run event floor is invalid")
     if not _valid_event_part(value["node_id"]):
         raise ValueError("run event node_id is invalid")
@@ -2413,6 +2599,14 @@ def validate_run_event_history(
             )
             if actual_drops != expected_drops:
                 raise ValueError("Floor 4 drop evidence disagrees with authored content")
+        elif event["kind"] == "enemy_drop" and event["floor_id"] == "floor_five":
+            if node.encounter_id is None:
+                raise ValueError("Floor 5 drop evidence requires an encounter node")
+            encounter = get_encounter_spec(node.encounter_id)
+            if event["position"] >= len(encounter.enemy_archetype_ids):
+                raise ValueError("enemy-drop position exceeds encounter composition")
+            if event["result"]["entries"] or event["result"]["items"]:
+                raise ValueError("Floor 5 approach has no authored item drops")
         elif event["kind"] == "enemy_drop" and any(
             "source_id" in entry for entry in event["result"]["entries"]
         ):
@@ -2428,6 +2622,13 @@ def validate_run_event_history(
                 or node.encounter_id is None
             ):
                 raise ValueError("combat event references a non-encounter route node")
+            if event["floor_id"] == "floor_five" and event["kind"] == "encounter_rewards":
+                encounter = get_encounter_spec(node.encounter_id)
+                if (
+                    event["result"]["enemy_count"] != len(encounter.enemy_archetype_ids)
+                    or event["result"]["items"]
+                ):
+                    raise ValueError("Floor 5 reward evidence disagrees with authored encounter")
         elif event["kind"] == "discovery_search":
             result = event["result"]
             try:

@@ -66,6 +66,12 @@ EXPECTED_ENCOUNTER_IDS = (
     "dungeon_goblin_quad",
     "dungeon_goblin_trio",
     "floor_two_cave_in",
+    "m8_floor_five_encounter_01",
+    "m8_floor_five_encounter_02",
+    "m8_floor_five_encounter_03",
+    "m8_floor_five_encounter_04",
+    "m8_floor_five_encounter_05",
+    "m8_floor_five_encounter_06",
     "m8_floor_four_encounter_01",
     "m8_floor_four_encounter_02",
     "m8_floor_four_encounter_03",
@@ -86,6 +92,7 @@ EXPECTED_ENCOUNTER_IDS = (
     "surface_warrior_solo",
 )
 EXPECTED_ROUTE_IDS = (
+    "floor_five_approach",
     "floor_four",
     "floor_one",
     "floor_three",

@@ -358,7 +358,13 @@ class OverworldPresenter:
             location_label=(
                 node.display_label
                 if game_state.overworld_state.active_route_id
-                in {"floor_one", "floor_two", "floor_three", "floor_four"}
+                in {
+                    "floor_one",
+                    "floor_two",
+                    "floor_three",
+                    "floor_four",
+                    "floor_five_approach",
+                }
                 and game_state.party_state.phase
                 in {DungeonPhase.OUTING, DungeonPhase.EXTRACTION}
                 else (
@@ -963,6 +969,11 @@ class OverworldPresenter:
             return (
                 "The Tidebound Curator's victory is saved. Finalize the Floor IV "
                 "clear to return to the Hub."
+            )
+        if game_state.floor_five_approach_settlement_pending:
+            return (
+                "The Ashen Vault approach victory is saved. Finalize the "
+                "approach to reveal the arena and return to the Hub."
             )
         if (
             game_state.overworld_state.active_route_id == "floor_two"
@@ -2183,7 +2194,14 @@ class OverworldPresenter:
         enabled = self._enabled_option
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
-            if game_state.floor_four_boss_settlement_pending:
+            if game_state.floor_five_approach_settlement_pending:
+                settlement_action = (
+                    enabled(
+                        OverworldAction.FINALIZE_FLOOR_FIVE_APPROACH,
+                        "Finalize Ashen Vault Approach",
+                    ),
+                )
+            elif game_state.floor_four_boss_settlement_pending:
                 settlement_action = (
                     enabled(
                         OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR,
@@ -2599,6 +2617,7 @@ class OverworldPresenter:
                 "floor_two",
                 "floor_three",
                 "floor_four",
+                "floor_five_approach",
             }:
                 discovery_actions = ()
                 helper_action = ()
@@ -2701,12 +2720,19 @@ class OverworldPresenter:
         party_state = game_state.party_state
         if (
             game_state.overworld_state.active_route_id
-            in {"floor_one", "floor_two", "floor_three", "floor_four"}
+            in {
+                "floor_one",
+                "floor_two",
+                "floor_three",
+                "floor_four",
+                "floor_five_approach",
+            }
             and party_state.phase is DungeonPhase.OUTING
             and party_state.carried_items.get("return_talisman", 0) > 0
             and not game_state.floor_two_boss_settlement_pending
             and not game_state.floor_three_boss_settlement_pending
             and not game_state.floor_four_boss_settlement_pending
+            and not game_state.floor_five_approach_settlement_pending
         ):
             return (
                 self._enabled_option(
@@ -2745,6 +2771,7 @@ class OverworldPresenter:
             game_state.floor_two_boss_settlement_pending
             or game_state.floor_three_boss_settlement_pending
             or game_state.floor_four_boss_settlement_pending
+            or game_state.floor_five_approach_settlement_pending
         ):
             return None
         phase = game_state.overworld_state.current_contextual_route_phase

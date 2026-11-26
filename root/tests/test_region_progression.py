@@ -113,7 +113,7 @@ def test_existing_floor_prerequisites_and_route_availability_are_authoritative()
     assert destination_availability(four_member, "floor_three").enabled
 
 
-def test_floor_four_requires_its_prerequisites_and_floor_five_remains_unavailable():
+def test_ashen_vault_requires_floor_four_clear_and_rumored_knowledge():
     game = _four_member_game()
     party = game.party_state
     party._floor_three_cleared = True
@@ -129,13 +129,19 @@ def test_floor_four_requires_its_prerequisites_and_floor_five_remains_unavailabl
         destination = destination_availability(game, "drowned_reliquary")
         assert destination.enabled
 
-    party._floor_four_cleared = True
     game.story_state.reveal_knowledge_fact(
         "m8_fact_ashen_vault", KnowledgeStatus.RUMORED
     )
     ashen_vault = destination_availability(game, "ashen_vault")
     assert not ashen_vault.enabled
-    assert "route" in ashen_vault.reason.lower()
+    assert "floor iv" in ashen_vault.reason.lower()
+
+    party._floor_four_cleared = True
+    ashen_vault = destination_availability(game, "ashen_vault")
+    assert ashen_vault.enabled
+
+    game.story_state._knowledge_facts.pop("m8_fact_ashen_vault")
+    assert not destination_availability(game, "ashen_vault").visible
 
 
 def test_briefing_requires_floor_three_clear_and_four_permanent_recruits():

@@ -104,6 +104,7 @@ def test_game_snapshot_has_required_shape_and_schema_version():
         "floor_four_runs_started_after_clear": 0,
         "floor_four_run_id": None,
         "floor_four_outing_xp_multiplier_percent": 100,
+        "floor_five_approach_run_id": None,
         "hub_economy": game_state.party_state.hub_economy,
     }
     assert snapshot["player"]["gold"] == 12

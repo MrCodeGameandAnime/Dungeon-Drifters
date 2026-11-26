@@ -367,6 +367,8 @@ async function clickVisibleOption(page, containerSelector, label) {
     .getByText(label, { exact: true })
     .locator("xpath=ancestor::button[1]");
   const deadline = Date.now() + 3000;
+  const timeline = [];
+  let previousSnapshot = null;
   while (Date.now() < deadline) {
     try {
       if (await button.count() && await button.isEnabled()) {
@@ -376,6 +378,38 @@ async function clickVisibleOption(page, containerSelector, label) {
     } catch (error) {
       if (error.name !== "TimeoutError") {
         throw error;
+      }
+    }
+    if (label === "Recover") {
+      const snapshot = await page.evaluate(() => {
+        const key = "dungeon-drifters.profile.v1.d4d4d4d4-0000-4000-8000-000000000001";
+        let savedRoute = null;
+        try {
+          const payload = JSON.parse(localStorage.getItem(key)).payload;
+          savedRoute = {
+            phase: payload.party.phase,
+            routeId: payload.overworld.active_route_id,
+            routeNodeId: payload.overworld.current_route_node_id,
+            routePhase: payload.overworld.current_contextual_route_phase,
+            resolvedRestNodeIds: payload.overworld.resolved_rest_node_ids,
+          };
+        } catch (error) {
+          savedRoute = { error: String(error) };
+        }
+        const labels = (selector) => [...document.querySelectorAll(`${selector} button`)]
+          .map((item) => item.querySelector(".choice-label")?.textContent?.trim() || item.textContent.trim());
+        return {
+          badge: document.getElementById("screen-badge")?.textContent?.trim() || "",
+          location: document.getElementById("location-label")?.textContent?.trim() || "",
+          routeActions: labels("#route-actions"),
+          overworldOptions: labels("#overworld-options"),
+          savedRoute,
+        };
+      });
+      const serialized = JSON.stringify(snapshot);
+      if (serialized !== previousSnapshot) {
+        timeline.push({ elapsedMs: Date.now() - (deadline - 3000), ...snapshot });
+        previousSnapshot = serialized;
       }
     }
     await page.waitForTimeout(50);
@@ -406,13 +440,14 @@ async function clickVisibleOption(page, containerSelector, label) {
     return {
       url: location.href,
       badge: document.getElementById("screen-badge")?.textContent?.trim() || "",
+      location: document.getElementById("location-label")?.textContent?.trim() || "",
       notice: document.getElementById("notice")?.textContent?.trim() || "",
       buttons,
       save,
     };
   }, { selector: containerSelector });
   throw new Error(
-    `offered control not found: ${label} in ${containerSelector}; state=${JSON.stringify(state)}`,
+    `offered control not found: ${label} in ${containerSelector}; state=${JSON.stringify(state)}; timeline=${JSON.stringify(timeline)}; pageErrors=${JSON.stringify(errors)}; pendingRequests=${JSON.stringify([...pendingRequests.values()])}`,
   );
 }
 
@@ -3983,9 +4018,13 @@ try {
       && outcome.badge === "HUB"
       && clearMessage !== undefined
       && outcome.adventure.includes(clearMessage);
+    const floorFiveApproachVictory = floorLabel === "Floor V" &&
+      battleNumber === 6 &&
+      outcome.badge === "HUB" &&
+      outcome.adventure.includes("The Ashen Vault approach is complete.");
     requireCondition(
       outcome.badge !== "DRIFTER SELECTION"
-        && (outcome.badge !== "HUB" || bossVictory),
+        && (outcome.badge !== "HUB" || bossVictory || floorFiveApproachVictory),
       `${floorLabel} Battle ${battleNumber} did not advance: ${JSON.stringify(outcome)}`,
     );
     floorTwoBattleLogs.set(battleNumber, outcome.battleLog);
@@ -5101,6 +5140,170 @@ try {
     `Floor IV boss settlement did not persist clear, one Crystal, and Ashen Vault rumor: ${JSON.stringify(floorFourClearEvidence)}`,
   );
   console.log("M8.3_BROWSER|FLOOR_FOUR_BOSS_CLEAR_AND_REWARDS|PASS");
+
+  await clickVisibleOption(page, "#overworld-options", "Region Portal");
+  await clickVisibleOption(page, "#region-choices", "Region 1");
+  await page.locator("#screen-badge").filter({ hasText: "DESTINATIONS" }).waitFor({ state: "visible" });
+  const ashenVaultChoice = page.locator("#region-choices button")
+    .filter({ hasText: "Ashen Vault" });
+  requireCondition(
+    await ashenVaultChoice.count() === 1 && await ashenVaultChoice.isEnabled(),
+    "The Floor IV clear and Ashen Vault rumor did not enable the Floor V approach",
+  );
+  await ashenVaultChoice.click();
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  requireCondition(
+    await page.locator("#party-members .party-member").count() === 2 &&
+      await page.locator("#enemy-panel .enemy").count() === 2,
+    "Ashen Vault did not begin with its authored two-member first encounter",
+  );
+  const floorFiveEntryEvidence = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      activeRoute: payload.overworld.active_route_id,
+      runId: payload.party.floor_five_approach_run_id,
+      knowledge: payload.story.knowledge_facts.m8_fact_ashen_vault,
+      floorFiveCleared: payload.party.floor_five_cleared,
+      regionTwoUnlocked: payload.party.region_two_unlocked,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFiveEntryEvidence.activeRoute === "floor_five_approach" &&
+      Boolean(floorFiveEntryEvidence.runId) &&
+      floorFiveEntryEvidence.knowledge === "confirmed" &&
+      floorFiveEntryEvidence.floorFiveCleared === false &&
+      floorFiveEntryEvidence.regionTwoUnlocked === false,
+    `Ashen Vault entry persisted invalid route or progression evidence: ${JSON.stringify(floorFiveEntryEvidence)}`,
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 1; battleNumber <= 3; battleNumber += 1) {
+    if (battleNumber > 1) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor V" });
+  }
+  await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+  await clickVisibleOption(page, "#overworld-options", "Search Site");
+  await page.locator("#discovery-selection").waitFor({ state: "visible" });
+  const floorFiveSearchers = page.locator("#discovery-choices button");
+  requireCondition(
+    await floorFiveSearchers.count() === 2,
+    "Floor V Spirit Relic did not offer exactly the active pair as searchers",
+  );
+  await floorFiveSearchers.first().click();
+  await page.waitForFunction(() => ["CLAIM DISCOVERY", "REST"].includes(
+    document.getElementById("screen-badge").textContent.trim(),
+  ));
+  const floorFiveSearchEvidence = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    const event = payload.party.resolved_run_events.find(
+      (entry) => entry.kind === "discovery_search" &&
+        entry.floor_id === "floor_five" &&
+        entry.node_id === "floor_five_rest_midpoint",
+    );
+    return event ? {
+      sourceId: event.result.source_id,
+      found: event.result.found,
+      searcherId: event.result.searcher_drifter_id,
+      activeIds: payload.party.active_drifter_ids,
+    } : null;
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFiveSearchEvidence?.sourceId === "spirit_relic_floor5_01" &&
+      typeof floorFiveSearchEvidence.found === "boolean" &&
+      floorFiveSearchEvidence.activeIds.includes(floorFiveSearchEvidence.searcherId),
+    `Floor V search did not persist its authored active-Drifter outcome: ${JSON.stringify(floorFiveSearchEvidence)}`,
+  );
+  let floorFiveRelicClaimed = false;
+  if (floorFiveSearchEvidence.found) {
+    await page.locator("#screen-badge").filter({ hasText: "CLAIM DISCOVERY" }).waitFor({ state: "visible" });
+    const floorFiveTargets = page.locator("#discovery-choices button");
+    requireCondition(
+      await floorFiveTargets.count() === 2,
+      "Floor V Spirit Relic offered a non-active target",
+    );
+    await floorFiveTargets.nth(1).click();
+    await page.locator("#screen-badge").filter({ hasText: "CONFIRM DISCOVERY" }).waitFor({ state: "visible" });
+    await clickVisibleOption(page, "#overworld-options", "Confirm");
+    await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
+    const claims = await page.evaluate((key) =>
+      JSON.parse(localStorage.getItem(key)).payload.world.permanent_discovery_claims || [],
+    floorTwoProfileKey);
+    floorFiveRelicClaimed = claims.includes("spirit_relic_floor5_01");
+    requireCondition(
+      floorFiveRelicClaimed,
+      `Floor V Spirit Relic claim was not persisted: ${JSON.stringify(claims)}`,
+    );
+  }
+  await clickVisibleOption(page, "#overworld-options", "Save");
+  await page.locator("#notice").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__DD_BROWSER_READY__ === true, null, {
+    timeout: 120000,
+  });
+  await continueSavedGameAfterReload(page);
+  const floorFiveMidpointAfterReload = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    const event = payload.party.resolved_run_events.find(
+      (entry) => entry.kind === "discovery_search" &&
+        entry.floor_id === "floor_five" &&
+        entry.node_id === "floor_five_rest_midpoint",
+    );
+    return {
+      route: payload.overworld.active_route_id,
+      node: payload.overworld.current_route_node_id,
+      sourceId: event?.result?.source_id,
+      claimed: (payload.world.permanent_discovery_claims || []).includes(
+        "spirit_relic_floor5_01",
+      ),
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    await page.locator("#screen-badge").innerText() === "REST" &&
+      floorFiveMidpointAfterReload.route === "floor_five_approach" &&
+      floorFiveMidpointAfterReload.node === "floor_five_rest_midpoint" &&
+      floorFiveMidpointAfterReload.sourceId === "spirit_relic_floor5_01" &&
+      floorFiveMidpointAfterReload.claimed === floorFiveRelicClaimed,
+    `Floor V midpoint and Relic evidence did not survive reload: ${JSON.stringify(floorFiveMidpointAfterReload)}`,
+  );
+  await clickVisibleOption(page, "#overworld-options", "Recover");
+  await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+  await page.locator("#party-panel").waitFor({ state: "visible" });
+  for (let battleNumber = 4; battleNumber <= 6; battleNumber += 1) {
+    if (battleNumber > 4) {
+      await clickVisibleOption(page, "#route-actions", "Enter Encounter");
+      await page.locator("#party-panel").waitFor({ state: "visible" });
+    }
+    await clearFloorBattle(battleNumber, { floorLabel: "Floor V" });
+  }
+  const floorFiveBrowserSettlement = await page.evaluate((key) => {
+    const payload = JSON.parse(localStorage.getItem(key)).payload;
+    return {
+      route: payload.overworld.active_route_id,
+      phase: payload.party.phase,
+      arenaRevealed: payload.story.completed_events.includes("m8_ashen_arena_revealed"),
+      approachRunId: payload.party.floor_five_approach_run_id,
+      floorFiveCleared: payload.party.floor_five_cleared,
+      regionTwoUnlocked: payload.party.region_two_unlocked,
+    };
+  }, floorTwoProfileKey);
+  requireCondition(
+    floorFiveBrowserSettlement.route === "surface" &&
+      floorFiveBrowserSettlement.phase === "hub" &&
+      floorFiveBrowserSettlement.arenaRevealed === true &&
+      floorFiveBrowserSettlement.approachRunId === null &&
+      floorFiveBrowserSettlement.floorFiveCleared === false &&
+      floorFiveBrowserSettlement.regionTwoUnlocked === false,
+    `Floor V approach did not atomically return and reveal only its arena: ${JSON.stringify(floorFiveBrowserSettlement)}`,
+  );
+  console.log("M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS");
 
   const runM8DiscoveryBrowserJourney = async ({
     fixtureName,

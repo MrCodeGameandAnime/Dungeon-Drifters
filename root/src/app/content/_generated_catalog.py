@@ -21,6 +21,12 @@ from app.content.drifters.zhaivra.drifter import DRIFTER as zhaivra_drifter
 from app.content.encounters.dungeon_goblin_quad.encounter import ENCOUNTER as dungeon_goblin_quad_encounter
 from app.content.encounters.dungeon_goblin_trio.encounter import ENCOUNTER as dungeon_goblin_trio_encounter
 from app.content.encounters.floor_two_cave_in.encounter import ENCOUNTER as floor_two_cave_in_encounter
+from app.content.encounters.m8_floor_five_encounter_01.encounter import ENCOUNTER as m8_floor_five_encounter_01_encounter
+from app.content.encounters.m8_floor_five_encounter_02.encounter import ENCOUNTER as m8_floor_five_encounter_02_encounter
+from app.content.encounters.m8_floor_five_encounter_03.encounter import ENCOUNTER as m8_floor_five_encounter_03_encounter
+from app.content.encounters.m8_floor_five_encounter_04.encounter import ENCOUNTER as m8_floor_five_encounter_04_encounter
+from app.content.encounters.m8_floor_five_encounter_05.encounter import ENCOUNTER as m8_floor_five_encounter_05_encounter
+from app.content.encounters.m8_floor_five_encounter_06.encounter import ENCOUNTER as m8_floor_five_encounter_06_encounter
 from app.content.encounters.m8_floor_four_encounter_01.encounter import ENCOUNTER as m8_floor_four_encounter_01_encounter
 from app.content.encounters.m8_floor_four_encounter_02.encounter import ENCOUNTER as m8_floor_four_encounter_02_encounter
 from app.content.encounters.m8_floor_four_encounter_03.encounter import ENCOUNTER as m8_floor_four_encounter_03_encounter
@@ -39,6 +45,7 @@ from app.content.encounters.surface_shaman_pair.encounter import ENCOUNTER as su
 from app.content.encounters.surface_shaman_solo.encounter import ENCOUNTER as surface_shaman_solo_encounter
 from app.content.encounters.surface_warrior_pair.encounter import ENCOUNTER as surface_warrior_pair_encounter
 from app.content.encounters.surface_warrior_solo.encounter import ENCOUNTER as surface_warrior_solo_encounter
+from app.content.routes.floor_five_approach.route import ROUTE as floor_five_approach_route
 from app.content.routes.floor_four.route import ROUTE as floor_four_route
 from app.content.routes.floor_one.route import ROUTE as floor_one_route
 from app.content.routes.floor_three.route import ROUTE as floor_three_route
@@ -83,6 +90,12 @@ GENERATED_ENCOUNTER_SPECS = (
     ("dungeon_goblin_quad", dungeon_goblin_quad_encounter),
     ("dungeon_goblin_trio", dungeon_goblin_trio_encounter),
     ("floor_two_cave_in", floor_two_cave_in_encounter),
+    ("m8_floor_five_encounter_01", m8_floor_five_encounter_01_encounter),
+    ("m8_floor_five_encounter_02", m8_floor_five_encounter_02_encounter),
+    ("m8_floor_five_encounter_03", m8_floor_five_encounter_03_encounter),
+    ("m8_floor_five_encounter_04", m8_floor_five_encounter_04_encounter),
+    ("m8_floor_five_encounter_05", m8_floor_five_encounter_05_encounter),
+    ("m8_floor_five_encounter_06", m8_floor_five_encounter_06_encounter),
     ("m8_floor_four_encounter_01", m8_floor_four_encounter_01_encounter),
     ("m8_floor_four_encounter_02", m8_floor_four_encounter_02_encounter),
     ("m8_floor_four_encounter_03", m8_floor_four_encounter_03_encounter),
@@ -105,6 +118,7 @@ GENERATED_ENCOUNTER_SPECS = (
 
 
 GENERATED_ROUTE_SPECS = (
+    ("floor_five_approach", floor_five_approach_route),
     ("floor_four", floor_four_route),
     ("floor_one", floor_one_route),
     ("floor_three", floor_three_route),

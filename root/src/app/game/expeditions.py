@@ -223,13 +223,17 @@ class ExpeditionService:
                     )
             now = _utc_second(self._now_factory())
             candidate = game_state.clone()
-            if outing_floor_id == "floor_four":
+            if outing_floor_id in {"floor_four", FLOOR_FIVE_APPROACH_OUTING_ID}:
                 from app.game.region_progression import (
                     confirm_destination_entry,
                     destination_availability,
                 )
 
-                destination_id = "drowned_reliquary"
+                destination_id = (
+                    "drowned_reliquary"
+                    if outing_floor_id == "floor_four"
+                    else "ashen_vault"
+                )
                 availability = destination_availability(
                     candidate, destination_id
                 )
@@ -254,6 +258,10 @@ class ExpeditionService:
                 )
             elif outing_floor_id == "floor_four":
                 candidate.party_state.start_floor_four_run(
+                    run_id_factory=self._run_id_factory
+                )
+            elif outing_floor_id == FLOOR_FIVE_APPROACH_OUTING_ID:
+                candidate.party_state.start_floor_five_approach_run(
                     run_id_factory=self._run_id_factory
                 )
             else:

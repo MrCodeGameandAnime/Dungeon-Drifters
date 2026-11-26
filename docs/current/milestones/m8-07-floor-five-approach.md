@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Proposed work package. Regional architecture, the complete M8-D1 Floor-V manifest, M8-D3 fact/reveal mapping, and M8-D5 are approved. Package implementation planning remains open; no implementation is authorized.
+**Status:** Implementation and local qualification in progress under the approved M8.7 authorization. The route, discovery placement, settlement, schema migration, tests, and real-browser journey are implemented. Exact-SHA hosted qualification and independent review remain open; do not start M8.8 until M8.7 is accepted.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -41,13 +41,15 @@ M8.7 owns the live Spirit Relic test for the approved source ID and placement. U
 
 Test all six encounters and route order, all legal pairs, midway Rest/search/save/reload, source idempotency, assignment coexistence as approved by D5, final victory vs defeat/extraction/save failure, no premature arena option, reload/retry, and terminal/browser parity.
 
-- **Gate A, plan approval:** Open; review the route implementation/persistence plan and upstream M8.4/M8.5 integration contracts. D1 content/source entries and D3 mappings are approved; M8-D5 remains a fixed boundary.
-- **Gate B, implementation and focused tests:** Not started; route, reveal, discovery-placement and settlement red/green tests.
-- **Gate C, exact-SHA qualification and closure:** Not run; root/web, content, compile/build, real browser smoke, PostgreSQL/migration/Alembic and pinned MicroPython.
+- **Gate A, plan approval:** Authorized by the M8.7 implementation authorization; D1 content/source entries, D3 mappings, and M8-D5 remain fixed.
+- **Gate B, implementation and focused tests:** Implemented; route, reveal, discovery placement, failure/retry, expedition coexistence, migration, and browser journeys have focused coverage.
+- **Gate C, exact-SHA qualification and closure:** Open; local cumulative checks are recorded below. Hosted CI and independent adversarial review are pending.
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Not implemented | Not run | Not run | Pending | Open |
+| Candidate implementation (commit pending) | Exact-SHA hosted CI pending | Exact pinned Windows MicroPython v1.29.0, 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`: CPython 3.12.14 native and forced overlay, MicroPython default, and semantic parity passed; 1408 KiB stable 3/3; 1216 KiB expected memory limit 3/3; `MYP20|RESULT|CLOSURE_COMPLETE`. | Pending | Open |
+
+Local cumulative checks on the pre-commit candidate: **2,679 root tests passed; 12 compatibility tests failed** because the local CPython 3.12.14 runtime lacks `annotationlib` (the hosted workflow uses Python 3.14); **96 web tests passed**. Authored-content validation passed (10 enemies, 4 weapons, 4 Drifters, 27 encounters, 6 routes, 3 recruitment events), Python compilation passed, the browser build packaged 209 runtime files, and the full Playwright smoke exited 0 with `M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS`. `git diff --check` passed. Local PostgreSQL, migration-from-zero, and Alembic checks could not run because the Docker engine was unavailable; exact-SHA hosted qualification is pending. The pinned MicroPython matrix is recorded above.
 
 Require independent review and record CI/closure evidence.
 

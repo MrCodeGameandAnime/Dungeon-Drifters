@@ -17,12 +17,21 @@ FLOOR_FOUR_RUN_PARTY_FIELDS = (
     "floor_four_run_id",
     "floor_four_outing_xp_multiplier_percent",
 )
+FLOOR_FIVE_APPROACH_PARTY_FIELDS = ("floor_five_approach_run_id",)
 
 
 def remove_floor_four_run_state(payload):
     party = payload.get("party")
     if isinstance(party, dict):
         for field in FLOOR_FOUR_RUN_PARTY_FIELDS:
+            party.pop(field, None)
+    return payload
+
+
+def remove_floor_five_approach_run_state(payload):
+    party = payload.get("party")
+    if isinstance(party, dict):
+        for field in FLOOR_FIVE_APPROACH_PARTY_FIELDS:
             party.pop(field, None)
     return payload
 
@@ -35,7 +44,8 @@ def remove_region_progression_state(payload):
     story = payload.get("story")
     if isinstance(story, dict):
         story.pop("knowledge_facts", None)
-    return remove_floor_four_run_state(payload)
+    remove_floor_four_run_state(payload)
+    return remove_floor_five_approach_run_state(payload)
 
 
 def make_test_save_port(legacy_path):

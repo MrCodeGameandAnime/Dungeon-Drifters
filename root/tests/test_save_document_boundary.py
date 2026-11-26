@@ -23,7 +23,10 @@ from app.persistence.save_document import (
 )
 from app.player.player_state import PlayerState
 from game_test_support import completed_hub_game, hub_game
-from tests.persistence_test_support import remove_floor_four_run_state
+from tests.persistence_test_support import (
+    remove_floor_five_approach_run_state,
+    remove_floor_four_run_state,
+)
 
 
 def test_current_schema_rejects_non_string_knowledge_status():
@@ -97,7 +100,7 @@ def test_carried_supplies_survive_current_save_round_trip():
     document = build_save_document(game_state)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert restored.party_state.carried_items == {"healing_potion": 1}
     assert restored.party_state.shared_items == {"healing_potion": 1}
 
@@ -116,12 +119,13 @@ def test_schema23_save_migrates_expedition_defaults_without_mutating_source():
         schema23["party"].pop(field)
     schema23["story"].pop("knowledge_facts")
     remove_floor_four_run_state(schema23)
+    remove_floor_five_approach_run_state(schema23)
     original = json.loads(json.dumps(schema23))
 
     migrated = validate_save_document(schema23)
     restored = reconstruct_game_state(schema23)
 
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert migrated["expedition"] == {
         "energy": 100,
         "energy_anchor_utc": None,
@@ -136,6 +140,7 @@ def test_schema26_migrates_floor_four_run_defaults_without_mutating_history():
     historical = build_save_document(completed_hub_game())
     historical["schema_version"] = 26
     remove_floor_four_run_state(historical)
+    remove_floor_five_approach_run_state(historical)
     original = json.loads(json.dumps(historical))
 
     assert validate_profile_payload(historical) == original
@@ -143,7 +148,7 @@ def test_schema26_migrates_floor_four_run_defaults_without_mutating_history():
     restored = reconstruct_game_state(historical)
 
     assert historical == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert migrated["party"]["floor_four_runs_started_after_clear"] == 0
     assert migrated["party"]["floor_four_run_id"] is None
     assert migrated["party"]["floor_four_outing_xp_multiplier_percent"] == 100
@@ -215,6 +220,7 @@ def test_schema13_migration_adds_empty_pack_without_mutating_source():
     schema13["world"].pop("permanent_discovery_claims")
     schema13["world"].pop("discovered_permanent_discovery_sources")
     remove_floor_four_run_state(schema13)
+    remove_floor_five_approach_run_state(schema13)
     for field in (
         "floor_two_cleared",
         "floor_two_runs_started_after_clear",

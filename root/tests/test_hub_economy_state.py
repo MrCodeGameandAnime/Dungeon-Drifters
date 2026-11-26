@@ -43,6 +43,7 @@ def _schema24(document):
         "floor_four_runs_started_after_clear",
         "floor_four_run_id",
         "floor_four_outing_xp_multiplier_percent",
+        "floor_five_approach_run_id",
     ):
         legacy["party"].pop(key)
     legacy["story"].pop("knowledge_facts")
@@ -61,7 +62,7 @@ def test_hub_economy_state_round_trips_with_current_save():
 
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert set(restored.party_state.hub_economy["vendor_stock"]) == {
         "merchant",
         "blacksmith",
@@ -84,7 +85,7 @@ def test_m8_component_stacks_round_trip_without_a_save_schema_change():
     document = build_save_document(game)
     restored = reconstruct_game_state(document)
 
-    assert document["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert document["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert restored.party_state.hub_economy_state.component_quantity(component_id) == 2
 
 
@@ -169,7 +170,7 @@ def test_schema24_migration_backfills_clears_and_converts_smoke_powder_once():
     normalized_again = validate_save_document(migrated)
 
     assert legacy == original
-    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 29
+    assert migrated["schema_version"] == DISK_SCHEMA_VERSION == 30
     assert migrated["party"]["shared_items"] == {
         "charcoal_dust": 5,
         "grade_i_magic_crystal": 1,
