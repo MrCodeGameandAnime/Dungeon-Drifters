@@ -390,6 +390,36 @@ def test_active_floor_five_run_rejects_cross_route_event_evidence(
         )
 
 
+@pytest.mark.parametrize(
+    ("active_route", "foreign_route"),
+    (("floor_five_reunion", "floor_five_approach"),
+     ("floor_five_approach", "floor_five_reunion")),
+)
+def test_record_run_event_rejects_foreign_route_without_mutating_history(
+    active_route,
+    foreign_route,
+):
+    states = {
+        "floor_five_approach": floor_five_approach_with_run_events,
+        "floor_five_reunion": floor_five_reunion_with_run_events,
+    }
+    active_party = states[active_route]().party_state
+    foreign_party = states[foreign_route]().party_state
+    foreign_events = rekey_run_events(
+        foreign_party.resolved_run_events,
+        source_run_id=foreign_party.active_run_id,
+        target_run_id=active_party.active_run_id,
+    )
+    existing_history = copy.deepcopy(active_party.resolved_run_events)
+
+    assert foreign_events
+    for event in foreign_events:
+        with pytest.raises(ValueError, match="other route"):
+            active_party.record_run_event(event)
+        assert active_party.resolved_run_events == existing_history
+        assert event not in active_party.resolved_run_events
+
+
 def test_schema30_approach_event_history_migrates_immutably_and_rejects_reunion_evidence():
     approach_state = floor_five_approach_with_run_events()
     historical = build_save_document(approach_state)
