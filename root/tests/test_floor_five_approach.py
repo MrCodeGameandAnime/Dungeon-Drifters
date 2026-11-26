@@ -68,6 +68,38 @@ class RecordingSavePort:
         return SaveLoadResult(status)
 
 
+class ReloadableRecordingSavePort:
+    def __init__(self, *, fail_on_save_calls=()):
+        self.save_calls = 0
+        self.fail_on_save_calls = set(fail_on_save_calls)
+        self.saved_states = []
+        self._committed_state = None
+
+    def inspect(self):
+        status = (
+            SaveLoadStatus.MISSING
+            if self._committed_state is None
+            else SaveLoadStatus.LOADED
+        )
+        return SaveLoadResult(status)
+
+    def load(self):
+        if self._committed_state is None:
+            return SaveLoadResult(SaveLoadStatus.MISSING)
+        return SaveLoadResult(
+            SaveLoadStatus.LOADED,
+            game_state=self._committed_state.clone(),
+        )
+
+    def save(self, game_state):
+        self.save_calls += 1
+        if self.save_calls in self.fail_on_save_calls:
+            return SaveLoadResult(SaveLoadStatus.INVALID)
+        self._committed_state = game_state.clone()
+        self.saved_states.append(self._committed_state.clone())
+        return SaveLoadResult(SaveLoadStatus.SAVED)
+
+
 class ValidatingSavePort(RecordingSavePort):
     def save(self, game_state):
         validate_save_document(build_save_document(game_state))
@@ -246,6 +278,15 @@ def _advance_to_floor_five_midpoint(session):
         "floor_five_rest_midpoint"
     )
     assert session.current_view().screen is OverworldScreen.REST
+
+
+def _total_experience(member):
+    from app.player.progression import xp_required_for_next_level
+
+    return member.exp_state.current + sum(
+        xp_required_for_next_level(level)
+        for level in range(1, member.level_state.current)
+    )
 
 
 def test_floor_five_midpoint_spirit_relic_claims_three_gp_once_for_one_active_target():
@@ -470,12 +511,182 @@ def test_floor_five_defeat_and_extraction_do_not_reveal_arena():
     extraction_session.submit(ChooseRegion("region_1"))
     extraction_session.submit(ChooseDestination("ashen_vault"))
     _advance_to_floor_five_midpoint(extraction_session)
-    extraction_session.submit(ChooseOverworldAction(OverworldAction.REST))
     extraction_session.submit(ChooseOverworldAction(OverworldAction.EXTRACT))
+    assert extraction_session.current_view().screen is OverworldScreen.EXTRACTION
     extraction_session.submit(ChooseOverworldAction(OverworldAction.RETURN_TO_HUB))
+    assert extraction_session.game_state.party_state.phase.value == "hub"
+    assert extraction_session.game_state.party_state.floor_five_approach_run_id is None
     assert M8_ASHEN_ARENA_REVEALED_EVENT_ID not in (
         extraction_session.game_state.story_state.completed_events
     )
+
+
+def test_floor_five_midpoint_extraction_rolls_back_retries_and_settles_expedition():
+    from datetime import datetime, timedelta, timezone
+    from uuid import UUID
+
+    from app.game.expeditions import ExpeditionLaunchStatus
+
+    started = datetime(2026, 11, 26, 12, tzinfo=timezone.utc)
+    clock = [started]
+    port = ReloadableRecordingSavePort()
+    game = floor_five_ready_game()
+    game.party_state.add_shared_items({"healing_potion": 2})
+    assert game.party_state.load_carried_supplies({"healing_potion": 2})
+    from app.game.expeditions import ExpeditionService
+
+    launched = ExpeditionService(
+        port,
+        now_factory=lambda: clock[0],
+        assignment_id_factory=lambda: UUID(
+            "00000000-0000-4000-8000-000000000872"
+        ),
+        run_id_factory=lambda: "floor-five-extraction-expedition-872",
+    ).launch(
+        game,
+        outing_floor_id="floor_five_approach",
+        destination_floor_id="floor_four",
+        category="training",
+        confirmed=True,
+    )
+    assert launched.status is ExpeditionLaunchStatus.LAUNCHED
+    session = make_session(
+        launched.game_state,
+        port,
+        now_factory=lambda: clock[0],
+    )
+    _advance_to_floor_five_midpoint(session)
+
+    state_before_extract = session.game_state.snapshot()
+    party_before_extract = session.game_state.party_state
+    active_ids = party_before_extract.active_drifter_ids
+    xp_before = {
+        drifter_id: _total_experience(
+            session.game_state.member_for_drifter_id(drifter_id)
+        )
+        for drifter_id in active_ids
+    }
+    expected = session.game_state.clone()
+    assert expected.party_state.begin_floor_five_approach_extraction(
+        partial=True
+    )
+    expected_payout = expected.party_state.outing_rewards
+    expected_xp_awards = expected.party_state.secured_xp_awards(
+        expected.active_party_members,
+        expected_payout.experience,
+    )
+    shared_items_before = dict(party_before_extract.shared_items)
+    carried_items_before = dict(party_before_extract.carried_items)
+    shared_gold_before = party_before_extract.shared_gold
+
+    clock[0] = started + timedelta(minutes=20)
+    port.fail_on_save_calls.add(port.save_calls + 1)
+    failed = session.submit(
+        ChooseOverworldAction(OverworldAction.EXTRACT)
+    )
+
+    assert failed.screen is OverworldScreen.REST
+    assert session.game_state.snapshot() == state_before_extract
+    assert session.game_state.party_state.floor_five_approach_run_id is not None
+    assert port.load().game_state.party_state.floor_five_approach_run_id is not None
+
+    extracted = session.submit(
+        ChooseOverworldAction(OverworldAction.EXTRACT)
+    )
+    assert extracted.screen is OverworldScreen.EXTRACTION
+    checkpoint = port.load().game_state
+    assert checkpoint.party_state.phase.value == "hub"
+    assert checkpoint.party_state.floor_five_approach_run_id is None
+    assert checkpoint.party_state.outing_rewards.experience == 0
+    assert checkpoint.party_state.outing_rewards.gold == 0
+    assert checkpoint.party_state.shared_gold == (
+        shared_gold_before + expected_payout.gold
+    )
+    for drifter_id, amount in zip(active_ids, expected_xp_awards):
+        assert _total_experience(
+            checkpoint.member_for_drifter_id(drifter_id)
+        ) == xp_before[drifter_id] + amount
+    expected_items = dict(shared_items_before)
+    for item_id, quantity in expected_payout.items.items():
+        expected_items[item_id] = expected_items.get(item_id, 0) + quantity
+    for item_id, quantity in carried_items_before.items():
+        expected_items[item_id] = expected_items.get(item_id, 0) + quantity
+    assert checkpoint.party_state.shared_items == expected_items
+    assert checkpoint.party_state.carried_items == {}
+    assert checkpoint.expedition_state.active_assignment is None
+    reports = checkpoint.expedition_state.reports
+    assert len(reports) == 1
+    assert reports[0]["secured_base_xp"] == expected_payout.experience
+    assert M8_ASHEN_ARENA_REVEALED_EVENT_ID not in (
+        checkpoint.story_state.completed_events
+    )
+    assert not checkpoint.party_state.floor_five_cleared
+    assert not checkpoint.party_state.region_two_unlocked
+
+    session.submit(ChooseOverworldAction(OverworldAction.RETURN_TO_HUB))
+    settled = port.load().game_state
+    assert settled.party_state.floor_five_approach_run_id is None
+    assert settled.party_state.shared_gold == checkpoint.party_state.shared_gold
+    assert settled.party_state.shared_items == checkpoint.party_state.shared_items
+    assert tuple(
+        settled.member_for_drifter_id(drifter_id).exp_state.current
+        for drifter_id in active_ids
+    ) == tuple(
+        checkpoint.member_for_drifter_id(drifter_id).exp_state.current
+        for drifter_id in active_ids
+    )
+    assert len(settled.expedition_state.reports) == 1
+    assert not settled.party_state.floor_five_cleared
+    assert not settled.party_state.region_two_unlocked
+    assert M8_ASHEN_ARENA_REVEALED_EVENT_ID not in (
+        settled.story_state.completed_events
+    )
+
+
+def test_floor_five_pending_settlement_can_be_reloaded_and_retried_in_terminal():
+    from app.ui.terminal_overworld_ui import TerminalOverworldUI
+
+    port = ReloadableRecordingSavePort()
+    session = make_session(floor_five_ready_game(), port)
+    session.submit(ChooseOverworldAction(OverworldAction.REGION_PORTAL))
+    session.submit(ChooseRegion("region_1"))
+    session.submit(ChooseDestination("ashen_vault"))
+    _advance_to_floor_five_midpoint(session)
+    session.submit(ChooseOverworldAction(OverworldAction.REST))
+    _defeat_current_encounter(session)
+    _defeat_current_encounter(session)
+    port.fail_on_save_calls.add(port.save_calls + 2)
+    _defeat_current_encounter(session)
+
+    assert session.game_state.floor_five_approach_settlement_pending
+    pending_view = session.current_view()
+    assert tuple(option.action for option in pending_view.options) == (
+        OverworldAction.FINALIZE_FLOOR_FIVE_APPROACH,
+    )
+
+    reloaded_state = port.load().game_state
+    retry_session = make_session(reloaded_state, port)
+    retry_view = retry_session.current_view()
+    output = []
+    terminal = TerminalOverworldUI(
+        input_func=lambda _prompt: "f",
+        output_func=output.append,
+        interactive=False,
+    )
+    terminal.render(retry_view)
+    assert "[F] Finalize Ashen Vault Approach" in "\n".join(output)
+    action = terminal.read_input(retry_view)
+    assert action.action is OverworldAction.FINALIZE_FLOOR_FIVE_APPROACH
+
+    retry_session.submit(action)
+    settled = retry_session.game_state
+    assert not settled.floor_five_approach_settlement_pending
+    assert settled.party_state.phase.value == "hub"
+    assert settled.story_state.completed_events.count(
+        M8_ASHEN_ARENA_REVEALED_EVENT_ID
+    ) == 1
+    assert not settled.party_state.floor_five_cleared
+    assert not settled.party_state.region_two_unlocked
 
 
 def test_floor_five_approach_can_run_with_a_passive_expedition():

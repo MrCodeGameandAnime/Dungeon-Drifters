@@ -1,6 +1,6 @@
 # M8.7: Ashen Vault, Floor V Approach
 
-**Status:** Implementation and local qualification in progress under the approved M8.7 authorization. The route, discovery placement, settlement, schema migration, tests, and real-browser journey are implemented. Exact-SHA hosted qualification and independent review remain open; do not start M8.8 until M8.7 is accepted.
+**Status:** Adversarial review corrections are implemented and locally qualified. Exact-SHA hosted qualification and owner review remain open; do not start M8.8 until M8.7 is accepted.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `29bab31cbfd3c24a0f6420a326bd5fd8b0e5d2dc`. Revalidate route and expedition owners at package entry.
 
@@ -47,9 +47,11 @@ Test all six encounters and route order, all legal pairs, midway Rest/search/sav
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Candidate implementation (commit pending) | Exact-SHA hosted CI pending | Exact pinned Windows MicroPython v1.29.0, 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`: CPython 3.12.14 native and forced overlay, MicroPython default, and semantic parity passed; 1408 KiB stable 3/3; 1216 KiB expected memory limit 3/3; `MYP20|RESULT|CLOSURE_COMPLETE`. | Pending | Open |
+| Review-correction candidate (commit pending) | Exact-SHA hosted CI pending | Exact pinned Windows MicroPython v1.29.0, 488,960 bytes, SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`: CPython 3.12.14 native and forced overlay, MicroPython default, and semantic parity passed; 1408 KiB stable 3/3; 1216 KiB expected memory limit 3/3; `MYP20|RESULT|CLOSURE_COMPLETE`. | Pending | Open |
 
-Local cumulative checks on the pre-commit candidate: **2,679 root tests passed; 12 compatibility tests failed** because the local CPython 3.12.14 runtime lacks `annotationlib` (the hosted workflow uses Python 3.14); **96 web tests passed**. Authored-content validation passed (10 enemies, 4 weapons, 4 Drifters, 27 encounters, 6 routes, 3 recruitment events), Python compilation passed, the browser build packaged 209 runtime files, and the full Playwright smoke exited 0 with `M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS`. `git diff --check` passed. Local PostgreSQL, migration-from-zero, and Alembic checks could not run because the Docker engine was unavailable; exact-SHA hosted qualification is pending. The pinned MicroPython matrix is recorded above.
+Review corrections: pre-schema-30 remote fixtures omit `floor_five_approach_run_id`, a schema-29 remote revision with a settled M8.5 report migrates to schema 30 without changing historical payload/digest, midpoint extraction now exercises direct Extract with save-failure rollback/retry and compatible expedition settlement, and terminal recovery exposes only the retry action.
+
+Local cumulative checks on the correction candidate: **2,681 root tests passed; 12 compatibility tests failed** because local CPython 3.12.14 lacks `annotationlib` (the hosted workflow uses Python 3.14); **96 web tests passed; 38 profile-service tests passed and 18 PostgreSQL-specific tests were skipped** because Docker was unavailable. Authored-content validation passed (10 enemies, 4 weapons, 4 Drifters, 27 encounters, 6 routes, 3 recruitment events), Python compilation passed, the browser build packaged 209 runtime files, and the full Playwright smoke exited 0 with `M8.7_BROWSER|APPROACH_RELIC_AND_ARENA_REVEAL|PASS`. `git diff --check` passed. Local PostgreSQL, migration-from-zero, and Alembic checks could not run because the Docker engine was unavailable; exact-SHA hosted qualification is pending. The pinned MicroPython matrix is recorded above.
 
 Require independent review and record CI/closure evidence.
 

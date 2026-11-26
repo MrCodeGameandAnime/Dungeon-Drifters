@@ -3256,6 +3256,7 @@ class OverworldSession:
                 "floor_two": party_state.begin_floor_two_extraction,
                 "floor_three": party_state.begin_floor_three_extraction,
                 "floor_four": party_state.begin_floor_four_extraction,
+                "floor_five_approach": party_state.begin_floor_five_approach_extraction,
             }[route_id]
             complete_extraction = {
                 "floor_one": party_state.complete_extraction,

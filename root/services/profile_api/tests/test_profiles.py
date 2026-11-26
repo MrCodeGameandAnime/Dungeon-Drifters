@@ -24,6 +24,7 @@ from conftest import (
     remove_m5_equipment_state,
     remove_m65_party_state,
     remove_m8_floor_four_run_state,
+    remove_m8_floor_five_approach_run_state,
     remove_m8_region_progression_state,
 )
 
@@ -85,7 +86,7 @@ def test_profile_claim_listing_and_head_read_are_account_scoped(service, valid_p
     assert hidden.json()["error"]["code"] == "not_found"
 
 
-def test_schema8_remote_head_remains_readable_and_advances_to_schema29(
+def test_schema8_remote_head_remains_readable_and_advances_to_schema30(
     service, valid_payload
 ):
     client, session_factory = service
@@ -97,6 +98,7 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema29(
     )
     legacy_payload = deepcopy(valid_payload)
     legacy_payload["schema_version"] = 8
+    remove_m8_floor_five_approach_run_state(legacy_payload)
     remove_m8_floor_four_run_state(legacy_payload)
     remove_m8_region_progression_state(legacy_payload)
     remove_m65_party_state(legacy_payload)
@@ -137,14 +139,14 @@ def test_schema8_remote_head_remains_readable_and_advances_to_schema29(
     assert legacy_head.json()["head"]["payload_sha256"] == legacy_digest
     assert advanced.status_code == 200
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 29
+    assert advanced.json()["head"]["payload"]["schema_version"] == 30
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == legacy_payload
         assert historical.payload_sha256 == legacy_digest
 
 
-def test_schema9_remote_head_advances_to_schema29_without_rewriting_history(
+def test_schema9_remote_head_advances_to_schema30_without_rewriting_history(
     service,
     valid_payload,
 ):
@@ -157,6 +159,7 @@ def test_schema9_remote_head_advances_to_schema29_without_rewriting_history(
     )
     legacy_payload = deepcopy(valid_payload)
     legacy_payload["schema_version"] = 9
+    remove_m8_floor_five_approach_run_state(legacy_payload)
     remove_m8_floor_four_run_state(legacy_payload)
     remove_m8_region_progression_state(legacy_payload)
     remove_m65_party_state(legacy_payload)
@@ -205,7 +208,7 @@ def test_schema9_remote_head_advances_to_schema29_without_rewriting_history(
     assert historical_head.json()["head"]["payload_sha256"] == legacy_digest
     assert advanced.status_code == 200
     assert advanced.json()["accepted_revision"] == 2
-    assert advanced.json()["head"]["payload"]["schema_version"] == 29
+    assert advanced.json()["head"]["payload"]["schema_version"] == 30
     with session_factory() as session:
         historical = session.get(ProfileRevision, (profile_id, 1))
         assert historical.payload == legacy_payload

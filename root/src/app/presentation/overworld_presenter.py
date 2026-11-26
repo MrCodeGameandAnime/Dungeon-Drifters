@@ -2195,13 +2195,13 @@ class OverworldPresenter:
         disabled = self._disabled_option
         if screen is OverworldScreen.MAIN:
             if game_state.floor_five_approach_settlement_pending:
-                settlement_action = (
+                return (
                     enabled(
                         OverworldAction.FINALIZE_FLOOR_FIVE_APPROACH,
                         "Finalize Ashen Vault Approach",
                     ),
                 )
-            elif game_state.floor_four_boss_settlement_pending:
+            if game_state.floor_four_boss_settlement_pending:
                 settlement_action = (
                     enabled(
                         OverworldAction.FINALIZE_FLOOR_FOUR_CLEAR,
