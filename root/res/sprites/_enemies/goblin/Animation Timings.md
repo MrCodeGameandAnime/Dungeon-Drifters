@@ -23,7 +23,7 @@ Frame numbers start at 1 and follow reading order from the top left. Cell sizes 
 - **Damage Reaction** plays once. Recoil peaks in frame 2 and settles to the canonical stance on frame 4. Resume idle at frame 1.
 - **Defeat** plays frames 1–5 once and holds frame 6 indefinitely. Frames 5 and 6 share the settled pose. The review GIF plays once and gives the final hold 2,400 ms of encoded duration. It then stays on its last frame.
 - **Combat Approach** plays frames 1–2 (200 ms), repeats 3–6 as needed (440 ms per cycle), then plays 7–8 (220 ms). Move the world pivot left. Frame 8 can lead directly into either attack or into idle.
-- **Combat Return** plays frames 1–2 (200 ms), repeats 3–6 as needed (480 ms per cycle), then plays 7–8 (240 ms). Move the world pivot right while keeping the sprite left-facing. Frame 8 returns to idle.
+- **Combat Return** plays frames 1–2 (200 ms), repeats 3–6 as needed (480 ms per cycle), then plays 7–8 (240 ms). Frame 1 starts in left-facing combat stance and frame 2 turns away in place. Frames 3–6 walk forward toward screen right in rear three-quarter view. Translate the world pivot right during these frames only. Frame 7 brakes and turns back in place, and frame 8 matches Combat Idle frame 1.
 
 - **Victory** loops frames 1–8. Frames 1–2 load the foot on screen right. Frame 3 hops onto the opposite foot, which lands in frame 4 and compresses in frame 5. Frame 6 hops back to the original foot, frame 7 lands, and frame 8 recovers into frame 1. Keep the world pivot fixed. The airborne poses already lift the lowest contact point 54 and 50 source pixels in frames 3 and 6 respectively. Apply no separate hop offset. The axe stays overhead throughout, with no strike cue or VFX.
 

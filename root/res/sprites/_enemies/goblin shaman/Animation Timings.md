@@ -28,7 +28,7 @@ Frame numbering starts at 1. Read sheets from left to right, then top to bottom.
 - **Damage Reaction** plays once. Briefly brace with the staff, then resume Combat Idle frame 1 after the neutral fourth frame.
 - **Defeat** plays once. Hold frame 6 indefinitely at the ground pivot. Frames 5 and 6 share the settled body and staff pose. The review GIF encodes a 2,400 ms final hold and ends on that frame.
 - **Combat Approach** enters on frames 1–2 (240 ms), repeats 3–6 (600 ms per cycle), and settles on 7–8 (270 ms). Move the world pivot left. The planted eighth frame can lead directly into Crooked Staff or Combat Idle.
-- **Combat Return** enters on frames 1–2 (260 ms), repeats 3–6 (640 ms per cycle), and settles on 7–8 (280 ms). Move the world pivot right while preserving the left-facing pose. Continue into Combat Idle frame 1.
+- **Combat Return** enters on frames 1–2 (260 ms), repeats 3–6 (640 ms per cycle), and settles on 7–8 (280 ms). Frame 1 starts in left-facing combat stance and frame 2 turns away in place. Frames 3–6 walk forward toward screen right in rear three-quarter view. Translate the world pivot right during these frames only. Frame 7 brakes and turns back in place, and frame 8 matches Combat Idle frame 1.
 - **Victory** loops frames 1–8 with a fixed world pivot. The staff lifts through the cackle, stamps at frame 6, and returns toward frame 1 after the recovery. The motion is contained in the artwork.
 
 ## Blight Spark charge landmarks

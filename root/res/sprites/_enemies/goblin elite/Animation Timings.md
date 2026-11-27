@@ -28,7 +28,7 @@ The labels and U+2019 apostrophes in Butcher’s Advance and Executioner’s Dro
 - **Damage Reaction** plays once with a grounded recoil and torso recovery. Frame 4 matches Combat Idle frame 1.
 - **Defeat** plays once and holds frame 6 indefinitely. Frames 5 and 6 share the settled pose. The preview encodes a 2,400 ms final hold and ends on that pose.
 - **Combat Approach** enters on frames 1–2 (240 ms), repeats 3–6 (560 ms per cycle), and settles on frames 7–8 (260 ms). Translate the pivot left. Frame 8 can lead into an attack or return to idle.
-- **Combat Return** enters on frames 1–2 (260 ms), repeats 3–6 (600 ms per cycle), and settles on frames 7–8 (280 ms). Translate the pivot right, preserving the original left-facing pose. Frame 8 leads into Combat Idle.
+- **Combat Return** enters on frames 1–2 (260 ms), repeats 3–6 (600 ms per cycle), and settles on frames 7–8 (280 ms). Frame 1 starts in left-facing combat stance and frame 2 turns away in place. Frames 3–6 walk forward toward screen right in rear three-quarter view. Translate the world pivot right during these frames only. Frame 7 brakes and turns back in place, and frame 8 matches Combat Idle frame 1.
 - **Victory** loops frames 1–8 around a fixed ground pivot. The free fist meets the breastplate on frames 3 and 6. The cleaver remains raised through the roar, hold and return. The contacts are celebration beats.
 
 ## Physical trails

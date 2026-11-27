@@ -23,7 +23,7 @@ Frames are numbered from 1 in reading order. All pivots are in source pixels fro
 - **Damage Reaction** plays once. The recoil peaks at frame 2. Frame 4 returns to neutral and leads into Combat Idle frame 1.
 - **Defeat** plays once and holds frame 6 indefinitely. Frames 5 and 6 share the final settled pose. The preview encodes 2,400 ms for frame 6 and finishes on it.
 - **Combat Approach** uses frames 1–2 (200 ms) for entry, repeats 3–6 (480 ms per cycle), and uses 7–8 (220 ms) to stop. Translate the world pivot left. Frame 8 leads into an attack or Combat Idle frame 1.
-- **Combat Return** uses frames 1–2 (200 ms) for entry, repeats 3–6 (480 ms per cycle), and uses 7–8 (240 ms) to stop. Translate the world pivot right while keeping the sprite left-facing. Frame 8 leads into Combat Idle frame 1.
+- **Combat Return** uses frames 1–2 (200 ms) for entry, repeats 3–6 (480 ms per cycle), and uses 7–8 (240 ms) to stop. Frame 1 starts in left-facing combat stance and frame 2 turns away in place. Frames 3–6 walk forward toward screen right in rear three-quarter view. Translate the world pivot right during these frames only. Frame 7 brakes and turns back in place, and frame 8 matches Combat Idle frame 1.
 - **Victory** repeats frames 1–8 continuously at a fixed pivot. The two rising beats land into the plate-weighted stance. Frame 8 returns toward the blade-raised opening pose. There is no attack cue.
 
 ## Effect timing and movement

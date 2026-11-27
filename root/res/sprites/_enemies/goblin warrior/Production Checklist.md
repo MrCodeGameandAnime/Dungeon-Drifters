@@ -10,7 +10,7 @@
 | [Damage Reaction](base/Damage%20Reaction.png) | 4 | Standing recoil and transition to neutral | Pass |
 | [Defeat](base/Defeat.png) | 6 | Collapse with intact blade and stable final pose | Pass |
 | [Combat Approach](base/Combat%20Approach.png) | 8 | Alternating support, planted brake and gait join | Pass |
-| [Combat Return](base/Combat%20Return.png) | 8 | Backward footwork, alternating support and gait join | Pass |
+| [Combat Return](base/Combat%20Return.png) | 8 | Turn away, forward rightward gait and turn back into Combat Idle | Pass |
 | [Victory](base/Victory.png) | 8 | Blade-raised stance, planted surges and loop join | Pass |
 | **Total** | **64** | **Eight base sheets and two independent effects** | |
 
@@ -21,5 +21,7 @@
 - **Artwork fidelity.** Combat Idle uses localized movement of the canonical pixels. The other distinctive action poses are reference-based redraws assembled around a shared scale and pivot. Serrations, hardware, and cloth details have minor frame-to-frame variation. The broad silhouette, weapon silhouette and handedness remain recognizable. Gait footfall can drift at a renderer-controlled speed different from the review preview.
 - **Automated PNG and transparency.** Confirmed exact grid dimensions, RGBA, all 64 cells, transparent padding, active alpha, clear final effect cells, and a byte-identical final defeat hold. Grounded base poses meet the registered baseline within one pixel. Idle feet and the shared neutral transitions were compared byte for byte. [Animation timings](Animation%20Timings.md) records pivots and synchronized release cues.
 - **Animated preview generation and decoding.** The sibling project support folder contains `Goblin Warrior Animation Review/Previews/index.html` and a per-file decode report. All 16 GIFs decoded at the expected durations. The gallery groups eight base and eight combined or playback demonstrations. Both strongest effect frames were checked against their documented release cues.
-- **Browser playback review.** Visually sampled Cleaver Strike with its trail, the Shieldbreaker lift, the forward and backward steps, the Victory loop, and the settled defeat hold. Inspected both release composites at their exact cue times separately.
+- **Browser playback review.** Visually sampled Cleaver Strike with its trail, the Shieldbreaker lift, the approach steps and the original return, the Victory loop, and the settled defeat hold. Inspected both release composites at their exact cue times separately.
 - **Sprite Pop and in-game verification.** Pending.
+
+The revised Combat Return sheet was inspected frame by frame and verified for cell size, transparent padding, and exact idle joins. The standalone and attack-to-return GIFs were regenerated and decoded.
