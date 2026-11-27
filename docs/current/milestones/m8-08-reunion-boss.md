@@ -1,6 +1,6 @@
 # M8.8: Floor V Reunion Boss And Full-Party Settlement
 
-**Status:** Implementation delivered; exact-SHA cumulative qualification is in progress. M8.8 remains open for owner review and is not sealed.
+**Status:** CLOSED AND SEALED at `742a47c9f748b6ee5fec468827f892d09cf7f1dc`. Owner approval, independent review, exact-SHA hosted CI, and fresh pinned MicroPython qualification are complete.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Sealed prerequisite:** M8.7 is CLOSED AND SEALED at `0fcd64347e7b2af5673e5ba9785b5bba5676edf8`, qualified by exact-SHA hosted CI [45832492446](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45832492446).
 
@@ -54,7 +54,7 @@ The Regent's Tier-3 profile can drop one Grade-IV Core at 10,000 bps from source
 
 ## Pinned Runtime Profile
 
-M8.8's pinned MicroPython v1.29.0 candidate was intermittent at 1408 KiB: 2/3 runs passed, while one failed allocating 584 bytes during `M4_FLOOR_THREE_PROBE`. At 1472 KiB, 3/3 runs passed; 1216 KiB produced the expected `MemoryError` at `SESSION_CONSTRUCTION` in 3/3 runs. The proposed M8.8 qualification profile is 1472 KiB stable / 1216 KiB expected memory limit. Per-run free/allocated heap measurements and the pinned executable identity are recorded in [probe notes](../../probe.md). Earlier M8.2/M8.7 1408/1216 results remain unchanged as historical evidence.
+M8.8's pinned MicroPython v1.29.0 candidate was intermittent at 1408 KiB: 2/3 runs passed, while one failed allocating 584 bytes during `M4_FLOOR_THREE_PROBE`. The owner approved 1472 KiB stable / 1216 KiB expected memory limit. The fresh final-SHA run passed 1472 KiB in 3/3 runs and produced the expected `MemoryError` at `SESSION_CONSTRUCTION` at 1216 KiB in 3/3 runs. Per-run measurements and the exact executable identity are recorded in [probe notes](../../probe.md). Earlier M8.2/M8.7 1408/1216 results remain unchanged as historical evidence.
 
 ## Tests, Package Gates, And Qualification History
 
@@ -62,11 +62,11 @@ Cover all-four required, any active pair restored afterward, assignment rejectio
 
 - **Gate A:** Implementation authorization received; the approved D1/D3/D5 contracts remain unchanged.
 - **Gate B:** Implemented. Focused reunion/route/persistence regressions pass, including all six pair selections, four-member restoration, transactional retries, portal state, and the live Floor V Material report.
-- **Gate C:** Exact-SHA cumulative qualification is in progress. The package remains open until evidence is reported and owner review is complete.
+- **Gate C:** Exact-SHA hosted and pinned runtime qualification passed; independent follow-up review passed; owner approved the recalibrated memory profile. M8.8 is closed and sealed.
 
 | Implementation SHA | Hosted CI URL/results | Runtime/migration evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Implementation commit pending | Local: 2,716 root tests, 96 web tests, and 38 profile-service tests passed (19 PostgreSQL-only skips); full browser smoke, authored-content validation, compile, and 212-file browser build passed. Hosted exact-SHA run pending. | Schema 31 adds the distinct reunion run ID; schema-30 immutable-history migration covered. Pinned native/overlay/runtime and semantic parity passed; proposed M8.8 profile 1472 KiB stable 3/3 / 1216 KiB expected limit 3/3. | Pending owner review | Open |
+| `742a47c9f748b6ee5fec468827f892d09cf7f1dc` | Exact-SHA hosted CI [45910302308](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45910302308) passed: 2,722 root tests, 96 web tests, cumulative browser smoke, PostgreSQL integration, migration-from-zero, and Alembic parity. | Schema 31 adds the distinct reunion run ID; schema-30 immutable-history migration covered. Fresh final-SHA matrix: CPython native/overlay, pinned MicroPython, and semantic parity passed; 1472 KiB stable 3/3; 1216 KiB expected memory limit 3/3. | PASS; no blocking defects | CLOSED AND SEALED |
 
-Close with independent review and linked hosted evidence.
+Owner approved the 1472 KiB stable profile on 2026-11-27. M8.8 is CLOSED AND SEALED. No M8.9 work is included in this package closure.
 

@@ -248,7 +248,7 @@ M1 owns the roster architecture that makes this staged growth possible. It does 
 
 **Proof:** The approved region loop from preparation through dungeon/expedition play, knowledge acquisition, the four-Drifter reunion boss, the durable Region 2 unlock, and return to the normal two-plus-two loop. M6 owns the first cumulative all-six-pair expedition qualification; M8 adds optional story scenes and applies the approved assignment restrictions to the reunion encounter.
 
-**Gate status:** M8 Gate 0 is closed and its finite manifest/D1-D6 decisions remain authoritative. M8.1 and M8.2 are closed and sealed; M8.3 is closed and sealed at `af156e8e1d3d9c331a5f4ce6a449530e18ebf099`; M8.4 implementation and local qualification are complete, with hosted results tracked against its exact implementation SHA. Proceed within approved package boundaries; pause only for a genuine unresolved product decision or contract conflict.
+**Gate status:** M8 Gate 0 is closed and its finite manifest/D1-D6 decisions remain authoritative. M8.1-M8.8 are CLOSED AND SEALED. M8.8's final implementation SHA `742a47c9f748b6ee5fec468827f892d09cf7f1dc` passed hosted CI and the owner-approved pinned MicroPython profile. M8.9 visual integration and M8.10 integrated qualification remain open; M8.9 has not started.
 
 ## M9 - Integrated Economy, Optional Services, And Release Closure
 
@@ -308,7 +308,7 @@ These are planning drafts for review, not authorization to implement milestones 
 | M6 | [Expeditions](m6-expeditions.md) | M5 and accepted M4B, including the first four-Drifter boss |
 | M6.5 | [Hub vendor specialization](m6-5-hub-vendors.md) | Sealed v0.7 M1-M6; Gate 0 product contracts complete; review the consolidated readiness package and settle crafted-consumable resale before runtime work; independent of M7-M9 |
 | M7 | [Momentum](m7-momentum.md) | Stable M3/M4 combat contracts; may precede M6 |
-| M8 | [Region and content loop](m8-region-content-loop.md) | Gate 0 closed; M8.1-M8.3 sealed; M8.4 implementation/local qualification complete, with hosted results tracked on the implementation SHA; continue through the approved finite packages |
+| M8 | [Region and content loop](m8-region-content-loop.md) | Gate 0 closed; M8.1-M8.8 sealed; M8.9 visual integration and M8.10 cumulative qualification remain open |
 | M9 | [Release qualification](m9-release-qualification.md) | Accepted finite release manifest and preceding playable loops |
 
 **Floor III delivery handoff:** M4A proves enemy systems with a playable Floor II slice and unlocks independent Hub recruitment of D3 and D4 after the Floor II clear. After M5, M4B supplies the bounded Floor III path and first full-party boss proof needed by M6. This is a delivery split of M4, not a new recruitment rule or a dependency on completing all M8 content. M6 uses already-authored, completed floors for expedition destinations; M8 authors the remaining region/floor content and missing reward sources.

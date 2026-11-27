@@ -734,3 +734,20 @@ the previously qualified M8.2/M8.7 1408K / 1216K results above remain
 historical evidence and are not rewritten. These measurements qualify only
 this exact Windows probe, not hardware-wide MicroPython compatibility or a
 product memory budget.
+
+### M8.8 Final-SHA Qualification (2026-11-27)
+
+The owner approved the 1472K stable / 1216K expected-memory-limit profile.
+The complete runtime matrix was rerun against implementation SHA
+`742a47c9f748b6ee5fec468827f892d09cf7f1dc` using the exact pinned Windows
+MicroPython v1.29.0 executable: 488,960 bytes, SHA-256
+`6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`.
+CPython 3.14.6 native, forced-overlay CPython, default MicroPython, and
+semantic parity passed. The 1472K stable confirmation passed 3/3; 1216K
+produced the expected memory-limit classification 3/3. Final marker:
+`MYP20|RESULT|CLOSURE_COMPLETE`.
+
+This is fresh qualification for the stated implementation SHA and probe
+contract. It does not replace or rewrite the earlier M8.2/M8.7 profile
+evidence, and it is not a hardware-wide compatibility claim or product memory
+budget.
