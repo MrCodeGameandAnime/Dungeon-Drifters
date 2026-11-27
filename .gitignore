@@ -68,3 +68,4 @@ root/tools/balance_probe_outputs/*
 !root/tools/balance_probe_outputs/README.md
 
 root/extraction/
+root/unused.profiles/profiles/
