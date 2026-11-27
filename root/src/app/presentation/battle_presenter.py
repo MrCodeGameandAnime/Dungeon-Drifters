@@ -31,6 +31,7 @@ from app.presentation.battle_models import (
     SuperMeterView,
     TargetOptionView,
 )
+from app.presentation.visual_assets import enemy_visual_asset_id
 from app.player.character_run_state import (
     InfusionKind,
     PreparedPayloadId,
@@ -338,6 +339,7 @@ class BattlePresenter:
             defending=view.defending,
             temporary_labels=("Defeated",) if defeated else view.temporary_labels,
             defeated=defeated,
+            visual_asset_id=enemy_visual_asset_id(enemy.archetype_id),
         )
 
     def _combatant_view(

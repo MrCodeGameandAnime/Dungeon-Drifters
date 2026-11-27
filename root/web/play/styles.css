@@ -292,6 +292,8 @@ button:disabled {
 .region-panel-summary { margin: .25rem 0 .65rem; color: var(--muted); }
 .region-choices { display: grid; gap: .45rem; }
 .region-choice { display: grid; justify-items: start; gap: .2rem; min-height: 3rem; padding: .55rem .65rem; text-align: left; }
+.region-choice.has-region-art { grid-template-columns: minmax(0, 1fr); }
+.region-choice-art { display: block; width: 100%; max-width: 22rem; aspect-ratio: 3 / 2; object-fit: cover; object-position: center; border-radius: .2rem; }
 .region-detail, .region-fact { color: var(--muted); font-size: .9rem; }
 .region-facts { margin-top: .7rem; border-top: 1px solid var(--line); padding-top: .45rem; }
 .region-fact { margin: .25rem 0; }
@@ -433,6 +435,9 @@ button:disabled {
 .status-line { min-height: 1.25rem; }
 .enemy-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .5rem 1rem; }
 .enemy { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.enemy.has-portrait { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: start; gap: .5rem; }
+.enemy-portrait { display: block; width: 3.5rem; height: 5.25rem; aspect-ratio: 2 / 3; object-fit: cover; object-position: center; border-radius: .2rem; }
+.enemy-details { min-width: 0; }
 .enemy.defeated { color: var(--success); }
 .enemy-head { display: flex; justify-content: space-between; gap: .75rem; font-weight: 500; }
 .enemy-meta { margin-top: .1rem; color: var(--muted); }

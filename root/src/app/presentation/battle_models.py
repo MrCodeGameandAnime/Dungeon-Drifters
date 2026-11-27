@@ -149,6 +149,7 @@ class EnemyCombatantView:
     defending: bool = False
     temporary_labels: tuple[str, ...] = ()
     defeated: bool = False
+    visual_asset_id: str | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "target_id", _validate_nonempty_string("target_id", self.target_id))
@@ -167,6 +168,12 @@ class EnemyCombatantView:
             _validate_string_tuple("temporary_labels", self.temporary_labels),
         )
         object.__setattr__(self, "defeated", _validate_bool("defeated", self.defeated))
+        if self.visual_asset_id is not None:
+            object.__setattr__(
+                self,
+                "visual_asset_id",
+                _validate_nonempty_string("visual_asset_id", self.visual_asset_id),
+            )
         if self.defeated and self.hp_current != 0:
             raise ValueError("defeated enemies must have zero current HP")
 

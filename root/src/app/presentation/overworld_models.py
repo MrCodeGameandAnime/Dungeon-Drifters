@@ -316,6 +316,7 @@ class DestinationChoiceView:
     enabled: bool
     disabled_reason: str | None = None
     knowledge_status: str | None = None
+    visual_asset_id: str | None = None
 
     def __post_init__(self):
         _validate_text("destination_id", self.destination_id)
@@ -329,6 +330,8 @@ class DestinationChoiceView:
             _validate_text("knowledge_status", self.knowledge_status)
             if self.knowledge_status not in {"rumored", "confirmed"}:
                 raise ValueError("destination knowledge status is invalid")
+        if self.visual_asset_id is not None:
+            _validate_text("visual_asset_id", self.visual_asset_id)
 
 
 @dataclass(frozen=True)

@@ -97,6 +97,16 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
             asset_root / "sprites" / "Joruun Veyr" / "Joruun Veyr Sprite.png"
         ),
     }
+    m8_visual_assets = {
+        "regions/drowned-reliquary.webp": asset_root / "m8" / "regions" / "drowned-reliquary.webp",
+        "regions/ashen-vault.webp": asset_root / "m8" / "regions" / "ashen-vault.webp",
+        "portraits/reliquary-sentinel.webp": asset_root / "m8" / "portraits" / "reliquary-sentinel.webp",
+        "portraits/brine-oracle.webp": asset_root / "m8" / "portraits" / "brine-oracle.webp",
+        "portraits/drowned-stalker.webp": asset_root / "m8" / "portraits" / "drowned-stalker.webp",
+        "portraits/ashbound-hound.webp": asset_root / "m8" / "portraits" / "ashbound-hound.webp",
+        "portraits/tidebound-curator.webp": asset_root / "m8" / "portraits" / "tidebound-curator.webp",
+        "portraits/ashen-regent.webp": asset_root / "m8" / "portraits" / "ashen-regent.webp",
+    }
 
     required = (
         shell_root / "index.html",
@@ -108,6 +118,7 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         music_path,
         *icon_paths,
         *drifter_sprites.values(),
+        *m8_visual_assets.values(),
     )
     missing = [path for path in required if not path.is_file()]
     if missing:
@@ -131,6 +142,8 @@ def build_site(source_root, output_root, shell_root=None, bridge_path=None):
         _copy(source, output_root / "assets" / "icons" / name)
     for name, source in drifter_sprites.items():
         _copy(source, output_root / "assets" / "drifters" / name)
+    for relative_path, source in m8_visual_assets.items():
+        _copy(source, output_root / "assets" / "m8" / relative_path)
 
     runtime_path = output_root / "game" / "dd_runtime.zip"
     runtime_file_count = len(_runtime_builder()(source_root, runtime_path))

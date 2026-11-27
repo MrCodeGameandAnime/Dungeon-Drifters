@@ -30,7 +30,7 @@ def test_site_builder_stages_only_the_static_playtest_and_runtime(tmp_path):
         output_root=output,
     )
 
-    assert result.runtime_file_count == 212
+    assert result.runtime_file_count == 213
     assert (output / "index.html").is_file()
     assert (output / "styles.css").is_file()
     assert (output / "js" / "pyd4.js").is_file()
@@ -152,6 +152,29 @@ def test_site_builder_stages_drifter_sprites_without_modifying_source_images(tmp
         assert staged.read_bytes() == source.read_bytes()
 
 
+def test_site_builder_stages_all_m8_visual_assets_without_modifying_sources(tmp_path):
+    output = tmp_path / "site"
+
+    site_builder.build_site(ROOT / "src", output)
+
+    assets = (
+        "regions/drowned-reliquary.webp",
+        "regions/ashen-vault.webp",
+        "portraits/reliquary-sentinel.webp",
+        "portraits/brine-oracle.webp",
+        "portraits/drowned-stalker.webp",
+        "portraits/ashbound-hound.webp",
+        "portraits/tidebound-curator.webp",
+        "portraits/ashen-regent.webp",
+    )
+    for relative_path in assets:
+        source = ROOT / "res" / "m8" / relative_path
+        staged = output / "assets" / "m8" / relative_path
+        assert source.is_file()
+        assert staged.is_file()
+        assert staged.read_bytes() == source.read_bytes()
+
+
 def test_site_builder_metadata_and_archive_are_deterministic(tmp_path):
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -168,7 +191,7 @@ def test_site_builder_metadata_and_archive_are_deterministic(tmp_path):
     metadata = json.loads((first / "build-metadata.json").read_text())
     assert metadata == {
         "pyodide_version": "314.0.7",
-        "runtime_file_count": 212,
+        "runtime_file_count": 213,
         "shell": "play",
     }
 

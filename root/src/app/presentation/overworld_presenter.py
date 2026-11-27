@@ -57,6 +57,7 @@ from app.game.region_progression import (
     portal_regions,
     visible_destinations,
 )
+from app.presentation.visual_assets import destination_visual_asset_id
 from app.game.floor_two_boss_helper import (
     floor_two_replay_requires_available_helper,
 )
@@ -431,6 +432,9 @@ class OverworldPresenter:
                             None
                             if choice.knowledge_status is None
                             else choice.knowledge_status.value
+                        ),
+                        visual_asset_id=destination_visual_asset_id(
+                            choice.destination_id
                         ),
                     )
                     for choice in visible_destinations(

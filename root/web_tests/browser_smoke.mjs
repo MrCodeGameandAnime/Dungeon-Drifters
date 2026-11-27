@@ -75,6 +75,8 @@ if (!m85ExpeditionFixture?.envelope || !m85ExpeditionFixture?.profile_key) {
   throw new Error("could not generate the M8.5 expedition browser save fixture");
 }
 const errors = [];
+let expectedM8FallbackActive = false;
+let expectedM8FallbackResponseStatus = null;
 const observedMomentumLabels = new Set();
 const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
@@ -1059,6 +1061,21 @@ try {
   page.on("crash", () => errors.push("browser page crashed"));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => {
+    const visualAssetSessionKey = "dd-m8-visual-assets-loaded";
+    window.__ddM8LoadedAssetIds = new Set(
+      JSON.parse(sessionStorage.getItem(visualAssetSessionKey) || "[]"),
+    );
+    document.addEventListener("load", (event) => {
+      const image = event.target;
+      if (!(image instanceof HTMLImageElement) || !image.dataset.visualAssetId || !image.naturalWidth) {
+        return;
+      }
+      window.__ddM8LoadedAssetIds.add(image.dataset.visualAssetId);
+      sessionStorage.setItem(
+        visualAssetSessionKey,
+        JSON.stringify([...window.__ddM8LoadedAssetIds]),
+      );
+    }, true);
     window.__fullscreenRequests = 0;
     window.__fullscreenExits = 0;
     window.__fullscreenElement = null;
@@ -1102,8 +1119,17 @@ try {
     pendingRequests.delete(request);
     errors.push(`request failed ${request.url()}: ${request.failure()?.errorText || "unknown"}`);
   });
+  page.on("response", (response) => {
+    if (
+      expectedM8FallbackActive &&
+      response.url().includes("/assets/m8/regions/drowned-reliquary.webp")
+    ) expectedM8FallbackResponseStatus = response.status();
+  });
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (expectedM8FallbackActive && text.includes("404 (Not Found)")) return;
+    errors.push(`${text} (${message.location().url || "unknown source"})`);
   });
 
   await page.route("**/favicon.ico", (route) =>
@@ -4649,11 +4675,41 @@ try {
     drownedBriefingStatus === "rumored",
     `The Drowned Reliquary briefing did not persist Rumored knowledge: ${drownedBriefingStatus}`,
   );
+  const drownedAssetUrl = "**/assets/m8/regions/drowned-reliquary.webp";
+  expectedM8FallbackActive = true;
+  expectedM8FallbackResponseStatus = null;
+  await page.route(drownedAssetUrl, (route) =>
+    route.fulfill({ status: 404, contentType: "image/webp", body: "" }),
+  );
   await clickVisibleOption(page, "#overworld-options", "Region Portal");
   await clickVisibleOption(page, "#region-choices", "Region 1");
   await page.locator("#screen-badge").filter({ hasText: "DESTINATIONS" }).waitFor({ state: "visible" });
   const drownedReliquaryChoice = page.locator("#region-choices button")
     .filter({ hasText: "Drowned Reliquary" });
+  await page.waitForFunction(() => {
+    const choice = [...document.querySelectorAll("#region-choices button")]
+      .find((button) => button.innerText.includes("Drowned Reliquary"));
+    return choice?.dataset.visualAssetFallback === "m8_art_drowned_reliquary";
+  });
+  const missingImageFallback = await drownedReliquaryChoice.evaluate((button) => ({
+    assetId: button.dataset.visualAssetFallback,
+    label: button.querySelector(".choice-label")?.textContent.trim() || button.innerText.trim(),
+    remainingImages: button.querySelectorAll("img").length,
+    disabled: button.disabled,
+  }));
+  requireCondition(
+    missingImageFallback.assetId === "m8_art_drowned_reliquary" &&
+      missingImageFallback.label.includes("Drowned Reliquary") &&
+      missingImageFallback.remainingImages === 0 &&
+      !missingImageFallback.disabled,
+    `Missing region art did not preserve the playable text fallback: ${JSON.stringify(missingImageFallback)}`,
+  );
+  await page.unroute(drownedAssetUrl);
+  expectedM8FallbackActive = false;
+  requireCondition(
+    expectedM8FallbackResponseStatus === 404,
+    `The missing-image fallback test did not receive its controlled 404: ${expectedM8FallbackResponseStatus}`,
+  );
   requireCondition(
     await drownedReliquaryChoice.isEnabled(),
     "Floor III completion and the four-member roster did not unlock the Drowned Reliquary",
@@ -4665,6 +4721,36 @@ try {
       await page.locator("#enemy-panel .enemy").count() === 2,
     "Floor IV entry did not deploy the active pair against its authored first encounter",
   );
+  const floorFourEnemyPortrait = page.locator(
+    "#enemy-panel img[data-visual-asset-id]",
+  ).first();
+  await floorFourEnemyPortrait.waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const image = document.querySelector("#enemy-panel img[data-visual-asset-id]");
+    return image?.complete && image.naturalWidth > 0;
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileEnemyPortrait = await floorFourEnemyPortrait.evaluate((image) => {
+    const rect = image.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      naturalWidth: image.naturalWidth,
+      alt: image.alt,
+      cardText: image.closest(".enemy")?.innerText || "",
+      objectFit: getComputedStyle(image).objectFit,
+    };
+  });
+  requireCondition(
+    mobileEnemyPortrait.naturalWidth > 0 &&
+      mobileEnemyPortrait.width > 0 &&
+      mobileEnemyPortrait.alt.length > 0 &&
+      Math.abs(mobileEnemyPortrait.width / mobileEnemyPortrait.height - 2 / 3) < 0.03 &&
+      mobileEnemyPortrait.objectFit === "cover" &&
+      /HP\s+\d+\/\d+/.test(mobileEnemyPortrait.cardText),
+    `Enemy portrait did not preserve its responsive 2:3 crop: ${JSON.stringify(mobileEnemyPortrait)}`,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
   const floorFourEntryEvidence = await page.evaluate((key) => {
     const envelope = JSON.parse(localStorage.getItem(key));
     return {
@@ -5449,6 +5535,39 @@ try {
   await clickVisibleOption(page, "#region-choices", "Region 1");
   await page.locator("#screen-badge").filter({ hasText: "DESTINATIONS" })
     .waitFor({ state: "visible" });
+  const drownedRegionImage = page.locator(
+    '#region-choices img[data-visual-asset-id="m8_art_drowned_reliquary"]',
+  );
+  await drownedRegionImage.waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const image = document.querySelector(
+      '#region-choices img[data-visual-asset-id="m8_art_drowned_reliquary"]',
+    );
+    return image?.complete && image.naturalWidth > 0;
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileRegionImage = await drownedRegionImage.evaluate((image) => {
+    const rect = image.getBoundingClientRect();
+    const buttonRect = image.closest("button").getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      buttonWidth: buttonRect.width,
+      naturalWidth: image.naturalWidth,
+      alt: image.alt,
+      objectFit: getComputedStyle(image).objectFit,
+    };
+  });
+  requireCondition(
+    mobileRegionImage.naturalWidth > 0 &&
+      mobileRegionImage.width > 0 &&
+      mobileRegionImage.width <= mobileRegionImage.buttonWidth &&
+      mobileRegionImage.alt.length > 0 &&
+      Math.abs(mobileRegionImage.width / mobileRegionImage.height - 1.5) < 0.03 &&
+      mobileRegionImage.objectFit === "cover",
+    `Drowned Reliquary art did not remain responsive at a mobile width: ${JSON.stringify(mobileRegionImage)}`,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
   const revisitableAshenVault = page.locator("#region-choices button")
     .filter({ hasText: "Ashen Vault" });
   requireCondition(
@@ -5499,6 +5618,24 @@ try {
       payload?.overworld?.active_route_id === "floor_five_approach";
   }, floorTwoProfileKey);
   console.log("M8.8_BROWSER|REGENT_CLEAR_REGION2_AND_FLOOR5_MATERIAL_LAUNCH|PASS");
+  const loadedM8VisualAssets = await page.evaluate(() =>
+    [...window.__ddM8LoadedAssetIds].sort(),
+  );
+  const expectedM8VisualAssets = [
+    "m8_art_ashen_vault",
+    "m8_art_drowned_reliquary",
+    "m8_portrait_ashen_regent",
+    "m8_portrait_ashbound_hound",
+    "m8_portrait_brine_oracle",
+    "m8_portrait_drowned_stalker",
+    "m8_portrait_reliquary_sentinel",
+    "m8_portrait_tidebound_curator",
+  ].sort();
+  requireCondition(
+    JSON.stringify(loadedM8VisualAssets) === JSON.stringify(expectedM8VisualAssets),
+    `The campaign journey did not visibly render all eight M8 assets: ${JSON.stringify(loadedM8VisualAssets)}`,
+  );
+  console.log("M8.9_BROWSER|STATIC_ASSET_RENDERING_FALLBACK_RESPONSIVE|PASS");
 
   const runM8DiscoveryBrowserJourney = async ({
     fixtureName,

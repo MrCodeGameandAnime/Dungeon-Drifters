@@ -130,6 +130,26 @@ def test_presenter_builds_resource_and_temporary_state_views():
     assert view.player.temporary_labels == ("Defending", "Brace")
 
 
+def test_presenter_associates_only_authored_m8_enemy_portraits():
+    player, _, combat_state = _battle_values()
+    sentinel = EnemyState(create_enemy_definition("reliquary_sentinel", tier=3))
+    goblin = EnemyState(create_enemy_definition("goblin"))
+
+    sentinel_view = BattlePresenter().build(
+        player=player,
+        enemy=sentinel,
+        combat_state=combat_state,
+    ).enemy
+    goblin_view = BattlePresenter().build(
+        player=player,
+        enemy=goblin,
+        combat_state=combat_state,
+    ).enemy
+
+    assert sentinel_view.visual_asset_id == "m8_portrait_reliquary_sentinel"
+    assert goblin_view.visual_asset_id is None
+
+
 @pytest.mark.parametrize(
     "position, expected_label, expected_critical, expected_damage",
     (

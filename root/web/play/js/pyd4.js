@@ -3,6 +3,40 @@
 
   const PYODIDE_VERSION = "314.0.7";
   const INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+  const VISUAL_ASSETS = Object.freeze({
+    m8_art_drowned_reliquary: {
+      src: "assets/m8/regions/drowned-reliquary.webp",
+      alt: "Ruined pale-stone sanctuary partly flooded at low tide, with arches reflected in coastal water under a storm-gray sky.",
+    },
+    m8_art_ashen_vault: {
+      src: "assets/m8/regions/ashen-vault.webp",
+      alt: "Monumental stone doors set into an ash-coated cliff above a pale, windswept plain.",
+    },
+    m8_portrait_reliquary_sentinel: {
+      src: "assets/m8/portraits/reliquary-sentinel.webp",
+      alt: "Broad salt-worn armored guardian with a heavy shield in a flooded stone hall.",
+    },
+    m8_portrait_brine_oracle: {
+      src: "assets/m8/portraits/brine-oracle.webp",
+      alt: "Veiled figure in salt-crusted gray-green robes holding a small sphere of water before flooded arches.",
+    },
+    m8_portrait_drowned_stalker: {
+      src: "assets/m8/portraits/drowned-stalker.webp",
+      alt: "Lean hooded hunter in waterlogged wraps standing in a submerged stone corridor.",
+    },
+    m8_portrait_ashbound_hound: {
+      src: "assets/m8/portraits/ashbound-hound.webp",
+      alt: "Charcoal-gray hound dusted with ash, shown against dark stone.",
+    },
+    m8_portrait_tidebound_curator: {
+      src: "assets/m8/portraits/tidebound-curator.webp",
+      alt: "Ancient teal-armored keeper with a sea-worn bronze half-mask and closed book in flooded arches.",
+    },
+    m8_portrait_ashen_regent: {
+      src: "assets/m8/portraits/ashen-regent.webp",
+      alt: "Regal figure in dark ash-dusted armor and ridged helm against monumental stone.",
+    },
+  });
   let pyodide = null;
   let state = null;
   let drifters = [];
@@ -362,6 +396,15 @@
     for (const enemy of enemies || []) {
       const card = document.createElement("div");
       card.className = `enemy${enemy.defeated ? " defeated" : ""}`;
+      if (enemy.visual_asset_id) card.classList.add("has-portrait");
+      appendVisualAsset(
+        card,
+        enemy.visual_asset_id,
+        "enemy-portrait",
+        () => card.classList.remove("has-portrait"),
+      );
+      const details = document.createElement("div");
+      details.className = "enemy-details";
       const head = document.createElement("div");
       head.className = "enemy-head";
       const name = document.createElement("span");
@@ -369,13 +412,14 @@
       const hp = document.createElement("span");
       hp.textContent = `HP ${enemy.hp_current}/${enemy.hp_maximum}`;
       head.append(name, hp);
-      card.append(head);
+      details.append(head);
       if (enemy.temporary_labels && enemy.temporary_labels.length) {
         const meta = document.createElement("div");
         meta.className = "enemy-meta";
         meta.textContent = enemy.temporary_labels.join(", ");
-        card.append(meta);
+        details.append(meta);
       }
+      card.append(details);
       container.append(card);
     }
   }
@@ -472,6 +516,23 @@
     detail.className = className;
     detail.textContent = value;
     button.append(detail);
+  }
+
+  function appendVisualAsset(container, assetId, className, onMissing) {
+    const asset = VISUAL_ASSETS[assetId];
+    if (!asset) return null;
+    const image = document.createElement("img");
+    image.className = className;
+    image.alt = asset.alt;
+    image.dataset.visualAssetId = assetId;
+    image.addEventListener("error", () => {
+      container.dataset.visualAssetFallback = assetId;
+      image.remove();
+      if (onMissing) onMissing();
+    }, { once: true });
+    image.src = asset.src;
+    container.insertBefore(image, container.firstChild);
+    return image;
   }
 
   function renderMoveOptions(container, options, commandKind) {
@@ -1673,6 +1734,13 @@
           destination.enabled,
           destination.disabled_reason,
           "region-choice",
+        );
+        if (destination.visual_asset_id) button.classList.add("has-region-art");
+        appendVisualAsset(
+          button,
+          destination.visual_asset_id,
+          "region-choice-art",
+          () => button.classList.remove("has-region-art"),
         );
         if (destination.knowledge_status) {
           appendChoiceDetail(
