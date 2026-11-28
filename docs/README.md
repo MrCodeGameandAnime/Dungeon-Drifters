@@ -2,16 +2,16 @@
 ---
 Dungeon Drifters is a character-driven fantasy RPG set in Ketlyv.
 
-**Current version: v0.8**
+**Current version: v0.9**
 
 Choose one of four distinct Drifters, master their unique combat style, grow
 stronger through battle, evolve their signature weapon, and push deeper into
 a dangerous world shaped by each character's identity and abilities.
 
-The game is in active development. The current v0.8 build includes the surface
-route, the Hub, the first three dungeon floors, and a specialized Hub economy.
-The same Python gameplay runtime is playable in the browser and through the
-terminal; later floors remain in development.
+The v0.9 game is a single-player RPG with a complete campaign through the
+Floor V reunion boss, persistent progression, Hub services, expeditions, and
+optional character stories. The same Python-authoritative gameplay rules power
+the browser and terminal clients.
 
 ## The Drifters
 
@@ -49,48 +49,43 @@ A fast, aggressive Monk whose techniques draw on Water, Air, and Lightning.
 Joruun chains martial pressure with elemental techniques, Stun, and rapid
 combat flow to overwhelm enemies before they can settle into the fight.
 
-## Current Playable Build
+## Current Playable Game
 
-The current development build is playable in the browser and terminal and
-covers the route through the Floor III boss:
+The campaign is playable in the browser and terminal, from the opening surface
+route through the Floor V boss:
 
-- Play the eight-encounter surface route through the Goblin Lord.
-- Recruit and manage the permanent Drifter roster in the Hub, then choose an
-  active pair for ordinary encounters.
-- Complete Floor I's ten encounters, two Rest points, and Goblin Lord; extract
-  to the Hub to secure rewards and prepare another run.
-- Continue through Floor II's ten encounters and two Rest points. At the
-  pre-boss Rest, choose D3 or D4 as a temporary third combatant for the boss.
-  The helper does not join the permanent roster or receive boss XP.
-- After clearing Floor II, recruit D3 and D4 independently in the Hub for 65
-  shared gold each. Permanent recruits start at Level 1.
-- Complete Floor III's ten encounters and two Rest points. Ordinary encounters
-  use the active pair; the final boss requires all four permanent Drifters.
-  Pre-boss rewards stay with their earning pair, while boss XP is split across
-  the four participants before each one's Intuition bonus.
-- Store supplies in the Hub, prepare a six-unit carried pack, use consumables
-  and alchemy, and choose between Rest, extraction, and emergency exits.
-- Spend Growth Points on character advancement, manage each Drifter's move
-  loadout, and respec at the Hub.
-- Assign the reserve pair to passive, 20-minute expeditions targeting
-  completed floors. Training and eligible floor-material assignments are
-  available; energy gates expeditions only, never ordinary dungeon play.
-- Use four specialized Hub vendors: the Merchant for general commerce, the
-  Blacksmith for weapons and armor, the Enchanter for armor modifiers and
-  learned affixes, and the Alchemist for consumables and recipes.
-- Buy and sell through finite vendor stock, use eligible same-visit buyback,
-  and replenish stock after qualifying outings. Trade uninstalled weapon
-  components while keeping installed parts attached to each weapon.
-- Craft and improve signature weapons, upgrade armor, and manage fixed
-  Ring/Pendant equipment. Build separate Alchemy and Enchanting progression,
-  master consumable recipes, craft Mana Potions, and apply permanently learned
-  armor affixes with Magic Crystals.
-- Inspect the party, inventory, map, and equipment; save, quit, load, and
-  continue with persistent progression. v0.8 builds use local saves; cloud
-  synchronization is not enabled.
+- Begin with the surface route, recruit companions, and grow a permanent
+  four-Drifter roster. Choose a legal active pair for ordinary dungeon runs.
+- Clear Floors I-III. Floor II lets the player choose D3 or D4 as a temporary
+  third boss combatant; after its clear, both can be recruited independently
+  at the Hub. Floor III's reunion boss requires all four permanent Drifters.
+- Explore the Drowned Reliquary (Floor IV) with a pair, including its Rest
+  checkpoints, discoveries, equipment and recovery rewards, and Tidebound
+  Curator boss.
+- Enter the Ashen Vault (Floor V) for a paired approach. Revealing its arena
+  opens a separate Hub-launched battle against the Ashen Regent using all four
+  permanent Drifters. On victory, Region 2 is permanently unlocked.
+- Return to Region 1, replay completed floors, and continue the two-plus-two
+  loop: the active pair explores while the other two Drifters can undertake a
+  passive expedition. Reports are frozen at launch and claimed once; assignment
+  categories appear only when their authored reward sources are eligible.
+- Manage general goods, weapons and armor, enchanting, and consumable Alchemy
+  through the Merchant, Blacksmith, Enchanter, and Alchemist. Vendor stock is
+  finite; equipment inspection and equipping remain available independently.
+- Advance each Drifter, spend Growth Points, respec, improve signature weapons,
+  upgrade armor, equip fixed Rings and Pendants, and learn compatible armor
+  affixes. Shared Momentum adds symmetric critical, damage, and mitigation
+  advantages as either faction gains control in battle.
+- Discover permanent world sources, complete optional pair stories and
+  character memories, and use the Hub Region Portal to select available
+  destinations.
+- Save locally, reload, and continue persistent progression in either client.
+  Cloud synchronization is not enabled in v0.9 builds.
 
-Further dungeon floors, additional expedition reward sources, and M7-M9
-systems remain future work.
+**Campaign boundary:** M8 completes the finite Region 1 campaign through the
+Ashen Regent and unlocks Region 2. Region 2 currently has no playable route, and
+no Floor VI is included in v0.9. The static region and enemy illustrations are
+presentation assets; the game does not include animated or graphical combat.
 
 ## Play Instructions
 
@@ -145,17 +140,17 @@ stores the stable profile ID, optional DD account association, local sequence,
 accepted remote revision, sync state, and payload digest. The local profile
 store is authoritative for immediate play: saves are committed locally first,
 and a player can continue playing, saving, quitting, and loading without an
-account or network connection. **Cloud synchronization is not enabled in v0.8
+account or network connection. **Cloud synchronization is not enabled in v0.9
 builds.** The repository contains profile-sync interfaces and a DD-owned
 HTTPS/JSON API backed by PostgreSQL as integration foundations for future host
-support; they do not provide account linking or cloud sync in the v0.8 game.
+support; they do not provide account linking or cloud sync in the v0.9 game.
 
 The synchronization foundation keeps remote revisions immutable and idempotent.
 A stale revision preserves the local branch and remote head as separate conflict
 evidence; resolving it is explicit, with recovery data retained before the
 active profile changes. Sync ordering does not depend on timestamps or silently
 merge progression. These are architectural contracts, not features enabled in
-the distributed v0.8 builds.
+the distributed v0.9 builds.
 
 Accounts, linked platform identities, sessions, and entitlements remain service
 data outside progression. Entitlements are account-scoped and service-owned;

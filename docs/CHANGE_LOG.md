@@ -1,5 +1,45 @@
 # Dungeon Drifters Change Log
 
+## v0.9
+
+v0.9 completes M7 Momentum and the finite M8 campaign expansion through the
+Floor V reunion boss:
+
+- added the shared, encounter-wide Momentum meter with symmetric critical-hit,
+  outgoing-damage, and mitigation advantages that update dynamically as
+  battlefield control changes
+- expanded signature weapons with 48 authored Grade II-IV component recipes
+  across the four Drifters, preserving existing weapon identities and crafting
+  progression
+- added the Drowned Reliquary (Floor IV), four new enemy archetypes, the
+  Tidebound Curator, Grade-IV material sources, and first-clear rewards
+- added the Ashen Vault (Floor V) paired approach and its separate,
+  Hub-launched four-Drifter reunion battle against the Ashen Regent
+- added persistent region and knowledge progression; a genuine Floor V clear
+  unlocks Region 2, which is visible in the Hub Portal but has no playable
+  destination in this release
+- expanded permanent discoveries, armor and recovery rewards, and expeditions
+  with authored-source-gated Equipment, Recovery, Scouting, Story, and Elite
+  reports alongside Training and Material assignments
+- added six optional pair scenes, Azhvielle's Archive Memory, and the Reliquary
+  Echo story, with persistent decisions and no relationship-stat or combat
+  bonuses
+- integrated two destination illustrations and six enemy/boss portraits as
+  static presentation assets, with accessible descriptions and readable
+  fallbacks; no animated combat renderer was added
+- preserved local-first saves and the two-plus-two expedition loop; cloud
+  synchronization remains disabled in v0.9 builds
+- closed and sealed M8 after exact-SHA hosted qualification and the pinned
+  MicroPython matrix
+
+M8 final qualification candidate `745ea4fd91f1affeb5ee2d7c6b11afc1ebfca747`
+passed [GitHub Actions 46138482393](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46138482393):
+2,733 root tests, 97 web tests, and 55 profile-service tests, plus cumulative
+browser smoke, PostgreSQL integration, migration-from-zero, and Alembic parity.
+The pinned MicroPython v1.29.0 matrix passed on runtime candidate
+`4eef22af3b87067fe22a48ec3ee58627a7f71f74`: 1472 KiB stable (3/3) and 1216 KiB
+expected memory limit (3/3).
+
 ## v0.8
 
 v0.8 completes the M6.5 Hub specialization and economy expansion:
