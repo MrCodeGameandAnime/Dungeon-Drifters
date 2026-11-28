@@ -1,6 +1,6 @@
 # M8.9: Region And Enemy Visual Presentation
 
-**Status:** Gate A approved and owner-authorized on 2026-11-27. All eight approved assets have been delivered and integrated through existing presentation surfaces. Focused checks and the full local browser smoke pass; exact-SHA hosted qualification and Gate C closure are pending.
+**Status:** CLOSED AND SEALED at implementation SHA `4b37cbdb9aa581c8c34e47e3a2aeece7c9af11d2`. Independent implementation review passed with no blocking production defects. Exact-SHA hosted CI and the pinned MicroPython matrix passed.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `9b88a5e1c50bea18bf6c25a2ec177796da759dc1` (audited 2026-11-27). Hosted CI [45944167218](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45944167218) passed both Tests and Profile Service (PostgreSQL).
 
@@ -63,7 +63,7 @@ No new 2D combat renderer, animation engine, battlefield/staging system, formati
 
 ## Dependencies And Qualification
 
-M8-D6 scope and D1 content associations are approved. Gate A and asset delivery are complete; Gate B is integrated and focused checks pass. Gate C exact-SHA qualification remains open and must complete before M8.10.
+M8-D6 scope and D1 content associations are approved. Gate A and asset delivery are complete; Gate B is integrated. Gate C exact-SHA hosted, review and pinned-runtime evidence passed; M8.9 is CLOSED AND SEALED before M8.10.
 
 Qualification must verify all eight assets or approved readable fallbacks through their actual user-visible destination and battle-semantic surfaces. Check catalog references, dimensions, crop/responsive behavior, accessible descriptions, browser packaging/rendering, terminal functionality and semantic parity. The local full Playwright smoke verifies each asset loads during the M8 campaign route, tests a controlled unavailable-image response and retained destination action, and checks 390px mobile crops for both a destination image and an enemy portrait. No graphical combat or animation qualification is required.
 
@@ -73,11 +73,11 @@ Qualification must verify all eight assets or approved readable fallbacks throug
 
 - **Gate A, plan approval:** Approved by owner on 2026-11-27 after independent PASS. D1 associations and D6 scope remain authoritative.
 - **Asset delivery:** Complete; all eight manifest rows include paths, formats/dimensions, provenance, descriptions, responsive behavior and fallback behavior.
-- **Gate B, asset integration and focused checks:** Implemented locally. Python associations, browser rendering and explicit packaging are covered by focused tests and the full local browser smoke.
-- **Gate C, exact-SHA qualification and closure:** Root (2,732), web (97), content validation, compilation, browser build (213 runtime files), and full local Playwright smoke pass. The supplemental runtime matrix passed 1472 KiB stable 3/3 and 1216 KiB expected-limit 3/3 on the locally installed 486,912-byte MicroPython 1.29.0 artifact (SHA-256 `E90AFC976ED7CB2EE530BE7F5D8C769C1F3B562DF4DDB04A6C589177ED912EFE`). This differs from the sealed pinned artifact (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`) and is supplemental only. The pinned executable was not available at its recorded path; fresh pinned qualification and exact-SHA hosted CI remain pending, so M8.9 is not yet sealed.
+- **Gate B, asset integration and focused checks:** Implemented and reviewed. Python associations, browser rendering and explicit packaging are covered by focused tests and cumulative Playwright smoke.
+- **Gate C, exact-SHA qualification and closure:** Exact-SHA hosted CI [46080129038](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46080129038) passed both jobs on implementation SHA `4b37cbdb9aa581c8c34e47e3a2aeece7c9af11d2`: 2,732 root tests, 97 web tests, content validation, compilation, browser build (213 runtime files), cumulative Playwright smoke, M8.9 static visual marker, PostgreSQL integration, migration-from-zero and Alembic parity. The exact pinned MicroPython v1.29.0 Windows executable (488,960 bytes; SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`) passed native CPython, forced-overlay CPython, semantic parity, 1472 KiB stable 3/3 and 1216 KiB expected-limit 3/3. Historical results from the alternate 486,912-byte artifact remain supplemental only.
 
 | Implementation SHA | Hosted CI URL/results | Asset/build evidence | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| Pending commit | Exact baseline CI [45944167218](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/45944167218) passed; M8.9 exact-SHA hosted run pending | 8/8 delivered; 213 Python runtime files; local full browser smoke passed | Gate A PASS; owner approved | Gate B implemented locally; Gate C pending |
+| `4b37cbdb9aa581c8c34e47e3a2aeece7c9af11d2` | [46080129038](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46080129038): both hosted jobs passed | 8/8 delivered; 213 Python runtime files; cumulative browser smoke passed; exact pinned matrix passed at both approved heap profiles | Independent review PASS; owner directed sealing after pinned qualification | CLOSED AND SEALED |
 
-Record implementation SHA, exact-SHA CI, final asset/build evidence, and closure disposition here and in the parent after Gate C.
+M8.9 closure is recorded here and in the parent. M8.10 owns the remaining cumulative campaign qualification.

@@ -77,6 +77,7 @@ if (!m85ExpeditionFixture?.envelope || !m85ExpeditionFixture?.profile_key) {
 const errors = [];
 let expectedM8FallbackActive = false;
 let expectedM8FallbackResponseStatus = null;
+let expectedM8FallbackResourcePath = null;
 const observedMomentumLabels = new Set();
 const pendingRequests = new Map();
 const screenshotDirectory = path.join(os.tmpdir(), "dd-pd-ui3-evidence");
@@ -1122,7 +1123,8 @@ try {
   page.on("response", (response) => {
     if (
       expectedM8FallbackActive &&
-      response.url().includes("/assets/m8/regions/drowned-reliquary.webp")
+      expectedM8FallbackResourcePath &&
+      response.url().includes(expectedM8FallbackResourcePath)
     ) expectedM8FallbackResponseStatus = response.status();
   });
   page.on("console", (message) => {
@@ -4678,6 +4680,7 @@ try {
   const drownedAssetUrl = "**/assets/m8/regions/drowned-reliquary.webp";
   expectedM8FallbackActive = true;
   expectedM8FallbackResponseStatus = null;
+  expectedM8FallbackResourcePath = "/assets/m8/regions/drowned-reliquary.webp";
   await page.route(drownedAssetUrl, (route) =>
     route.fulfill({ status: 404, contentType: "image/webp", body: "" }),
   );
@@ -4710,9 +4713,17 @@ try {
     expectedM8FallbackResponseStatus === 404,
     `The missing-image fallback test did not receive its controlled 404: ${expectedM8FallbackResponseStatus}`,
   );
+  expectedM8FallbackResourcePath = null;
   requireCondition(
     await drownedReliquaryChoice.isEnabled(),
     "Floor III completion and the four-member roster did not unlock the Drowned Reliquary",
+  );
+  const oracleAssetUrl = "**/assets/m8/portraits/brine-oracle.webp";
+  expectedM8FallbackActive = true;
+  expectedM8FallbackResponseStatus = null;
+  expectedM8FallbackResourcePath = "/assets/m8/portraits/brine-oracle.webp";
+  await page.route(oracleAssetUrl, (route) =>
+    route.fulfill({ status: 404, contentType: "image/webp", body: "" }),
   );
   await drownedReliquaryChoice.click();
   await page.locator("#party-panel").waitFor({ state: "visible" });
@@ -4772,7 +4783,85 @@ try {
       await clickVisibleOption(page, "#route-actions", "Enter Encounter");
       await page.locator("#party-panel").waitFor({ state: "visible" });
     }
+    if (battleNumber === 2) {
+      const missingOracleCard = page.locator(
+        '#enemy-panel .enemy[data-visual-asset-fallback="m8_portrait_brine_oracle"]',
+      );
+      await missingOracleCard.waitFor({ state: "visible" });
+      await page.waitForFunction(() =>
+        document.querySelectorAll("#actions button:not([disabled])").length > 0,
+      );
+      const missingEnemyFallback = await missingOracleCard.evaluate((card) => ({
+        assetId: card.dataset.visualAssetFallback,
+        portraitLayout: card.classList.contains("has-portrait"),
+        imageCount: card.querySelectorAll("img").length,
+        name: card.querySelector(".enemy-head span")?.textContent.trim() || "",
+        hp: card.querySelector(".enemy-head span:nth-child(2)")?.textContent.trim() || "",
+        battleActionsEnabled: [...document.querySelectorAll("#actions button")]
+          .some((button) => !button.disabled),
+      }));
+      requireCondition(
+        missingEnemyFallback.assetId === "m8_portrait_brine_oracle" &&
+          !missingEnemyFallback.portraitLayout &&
+          missingEnemyFallback.imageCount === 0 &&
+          missingEnemyFallback.name.includes("Brine Oracle") &&
+          /HP\s+\d+\/\d+/.test(missingEnemyFallback.hp) &&
+          missingEnemyFallback.battleActionsEnabled,
+        `Missing enemy art did not preserve battle text and usable controls: ${JSON.stringify(missingEnemyFallback)}`,
+      );
+      await page.evaluate(() => {
+        window.__M8_MISSING_PORTRAIT_STATUS__ = null;
+        const observer = new MutationObserver(() => {
+          const card = [...document.querySelectorAll("#enemy-panel .enemy")].find((enemy) =>
+            enemy.dataset.visualAssetFallback === "m8_portrait_brine_oracle" ||
+            enemy.querySelector('img[data-visual-asset-id="m8_portrait_brine_oracle"]'),
+          );
+          const status = card?.querySelector(".enemy-meta");
+          if (status?.textContent.trim() !== "Defeated") return;
+          const imageFailed = card.dataset.visualAssetFallback === "m8_portrait_brine_oracle" &&
+            !card.classList.contains("has-portrait") && card.querySelectorAll("img").length === 0;
+          if (!imageFailed) return;
+          window.__M8_MISSING_PORTRAIT_STATUS__ = {
+            status: status.textContent.trim(),
+            statusVisible: status.getClientRects().length > 0 &&
+              getComputedStyle(status).visibility !== "hidden" &&
+              !document.getElementById("battle-screen")?.hidden,
+            assetFallback: card.dataset.visualAssetFallback,
+            portraitLayout: card.classList.contains("has-portrait"),
+            imageCount: card.querySelectorAll("img").length,
+            name: card.querySelector(".enemy-head span")?.textContent.trim() || "",
+            hp: card.querySelector(".enemy-head span:nth-child(2)")?.textContent.trim() || "",
+          };
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        window.__M8_MISSING_PORTRAIT_OBSERVER__ = observer;
+      });
+    }
     await clearFloorBattle(battleNumber, { floorLabel: "Floor IV" });
+    if (battleNumber === 2) {
+      const missingPortraitStatus = await page.evaluate(() => {
+        window.__M8_MISSING_PORTRAIT_OBSERVER__?.disconnect();
+        return window.__M8_MISSING_PORTRAIT_STATUS__;
+      });
+      requireCondition(
+        missingPortraitStatus?.status === "Defeated" &&
+          missingPortraitStatus.statusVisible &&
+          missingPortraitStatus.assetFallback === "m8_portrait_brine_oracle" &&
+          !missingPortraitStatus.portraitLayout &&
+          missingPortraitStatus.imageCount === 0 &&
+          missingPortraitStatus.name.includes("Brine Oracle") &&
+          /HP\s+\d+\/\d+/.test(missingPortraitStatus.hp),
+        `Missing enemy art hid the status label during the real battle: ${JSON.stringify(missingPortraitStatus)}`,
+      );
+      await page.unroute(oracleAssetUrl);
+      expectedM8FallbackActive = false;
+      requireCondition(
+        expectedM8FallbackResponseStatus === 404,
+        `The missing-enemy-image fallback test did not receive its controlled 404: ${expectedM8FallbackResponseStatus}`,
+      );
+      expectedM8FallbackResourcePath = null;
+      console.log("M8.10_BROWSER|MISSING_ENEMY_PORTRAIT_TEXT_STATUS_ACTIONS|PASS");
+    }
   }
   await page.locator("#screen-badge").filter({ hasText: "REST" }).waitFor({ state: "visible" });
   await clickVisibleOption(page, "#overworld-options", "Save");

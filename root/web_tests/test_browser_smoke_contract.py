@@ -115,6 +115,8 @@ def test_headless_smoke_uses_real_browser_and_authoritative_signals():
         "m8_art_drowned_reliquary",
         "m8_portrait_ashen_regent",
         "M8.9_BROWSER|STATIC_ASSET_RENDERING_FALLBACK_RESPONSIVE|PASS",
+        "M8.10_BROWSER|MISSING_ENEMY_PORTRAIT_TEXT_STATUS_ACTIONS|PASS",
+        "m8_portrait_brine_oracle",
         "M85_BROWSER|FLOOR_FOUR_CATEGORY_AVAILABILITY|PASS",
         "M85_BROWSER|FLOOR_FOUR_LAUNCH_AND_ENERGY|PASS",
         "m8_story_reliquary_echo",
