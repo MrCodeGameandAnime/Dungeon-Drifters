@@ -1,0 +1,282 @@
+name: Rolling DD Onboarding Export
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dd-onboarding-export
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish rolling onboarding export
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: dd-onboarding-latest
+      ZIP_NAME: DD-Onboarding.zip
+
+    steps:
+      - name: Resolve dungeon HEAD and check published SHA
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/dungeon" --jq '.object.sha')"
+          if [[ ! "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GitHub returned an invalid dungeon commit SHA." >&2
+            exit 1
+          fi
+
+          release_json="$RUNNER_TEMP/onboarding-release.json"
+          release_error="$RUNNER_TEMP/onboarding-release-error.txt"
+          release_exists=false
+          published_sha=""
+          zip_asset_count=0
+          zip_count=0
+          is_prerelease=false
+
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+              > "$release_json" 2> "$release_error"; then
+            release_exists=true
+            published_sha="$(jq -r 'try ((.body // "") | capture("<!-- dd-onboarding-sha:(?<sha>[0-9a-f]{40}) -->").sha) catch ""' "$release_json")"
+            zip_asset_count="$(jq --arg name "$ZIP_NAME" '[.assets[]? | select(.name == $name and .state == "uploaded" and .size > 0)] | length' "$release_json")"
+            zip_count="$(jq '[.assets[]? | select(.name | ascii_downcase | endswith(".zip"))] | length' "$release_json")"
+            is_prerelease="$(jq -r '.prerelease' "$release_json")"
+          elif grep -q 'HTTP 404' "$release_error"; then
+            echo "No onboarding prerelease exists yet; the first export will create it."
+          else
+            cat "$release_error" >&2
+            exit 1
+          fi
+
+          publish=true
+          if [[ "$published_sha" == "$target_sha" && \
+                "$zip_asset_count" == "1" && \
+                "$zip_count" == "1" && \
+                "$is_prerelease" == "true" ]]; then
+            publish=false
+            echo "The rolling export already contains dungeon ${target_sha}."
+          fi
+
+          {
+            echo "sha=${target_sha}"
+            echo "publish=${publish}"
+            echo "release_exists=${release_exists}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Skip unchanged dungeon revision
+        if: steps.resolve.outputs.publish != 'true'
+        run: echo "No export needed; dungeon HEAD matches the successfully published SHA."
+
+      - name: Check out resolved dungeon commit
+        if: steps.resolve.outputs.publish == 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.resolve.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build and validate committed-source archive
+        if: steps.resolve.outputs.publish == 'true'
+        env:
+          SOURCE_SHA: ${{ steps.resolve.outputs.sha }}
+          ZIP_PATH: ${{ runner.temp }}/DD-Onboarding.zip
+        run: |
+          python3 - <<'PY'
+          import io
+          import os
+          import stat
+          import subprocess
+          import tarfile
+          import zipfile
+          from datetime import datetime, timezone
+
+          source_sha = os.environ["SOURCE_SHA"]
+          zip_path = os.environ["ZIP_PATH"]
+
+          def include_path(path: str) -> bool:
+              return not (
+                  path.startswith("root/res/")
+                  and not path.casefold().endswith(".md")
+              )
+
+          tree_result = subprocess.run(
+              ["git", "ls-tree", "-r", "-z", "--name-only", source_sha],
+              check=True,
+              stdout=subprocess.PIPE,
+          )
+          expected_paths = sorted(
+              path.decode("utf-8")
+              for path in tree_result.stdout.split(b"\0")
+              if path and include_path(path.decode("utf-8"))
+          )
+
+          archive_result = subprocess.run(
+              ["git", "archive", "--format=tar", source_sha],
+              check=True,
+              stdout=subprocess.PIPE,
+          )
+          files = {}
+          with tarfile.open(fileobj=io.BytesIO(archive_result.stdout), mode="r:") as source:
+              for member in source.getmembers():
+                  if member.isdir():
+                      continue
+                  if not (member.isfile() or member.issym()):
+                      raise RuntimeError(f"Unsupported archive entry: {member.name}")
+                  if not include_path(member.name):
+                      continue
+                  stream = source.extractfile(member)
+                  if stream is None:
+                      raise RuntimeError(f"Could not read archive entry: {member.name}")
+                  files[member.name] = (member, stream.read())
+
+          actual_paths = sorted(files)
+          if actual_paths != expected_paths:
+              missing = sorted(set(expected_paths) - set(actual_paths))
+              unexpected = sorted(set(actual_paths) - set(expected_paths))
+              raise RuntimeError(
+                  f"Archive/tree mismatch; missing={missing[:10]}, unexpected={unexpected[:10]}"
+              )
+          if len(actual_paths) != len(set(actual_paths)):
+              raise RuntimeError("Archive contains duplicate paths.")
+
+          required_paths = (
+              "root/src/",
+              "root/tests/",
+              "root/web_tests/",
+              "docs/",
+              ".github/",
+          )
+          for prefix in required_paths:
+              if not any(path.startswith(prefix) for path in actual_paths):
+                  raise RuntimeError(f"Required content is absent: {prefix}")
+          for required_file in ("root/pytest.ini", "root/requirements-dev.txt", ".gitignore"):
+              if required_file not in files:
+                  raise RuntimeError(f"Required configuration is absent: {required_file}")
+
+          with zipfile.ZipFile(
+              zip_path,
+              mode="w",
+              compression=zipfile.ZIP_DEFLATED,
+              compresslevel=9,
+          ) as output:
+              for path in actual_paths:
+                  member, contents = files[path]
+                  timestamp = min(max(int(member.mtime), 315532800), 4354819198)
+                  date_time = datetime.fromtimestamp(timestamp, timezone.utc)
+                  info = zipfile.ZipInfo(
+                      path,
+                      date_time=(
+                          date_time.year,
+                          date_time.month,
+                          date_time.day,
+                          date_time.hour,
+                          date_time.minute,
+                          date_time.second & ~1,
+                      ),
+                  )
+                  info.create_system = 3
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  file_type = stat.S_IFLNK if member.issym() else stat.S_IFREG
+                  info.external_attr = (file_type | (member.mode & 0o777)) << 16
+                  output.writestr(info, contents, compresslevel=9)
+
+          with zipfile.ZipFile(zip_path, mode="r") as archive:
+              archived_paths = archive.namelist()
+              if archived_paths != actual_paths:
+                  raise RuntimeError("ZIP entries differ from the validated source tree.")
+              if len(archived_paths) != len(set(archived_paths)):
+                  raise RuntimeError("ZIP contains duplicate entries.")
+              corrupted = archive.testzip()
+              if corrupted is not None:
+                  raise RuntimeError(f"ZIP CRC validation failed for {corrupted}.")
+              forbidden_assets = [
+                  path
+                  for path in archived_paths
+                  if path.startswith("root/res/")
+                  and not path.casefold().endswith(".md")
+              ]
+              if forbidden_assets:
+                  raise RuntimeError(f"Non-Markdown root/res files included: {forbidden_assets[:10]}")
+
+          print(
+              f"Validated {len(actual_paths)} committed files from {source_sha}; "
+              f"archive size {os.path.getsize(zip_path)} bytes."
+          )
+          PY
+
+      - name: Publish rolling public prerelease
+        if: steps.resolve.outputs.publish == 'true'
+        env:
+          SOURCE_SHA: ${{ steps.resolve.outputs.sha }}
+          RELEASE_EXISTS: ${{ steps.resolve.outputs.release_exists }}
+          ZIP_PATH: ${{ runner.temp }}/DD-Onboarding.zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          release_title="Dungeon Drifters AI Onboarding (Rolling)"
+          notes_path="$RUNNER_TEMP/onboarding-release-notes.md"
+          download_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${ZIP_NAME}"
+
+          printf 'Automated public onboarding export of committed `dungeon` source.\n\n- Exported source SHA: `%s`\n- Generated at (UTC): `%s`\n- Download: %s\n\n<!-- dd-onboarding-sha:%s -->\n<!-- dd-onboarding-generated-utc:%s -->\n' \
+            "$SOURCE_SHA" "$generated_at" "$download_url" \
+            "$SOURCE_SHA" "$generated_at" > "$notes_path"
+
+          if [[ "$RELEASE_EXISTS" == "true" ]]; then
+            gh release upload "$RELEASE_TAG" "$ZIP_PATH" --clobber
+            gh release edit "$RELEASE_TAG" \
+              --title "$release_title" \
+              --notes-file "$notes_path" \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$ZIP_PATH" \
+              --title "$release_title" \
+              --notes-file "$notes_path" \
+              --prerelease \
+              --latest=false \
+              --target "$SOURCE_SHA"
+          fi
+
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
+          extra_zip_assets="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+            --paginate \
+            --jq ".[] | select(.name != \"${ZIP_NAME}\" and (.name | ascii_downcase | endswith(\".zip\"))) | .id")"
+          if [[ -n "$extra_zip_assets" ]]; then
+            while IFS= read -r asset_id; do
+              [[ -n "$asset_id" ]] && gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+            done <<< "$extra_zip_assets"
+          fi
+
+          release_json="$RUNNER_TEMP/onboarding-release-published.json"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "$release_json"
+          jq -e --arg name "$ZIP_NAME" \
+            '[.assets[]? | select(.name == $name and .state == "uploaded" and .size > 0)] | length == 1' \
+            "$release_json" >/dev/null
+          jq -e '[.assets[]? | select(.name | ascii_downcase | endswith(".zip"))] | length == 1' \
+            "$release_json" >/dev/null
+          jq -e '.prerelease == true' "$release_json" >/dev/null
+          jq -e --arg sha "$SOURCE_SHA" --arg generated_at "$generated_at" \
+            '(.body // "") | contains("<!-- dd-onboarding-sha:" + $sha + " -->")' \
+            "$release_json" >/dev/null
+          jq -e --arg generated_at "$generated_at" \
+            '(.body // "") | contains("<!-- dd-onboarding-generated-utc:" + $generated_at + " -->")' \
+            "$release_json" >/dev/null
+
+          curl --fail --location --silent --show-error "$download_url" \
+            --output "$RUNNER_TEMP/DD-Onboarding-anonymous-download.zip"
+          cmp "$ZIP_PATH" "$RUNNER_TEMP/DD-Onboarding-anonymous-download.zip"
+
+          {
+            echo "Published onboarding export for \`${SOURCE_SHA}\`."
+            echo "Generated at ${generated_at} (UTC)."
+            echo "Anonymous download verified: ${download_url}"
+          } >> "$GITHUB_STEP_SUMMARY"
