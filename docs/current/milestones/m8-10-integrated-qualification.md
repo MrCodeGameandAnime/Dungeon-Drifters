@@ -1,6 +1,6 @@
 # M8.10: Integrated Campaign Qualification
 
-**Status:** Active. M8 Gate 0 is closed with D1-D6 preserved. M8.1–M8.9 are accepted; M8.9 is CLOSED AND SEALED at `4b37cbdb9aa581c8c34e47e3a2aeece7c9af11d2`. The owner directed proceeding directly to M8.10 after exact-SHA hosted and pinned-runtime qualification. Cumulative qualification is underway; M8.10 is not closed.
+**Status:** CLOSED AND SEALED at final qualification SHA `745ea4fd91f1affeb5ee2d7c6b11afc1ebfca747`. The owner accepted the final independent PASS on 2026-11-28. Exact-SHA hosted CI [46138482393](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46138482393) passed. The pinned-runtime evidence was freshly qualified on runtime candidate `4eef22af3b87067fe22a48ec3ee58627a7f71f74`; the final candidate changes only documentation and tests.
 **Parent authority:** [M8 master plan and finite manifest](m8-region-content-loop.md)
 **Audit source baseline:** `4b37cbdb9aa581c8c34e47e3a2aeece7c9af11d2` (M8.9 sealed baseline).
 
@@ -58,7 +58,9 @@ This crosswalk accounts for the complete approved manifest in the parent plan; i
 
 Candidate `4eef22af3b87067fe22a48ec3ee58627a7f71f74` passed exact-SHA hosted CI [46089857664](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46089857664): 2,732 root tests, 97 web tests, content validation, compilation, browser build (213 runtime files), cumulative Playwright smoke, PostgreSQL integration, migration-from-zero and Alembic parity. The run checked out the exact candidate SHA. Its fresh pinned MicroPython v1.29.0 matrix passed native CPython, forced-overlay CPython, MicroPython, semantic parity, 1472 KiB stable 3/3 and 1216 KiB expected memory limit 3/3, using executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` (488,960 bytes).
 
-The terminal regression is qualification-only; no production runtime, browser, schema, or authored content changed. It passed focused testing and the full local root suite (2,733 passed). The exact-SHA hosted rerun for this additive test/documentation change will be reported with the review candidate; the pinned-runtime matrix above remains valid for the unchanged runtime source. M8.10 remains open for final exact-diff/closure review.
+The final closure candidate `745ea4fd91f1affeb5ee2d7c6b11afc1ebfca747` passed exact-SHA hosted CI [46138482393](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46138482393): 2,733 root tests, 97 web tests, 55 profile-service tests, authored-content validation, compilation, browser build, cumulative Playwright smoke, PostgreSQL integration, migration-from-zero, and Alembic parity. The terminal portal regression and missing-enemy-portrait fallback both passed. The independent review accepted the D1-D6 crosswalk and M8.1-M8.9 closure records; no blocking findings or unresolved decisions remain.
+
+The final candidate contains only documentation and a terminal qualification test; it does not change the runtime sources tested on `4eef22af3b87067fe22a48ec3ee58627a7f71f74`. The exact pinned MicroPython v1.29.0 matrix on that runtime candidate passed native CPython, forced-overlay CPython, MicroPython, semantic parity, 1472 KiB stable 3/3, and 1216 KiB expected memory limit 3/3. Executable SHA-256: `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA` (488,960 bytes).
 
 ## Closure
 
@@ -69,10 +71,10 @@ Collect the originating packages' gameplay integration evidence at entry. M8.10 
 ## Package Gates And Qualification History
 
 - **Gate A, qualification-plan approval:** Approved by the owner's direction to proceed after M8.9 closure on 2026-11-27. Gate 0 is closed; no D1-D6 decisions are to be reopened here.
-- **Gate B, cumulative execution:** Complete for candidate `4eef22af3b87067fe22a48ec3ee58627a7f71f74`; hosted and pinned evidence is recorded above. The terminal portal gap was filled with a focused qualification-only regression.
-- **Gate C, independent audit and closure:** Initial review PASS; final candidate diff and owner closure review remain pending. M8 remains open until explicit acceptance.
+- **Gate B, cumulative execution:** Complete. Runtime candidate `4eef22af3b87067fe22a48ec3ee58627a7f71f74` passed the pinned matrix; final qualification candidate `745ea4fd91f1affeb5ee2d7c6b11afc1ebfca747` passed exact-SHA hosted CI. The terminal portal regression closed the final identified client-coverage gap.
+- **Gate C, independent audit and closure:** PASS. Final independent review found no blocking defects or unresolved product decisions; the owner accepted closure. M8.10 is CLOSED AND SEALED.
 
-| M8.10 qualification source SHA | Hosted CI URL/results | Pinned MicroPython evidence | Independent review | Status |
+| Final qualification SHA | Hosted CI URL/results | Pinned MicroPython runtime candidate | Independent review | Status |
 | --- | --- | --- | --- | --- |
-| M8.10 qualification candidate: `4eef22af3b87067fe22a48ec3ee58627a7f71f74` | [46089857664](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46089857664): both hosted jobs passed; 2,732 root, 97 web and 55 profile-service tests; browser smoke, PostgreSQL, migration-from-zero and Alembic parity passed | Exact pinned MicroPython v1.29.0; native/overlay and semantic parity passed; 1472 KiB stable 3/3; 1216 KiB expected-limit 3/3. Executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. | Initial review PASS; final candidate diff pending | Awaiting final closure review |
+| `745ea4fd91f1affeb5ee2d7c6b11afc1ebfca747` | [46138482393](https://github.com/MrCodeGameandAnime/Dungeon-Drifters/actions/runs/46138482393): both jobs passed; 2,733 root, 97 web and 55 profile-service tests; cumulative browser smoke, PostgreSQL, migration-from-zero and Alembic parity passed | Runtime candidate `4eef22af3b87067fe22a48ec3ee58627a7f71f74`; exact pinned MicroPython v1.29.0, native/overlay and semantic parity passed; 1472 KiB stable 3/3; 1216 KiB expected-limit 3/3. Executable SHA-256 `6345EFFEE0DE9B5F8B1F7291C12F464D719900E5B1B703708B4591D22D78FDEA`. | Independent PASS; owner accepted | CLOSED AND SEALED |
 
