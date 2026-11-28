@@ -242,6 +242,80 @@ def test_floor_five_entry_confirms_destination_and_starts_two_member_tier_three_
     assert save_port.saved_states
 
 
+def test_terminal_portal_selects_floor_four_and_floor_five_semantically():
+    from app.ui.terminal_overworld_ui import TerminalOverworldUI
+
+    destinations = (
+        (
+            "drowned_reliquary",
+            floor_five_ready_game(floor_four_cleared=False),
+            "m8_fact_drowned_reliquary",
+            "Drowned Reliquary",
+            "floor_four",
+            "floor_four",
+        ),
+        (
+            "ashen_vault",
+            floor_five_ready_game(),
+            "m8_fact_ashen_vault",
+            "Ashen Vault",
+            "floor_five_approach",
+            "floor_five",
+        ),
+    )
+
+    for (
+        destination_id,
+        game,
+        fact_id,
+        destination_label,
+        route_id,
+        floor_id,
+    ) in destinations:
+        if destination_id == "drowned_reliquary":
+            game.story_state.reveal_knowledge_fact(
+                fact_id, KnowledgeStatus.RUMORED
+            )
+
+        session = make_session(game, RecordingSavePort())
+        output = []
+
+        def choose(view, value):
+            terminal = TerminalOverworldUI(
+                input_func=lambda _prompt: value,
+                output_func=output.append,
+                interactive=False,
+            )
+            terminal.render(view)
+            return terminal.read_input(view)
+
+        portal_action = choose(session.current_view(), "g")
+        assert portal_action == ChooseOverworldAction(OverworldAction.REGION_PORTAL)
+        portal = session.submit(portal_action)
+
+        region_action = choose(portal, "1")
+        assert region_action == ChooseRegion("region_1")
+        destination_view = session.submit(region_action)
+        assert "REGION PORTAL" in "\n".join(output)
+        assert destination_label in "\n".join(output)
+        destination_index = next(
+            index
+            for index, choice in enumerate(
+                destination_view.destination_choices, start=1
+            )
+            if choice.destination_id == destination_id
+        )
+
+        destination_action = choose(destination_view, str(destination_index))
+        assert destination_action == ChooseDestination(destination_id)
+        battle_view = session.submit(destination_action)
+
+        assert isinstance(battle_view, BattleView)
+        assert session.game_state.overworld_state.active_route_id == route_id
+        assert session.game_state.party_state.active_run_floor_id == floor_id
+        assert len(session.active_battle.party_states) == 2
+
+
 def test_floor_five_entry_save_failure_preserves_party_route_and_knowledge():
     game = floor_five_ready_game()
     before_party = game.party_state.snapshot()
